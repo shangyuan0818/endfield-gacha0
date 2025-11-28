@@ -1386,12 +1386,11 @@ export default function GachaAnalyzer() {
     setSyncError(null);
 
     try {
-      // 加载卡池
+      // 加载卡池（不指定排序，避免列名不存在的问题）
       const { data: cloudPools, error: poolsError } = await supabase
         .from('pools')
         .select('*')
-        .eq('user_id', userId)
-        .order('pool_id', { ascending: true });
+        .eq('user_id', userId);
 
       if (poolsError) throw poolsError;
 
@@ -1399,8 +1398,7 @@ export default function GachaAnalyzer() {
       const { data: cloudHistory, error: historyError } = await supabase
         .from('history')
         .select('*')
-        .eq('user_id', userId)
-        .order('record_id', { ascending: true });
+        .eq('user_id', userId);
 
       if (historyError) throw historyError;
 
