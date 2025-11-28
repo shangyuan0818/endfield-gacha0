@@ -879,7 +879,10 @@ export default function GachaAnalyzer() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `gacha_backup_${scope}_${new Date().toISOString().slice(0, 10)}.json`;
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    link.download = `endfield-gacha-${timeStr}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -934,7 +937,10 @@ export default function GachaAnalyzer() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${fileName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    link.download = `endfield-gacha-${timeStr}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
