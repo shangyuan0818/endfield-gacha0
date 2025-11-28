@@ -1121,7 +1121,7 @@ const AboutPanel = React.memo(() => {
                   </div>
                   <span className="font-bold text-slate-700">Gemini</span>
                 </div>
-                <p className="text-xs text-slate-500">Google Gemini 2.5 Pro</p>
+                <p className="text-xs text-slate-500">Google Gemini 3 Pro</p>
                 <p className="text-xs text-slate-400 mt-1">前端界面设计</p>
               </div>
             </div>
