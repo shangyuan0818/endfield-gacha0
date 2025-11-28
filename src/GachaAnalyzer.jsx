@@ -2976,9 +2976,17 @@ export default function GachaAnalyzer() {
           
           {/* 左侧：Logo + 卡池切换器 */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-indigo-600">
-              <BarChart3 />
-              <h1 className="font-bold text-xl hidden sm:block">抽卡分析</h1>
+            <div className="flex items-center gap-3">
+              <img
+                src="/endfield-logo.svg"
+                alt="终末地"
+                className="h-10 w-auto"
+              />
+              <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
+              <div className="hidden sm:flex items-center gap-1.5 text-slate-600">
+                <BarChart3 size={18} className="text-indigo-500" />
+                <h1 className="font-bold">抽卡分析器</h1>
+              </div>
             </div>
             
             <div className="relative">
