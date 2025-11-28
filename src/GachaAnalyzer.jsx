@@ -852,7 +852,18 @@ export default function GachaAnalyzer() {
   const openCreatePoolModal = () => {
     setNewPoolNameInput('');
     setNewPoolTypeInput('limited');
-    setDrawerName('');
+    
+    // Auto-detect drawer from last pool
+    let detectedDrawer = '';
+    if (pools.length > 0) {
+      const lastPool = pools[pools.length - 1];
+      const parts = lastPool.name.split('-');
+      if (parts.length > 1) {
+        detectedDrawer = parts[parts.length - 1];
+      }
+    }
+    setDrawerName(detectedDrawer);
+
     setSelectedCharName('');
     setModalState({ type: 'createPool', data: null });
     setShowPoolMenu(false);
