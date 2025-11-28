@@ -1208,7 +1208,7 @@ const AboutPanel = React.memo(() => {
         <div className="relative z-10">
           <h2 className="text-3xl font-bold flex items-center gap-3 mb-2">
             <BarChart3 size={32} />
-            Endfield 抽卡分析器
+            终末地抽卡分析器
           </h2>
           <p className="text-indigo-100">记录你的每一次命运邂逅</p>
           <div className="mt-4 text-sm text-indigo-200">
