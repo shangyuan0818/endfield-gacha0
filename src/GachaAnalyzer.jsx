@@ -240,6 +240,100 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     );
   });
 
+  const SummaryView = React.memo(({ history, pools }) => {
+    const stats = useMemo(() => {
+      const data = {
+        total: history.length,
+        sixStar: 0,
+        fiveStar: 0,
+        byType: {
+          limited: { total: 0, six: 0, limitedSix: 0 },
+          weapon: { total: 0, six: 0, limitedSix: 0 },
+          standard: { total: 0, six: 0 }
+        }
+      };
+
+      const poolTypeMap = new Map();
+      pools.forEach(p => poolTypeMap.set(p.id, p.type));
+
+      history.forEach(item => {
+        if (item.rarity === 6) data.sixStar++;
+        if (item.rarity === 5) data.fiveStar++;
+
+        const type = poolTypeMap.get(item.poolId) || 'standard';
+        if (!data.byType[type]) data.byType[type] = { total: 0, six: 0 };
+        
+        data.byType[type].total++;
+        if (item.rarity === 6) {
+          data.byType[type].six++;
+          if (!item.isStandard) {
+             // 对于 weapon 和 limited，非 standard 就是限定
+             if (data.byType[type].limitedSix !== undefined) {
+               data.byType[type].limitedSix++;
+             }
+          }
+        }
+      });
+
+      return data;
+    }, [history, pools]);
+
+    const StatCard = ({ title, color, data }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <h3 className={`font-bold text-sm uppercase tracking-wider mb-4 ${color}`}>{title}</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-xs text-slate-400">总投入</div>
+            <div className="text-2xl font-bold text-slate-800">{data.total}</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-400">6星出货</div>
+            <div className="text-2xl font-bold text-slate-800">{data.six}</div>
+            <div className="text-[10px] text-slate-400">
+              {data.total > 0 ? ((data.six / data.total) * 100).toFixed(2) : 0}%
+            </div>
+          </div>
+          {data.limitedSix !== undefined && (
+            <div className="col-span-2 pt-3 border-t border-slate-50 mt-1">
+               <div className="flex justify-between items-center">
+                 <span className="text-xs text-slate-500">限定出货</span>
+                 <span className="text-base font-bold text-orange-600">{data.limitedSix}</span>
+               </div>
+               <div className="text-[10px] text-slate-400 text-right">
+                 占6星: {data.six > 0 ? ((data.limitedSix / data.six) * 100).toFixed(1) : 0}%
+               </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+        <div className="md:col-span-2 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+           <div className="relative z-10 flex justify-between items-center">
+             <div>
+               <h2 className="text-slate-400 font-medium mb-1">账号生涯总览</h2>
+               <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
+             </div>
+             <div className="text-right">
+               <div className="text-3xl font-bold text-yellow-400">{stats.sixStar}</div>
+               <div className="text-sm text-slate-400">总六星数</div>
+               <div className="text-xs text-slate-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
+             </div>
+           </div>
+           <div className="absolute -right-10 -bottom-10 text-slate-700 opacity-20">
+             <Star size={200} />
+           </div>
+        </div>
+
+        <StatCard title="限定角色池" color="text-orange-500" data={stats.byType.limited} />
+        <StatCard title="武器池" color="text-slate-600" data={stats.byType.weapon} />
+        <StatCard title="常驻池" color="text-indigo-500" data={stats.byType.standard} />
+      </div>
+    );
+  });
+
 export default function GachaAnalyzer() {
   // --- State ---
   
@@ -739,17 +833,27 @@ export default function GachaAnalyzer() {
     setModalState({ type: null, data: null });
   };
 
-  // 删除整组记录 (触发弹窗)
-  const handleDeleteGroup = (items) => {
-    setModalState({ type: 'deleteGroup', data: items });
-  };
+    // 删除整组记录 (触发弹窗)
 
-  const confirmRealDeleteGroup = () => {
-    const itemsToDelete = modalState.data;
-    const idsToDelete = new Set(itemsToDelete.map(i => i.id));
-    setHistory(prev => prev.filter(item => !idsToDelete.has(item.id)));
-    setModalState({ type: null, data: null });
-  };
+    const handleDeleteGroup = (items) => {
+
+      setModalState({ type: 'deleteGroup', data: items });
+
+    };
+
+  
+
+    const confirmRealDeleteGroup = () => {
+
+      const itemsToDelete = modalState.data;
+
+      const idsToDelete = new Set(itemsToDelete.map(i => i.id));
+
+      setHistory(prev => prev.filter(item => !idsToDelete.has(item.id)));
+
+      setModalState({ type: null, data: null });
+
+    };
 
 
   // 通用导出函数
@@ -1359,6 +1463,12 @@ export default function GachaAnalyzer() {
 
           <div className="flex gap-2 sm:gap-4">
             <button 
+              onClick={() => setActiveTab('summary')}
+              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'summary' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              汇总
+            </button>
+            <button 
               onClick={() => setActiveTab('dashboard')}
               className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
             >
@@ -1379,17 +1489,21 @@ export default function GachaAnalyzer() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         
-        {/* 数据录入区域 */}
-        <InputSection 
-          currentPool={currentPool}
-          poolStatsTotal={stats.total}
-          onAddSingle={addSinglePull}
-          onSubmitBatch={submitBatch}
-          onDeletePool={openDeleteConfirmModal}
-        />
+        {activeTab === 'summary' ? (
+          <SummaryView history={history} pools={pools} />
+        ) : (
+          <>
+            {/* 数据录入区域 */}
+            <InputSection 
+              currentPool={currentPool}
+              poolStatsTotal={stats.total}
+              onAddSingle={addSinglePull}
+              onSubmitBatch={submitBatch}
+              onDeletePool={openDeleteConfirmModal}
+            />
 
-        {activeTab === 'dashboard' ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+            {activeTab === 'dashboard' ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
             {/* 左列：保底机制分析 */}
             <div className="md:col-span-1 space-y-6">
               <PityAnalysisCard />
@@ -1622,6 +1736,8 @@ export default function GachaAnalyzer() {
              )}
           </div>
         )}
+        </>
+      )}
       </main>
 
       {/* --- 全局弹窗 --- */}
@@ -1828,7 +1944,7 @@ export default function GachaAnalyzer() {
           100% { background-position: 200% 0; }
         }
         .shine-effect {
-          background: linear-gradient(
+          background-image: linear-gradient(
             120deg, 
             rgba(255,255,255,0) 30%, 
             rgba(255, 215, 0, 0.5) 40%, 
