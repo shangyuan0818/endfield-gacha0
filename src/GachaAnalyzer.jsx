@@ -1,6 +1,8 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, ExternalLink, Heart, Code, Sparkles } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
+import AuthModal from './AuthModal';
 
 // --- 配置与常量 ---
 const RARITY_CONFIG = {
@@ -160,7 +162,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   );
 });
 
-  const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType }) => {
+  const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit }) => {
     // 统计该组信息
     const counts = { 6: 0, 5: 0, 4: 0 };
     group.forEach(i => {
@@ -186,8 +188,8 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                 <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
                    {isBatch ? '十连/多抽' : '单抽'}
                 </span>
-                {isBatch && (
-                  <button 
+                {isBatch && canEdit && (
+                  <button
                     onClick={() => onDeleteGroup(group)}
                     className="text-slate-300 hover:text-red-500 transition-colors p-1 z-10 relative cursor-pointer"
                     title="删除整组"
@@ -208,18 +210,19 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                   const isGuaranteed = item.specialType === 'guaranteed';
                   
                   return (
-                    <button
+                    <div
                       key={item.id}
-                      onClick={() => onEdit(item)}
+                      onClick={canEdit ? () => onEdit(item) : undefined}
                       className={`
-                        relative w-10 h-10 rounded-lg flex items-center justify-center border-2 transition-all hover:scale-105
+                        relative w-10 h-10 rounded-lg flex items-center justify-center border-2 transition-all
+                        ${canEdit ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
                         ${isGift ? 'bg-purple-50 border-purple-400 text-purple-600 ring-2 ring-purple-100' : ''}
                         ${!isGift && isLimitedUp ? 'bg-orange-50 border-orange-600 text-white shadow-md glow-border overflow-hidden' : ''}
                         ${!isGift && isStandardSpook ? 'bg-red-100 border-red-300 text-red-700' : ''}
                         ${item.rarity === 5 ? 'bg-amber-50 border-amber-200 text-amber-600' : ''}
                         ${item.rarity === 4 ? 'bg-purple-50 border-purple-200 text-purple-600' : ''}
                       `}
-                      title="点击修改"
+                      title={canEdit ? "点击修改" : undefined}
                     >
                       {!isGift && isLimitedUp && <div className="absolute inset-0 shine-effect"></div>}
                       
@@ -235,13 +238,13 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                          </div>
                       )}
                       {item.rarity === 6 && poolType === 'standard' && (isGift || isGuaranteed) && (
-                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-full text-[8px] font-bold border border-white relative z-10 
+                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-full text-[8px] font-bold border border-white relative z-10
                            ${isGift ? 'bg-purple-500 text-white' : 'bg-green-500 text-white'
                            }`}>
                            {isGift ? '赠送' : '保底'}
                          </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -528,9 +531,662 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     );
   });
 
+// 超管管理面板组件
+const AdminPanel = React.memo(() => {
+  const [users, setUsers] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  // 加载数据
+  useEffect(() => {
+    if (!supabase) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // 获取所有用户
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        setUsers(profilesData || []);
+
+        // 获取所有申请
+        const { data: appsData } = await supabase
+          .from('admin_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        setApplications(appsData || []);
+      } catch (error) {
+        console.error('加载数据失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 审批申请
+  const handleApprove = async (appId, userId) => {
+    if (!supabase) return;
+    setActionLoading(appId);
+
+    try {
+      // 更新申请状态
+      await supabase
+        .from('admin_applications')
+        .update({ status: 'approved', reviewed_at: new Date().toISOString() })
+        .eq('id', appId);
+
+      // 更新用户角色
+      await supabase
+        .from('profiles')
+        .update({ role: 'admin' })
+        .eq('id', userId);
+
+      // 更新本地状态
+      setApplications(prev => prev.map(a =>
+        a.id === appId ? { ...a, status: 'approved' } : a
+      ));
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, role: 'admin' } : u
+      ));
+    } catch (error) {
+      console.error('审批失败:', error);
+      alert('审批失败: ' + error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 拒绝申请
+  const handleReject = async (appId) => {
+    if (!supabase) return;
+    setActionLoading(appId);
+
+    try {
+      await supabase
+        .from('admin_applications')
+        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
+        .eq('id', appId);
+
+      setApplications(prev => prev.map(a =>
+        a.id === appId ? { ...a, status: 'rejected' } : a
+      ));
+    } catch (error) {
+      console.error('拒绝失败:', error);
+      alert('拒绝失败: ' + error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 更改用户角色
+  const handleChangeRole = async (userId, newRole) => {
+    if (!supabase) return;
+    setActionLoading(userId);
+
+    try {
+      await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId);
+
+      setUsers(prev => prev.map(u =>
+        u.id === userId ? { ...u, role: newRole } : u
+      ));
+    } catch (error) {
+      console.error('更改角色失败:', error);
+      alert('更改角色失败: ' + error.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const pendingApps = applications.filter(a => a.status === 'pending');
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <RefreshCw size={24} className="animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      {/* 页面标题 */}
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-2xl p-6 text-white shadow-lg">
+        <h2 className="text-2xl font-bold flex items-center gap-3">
+          <Shield size={28} />
+          超级管理员控制台
+        </h2>
+        <p className="text-red-100 mt-1">管理用户权限和审批申请</p>
+      </div>
+
+      {/* 待审批申请 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-amber-50 flex items-center gap-2">
+          <Bell size={20} className="text-amber-600" />
+          <h3 className="font-bold text-amber-800">待审批申请</h3>
+          {pendingApps.length > 0 && (
+            <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
+              {pendingApps.length}
+            </span>
+          )}
+        </div>
+
+        {pendingApps.length === 0 ? (
+          <div className="p-8 text-center text-slate-400">
+            暂无待审批申请
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {pendingApps.map(app => {
+              const appUser = users.find(u => u.id === app.user_id);
+              return (
+                <div key={app.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                  <div>
+                    <div className="font-medium text-slate-700">
+                      {appUser?.username || '未知用户'}
+                    </div>
+                    <div className="text-sm text-slate-500 mt-1">
+                      申请理由: {app.reason}
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {new Date(app.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleApprove(app.id, app.user_id)}
+                      disabled={actionLoading === app.id}
+                      className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {actionLoading === app.id ? '处理中...' : '通过'}
+                    </button>
+                    <button
+                      onClick={() => handleReject(app.id)}
+                      disabled={actionLoading === app.id}
+                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      拒绝
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* 用户管理 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <User size={20} className="text-slate-600" />
+          <h3 className="font-bold text-slate-700">用户管理</h3>
+          <span className="text-slate-400 text-sm">({users.length} 人)</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="px-4 py-3 text-left">用户名</th>
+                <th className="px-4 py-3 text-left">角色</th>
+                <th className="px-4 py-3 text-left">注册时间</th>
+                <th className="px-4 py-3 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map(u => (
+                <tr key={u.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-700">{u.username}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-1 rounded font-bold ${
+                      u.role === 'super_admin' ? 'bg-red-100 text-red-600' :
+                      u.role === 'admin' ? 'bg-green-100 text-green-600' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>
+                      {u.role === 'super_admin' ? '超级管理员' :
+                       u.role === 'admin' ? '管理员' : '普通用户'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-500">
+                    {new Date(u.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {u.role !== 'super_admin' && (
+                      <select
+                        value={u.role}
+                        onChange={(e) => handleChangeRole(u.id, e.target.value)}
+                        disabled={actionLoading === u.id}
+                        className="text-sm border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none"
+                      >
+                        <option value="user">普通用户</option>
+                        <option value="admin">管理员</option>
+                      </select>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 历史申请记录 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <History size={20} className="text-slate-600" />
+          <h3 className="font-bold text-slate-700">申请历史</h3>
+        </div>
+
+        {applications.length === 0 ? (
+          <div className="p-8 text-center text-slate-400">
+            暂无申请记录
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {applications.map(app => {
+              const appUser = users.find(u => u.id === app.user_id);
+              return (
+                <div key={app.id} className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-slate-700">
+                      {appUser?.username || '未知用户'}
+                    </div>
+                    <div className="text-sm text-slate-500">{app.reason}</div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {new Date(app.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2 py-1 rounded font-bold ${
+                    app.status === 'approved' ? 'bg-green-100 text-green-600' :
+                    app.status === 'rejected' ? 'bg-red-100 text-red-600' :
+                    'bg-yellow-100 text-yellow-600'
+                  }`}>
+                    {app.status === 'approved' ? '已通过' :
+                     app.status === 'rejected' ? '已拒绝' : '待审批'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+// 设置页面组件
+const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
+  const [themeMode, setThemeMode] = useState('system'); // 'light' | 'dark' | 'system'
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (passwordForm.new !== passwordForm.confirm) {
+      setPasswordError('两次输入的新密码不一致');
+      return;
+    }
+
+    if (passwordForm.new.length < 6) {
+      setPasswordError('新密码至少需要6位字符');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordForm.new
+      });
+
+      if (error) throw error;
+
+      setPasswordSuccess('密码修改成功！');
+      setPasswordForm({ current: '', new: '', confirm: '' });
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess('');
+      }, 2000);
+    } catch (error) {
+      setPasswordError(error.message || '修改失败，请重试');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const getRoleInfo = (role) => {
+    switch (role) {
+      case 'super_admin':
+        return { label: '超级管理员', color: 'bg-red-100 text-red-600 border-red-200', desc: '拥有所有权限，可管理用户和审批申请' };
+      case 'admin':
+        return { label: '管理员', color: 'bg-green-100 text-green-600 border-green-200', desc: '可录入和编辑抽卡数据' };
+      default:
+        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 border-slate-200', desc: '可查看数据，需申请成为管理员才能录入' };
+    }
+  };
+
+  const roleInfo = getRoleInfo(userRole);
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* 页面标题 */}
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 text-white shadow-lg">
+        <h2 className="text-2xl font-bold flex items-center gap-3">
+          <Settings size={28} />
+          设置
+        </h2>
+        <p className="text-slate-300 mt-1">管理您的账户和偏好设置</p>
+      </div>
+
+      {/* 账户信息 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <User size={20} className="text-slate-600" />
+          <h3 className="font-bold text-slate-700">账户信息</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          {user ? (
+            <>
+              <div className="flex items-center justify-between py-3 border-b border-slate-100">
+                <span className="text-slate-600">邮箱地址</span>
+                <span className="font-medium text-slate-800">{user.email}</span>
+              </div>
+              <div className="flex items-center justify-between py-3 border-b border-slate-100">
+                <span className="text-slate-600">当前权限</span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-1 rounded-full text-sm font-bold border ${roleInfo.color}`}>
+                    {roleInfo.label}
+                  </span>
+                </div>
+              </div>
+              <div className="py-3 border-b border-slate-100">
+                <p className="text-sm text-slate-500">{roleInfo.desc}</p>
+              </div>
+              <div className="flex items-center justify-between py-3">
+                <span className="text-slate-600">账户密码</span>
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <Lock size={16} />
+                  修改密码
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <User size={48} className="mx-auto mb-3 opacity-50" />
+              <p>请先登录以查看账户信息</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 主题设置 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <Moon size={20} className="text-slate-600" />
+          <h3 className="font-bold text-slate-700">主题设置</h3>
+          <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded ml-2">即将推出</span>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => setThemeMode('light')}
+              disabled
+              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
+                themeMode === 'light' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <Sun size={24} className="mx-auto mb-2 text-amber-500" />
+              <span className="text-sm font-medium text-slate-700">浅色模式</span>
+            </button>
+            <button
+              onClick={() => setThemeMode('dark')}
+              disabled
+              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
+                themeMode === 'dark' ? 'border-slate-700 bg-slate-100' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <Moon size={24} className="mx-auto mb-2 text-slate-700" />
+              <span className="text-sm font-medium text-slate-700">深色模式</span>
+            </button>
+            <button
+              onClick={() => setThemeMode('system')}
+              disabled
+              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
+                themeMode === 'system' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              <Monitor size={24} className="mx-auto mb-2 text-indigo-500" />
+              <span className="text-sm font-medium text-slate-700">跟随系统</span>
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 mt-4 text-center">
+            深色模式功能正在开发中，敬请期待...
+          </p>
+        </div>
+      </div>
+
+      {/* 修改密码弹窗 */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                <Lock size={18} />
+                修改密码
+              </h3>
+              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+              {passwordError && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm">
+                  {passwordError}
+                </div>
+              )}
+              {passwordSuccess && (
+                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-2 rounded-lg text-sm">
+                  {passwordSuccess}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">新密码</label>
+                <input
+                  type="password"
+                  value={passwordForm.new}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, new: e.target.value }))}
+                  placeholder="至少6位字符"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">确认新密码</label>
+                <input
+                  type="password"
+                  value={passwordForm.confirm}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
+                  placeholder="再次输入新密码"
+                  required
+                  className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 rounded-lg transition-colors"
+              >
+                {passwordLoading ? '修改中...' : '确认修改'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// 关于页面组件
+const AboutPanel = React.memo(() => {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* 页面标题 */}
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+        <div className="absolute top-0 right-0 opacity-10">
+          <Sparkles size={200} />
+        </div>
+        <div className="relative z-10">
+          <h2 className="text-3xl font-bold flex items-center gap-3 mb-2">
+            <BarChart3 size={32} />
+            Endfield 抽卡分析器
+          </h2>
+          <p className="text-indigo-100">记录你的每一次命运邂逅</p>
+          <div className="mt-4 text-sm text-indigo-200">
+            版本 2.1.0 | 2025
+          </div>
+        </div>
+      </div>
+
+      {/* 作者信息 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <Heart size={20} className="text-red-500" />
+          <h3 className="font-bold text-slate-700">制作团队</h3>
+        </div>
+        <div className="p-6">
+          {/* 主要作者 */}
+          <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl border border-pink-100 mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+              蘑
+            </div>
+            <div className="flex-1">
+              <h4 className="text-lg font-bold text-slate-800">蘑菇菌__</h4>
+              <p className="text-sm text-slate-500 mb-2">项目发起人 & 产品设计</p>
+              <a
+                href="https://space.bilibili.com/14932613"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.659.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906L17.813 4.653zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773H5.333zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/>
+                </svg>
+                访问 B站主页
+                <ExternalLink size={14} />
+              </a>
+            </div>
+          </div>
+
+          {/* AI 助手 */}
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-sm text-slate-500 mb-3 flex items-center gap-2">
+              <Code size={16} />
+              AI 开发助手
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                    C
+                  </div>
+                  <span className="font-bold text-slate-700">Claude</span>
+                </div>
+                <p className="text-xs text-slate-500">Anthropic Claude Opus 4.5</p>
+                <p className="text-xs text-slate-400 mt-1">后端逻辑 & 数据处理 & 前端优化</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                    G
+                  </div>
+                  <span className="font-bold text-slate-700">Gemini</span>
+                </div>
+                <p className="text-xs text-slate-500">Google Gemini 2.5 Pro</p>
+                <p className="text-xs text-slate-400 mt-1">前端界面设计</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 功能特性 */}
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+          <Sparkles size={20} className="text-amber-500" />
+          <h3 className="font-bold text-slate-700">功能特性</h3>
+        </div>
+        <div className="p-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {[
+              { icon: Star, label: '多卡池管理', desc: '限定/常驻/武器池' },
+              { icon: Calculator, label: '保底计算', desc: '实时垫刀追踪' },
+              { icon: BarChart3, label: '数据分析', desc: '概率分布图表' },
+              { icon: Cloud, label: '云端同步', desc: '多设备数据共享' },
+              { icon: Download, label: '导入导出', desc: 'JSON/CSV 格式' },
+              { icon: Shield, label: '权限管理', desc: '多角色权限控制' },
+            ].map((feature, idx) => (
+              <div key={idx} className="p-3 bg-slate-50 rounded-lg">
+                <feature.icon size={20} className="text-indigo-500 mb-2" />
+                <h4 className="font-medium text-slate-700 text-sm">{feature.label}</h4>
+                <p className="text-xs text-slate-400">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 免责声明 */}
+      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
+        <p className="text-xs text-slate-500 text-center">
+          本工具仅供个人抽卡记录使用，与游戏官方无关。
+          <br />
+          游戏内容版权归 Gryphline / HyperGryph 所有。
+        </p>
+      </div>
+    </div>
+  );
+});
+
 export default function GachaAnalyzer() {
   // --- State ---
   
+  // 0. 用户认证状态
+  const [user, setUser] = useState(null);
+  const [userRole, setUserRole] = useState(null); // 'user' | 'admin' | 'super_admin'
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+
+  // 0.1 申请和公告状态
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState(null); // 'pending' | 'approved' | 'rejected' | null
+  const [announcements, setAnnouncements] = useState([]);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
+
+  // 权限判断
+  const canEdit = userRole === 'admin' || userRole === 'super_admin';
+  const isSuperAdmin = userRole === 'super_admin';
+
   // 1. 卡池列表
   const [pools, setPools] = useState(() => {
     try {
@@ -607,6 +1263,322 @@ export default function GachaAnalyzer() {
   const fileInputRef = useRef(null);
 
   // --- Effects ---
+  // 监听用户登录状态
+  useEffect(() => {
+    if (!supabase) return;
+
+    // 获取当前会话
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // 监听登录状态变化
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // 获取用户角色
+  useEffect(() => {
+    if (!supabase || !user) {
+      setUserRole(null);
+      setApplicationStatus(null);
+      return;
+    }
+
+    const fetchUserRole = async () => {
+      try {
+        // 获取用户角色
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        setUserRole(profile?.role || 'user');
+
+        // 获取申请状态
+        const { data: application } = await supabase
+          .from('admin_applications')
+          .select('status')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        setApplicationStatus(application?.status || null);
+      } catch (error) {
+        console.error('获取用户角色失败:', error);
+        setUserRole('user');
+      }
+    };
+
+    fetchUserRole();
+  }, [user]);
+
+  // 加载公告 - 从本地JSON文件加载
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        const response = await fetch('/announcements.json');
+        if (!response.ok) throw new Error('Failed to fetch announcements');
+        const data = await response.json();
+        // 过滤激活的公告并按优先级排序
+        const activeAnnouncements = data
+          .filter(a => a.is_active)
+          .sort((a, b) => b.priority - a.priority);
+        setAnnouncements(activeAnnouncements);
+      } catch (error) {
+        console.error('加载公告失败:', error);
+        setAnnouncements([]);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
+
+  // 登出处理
+  const handleLogout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setUser(null);
+    setUserRole(null);
+    setApplicationStatus(null);
+  };
+
+  // 提交管理员申请
+  const handleApplyAdmin = async (reason) => {
+    if (!supabase || !user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('admin_applications')
+        .insert({
+          user_id: user.id,
+          reason: reason
+        });
+
+      if (error) throw error;
+      setApplicationStatus('pending');
+      setShowApplyModal(false);
+      return true;
+    } catch (error) {
+      console.error('提交申请失败:', error);
+      return false;
+    }
+  };
+
+  // --- 云同步函数 ---
+
+  // 迁移弹窗状态
+  const [showMigrateModal, setShowMigrateModal] = useState(false);
+
+  // 从云端加载数据
+  const loadCloudData = useCallback(async (userId) => {
+    if (!supabase || !userId) return null;
+
+    setSyncing(true);
+    setSyncError(null);
+
+    try {
+      // 加载卡池
+      const { data: cloudPools, error: poolsError } = await supabase
+        .from('pools')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (poolsError) throw poolsError;
+
+      // 加载历史记录
+      const { data: cloudHistory, error: historyError } = await supabase
+        .from('history')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (historyError) throw historyError;
+
+      // 转换数据格式（云端字段名可能不同）
+      const formattedPools = cloudPools.map(p => ({
+        id: p.pool_id,
+        name: p.name,
+        type: p.type
+      }));
+
+      const formattedHistory = cloudHistory.map(h => ({
+        id: h.record_id,
+        rarity: h.rarity,
+        isStandard: h.is_standard,
+        specialType: h.special_type,
+        timestamp: h.timestamp,
+        poolId: h.pool_id
+      }));
+
+      return { pools: formattedPools, history: formattedHistory };
+    } catch (error) {
+      console.error('加载云端数据失败:', error);
+      setSyncError(error.message);
+      return null;
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
+  // 保存卡池到云端
+  const savePoolToCloud = useCallback(async (pool) => {
+    if (!supabase || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('pools')
+        .upsert({
+          user_id: user.id,
+          pool_id: pool.id,
+          name: pool.name,
+          type: pool.type,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,pool_id' });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('保存卡池到云端失败:', error);
+      setSyncError(error.message);
+    }
+  }, [user]);
+
+  // 保存历史记录到云端
+  const saveHistoryToCloud = useCallback(async (records) => {
+    if (!supabase || !user || records.length === 0) return;
+
+    try {
+      const cloudRecords = records.map(r => ({
+        user_id: user.id,
+        record_id: r.id,
+        pool_id: r.poolId,
+        rarity: r.rarity,
+        is_standard: r.isStandard,
+        special_type: r.specialType,
+        timestamp: r.timestamp,
+        updated_at: new Date().toISOString()
+      }));
+
+      const { error } = await supabase
+        .from('history')
+        .upsert(cloudRecords, { onConflict: 'user_id,record_id' });
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('保存历史记录到云端失败:', error);
+      setSyncError(error.message);
+    }
+  }, [user]);
+
+  // 从云端删除历史记录
+  const deleteHistoryFromCloud = useCallback(async (recordIds) => {
+    if (!supabase || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('history')
+        .delete()
+        .eq('user_id', user.id)
+        .in('record_id', recordIds);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('从云端删除记录失败:', error);
+      setSyncError(error.message);
+    }
+  }, [user]);
+
+  // 从云端删除指定卡池的所有历史记录
+  const deletePoolHistoryFromCloud = useCallback(async (poolId) => {
+    if (!supabase || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('history')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('pool_id', poolId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('从云端删除卡池记录失败:', error);
+      setSyncError(error.message);
+    }
+  }, [user]);
+
+  // 迁移本地数据到云端
+  const migrateLocalToCloud = useCallback(async () => {
+    if (!supabase || !user) return false;
+
+    setSyncing(true);
+    setSyncError(null);
+
+    try {
+      // 保存所有卡池
+      for (const pool of pools) {
+        await savePoolToCloud(pool);
+      }
+
+      // 分批保存历史记录（每次100条）
+      const batchSize = 100;
+      for (let i = 0; i < history.length; i += batchSize) {
+        const batch = history.slice(i, i + batchSize);
+        await saveHistoryToCloud(batch);
+      }
+
+      return true;
+    } catch (error) {
+      console.error('迁移数据到云端失败:', error);
+      setSyncError(error.message);
+      return false;
+    } finally {
+      setSyncing(false);
+    }
+  }, [user, pools, history, savePoolToCloud, saveHistoryToCloud]);
+
+  // 登录后处理：检查云端数据并决定是否迁移
+  const handlePostLogin = useCallback(async (loggedInUser) => {
+    if (!loggedInUser) return;
+
+    const cloudData = await loadCloudData(loggedInUser.id);
+
+    if (cloudData) {
+      const hasCloudData = cloudData.pools.length > 0 || cloudData.history.length > 0;
+      const hasLocalData = history.length > 0;
+
+      if (hasCloudData) {
+        // 云端有数据，直接加载云端数据
+        if (cloudData.pools.length > 0) {
+          setPools(cloudData.pools);
+          setCurrentPoolId(cloudData.pools[0].id);
+        }
+        if (cloudData.history.length > 0) {
+          setHistory(cloudData.history);
+        }
+      } else if (hasLocalData) {
+        // 云端无数据但本地有，询问是否迁移
+        setShowMigrateModal(true);
+      }
+    }
+  }, [history, loadCloudData]);
+
+  // 监听用户登录状态变化，登录后加载云端数据
+  const prevUserRef = useRef(null);
+  useEffect(() => {
+    if (user && !prevUserRef.current) {
+      // 用户刚登录
+      handlePostLogin(user);
+    }
+    prevUserRef.current = user;
+  }, [user, handlePostLogin]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       localStorage.setItem('gacha_history_v2', JSON.stringify(history));
@@ -869,16 +1841,22 @@ export default function GachaAnalyzer() {
     setShowPoolMenu(false);
   };
 
-  const confirmCreatePool = () => {
+  const confirmCreatePool = async () => {
     if (!newPoolNameInput.trim()) return;
     const newId = 'pool_' + Date.now();
-    setPools(prev => [...prev, { 
-      id: newId, 
+    const newPool = {
+      id: newId,
       name: newPoolNameInput.trim(),
-      type: newPoolTypeInput 
-    }]);
+      type: newPoolTypeInput
+    };
+    setPools(prev => [...prev, newPool]);
     setCurrentPoolId(newId);
     setModalState({ type: null, data: null });
+
+    // 同步到云端
+    if (user) {
+      await savePoolToCloud(newPool);
+    }
   };
 
   const openEditPoolModal = (e, pool) => {
@@ -889,16 +1867,27 @@ export default function GachaAnalyzer() {
     setShowPoolMenu(false);
   };
 
-  const confirmEditPool = () => {
+  const confirmEditPool = async () => {
      if (!newPoolNameInput.trim() || !modalState.data) return;
-     
+
+     const updatedPool = {
+       id: modalState.data.id,
+       name: newPoolNameInput.trim(),
+       type: newPoolTypeInput
+     };
+
      setPools(prev => prev.map(p => {
        if (p.id === modalState.data.id) {
-         return { ...p, name: newPoolNameInput.trim(), type: newPoolTypeInput };
+         return updatedPool;
        }
        return p;
      }));
      setModalState({ type: null, data: null });
+
+     // 同步到云端
+     if (user) {
+       await savePoolToCloud(updatedPool);
+     }
   };
 
   const openDeleteConfirmModal = () => {
@@ -906,9 +1895,14 @@ export default function GachaAnalyzer() {
     setModalState({ type: 'deleteConfirm', data: { poolName: currentPoolName } });
   };
 
-  const confirmDeleteData = () => {
+  const confirmDeleteData = async () => {
     setHistory(prev => prev.filter(item => item.poolId !== currentPoolId));
     setModalState({ type: null, data: null });
+
+    // 同步到云端
+    if (user) {
+      await deletePoolHistoryFromCloud(currentPoolId);
+    }
   };
 
   const closeModal = () => {
@@ -956,9 +1950,14 @@ export default function GachaAnalyzer() {
       isStandard: isStandard,
       specialType: specialType,
       timestamp: new Date().toISOString(),
-      poolId: currentPoolId 
+      poolId: currentPoolId
     };
     setHistory(prev => [...prev, newPull]);
+
+    // 同步到云端
+    if (user) {
+      saveHistoryToCloud([newPull]);
+    }
   };
 
   // 提交十连
@@ -1017,17 +2016,29 @@ export default function GachaAnalyzer() {
       };
     });
     setHistory(prev => [...prev, ...newPulls]);
+
+    // 同步到云端
+    if (user) {
+      saveHistoryToCloud(newPulls);
+    }
   };
 
   // 编辑记录
   const handleUpdateItem = (id, newConfig) => {
+    let updatedItem = null;
     setHistory(prev => prev.map(item => {
       if (item.id === id) {
-        return { ...item, ...newConfig };
+        updatedItem = { ...item, ...newConfig };
+        return updatedItem;
       }
       return item;
     }));
     setEditItemState(null);
+
+    // 同步到云端
+    if (user && updatedItem) {
+      saveHistoryToCloud([updatedItem]);
+    }
   };
 
   // 删除单条记录 (触发弹窗)
@@ -1035,34 +2046,34 @@ export default function GachaAnalyzer() {
     setModalState({ type: 'deleteItem', data: id });
   };
 
-  const confirmRealDeleteItem = () => {
+  const confirmRealDeleteItem = async () => {
     const idToDelete = modalState.data;
     setHistory(prev => prev.filter(item => item.id !== idToDelete));
     setEditItemState(null);
     setModalState({ type: null, data: null });
+
+    // 同步到云端
+    if (user) {
+      await deleteHistoryFromCloud([idToDelete]);
+    }
   };
 
-    // 删除整组记录 (触发弹窗)
+  // 删除整组记录 (触发弹窗)
+  const handleDeleteGroup = (items) => {
+    setModalState({ type: 'deleteGroup', data: items });
+  };
 
-    const handleDeleteGroup = (items) => {
+  const confirmRealDeleteGroup = async () => {
+    const itemsToDelete = modalState.data;
+    const idsToDelete = new Set(itemsToDelete.map(i => i.id));
+    setHistory(prev => prev.filter(item => !idsToDelete.has(item.id)));
+    setModalState({ type: null, data: null });
 
-      setModalState({ type: 'deleteGroup', data: items });
-
-    };
-
-  
-
-    const confirmRealDeleteGroup = () => {
-
-      const itemsToDelete = modalState.data;
-
-      const idsToDelete = new Set(itemsToDelete.map(i => i.id));
-
-      setHistory(prev => prev.filter(item => !idsToDelete.has(item.id)));
-
-      setModalState({ type: null, data: null });
-
-    };
+    // 同步到云端
+    if (user) {
+      await deleteHistoryFromCloud(Array.from(idsToDelete));
+    }
+  };
 
 
   // 通用导出函数
@@ -1075,14 +2086,51 @@ export default function GachaAnalyzer() {
       exportHistory = history.filter(h => h.poolId === currentPoolId);
     }
 
+    // 计算统计摘要
+    const calculateStats = (historyData, poolsData) => {
+      const stats = {
+        totalPulls: 0,
+        sixStarTotal: 0,
+        sixStarLimited: 0,
+        sixStarStandard: 0,
+        fiveStar: 0,
+        fourStar: 0,
+        byPool: {}
+      };
+
+      // 按卡池分组计算
+      poolsData.forEach(pool => {
+        const poolHistory = historyData.filter(h => h.poolId === pool.id && h.specialType !== 'gift');
+        stats.byPool[pool.name] = {
+          type: pool.type,
+          total: poolHistory.length,
+          sixStar: poolHistory.filter(h => h.rarity === 6).length,
+          sixStarLimited: poolHistory.filter(h => h.rarity === 6 && !h.isStandard).length,
+          sixStarStandard: poolHistory.filter(h => h.rarity === 6 && h.isStandard).length
+        };
+      });
+
+      // 全局统计（排除gift）
+      const validHistory = historyData.filter(h => h.specialType !== 'gift');
+      stats.totalPulls = validHistory.length;
+      stats.sixStarTotal = validHistory.filter(h => h.rarity === 6).length;
+      stats.sixStarLimited = validHistory.filter(h => h.rarity === 6 && !h.isStandard).length;
+      stats.sixStarStandard = validHistory.filter(h => h.rarity === 6 && h.isStandard).length;
+      stats.fiveStar = validHistory.filter(h => h.rarity === 5).length;
+      stats.fourStar = validHistory.filter(h => h.rarity <= 4).length;
+
+      return stats;
+    };
+
     const exportObj = {
-      version: "2.0",
+      version: "2.1",
       scope: scope,
       exportTime: new Date().toISOString(),
+      summary: calculateStats(exportHistory, exportPools),
       pools: exportPools,
       history: exportHistory
     };
-    
+
     const dataStr = JSON.stringify(exportObj, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -1100,43 +2148,97 @@ export default function GachaAnalyzer() {
 
   const handleExportCSV = (scope) => {
     let dataToExport = [];
-    let fileName = '';
+
+    // 辅助函数：为历史记录添加序号和垫刀数
+    const processHistoryWithIndex = (historyData, poolId) => {
+      const filtered = historyData.filter(h => h.poolId === poolId);
+      const sorted = [...filtered].sort((a, b) => a.id - b.id);
+
+      let pityCounter = 0;
+      return sorted.map((item, index) => {
+        // 计算垫刀（排除gift）
+        if (item.specialType !== 'gift') {
+          pityCounter++;
+        }
+
+        const result = {
+          ...item,
+          globalIndex: index + 1,
+          pityAtPull: item.specialType === 'gift' ? '-' : pityCounter
+        };
+
+        // 如果是6星，重置垫刀
+        if (item.rarity === 6 && item.specialType !== 'gift') {
+          pityCounter = 0;
+        }
+
+        return result;
+      });
+    };
 
     if (scope === 'current') {
       if (currentPoolHistory.length === 0) return alert("当前卡池无数据");
-      dataToExport = currentPoolHistory; // 已经带有 globalIndex
-      fileName = `gacha_pool_${currentPool.name}`;
+      // 当前卡池已有globalIndex，需要添加垫刀数
+      const sortedHistory = [...history.filter(h => h.poolId === currentPoolId)].sort((a, b) => a.id - b.id);
+      let pityCounter = 0;
+      dataToExport = sortedHistory.map((item, index) => {
+        if (item.specialType !== 'gift') {
+          pityCounter++;
+        }
+        const result = {
+          ...item,
+          globalIndex: index + 1,
+          pityAtPull: item.specialType === 'gift' ? '-' : pityCounter
+        };
+        if (item.rarity === 6 && item.specialType !== 'gift') {
+          pityCounter = 0;
+        }
+        return result;
+      });
     } else {
       if (history.length === 0) return alert("无数据可导出");
-      // 全部导出时，重新按卡池分组计算 index 有点复杂，或者直接导出原始数据
-      // 为了简单，全部导出时 No. 字段可能只代表在该池中的序号（需要实时计算）
-      // 这里我们简单做：按时间排序，No. 留空或者显示 global index?
-      // 更好的做法：复用 currentPoolHistory 的逻辑对每个池子生成一遍
-      // 但为了性能，我们简单导出，加上 Pool Name 列
-      dataToExport = history.map(h => ({...h, globalIndex: '-'})).sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
-      fileName = `gacha_all_pools`;
+      // 全部导出：为每个卡池单独计算序号和垫刀
+      pools.forEach(pool => {
+        const poolData = processHistoryWithIndex(history, pool.id);
+        dataToExport.push(...poolData);
+      });
+      // 按时间排序
+      dataToExport.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     }
-    
-    const headers = ["Pool", "No", "Rarity", "Type", "Special", "Time"];
+
+    // CSV表头（中英文）
+    const headers = ["卡池名称(Pool)", "卡池类型(Type)", "序号(No)", "星级(Rarity)", "限定/常驻(Limited/Std)", "特殊标记(Special)", "垫刀数(Pity)", "时间(Time)"];
+
     const rows = dataToExport.map(item => {
-      const poolName = pools.find(p => p.id === item.poolId)?.name || 'Unknown';
-      let typeStr = 'Standard';
+      const pool = pools.find(p => p.id === item.poolId);
+      const poolName = pool?.name || 'Unknown';
+      const poolType = pool?.type === 'limited' ? '限定池' : pool?.type === 'weapon' ? '武器池' : '常驻池';
+
+      let limitedStr = '-';
       if (item.rarity === 6) {
-        typeStr = item.isStandard ? 'Spook(Standard)' : 'Limited';
-      } else {
-        typeStr = '-';
+        limitedStr = item.isStandard ? '常驻(Std)' : '限定(Ltd)';
       }
-      
-      let specialStr = item.specialType || '-';
-      if (specialStr === 'guaranteed') specialStr = 'Spark/Pity';
-      if (specialStr === 'gift') specialStr = 'Gift';
+
+      let specialStr = '-';
+      if (item.specialType === 'guaranteed') specialStr = '保底(Pity)';
+      else if (item.specialType === 'gift') specialStr = '赠送(Gift)';
+
+      // 处理可能包含逗号的字段，用引号包裹
+      const escapeCsv = (str) => {
+        if (typeof str === 'string' && (str.includes(',') || str.includes('"') || str.includes('\n'))) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
 
       return [
-        poolName,
-        item.globalIndex, // 如果是 'all'，这里暂时是 '-'，如果用户非常需要，可以后续优化
-        item.rarity,
-        typeStr,
+        escapeCsv(poolName),
+        poolType,
+        item.globalIndex,
+        `${item.rarity}星`,
+        limitedStr,
         specialStr,
+        item.pityAtPull,
         new Date(item.timestamp).toLocaleString()
       ].join(",");
     });
@@ -1652,24 +2754,32 @@ export default function GachaAnalyzer() {
                         
                         <div className="flex items-center gap-2">
                           {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-600"></div>}
-                          <button
-                            onClick={(e) => openEditPoolModal(e, pool)}
-                            className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
-                            title="编辑卡池"
-                          >
-                            <Settings size={14} />
-                          </button>
+                          {/* 编辑卡池按钮 - 仅管理员可见 */}
+                          {canEdit && (
+                            <button
+                              onClick={(e) => openEditPoolModal(e, pool)}
+                              className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                              title="编辑卡池"
+                            >
+                              <Settings size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
-                    <div className="border-t border-slate-100 my-1"></div>
-                    <button 
-                      onClick={openCreatePoolModal}
-                      className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 font-medium"
-                    >
-                      <Plus size={16} />
-                      新建卡池...
-                    </button>
+                    {/* 新建卡池 - 仅管理员可见 */}
+                    {canEdit && (
+                      <>
+                        <div className="border-t border-slate-100 my-1"></div>
+                        <button
+                          onClick={openCreatePoolModal}
+                          className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 font-medium"
+                        >
+                          <Plus size={16} />
+                          新建卡池...
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -1689,7 +2799,7 @@ export default function GachaAnalyzer() {
             >
               看板
             </button>
-            <button 
+            <button
               onClick={() => {
                 setActiveTab('history');
                 setVisibleHistoryCount(20); // 切换回记录页时重置分页，防止卡顿
@@ -1698,24 +2808,173 @@ export default function GachaAnalyzer() {
             >
               记录
             </button>
+
+            {/* 超管管理页面 */}
+            {isSuperAdmin && (
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                管理
+              </button>
+            )}
+
+            {/* 设置和关于按钮 */}
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`text-sm font-medium px-2 py-1.5 rounded-md transition-colors ${activeTab === 'settings' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+              title="设置"
+            >
+              <Settings size={18} />
+            </button>
+            <button
+              onClick={() => setActiveTab('about')}
+              className={`text-sm font-medium px-2 py-1.5 rounded-md transition-colors ${activeTab === 'about' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
+              title="关于"
+            >
+              <Info size={18} />
+            </button>
+
+            {/* 公告按钮 - 公告关闭时显示 */}
+            {!showAnnouncement && announcements.length > 0 && (
+              <button
+                onClick={() => setShowAnnouncement(true)}
+                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                title="查看公告"
+              >
+                <Bell size={18} />
+              </button>
+            )}
+
+            {/* 登录/用户区域 */}
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-200">
+              {isSupabaseConfigured() ? (
+                user ? (
+                  <div className="flex items-center gap-2">
+                    {/* 角色标签 */}
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold hidden sm:inline ${
+                      userRole === 'super_admin' ? 'bg-red-100 text-red-600' :
+                      userRole === 'admin' ? 'bg-green-100 text-green-600' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>
+                      {userRole === 'super_admin' ? '超管' :
+                       userRole === 'admin' ? '管理' : '用户'}
+                    </span>
+                    <span className="text-xs text-slate-500 hidden sm:inline">
+                      {user.email?.split("@")[0]}
+                    </span>
+                    {/* 申请按钮 - 仅普通用户且未申请时显示 */}
+                    {userRole === 'user' && applicationStatus !== 'pending' && (
+                      <button
+                        onClick={() => setShowApplyModal(true)}
+                        className="flex items-center gap-1 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded transition-colors"
+                        title="申请成为管理员"
+                      >
+                        <UserPlus size={14} />
+                        <span className="hidden sm:inline">申请</span>
+                      </button>
+                    )}
+                    {/* 申请待审核状态 */}
+                    {applicationStatus === 'pending' && (
+                      <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                        审核中
+                      </span>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                      title="退出登录"
+                    >
+                      <LogOut size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="flex items-center gap-1 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <LogIn size={16} />
+                    <span className="hidden sm:inline">登录</span>
+                  </button>
+                )
+              ) : (
+                <span className="text-xs text-slate-400 flex items-center gap-1" title="未配置 Supabase">
+                  <CloudOff size={14} /> 本地模式
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        
+
+        {/* 公告区域 */}
+        {showAnnouncement && announcements.length > 0 && (
+          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 relative">
+            <button
+              onClick={() => setShowAnnouncement(false)}
+              className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                <Bell size={20} />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-amber-800 mb-1">{announcements[0].title}</h3>
+                <p className="text-sm text-amber-700 whitespace-pre-wrap">{announcements[0].content}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'summary' ? (
           <SummaryView history={history} pools={pools} />
+        ) : activeTab === 'admin' && isSuperAdmin ? (
+          <AdminPanel />
+        ) : activeTab === 'settings' ? (
+          <SettingsPanel user={user} userRole={userRole} />
+        ) : activeTab === 'about' ? (
+          <AboutPanel />
         ) : (
           <>
-            {/* 数据录入区域 */}
-            <InputSection 
-              currentPool={currentPool}
-              poolStatsTotal={stats.total}
-              onAddSingle={addSinglePull}
-              onSubmitBatch={submitBatch}
-              onDeletePool={openDeleteConfirmModal}
-            />
+            {/* 数据录入区域 - 仅管理员可见 */}
+            {canEdit && (
+              <InputSection
+                currentPool={currentPool}
+                poolStatsTotal={stats.total}
+                onAddSingle={addSinglePull}
+                onSubmitBatch={submitBatch}
+                onDeletePool={openDeleteConfirmModal}
+              />
+            )}
+
+            {/* 非管理员提示 */}
+            {!canEdit && (
+              <div className="mb-8 bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
+                <Shield size={40} className="mx-auto text-slate-300 mb-3" />
+                <h3 className="font-bold text-slate-600 mb-2">数据录入仅限管理员</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                  {user ? (
+                    applicationStatus === 'pending'
+                      ? '您的管理员申请正在审核中，请耐心等待。'
+                      : '如需录入数据，请点击右上角申请成为管理员。'
+                  ) : (
+                    '请先登录，然后申请成为管理员。'
+                  )}
+                </p>
+                {!user && (
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    登录
+                  </button>
+                )}
+              </div>
+            )}
 
             {activeTab === 'dashboard' ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
@@ -1917,12 +3176,13 @@ export default function GachaAnalyzer() {
                ) : (
                  <div className="divide-y divide-slate-100">
                    {groupedHistory.slice(0, visibleHistoryCount).map((group, idx) => (
-                     <BatchCard 
-                       key={idx} 
-                       group={group} 
+                     <BatchCard
+                       key={idx}
+                       group={group}
                        onEdit={setEditItemState}
                        onDeleteGroup={handleDeleteGroup}
                        poolType={currentPool.type}
+                       canEdit={canEdit}
                      />
                    ))}
                    
@@ -2167,6 +3427,123 @@ export default function GachaAnalyzer() {
         </div>
       )}
       
+      {/* 登录弹窗 */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthSuccess={(user) => setUser(user)}
+      />
+
+      {/* 数据迁移弹窗 */}
+      {showMigrateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Cloud size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">同步本地数据到云端？</h3>
+              <p className="text-sm text-slate-500">
+                检测到您有 <span className="font-bold text-slate-700">{history.length}</span> 条本地记录。
+                <br/>是否将这些数据同步到云端？
+              </p>
+              {syncing && (
+                <div className="mt-4 flex items-center justify-center gap-2 text-indigo-600">
+                  <RefreshCw size={16} className="animate-spin" />
+                  <span className="text-sm">正在同步...</span>
+                </div>
+              )}
+              {syncError && (
+                <div className="mt-4 text-sm text-red-500 bg-red-50 p-2 rounded">
+                  同步失败: {syncError}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+              <button
+                onClick={() => setShowMigrateModal(false)}
+                disabled={syncing}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+              >
+                暂不同步
+              </button>
+              <button
+                onClick={async () => {
+                  const success = await migrateLocalToCloud();
+                  if (success) {
+                    setShowMigrateModal(false);
+                  }
+                }}
+                disabled={syncing}
+                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {syncing ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    同步中...
+                  </>
+                ) : (
+                  <>
+                    <Cloud size={16} />
+                    同步到云端
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 申请管理员弹窗 */}
+      {showApplyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-6 text-center">
+              <div className="w-12 h-12 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <UserPlus size={24} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">申请成为管理员</h3>
+              <p className="text-sm text-slate-500 mb-4">
+                成为管理员后，您可以为本站录入抽卡数据。
+              </p>
+              <textarea
+                id="apply-reason"
+                placeholder="请简单说明申请理由（如：我想帮忙录入数据）"
+                className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                rows={3}
+              />
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+              <button
+                onClick={() => setShowApplyModal(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const reason = document.getElementById('apply-reason').value.trim();
+                  if (!reason) {
+                    alert('请填写申请理由');
+                    return;
+                  }
+                  const success = await handleApplyAdmin(reason);
+                  if (success) {
+                    alert('申请已提交，请等待审核');
+                  } else {
+                    alert('提交失败，请稍后重试');
+                  }
+                }}
+                className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all flex items-center gap-2"
+              >
+                <UserPlus size={16} />
+                提交申请
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes fade-in {
           from { opacity: 0; }
