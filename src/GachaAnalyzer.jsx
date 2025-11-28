@@ -13,6 +13,17 @@ const RARITY_CONFIG = {
 const DEFAULT_DISPLAY_PITY = 80;
 const DEFAULT_POOL_ID = 'default_pool';
 
+const PRESET_POOLS = [
+  { label: '限定UP池：莱万汀', type: 'limited', charName: '莱万汀' },
+  { label: '常驻卡池', type: 'standard', charName: '' },
+  { label: '限定武器卡池：莱万汀专武', type: 'weapon', charName: '莱万汀专武' },
+  { label: '常驻武器池1', type: 'standard', charName: '常驻武器1' },
+  { label: '常驻武器池2', type: 'standard', charName: '常驻武器2' },
+  { label: '常驻武器池3', type: 'standard', charName: '常驻武器3' },
+  { label: '常驻武器池4', type: 'standard', charName: '常驻武器4' },
+  { label: '常驻武器池5', type: 'standard', charName: '常驻武器5' },
+];
+
 // 优化：独立的录入组件，避免编辑时触发父组件重绘
 const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onSubmitBatch, onDeletePool }) => {
   const [batchInput, setBatchInput] = useState(Array(10).fill({ rarity: 4, isStandard: false }));
@@ -243,77 +254,260 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   const SummaryView = React.memo(({ history, pools }) => {
     const stats = useMemo(() => {
       const data = {
-        total: history.length,
+        total: 0,
         sixStar: 0,
         fiveStar: 0,
+        counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
         byType: {
-          limited: { total: 0, six: 0, limitedSix: 0 },
-          weapon: { total: 0, six: 0, limitedSix: 0 },
-          standard: { total: 0, six: 0 }
-        }
+          limited: { total: 0, six: 0, limitedSix: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
+          weapon: { total: 0, six: 0, limitedSix: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
+          standard: { total: 0, six: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] }
+        },
+        pityStats: { distribution: [] },
+        chartData: []
       };
 
       const poolTypeMap = new Map();
       pools.forEach(p => poolTypeMap.set(p.id, p.type));
 
+      // 1. 分组
+      const pullsByPool = {};
       history.forEach(item => {
-        if (item.rarity === 6) data.sixStar++;
-        if (item.rarity === 5) data.fiveStar++;
+        if (!pullsByPool[item.poolId]) pullsByPool[item.poolId] = [];
+        pullsByPool[item.poolId].push(item);
+      });
 
-        const type = poolTypeMap.get(item.poolId) || 'standard';
-        if (!data.byType[type]) data.byType[type] = { total: 0, six: 0 };
+      const allSixStarPulls = [];
+
+      // 2. 遍历每个池子计算垫刀
+      Object.keys(pullsByPool).forEach(poolId => {
+        const type = poolTypeMap.get(poolId) || 'standard';
+        // pityList is already initialized
+
+        // 按时间正序
+        const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
+        const validPulls = sortedPulls.filter(i => i.specialType !== 'gift');
         
-        data.byType[type].total++;
-        if (item.rarity === 6) {
-          data.byType[type].six++;
-          if (!item.isStandard) {
-             // 对于 weapon 和 limited，非 standard 就是限定
-             if (data.byType[type].limitedSix !== undefined) {
-               data.byType[type].limitedSix++;
-             }
+        let tempCounter = 0;
+        validPulls.forEach(pull => {
+          tempCounter++;
+          if (pull.rarity === 6) {
+            // 全局统计
+            allSixStarPulls.push({
+              count: tempCounter,
+              isStandard: pull.isStandard,
+              isGuaranteed: pull.specialType === 'guaranteed'
+            });
+            // 分类统计
+            data.byType[type].pityList.push({ 
+              count: tempCounter, 
+              isStandard: pull.isStandard 
+            });
+            
+            tempCounter = 0;
+          }
+        });
+      });
+
+      // 辅助：生成分布数据
+      const generateDist = (list) => {
+        if (!list || list.length === 0) return [];
+        const maxPity = Math.max(...list.map(i => i.count), 80);
+        const max = Math.ceil(maxPity / 10) * 10;
+        const dist = [];
+        for(let i=0; i<max; i+=10) {
+           const rangeStart = i + 1;
+           const rangeEnd = i + 10;
+           const items = list.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
+           dist.push({ 
+             range: `${rangeStart}-${rangeEnd}`, 
+             count: items.length,
+             limited: items.filter(p => !p.isStandard).length,
+             standard: items.filter(p => p.isStandard).length
+           });
+        }
+        return dist;
+      };
+
+      // 辅助：生成饼图数据
+      const generatePieData = (counts) => [
+        { name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color },
+        { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
+        { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
+        { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
+      ].filter(item => item.value > 0);
+
+      // 3. 全局统计 & 分类计数
+      history.forEach(item => {
+        // 分类统计引用
+        const type = poolTypeMap.get(item.poolId) || 'standard';
+        const typeData = data.byType[type];
+
+        // 有效总抽数
+        if (item.specialType !== 'gift') {
+           data.total++;
+           typeData.total++;
+        }
+        
+        let r = item.rarity;
+        if (r === 6) {
+          if (item.isStandard) {
+             data.counts['6_std']++;
+             typeData.counts['6_std']++;
+          } else {
+             data.counts[6]++;
+             typeData.counts[6]++;
+          }
+          
+          data.sixStar++;
+          typeData.six++;
+          
+          if (!item.isStandard && typeData.limitedSix !== undefined) {
+             typeData.limitedSix++;
+          }
+        } else {
+          if (r === 5) { 
+             data.fiveStar++; 
+             data.counts[5]++;
+             typeData.counts[5]++;
+          } else { 
+             if (r < 4) r = 4; 
+             data.counts[r]++; 
+             typeData.counts[r]++;
           }
         }
       });
 
+      // 4. 生成图表数据
+      data.chartData = generatePieData(data.counts);
+      
+      ['limited', 'weapon', 'standard'].forEach(t => {
+         data.byType[t].distribution = generateDist(data.byType[t].pityList);
+         data.byType[t].chartData = generatePieData(data.byType[t].counts);
+      });
+
+      // 5. 全局分布
+      if (allSixStarPulls.length > 0) {
+        const maxPity = Math.max(...allSixStarPulls.map(p => p.count), 80);
+        const maxRange = Math.ceil(maxPity / 10) * 10;
+        for (let i = 0; i < maxRange; i += 10) {
+          const rangeStart = i + 1;
+          const rangeEnd = i + 10;
+          const items = allSixStarPulls.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
+          data.pityStats.distribution.push({
+            range: `${rangeStart}-${rangeEnd}`,
+            count: items.length,
+            limited: items.filter(p => !p.isStandard).length,
+            standard: items.filter(p => p.isStandard).length,
+            guaranteed: items.filter(p => p.isGuaranteed).length
+          });
+        }
+      }
+
       return data;
     }, [history, pools]);
 
-    const StatCard = ({ title, color, data }) => (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <h3 className={`font-bold text-sm uppercase tracking-wider mb-4 ${color}`}>{title}</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="text-xs text-slate-400">总投入</div>
-            <div className="text-2xl font-bold text-slate-800">{data.total}</div>
-          </div>
-          <div>
-            <div className="text-xs text-slate-400">6星出货</div>
-            <div className="text-2xl font-bold text-slate-800">{data.six}</div>
-            <div className="text-[10px] text-slate-400">
-              {data.total > 0 ? ((data.six / data.total) * 100).toFixed(2) : 0}%
-            </div>
-          </div>
-          {data.limitedSix !== undefined && (
-            <div className="col-span-2 pt-3 border-t border-slate-50 mt-1">
-               <div className="flex justify-between items-center">
-                 <span className="text-xs text-slate-500">限定出货</span>
-                 <span className="text-base font-bold text-orange-600">{data.limitedSix}</span>
-               </div>
-               <div className="text-[10px] text-slate-400 text-right">
-                 占6星: {data.six > 0 ? ((data.limitedSix / data.six) * 100).toFixed(1) : 0}%
-               </div>
-            </div>
-          )}
+    const PoolCategorySection = ({ title, color, data, icon: Icon, barColor }) => (
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6 last:mb-0">
+        <div className="flex flex-col md:flex-row gap-6">
+           {/* Left: Stats Overview */}
+           <div className="md:w-1/3 flex flex-col justify-center space-y-6">
+              <div className="flex items-center gap-2">
+                 <div className={`p-2 rounded-lg ${color.replace('text-', 'bg-').replace('500', '50').replace('600', '50')} ${color}`}>
+                   {Icon && <Icon size={20} />}
+                 </div>
+                 <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-3 rounded-lg">
+                  <div className="text-xs text-slate-400 mb-1">总投入</div>
+                  <div className="text-2xl font-bold text-slate-800">{data.total}</div>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg">
+                  <div className="text-xs text-slate-400 mb-1">6星出货</div>
+                  <div className="text-2xl font-bold text-slate-800">{data.six}</div>
+                  <div className="text-[10px] text-slate-400">
+                    {data.total > 0 ? ((data.six / data.total) * 100).toFixed(2) : 0}%
+                  </div>
+                </div>
+                {data.limitedSix !== undefined && (
+                  <div className="col-span-2 bg-orange-50/50 p-3 rounded-lg border border-orange-100">
+                     <div className="flex justify-between items-center">
+                       <span className="text-xs text-orange-600 font-medium">限定出货</span>
+                       <span className="text-xl font-bold text-orange-700">{data.limitedSix}</span>
+                     </div>
+                     <div className="text-[10px] text-orange-400 text-right mt-1">
+                       占6星: {data.six > 0 ? ((data.limitedSix / data.six) * 100).toFixed(1) : 0}%
+                     </div>
+                  </div>
+                )}
+              </div>
+           </div>
+
+           {/* Right: Charts */}
+           <div className="md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Pie Chart */}
+              <div className="h-48 relative">
+                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 z-10">稀有度分布</p>
+                 <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={data.chartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={60}
+                        paddingAngle={2}
+                        dataKey="value"
+                      >
+                        {data.chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                      />
+                      <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px'}}/>
+                    </PieChart>
+                 </ResponsiveContainer>
+              </div>
+
+              {/* Bar Chart */}
+              <div className="h-48 relative">
+                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 z-10">6星出货分布</p>
+                 {data.distribution && data.distribution.length > 0 ? (
+                   <ResponsiveContainer width="100%" height="100%">
+                     <BarChart data={data.distribution} stackOffset="sign" margin={{top: 20, right: 0, left: -20, bottom: 0}}>
+                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                       <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
+                       <YAxis allowDecimals={false} tick={{fontSize: 10}} />
+                       <RechartsTooltip 
+                         cursor={{fill: '#f8fafc'}}
+                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                       />
+                       {/* Stacked Bars: Limited on bottom (usually preferred), Standard on top */}
+                       <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" radius={[0, 0, 2, 2]} />
+                       <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" radius={[2, 2, 0, 0]} />
+                     </BarChart>
+                   </ResponsiveContainer>
+                 ) : (
+                   <div className="h-full flex items-center justify-center text-xs text-slate-300">
+                     暂无数据
+                   </div>
+                 )}
+              </div>
+           </div>
         </div>
       </div>
     );
 
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-        <div className="md:col-span-2 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+      <div className="space-y-6 animate-fade-in">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
            <div className="relative z-10 flex justify-between items-center">
              <div>
-               <h2 className="text-slate-400 font-medium mb-1">账号生涯总览</h2>
+               <h2 className="text-slate-400 font-medium mb-1">本网站已统计</h2>
                <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
              </div>
              <div className="text-right">
@@ -327,9 +521,9 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
            </div>
         </div>
 
-        <StatCard title="限定角色池" color="text-orange-500" data={stats.byType.limited} />
-        <StatCard title="武器池" color="text-slate-600" data={stats.byType.weapon} />
-        <StatCard title="常驻池" color="text-indigo-500" data={stats.byType.standard} />
+        <PoolCategorySection title="限定角色池" color="text-orange-500" data={stats.byType.limited} icon={Star} barColor="#F97316" />
+        <PoolCategorySection title="武器池" color="text-slate-600" data={stats.byType.weapon} icon={Search} barColor="#475569" />
+        <PoolCategorySection title="常驻池" color="text-indigo-500" data={stats.byType.standard} icon={Layers} barColor="#6366F1" />
       </div>
     );
   });
@@ -405,6 +599,8 @@ export default function GachaAnalyzer() {
   const [modalState, setModalState] = useState({ type: null, data: null });
   const [newPoolNameInput, setNewPoolNameInput] = useState('');
   const [newPoolTypeInput, setNewPoolTypeInput] = useState('limited'); // 'limited' | 'standard'
+  const [drawerName, setDrawerName] = useState('');
+  const [selectedCharName, setSelectedCharName] = useState('');
   const [editItemState, setEditItemState] = useState(null); // { id, rarity, isStandard } or null
 
   // 文件上传 Ref
@@ -656,6 +852,8 @@ export default function GachaAnalyzer() {
   const openCreatePoolModal = () => {
     setNewPoolNameInput('');
     setNewPoolTypeInput('limited');
+    setDrawerName('');
+    setSelectedCharName('');
     setModalState({ type: 'createPool', data: null });
     setShowPoolMenu(false);
   };
@@ -1757,6 +1955,49 @@ export default function GachaAnalyzer() {
               </button>
             </div>
             <div className="p-6 space-y-4">
+              {modalState.type === 'createPool' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">快速选择卡池</label>
+                  <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
+                    {PRESET_POOLS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          const typeStr = preset.type === 'limited' ? '限定' : (preset.type === 'weapon' ? '武器' : '常驻');
+                          const name = `${typeStr}${preset.charName ? '-' + preset.charName : ''}${drawerName ? '-' + drawerName : ''}`;
+                          setNewPoolTypeInput(preset.type);
+                          setSelectedCharName(preset.charName);
+                          setNewPoolNameInput(name);
+                        }}
+                        className="text-left text-xs p-2 rounded border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors truncate"
+                        title={preset.label}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-slate-600 mb-2">抽卡人</label>
+                <input 
+                  type="text" 
+                  value={drawerName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setDrawerName(val);
+                    if (modalState.type === 'createPool') {
+                       const typeStr = newPoolTypeInput === 'limited' ? '限定' : (newPoolTypeInput === 'weapon' ? '武器' : '常驻');
+                       const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${val ? '-' + val : ''}`;
+                       setNewPoolNameInput(name);
+                    }
+                  }}
+                  placeholder="例如：Me, 朋友A"
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">卡池名称</label>
                 <input 
@@ -1765,49 +2006,35 @@ export default function GachaAnalyzer() {
                   onChange={(e) => setNewPoolNameInput(e.target.value)}
                   placeholder="例如：限定池-海滨假日"
                   className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                  autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && (modalState.type === 'createPool' ? confirmCreatePool() : confirmEditPool())}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-600 mb-2">卡池类型</label>
                 <div className="flex gap-3">
-                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${newPoolTypeInput === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700 font-bold ring-1 ring-orange-200' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                    <input 
-                      type="radio" 
-                      name="poolType" 
-                      value="limited"
-                      checked={newPoolTypeInput === 'limited'}
-                      onChange={() => setNewPoolTypeInput('limited')}
-                      className="hidden"
-                    />
-                    <Star size={16} />
-                    限定池
-                  </label>
-                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${newPoolTypeInput === 'standard' ? 'bg-indigo-50 border-indigo-500 text-indigo-700 font-bold ring-1 ring-indigo-200' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                    <input 
-                      type="radio" 
-                      name="poolType" 
-                      value="standard"
-                      checked={newPoolTypeInput === 'standard'}
-                      onChange={() => setNewPoolTypeInput('standard')}
-                      className="hidden"
-                    />
-                    <Layers size={16} />
-                    常驻池
-                  </label>
-                  <label className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${newPoolTypeInput === 'weapon' ? 'bg-slate-800 border-slate-600 text-white font-bold ring-1 ring-slate-500' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
-                    <input 
-                      type="radio" 
-                      name="poolType" 
-                      value="weapon"
-                      checked={newPoolTypeInput === 'weapon'}
-                      onChange={() => setNewPoolTypeInput('weapon')}
-                      className="hidden"
-                    />
-                    <Search size={16} />
-                    武器池
-                  </label>
+                  {['limited', 'standard', 'weapon'].map(type => (
+                    <label key={type} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${newPoolTypeInput === type ? (type === 'weapon' ? 'bg-slate-800 border-slate-600 text-white' : type === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-indigo-50 border-indigo-500 text-indigo-700') + ' font-bold ring-1' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                      <input 
+                        type="radio" 
+                        name="poolType" 
+                        value={type}
+                        checked={newPoolTypeInput === type}
+                        onChange={() => {
+                          setNewPoolTypeInput(type);
+                          if (modalState.type === 'createPool') {
+                             const typeStr = type === 'limited' ? '限定' : (type === 'weapon' ? '武器' : '常驻');
+                             const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${drawerName ? '-' + drawerName : ''}`;
+                             setNewPoolNameInput(name);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      {type === 'limited' && <Star size={16} />}
+                      {type === 'standard' && <Layers size={16} />}
+                      {type === 'weapon' && <Search size={16} />}
+                      {type === 'limited' ? '限定池' : (type === 'weapon' ? '武器池' : '常驻池')}
+                    </label>
+                  ))}
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
                   {newPoolTypeInput === 'limited' && '包含限定与歪，统计大小保底、硬保底(120)及赠送(240)。'}
