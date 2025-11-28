@@ -2276,8 +2276,8 @@ export default function GachaAnalyzer() {
           return;
         }
 
-        const willSyncToCloud = user && supabase;
-        const confirmMsg = `解析成功！\n包含 ${importedData.pools.length} 个卡池和 ${importedData.history.length} 条记录。\n\n是否合并到当前数据中？(相同ID的记录会被跳过)${willSyncToCloud ? '\n\n✓ 数据将自动同步到云端' : ''}`;
+        const willSyncToCloud = !!(user && supabase);
+        const confirmMsg = `解析成功！\n包含 ${importedData.pools.length} 个卡池和 ${importedData.history.length} 条记录。\n\n是否合并到当前数据中？(相同ID的记录会被跳过)${willSyncToCloud ? '\n\n✓ 数据将自动同步到云端' : '\n\n⚠️ 未登录或未配置云端，仅保存到本地'}`;
 
         if (!confirm(confirmMsg)) {
           return;
