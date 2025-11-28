@@ -1391,7 +1391,7 @@ export default function GachaAnalyzer() {
         .from('pools')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+        .order('pool_id', { ascending: true });
 
       if (poolsError) throw poolsError;
 
@@ -1400,7 +1400,7 @@ export default function GachaAnalyzer() {
         .from('history')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+        .order('record_id', { ascending: true });
 
       if (historyError) throw historyError;
 
