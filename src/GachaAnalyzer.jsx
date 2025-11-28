@@ -1565,13 +1565,33 @@ export default function GachaAnalyzer() {
 
       if (poolsError) throw poolsError;
 
-      // 加载历史记录
-      const { data: cloudHistory, error: historyError } = await supabase
-        .from('history')
-        .select('*')
-        .eq('user_id', userId);
+      // 分页加载历史记录（Supabase 默认限制 1000 行）
+      const PAGE_SIZE = 1000;
+      let allHistory = [];
+      let page = 0;
+      let hasMore = true;
 
-      if (historyError) throw historyError;
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: pageData, error: historyError } = await supabase
+          .from('history')
+          .select('*')
+          .eq('user_id', userId)
+          .range(from, to);
+
+        if (historyError) throw historyError;
+
+        if (pageData && pageData.length > 0) {
+          allHistory = allHistory.concat(pageData);
+          page++;
+          // 如果返回的数据少于 PAGE_SIZE，说明没有更多了
+          hasMore = pageData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
 
       // 转换数据格式（云端字段名可能不同）
       const formattedPools = cloudPools.map(p => ({
@@ -1581,7 +1601,7 @@ export default function GachaAnalyzer() {
         locked: p.locked || false
       }));
 
-      const formattedHistory = cloudHistory.map(h => ({
+      const formattedHistory = allHistory.map(h => ({
         id: h.record_id,
         rarity: h.rarity,
         isStandard: h.is_standard,
