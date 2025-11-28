@@ -1076,9 +1076,11 @@ const AboutPanel = React.memo(() => {
         <div className="p-6">
           {/* 主要作者 */}
           <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl border border-pink-100 mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-              蘑
-            </div>
+            <img
+              src="/avatar.png"
+              alt="蘑菇菌__"
+              className="w-16 h-16 rounded-full object-cover shadow-lg"
+            />
             <div className="flex-1">
               <h4 className="text-lg font-bold text-slate-800">蘑菇菌__</h4>
               <p className="text-sm text-slate-500 mb-2">项目发起人 & 产品设计</p>
@@ -1247,7 +1249,7 @@ export default function GachaAnalyzer() {
   // 列表分页状态
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(20);
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('summary');
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -2259,49 +2261,78 @@ export default function GachaAnalyzer() {
   };
 
   // 导入数据处理
-  const handleImportFile = (event) => {
+  const handleImportFile = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const importedData = JSON.parse(e.target.result);
-        
+
         // 简单验证
         if (!importedData.pools || !importedData.history) {
           alert("文件格式不正确，缺少关键数据字段。");
           return;
         }
 
-        if (!confirm(`解析成功！\n包含 ${importedData.pools.length} 个卡池和 ${importedData.history.length} 条记录。\n\n是否合并到当前数据中？(相同ID的记录会被跳过)`)) {
+        const willSyncToCloud = user && supabase;
+        const confirmMsg = `解析成功！\n包含 ${importedData.pools.length} 个卡池和 ${importedData.history.length} 条记录。\n\n是否合并到当前数据中？(相同ID的记录会被跳过)${willSyncToCloud ? '\n\n✓ 数据将自动同步到云端' : ''}`;
+
+        if (!confirm(confirmMsg)) {
           return;
         }
 
         // 1. 合并 Pools (去重)
         const newPools = [...pools];
+        const addedPools = [];
         importedData.pools.forEach(impPool => {
           if (!newPools.some(p => p.id === impPool.id)) {
             newPools.push(impPool);
+            addedPools.push(impPool);
           }
         });
 
         // 2. 合并 History (去重)
         const newHistory = [...history];
         const existingIds = new Set(newHistory.map(h => h.id));
-        let addedCount = 0;
-        
+        const addedHistory = [];
+
         importedData.history.forEach(impItem => {
           if (!existingIds.has(impItem.id)) {
             newHistory.push(impItem);
-            addedCount++;
+            addedHistory.push(impItem);
           }
         });
 
         setPools(newPools);
         setHistory(newHistory);
-        alert(`导入完成！新增了 ${addedCount} 条记录。`);
-        
+
+        // 3. 同步到云端（如果已登录）
+        if (willSyncToCloud && (addedPools.length > 0 || addedHistory.length > 0)) {
+          setSyncing(true);
+          try {
+            // 同步新增的卡池
+            for (const pool of addedPools) {
+              await savePoolToCloud(pool);
+            }
+            // 分批同步新增的历史记录
+            const batchSize = 100;
+            for (let i = 0; i < addedHistory.length; i += batchSize) {
+              const batch = addedHistory.slice(i, i + batchSize);
+              await saveHistoryToCloud(batch);
+            }
+            alert(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`);
+          } catch (syncError) {
+            console.error('同步到云端失败:', syncError);
+            alert(`导入完成！新增了 ${addedHistory.length} 条记录。\n\n⚠️ 云端同步失败: ${syncError.message}`);
+          } finally {
+            setSyncing(false);
+          }
+        } else {
+          alert(`导入完成！新增了 ${addedHistory.length} 条记录。`);
+        }
+
       } catch (error) {
         console.error(error);
         alert("导入失败：文件解析错误。请确保是合法的JSON文件。");
