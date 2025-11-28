@@ -548,16 +548,14 @@ const AdminPanel = React.memo(() => {
         // 获取所有用户
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         setUsers(profilesData || []);
 
         // 获取所有申请
         const { data: appsData } = await supabase
           .from('admin_applications')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select('*');
 
         setApplications(appsData || []);
       } catch (error) {
@@ -1302,14 +1300,13 @@ export default function GachaAnalyzer() {
         if (error) throw error;
         setUserRole(profile?.role || 'user');
 
-        // 获取申请状态
+        // 获取申请状态（移除排序避免列名问题）
         const { data: application } = await supabase
           .from('admin_applications')
           .select('status')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         setApplicationStatus(application?.status || null);
       } catch (error) {
