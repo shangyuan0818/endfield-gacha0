@@ -1290,15 +1290,25 @@ export default function GachaAnalyzer() {
 
     const fetchUserRole = async () => {
       try {
-        // 获取用户角色
+        // 获取用户角色（使用 maybeSingle 避免无记录时报错）
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
-        setUserRole(profile?.role || 'user');
+
+        // 如果 profile 不存在，尝试创建一个
+        if (!profile) {
+          const { error: insertError } = await supabase
+            .from('profiles')
+            .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' });
+          if (insertError) console.error('创建 profile 失败:', insertError);
+          setUserRole('user');
+        } else {
+          setUserRole(profile.role || 'user');
+        }
 
         // 获取申请状态（移除排序避免列名问题）
         const { data: application } = await supabase
