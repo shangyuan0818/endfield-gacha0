@@ -15,6 +15,58 @@ const RARITY_CONFIG = {
 const DEFAULT_DISPLAY_PITY = 80;
 const DEFAULT_POOL_ID = 'default_pool';
 
+// --- 数据校验工具函数 ---
+const validatePullData = (data) => {
+  const errors = [];
+
+  // 校验 rarity
+  if (![4, 5, 6].includes(data.rarity)) {
+    errors.push(`无效的星级: ${data.rarity}`);
+  }
+
+  // 校验 poolId
+  if (!data.poolId || typeof data.poolId !== 'string') {
+    errors.push('缺少卡池ID');
+  }
+
+  // 校验 isStandard (仅6星需要)
+  if (data.rarity === 6 && typeof data.isStandard !== 'boolean') {
+    errors.push('6星记录需要指定是否为常驻');
+  }
+
+  // 校验 specialType
+  const validSpecialTypes = [null, 'gift', 'guaranteed'];
+  if (!validSpecialTypes.includes(data.specialType)) {
+    errors.push(`无效的特殊类型: ${data.specialType}`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+const validatePoolData = (data) => {
+  const errors = [];
+
+  if (!data.id || typeof data.id !== 'string') {
+    errors.push('缺少卡池ID');
+  }
+
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
+    errors.push('卡池名称不能为空');
+  }
+
+  if (!['limited', 'standard', 'weapon'].includes(data.type)) {
+    errors.push(`无效的卡池类型: ${data.type}`);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
 const PRESET_POOLS = [
   { label: '限定UP池：莱万汀', type: 'limited', charName: '莱万汀' },
   { label: '常驻卡池', type: 'standard', charName: '' },
@@ -27,6 +79,41 @@ const PRESET_POOLS = [
 ];
 
 // --- 通用弹窗组件 ---
+
+// 加载界面组件
+const LoadingScreen = React.memo(() => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
+      <div className="text-center">
+        {/* Logo */}
+        <div className="mb-8 animate-pulse">
+          <img
+            src="/endfield-logo.svg"
+            alt="终末地"
+            className="h-20 w-auto mx-auto filter brightness-0 invert opacity-80"
+          />
+        </div>
+
+        {/* 加载动画 */}
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
+
+        {/* 文字 */}
+        <p className="text-indigo-200 text-sm font-medium">正在加载数据...</p>
+        <p className="text-indigo-400/60 text-xs mt-2">终末地抽卡分析器</p>
+      </div>
+
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+      </div>
+    </div>
+  );
+});
 
 // Toast 通知组件
 const Toast = React.memo(({ toasts, onRemove }) => {
@@ -406,7 +493,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     );
   });
 
-  const SummaryView = React.memo(({ history, pools }) => {
+  const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading }) => {
     const stats = useMemo(() => {
       const data = {
         total: 0,
@@ -659,22 +746,115 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
 
     return (
       <div className="space-y-6 animate-fade-in">
+        {/* 全服统计卡片 - P2: 汇总页统计全局数据 */}
         <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
-           <div className="relative z-10 flex justify-between items-center">
-             <div>
-               <h2 className="text-slate-400 font-medium mb-1">本网站已统计</h2>
-               <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
+           {globalStatsLoading ? (
+             <div className="flex items-center justify-center py-4">
+               <RefreshCw size={24} className="animate-spin text-slate-400" />
+               <span className="ml-2 text-slate-400">加载全服数据...</span>
              </div>
-             <div className="text-right">
-               <div className="text-3xl font-bold text-yellow-400">{stats.sixStar}</div>
-               <div className="text-sm text-slate-400">总六星数</div>
-               <div className="text-xs text-slate-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
+           ) : globalStats ? (
+             <>
+               <div className="relative z-10">
+                 <div className="flex items-center gap-2 mb-4">
+                   <Cloud size={20} className="text-indigo-400" />
+                   <h2 className="text-indigo-400 font-bold text-sm uppercase tracking-wider">全服统计</h2>
+                   <span className="text-slate-500 text-xs">({globalStats.totalUsers} 位用户参与)</span>
+                 </div>
+
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                   <div className="bg-white/5 rounded-xl p-4">
+                     <div className="text-slate-400 text-xs mb-1">总抽数</div>
+                     <div className="text-3xl font-black">{globalStats.totalPulls.toLocaleString()}</div>
+                   </div>
+                   <div className="bg-white/5 rounded-xl p-4">
+                     <div className="text-slate-400 text-xs mb-1">6星出货</div>
+                     <div className="text-3xl font-black text-yellow-400">{globalStats.sixStarTotal}</div>
+                     <div className="text-xs text-slate-500 mt-1">
+                       出货率 {globalStats.totalPulls > 0 ? ((globalStats.sixStarTotal / globalStats.totalPulls) * 100).toFixed(2) : 0}%
+                     </div>
+                   </div>
+                   <div className="bg-white/5 rounded-xl p-4">
+                     <div className="text-slate-400 text-xs mb-1">平均出货</div>
+                     <div className="text-3xl font-black text-indigo-400">{globalStats.avgPity || '-'}</div>
+                     <div className="text-xs text-slate-500 mt-1">抽/只</div>
+                   </div>
+                   <div className="bg-white/5 rounded-xl p-4">
+                     <div className="text-slate-400 text-xs mb-1">限定/常驻比</div>
+                     <div className="text-lg font-bold">
+                       <span className="text-orange-400">{globalStats.sixStarLimited}</span>
+                       <span className="text-slate-500 mx-1">/</span>
+                       <span className="text-red-400">{globalStats.sixStarStandard}</span>
+                     </div>
+                     <div className="text-xs text-slate-500 mt-1">
+                       不歪率 {globalStats.sixStarTotal > 0 ? ((globalStats.sixStarLimited / globalStats.sixStarTotal) * 100).toFixed(1) : 0}%
+                     </div>
+                   </div>
+                 </div>
+
+                 {/* 额外统计信息 */}
+                 <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-3 gap-4 text-center">
+                   <div>
+                     <div className="text-orange-400 font-bold">{globalStats.byType.limited.total.toLocaleString()}</div>
+                     <div className="text-xs text-slate-500">限定池</div>
+                   </div>
+                   <div>
+                     <div className="text-slate-400 font-bold">{globalStats.byType.weapon.total.toLocaleString()}</div>
+                     <div className="text-xs text-slate-500">武器池</div>
+                   </div>
+                   <div>
+                     <div className="text-indigo-400 font-bold">{globalStats.byType.standard.total.toLocaleString()}</div>
+                     <div className="text-xs text-slate-500">常驻池</div>
+                   </div>
+                 </div>
+               </div>
+             </>
+           ) : (
+             <div className="relative z-10 flex justify-between items-center">
+               <div>
+                 <h2 className="text-slate-400 font-medium mb-1">本地数据统计</h2>
+                 <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
+               </div>
+               <div className="text-right">
+                 <div className="text-3xl font-bold text-yellow-400">{stats.sixStar}</div>
+                 <div className="text-sm text-slate-400">总六星数</div>
+                 <div className="text-xs text-slate-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
+               </div>
              </div>
-           </div>
+           )}
            <div className="absolute -right-10 -bottom-10 text-slate-700 opacity-20">
              <Star size={200} />
            </div>
         </div>
+
+        {/* 当前用户数据（如果有的话） */}
+        {stats.total > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <User size={18} className="text-slate-500" />
+              <h3 className="font-bold text-slate-700">我的数据</h3>
+              <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">{stats.total} 抽</span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-orange-50 rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">{stats.counts[6]}</div>
+                <div className="text-xs text-orange-500">限定6星</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{stats.counts['6_std']}</div>
+                <div className="text-xs text-red-500">常驻6星</div>
+              </div>
+              <div className="text-center p-3 bg-amber-50 rounded-lg">
+                <div className="text-2xl font-bold text-amber-600">{stats.counts[5]}</div>
+                <div className="text-xs text-amber-500">5星</div>
+              </div>
+              <div className="text-center p-3 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{stats.counts[4]}</div>
+                <div className="text-xs text-purple-500">4星</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <PoolCategorySection title="限定角色池" color="text-orange-500" data={stats.byType.limited} icon={Star} barColor="#F97316" />
         <PoolCategorySection title="武器池" color="text-slate-600" data={stats.byType.weapon} icon={Search} barColor="#475569" />
@@ -1321,13 +1501,21 @@ const AboutPanel = React.memo(() => {
 
 export default function GachaAnalyzer() {
   // --- State ---
-  
-  // 0. 用户认证状态
+
+  // 0. 初始化与加载状态
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initStep, setInitStep] = useState('auth'); // 'auth' | 'data' | 'done'
+
+  // 0.1 用户认证状态
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState(null); // 'user' | 'admin' | 'super_admin'
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState(null);
+
+  // 0.2 全局统计数据 (P2: 汇总页全局数据)
+  const [globalStats, setGlobalStats] = useState(null);
+  const [globalStatsLoading, setGlobalStatsLoading] = useState(false);
 
   // 0.1 申请和公告状态
   const [showApplyModal, setShowApplyModal] = useState(false);
@@ -1427,22 +1615,166 @@ export default function GachaAnalyzer() {
   const fileInputRef = useRef(null);
 
   // --- Effects ---
-  // 监听用户登录状态
-  useEffect(() => {
+
+  // 加载全局统计数据 (P2: 汇总页统计全局数据)
+  const fetchGlobalStats = useCallback(async () => {
     if (!supabase) return;
 
-    // 获取当前会话
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+    setGlobalStatsLoading(true);
+    try {
+      // 获取所有历史记录的聚合统计（不包含敏感的用户数据）
+      const { data: historyData, error: historyError } = await supabase
+        .from('history')
+        .select('rarity, is_standard, special_type, pool_id');
+
+      if (historyError) throw historyError;
+
+      // 获取所有卡池信息
+      const { data: poolsData, error: poolsError } = await supabase
+        .from('pools')
+        .select('pool_id, type');
+
+      if (poolsError) throw poolsError;
+
+      // 获取用户数量
+      const { count: userCount, error: userError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      if (userError) throw userError;
+
+      // 构建卡池类型映射
+      const poolTypeMap = new Map();
+      poolsData.forEach(p => poolTypeMap.set(p.pool_id, p.type));
+
+      // 计算全局统计
+      const stats = {
+        totalPulls: 0,
+        totalUsers: userCount || 0,
+        sixStarTotal: 0,
+        sixStarLimited: 0,
+        sixStarStandard: 0,
+        fiveStar: 0,
+        fourStar: 0,
+        byType: {
+          limited: { total: 0, sixStar: 0, limitedSix: 0 },
+          weapon: { total: 0, sixStar: 0, limitedSix: 0 },
+          standard: { total: 0, sixStar: 0 }
+        },
+        pityList: [] // 用于计算平均出货
+      };
+
+      // 按卡池分组计算
+      const pullsByPool = {};
+      historyData.forEach(item => {
+        if (!pullsByPool[item.pool_id]) pullsByPool[item.pool_id] = [];
+        pullsByPool[item.pool_id].push(item);
+      });
+
+      // 计算每个卡池的垫刀
+      Object.keys(pullsByPool).forEach(poolId => {
+        const type = poolTypeMap.get(poolId) || 'standard';
+        const validPulls = pullsByPool[poolId].filter(i => i.special_type !== 'gift');
+
+        let tempCounter = 0;
+        validPulls.forEach(pull => {
+          tempCounter++;
+          if (pull.rarity === 6) {
+            stats.pityList.push(tempCounter);
+            tempCounter = 0;
+          }
+        });
+      });
+
+      // 计算全局统计
+      historyData.forEach(item => {
+        const type = poolTypeMap.get(item.pool_id) || 'standard';
+
+        // 有效抽数（排除赠送）
+        if (item.special_type !== 'gift') {
+          stats.totalPulls++;
+          if (stats.byType[type]) stats.byType[type].total++;
+        }
+
+        if (item.rarity === 6) {
+          stats.sixStarTotal++;
+          if (stats.byType[type]) stats.byType[type].sixStar++;
+
+          if (item.is_standard) {
+            stats.sixStarStandard++;
+          } else {
+            stats.sixStarLimited++;
+            if (stats.byType[type]?.limitedSix !== undefined) {
+              stats.byType[type].limitedSix++;
+            }
+          }
+        } else if (item.rarity === 5) {
+          stats.fiveStar++;
+        } else {
+          stats.fourStar++;
+        }
+      });
+
+      // 计算平均出货
+      if (stats.pityList.length > 0) {
+        stats.avgPity = (stats.pityList.reduce((a, b) => a + b, 0) / stats.pityList.length).toFixed(1);
+        stats.maxPity = Math.max(...stats.pityList);
+        stats.minPity = Math.min(...stats.pityList);
+      }
+
+      setGlobalStats(stats);
+    } catch (error) {
+      console.error('获取全局统计失败:', error);
+    } finally {
+      setGlobalStatsLoading(false);
+    }
+  }, []);
+
+  // 监听用户登录状态
+  useEffect(() => {
+    const initializeApp = async () => {
+      setInitStep('auth');
+
+      if (!supabase) {
+        // 无 Supabase 配置，直接完成初始化
+        setIsInitializing(false);
+        setInitStep('done');
+        return;
+      }
+
+      try {
+        // 获取当前会话
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+
+        // 获取全局统计
+        setInitStep('data');
+        await fetchGlobalStats();
+
+        setInitStep('done');
+      } catch (error) {
+        console.error('初始化失败:', error);
+      } finally {
+        // 延迟一点结束加载，确保动画效果
+        setTimeout(() => {
+          setIsInitializing(false);
+        }, 500);
+      }
+    };
+
+    initializeApp();
 
     // 监听登录状态变化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
+    if (supabase) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null);
+        // 用户状态变化时刷新全局统计
+        fetchGlobalStats();
+      });
 
-    return () => subscription.unsubscribe();
-  }, []);
+      return () => subscription.unsubscribe();
+    }
+  }, [fetchGlobalStats]);
 
   // 获取用户角色
   useEffect(() => {
@@ -2040,8 +2372,18 @@ export default function GachaAnalyzer() {
     const newPool = {
       id: newId,
       name: newPoolNameInput.trim(),
-      type: newPoolTypeInput
+      type: newPoolTypeInput,
+      locked: false
     };
+
+    // P1: 前端数据校验
+    const validation = validatePoolData(newPool);
+    if (!validation.isValid) {
+      console.error('卡池数据校验失败:', validation.errors);
+      showToast(`卡池创建失败: ${validation.errors.join(', ')}`, 'error');
+      return;
+    }
+
     setPools(prev => [...prev, newPool]);
     setCurrentPoolId(newId);
     setModalState({ type: null, data: null });
@@ -2165,11 +2507,20 @@ export default function GachaAnalyzer() {
     const newPull = {
       id: Date.now() + Math.random(),
       rarity: rarity,
-      isStandard: isStandard,
+      isStandard: rarity === 6 ? isStandard : false, // 确保非6星不带 isStandard
       specialType: specialType,
       timestamp: new Date().toISOString(),
       poolId: currentPoolId
     };
+
+    // P1: 前端数据校验
+    const validation = validatePullData(newPull);
+    if (!validation.isValid) {
+      console.error('数据校验失败:', validation.errors);
+      showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
+      return;
+    }
+
     setHistory(prev => [...prev, newPull]);
 
     // 同步到云端
@@ -2227,12 +2578,23 @@ export default function GachaAnalyzer() {
       return {
         id: Date.now() + index,
         rarity: item.rarity,
-        isStandard: item.isStandard,
+        isStandard: item.rarity === 6 ? item.isStandard : false, // 确保非6星不带 isStandard
         specialType: specialType,
         timestamp: nowStr,
         poolId: currentPoolId
       };
     });
+
+    // P1: 前端数据校验
+    for (const pull of newPulls) {
+      const validation = validatePullData(pull);
+      if (!validation.isValid) {
+        console.error('批量数据校验失败:', validation.errors);
+        showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
+        return;
+      }
+    }
+
     setHistory(prev => [...prev, ...newPulls]);
 
     // 同步到云端
@@ -2968,6 +3330,11 @@ export default function GachaAnalyzer() {
     </div>
   );
 
+  // 加载界面
+  if (isInitializing) {
+    return <LoadingScreen />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20 md:pb-10 relative">
       {/* 顶部导航 */}
@@ -3214,7 +3581,7 @@ export default function GachaAnalyzer() {
         )}
 
         {activeTab === 'summary' ? (
-          <SummaryView history={history} pools={pools} />
+          <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
           <AdminPanel showToast={showToast} />
         ) : activeTab === 'settings' ? (
