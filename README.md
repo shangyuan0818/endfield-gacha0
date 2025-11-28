@@ -125,7 +125,7 @@ gacha-analyzer/
 
 ### AI 开发助手
 - **Claude** (Anthropic Claude Opus 4.5) - 后端逻辑 & 数据处理 & 前端优化
-- **Gemini** (Google Gemini 2.5 Pro) - 前端界面设计
+- **Gemini** (Google Gemini 3 Pro) - 前端界面设计
 
 ## 🤝 贡献
 
