@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS public.pools (
   pool_id TEXT NOT NULL,  -- 本地卡池ID，如 "pool_1764318026209"
   name TEXT NOT NULL,
   type TEXT NOT NULL CHECK (type IN ('limited', 'weapon', 'standard')),
+  locked BOOLEAN DEFAULT FALSE,  -- 卡池锁定状态，仅超管可修改
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT pools_pkey PRIMARY KEY (id),

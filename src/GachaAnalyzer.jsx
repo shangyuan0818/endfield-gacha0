@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, ExternalLink, Heart, Code, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, Unlock, ExternalLink, Heart, Code, Sparkles, AlertTriangle } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
 
@@ -25,6 +25,158 @@ const PRESET_POOLS = [
   { label: '常驻武器池4', type: 'standard', charName: '常驻武器4' },
   { label: '常驻武器池5', type: 'standard', charName: '常驻武器5' },
 ];
+
+// --- 通用弹窗组件 ---
+
+// Toast 通知组件
+const Toast = React.memo(({ toasts, onRemove }) => {
+  return (
+    <div className="fixed top-4 right-4 z-[100] space-y-2 max-w-sm">
+      {toasts.map(toast => (
+        <div
+          key={toast.id}
+          className={`
+            flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-slide-in
+            ${toast.type === 'success' ? 'bg-green-50/95 border-green-200 text-green-800' : ''}
+            ${toast.type === 'error' ? 'bg-red-50/95 border-red-200 text-red-800' : ''}
+            ${toast.type === 'warning' ? 'bg-amber-50/95 border-amber-200 text-amber-800' : ''}
+            ${toast.type === 'info' ? 'bg-blue-50/95 border-blue-200 text-blue-800' : ''}
+          `}
+        >
+          <div className="shrink-0 mt-0.5">
+            {toast.type === 'success' && <CheckCircle2 size={20} className="text-green-500" />}
+            {toast.type === 'error' && <AlertCircle size={20} className="text-red-500" />}
+            {toast.type === 'warning' && <AlertTriangle size={20} className="text-amber-500" />}
+            {toast.type === 'info' && <Info size={20} className="text-blue-500" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            {toast.title && <p className="font-bold text-sm mb-0.5">{toast.title}</p>}
+            <p className="text-sm whitespace-pre-wrap">{toast.message}</p>
+          </div>
+          <button
+            onClick={() => onRemove(toast.id)}
+            className="shrink-0 p-1 hover:bg-black/5 rounded transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+});
+
+// 确认对话框组件
+const ConfirmDialog = React.memo(({ isOpen, title, message, confirmText, cancelText, onConfirm, onCancel, type = 'warning' }) => {
+  if (!isOpen) return null;
+
+  const iconBg = {
+    warning: 'bg-amber-100 text-amber-500',
+    danger: 'bg-red-100 text-red-500',
+    info: 'bg-blue-100 text-blue-500',
+    success: 'bg-green-100 text-green-500'
+  };
+
+  const confirmBtnClass = {
+    warning: 'bg-amber-500 hover:bg-amber-600',
+    danger: 'bg-red-500 hover:bg-red-600',
+    info: 'bg-blue-500 hover:bg-blue-600',
+    success: 'bg-green-500 hover:bg-green-600'
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+        <div className="p-6 text-center">
+          <div className={`w-14 h-14 ${iconBg[type]} rounded-full flex items-center justify-center mx-auto mb-4`}>
+            {type === 'danger' && <AlertCircle size={28} />}
+            {type === 'warning' && <AlertTriangle size={28} />}
+            {type === 'info' && <Info size={28} />}
+            {type === 'success' && <CheckCircle2 size={28} />}
+          </div>
+          <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
+          <p className="text-sm text-slate-500 whitespace-pre-wrap">{message}</p>
+        </div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+          >
+            {cancelText || '取消'}
+          </button>
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-sm font-bold text-white ${confirmBtnClass[type]} rounded-lg shadow-sm transition-all`}
+          >
+            {confirmText || '确认'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// useToast Hook
+const useToast = () => {
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((message, type = 'info', title = null, duration = 4000) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, message, type, title }]);
+
+    if (duration > 0) {
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, duration);
+    }
+
+    return id;
+  }, []);
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  return { toasts, showToast, removeToast };
+};
+
+// useConfirm Hook
+const useConfirm = () => {
+  const [confirmState, setConfirmState] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '',
+    cancelText: '',
+    type: 'warning',
+    resolve: null
+  });
+
+  const confirm = useCallback((options) => {
+    return new Promise((resolve) => {
+      setConfirmState({
+        isOpen: true,
+        title: options.title || '确认',
+        message: options.message || '',
+        confirmText: options.confirmText || '确认',
+        cancelText: options.cancelText || '取消',
+        type: options.type || 'warning',
+        resolve
+      });
+    });
+  }, []);
+
+  const handleConfirm = useCallback(() => {
+    confirmState.resolve?.(true);
+    setConfirmState(prev => ({ ...prev, isOpen: false }));
+  }, [confirmState.resolve]);
+
+  const handleCancel = useCallback(() => {
+    confirmState.resolve?.(false);
+    setConfirmState(prev => ({ ...prev, isOpen: false }));
+  }, [confirmState.resolve]);
+
+  return { confirmState, confirm, handleConfirm, handleCancel };
+};
 
 // 优化：独立的录入组件，避免编辑时触发父组件重绘
 const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onSubmitBatch, onDeletePool }) => {
@@ -532,7 +684,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   });
 
 // 超管管理面板组件
-const AdminPanel = React.memo(() => {
+const AdminPanel = React.memo(({ showToast }) => {
   const [users, setUsers] = useState([]);
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -595,7 +747,7 @@ const AdminPanel = React.memo(() => {
       ));
     } catch (error) {
       console.error('审批失败:', error);
-      alert('审批失败: ' + error.message);
+      showToast('审批失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -617,7 +769,7 @@ const AdminPanel = React.memo(() => {
       ));
     } catch (error) {
       console.error('拒绝失败:', error);
-      alert('拒绝失败: ' + error.message);
+      showToast('拒绝失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -639,7 +791,7 @@ const AdminPanel = React.memo(() => {
       ));
     } catch (error) {
       console.error('更改角色失败:', error);
-      alert('更改角色失败: ' + error.message);
+      showToast('更改角色失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -1183,6 +1335,10 @@ export default function GachaAnalyzer() {
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncement, setShowAnnouncement] = useState(true);
 
+  // 0.2 通用弹窗
+  const { toasts, showToast, removeToast } = useToast();
+  const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+
   // 权限判断
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
   const isSuperAdmin = userRole === 'super_admin';
@@ -1191,14 +1347,15 @@ export default function GachaAnalyzer() {
   const [pools, setPools] = useState(() => {
     try {
       const saved = localStorage.getItem('gacha_pools');
-      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard' }];
-      // 迁移数据：如果没有 type 字段，根据名字猜测或默认为 limited
+      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard', locked: false }];
+      // 迁移数据：如果没有 type 或 locked 字段
       return parsed.map(p => ({
         ...p,
-        type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited')
+        type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited'),
+        locked: p.locked || false
       }));
     } catch (e) {
-      return [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard' }];
+      return [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard', locked: false }];
     }
   });
 
@@ -1208,6 +1365,13 @@ export default function GachaAnalyzer() {
   });
   
   const currentPool = useMemo(() => pools.find(p => p.id === currentPoolId) || pools[0], [pools, currentPoolId]);
+
+  // 当前卡池是否可编辑（锁定的卡池只有超管能改）
+  const canEditCurrentPool = useMemo(() => {
+    if (!canEdit) return false;
+    if (currentPool?.locked && !isSuperAdmin) return false;
+    return true;
+  }, [canEdit, currentPool?.locked, isSuperAdmin]);
 
   // 3. 历史记录 (增加 isStandard 字段标识常驻)
   const [history, setHistory] = useState(() => {
@@ -1413,7 +1577,8 @@ export default function GachaAnalyzer() {
       const formattedPools = cloudPools.map(p => ({
         id: p.pool_id,
         name: p.name,
-        type: p.type
+        type: p.type,
+        locked: p.locked || false
       }));
 
       const formattedHistory = cloudHistory.map(h => ({
@@ -1447,6 +1612,7 @@ export default function GachaAnalyzer() {
           pool_id: pool.id,
           name: pool.name,
           type: pool.type,
+          locked: pool.locked || false,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,pool_id' });
 
@@ -1880,7 +2046,8 @@ export default function GachaAnalyzer() {
      const updatedPool = {
        id: modalState.data.id,
        name: newPoolNameInput.trim(),
-       type: newPoolTypeInput
+       type: newPoolTypeInput,
+       locked: modalState.data.locked || false  // 保留锁定状态
      };
 
      setPools(prev => prev.map(p => {
@@ -1895,6 +2062,30 @@ export default function GachaAnalyzer() {
      if (user) {
        await savePoolToCloud(updatedPool);
      }
+  };
+
+  // 切换卡池锁定状态（仅超管可用）
+  const togglePoolLock = async (poolId) => {
+    if (!isSuperAdmin) return;
+
+    const pool = pools.find(p => p.id === poolId);
+    if (!pool) return;
+
+    const updatedPool = { ...pool, locked: !pool.locked };
+
+    setPools(prev => prev.map(p =>
+      p.id === poolId ? updatedPool : p
+    ));
+
+    // 同步到云端
+    if (user) {
+      await savePoolToCloud(updatedPool);
+    }
+
+    showToast(
+      updatedPool.locked ? `卡池「${pool.name}」已锁定` : `卡池「${pool.name}」已解锁`,
+      updatedPool.locked ? 'warning' : 'success'
+    );
   };
 
   const openDeleteConfirmModal = () => {
@@ -2184,7 +2375,10 @@ export default function GachaAnalyzer() {
     };
 
     if (scope === 'current') {
-      if (currentPoolHistory.length === 0) return alert("当前卡池无数据");
+      if (currentPoolHistory.length === 0) {
+        showToast("当前卡池无数据", 'warning');
+        return;
+      }
       // 当前卡池已有globalIndex，需要添加垫刀数
       const sortedHistory = [...history.filter(h => h.poolId === currentPoolId)].sort((a, b) => a.id - b.id);
       let pityCounter = 0;
@@ -2203,7 +2397,10 @@ export default function GachaAnalyzer() {
         return result;
       });
     } else {
-      if (history.length === 0) return alert("无数据可导出");
+      if (history.length === 0) {
+        showToast("无数据可导出", 'warning');
+        return;
+      }
       // 全部导出：为每个卡池单独计算序号和垫刀
       pools.forEach(pool => {
         const poolData = processHistoryWithIndex(history, pool.id);
@@ -2265,8 +2462,10 @@ export default function GachaAnalyzer() {
     setShowExportMenu(false);
   };
 
-  // 导入数据处理
-  const handleImportFile = async (event) => {
+  // 导入数据处理 - 使用状态存储待导入数据
+  const [pendingImport, setPendingImport] = useState(null);
+
+  const handleImportFile = (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -2277,75 +2476,81 @@ export default function GachaAnalyzer() {
 
         // 简单验证
         if (!importedData.pools || !importedData.history) {
-          alert("文件格式不正确，缺少关键数据字段。");
+          showToast("文件格式不正确，缺少关键数据字段。", 'error');
           return;
         }
 
         const willSyncToCloud = !!(user && supabase);
-        const confirmMsg = `解析成功！\n包含 ${importedData.pools.length} 个卡池和 ${importedData.history.length} 条记录。\n\n是否合并到当前数据中？(相同ID的记录会被跳过)${willSyncToCloud ? '\n\n✓ 数据将自动同步到云端' : '\n\n⚠️ 未登录或未配置云端，仅保存到本地'}`;
 
-        if (!confirm(confirmMsg)) {
-          return;
-        }
-
-        // 1. 合并 Pools (去重)
-        const newPools = [...pools];
-        const addedPools = [];
-        importedData.pools.forEach(impPool => {
-          if (!newPools.some(p => p.id === impPool.id)) {
-            newPools.push(impPool);
-            addedPools.push(impPool);
-          }
-        });
-
-        // 2. 合并 History (去重)
-        const newHistory = [...history];
-        const existingIds = new Set(newHistory.map(h => h.id));
-        const addedHistory = [];
-
-        importedData.history.forEach(impItem => {
-          if (!existingIds.has(impItem.id)) {
-            newHistory.push(impItem);
-            addedHistory.push(impItem);
-          }
-        });
-
-        setPools(newPools);
-        setHistory(newHistory);
-
-        // 3. 同步到云端（如果已登录）
-        if (willSyncToCloud && (addedPools.length > 0 || addedHistory.length > 0)) {
-          setSyncing(true);
-          try {
-            // 同步新增的卡池
-            for (const pool of addedPools) {
-              await savePoolToCloud(pool);
-            }
-            // 分批同步新增的历史记录
-            const batchSize = 100;
-            for (let i = 0; i < addedHistory.length; i += batchSize) {
-              const batch = addedHistory.slice(i, i + batchSize);
-              await saveHistoryToCloud(batch);
-            }
-            alert(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`);
-          } catch (syncError) {
-            console.error('同步到云端失败:', syncError);
-            alert(`导入完成！新增了 ${addedHistory.length} 条记录。\n\n⚠️ 云端同步失败: ${syncError.message}`);
-          } finally {
-            setSyncing(false);
-          }
-        } else {
-          alert(`导入完成！新增了 ${addedHistory.length} 条记录。`);
-        }
+        // 存储待导入数据，显示确认弹窗
+        setPendingImport({ data: importedData, willSyncToCloud });
 
       } catch (error) {
         console.error(error);
-        alert("导入失败：文件解析错误。请确保是合法的JSON文件。");
+        showToast("导入失败：文件解析错误。请确保是合法的JSON文件。", 'error');
       }
       // 清空 input 允许重复导入同一文件
       event.target.value = '';
     };
     reader.readAsText(file);
+  };
+
+  // 确认导入
+  const confirmImport = async () => {
+    if (!pendingImport) return;
+
+    const { data: importedData, willSyncToCloud } = pendingImport;
+
+    // 1. 合并 Pools (去重)
+    const newPools = [...pools];
+    const addedPools = [];
+    importedData.pools.forEach(impPool => {
+      if (!newPools.some(p => p.id === impPool.id)) {
+        newPools.push(impPool);
+        addedPools.push(impPool);
+      }
+    });
+
+    // 2. 合并 History (去重)
+    const newHistory = [...history];
+    const existingIds = new Set(newHistory.map(h => h.id));
+    const addedHistory = [];
+
+    importedData.history.forEach(impItem => {
+      if (!existingIds.has(impItem.id)) {
+        newHistory.push(impItem);
+        addedHistory.push(impItem);
+      }
+    });
+
+    setPools(newPools);
+    setHistory(newHistory);
+    setPendingImport(null);
+
+    // 3. 同步到云端（如果已登录）
+    if (willSyncToCloud && (addedPools.length > 0 || addedHistory.length > 0)) {
+      setSyncing(true);
+      try {
+        // 同步新增的卡池
+        for (const pool of addedPools) {
+          await savePoolToCloud(pool);
+        }
+        // 分批同步新增的历史记录
+        const batchSize = 100;
+        for (let i = 0; i < addedHistory.length; i += batchSize) {
+          const batch = addedHistory.slice(i, i + batchSize);
+          await saveHistoryToCloud(batch);
+        }
+        showToast(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`, 'success', '导入成功');
+      } catch (syncError) {
+        console.error('同步到云端失败:', syncError);
+        showToast(`新增了 ${addedHistory.length} 条记录，但云端同步失败: ${syncError.message}`, 'warning', '部分成功');
+      } finally {
+        setSyncing(false);
+      }
+    } else {
+      showToast(`导入完成！新增了 ${addedHistory.length} 条记录。`, 'success', '导入成功');
+    }
   };
 
   // --- 组件 ---
@@ -2783,15 +2988,29 @@ export default function GachaAnalyzer() {
                             setCurrentPoolId(pool.id);
                             setShowPoolMenu(false);
                           }}
-                          className={`flex-1 text-left truncate ${currentPoolId === pool.id ? 'text-indigo-600 font-bold' : 'text-slate-600'}`}
+                          className={`flex-1 text-left truncate flex items-center gap-1.5 ${currentPoolId === pool.id ? 'text-indigo-600 font-bold' : 'text-slate-600'}`}
                         >
-                          {pool.name}
+                          {pool.locked && <Lock size={12} className="text-amber-500 shrink-0" />}
+                          <span className="truncate">{pool.name}</span>
                         </button>
-                        
-                        <div className="flex items-center gap-2">
-                          {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-600"></div>}
-                          {/* 编辑卡池按钮 - 仅管理员可见 */}
-                          {canEdit && (
+
+                        <div className="flex items-center gap-1">
+                          {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></div>}
+                          {/* 锁定/解锁按钮 - 仅超管可见 */}
+                          {isSuperAdmin && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                togglePoolLock(pool.id);
+                              }}
+                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-200'}`}
+                              title={pool.locked ? "解锁卡池" : "锁定卡池"}
+                            >
+                              {pool.locked ? <Unlock size={14} /> : <Lock size={14} />}
+                            </button>
+                          )}
+                          {/* 编辑卡池按钮 - 仅管理员可见且卡池未锁定或超管 */}
+                          {canEdit && (!pool.locked || isSuperAdmin) && (
                             <button
                               onClick={(e) => openEditPoolModal(e, pool)}
                               className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
@@ -2969,15 +3188,15 @@ export default function GachaAnalyzer() {
         {activeTab === 'summary' ? (
           <SummaryView history={history} pools={pools} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
-          <AdminPanel />
+          <AdminPanel showToast={showToast} />
         ) : activeTab === 'settings' ? (
           <SettingsPanel user={user} userRole={userRole} />
         ) : activeTab === 'about' ? (
           <AboutPanel />
         ) : (
           <>
-            {/* 数据录入区域 - 仅管理员可见 */}
-            {canEdit && (
+            {/* 数据录入区域 - 仅管理员可见且卡池未锁定 */}
+            {canEditCurrentPool && (
               <InputSection
                 currentPool={currentPool}
                 poolStatsTotal={stats.total}
@@ -3009,6 +3228,18 @@ export default function GachaAnalyzer() {
                     登录
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* 卡池锁定提示 - 管理员但卡池被锁定 */}
+            {canEdit && !canEditCurrentPool && (
+              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+                <Lock size={40} className="mx-auto text-amber-400 mb-3" />
+                <h3 className="font-bold text-amber-700 mb-2">此卡池已被锁定</h3>
+                <p className="text-sm text-amber-600">
+                  卡池「{currentPool?.name}」已被超级管理员锁定，暂时无法编辑。
+                  <br/>如需修改，请联系超级管理员解锁。
+                </p>
               </div>
             )}
 
@@ -3218,7 +3449,7 @@ export default function GachaAnalyzer() {
                        onEdit={setEditItemState}
                        onDeleteGroup={handleDeleteGroup}
                        poolType={currentPool.type}
-                       canEdit={canEdit}
+                       canEdit={canEditCurrentPool}
                      />
                    ))}
                    
@@ -3560,14 +3791,14 @@ export default function GachaAnalyzer() {
                 onClick={async () => {
                   const reason = document.getElementById('apply-reason').value.trim();
                   if (!reason) {
-                    alert('请填写申请理由');
+                    showToast('请填写申请理由', 'warning');
                     return;
                   }
                   const success = await handleApplyAdmin(reason);
                   if (success) {
-                    alert('申请已提交，请等待审核');
+                    showToast('申请已提交，请等待审核', 'success');
                   } else {
-                    alert('提交失败，请稍后重试');
+                    showToast('提交失败，请稍后重试', 'error');
                   }
                 }}
                 className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all flex items-center gap-2"
@@ -3579,6 +3810,64 @@ export default function GachaAnalyzer() {
           </div>
         </div>
       )}
+
+      {/* 导入确认弹窗 */}
+      {pendingImport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-6 text-center">
+              <div className="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Upload size={28} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-2">确认导入数据</h3>
+              <p className="text-sm text-slate-500">
+                包含 <span className="font-bold text-slate-700">{pendingImport.data.pools.length}</span> 个卡池和 <span className="font-bold text-slate-700">{pendingImport.data.history.length}</span> 条记录
+              </p>
+              <p className="text-xs text-slate-400 mt-2">相同ID的记录会被跳过</p>
+              {pendingImport.willSyncToCloud ? (
+                <p className="text-xs text-green-600 mt-2 flex items-center justify-center gap-1">
+                  <Cloud size={14} /> 数据将自动同步到云端
+                </p>
+              ) : (
+                <p className="text-xs text-amber-600 mt-2 flex items-center justify-center gap-1">
+                  <CloudOff size={14} /> 未登录，仅保存到本地
+                </p>
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+              <button
+                onClick={() => setPendingImport(null)}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={syncing}
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-lg shadow-sm transition-all flex items-center gap-2"
+              >
+                {syncing ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                {syncing ? '导入中...' : '确认导入'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 通用确认弹窗 */}
+      <ConfirmDialog
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmText={confirmState.confirmText}
+        cancelText={confirmState.cancelText}
+        type={confirmState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
+
+      {/* Toast 通知 */}
+      <Toast toasts={toasts} onRemove={removeToast} />
 
       <style>{`
         @keyframes fade-in {
@@ -3615,6 +3904,20 @@ export default function GachaAnalyzer() {
         
         .glow-border {
            box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
+        }
+
+        @keyframes slide-in {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out forwards;
         }
       `}</style>
     </div>
