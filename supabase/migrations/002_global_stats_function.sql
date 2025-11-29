@@ -10,28 +10,22 @@ DECLARE
   avg_pity NUMERIC;
 BEGIN
   -- 使用窗口函数计算精确的平均出货（每个6星的垫刀数）
+  -- 旧版本按 pool_id 分组（不区分 user_id），按 record_id 排序
   WITH valid_pulls AS (
-    -- 排除赠送的记录，按时间戳排序（与前端逻辑一致）
     SELECT
-      user_id,
       pool_id,
       record_id,
       rarity,
-      timestamp,
-      ROW_NUMBER() OVER (PARTITION BY user_id, pool_id ORDER BY timestamp, record_id) as pull_num
+      ROW_NUMBER() OVER (PARTITION BY pool_id ORDER BY record_id) as pull_num
     FROM history
     WHERE special_type IS DISTINCT FROM 'gift'
   ),
   six_star_pity AS (
-    -- 计算每个6星的垫刀数
     SELECT
-      v1.user_id,
-      v1.pool_id,
       v1.pull_num - COALESCE(
         (SELECT MAX(v2.pull_num)
          FROM valid_pulls v2
-         WHERE v2.user_id = v1.user_id
-           AND v2.pool_id = v1.pool_id
+         WHERE v2.pool_id = v1.pool_id
            AND v2.rarity = 6
            AND v2.pull_num < v1.pull_num),
         0
