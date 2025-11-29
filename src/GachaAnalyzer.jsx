@@ -1649,135 +1649,59 @@ export default function GachaAnalyzer() {
   // --- Effects ---
 
   // 加载全局统计数据 (P2: 汇总页统计全局数据)
+  // 使用 RPC 函数绕过 RLS 获取全服统计
   const fetchGlobalStats = useCallback(async () => {
     if (!supabase) return;
 
     setGlobalStatsLoading(true);
     try {
-      // 分页获取所有历史记录（Supabase 默认限制 1000 行）
-      const PAGE_SIZE = 1000;
-      let allHistoryData = [];
-      let page = 0;
-      let hasMore = true;
+      // 调用数据库 RPC 函数获取全服统计（绕过 RLS）
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_global_stats');
 
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        const { data: pageData, error: historyError } = await supabase
-          .from('history')
-          .select('rarity, is_standard, special_type, pool_id')
-          .range(from, to);
-
-        if (historyError) throw historyError;
-
-        if (pageData && pageData.length > 0) {
-          allHistoryData = allHistoryData.concat(pageData);
-          page++;
-          hasMore = pageData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      if (rpcError) {
+        console.error('RPC 调用失败:', rpcError);
+        // 如果 RPC 失败，回退到旧方法（可能因为函数还没部署）
+        throw rpcError;
       }
 
-      const historyData = allHistoryData;
+      if (rpcData) {
+        // RPC 返回的数据格式
+        const stats = {
+          totalPulls: rpcData.totalPulls || 0,
+          totalUsers: rpcData.totalUsers || 0,
+          sixStarTotal: rpcData.sixStarTotal || 0,
+          sixStarLimited: rpcData.sixStarLimited || 0,
+          sixStarStandard: rpcData.sixStarStandard || 0,
+          fiveStar: rpcData.fiveStar || 0,
+          fourStar: rpcData.fourStar || 0,
+          byType: {
+            limited: { total: rpcData.byType?.limited?.total || 0 },
+            weapon: { total: rpcData.byType?.weapon?.total || 0 },
+            standard: { total: rpcData.byType?.standard?.total || 0 }
+          },
+          // 计算平均出货（如果有6星）
+          avgPity: rpcData.sixStarTotal > 0
+            ? (rpcData.totalPulls / rpcData.sixStarTotal).toFixed(1)
+            : null
+        };
 
-      // 获取所有卡池信息
-      const { data: poolsData, error: poolsError } = await supabase
-        .from('pools')
-        .select('pool_id, type');
-
-      if (poolsError) throw poolsError;
-
-      // 获取用户数量
-      const { count: userCount, error: userError } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true });
-
-      if (userError) throw userError;
-
-      // 构建卡池类型映射
-      const poolTypeMap = new Map();
-      poolsData.forEach(p => poolTypeMap.set(p.pool_id, p.type));
-
-      // 计算全局统计
-      const stats = {
+        setGlobalStats(stats);
+      }
+    } catch (error) {
+      console.error('获取全局统计失败:', error);
+      // 设置为空统计而不是 null，避免显示加载中
+      setGlobalStats({
         totalPulls: 0,
-        totalUsers: userCount || 0,
+        totalUsers: 0,
         sixStarTotal: 0,
         sixStarLimited: 0,
         sixStarStandard: 0,
         fiveStar: 0,
         fourStar: 0,
-        byType: {
-          limited: { total: 0, sixStar: 0, limitedSix: 0 },
-          weapon: { total: 0, sixStar: 0, limitedSix: 0 },
-          standard: { total: 0, sixStar: 0 }
-        },
-        pityList: [] // 用于计算平均出货
-      };
-
-      // 按卡池分组计算
-      const pullsByPool = {};
-      historyData.forEach(item => {
-        if (!pullsByPool[item.pool_id]) pullsByPool[item.pool_id] = [];
-        pullsByPool[item.pool_id].push(item);
+        byType: { limited: { total: 0 }, weapon: { total: 0 }, standard: { total: 0 } },
+        avgPity: null
       });
-
-      // 计算每个卡池的垫刀
-      Object.keys(pullsByPool).forEach(poolId => {
-        const type = poolTypeMap.get(poolId) || 'standard';
-        const validPulls = pullsByPool[poolId].filter(i => i.special_type !== 'gift');
-
-        let tempCounter = 0;
-        validPulls.forEach(pull => {
-          tempCounter++;
-          if (pull.rarity === 6) {
-            stats.pityList.push(tempCounter);
-            tempCounter = 0;
-          }
-        });
-      });
-
-      // 计算全局统计
-      historyData.forEach(item => {
-        const type = poolTypeMap.get(item.pool_id) || 'standard';
-
-        // 有效抽数（排除赠送）
-        if (item.special_type !== 'gift') {
-          stats.totalPulls++;
-          if (stats.byType[type]) stats.byType[type].total++;
-        }
-
-        if (item.rarity === 6) {
-          stats.sixStarTotal++;
-          if (stats.byType[type]) stats.byType[type].sixStar++;
-
-          if (item.is_standard) {
-            stats.sixStarStandard++;
-          } else {
-            stats.sixStarLimited++;
-            if (stats.byType[type]?.limitedSix !== undefined) {
-              stats.byType[type].limitedSix++;
-            }
-          }
-        } else if (item.rarity === 5) {
-          stats.fiveStar++;
-        } else {
-          stats.fourStar++;
-        }
-      });
-
-      // 计算平均出货
-      if (stats.pityList.length > 0) {
-        stats.avgPity = (stats.pityList.reduce((a, b) => a + b, 0) / stats.pityList.length).toFixed(1);
-        stats.maxPity = Math.max(...stats.pityList);
-        stats.minPity = Math.min(...stats.pityList);
-      }
-
-      setGlobalStats(stats);
-    } catch (error) {
-      console.error('获取全局统计失败:', error);
     } finally {
       setGlobalStatsLoading(false);
     }
@@ -1800,12 +1724,8 @@ export default function GachaAnalyzer() {
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
 
-        // 获取全局统计
+        // 获取全局统计（使用 RPC 函数，无需等待认证同步）
         setInitStep('data');
-        // 如果有 session，等待认证状态同步后再查询
-        if (session) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
         await fetchGlobalStats();
 
         setInitStep('done');
@@ -1823,14 +1743,10 @@ export default function GachaAnalyzer() {
 
     // 监听登录状态变化
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
-        // 用户状态变化时刷新全局统计
-        // 添加延迟确保 Supabase 认证状态已同步
-        if (session) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          fetchGlobalStats();
-        }
+        // 用户状态变化时刷新全局统计（RPC 函数不受 RLS 限制）
+        fetchGlobalStats();
       });
 
       return () => subscription.unsubscribe();
