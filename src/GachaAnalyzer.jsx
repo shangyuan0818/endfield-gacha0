@@ -1886,6 +1886,7 @@ export default function GachaAnalyzer() {
           .from('history')
           .select('*')
           .eq('user_id', userId)
+          .order('record_id', { ascending: true })
           .range(from, to);
 
         if (historyError) throw historyError;
@@ -2097,8 +2098,10 @@ export default function GachaAnalyzer() {
   // --- 核心计算逻辑 ---
   const currentPoolHistory = useMemo(() => {
     // 加上全局序号 (第几抽)
+    // 确保按 id 排序（id 基于时间戳生成，代表录入顺序）
     return history
       .filter(item => item.poolId === currentPoolId)
+      .sort((a, b) => a.id - b.id)
       .map((item, index) => ({ ...item, globalIndex: index + 1 }));
   }, [history, currentPoolId]);
 
