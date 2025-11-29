@@ -80,41 +80,6 @@ const PRESET_POOLS = [
 
 // --- 通用弹窗组件 ---
 
-// 加载界面组件
-const LoadingScreen = React.memo(() => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
-      <div className="text-center">
-        {/* Logo */}
-        <div className="mb-8 animate-pulse">
-          <img
-            src="/endfield-logo.svg"
-            alt="终末地"
-            className="h-20 w-auto mx-auto filter brightness-0 invert opacity-80"
-          />
-        </div>
-
-        {/* 加载动画 */}
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-          <div className="w-3 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-        </div>
-
-        {/* 文字 */}
-        <p className="text-indigo-200 text-sm font-medium">正在加载数据...</p>
-        <p className="text-indigo-400/60 text-xs mt-2">终末地抽卡分析器</p>
-      </div>
-
-      {/* 背景装饰 */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
-      </div>
-    </div>
-  );
-});
-
 // Toast 通知组件
 const Toast = React.memo(({ toasts, onRemove }) => {
   return (
@@ -123,7 +88,7 @@ const Toast = React.memo(({ toasts, onRemove }) => {
         <div
           key={toast.id}
           className={`
-            flex items-start gap-3 p-4 rounded-xl shadow-lg border backdrop-blur-sm animate-slide-in
+            flex items-start gap-3 p-4 rounded-none shadow-lg border backdrop-blur-sm animate-slide-in
             ${toast.type === 'success' ? 'bg-green-50/95 border-green-200 text-green-800' : ''}
             ${toast.type === 'error' ? 'bg-red-50/95 border-red-200 text-red-800' : ''}
             ${toast.type === 'warning' ? 'bg-amber-50/95 border-amber-200 text-amber-800' : ''}
@@ -172,27 +137,27 @@ const ConfirmDialog = React.memo(({ isOpen, title, message, confirmText, cancelT
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
         <div className="p-6 text-center">
-          <div className={`w-14 h-14 ${iconBg[type]} rounded-full flex items-center justify-center mx-auto mb-4`}>
+          <div className={`w-14 h-14 ${iconBg[type]} rounded-sm flex items-center justify-center mx-auto mb-4`}>
             {type === 'danger' && <AlertCircle size={28} />}
             {type === 'warning' && <AlertTriangle size={28} />}
             {type === 'info' && <Info size={28} />}
             {type === 'success' && <CheckCircle2 size={28} />}
           </div>
-          <h3 className="text-lg font-bold text-slate-800 mb-2">{title}</h3>
-          <p className="text-sm text-slate-500 whitespace-pre-wrap">{message}</p>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">{title}</h3>
+          <p className="text-sm text-slate-500 dark:text-zinc-500 whitespace-pre-wrap">{message}</p>
         </div>
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+        <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
           >
             {cancelText || '取消'}
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 text-sm font-bold text-white ${confirmBtnClass[type]} rounded-lg shadow-sm transition-all`}
+            className={`px-4 py-2 text-sm font-bold text-white ${confirmBtnClass[type]} rounded-none shadow-sm transition-all`}
           >
             {confirmText || '确认'}
           </button>
@@ -305,16 +270,16 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   };
 
   return (
-    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8 relative overflow-hidden">
+    <section className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 mb-8 relative overflow-hidden">
       <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
          <Star size={120} />
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-2">
-         <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+         <h2 className="text-lg font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
           <Plus size={20} className="text-indigo-500"/>
           <span>录入数据</span>
-          <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-normal text-slate-400 dark:text-zinc-500 bg-slate-100 px-2 py-0.5 rounded-sm">
             当前: {currentPool.name}
           </span>
         </h2>
@@ -322,10 +287,10 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* 左侧：十连模拟器 */}
-        <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
+        <div className="bg-slate-50 dark:bg-zinc-950 p-5 rounded-none border border-zinc-200 dark:border-zinc-800">
           <div className="flex justify-between items-center mb-3">
-            <span className="text-sm font-semibold text-slate-600">十连编辑器</span>
-            <span className="text-xs text-slate-400 bg-white px-2 py-1 rounded border">默认全4星</span>
+            <span className="text-sm font-semibold text-slate-600 dark:text-zinc-400">十连编辑器</span>
+            <span className="text-xs text-slate-400 dark:text-zinc-500 bg-white dark:bg-zinc-900 px-2 py-1 rounded border">默认全4星</span>
           </div>
           
           <div className="grid grid-cols-5 gap-3 mb-4">
@@ -334,7 +299,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                 key={idx}
                 onClick={() => cycleBatchItem(idx)}
                 className={`
-                  aspect-square rounded-lg flex flex-col items-center justify-center transition-all transform active:scale-95 border-2 relative overflow-hidden
+                  aspect-square rounded-none flex flex-col items-center justify-center transition-all transform active:scale-95 border-2 relative overflow-hidden
                   ${item.rarity === 4 ? 'bg-purple-50 border-purple-200 text-purple-600 shadow-sm' : ''}
                   ${item.rarity === 5 ? 'bg-amber-50 border-amber-200 text-amber-600 shadow-sm ring-1 ring-amber-100' : ''}
                   ${item.rarity === 6 && !item.isStandard ? 'bg-orange-50 border-orange-200 text-orange-600 shadow-md ring-2 ring-orange-100' : ''}
@@ -355,7 +320,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
           </div>
           <button 
             onClick={handleSubmit}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm active:translate-y-0.5"
+            className="w-full bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white font-medium py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-sm active:translate-y-0.5"
           >
             <Save size={18} />
             确认保存这十连
@@ -364,33 +329,33 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
 
         {/* 右侧：单抽快速入口 */}
         <div className="flex flex-col justify-center">
-          <p className="text-sm text-slate-500 mb-3">单抽快速补录：</p>
+          <p className="text-sm text-slate-500 dark:text-zinc-500 mb-3">单抽快速补录：</p>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <button onClick={() => onAddSingle(4)} className="h-12 border border-purple-200 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 font-bold transition-colors">4星</button>
-            <button onClick={() => onAddSingle(5)} className="h-12 border border-amber-200 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 font-bold transition-colors">5星</button>
+            <button onClick={() => onAddSingle(4)} className="h-12 border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-none hover:bg-purple-100 dark:hover:bg-purple-900/40 font-bold transition-colors">4星</button>
+            <button onClick={() => onAddSingle(5)} className="h-12 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 rounded-none hover:bg-amber-100 dark:hover:bg-amber-900/40 font-bold transition-colors">5星</button>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {currentPool.type === 'limited' || currentPool.type === 'weapon' ? (
               <>
-                <button onClick={() => onAddSingle(6, false)} className="h-12 border border-orange-200 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
+                <button onClick={() => onAddSingle(6, false)} className="h-12 border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 rounded-none hover:bg-orange-100 dark:hover:bg-orange-900/40 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
                   6星 (限定UP)
                 </button>
-                <button onClick={() => onAddSingle(6, true)} className="h-12 border border-red-200 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
+                <button onClick={() => onAddSingle(6, true)} className="h-12 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-none hover:bg-red-100 dark:hover:bg-red-900/40 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
                   6星 (常驻歪)
                 </button>
               </>
             ) : (
-              <button onClick={() => onAddSingle(6, true)} className="col-span-2 h-12 border border-red-200 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
+              <button onClick={() => onAddSingle(6, true)} className="col-span-2 h-12 border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 rounded-none hover:bg-red-100 dark:hover:bg-red-900/40 font-bold transition-colors shadow-sm flex items-center justify-center gap-1">
                 6星 (常驻)
               </button>
             )}
           </div>
-          <div className="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center">
-             <div className="text-xs text-slate-400">
-                当前池样本数: <span className="font-mono text-slate-600 text-base">{poolStatsTotal}</span>
+          <div className="mt-6 pt-4 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+             <div className="text-xs text-slate-400 dark:text-zinc-500">
+                当前池样本数: <span className="font-mono text-slate-600 dark:text-zinc-400 text-base">{poolStatsTotal}</span>
              </div>
              <div className="flex gap-2">
-               <button onClick={onDeletePool} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1 px-3 py-1 hover:bg-red-50 rounded transition-colors">
+               <button onClick={onDeletePool} className="text-xs text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-400 flex items-center gap-1 px-3 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
                  <Trash2 size={12}/> 清空当前池
                </button>
              </div>
@@ -413,18 +378,18 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     const isBatch = group.length >= 5; // 5连以上视为Batch展示
     
     return (
-      <div className="bg-white border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors group">
+      <div className="bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800 last:border-0 hover:bg-slate-50 dark:bg-zinc-950 transition-colors group">
         <div className="p-4 flex flex-col sm:flex-row sm:items-center gap-4">
            {/* Header Info */}
            <div className="w-32 shrink-0">
-             <div className="text-sm font-black text-slate-700 font-mono mb-1">
+             <div className="text-sm font-black text-slate-700 dark:text-zinc-300 font-mono mb-1">
                No.{group[0].globalIndex} - {group[group.length - 1].globalIndex}
              </div>
-             <div className="text-[10px] text-slate-400 font-mono mb-2">
+             <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mb-2">
                {new Date(group[0].timestamp).toLocaleString()}
              </div>
              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                <span className="text-xs font-bold bg-slate-100 text-slate-600 dark:text-zinc-400 px-2 py-0.5 rounded">
                    {isBatch ? '十连/多抽' : '单抽'}
                 </span>
                 {isBatch && canEdit && (
@@ -453,7 +418,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                       key={item.id}
                       onClick={canEdit ? () => onEdit(item) : undefined}
                       className={`
-                        relative w-10 h-10 rounded-lg flex items-center justify-center border-2 transition-all
+                        relative w-10 h-10 rounded-none flex items-center justify-center border-2 transition-all
                         ${canEdit ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
                         ${isGift ? 'bg-purple-50 border-purple-400 text-purple-600 ring-2 ring-purple-100' : ''}
                         ${!isGift && isLimitedUp ? 'bg-orange-50 border-orange-600 text-white shadow-md glow-border overflow-hidden' : ''}
@@ -468,16 +433,16 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                       <Star size={item.rarity >= 5 ? 14 : 12} fill="currentColor" className="relative z-10" />
                       
                       {item.rarity === 6 && poolType !== 'standard' && (
-                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-full text-[8px] font-bold border border-white relative z-10 
+                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-sm text-[8px] font-bold border border-white relative z-10 
                            ${isGift ? 'bg-purple-500 text-white' : 
                              isGuaranteed ? 'bg-green-500 text-white' :
-                             isLimitedUp ? 'bg-white text-orange-600' : 'bg-red-500 text-white'
+                             isLimitedUp ? 'bg-white dark:bg-zinc-900 text-orange-600' : 'bg-red-500 text-white'
                            }`}>
                            {isGift ? '赠送' : isGuaranteed ? '保底' : isLimitedUp ? 'UP' : '歪'}
                          </div>
                       )}
                       {item.rarity === 6 && poolType === 'standard' && (isGift || isGuaranteed) && (
-                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-full text-[8px] font-bold border border-white relative z-10
+                         <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-sm text-[8px] font-bold border border-white relative z-10
                            ${isGift ? 'bg-purple-500 text-white' : 'bg-green-500 text-white'
                            }`}>
                            {isGift ? '赠送' : '保底'}
@@ -650,36 +615,36 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     }, [history, pools]);
 
     const PoolCategorySection = ({ title, color, data, icon: Icon, barColor }) => (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6 last:mb-0">
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 mb-6 last:mb-0">
         <div className="flex flex-col md:flex-row gap-6">
            {/* Left: Stats Overview */}
            <div className="md:w-1/3 flex flex-col justify-center space-y-6">
               <div className="flex items-center gap-2">
-                 <div className={`p-2 rounded-lg ${color.replace('text-', 'bg-').replace('500', '50').replace('600', '50')} ${color}`}>
+                 <div className={`p-2 rounded-none ${color.replace('text-', 'bg-').replace('500', '50').replace('600', '50')} ${color}`}>
                    {Icon && <Icon size={20} />}
                  </div>
                  <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 p-3 rounded-lg">
-                  <div className="text-xs text-slate-400 mb-1">总投入</div>
-                  <div className="text-2xl font-bold text-slate-800">{data.total}</div>
+                <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-none">
+                  <div className="text-xs text-slate-400 dark:text-zinc-500 mb-1">总投入</div>
+                  <div className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{data.total}</div>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-lg">
-                  <div className="text-xs text-slate-400 mb-1">6星出货</div>
-                  <div className="text-2xl font-bold text-slate-800">{data.six}</div>
-                  <div className="text-[10px] text-slate-400">
+                <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-none">
+                  <div className="text-xs text-slate-400 dark:text-zinc-500 mb-1">6星出货</div>
+                  <div className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{data.six}</div>
+                  <div className="text-[10px] text-slate-400 dark:text-zinc-500">
                     {data.total > 0 ? ((data.six / data.total) * 100).toFixed(2) : 0}%
                   </div>
                 </div>
                 {data.limitedSix !== undefined && (
-                  <div className="col-span-2 bg-orange-50/50 p-3 rounded-lg border border-orange-100">
+                  <div className="col-span-2 bg-orange-50/50 dark:bg-orange-900/20 p-3 rounded-none border border-orange-100 dark:border-orange-800/50">
                      <div className="flex justify-between items-center">
-                       <span className="text-xs text-orange-600 font-medium">限定出货</span>
-                       <span className="text-xl font-bold text-orange-700">{data.limitedSix}</span>
+                       <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">限定出货</span>
+                       <span className="text-xl font-bold text-orange-700 dark:text-orange-300">{data.limitedSix}</span>
                      </div>
-                     <div className="text-[10px] text-orange-400 text-right mt-1">
+                     <div className="text-[10px] text-orange-400 dark:text-orange-500/70 text-right mt-1">
                        占6星: {data.six > 0 ? ((data.limitedSix / data.six) * 100).toFixed(1) : 0}%
                      </div>
                   </div>
@@ -691,7 +656,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
            <div className="md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Pie Chart */}
               <div className="h-48 relative">
-                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 z-10">稀有度分布</p>
+                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 dark:text-zinc-500 z-10">稀有度分布</p>
                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -708,16 +673,16 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                         ))}
                       </Pie>
                       <RechartsTooltip 
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                        contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                       />
-                      <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px'}}/>
+                      <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px', color: '#a1a1aa'}}/>
                     </PieChart>
                  </ResponsiveContainer>
               </div>
 
               {/* Bar Chart */}
               <div className="h-48 relative">
-                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 z-10">6星出货分布</p>
+                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 dark:text-zinc-500 z-10">6星出货分布</p>
                  {data.distribution && data.distribution.length > 0 ? (
                    <ResponsiveContainer width="100%" height="100%">
                      <BarChart data={data.distribution} stackOffset="sign" margin={{top: 20, right: 0, left: -20, bottom: 0}}>
@@ -725,8 +690,8 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                        <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
                        <YAxis allowDecimals={false} tick={{fontSize: 10}} />
                        <RechartsTooltip 
-                         cursor={{fill: '#f8fafc'}}
-                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                         cursor={{fill: 'rgba(255,255,255,0.1)'}}
+                         contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
                        />
                        {/* Stacked Bars: Limited on bottom (usually preferred), Standard on top */}
                        <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" radius={[0, 0, 2, 2]} />
@@ -747,11 +712,11 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     return (
       <div className="space-y-6 animate-fade-in">
         {/* 全服统计卡片 - P2: 汇总页统计全局数据 */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-none p-8 text-white shadow-lg relative overflow-hidden">
            {globalStatsLoading ? (
              <div className="flex items-center justify-center py-4">
-               <RefreshCw size={24} className="animate-spin text-slate-400" />
-               <span className="ml-2 text-slate-400">加载全服数据...</span>
+               <RefreshCw size={24} className="animate-spin text-slate-400 dark:text-zinc-500" />
+               <span className="ml-2 text-slate-400 dark:text-zinc-500">加载全服数据...</span>
              </div>
            ) : globalStats ? (
              <>
@@ -759,27 +724,27 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                  <div className="flex items-center gap-2 mb-4">
                    <Cloud size={20} className="text-indigo-400" />
                    <h2 className="text-indigo-400 font-bold text-sm uppercase tracking-wider">全服统计</h2>
-                   <span className="text-slate-500 text-xs">({globalStats.totalUsers} 位用户参与)</span>
+                   <span className="text-slate-500 dark:text-zinc-500 text-xs">({globalStats.totalUsers} 位用户参与)</span>
                  </div>
 
                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                   <div className="bg-white/5 rounded-xl p-4">
+                   <div className="bg-white/5 rounded-none p-4">
                      <div className="text-slate-400 text-xs mb-1">总抽数</div>
                      <div className="text-3xl font-black">{globalStats.totalPulls.toLocaleString()}</div>
                    </div>
-                   <div className="bg-white/5 rounded-xl p-4">
+                   <div className="bg-white/5 rounded-none p-4">
                      <div className="text-slate-400 text-xs mb-1">6星出货</div>
                      <div className="text-3xl font-black text-yellow-400">{globalStats.sixStarTotal}</div>
                      <div className="text-xs text-slate-500 mt-1">
                        出货率 {globalStats.totalPulls > 0 ? ((globalStats.sixStarTotal / globalStats.totalPulls) * 100).toFixed(2) : 0}%
                      </div>
                    </div>
-                   <div className="bg-white/5 rounded-xl p-4">
+                   <div className="bg-white/5 rounded-none p-4">
                      <div className="text-slate-400 text-xs mb-1">平均出货</div>
                      <div className="text-3xl font-black text-indigo-400">{globalStats.avgPity || '-'}</div>
                      <div className="text-xs text-slate-500 mt-1">抽/只</div>
                    </div>
-                   <div className="bg-white/5 rounded-xl p-4">
+                   <div className="bg-white/5 rounded-none p-4">
                      <div className="text-slate-400 text-xs mb-1">限定/常驻比</div>
                      <div className="text-lg font-bold">
                        <span className="text-orange-400">{globalStats.sixStarLimited}</span>
@@ -796,15 +761,15 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
                  <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-3 gap-4 text-center">
                    <div>
                      <div className="text-orange-400 font-bold">{globalStats.byType.limited.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500">限定池</div>
+                     <div className="text-xs text-slate-500 dark:text-zinc-500">限定池</div>
                    </div>
                    <div>
-                     <div className="text-slate-400 font-bold">{globalStats.byType.weapon.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500">武器池</div>
+                     <div className="text-slate-400 dark:text-zinc-500 font-bold">{globalStats.byType.weapon.total.toLocaleString()}</div>
+                     <div className="text-xs text-slate-500 dark:text-zinc-500">武器池</div>
                    </div>
                    <div>
                      <div className="text-indigo-400 font-bold">{globalStats.byType.standard.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500">常驻池</div>
+                     <div className="text-xs text-slate-500 dark:text-zinc-500">常驻池</div>
                    </div>
                  </div>
                </div>
@@ -812,52 +777,52 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
            ) : (
              <div className="relative z-10 flex justify-between items-center">
                <div>
-                 <h2 className="text-slate-400 font-medium mb-1">本地数据统计</h2>
+                 <h2 className="text-slate-400 dark:text-zinc-500 font-medium mb-1">本地数据统计</h2>
                  <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
                </div>
                <div className="text-right">
                  <div className="text-3xl font-bold text-yellow-400">{stats.sixStar}</div>
-                 <div className="text-sm text-slate-400">总六星数</div>
-                 <div className="text-xs text-slate-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
+                 <div className="text-sm text-slate-400 dark:text-zinc-500">总六星数</div>
+                 <div className="text-xs text-slate-500 dark:text-zinc-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
                </div>
              </div>
            )}
-           <div className="absolute -right-10 -bottom-10 text-slate-700 opacity-20">
+           <div className="absolute -right-10 -bottom-10 text-slate-700 dark:text-zinc-300 opacity-20">
              <Star size={200} />
            </div>
         </div>
 
         {/* 当前用户数据（如果有的话） */}
         {stats.total > 0 && (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
             <div className="flex items-center gap-2 mb-4">
-              <User size={18} className="text-slate-500" />
-              <h3 className="font-bold text-slate-700">我的数据</h3>
-              <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">{stats.total} 抽</span>
+              <User size={18} className="text-slate-500 dark:text-zinc-500" />
+              <h3 className="font-bold text-slate-700 dark:text-zinc-300">我的数据</h3>
+              <span className="text-xs bg-slate-100 text-slate-500 dark:text-zinc-500 px-2 py-0.5 rounded">{stats.total} 抽</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-orange-50 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">{stats.counts[6]}</div>
-                <div className="text-xs text-orange-500">限定6星</div>
+              <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-none">
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.counts[6]}</div>
+                <div className="text-xs text-orange-500 dark:text-orange-400/70">限定6星</div>
               </div>
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{stats.counts['6_std']}</div>
-                <div className="text-xs text-red-500">常驻6星</div>
+              <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-none">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.counts['6_std']}</div>
+                <div className="text-xs text-red-500 dark:text-red-400/70">常驻6星</div>
               </div>
-              <div className="text-center p-3 bg-amber-50 rounded-lg">
-                <div className="text-2xl font-bold text-amber-600">{stats.counts[5]}</div>
-                <div className="text-xs text-amber-500">5星</div>
+              <div className="text-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded-none">
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.counts[5]}</div>
+                <div className="text-xs text-amber-500 dark:text-amber-400/70">5星</div>
               </div>
-              <div className="text-center p-3 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{stats.counts[4]}</div>
-                <div className="text-xs text-purple-500">4星</div>
+              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-none">
+                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.counts[4]}</div>
+                <div className="text-xs text-purple-500 dark:text-purple-400/70">4星</div>
               </div>
             </div>
           </div>
         )}
 
         <PoolCategorySection title="限定角色池" color="text-orange-500" data={stats.byType.limited} icon={Star} barColor="#F97316" />
-        <PoolCategorySection title="武器池" color="text-slate-600" data={stats.byType.weapon} icon={Search} barColor="#475569" />
+        <PoolCategorySection title="武器池" color="text-slate-600 dark:text-zinc-400" data={stats.byType.weapon} icon={Search} barColor="#475569" />
         <PoolCategorySection title="常驻池" color="text-indigo-500" data={stats.byType.standard} icon={Layers} barColor="#6366F1" />
       </div>
     );
@@ -982,7 +947,7 @@ const AdminPanel = React.memo(({ showToast }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <RefreshCw size={24} className="animate-spin text-slate-400" />
+        <RefreshCw size={24} className="animate-spin text-slate-400 dark:text-zinc-500" />
       </div>
     );
   }
@@ -990,7 +955,7 @@ const AdminPanel = React.memo(({ showToast }) => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* 页面标题 */}
-      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-2xl p-6 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-none p-6 text-white shadow-lg">
         <h2 className="text-2xl font-bold flex items-center gap-3">
           <Shield size={28} />
           超级管理员控制台
@@ -999,19 +964,19 @@ const AdminPanel = React.memo(({ showToast }) => {
       </div>
 
       {/* 待审批申请 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-amber-50 flex items-center gap-2">
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-amber-50 flex items-center gap-2">
           <Bell size={20} className="text-amber-600" />
           <h3 className="font-bold text-amber-800">待审批申请</h3>
           {pendingApps.length > 0 && (
-            <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">
+            <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-sm">
               {pendingApps.length}
             </span>
           )}
         </div>
 
         {pendingApps.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">
+          <div className="p-8 text-center text-slate-400 dark:text-zinc-500">
             暂无待审批申请
           </div>
         ) : (
@@ -1019,15 +984,15 @@ const AdminPanel = React.memo(({ showToast }) => {
             {pendingApps.map(app => {
               const appUser = users.find(u => u.id === app.user_id);
               return (
-                <div key={app.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                <div key={app.id} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:bg-zinc-950">
                   <div>
-                    <div className="font-medium text-slate-700">
+                    <div className="font-medium text-slate-700 dark:text-zinc-300">
                       {appUser?.username || '未知用户'}
                     </div>
-                    <div className="text-sm text-slate-500 mt-1">
+                    <div className="text-sm text-slate-500 dark:text-zinc-500 mt-1">
                       申请理由: {app.reason}
                     </div>
-                    <div className="text-xs text-slate-400 mt-1">
+                    <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
                       {new Date(app.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -1035,14 +1000,14 @@ const AdminPanel = React.memo(({ showToast }) => {
                     <button
                       onClick={() => handleApprove(app.id, app.user_id)}
                       disabled={actionLoading === app.id}
-                      className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                      className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-none transition-colors disabled:opacity-50"
                     >
                       {actionLoading === app.id ? '处理中...' : '通过'}
                     </button>
                     <button
                       onClick={() => handleReject(app.id)}
                       disabled={actionLoading === app.id}
-                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                      className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-none transition-colors disabled:opacity-50"
                     >
                       拒绝
                     </button>
@@ -1055,16 +1020,16 @@ const AdminPanel = React.memo(({ showToast }) => {
       </div>
 
       {/* 用户管理 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <User size={20} className="text-slate-600" />
-          <h3 className="font-bold text-slate-700">用户管理</h3>
-          <span className="text-slate-400 text-sm">({users.length} 人)</span>
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex items-center gap-2">
+          <User size={20} className="text-slate-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-slate-700 dark:text-zinc-300">用户管理</h3>
+          <span className="text-slate-400 dark:text-zinc-500 text-sm">({users.length} 人)</span>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+            <thead className="bg-slate-50 dark:bg-zinc-950 text-xs text-slate-500 dark:text-zinc-500 uppercase">
               <tr>
                 <th className="px-4 py-3 text-left">用户名</th>
                 <th className="px-4 py-3 text-left">角色</th>
@@ -1074,21 +1039,21 @@ const AdminPanel = React.memo(({ showToast }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50">
+                <tr key={u.id} className="hover:bg-slate-50 dark:bg-zinc-950">
                   <td className="px-4 py-3">
-                    <div className="font-medium text-slate-700">{u.username}</div>
+                    <div className="font-medium text-slate-700 dark:text-zinc-300">{u.username}</div>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-1 rounded font-bold ${
                       u.role === 'super_admin' ? 'bg-red-100 text-red-600' :
                       u.role === 'admin' ? 'bg-green-100 text-green-600' :
-                      'bg-slate-100 text-slate-500'
+                      'bg-slate-100 text-slate-500 dark:text-zinc-500'
                     }`}>
                       {u.role === 'super_admin' ? '超级管理员' :
                        u.role === 'admin' ? '管理员' : '普通用户'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-500">
+                  <td className="px-4 py-3 text-sm text-slate-500 dark:text-zinc-500">
                     {new Date(u.created_at).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -1097,7 +1062,7 @@ const AdminPanel = React.memo(({ showToast }) => {
                         value={u.role}
                         onChange={(e) => handleChangeRole(u.id, e.target.value)}
                         disabled={actionLoading === u.id}
-                        className="text-sm border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        className="text-sm border border-zinc-200 dark:border-zinc-800 rounded px-2 py-1 focus:ring-2 focus:ring-indigo-500 outline-none"
                       >
                         <option value="user">普通用户</option>
                         <option value="admin">管理员</option>
@@ -1112,14 +1077,14 @@ const AdminPanel = React.memo(({ showToast }) => {
       </div>
 
       {/* 历史申请记录 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <History size={20} className="text-slate-600" />
-          <h3 className="font-bold text-slate-700">申请历史</h3>
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex items-center gap-2">
+          <History size={20} className="text-slate-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-slate-700 dark:text-zinc-300">申请历史</h3>
         </div>
 
         {applications.length === 0 ? (
-          <div className="p-8 text-center text-slate-400">
+          <div className="p-8 text-center text-slate-400 dark:text-zinc-500">
             暂无申请记录
           </div>
         ) : (
@@ -1129,11 +1094,11 @@ const AdminPanel = React.memo(({ showToast }) => {
               return (
                 <div key={app.id} className="p-4 flex items-center justify-between">
                   <div>
-                    <div className="font-medium text-slate-700">
+                    <div className="font-medium text-slate-700 dark:text-zinc-300">
                       {appUser?.username || '未知用户'}
                     </div>
-                    <div className="text-sm text-slate-500">{app.reason}</div>
-                    <div className="text-xs text-slate-400 mt-1">
+                    <div className="text-sm text-slate-500 dark:text-zinc-500">{app.reason}</div>
+                    <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
                       {new Date(app.created_at).toLocaleString()}
                     </div>
                   </div>
@@ -1156,8 +1121,7 @@ const AdminPanel = React.memo(({ showToast }) => {
 });
 
 // 设置页面组件
-const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
-  const [themeMode, setThemeMode] = useState('system'); // 'light' | 'dark' | 'system'
+const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode, setThemeMode }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -1207,7 +1171,7 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
       case 'admin':
         return { label: '管理员', color: 'bg-green-100 text-green-600 border-green-200', desc: '可录入和编辑抽卡数据' };
       default:
-        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 border-slate-200', desc: '可查看数据，需申请成为管理员才能录入' };
+        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', desc: '可查看数据，需申请成为管理员才能录入' };
     }
   };
 
@@ -1216,43 +1180,43 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
-      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 text-white shadow-lg">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
+      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 p-6 text-white border-l-4 border-endfield-yellow">
+        <h2 className="text-2xl font-bold flex items-center gap-3 font-mono tracking-tighter">
           <Settings size={28} />
-          设置
+          SETTINGS // 系统设置
         </h2>
-        <p className="text-slate-300 mt-1">管理您的账户和偏好设置</p>
+        <p className="text-zinc-400 mt-1 text-xs tracking-widest uppercase">Manage account and system preferences</p>
       </div>
 
       {/* 账户信息 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <User size={20} className="text-slate-600" />
-          <h3 className="font-bold text-slate-700">账户信息</h3>
+      <div className="bg-white dark:bg-zinc-900 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
+          <User size={20} className="text-zinc-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200">账户信息</h3>
         </div>
         <div className="p-6 space-y-4">
           {user ? (
             <>
-              <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                <span className="text-slate-600">邮箱地址</span>
-                <span className="font-medium text-slate-800">{user.email}</span>
+              <div className="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800">
+                <span className="text-zinc-600 dark:text-zinc-400">邮箱地址</span>
+                <span className="font-medium text-zinc-800 dark:text-zinc-200">{user.email}</span>
               </div>
-              <div className="flex items-center justify-between py-3 border-b border-slate-100">
-                <span className="text-slate-600">当前权限</span>
+              <div className="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800">
+                <span className="text-zinc-600 dark:text-zinc-400">当前权限</span>
                 <div className="flex items-center gap-2">
-                  <span className={`px-3 py-1 rounded-full text-sm font-bold border ${roleInfo.color}`}>
+                  <span className={`px-3 py-1 text-sm font-bold border ${roleInfo.color}`}>
                     {roleInfo.label}
                   </span>
                 </div>
               </div>
-              <div className="py-3 border-b border-slate-100">
-                <p className="text-sm text-slate-500">{roleInfo.desc}</p>
+              <div className="py-3 border-b border-zinc-100 dark:border-zinc-800">
+                <p className="text-sm text-zinc-500 dark:text-zinc-500">{roleInfo.desc}</p>
               </div>
               <div className="flex items-center justify-between py-3">
-                <span className="text-slate-600">账户密码</span>
+                <span className="text-zinc-600 dark:text-zinc-400">账户密码</span>
                 <button
                   onClick={() => setShowPasswordModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow hover:bg-yellow-400 text-black text-sm font-bold tracking-wider transition-colors"
                 >
                   <Lock size={16} />
                   修改密码
@@ -1260,7 +1224,7 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
               </div>
             </>
           ) : (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-8 text-slate-400 dark:text-zinc-500">
               <User size={48} className="mx-auto mb-3 opacity-50" />
               <p>请先登录以查看账户信息</p>
             </div>
@@ -1269,77 +1233,75 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
       </div>
 
       {/* 主题设置 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <Moon size={20} className="text-slate-600" />
-          <h3 className="font-bold text-slate-700">主题设置</h3>
-          <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded ml-2">即将推出</span>
+      <div className="bg-white dark:bg-zinc-900 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
+          <Moon size={20} className="text-zinc-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200">主题设置</h3>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-3 gap-3">
             <button
               onClick={() => setThemeMode('light')}
-              disabled
-              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
-                themeMode === 'light' ? 'border-amber-500 bg-amber-50' : 'border-slate-200 hover:border-slate-300'
+              className={`p-4 border-2 transition-all ${
+                themeMode === 'light' 
+                  ? 'border-endfield-yellow bg-yellow-50 dark:bg-zinc-800' 
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-500'
               }`}
             >
-              <Sun size={24} className="mx-auto mb-2 text-amber-500" />
-              <span className="text-sm font-medium text-slate-700">浅色模式</span>
+              <Sun size={24} className={`mx-auto mb-2 ${themeMode === 'light' ? 'text-yellow-600' : 'text-zinc-400'}`} />
+              <span className={`text-sm font-medium ${themeMode === 'light' ? 'text-yellow-700' : 'text-zinc-500'}`}>浅色模式</span>
             </button>
             <button
               onClick={() => setThemeMode('dark')}
-              disabled
-              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
-                themeMode === 'dark' ? 'border-slate-700 bg-slate-100' : 'border-slate-200 hover:border-slate-300'
+              className={`p-4 border-2 transition-all ${
+                themeMode === 'dark' 
+                  ? 'border-endfield-yellow bg-zinc-800' 
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-500'
               }`}
             >
-              <Moon size={24} className="mx-auto mb-2 text-slate-700" />
-              <span className="text-sm font-medium text-slate-700">深色模式</span>
+              <Moon size={24} className={`mx-auto mb-2 ${themeMode === 'dark' ? 'text-white' : 'text-zinc-400'}`} />
+              <span className={`text-sm font-medium ${themeMode === 'dark' ? 'text-zinc-200' : 'text-zinc-500'}`}>深色模式</span>
             </button>
             <button
               onClick={() => setThemeMode('system')}
-              disabled
-              className={`p-4 rounded-xl border-2 transition-all opacity-50 cursor-not-allowed ${
-                themeMode === 'system' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+              className={`p-4 border-2 transition-all ${
+                themeMode === 'system' 
+                  ? 'border-endfield-yellow bg-zinc-100 dark:bg-zinc-800' 
+                  : 'border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-500'
               }`}
             >
-              <Monitor size={24} className="mx-auto mb-2 text-indigo-500" />
-              <span className="text-sm font-medium text-slate-700">跟随系统</span>
+              <Monitor size={24} className={`mx-auto mb-2 ${themeMode === 'system' ? 'text-black dark:text-white' : 'text-zinc-400'}`} />
+              <span className={`text-sm font-medium ${themeMode === 'system' ? 'text-zinc-900 dark:text-zinc-200' : 'text-zinc-500'}`}>跟随系统</span>
             </button>
           </div>
-          <p className="text-xs text-slate-400 mt-4 text-center">
-            深色模式功能正在开发中，敬请期待...
-          </p>
         </div>
       </div>
-
       {/* 修改密码弹窗 */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700 flex items-center gap-2">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
+              <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                 <Lock size={18} />
                 修改密码
               </h3>
-              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
               {passwordError && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm">
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-none text-sm">
                   {passwordError}
                 </div>
               )}
               {passwordSuccess && (
-                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-2 rounded-lg text-sm">
+                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-2 rounded-none text-sm">
                   {passwordSuccess}
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">新密码</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">新密码</label>
                 <input
                   type="password"
                   value={passwordForm.new}
@@ -1347,24 +1309,24 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange }) => {
                   placeholder="至少6位字符"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-none focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">确认新密码</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">确认新密码</label>
                 <input
                   type="password"
                   value={passwordForm.confirm}
                   onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
                   placeholder="再次输入新密码"
                   required
-                  className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-none focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
               </div>
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 rounded-lg transition-colors"
+                className="w-full bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 rounded-none transition-colors"
               >
                 {passwordLoading ? '修改中...' : '确认修改'}
               </button>
@@ -1381,7 +1343,7 @@ const AboutPanel = React.memo(() => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-none p-8 text-white shadow-lg relative overflow-hidden">
         <div className="absolute top-0 right-0 opacity-10">
           <Sparkles size={200} />
         </div>
@@ -1398,27 +1360,27 @@ const AboutPanel = React.memo(() => {
       </div>
 
       {/* 作者信息 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex items-center gap-2">
           <Heart size={20} className="text-red-500" />
-          <h3 className="font-bold text-slate-700">制作团队</h3>
+          <h3 className="font-bold text-slate-700 dark:text-zinc-300">制作团队</h3>
         </div>
         <div className="p-6">
           {/* 主要作者 */}
-          <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl border border-pink-100 mb-4">
+          <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 rounded-none border border-pink-100 dark:border-pink-900/50 mb-4">
             <img
               src="/avatar.png"
               alt="蘑菇菌__"
-              className="w-16 h-16 rounded-full object-cover shadow-lg"
+              className="w-16 h-16 rounded-sm object-cover shadow-lg"
             />
             <div className="flex-1">
-              <h4 className="text-lg font-bold text-slate-800">蘑菇菌__</h4>
-              <p className="text-sm text-slate-500 mb-2">项目发起人 & 产品设计</p>
+              <h4 className="text-lg font-bold text-slate-800 dark:text-zinc-100">蘑菇菌__</h4>
+              <p className="text-sm text-slate-500 dark:text-zinc-400 mb-2">项目发起人 & 产品设计</p>
               <a
                 href="https://space.bilibili.com/14932613"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-sm font-medium rounded-none transition-colors shadow-sm"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                   <path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.659.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906L17.813 4.653zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773H5.333zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/>
@@ -1430,31 +1392,31 @@ const AboutPanel = React.memo(() => {
           </div>
 
           {/* AI 助手 */}
-          <div className="border-t border-slate-100 pt-4">
-            <p className="text-sm text-slate-500 mb-3 flex items-center gap-2">
+          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-3 flex items-center gap-2">
               <Code size={16} />
               AI 开发助手
             </p>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-4 bg-slate-50 dark:bg-zinc-950 rounded-none border border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-amber-500 rounded-none flex items-center justify-center text-white text-xs font-bold">
                     C
                   </div>
-                  <span className="font-bold text-slate-700">Claude</span>
+                  <span className="font-bold text-slate-700 dark:text-zinc-300">Claude</span>
                 </div>
-                <p className="text-xs text-slate-500">Anthropic Claude Opus 4.5</p>
-                <p className="text-xs text-slate-400 mt-1">后端逻辑 & 数据处理 & 前端优化</p>
+                <p className="text-xs text-slate-500 dark:text-zinc-500">Anthropic Claude Opus 4.5</p>
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">后端逻辑 & 数据处理 & 前端优化</p>
               </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="p-4 bg-slate-50 dark:bg-zinc-950 rounded-none border border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-cyan-500 rounded-none flex items-center justify-center text-white text-xs font-bold">
                     G
                   </div>
-                  <span className="font-bold text-slate-700">Gemini</span>
+                  <span className="font-bold text-slate-700 dark:text-zinc-300">Gemini</span>
                 </div>
-                <p className="text-xs text-slate-500">Google Gemini 3 Pro</p>
-                <p className="text-xs text-slate-400 mt-1">前端界面设计</p>
+                <p className="text-xs text-slate-500 dark:text-zinc-500">Google Gemini 3 Pro</p>
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">前端界面设计</p>
               </div>
             </div>
           </div>
@@ -1462,10 +1424,10 @@ const AboutPanel = React.memo(() => {
       </div>
 
       {/* 功能特性 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex items-center gap-2">
           <Sparkles size={20} className="text-amber-500" />
-          <h3 className="font-bold text-slate-700">功能特性</h3>
+          <h3 className="font-bold text-slate-700 dark:text-zinc-300">功能特性</h3>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1477,10 +1439,10 @@ const AboutPanel = React.memo(() => {
               { icon: Download, label: '导入导出', desc: 'JSON/CSV 格式' },
               { icon: Shield, label: '权限管理', desc: '多角色权限控制' },
             ].map((feature, idx) => (
-              <div key={idx} className="p-3 bg-slate-50 rounded-lg">
+              <div key={idx} className="p-3 bg-slate-50 dark:bg-zinc-950 rounded-none">
                 <feature.icon size={20} className="text-indigo-500 mb-2" />
-                <h4 className="font-medium text-slate-700 text-sm">{feature.label}</h4>
-                <p className="text-xs text-slate-400">{feature.desc}</p>
+                <h4 className="font-medium text-slate-700 dark:text-zinc-300 text-sm">{feature.label}</h4>
+                <p className="text-xs text-slate-400 dark:text-zinc-500">{feature.desc}</p>
               </div>
             ))}
           </div>
@@ -1488,29 +1450,29 @@ const AboutPanel = React.memo(() => {
       </div>
 
       {/* 开源项目 */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
-          <Code size={20} className="text-slate-600" />
-          <h3 className="font-bold text-slate-700">开源项目</h3>
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+        <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex items-center gap-2">
+          <Code size={20} className="text-slate-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-slate-700 dark:text-zinc-300">开源项目</h3>
         </div>
         <div className="p-6">
-          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl">
+          <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-800 to-slate-900 rounded-none">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-white dark:bg-zinc-900 rounded-none flex items-center justify-center">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="#1f2937">
                   <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                 </svg>
               </div>
               <div>
                 <h4 className="font-bold text-white">GitHub 仓库</h4>
-                <p className="text-sm text-slate-400">欢迎 Star ⭐ 和提交 Issue</p>
+                <p className="text-sm text-slate-400 dark:text-zinc-500">欢迎 Star ⭐ 和提交 Issue</p>
               </div>
             </div>
             <a
               href="https://github.com/MoguJunn/endfield-gacha"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 text-sm font-medium rounded-lg transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 hover:bg-slate-100 text-slate-800 dark:text-zinc-100 text-sm font-medium rounded-none transition-colors shadow-sm"
             >
               查看源码
               <ExternalLink size={14} />
@@ -1520,8 +1482,8 @@ const AboutPanel = React.memo(() => {
       </div>
 
       {/* 免责声明 */}
-      <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-        <p className="text-xs text-slate-500 text-center">
+      <div className="bg-slate-50 dark:bg-zinc-950 rounded-none border border-zinc-200 dark:border-zinc-800 p-4">
+        <p className="text-xs text-slate-500 dark:text-zinc-500 text-center">
           本工具仅供个人抽卡记录使用，与游戏官方无关。
           <br />
           游戏内容版权归 Gryphline / HyperGryph 所有。
@@ -1531,12 +1493,8 @@ const AboutPanel = React.memo(() => {
   );
 });
 
-export default function GachaAnalyzer() {
+export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // --- State ---
-
-  // 0. 初始化与加载状态
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [initStep, setInitStep] = useState('auth'); // 'auth' | 'data' | 'done'
 
   // 0.1 用户认证状态
   const [user, setUser] = useState(null);
@@ -1708,12 +1666,7 @@ export default function GachaAnalyzer() {
   // 监听用户登录状态
   useEffect(() => {
     const initializeApp = async () => {
-      setInitStep('auth');
-
       if (!supabase) {
-        // 无 Supabase 配置，直接完成初始化
-        setIsInitializing(false);
-        setInitStep('done');
         return;
       }
 
@@ -1723,17 +1676,9 @@ export default function GachaAnalyzer() {
         setUser(session?.user ?? null);
 
         // 获取全局统计（使用 RPC 函数，无需等待认证同步）
-        setInitStep('data');
         await fetchGlobalStats();
-
-        setInitStep('done');
       } catch (error) {
         console.error('初始化失败:', error);
-      } finally {
-        // 延迟一点结束加载，确保动画效果
-        setTimeout(() => {
-          setIsInitializing(false);
-        }, 500);
       }
     };
 
@@ -2925,30 +2870,30 @@ export default function GachaAnalyzer() {
      
      return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700">编辑记录</h3>
-              <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
+              <h3 className="font-bold text-slate-700 dark:text-zinc-300">编辑记录</h3>
+              <button onClick={onClose} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
                <div>
-                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">修改为</label>
+                 <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase mb-2">修改为</label>
                  <div className="grid grid-cols-2 gap-2">
                    <button
                      onClick={() => onUpdate(item.id, { rarity: 4, isStandard: false })}
-                     className={`py-3 rounded-lg border text-sm font-bold transition-colors ${item.rarity === 4 
+                     className={`py-3 rounded-none border text-sm font-bold transition-colors ${item.rarity === 4 
                        ? 'bg-purple-50 border-purple-500 text-purple-700' 
-                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                       : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:bg-zinc-950'}`}
                    >
                      4星
                    </button>
                    <button
                      onClick={() => onUpdate(item.id, { rarity: 5, isStandard: false })}
-                     className={`py-3 rounded-lg border text-sm font-bold transition-colors ${item.rarity === 5 
+                     className={`py-3 rounded-none border text-sm font-bold transition-colors ${item.rarity === 5 
                        ? 'bg-amber-50 border-amber-500 text-amber-700' 
-                       : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                       : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:bg-zinc-950'}`}
                    >
                      5星
                    </button>
@@ -2957,17 +2902,17 @@ export default function GachaAnalyzer() {
                      <>
                        <button
                          onClick={() => onUpdate(item.id, { rarity: 6, isStandard: false })}
-                         className={`py-3 rounded-lg border text-sm font-bold transition-colors ${item.rarity === 6 && !item.isStandard
+                         className={`py-3 rounded-none border text-sm font-bold transition-colors ${item.rarity === 6 && !item.isStandard
                            ? 'bg-orange-50 border-orange-500 text-orange-700' 
-                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                           : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:bg-zinc-950'}`}
                        >
                          6星 (限定UP)
                        </button>
                        <button
                          onClick={() => onUpdate(item.id, { rarity: 6, isStandard: true })}
-                         className={`py-3 rounded-lg border text-sm font-bold transition-colors ${item.rarity === 6 && item.isStandard
+                         className={`py-3 rounded-none border text-sm font-bold transition-colors ${item.rarity === 6 && item.isStandard
                            ? 'bg-red-50 border-red-500 text-red-700' 
-                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                           : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:bg-zinc-950'}`}
                        >
                          6星 (常驻歪)
                        </button>
@@ -2975,9 +2920,9 @@ export default function GachaAnalyzer() {
                    ) : (
                      <button
                        onClick={() => onUpdate(item.id, { rarity: 6, isStandard: true })}
-                       className={`col-span-2 py-3 rounded-lg border text-sm font-bold transition-colors ${item.rarity === 6
+                       className={`col-span-2 py-3 rounded-none border text-sm font-bold transition-colors ${item.rarity === 6
                          ? 'bg-red-50 border-red-500 text-red-700' 
-                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:bg-zinc-950'}`}
                      >
                        6星 (常驻)
                      </button>
@@ -2986,43 +2931,43 @@ export default function GachaAnalyzer() {
                </div>
 
                {item.rarity === 6 && (
-                 <div className="pt-4 border-t border-slate-100">
-                   <label className="block text-xs font-bold text-slate-500 uppercase mb-2">特殊标记</label>
+                 <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                   <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase mb-2">特殊标记</label>
                    <div className="flex gap-2">
                      <button
                        onClick={() => onUpdate(item.id, { specialType: null })}
-                       className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-colors ${!item.specialType
+                       className={`flex-1 py-2 rounded-none border text-xs font-bold transition-colors ${!item.specialType
                          ? 'bg-slate-800 text-white border-slate-800' 
-                         : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50'}`}
+                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500 hover:bg-slate-50 dark:bg-zinc-950'}`}
                      >
                        正常获取
                      </button>
                      <button
                        onClick={() => onUpdate(item.id, { specialType: 'guaranteed' })}
-                       className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-colors ${item.specialType === 'guaranteed'
+                       className={`flex-1 py-2 rounded-none border text-xs font-bold transition-colors ${item.specialType === 'guaranteed'
                          ? 'bg-green-500 text-white border-green-500' 
-                         : 'bg-white border-slate-200 text-green-600 hover:bg-green-50'}`}
+                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-green-600 hover:bg-green-50'}`}
                      >
                        120抽保底
                      </button>
                      <button
                        onClick={() => onUpdate(item.id, { specialType: 'gift' })}
-                       className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-colors ${item.specialType === 'gift'
+                       className={`flex-1 py-2 rounded-none border text-xs font-bold transition-colors ${item.specialType === 'gift'
                          ? 'bg-purple-500 text-white border-purple-500' 
-                         : 'bg-white border-slate-200 text-purple-600 hover:bg-purple-50'}`}
+                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-purple-600 hover:bg-purple-50'}`}
                      >
                        额外赠送
                      </button>
                    </div>
                    {item.specialType === 'gift' && (
-                     <p className="text-[10px] text-slate-400 mt-2">
+                     <p className="text-[10px] text-slate-400 dark:text-zinc-500 mt-2">
                        * “额外赠送”不占用抽数，不重置当前垫刀，不计入平均出货花费。
                      </p>
                    )}
                  </div>
                )}
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-between">
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between">
                <button 
                  onClick={() => onDelete(item.id)}
                  className="text-red-500 hover:text-red-700 text-sm font-medium px-3 py-2 rounded hover:bg-red-50 transition-colors flex items-center gap-1"
@@ -3031,7 +2976,7 @@ export default function GachaAnalyzer() {
                </button>
                <button 
                  onClick={onClose}
-                 className="bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold px-6 py-2 rounded-lg transition-colors shadow-sm"
+                 className="bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold px-6 py-2 rounded-none transition-colors shadow-sm"
                >
                  完成
                </button>
@@ -3048,9 +2993,9 @@ export default function GachaAnalyzer() {
     
     // 武器池参数
     const maxPity = isWeapon ? 40 : 80;
-    const poolColor = isWeapon ? 'bg-slate-700' : (isLimited ? 'bg-orange-500' : 'bg-indigo-500');
-    const textColor = isWeapon ? 'text-slate-700' : (isLimited ? 'text-orange-500' : 'text-indigo-500');
-    const progressColor = isWeapon ? 'bg-slate-600' : (stats.currentPity >= 60 ? 'bg-red-500' : 'bg-indigo-500');
+    const poolColor = isWeapon ? 'bg-slate-700' : (isLimited ? 'bg-orange-500' : 'bg-endfield-yellow');
+    const textColor = isWeapon ? 'text-slate-700 dark:text-zinc-300' : (isLimited ? 'text-orange-500' : 'text-yellow-600 dark:text-endfield-yellow');
+    const progressColor = isWeapon ? 'bg-slate-600' : (stats.currentPity >= 60 ? 'bg-red-500' : 'bg-endfield-yellow');
 
     // 计算武器池下一档赠送
     let nextWeaponGift = 0;
@@ -3067,7 +3012,6 @@ export default function GachaAnalyzer() {
         const base = 180;
         const cycle = Math.floor((stats.total - base) / 80) + 1;
         nextWeaponGift = base + cycle * 80;
-        nextWeaponGiftType = cycle % 2 !== 0 ? 'standard' : 'limited';
       }
     }
 
@@ -3085,26 +3029,26 @@ export default function GachaAnalyzer() {
     const hasLimitedInFirst80 = firstLimitedIndex80 > 0;
     
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative overflow-hidden transition-all hover:shadow-md">
-        <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'bg-orange-500' : isWeapon ? 'bg-slate-700' : 'bg-indigo-500'}`}></div>
+      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden transition-all hover:shadow-md">
+        <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'bg-orange-500' : isWeapon ? 'bg-slate-700' : 'bg-yellow-50 dark:bg-yellow-900/200'}`}></div>
         
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h3 className="text-slate-700 text-lg font-bold flex items-center gap-2">
+            <h3 className="text-slate-700 dark:text-zinc-300 text-lg font-bold flex items-center gap-2">
               <Calculator size={20} className={textColor}/>
               {isWeapon ? '武器池分析' : isLimited ? '限定池分析' : '常驻池分析'}
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700' : 'text-indigo-600'}`}>{currentPool.name}</span>
+            <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
+              当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 relative overflow-hidden">
-             <div className="text-xs text-slate-500 mb-1 relative z-10">距离6星保底 ({maxPity})</div>
-             <div className="text-3xl font-bold text-slate-800 relative z-10">
-               {Math.max(maxPity - stats.currentPity, 0)} <span className="text-sm font-normal text-slate-400">抽</span>
+          <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
+             <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10">距离6星保底 ({maxPity})</div>
+             <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
+               {Math.max(maxPity - stats.currentPity, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
              </div>
              <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
                <div 
@@ -3112,13 +3056,13 @@ export default function GachaAnalyzer() {
                  style={{ width: `${Math.min((stats.currentPity / maxPity) * 100, 100)}%` }}
                ></div>
              </div>
-             <div className="text-[10px] text-slate-400 mt-1 relative z-10">当前垫刀: {stats.currentPity}</div>
+             <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">当前垫刀: {stats.currentPity}</div>
           </div>
 
-          <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 relative overflow-hidden">
-             <div className="text-xs text-slate-500 mb-1 relative z-10">距离5星保底 (10)</div>
-             <div className="text-3xl font-bold text-slate-800 relative z-10">
-               {Math.max(10 - stats.currentPity5, 0)} <span className="text-sm font-normal text-slate-400">抽</span>
+          <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
+             <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10">距离5星保底 (10)</div>
+             <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
+               {Math.max(10 - stats.currentPity5, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
              </div>
              <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
                <div 
@@ -3126,7 +3070,7 @@ export default function GachaAnalyzer() {
                  style={{ width: `${Math.min((stats.currentPity5 / 10) * 100, 100)}%` }}
                ></div>
              </div>
-             <div className="text-[10px] text-slate-400 mt-1 relative z-10">当前垫刀: {stats.currentPity5}</div>
+             <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">当前垫刀: {stats.currentPity5}</div>
           </div>
         </div>
 
@@ -3135,15 +3079,15 @@ export default function GachaAnalyzer() {
             {/* 120 Spark - One Time Only */}
             <div>
                <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 flex items-center">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
                     必出限定 (120抽)
                     {hasLimitedInFirst120 && <span className="ml-2 text-green-600 font-bold bg-green-50 px-1.5 rounded text-[10px] border border-green-100">已达成</span>}
                  </span>
-                                  <span className="text-slate-400">
+                                  <span className="text-slate-400 dark:text-zinc-500">
                                      {hasLimitedInFirst120 ? firstLimitedIndex120 : Math.min(stats.total, 120)} / 120
                                   </span>
                                 </div>
-                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                                   <div 
                                      className={`h-full transition-all duration-500 ${hasLimitedInFirst120 ? 'bg-green-500' : 'bg-gradient-to-r from-orange-300 to-orange-500'}`}
                                      style={{ width: `${hasLimitedInFirst120 ? 100 : Math.min((stats.total / 120) * 100, 100)}%` }}
@@ -3153,7 +3097,7 @@ export default function GachaAnalyzer() {
             {/* 240 Bonus - Recurring */}
             <div>
                <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 flex items-center">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
                     赠送角色 (每240抽)
                     {Math.floor(stats.total / 240) > 0 && (
                         <span className="ml-2 flex items-center gap-1 text-purple-600 font-bold bg-purple-50 px-1.5 rounded text-[10px] border border-purple-100">
@@ -3161,9 +3105,9 @@ export default function GachaAnalyzer() {
                         </span>
                     )}
                  </span>
-                 <span className="text-slate-400">{stats.total % 240} / 240</span>
+                 <span className="text-slate-400 dark:text-zinc-500">{stats.total % 240} / 240</span>
                </div>
-               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                  <div 
                    className="h-full bg-gradient-to-r from-purple-300 to-purple-500 transition-all duration-500" 
                    style={{ width: `${((stats.total % 240) / 240) * 100}%` }}
@@ -3178,15 +3122,15 @@ export default function GachaAnalyzer() {
              {/* 80 Spark - One Time Only */}
              <div>
                <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 flex items-center">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
                     首轮限定必出 (80抽)
                     {hasLimitedInFirst80 && <span className="ml-2 text-green-600 font-bold bg-green-50 px-1.5 rounded text-[10px] border border-green-100">已达成</span>}
                  </span>
-                 <span className="text-slate-400">
+                 <span className="text-slate-400 dark:text-zinc-500">
                     {hasLimitedInFirst80 ? firstLimitedIndex80 : Math.min(stats.total, 80)} / 80
                  </span>
                </div>
-               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                  <div 
                     className={`h-full transition-all duration-500 ${hasLimitedInFirst80 ? 'bg-green-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`} 
                     style={{ width: `${hasLimitedInFirst80 ? 100 : Math.min((stats.total / 80) * 100, 100)}%` }}
@@ -3197,24 +3141,24 @@ export default function GachaAnalyzer() {
              {/* Weapon Gifts - Dynamic */}
              <div>
                <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 flex items-center gap-2">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center gap-2">
                     下一档赠送
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
                       {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}武器
                     </span>
                  </span>
-                 <span className="text-slate-400">{stats.total} / {nextWeaponGift}</span>
+                 <span className="text-slate-400 dark:text-zinc-500">{stats.total} / {nextWeaponGift}</span>
                </div>
-               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                  <div 
                    className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'bg-orange-400' : 'bg-red-400'}`} 
                    style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}
                  ></div>
                </div>
-               <div className="mt-1 text-[10px] text-slate-400 flex gap-2">
+               <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500 flex gap-2">
                   <span>已领:</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-full"></span>{Math.floor(stats.counts['6_std'] - stats.pityStats.history.filter(h=>h.isStandard).length)} 常</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-400 rounded-full"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-sm"></span>{Math.floor(stats.counts['6_std'] - stats.pityStats.history.filter(h=>h.isStandard).length)} 常</span>
+                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-400 rounded-sm"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
                </div>
              </div>
           </div>
@@ -3225,15 +3169,15 @@ export default function GachaAnalyzer() {
           <div className="mb-6">
              <div>
                <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 flex items-center">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
                     首次赠送自选 (300抽)
                     {stats.total >= 300 && <span className="ml-2 text-green-600 font-bold bg-green-50 px-1.5 rounded text-[10px] border border-green-100">已达成</span>}
                  </span>
-                 <span className="text-slate-400">
+                 <span className="text-slate-400 dark:text-zinc-500">
                     {Math.min(stats.total, 300)} / 300
                  </span>
                </div>
-               <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                  <div 
                     className={`h-full transition-all duration-500 ${stats.total >= 300 ? 'bg-green-500' : 'bg-gradient-to-r from-red-300 to-red-500'}`} 
                     style={{ width: `${Math.min((stats.total / 300) * 100, 100)}%` }}
@@ -3244,44 +3188,44 @@ export default function GachaAnalyzer() {
         )}
 
         {stats.pityStats.history.length === 0 ? (
-          <div className="bg-slate-50 rounded-lg p-6 text-center text-slate-400 text-sm border border-dashed border-slate-200">
+          <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-6 text-center text-slate-400 dark:text-zinc-500 text-sm border border-dashed border-zinc-200 dark:border-zinc-800">
             <div className="mb-2">⚠️ 数据不足</div>
             暂无6星记录，无法分析本卡池的概率模型。<br/>请继续录入数据。
           </div>
         ) : (
           <div className="space-y-6">
             <div className="grid grid-cols-3 gap-2">
-              <div className="bg-orange-50 p-3 rounded-lg border border-orange-100 text-center">
-                <div className="text-xs text-orange-600 mb-1">最非记录</div>
-                <div className="text-lg font-bold text-orange-700">{stats.pityStats.max} 抽</div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-none border border-orange-100 dark:border-orange-800/50 text-center">
+                <div className="text-xs text-orange-600 dark:text-orange-400 mb-1">最非记录</div>
+                <div className="text-lg font-bold text-orange-700 dark:text-orange-300">{stats.pityStats.max} 抽</div>
               </div>
-              <div className="bg-green-50 p-3 rounded-lg border border-green-100 text-center">
-                <div className="text-xs text-green-600 mb-1">最欧记录</div>
-                <div className="text-lg font-bold text-green-700">{stats.pityStats.min} 抽</div>
+              <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-none border border-green-100 dark:border-green-800/50 text-center">
+                <div className="text-xs text-green-600 dark:text-green-400 mb-1">最欧记录</div>
+                <div className="text-lg font-bold text-green-700 dark:text-green-300">{stats.pityStats.min} 抽</div>
               </div>
               {isLimited ? (
-                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-center">
-                   <div className="text-xs text-blue-600 mb-1">不歪率</div>
-                   <div className="text-lg font-bold text-blue-700">{stats.winRate}%</div>
+                 <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-none border border-blue-100 dark:border-blue-800/50 text-center">
+                   <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">不歪率</div>
+                   <div className="text-lg font-bold text-blue-700 dark:text-blue-300">{stats.winRate}%</div>
                  </div>
               ) : (
-                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-center">
-                   <div className="text-xs text-slate-500 mb-1">总6星数</div>
-                   <div className="text-lg font-bold text-slate-700">{stats.totalSixStar}</div>
+                 <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-none border border-zinc-200 dark:border-zinc-800 text-center">
+                   <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1">总6星数</div>
+                   <div className="text-lg font-bold text-slate-700 dark:text-zinc-300">{stats.totalSixStar}</div>
                  </div>
               )}
             </div>
 
             <div className="h-40 w-full mt-4">
-              <p className="text-xs text-slate-500 mb-2 font-medium">6星分布趋势</p>
+              <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2 font-medium">6星分布趋势</p>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={stats.pityStats.distribution} stackOffset="sign">
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
                   <YAxis allowDecimals={false} tick={{fontSize: 10}} />
                   <RechartsTooltip 
-                     cursor={{fill: '#f1f5f9'}}
-                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                     cursor={{fill: 'rgba(255,255,255,0.1)'}}
+                     contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   {/* 堆叠柱状图：限定在下，常驻在上 */}
                   <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" radius={[0, 0, 4, 4]} />
@@ -3296,31 +3240,26 @@ export default function GachaAnalyzer() {
   };
 
   const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 flex items-center gap-4 relative overflow-hidden">
+    <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-4 flex items-center gap-4 relative overflow-hidden">
       <div className={`
-        p-3 rounded-lg ${colorClass} relative shadow-sm
+        p-3 rounded-none ${colorClass} relative shadow-sm
         ${isAnimated ? 'glow-border' : ''}
       `}>
-        {isAnimated && <div className="absolute inset-0 shine-effect rounded-lg"></div>}
+        {isAnimated && <div className="absolute inset-0 shine-effect rounded-none"></div>}
         {Icon && <Icon size={24} className="text-white relative z-10" />}
       </div>
       <div>
-        <p className="text-xs text-slate-500 uppercase font-bold">{title}</p>
-        <p className="text-2xl font-bold text-slate-800">{value}</p>
-        {subValue && <p className="text-xs text-slate-400">{subValue}</p>}
+        <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase font-bold">{title}</p>
+        <p className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{value}</p>
+        {subValue && <p className="text-xs text-slate-400 dark:text-zinc-500">{subValue}</p>}
       </div>
     </div>
   );
 
-  // 加载界面
-  if (isInitializing) {
-    return <LoadingScreen />;
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-20 md:pb-10 relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans pb-20 md:pb-10 relative">
       {/* 顶部导航 */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
+      <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           
           {/* 左侧：Logo + 卡池切换器 */}
@@ -3329,10 +3268,10 @@ export default function GachaAnalyzer() {
               <img
                 src="/endfield-logo.svg"
                 alt="终末地"
-                className="h-10 w-auto"
+                className="h-10 w-auto dark:invert"
               />
               <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
-              <div className="hidden sm:flex items-center gap-1.5 text-slate-600">
+              <div className="hidden sm:flex items-center gap-1.5 text-slate-600 dark:text-zinc-400">
                 <BarChart3 size={18} className="text-indigo-500" />
                 <h1 className="font-bold">抽卡分析器</h1>
               </div>
@@ -3341,7 +3280,7 @@ export default function GachaAnalyzer() {
             <div className="relative">
               <button 
                 onClick={() => setShowPoolMenu(!showPoolMenu)}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 transition-colors"
+                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
               >
                 <Layers size={16} />
                 <span className="max-w-[100px] sm:max-w-[200px] truncate">
@@ -3353,26 +3292,26 @@ export default function GachaAnalyzer() {
               {showPoolMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowPoolMenu(false)}></div>
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 z-20 py-2 animate-fade-in">
-                    <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">切换卡池</div>
+                  <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 py-2 animate-fade-in">
+                    <div className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">切换卡池</div>
                     {pools.map(pool => (
                       <div
                         key={pool.id}
-                        className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-slate-50 group/item ${currentPoolId === pool.id ? 'bg-indigo-50' : ''}`}
+                        className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-slate-50 dark:bg-zinc-950 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
                       >
                         <button
                           onClick={() => {
                             setCurrentPoolId(pool.id);
                             setShowPoolMenu(false);
                           }}
-                          className={`flex-1 text-left truncate flex items-center gap-1.5 ${currentPoolId === pool.id ? 'text-indigo-600 font-bold' : 'text-slate-600'}`}
+                          className={`flex-1 text-left truncate flex items-center gap-1.5 ${currentPoolId === pool.id ? 'text-yellow-600 dark:text-endfield-yellow font-bold' : 'text-slate-600 dark:text-zinc-400'}`}
                         >
                           {pool.locked && <Lock size={12} className="text-amber-500 shrink-0" />}
                           <span className="truncate">{pool.name}</span>
                         </button>
 
                         <div className="flex items-center gap-1">
-                          {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0"></div>}
+                          {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider shrink-0"></div>}
                           {/* 锁定/解锁按钮 - 仅超管可见 */}
                           {isSuperAdmin && (
                             <button
@@ -3380,7 +3319,7 @@ export default function GachaAnalyzer() {
                                 e.stopPropagation();
                                 togglePoolLock(pool.id);
                               }}
-                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-200'}`}
+                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200'}`}
                               title={pool.locked ? "解锁卡池" : "锁定卡池"}
                             >
                               {pool.locked ? <Unlock size={14} /> : <Lock size={14} />}
@@ -3390,7 +3329,7 @@ export default function GachaAnalyzer() {
                           {canEdit && (!pool.locked || isSuperAdmin) && (
                             <button
                               onClick={(e) => openEditPoolModal(e, pool)}
-                              className="p-1.5 text-slate-300 hover:text-slate-600 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                              className="p-1.5 text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
                               title="编辑卡池"
                             >
                               <Settings size={14} />
@@ -3402,10 +3341,10 @@ export default function GachaAnalyzer() {
                     {/* 新建卡池 - 仅管理员可见 */}
                     {canEdit && (
                       <>
-                        <div className="border-t border-slate-100 my-1"></div>
+                        <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
                         <button
                           onClick={openCreatePoolModal}
-                          className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 font-medium"
+                          className="w-full text-left px-4 py-2 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:bg-yellow-900/20 flex items-center gap-2 font-medium"
                         >
                           <Plus size={16} />
                           新建卡池...
@@ -3421,13 +3360,13 @@ export default function GachaAnalyzer() {
           <div className="flex gap-2 sm:gap-4">
             <button 
               onClick={() => setActiveTab('summary')}
-              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'summary' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'summary' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
               汇总
             </button>
             <button 
               onClick={() => setActiveTab('dashboard')}
-              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'dashboard' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
               看板
             </button>
@@ -3436,7 +3375,7 @@ export default function GachaAnalyzer() {
                 setActiveTab('history');
                 setVisibleHistoryCount(20); // 切换回记录页时重置分页，防止卡顿
               }}
-              className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'history' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'history' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
               记录
             </button>
@@ -3445,7 +3384,7 @@ export default function GachaAnalyzer() {
             {isSuperAdmin && (
               <button
                 onClick={() => setActiveTab('admin')}
-                className={`text-sm font-medium px-3 py-1.5 rounded-md transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 hover:text-slate-800'}`}
+                className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
               >
                 管理
               </button>
@@ -3454,14 +3393,14 @@ export default function GachaAnalyzer() {
             {/* 设置和关于按钮 */}
             <button
               onClick={() => setActiveTab('settings')}
-              className={`text-sm font-medium px-2 py-1.5 rounded-md transition-colors ${activeTab === 'settings' ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'settings' ? 'bg-slate-100 text-slate-800 dark:text-zinc-100' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
               title="设置"
             >
               <Settings size={18} />
             </button>
             <button
               onClick={() => setActiveTab('about')}
-              className={`text-sm font-medium px-2 py-1.5 rounded-md transition-colors ${activeTab === 'about' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-400 hover:text-slate-600'}`}
+              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'about' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
               title="关于"
             >
               <Info size={18} />
@@ -3471,7 +3410,7 @@ export default function GachaAnalyzer() {
             {!showAnnouncement && announcements.length > 0 && (
               <button
                 onClick={() => setShowAnnouncement(true)}
-                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-md hover:bg-amber-50 transition-colors"
+                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-none hover:bg-amber-50 transition-colors"
                 title="查看公告"
               >
                 <Bell size={18} />
@@ -3479,7 +3418,7 @@ export default function GachaAnalyzer() {
             )}
 
             {/* 登录/用户区域 */}
-            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-slate-200">
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-200 dark:border-zinc-800">
               {isSupabaseConfigured() ? (
                 user ? (
                   <div className="flex items-center gap-2">
@@ -3487,12 +3426,12 @@ export default function GachaAnalyzer() {
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold hidden sm:inline ${
                       userRole === 'super_admin' ? 'bg-red-100 text-red-600' :
                       userRole === 'admin' ? 'bg-green-100 text-green-600' :
-                      'bg-slate-100 text-slate-500'
+                      'bg-slate-100 text-slate-500 dark:text-zinc-500'
                     }`}>
                       {userRole === 'super_admin' ? '超管' :
                        userRole === 'admin' ? '管理' : '用户'}
                     </span>
-                    <span className="text-xs text-slate-500 hidden sm:inline">
+                    <span className="text-xs text-slate-500 dark:text-zinc-500 hidden sm:inline">
                       {user.email?.split("@")[0]}
                     </span>
                     {/* 申请按钮 - 仅普通用户且未申请时显示 */}
@@ -3514,7 +3453,7 @@ export default function GachaAnalyzer() {
                     )}
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-1 text-sm text-slate-500 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                      className="flex items-center gap-1 text-sm text-slate-500 dark:text-zinc-500 hover:text-red-600 px-2 py-1 rounded transition-colors"
                       title="退出登录"
                     >
                       <LogOut size={16} />
@@ -3523,14 +3462,14 @@ export default function GachaAnalyzer() {
                 ) : (
                   <button
                     onClick={() => setShowAuthModal(true)}
-                    className="flex items-center gap-1 text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+                    className="flex items-center gap-1 text-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white px-3 py-1.5 rounded-none transition-colors"
                   >
                     <LogIn size={16} />
                     <span className="hidden sm:inline">登录</span>
                   </button>
                 )
               ) : (
-                <span className="text-xs text-slate-400 flex items-center gap-1" title="未配置 Supabase">
+                <span className="text-xs text-slate-400 dark:text-zinc-500 flex items-center gap-1" title="未配置 Supabase">
                   <CloudOff size={14} /> 本地模式
                 </span>
               )}
@@ -3543,20 +3482,20 @@ export default function GachaAnalyzer() {
 
         {/* 公告区域 */}
         {showAnnouncement && announcements.length > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 relative">
+          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4 relative">
             <button
               onClick={() => setShowAnnouncement(false)}
-              className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 transition-colors"
+              className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-400 transition-colors"
             >
               <X size={16} />
             </button>
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400">
                 <Bell size={20} />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-amber-800 mb-1">{announcements[0].title}</h3>
-                <p className="text-sm text-amber-700 whitespace-pre-wrap">{announcements[0].content}</p>
+                <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-1">{announcements[0].title}</h3>
+                <p className="text-sm text-amber-700 dark:text-amber-400/80 whitespace-pre-wrap">{announcements[0].content}</p>
               </div>
             </div>
           </div>
@@ -3567,7 +3506,7 @@ export default function GachaAnalyzer() {
         ) : activeTab === 'admin' && isSuperAdmin ? (
           <AdminPanel showToast={showToast} />
         ) : activeTab === 'settings' ? (
-          <SettingsPanel user={user} userRole={userRole} />
+          <SettingsPanel user={user} userRole={userRole} themeMode={themeMode} setThemeMode={setThemeMode} />
         ) : activeTab === 'about' ? (
           <AboutPanel />
         ) : (
@@ -3585,10 +3524,10 @@ export default function GachaAnalyzer() {
 
             {/* 非管理员提示 */}
             {!canEdit && (
-              <div className="mb-8 bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
+              <div className="mb-8 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none p-6 text-center">
                 <Shield size={40} className="mx-auto text-slate-300 mb-3" />
-                <h3 className="font-bold text-slate-600 mb-2">数据录入仅限管理员</h3>
-                <p className="text-sm text-slate-500 mb-4">
+                <h3 className="font-bold text-slate-600 dark:text-zinc-400 mb-2">数据录入仅限管理员</h3>
+                <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
                   {user ? (
                     applicationStatus === 'pending'
                       ? '您的管理员申请正在审核中，请耐心等待。'
@@ -3600,7 +3539,7 @@ export default function GachaAnalyzer() {
                 {!user && (
                   <button
                     onClick={() => setShowAuthModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white px-4 py-2 rounded-none text-sm font-medium transition-colors"
                   >
                     登录
                   </button>
@@ -3610,7 +3549,7 @@ export default function GachaAnalyzer() {
 
             {/* 卡池锁定提示 - 管理员但卡池被锁定 */}
             {canEdit && !canEditCurrentPool && (
-              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-xl p-6 text-center">
+              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-none p-6 text-center">
                 <Lock size={40} className="mx-auto text-amber-400 mb-3" />
                 <h3 className="font-bold text-amber-700 mb-2">此卡池已被锁定</h3>
                 <p className="text-sm text-amber-600">
@@ -3627,21 +3566,21 @@ export default function GachaAnalyzer() {
               <PityAnalysisCard />
               
               {/* 平均出货消耗 */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h3 className="text-slate-700 font-bold mb-4">平均出货消耗</h3>
+              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
+                <h3 className="text-slate-700 dark:text-zinc-300 font-bold mb-4">平均出货消耗</h3>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg border border-indigo-100">
-                    <span className="text-indigo-700 font-medium">综合6星</span>
+                  <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-none border border-indigo-100 dark:border-yellow-800/50">
+                    <span className="text-yellow-700 dark:text-yellow-300 font-medium">综合6星</span>
                     <div className="text-right">
-                       <span className="text-xl font-bold text-indigo-800">{stats.avgPullCost[6]}</span>
-                       <span className="text-xs text-indigo-600 ml-1">抽/只</span>
+                       <span className="text-xl font-bold text-indigo-800 dark:text-yellow-300">{stats.avgPullCost[6]}</span>
+                       <span className="text-xs text-yellow-600 dark:text-endfield-yellow ml-1">抽/只</span>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
-                    <span className="text-amber-700 font-medium">5星</span>
+                  <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-none border border-amber-100 dark:border-amber-800/50">
+                    <span className="text-amber-700 dark:text-amber-300 font-medium">5星</span>
                     <div className="text-right">
-                       <span className="text-xl font-bold text-amber-800">{stats.avgPullCost[5]}</span>
-                       <span className="text-xs text-amber-600 ml-1">抽/只</span>
+                       <span className="text-xl font-bold text-amber-800 dark:text-amber-300">{stats.avgPullCost[5]}</span>
+                       <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">抽/只</span>
                     </div>
                   </div>
                 </div>
@@ -3652,15 +3591,15 @@ export default function GachaAnalyzer() {
             <div className="md:col-span-2 space-y-6">
               
               {/* 总抽数概览 */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex items-center justify-between">
+              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between">
                 <div>
-                  <h3 className="text-slate-500 font-bold text-sm uppercase tracking-wider">当前卡池总投入</h3>
-                  <div className="text-4xl font-black text-slate-800 mt-1 flex items-baseline gap-2">
+                  <h3 className="text-slate-500 dark:text-zinc-500 font-bold text-sm uppercase tracking-wider">当前卡池总投入</h3>
+                  <div className="text-4xl font-black text-slate-800 dark:text-zinc-100 mt-1 flex items-baseline gap-2">
                     {stats.total}
-                    <span className="text-lg font-medium text-slate-400">抽</span>
+                    <span className="text-lg font-medium text-slate-400 dark:text-zinc-500">抽</span>
                   </div>
                 </div>
-                <div className="h-12 w-12 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500">
+                <div className="h-12 w-12 bg-yellow-50 dark:bg-yellow-900/20 rounded-sm flex items-center justify-center text-indigo-500">
                   <Layers size={24} />
                 </div>
               </div>
@@ -3706,10 +3645,10 @@ export default function GachaAnalyzer() {
               </div>
 
               {/* 饼图 */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 min-h-[400px] flex flex-col">
+              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 min-h-[400px] flex flex-col">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-slate-700 font-bold">概率分布概览</h3>
-                  <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">仅显示当前卡池</span>
+                  <h3 className="text-slate-700 dark:text-zinc-300 font-bold">概率分布概览</h3>
+                  <span className="text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950 px-2 py-1 rounded">仅显示当前卡池</span>
                 </div>
                 <div className="flex-1 w-full h-full relative">
                   {stats.total === 0 ? (
@@ -3737,9 +3676,9 @@ export default function GachaAnalyzer() {
                             `${value}个 (${(value/stats.total*100).toFixed(1)}%)`, 
                             name
                           ]}
-                          contentStyle={{ backgroundColor: 'white', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          contentStyle={{ backgroundColor: '#09090b', border: '1px solid #333', color: '#fff', borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         />
-                        <Legend verticalAlign="bottom" height={36}/>
+                        <Legend verticalAlign="bottom" height={36} wrapperStyle={{color: '#a1a1aa', fontSize: '12px'}}/>
                       </PieChart>
                     </ResponsiveContainer>
                   )}
@@ -3748,13 +3687,13 @@ export default function GachaAnalyzer() {
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in relative">
-             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-fade-in relative">
+             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950 sticky top-0 z-10">
                <div className="flex items-center gap-4">
-                  <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                  <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                     <History size={18} /> 详细日志
                   </h3>
-                  <span className="text-xs px-2 py-1 bg-indigo-50 text-indigo-600 rounded-md">
+                  <span className="text-xs px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-endfield-yellow rounded-none">
                     {pools.find(p => p.id === currentPoolId)?.name}
                   </span>
                </div>
@@ -3763,7 +3702,7 @@ export default function GachaAnalyzer() {
                  {/* 导入按钮 */}
                  <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs bg-white text-slate-600 border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                  className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:bg-zinc-950 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
                  >
                    <Upload size={14} /> 
                    导入
@@ -3780,7 +3719,7 @@ export default function GachaAnalyzer() {
                  <div className="relative">
                    <button 
                     onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-2 transition-colors shadow-sm"
+                    className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
                    >
                      <Download size={14} /> 
                      导出...
@@ -3789,22 +3728,22 @@ export default function GachaAnalyzer() {
                    {showExportMenu && (
                      <>
                        <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)}></div>
-                       <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-slate-100 z-20 py-2 animate-fade-in overflow-hidden">
-                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50">JSON 备份</div>
-                         <button onClick={() => handleExportJSON('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center justify-between">
+                       <div className="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 py-2 animate-fade-in overflow-hidden">
+                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">JSON 备份</div>
+                         <button onClick={() => handleExportJSON('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:text-yellow-600 dark:text-endfield-yellow flex items-center justify-between">
                            全部卡池 <FileJson size={14}/>
                          </button>
-                         <button onClick={() => handleExportJSON('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 flex items-center justify-between">
+                         <button onClick={() => handleExportJSON('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:text-yellow-600 dark:text-endfield-yellow flex items-center justify-between">
                            当前卡池 <FileJson size={14}/>
                          </button>
                          
-                         <div className="border-t border-slate-100 my-1"></div>
+                         <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
                          
-                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50">CSV 表格</div>
-                         <button onClick={() => handleExportCSV('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
+                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">CSV 表格</div>
+                         <button onClick={() => handleExportCSV('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
                            全部卡池 <FileJson size={14}/>
                          </button>
-                         <button onClick={() => handleExportCSV('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
+                         <button onClick={() => handleExportCSV('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
                            当前卡池 <FileJson size={14}/>
                          </button>
                        </div>
@@ -3814,9 +3753,9 @@ export default function GachaAnalyzer() {
                </div>
              </div>
              
-             <div className="max-h-[800px] overflow-y-auto bg-slate-50/50">
+             <div className="max-h-[800px] overflow-y-auto bg-slate-50 dark:bg-zinc-950/50">
                {groupedHistory.length === 0 ? (
-                 <div className="p-12 text-center text-slate-400">当前卡池暂无记录</div>
+                 <div className="p-12 text-center text-slate-400 dark:text-zinc-500">当前卡池暂无记录</div>
                ) : (
                  <div className="divide-y divide-slate-100">
                    {groupedHistory.slice(0, visibleHistoryCount).map((group, idx) => (
@@ -3834,7 +3773,7 @@ export default function GachaAnalyzer() {
                      <div className="p-4 flex justify-center">
                        <button 
                          onClick={() => setVisibleHistoryCount(prev => prev + 20)}
-                         className="text-sm text-slate-500 hover:text-indigo-600 font-medium px-6 py-2 rounded-full border border-slate-200 hover:border-indigo-200 bg-white hover:bg-indigo-50 transition-all shadow-sm"
+                         className="text-sm text-slate-500 dark:text-zinc-500 hover:text-yellow-600 dark:text-endfield-yellow font-medium px-6 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:border-yellow-200 dark:border-yellow-800 bg-white dark:bg-zinc-900 hover:bg-yellow-50 dark:bg-yellow-900/20 transition-all shadow-sm"
                        >
                          加载更多历史记录 ({groupedHistory.length - visibleHistoryCount} 条剩余)
                        </button>
@@ -3862,17 +3801,17 @@ export default function GachaAnalyzer() {
       {/* --- 全局弹窗 --- */}
       {(modalState.type === 'createPool' || modalState.type === 'editPool') && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700">{modalState.type === 'createPool' ? '创建新卡池' : '编辑卡池'}</h3>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
+              <h3 className="font-bold text-slate-700 dark:text-zinc-300">{modalState.type === 'createPool' ? '创建新卡池' : '编辑卡池'}</h3>
+              <button onClick={closeModal} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               {modalState.type === 'createPool' && (
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">快速选择卡池</label>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase mb-2">快速选择卡池</label>
                   <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
                     {PRESET_POOLS.map((preset, idx) => (
                       <button
@@ -3884,7 +3823,7 @@ export default function GachaAnalyzer() {
                           setSelectedCharName(preset.charName);
                           setNewPoolNameInput(name);
                         }}
-                        className="text-left text-xs p-2 rounded border border-slate-200 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-700 transition-colors truncate"
+                        className="text-left text-xs p-2 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:border-indigo-300 hover:text-yellow-700 dark:text-yellow-300 transition-colors truncate"
                         title={preset.label}
                       >
                         {preset.label}
@@ -3895,7 +3834,7 @@ export default function GachaAnalyzer() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">抽卡人</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">抽卡人</label>
                 <input 
                   type="text" 
                   value={drawerName}
@@ -3909,26 +3848,26 @@ export default function GachaAnalyzer() {
                     }
                   }}
                   placeholder="例如：Me, 朋友A"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 rounded-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">卡池名称</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池名称</label>
                 <input 
                   type="text" 
                   value={newPoolNameInput}
                   onChange={(e) => setNewPoolNameInput(e.target.value)}
                   placeholder="例如：限定池-海滨假日"
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 rounded-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && (modalState.type === 'createPool' ? confirmCreatePool() : confirmEditPool())}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 mb-2">卡池类型</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池类型</label>
                 <div className="flex gap-3">
                   {['limited', 'standard', 'weapon'].map(type => (
-                    <label key={type} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${newPoolTypeInput === type ? (type === 'weapon' ? 'bg-slate-800 border-slate-600 text-white' : type === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-indigo-50 border-indigo-500 text-indigo-700') + ' font-bold ring-1' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                    <label key={type} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-none border cursor-pointer transition-all ${newPoolTypeInput === type ? (type === 'weapon' ? 'bg-slate-800 border-slate-600 text-white' : type === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-yellow-50 dark:bg-yellow-900/20 border-indigo-500 text-yellow-700 dark:text-yellow-300') + ' font-bold ring-1' : 'border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:bg-slate-50 dark:bg-zinc-950'}`}>
                       <input 
                         type="radio" 
                         name="poolType" 
@@ -3951,24 +3890,24 @@ export default function GachaAnalyzer() {
                     </label>
                   ))}
                 </div>
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
                   {newPoolTypeInput === 'limited' && '包含限定与歪，统计大小保底、硬保底(120)及赠送(240)。'}
                   {newPoolTypeInput === 'standard' && '仅统计常驻6星，不区分限定/歪，无大小保底统计。'}
                   {newPoolTypeInput === 'weapon' && '6星40抽保底，首轮80抽必出限定。赠送：100(常)->180(限)->+80交替。'}
                 </p>
               </div>
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-end">
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-end">
               <button 
                 onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
               </button>
               <button 
                 onClick={modalState.type === 'createPool' ? confirmCreatePool : confirmEditPool}
                 disabled={!newPoolNameInput.trim()}
-                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg shadow-sm transition-all"
+                className="px-4 py-2 text-sm font-bold text-white bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
               >
                 {modalState.type === 'createPool' ? '创建' : '保存'}
               </button>
@@ -3979,27 +3918,27 @@ export default function GachaAnalyzer() {
 
       {modalState.type === 'deleteConfirm' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
              <div className="p-6 text-center">
-               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                  <AlertCircle size={24} />
                </div>
-               <h3 className="text-lg font-bold text-slate-800 mb-2">确定清空数据？</h3>
-               <p className="text-sm text-slate-500">
-                 您正在清空 <span className="font-bold text-slate-700">{modalState.data?.poolName}</span> 的所有记录。
+               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">确定清空数据？</h3>
+               <p className="text-sm text-slate-500 dark:text-zinc-500">
+                 您正在清空 <span className="font-bold text-slate-700 dark:text-zinc-300">{modalState.data?.poolName}</span> 的所有记录。
                  <br/>此操作<span className="text-red-500 font-bold">无法撤销</span>。
                </p>
              </div>
-             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button 
                 onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 再想想
               </button>
               <button 
                 onClick={confirmDeleteData}
-                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm transition-all"
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-none shadow-sm transition-all"
               >
                 确认清空
               </button>
@@ -4012,26 +3951,26 @@ export default function GachaAnalyzer() {
       {modalState.type === 'deleteItem' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" style={{zIndex: 60}}> 
           {/* zIndex 60 to sit above EditItemModal (if open) */}
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
              <div className="p-6 text-center">
-               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                  <Trash2 size={24} />
                </div>
-               <h3 className="text-lg font-bold text-slate-800 mb-2">删除这条记录？</h3>
-               <p className="text-sm text-slate-500">
+               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">删除这条记录？</h3>
+               <p className="text-sm text-slate-500 dark:text-zinc-500">
                  此操作将从历史记录中移除该条目。
                </p>
              </div>
-             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button 
                 onClick={() => setModalState({ type: null, data: null })}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
               </button>
               <button 
                 onClick={confirmRealDeleteItem}
-                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm transition-all"
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-none shadow-sm transition-all"
               >
                 删除
               </button>
@@ -4043,26 +3982,26 @@ export default function GachaAnalyzer() {
       {/* 删除整组确认 */}
       {modalState.type === 'deleteGroup' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
              <div className="p-6 text-center">
-               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                  <Trash2 size={24} />
                </div>
-               <h3 className="text-lg font-bold text-slate-800 mb-2">删除这 {modalState.data?.length} 条记录？</h3>
-               <p className="text-sm text-slate-500">
+               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">删除这 {modalState.data?.length} 条记录？</h3>
+               <p className="text-sm text-slate-500 dark:text-zinc-500">
                  您正在删除一组记录（例如一次十连）。
                </p>
              </div>
-             <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button 
                 onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
               </button>
               <button 
                 onClick={confirmRealDeleteGroup}
-                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm transition-all"
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-none shadow-sm transition-all"
               >
                 确认删除
               </button>
@@ -4081,18 +4020,18 @@ export default function GachaAnalyzer() {
       {/* 数据迁移弹窗 */}
       {showMigrateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-indigo-100 text-indigo-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                 <Cloud size={24} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">同步本地数据到云端？</h3>
-              <p className="text-sm text-slate-500">
-                检测到您有 <span className="font-bold text-slate-700">{history.length}</span> 条本地记录。
+              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">同步本地数据到云端？</h3>
+              <p className="text-sm text-slate-500 dark:text-zinc-500">
+                检测到您有 <span className="font-bold text-slate-700 dark:text-zinc-300">{history.length}</span> 条本地记录。
                 <br/>是否将这些数据同步到云端？
               </p>
               {syncing && (
-                <div className="mt-4 flex items-center justify-center gap-2 text-indigo-600">
+                <div className="mt-4 flex items-center justify-center gap-2 text-yellow-600 dark:text-endfield-yellow">
                   <RefreshCw size={16} className="animate-spin" />
                   <span className="text-sm">正在同步...</span>
                 </div>
@@ -4103,11 +4042,11 @@ export default function GachaAnalyzer() {
                 </div>
               )}
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button
                 onClick={() => setShowMigrateModal(false)}
                 disabled={syncing}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors disabled:opacity-50"
               >
                 暂不同步
               </button>
@@ -4119,7 +4058,7 @@ export default function GachaAnalyzer() {
                   }
                 }}
                 disabled={syncing}
-                className="px-4 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 text-sm font-bold text-white bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 rounded-none shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {syncing ? (
                   <>
@@ -4141,26 +4080,26 @@ export default function GachaAnalyzer() {
       {/* 申请管理员弹窗 */}
       {showApplyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-amber-100 text-amber-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                 <UserPlus size={24} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">申请成为管理员</h3>
-              <p className="text-sm text-slate-500 mb-4">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">申请成为管理员</h3>
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
                 成为管理员后，您可以为本站录入抽卡数据。
               </p>
               <textarea
                 id="apply-reason"
                 placeholder="请简单说明申请理由（如：我想帮忙录入数据）"
-                className="w-full p-3 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                className="w-full p-3 border border-zinc-200 dark:border-zinc-800 rounded-none text-sm resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
                 rows={3}
               />
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button
                 onClick={() => setShowApplyModal(false)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
               </button>
@@ -4178,7 +4117,7 @@ export default function GachaAnalyzer() {
                     showToast('提交失败，请稍后重试', 'error');
                   }
                 }}
-                className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all flex items-center gap-2"
+                className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-none shadow-sm transition-all flex items-center gap-2"
               >
                 <UserPlus size={16} />
                 提交申请
@@ -4191,16 +4130,16 @@ export default function GachaAnalyzer() {
       {/* 导入确认弹窗 */}
       {pendingImport && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-6 text-center">
-              <div className="w-14 h-14 bg-blue-100 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-14 h-14 bg-blue-100 text-blue-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                 <Upload size={28} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-2">确认导入数据</h3>
-              <p className="text-sm text-slate-500">
-                包含 <span className="font-bold text-slate-700">{pendingImport.data.pools.length}</span> 个卡池和 <span className="font-bold text-slate-700">{pendingImport.data.history.length}</span> 条记录
+              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">确认导入数据</h3>
+              <p className="text-sm text-slate-500 dark:text-zinc-500">
+                包含 <span className="font-bold text-slate-700 dark:text-zinc-300">{pendingImport.data.pools.length}</span> 个卡池和 <span className="font-bold text-slate-700 dark:text-zinc-300">{pendingImport.data.history.length}</span> 条记录
               </p>
-              <p className="text-xs text-slate-400 mt-2">相同ID的记录会被跳过</p>
+              <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">相同ID的记录会被跳过</p>
               {pendingImport.willSyncToCloud ? (
                 <p className="text-xs text-green-600 mt-2 flex items-center justify-center gap-1">
                   <Cloud size={14} /> 数据将自动同步到云端
@@ -4211,17 +4150,17 @@ export default function GachaAnalyzer() {
                 </p>
               )}
             </div>
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex gap-3 justify-center">
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button
                 onClick={() => setPendingImport(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
               </button>
               <button
                 onClick={confirmImport}
                 disabled={syncing}
-                className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-lg shadow-sm transition-all flex items-center gap-2"
+                className="px-4 py-2 text-sm font-bold text-white bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-none shadow-sm transition-all flex items-center gap-2"
               >
                 {syncing ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
                 {syncing ? '导入中...' : '确认导入'}
