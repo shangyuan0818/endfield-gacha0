@@ -872,16 +872,20 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     try {
       // 更新申请状态
-      await supabase
+      const { error: appError } = await supabase
         .from('admin_applications')
         .update({ status: 'approved', reviewed_at: new Date().toISOString() })
         .eq('id', appId);
 
+      if (appError) throw appError;
+
       // 更新用户角色
-      await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({ role: 'admin' })
         .eq('id', userId);
+
+      if (profileError) throw profileError;
 
       // 更新本地状态
       setApplications(prev => prev.map(a =>
@@ -890,6 +894,8 @@ const AdminPanel = React.memo(({ showToast }) => {
       setUsers(prev => prev.map(u =>
         u.id === userId ? { ...u, role: 'admin' } : u
       ));
+
+      showToast('审批通过！该用户现已成为管理员', 'success');
     } catch (error) {
       console.error('审批失败:', error);
       showToast('审批失败: ' + error.message, 'error');
@@ -904,14 +910,18 @@ const AdminPanel = React.memo(({ showToast }) => {
     setActionLoading(appId);
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('admin_applications')
         .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
         .eq('id', appId);
 
+      if (error) throw error;
+
       setApplications(prev => prev.map(a =>
         a.id === appId ? { ...a, status: 'rejected' } : a
       ));
+
+      showToast('已拒绝该申请', 'info');
     } catch (error) {
       console.error('拒绝失败:', error);
       showToast('拒绝失败: ' + error.message, 'error');
@@ -926,14 +936,19 @@ const AdminPanel = React.memo(({ showToast }) => {
     setActionLoading(userId);
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
         .eq('id', userId);
 
+      if (error) throw error;
+
       setUsers(prev => prev.map(u =>
         u.id === userId ? { ...u, role: newRole } : u
       ));
+
+      const roleLabel = newRole === 'admin' ? '管理员' : '普通用户';
+      showToast(`已将用户角色更改为${roleLabel}`, 'success');
     } catch (error) {
       console.error('更改角色失败:', error);
       showToast('更改角色失败: ' + error.message, 'error');
@@ -3462,7 +3477,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 ) : (
                   <button
                     onClick={() => setShowAuthModal(true)}
-                    className="flex items-center gap-1 text-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white px-3 py-1.5 rounded-none transition-colors"
+                    className="flex items-center gap-1 text-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-3 py-1.5 rounded-none transition-colors"
                   >
                     <LogIn size={16} />
                     <span className="hidden sm:inline">登录</span>
@@ -3539,7 +3554,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 {!user && (
                   <button
                     onClick={() => setShowAuthModal(true)}
-                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white px-4 py-2 rounded-none text-sm font-medium transition-colors"
+                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-4 py-2 rounded-none text-sm transition-colors"
                   >
                     登录
                   </button>
