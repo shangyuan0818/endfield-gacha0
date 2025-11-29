@@ -1666,7 +1666,7 @@ export default function GachaAnalyzer() {
       }
 
       if (rpcData) {
-        // RPC 返回的数据格式
+        // RPC 返回的数据格式（avgPity 由数据库精确计算）
         const stats = {
           totalPulls: rpcData.totalPulls || 0,
           totalUsers: rpcData.totalUsers || 0,
@@ -1680,10 +1680,8 @@ export default function GachaAnalyzer() {
             weapon: { total: rpcData.byType?.weapon?.total || 0 },
             standard: { total: rpcData.byType?.standard?.total || 0 }
           },
-          // 计算平均出货（如果有6星）
-          avgPity: rpcData.sixStarTotal > 0
-            ? (rpcData.totalPulls / rpcData.sixStarTotal).toFixed(1)
-            : null
+          // 使用数据库计算的精确平均出货（每个6星的垫刀数平均）
+          avgPity: rpcData.avgPity || null
         };
 
         setGlobalStats(stats);
