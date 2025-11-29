@@ -1622,12 +1622,33 @@ export default function GachaAnalyzer() {
 
     setGlobalStatsLoading(true);
     try {
-      // 获取所有历史记录的聚合统计（不包含敏感的用户数据）
-      const { data: historyData, error: historyError } = await supabase
-        .from('history')
-        .select('rarity, is_standard, special_type, pool_id');
+      // 分页获取所有历史记录（Supabase 默认限制 1000 行）
+      const PAGE_SIZE = 1000;
+      let allHistoryData = [];
+      let page = 0;
+      let hasMore = true;
 
-      if (historyError) throw historyError;
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        const { data: pageData, error: historyError } = await supabase
+          .from('history')
+          .select('rarity, is_standard, special_type, pool_id')
+          .range(from, to);
+
+        if (historyError) throw historyError;
+
+        if (pageData && pageData.length > 0) {
+          allHistoryData = allHistoryData.concat(pageData);
+          page++;
+          hasMore = pageData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const historyData = allHistoryData;
 
       // 获取所有卡池信息
       const { data: poolsData, error: poolsError } = await supabase
