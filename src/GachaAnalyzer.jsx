@@ -3714,21 +3714,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                </div>
                
                <div className="flex gap-2">
-                 {/* 导入按钮 */}
-                 <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:bg-zinc-950 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
-                 >
-                   <Upload size={14} /> 
-                   导入
-                 </button>
-                 <input 
-                   type="file" 
-                   ref={fileInputRef} 
-                   onChange={handleImportFile} 
-                   className="hidden" 
-                   accept=".json"
-                 />
+                 {/* 导入按钮 - 仅管理员可见 */}
+                 {canEdit && (
+                   <>
+                     <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
+                     >
+                       <Upload size={14} />
+                       导入
+                     </button>
+                     <input
+                       type="file"
+                       ref={fileInputRef}
+                       onChange={handleImportFile}
+                       className="hidden"
+                       accept=".json"
+                     />
+                   </>
+                 )}
 
                  {/* 导出菜单 */}
                  <div className="relative">
@@ -4032,12 +4036,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         onAuthSuccess={(user) => setUser(user)}
       />
 
-      {/* 数据迁移弹窗 */}
-      {showMigrateModal && (
+      {/* 数据迁移弹窗 - 仅管理员可见 */}
+      {showMigrateModal && canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-indigo-100 text-indigo-500 rounded-sm flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-sm flex items-center justify-center mx-auto mb-4">
                 <Cloud size={24} />
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">同步本地数据到云端？</h3>
@@ -4052,7 +4056,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 </div>
               )}
               {syncError && (
-                <div className="mt-4 text-sm text-red-500 bg-red-50 p-2 rounded">
+                <div className="mt-4 text-sm text-red-500 bg-red-50 dark:bg-red-900/20 p-2 rounded-none">
                   同步失败: {syncError}
                 </div>
               )}
@@ -4061,7 +4065,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <button
                 onClick={() => setShowMigrateModal(false)}
                 disabled={syncing}
-                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors disabled:opacity-50"
               >
                 暂不同步
               </button>
@@ -4073,7 +4077,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                   }
                 }}
                 disabled={syncing}
-                className="px-4 py-2 text-sm font-bold text-white bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 rounded-none shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 text-sm font-bold bg-endfield-yellow text-black hover:bg-yellow-400 uppercase tracking-wider rounded-none shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
               >
                 {syncing ? (
                   <>
