@@ -1802,6 +1802,10 @@ export default function GachaAnalyzer() {
 
         // 获取全局统计
         setInitStep('data');
+        // 如果有 session，等待认证状态同步后再查询
+        if (session) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
         await fetchGlobalStats();
 
         setInitStep('done');
@@ -1819,10 +1823,14 @@ export default function GachaAnalyzer() {
 
     // 监听登录状态变化
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         setUser(session?.user ?? null);
         // 用户状态变化时刷新全局统计
-        fetchGlobalStats();
+        // 添加延迟确保 Supabase 认证状态已同步
+        if (session) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          fetchGlobalStats();
+        }
       });
 
       return () => subscription.unsubscribe();
