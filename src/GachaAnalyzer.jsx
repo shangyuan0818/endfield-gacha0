@@ -68,14 +68,12 @@ const validatePoolData = (data) => {
 };
 
 const PRESET_POOLS = [
-  { label: '限定UP池：莱万汀', type: 'limited', charName: '莱万汀' },
-  { label: '常驻卡池', type: 'standard', charName: '' },
-  { label: '限定武器卡池：莱万汀专武', type: 'weapon', charName: '莱万汀专武' },
-  { label: '常驻武器池1', type: 'standard', charName: '常驻武器1' },
-  { label: '常驻武器池2', type: 'standard', charName: '常驻武器2' },
-  { label: '常驻武器池3', type: 'standard', charName: '常驻武器3' },
-  { label: '常驻武器池4', type: 'standard', charName: '常驻武器4' },
-  { label: '常驻武器池5', type: 'standard', charName: '常驻武器5' },
+  { label: '限定角色池', type: 'limited', charName: '' },
+  { label: '常驻角色池', type: 'standard', charName: '' },
+  { label: '限定武器池', type: 'weapon', charName: '' },
+  { label: '限定-莱万汀', type: 'limited', charName: '莱万汀' },
+  { label: '武器-莱万汀专武', type: 'weapon', charName: '莱万汀专武' },
+  { label: '常驻武器池', type: 'standard', charName: '常驻武器' },
 ];
 
 // --- 通用弹窗组件 ---
@@ -1974,6 +1972,24 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, [user]);
 
+  // 从云端删除卡池本身
+  const deletePoolFromCloud = useCallback(async (poolId) => {
+    if (!supabase || !user) return;
+
+    try {
+      const { error } = await supabase
+        .from('pools')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('pool_id', poolId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('从云端删除卡池失败:', error);
+      setSyncError(error.message);
+    }
+  }, [user]);
+
   // 迁移本地数据到云端
   const migrateLocalToCloud = useCallback(async () => {
     if (!supabase || !user) return false;
@@ -2289,21 +2305,43 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // --- 操作函数 ---
 
   const openCreatePoolModal = () => {
-    setNewPoolNameInput('');
-    setNewPoolTypeInput('limited');
-    
-    // Auto-detect drawer from last pool
+    // 自动识别抽卡人：从已有卡池名称中提取
     let detectedDrawer = '';
     if (pools.length > 0) {
-      const lastPool = pools[pools.length - 1];
-      const parts = lastPool.name.split('-');
-      if (parts.length > 1) {
-        detectedDrawer = parts[parts.length - 1];
-      }
-    }
-    setDrawerName(detectedDrawer);
+      // 遍历所有卡池，找到最常见的抽卡人名称
+      const drawerCounts = {};
+      pools.forEach(pool => {
+        const parts = pool.name.split('-');
+        // 卡池名称格式：类型-角色名-抽卡人 或 类型-抽卡人
+        if (parts.length >= 2) {
+          const lastPart = parts[parts.length - 1].trim();
+          // 排除常见的类型词和角色名
+          const typeWords = ['限定', '常驻', '武器', 'UP池', '卡池'];
+          const isTypePart = typeWords.some(word => lastPart.includes(word));
+          if (!isTypePart && lastPart.length > 0 && lastPart.length <= 10) {
+            drawerCounts[lastPart] = (drawerCounts[lastPart] || 0) + 1;
+          }
+        }
+      });
 
+      // 找到出现最多的抽卡人名称
+      let maxCount = 0;
+      Object.entries(drawerCounts).forEach(([name, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          detectedDrawer = name;
+        }
+      });
+    }
+
+    setDrawerName(detectedDrawer);
     setSelectedCharName('');
+    setNewPoolTypeInput('limited');
+
+    // 根据识别的抽卡人生成默认卡池名称
+    const defaultName = detectedDrawer ? `限定-${detectedDrawer}` : '';
+    setNewPoolNameInput(defaultName);
+
     setModalState({ type: 'createPool', data: null });
     setShowPoolMenu(false);
   };
@@ -2390,6 +2428,45 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       updatedPool.locked ? `卡池「${pool.name}」已锁定` : `卡池「${pool.name}」已解锁`,
       updatedPool.locked ? 'warning' : 'success'
     );
+  };
+
+  // 打开删除卡池确认弹窗
+  const openDeletePoolModal = (pool) => {
+    setModalState({ type: 'deletePool', data: pool });
+    setShowPoolMenu(false);
+  };
+
+  // 确认删除卡池（包括所有记录）
+  const confirmDeletePool = async () => {
+    const poolToDelete = modalState.data;
+    if (!poolToDelete) return;
+
+    const poolId = poolToDelete.id;
+    const poolName = poolToDelete.name;
+
+    // 删除该卡池的所有历史记录
+    setHistory(prev => prev.filter(item => item.poolId !== poolId));
+
+    // 删除卡池本身
+    setPools(prev => prev.filter(p => p.id !== poolId));
+
+    // 如果删除的是当前选中的卡池，切换到第一个卡池
+    if (currentPoolId === poolId) {
+      const remainingPools = pools.filter(p => p.id !== poolId);
+      if (remainingPools.length > 0) {
+        setCurrentPoolId(remainingPools[0].id);
+      }
+    }
+
+    setModalState({ type: null, data: null });
+
+    // 同步到云端
+    if (user) {
+      await deletePoolHistoryFromCloud(poolId);
+      await deletePoolFromCloud(poolId);
+    }
+
+    showToast(`卡池「${poolName}」已删除`, 'success');
   };
 
   const openDeleteConfirmModal = () => {
@@ -3350,6 +3427,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                               <Settings size={14} />
                             </button>
                           )}
+                          {/* 删除卡池按钮 - 仅管理员可见且卡池未锁定或超管，且不是唯一卡池 */}
+                          {canEdit && (!pool.locked || isSuperAdmin) && pools.length > 1 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openDeletePoolModal(pool);
+                              }}
+                              className="p-1.5 text-slate-300 hover:text-red-500 dark:text-zinc-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                              title="删除卡池"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -3842,7 +3932,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                           setSelectedCharName(preset.charName);
                           setNewPoolNameInput(name);
                         }}
-                        className="text-left text-xs p-2 rounded border border-zinc-200 dark:border-zinc-800 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:border-indigo-300 hover:text-yellow-700 dark:text-yellow-300 transition-colors truncate"
+                        className="text-left text-xs p-2 rounded-none border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 hover:border-yellow-300 dark:hover:border-yellow-700 text-slate-600 dark:text-zinc-300 hover:text-yellow-700 dark:hover:text-yellow-300 transition-colors truncate"
                         title={preset.label}
                       >
                         {preset.label}
@@ -3935,11 +4025,45 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         </div>
       )}
 
+      {/* 删除卡池确认弹窗 */}
+      {modalState.type === 'deletePool' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+             <div className="p-6 text-center">
+               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
+                 <Trash2 size={24} />
+               </div>
+               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">确定删除卡池？</h3>
+               <p className="text-sm text-slate-500 dark:text-zinc-500">
+                 您正在删除卡池 <span className="font-bold text-slate-700 dark:text-zinc-300">「{modalState.data?.name}」</span>
+                 <br/>及其所有 <span className="text-red-500 font-bold">{history.filter(h => h.poolId === modalState.data?.id).length}</span> 条抽卡记录。
+                 <br/>此操作<span className="text-red-500 font-bold">无法撤销</span>。
+               </p>
+             </div>
+             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
+              <button
+                onClick={closeModal}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmDeletePool}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-none shadow-sm transition-all"
+              >
+                确认删除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 清空卡池数据确认弹窗 */}
       {modalState.type === 'deleteConfirm' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
              <div className="p-6 text-center">
-               <div className="w-12 h-12 bg-red-100 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
+               <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                  <AlertCircle size={24} />
                </div>
                <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">确定清空数据？</h3>
@@ -3949,13 +4073,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                </p>
              </div>
              <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
-              <button 
+              <button
                 onClick={closeModal}
-                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
               >
                 再想想
               </button>
-              <button 
+              <button
                 onClick={confirmDeleteData}
                 className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-none shadow-sm transition-all"
               >
