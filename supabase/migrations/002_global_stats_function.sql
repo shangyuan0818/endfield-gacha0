@@ -11,14 +11,14 @@ DECLARE
 BEGIN
   -- 使用窗口函数计算精确的平均出货（每个6星的垫刀数）
   WITH valid_pulls AS (
-    -- 排除赠送的记录
+    -- 排除赠送的记录，按时间戳排序（与前端逻辑一致）
     SELECT
       user_id,
       pool_id,
       record_id,
       rarity,
       timestamp,
-      ROW_NUMBER() OVER (PARTITION BY user_id, pool_id ORDER BY record_id) as pull_num
+      ROW_NUMBER() OVER (PARTITION BY user_id, pool_id ORDER BY timestamp, record_id) as pull_num
     FROM history
     WHERE special_type IS DISTINCT FROM 'gift'
   ),
