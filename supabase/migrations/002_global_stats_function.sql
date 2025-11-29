@@ -9,31 +9,23 @@ DECLARE
   result JSON;
   avg_pity NUMERIC;
 BEGIN
-  -- 使用窗口函数计算精确的平均出货（每个6星的垫刀数）
-  -- 旧版本按 pool_id 分组（不区分 user_id），按 record_id 排序
-  WITH valid_pulls AS (
+  -- 使用 LAG 窗口函数计算平均出货
+  WITH ordered_pulls AS (
     SELECT
       pool_id,
-      record_id,
       rarity,
-      ROW_NUMBER() OVER (PARTITION BY pool_id ORDER BY record_id) as pull_num
+      ROW_NUMBER() OVER (PARTITION BY pool_id ORDER BY record_id) as rn
     FROM history
     WHERE special_type IS DISTINCT FROM 'gift'
   ),
-  six_star_pity AS (
+  six_stars_with_prev AS (
     SELECT
-      v1.pull_num - COALESCE(
-        (SELECT MAX(v2.pull_num)
-         FROM valid_pulls v2
-         WHERE v2.pool_id = v1.pool_id
-           AND v2.rarity = 6
-           AND v2.pull_num < v1.pull_num),
-        0
-      ) as pity_count
-    FROM valid_pulls v1
-    WHERE v1.rarity = 6
+      rn,
+      LAG(rn, 1, 0) OVER (PARTITION BY pool_id ORDER BY rn) as prev_rn
+    FROM ordered_pulls
+    WHERE rarity = 6
   )
-  SELECT COALESCE(AVG(pity_count), 0) INTO avg_pity FROM six_star_pity;
+  SELECT COALESCE(AVG(rn - prev_rn), 0) INTO avg_pity FROM six_stars_with_prev;
 
   SELECT json_build_object(
     'totalPulls', COALESCE((SELECT COUNT(*) FROM history WHERE special_type IS DISTINCT FROM 'gift'), 0),

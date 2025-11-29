@@ -2116,9 +2116,13 @@ export default function GachaAnalyzer() {
       const prev = sorted[i-1];
       const curr = sorted[i];
       
-      // 简单判断：如果时间戳完全相同，视为同一批次
-      // 也可以放宽到 1秒内，但目前的录入逻辑是完全相同的字符串
-      if (curr.timestamp === prev.timestamp) {
+      // 判断是否为同一批次：时间差在 2 秒内视为同一批次
+      // 使用时间差而非字符串比较，因为数据库返回的时间戳格式可能与前端不同
+      const prevTime = new Date(prev.timestamp).getTime();
+      const currTime = new Date(curr.timestamp).getTime();
+      const timeDiff = Math.abs(currTime - prevTime);
+
+      if (timeDiff <= 2000) { // 2秒内视为同一批次
         currentGroup.push(curr);
       } else {
         groups.push(currentGroup);
