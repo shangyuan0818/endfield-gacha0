@@ -318,9 +318,9 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
               </button>
             ))}
           </div>
-          <button 
+          <button
             onClick={handleSubmit}
-            className="w-full bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 text-white font-medium py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-sm active:translate-y-0.5"
+            className="w-full bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-sm active:translate-y-0.5"
           >
             <Save size={18} />
             确认保存这十连
@@ -3280,7 +3280,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             <div className="relative">
               <button 
                 onClick={() => setShowPoolMenu(!showPoolMenu)}
-                className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
+                className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
               >
                 <Layers size={16} />
                 <span className="max-w-[100px] sm:max-w-[200px] truncate">
@@ -3297,7 +3297,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                     {pools.map(pool => (
                       <div
                         key={pool.id}
-                        className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-slate-50 dark:bg-zinc-950 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
+                        className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
                       >
                         <button
                           onClick={() => {
@@ -3319,7 +3319,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                                 e.stopPropagation();
                                 togglePoolLock(pool.id);
                               }}
-                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200'}`}
+                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'}`}
                               title={pool.locked ? "解锁卡池" : "锁定卡池"}
                             >
                               {pool.locked ? <Unlock size={14} /> : <Lock size={14} />}
@@ -3329,7 +3329,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                           {canEdit && (!pool.locked || isSuperAdmin) && (
                             <button
                               onClick={(e) => openEditPoolModal(e, pool)}
-                              className="p-1.5 text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                              className="p-1.5 text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded opacity-0 group-hover/item:opacity-100 transition-all"
                               title="编辑卡池"
                             >
                               <Settings size={14} />
@@ -3344,7 +3344,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                         <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
                         <button
                           onClick={openCreatePoolModal}
-                          className="w-full text-left px-4 py-2 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:bg-yellow-900/20 flex items-center gap-2 font-medium"
+                          className="w-full text-left px-4 py-2 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2 font-medium"
                         >
                           <Plus size={16} />
                           新建卡池...
@@ -3393,7 +3393,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             {/* 设置和关于按钮 */}
             <button
               onClick={() => setActiveTab('settings')}
-              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'settings' ? 'bg-slate-100 text-slate-800 dark:text-zinc-100' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
+              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'settings' ? 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-100' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
               title="设置"
             >
               <Settings size={18} />
