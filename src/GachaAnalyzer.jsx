@@ -512,8 +512,26 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
     );
   });
 
-  const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading }) => {
-    const stats = useMemo(() => {
+  const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading, user }) => {
+    // 状态管理：数据源和卡池类型筛选
+    const [dataSource, setDataSource] = useState('global'); // 'global' | 'local'
+    const [poolTypeFilter, setPoolTypeFilter] = useState('all'); // 'all' | 'character' | 'limited' | 'weapon' | 'standard'
+
+    // 过滤当前用户的卡池和历史记录
+    const myPools = useMemo(() => {
+      if (!pools) return [];
+      if (!user) return pools; // 未登录时显示所有本地数据
+      return pools.filter(pool => !pool.user_id || pool.user_id === user.id);
+    }, [pools, user]);
+
+    const myHistory = useMemo(() => {
+      if (!history) return [];
+      if (!user) return history; // 未登录时显示所有本地数据
+      return history.filter(h => !h.user_id || h.user_id === user.id);
+    }, [history, user]);
+
+    // 计算当前用户统计数据（只使用过滤后的数据）
+    const localStats = useMemo(() => {
       const data = {
         total: 0,
         sixStar: 0,
@@ -529,11 +547,11 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
       };
 
       const poolTypeMap = new Map();
-      pools.forEach(p => poolTypeMap.set(p.id, p.type));
+      myPools.forEach(p => poolTypeMap.set(p.id, p.type));
 
-      // 1. 分组
+      // 1. 分组（使用过滤后的当前用户数据）
       const pullsByPool = {};
-      history.forEach(item => {
+      myHistory.forEach(item => {
         if (!pullsByPool[item.poolId]) pullsByPool[item.poolId] = [];
         pullsByPool[item.poolId].push(item);
       });
@@ -543,28 +561,22 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
       // 2. 遍历每个池子计算垫刀
       Object.keys(pullsByPool).forEach(poolId => {
         const type = poolTypeMap.get(poolId) || 'standard';
-        // pityList is already initialized
-
-        // 按时间正序
         const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
         const validPulls = sortedPulls.filter(i => i.specialType !== 'gift');
-        
+
         let tempCounter = 0;
         validPulls.forEach(pull => {
           tempCounter++;
           if (pull.rarity === 6) {
-            // 全局统计
             allSixStarPulls.push({
               count: tempCounter,
               isStandard: pull.isStandard,
               isGuaranteed: pull.specialType === 'guaranteed'
             });
-            // 分类统计
-            data.byType[type].pityList.push({ 
-              count: tempCounter, 
-              isStandard: pull.isStandard 
+            data.byType[type].pityList.push({
+              count: tempCounter,
+              isStandard: pull.isStandard
             });
-            
             tempCounter = 0;
           }
         });
@@ -580,8 +592,8 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
            const rangeStart = i + 1;
            const rangeEnd = i + 10;
            const items = list.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
-           dist.push({ 
-             range: `${rangeStart}-${rangeEnd}`, 
+           dist.push({
+             range: `${rangeStart}-${rangeEnd}`,
              count: items.length,
              limited: items.filter(p => !p.isStandard).length,
              standard: items.filter(p => p.isStandard).length
@@ -598,18 +610,16 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
         { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
       ].filter(item => item.value > 0);
 
-      // 3. 全局统计 & 分类计数
-      history.forEach(item => {
-        // 分类统计引用
+      // 3. 全局统计 & 分类计数（使用过滤后的当前用户数据）
+      myHistory.forEach(item => {
         const type = poolTypeMap.get(item.poolId) || 'standard';
         const typeData = data.byType[type];
 
-        // 有效总抽数
         if (item.specialType !== 'gift') {
            data.total++;
            typeData.total++;
         }
-        
+
         let r = item.rarity;
         if (r === 6) {
           if (item.isStandard) {
@@ -619,21 +629,19 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
              data.counts[6]++;
              typeData.counts[6]++;
           }
-          
           data.sixStar++;
           typeData.six++;
-          
           if (!item.isStandard && typeData.limitedSix !== undefined) {
              typeData.limitedSix++;
           }
         } else {
-          if (r === 5) { 
-             data.fiveStar++; 
+          if (r === 5) {
+             data.fiveStar++;
              data.counts[5]++;
              typeData.counts[5]++;
-          } else { 
-             if (r < 4) r = 4; 
-             data.counts[r]++; 
+          } else {
+             if (r < 4) r = 4;
+             data.counts[r]++;
              typeData.counts[r]++;
           }
         }
@@ -641,7 +649,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
 
       // 4. 生成图表数据
       data.chartData = generatePieData(data.counts);
-      
+
       ['limited', 'weapon', 'standard'].forEach(t => {
          data.byType[t].distribution = generateDist(data.byType[t].pityList);
          data.byType[t].chartData = generatePieData(data.byType[t].counts);
@@ -665,219 +673,447 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
         }
       }
 
+      // 6. 计算合并的角色池数据（限定+常驻）
+      const characterCounts = {
+        6: data.byType.limited.counts[6] + data.byType.standard.counts[6],
+        '6_std': data.byType.limited.counts['6_std'] + data.byType.standard.counts['6_std'],
+        5: data.byType.limited.counts[5] + data.byType.standard.counts[5],
+        4: data.byType.limited.counts[4] + data.byType.standard.counts[4]
+      };
+      const characterPityList = [...data.byType.limited.pityList, ...data.byType.standard.pityList];
+
+      data.byType.character = {
+        total: data.byType.limited.total + data.byType.standard.total,
+        six: data.byType.limited.six + data.byType.standard.six,
+        limitedSix: data.byType.limited.limitedSix,
+        counts: characterCounts,
+        pityList: characterPityList,
+        distribution: generateDist(characterPityList),
+        chartData: generatePieData(characterCounts)
+      };
+
+      // 计算平均出货
+      data.avgPity = allSixStarPulls.length > 0
+        ? (allSixStarPulls.reduce((sum, p) => sum + p.count, 0) / allSixStarPulls.length).toFixed(1)
+        : '-';
+
       return data;
-    }, [history, pools]);
+    }, [myHistory, myPools]);
 
-    const PoolCategorySection = ({ title, color, data, icon: Icon, barColor }) => (
-      <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 mb-6 last:mb-0">
-        <div className="flex flex-col md:flex-row gap-6">
-           {/* Left: Stats Overview */}
-           <div className="md:w-1/3 flex flex-col justify-center space-y-6">
-              <div className="flex items-center gap-2">
-                 <div className={`p-2 rounded-none ${color.replace('text-', 'bg-').replace('500', '50').replace('600', '50')} ${color}`}>
-                   {Icon && <Icon size={20} />}
-                 </div>
-                 <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-none">
-                  <div className="text-xs text-slate-400 dark:text-zinc-500 mb-1">总投入</div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{data.total}</div>
-                </div>
-                <div className="bg-slate-50 dark:bg-zinc-950 p-3 rounded-none">
-                  <div className="text-xs text-slate-400 dark:text-zinc-500 mb-1">6星出货</div>
-                  <div className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{data.six}</div>
-                  <div className="text-[10px] text-slate-400 dark:text-zinc-500">
-                    {data.total > 0 ? ((data.six / data.total) * 100).toFixed(2) : 0}%
-                  </div>
-                </div>
-                {data.limitedSix !== undefined && (
-                  <div className="col-span-2 bg-orange-50/50 dark:bg-orange-900/20 p-3 rounded-none border border-orange-100 dark:border-orange-800/50">
-                     <div className="flex justify-between items-center">
-                       <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">限定出货</span>
-                       <span className="text-xl font-bold text-orange-700 dark:text-orange-300">{data.limitedSix}</span>
-                     </div>
-                     <div className="text-[10px] text-orange-400 dark:text-orange-500/70 text-right mt-1">
-                       占6星: {data.six > 0 ? ((data.limitedSix / data.six) * 100).toFixed(1) : 0}%
-                     </div>
-                  </div>
-                )}
-              </div>
-           </div>
+    // 根据数据源和筛选条件获取当前显示的统计数据
+    const currentStats = useMemo(() => {
+      const isGlobal = dataSource === 'global' && globalStats;
+      const baseStats = isGlobal ? globalStats : localStats;
 
-           {/* Right: Charts */}
-           <div className="md:w-2/3 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Pie Chart */}
-              <div className="h-48 relative">
-                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 dark:text-zinc-500 z-10">稀有度分布</p>
-                 <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={data.chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={40}
-                        outerRadius={60}
-                        paddingAngle={2}
-                        dataKey="value"
-                      >
-                        {data.chartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip 
-                        contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                      />
-                      <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px', color: '#a1a1aa'}}/>
-                    </PieChart>
-                 </ResponsiveContainer>
-              </div>
+      if (!baseStats) return null;
 
-              {/* Bar Chart */}
-              <div className="h-48 relative">
-                 <p className="absolute top-0 left-0 text-[10px] font-bold text-slate-400 dark:text-zinc-500 z-10">6星出货分布</p>
-                 {data.distribution && data.distribution.length > 0 ? (
-                   <ResponsiveContainer width="100%" height="100%">
-                     <BarChart data={data.distribution} stackOffset="sign" margin={{top: 20, right: 0, left: -20, bottom: 0}}>
-                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                       <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
-                       <YAxis allowDecimals={false} tick={{fontSize: 10}} />
-                       <RechartsTooltip 
-                         cursor={{fill: 'rgba(255,255,255,0.1)'}}
-                         contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                       />
-                       {/* Stacked Bars: Limited on bottom (usually preferred), Standard on top */}
-                       <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" radius={[0, 0, 2, 2]} />
-                       <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" radius={[2, 2, 0, 0]} />
-                     </BarChart>
-                   </ResponsiveContainer>
-                 ) : (
-                   <div className="h-full flex items-center justify-center text-xs text-slate-300">
-                     暂无数据
-                   </div>
-                 )}
-              </div>
-           </div>
-        </div>
-      </div>
+      // 根据筛选条件返回对应数据
+      if (poolTypeFilter === 'all') {
+        return {
+          title: isGlobal ? '全服数据' : '我的数据',
+          subtitle: '全部卡池',
+          total: baseStats.totalPulls ?? baseStats.total,
+          sixStar: baseStats.sixStarTotal ?? baseStats.sixStar,
+          sixStarLimited: baseStats.sixStarLimited ?? baseStats.counts?.[6],
+          sixStarStandard: baseStats.sixStarStandard ?? baseStats.counts?.['6_std'],
+          avgPity: baseStats.avgPity,
+          counts: baseStats.counts,
+          byType: baseStats.byType,
+          totalUsers: baseStats.totalUsers
+        };
+      }
+
+      // 特定卡池类型
+      const typeData = baseStats.byType?.[poolTypeFilter];
+      if (!typeData) return null;
+
+      const typeNames = {
+        character: '角色池（限定+常驻）',
+        limited: '限定角色池',
+        weapon: '武器池',
+        standard: '常驻池'
+      };
+
+      // 计算平均出货：优先使用 avgPity，其次从 pityList 计算（本地数据）
+      let avgPity = '-';
+      if (typeData.avgPity) {
+        avgPity = typeData.avgPity;
+      } else if (typeData.pityList?.length > 0) {
+        avgPity = (typeData.pityList.reduce((sum, p) => sum + p.count, 0) / typeData.pityList.length).toFixed(1);
+      }
+
+      return {
+        title: isGlobal ? '全服数据' : '我的数据',
+        subtitle: typeNames[poolTypeFilter],
+        total: typeData.total,
+        sixStar: typeData.six ?? typeData.sixStar,
+        sixStarLimited: typeData.limitedSix ?? typeData.sixStarLimited ?? typeData.counts?.[6],
+        sixStarStandard: typeData.counts?.['6_std'] ?? typeData.sixStarStandard,
+        avgPity: avgPity,
+        counts: typeData.counts,
+        distribution: typeData.distribution,
+        chartData: typeData.chartData,
+        totalUsers: baseStats.totalUsers
+      };
+    }, [dataSource, poolTypeFilter, globalStats, localStats]);
+
+    // 获取图表显示数据
+    const chartDisplayData = useMemo(() => {
+      const isGlobal = dataSource === 'global' && globalStats;
+      const baseStats = isGlobal ? globalStats : localStats;
+
+      if (!baseStats) return { charts: [], isGlobal };
+
+      // 如果选择了特定类型，只显示该类型
+      if (poolTypeFilter !== 'all') {
+        const typeData = baseStats.byType?.[poolTypeFilter];
+        if (!typeData) return { charts: [], isGlobal };
+
+        const typeNames = {
+          character: '角色池',
+          limited: '限定池',
+          weapon: '武器池',
+          standard: '常驻池'
+        };
+        const typeColors = {
+          character: 'text-violet-500',
+          limited: 'text-orange-500',
+          weapon: 'text-slate-500',
+          standard: 'text-indigo-500'
+        };
+
+        return {
+          isGlobal,
+          charts: [{
+            title: typeNames[poolTypeFilter],
+            color: typeColors[poolTypeFilter],
+            data: typeData
+          }]
+        };
+      }
+
+      // 全部数据时：角色池（合并）+ 武器池
+      return {
+        isGlobal,
+        charts: [
+          {
+            title: '角色池',
+            subtitle: '限定 + 常驻',
+            color: 'text-violet-500',
+            data: baseStats.byType?.character || {
+              total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
+              six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
+              counts: {
+                6: (baseStats.byType?.limited?.counts?.[6] || 0) + (baseStats.byType?.standard?.counts?.[6] || 0),
+                '6_std': (baseStats.byType?.limited?.counts?.['6_std'] || 0) + (baseStats.byType?.standard?.counts?.['6_std'] || 0),
+                5: (baseStats.byType?.limited?.counts?.[5] || 0) + (baseStats.byType?.standard?.counts?.[5] || 0),
+                4: (baseStats.byType?.limited?.counts?.[4] || 0) + (baseStats.byType?.standard?.counts?.[4] || 0)
+              },
+              distribution: [...(baseStats.byType?.limited?.distribution || [])],
+              chartData: baseStats.byType?.limited?.chartData || []
+            }
+          },
+          {
+            title: '武器池',
+            color: 'text-slate-500',
+            data: baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [], chartData: [] }
+          }
+        ]
+      };
+    }, [dataSource, poolTypeFilter, globalStats, localStats]);
+
+    // 侧边栏选项组件
+    const SidebarItem = ({ label, icon: Icon, isActive, onClick, indent = false, count }) => (
+      <button
+        onClick={onClick}
+        className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2 ${
+          indent ? 'pl-8' : ''
+        } ${
+          isActive
+            ? 'bg-endfield-yellow text-black font-bold'
+            : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+        }`}
+      >
+        {Icon && <Icon size={14} />}
+        <span className="flex-1">{label}</span>
+        {count !== undefined && (
+          <span className={`text-xs ${isActive ? 'text-black/60' : 'text-zinc-600'}`}>
+            {count.toLocaleString()}
+          </span>
+        )}
+      </button>
     );
 
-    return (
-      <div className="space-y-6 animate-fade-in">
-        {/* 全服统计卡片 - P2: 汇总页统计全局数据 */}
-        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-none p-8 text-white shadow-lg relative overflow-hidden">
-           {globalStatsLoading ? (
-             <div className="flex items-center justify-center py-4">
-               <RefreshCw size={24} className="animate-spin text-slate-400 dark:text-zinc-500" />
-               <span className="ml-2 text-slate-400 dark:text-zinc-500">加载全服数据...</span>
-             </div>
-           ) : globalStats ? (
-             <>
-               <div className="relative z-10">
-                 <div className="flex items-center gap-2 mb-4">
-                   <Cloud size={20} className="text-indigo-400" />
-                   <h2 className="text-indigo-400 font-bold text-sm uppercase tracking-wider">全服统计</h2>
-                   <span className="text-slate-500 dark:text-zinc-500 text-xs">({globalStats.totalUsers} 位用户参与)</span>
-                 </div>
+    // 图表区块组件
+    const ChartSection = ({ title, subtitle, color, data, isGlobal }) => {
+      // 检查是否有详细图表数据
+      const hasChartData = data?.chartData && data.chartData.length > 0;
+      const hasDistribution = data?.distribution && data.distribution.length > 0;
+      const hasDetailedData = hasChartData || hasDistribution;
 
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                   <div className="bg-white/5 rounded-none p-4">
-                     <div className="text-slate-400 text-xs mb-1">总抽数</div>
-                     <div className="text-3xl font-black">{globalStats.totalPulls.toLocaleString()}</div>
-                   </div>
-                   <div className="bg-white/5 rounded-none p-4">
-                     <div className="text-slate-400 text-xs mb-1">6星出货</div>
-                     <div className="text-3xl font-black text-yellow-400">{globalStats.sixStarTotal}</div>
-                     <div className="text-xs text-slate-500 mt-1">
-                       出货率 {globalStats.totalPulls > 0 ? ((globalStats.sixStarTotal / globalStats.totalPulls) * 100).toFixed(2) : 0}%
-                     </div>
-                   </div>
-                   <div className="bg-white/5 rounded-none p-4">
-                     <div className="text-slate-400 text-xs mb-1">平均出货</div>
-                     <div className="text-3xl font-black text-indigo-400">{globalStats.avgPity || '-'}</div>
-                     <div className="text-xs text-slate-500 mt-1">抽/只</div>
-                   </div>
-                   <div className="bg-white/5 rounded-none p-4">
-                     <div className="text-slate-400 text-xs mb-1">限定/常驻比</div>
-                     <div className="text-lg font-bold">
-                       <span className="text-orange-400">{globalStats.sixStarLimited}</span>
-                       <span className="text-slate-500 mx-1">/</span>
-                       <span className="text-red-400">{globalStats.sixStarStandard}</span>
-                     </div>
-                     <div className="text-xs text-slate-500 mt-1">
-                       不歪率 {globalStats.sixStarTotal > 0 ? ((globalStats.sixStarLimited / globalStats.sixStarTotal) * 100).toFixed(1) : 0}%
-                     </div>
-                   </div>
-                 </div>
-
-                 {/* 额外统计信息 */}
-                 <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-3 gap-4 text-center">
-                   <div>
-                     <div className="text-orange-400 font-bold">{globalStats.byType.limited.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500 dark:text-zinc-500">限定池</div>
-                   </div>
-                   <div>
-                     <div className="text-slate-400 dark:text-zinc-500 font-bold">{globalStats.byType.weapon.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500 dark:text-zinc-500">武器池</div>
-                   </div>
-                   <div>
-                     <div className="text-indigo-400 font-bold">{globalStats.byType.standard.total.toLocaleString()}</div>
-                     <div className="text-xs text-slate-500 dark:text-zinc-500">常驻池</div>
-                   </div>
-                 </div>
-               </div>
-             </>
-           ) : (
-             <div className="relative z-10 flex justify-between items-center">
-               <div>
-                 <h2 className="text-slate-400 dark:text-zinc-500 font-medium mb-1">本地数据统计</h2>
-                 <div className="text-5xl font-black tracking-tight">{stats.total} <span className="text-2xl font-normal opacity-50">抽</span></div>
-               </div>
-               <div className="text-right">
-                 <div className="text-3xl font-bold text-yellow-400">{stats.sixStar}</div>
-                 <div className="text-sm text-slate-400 dark:text-zinc-500">总六星数</div>
-                 <div className="text-xs text-slate-500 dark:text-zinc-500 mt-1">平均 {(stats.total / (stats.sixStar || 1)).toFixed(1)} 抽/只</div>
-               </div>
-             </div>
-           )}
-           <div className="absolute -right-10 -bottom-10 text-slate-700 dark:text-zinc-300 opacity-20">
-             <Star size={200} />
-           </div>
-        </div>
-
-        {/* 当前用户数据（如果有的话） */}
-        {stats.total > 0 && (
-          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <User size={18} className="text-slate-500 dark:text-zinc-500" />
-              <h3 className="font-bold text-slate-700 dark:text-zinc-300">我的数据</h3>
-              <span className="text-xs bg-slate-100 text-slate-500 dark:text-zinc-500 px-2 py-0.5 rounded">{stats.total} 抽</span>
+      if (!data || data.total === 0) {
+        return (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+            <h3 className={`font-bold text-lg ${color} mb-4`}>{title}</h3>
+            <div className="h-48 flex items-center justify-center text-zinc-400">
+              暂无数据
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-none">
-                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.counts[6]}</div>
-                <div className="text-xs text-orange-500 dark:text-orange-400/70">限定6星</div>
-              </div>
-              <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-none">
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.counts['6_std']}</div>
-                <div className="text-xs text-red-500 dark:text-red-400/70">常驻6星</div>
-              </div>
-              <div className="text-center p-3 bg-amber-50 dark:bg-amber-900/20 rounded-none">
-                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{stats.counts[5]}</div>
-                <div className="text-xs text-amber-500 dark:text-amber-400/70">5星</div>
-              </div>
-              <div className="text-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-none">
-                <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.counts[4]}</div>
-                <div className="text-xs text-purple-500 dark:text-purple-400/70">4星</div>
+          </div>
+        );
+      }
+
+      // 全服数据没有详细图表数据时显示提示
+      if (isGlobal && !hasDetailedData) {
+        return (
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
+              {subtitle && <span className="text-xs text-zinc-500">({subtitle})</span>}
+              <span className="ml-auto text-sm text-zinc-500">{data.total?.toLocaleString()} 抽</span>
+            </div>
+            <div className="h-32 flex items-center justify-center text-zinc-500 bg-zinc-50 dark:bg-zinc-950 border border-dashed border-zinc-300 dark:border-zinc-700">
+              <div className="text-center">
+                <Cloud size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">全服统计数据</p>
+                <p className="text-xs text-zinc-400 mt-1">详细图表请切换到「我的数据」查看</p>
               </div>
             </div>
           </div>
-        )}
+        );
+      }
 
-        <PoolCategorySection title="限定角色池" color="text-orange-500" data={stats.byType.limited} icon={Star} barColor="#F97316" />
-        <PoolCategorySection title="武器池" color="text-slate-600 dark:text-zinc-400" data={stats.byType.weapon} icon={Search} barColor="#475569" />
-        <PoolCategorySection title="常驻池" color="text-indigo-500" data={stats.byType.standard} icon={Layers} barColor="#6366F1" />
+      return (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
+            {subtitle && <span className="text-xs text-zinc-500">({subtitle})</span>}
+            <span className="ml-auto text-sm text-zinc-500">{data.total?.toLocaleString()} 抽</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* 饼图 */}
+            <div className="h-52 relative">
+              <p className="text-[10px] font-bold text-zinc-500 mb-2">稀有度分布</p>
+              {hasChartData ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={data.chartData}
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={45}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {data.chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    />
+                    <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px'}}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-zinc-400">暂无数据</div>
+              )}
+            </div>
+
+            {/* 柱状图 */}
+            <div className="h-52 relative">
+              <p className="text-[10px] font-bold text-zinc-500 mb-2">6星出货分布</p>
+              {hasDistribution ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
+                    <YAxis allowDecimals={false} tick={{fontSize: 10}} />
+                    <RechartsTooltip
+                      cursor={{fill: 'rgba(255,255,255,0.1)'}}
+                      contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    />
+                    <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />
+                    <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-zinc-400">暂无数据</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="flex gap-6 animate-fade-in">
+        {/* 左侧边栏 - 数据源选择 */}
+        <div className="w-56 flex-shrink-0">
+          <div className="bg-zinc-900 border border-zinc-800 sticky top-4">
+            {/* 全服数据分组 */}
+            <div className="border-b border-zinc-800">
+              <SidebarItem
+                label="全服数据"
+                icon={Cloud}
+                isActive={dataSource === 'global' && poolTypeFilter === 'all'}
+                onClick={() => { setDataSource('global'); setPoolTypeFilter('all'); }}
+                count={globalStats?.totalPulls}
+              />
+              {dataSource === 'global' && (
+                <div className="bg-zinc-950">
+                  <SidebarItem
+                    label="限定池"
+                    icon={Star}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'limited'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('limited'); }}
+                    count={globalStats?.byType?.limited?.total}
+                  />
+                  <SidebarItem
+                    label="常驻池"
+                    icon={Layers}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'standard'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('standard'); }}
+                    count={globalStats?.byType?.standard?.total}
+                  />
+                  <SidebarItem
+                    label="武器池"
+                    icon={Search}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'weapon'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('weapon'); }}
+                    count={globalStats?.byType?.weapon?.total}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 我的数据分组 */}
+            <div>
+              <SidebarItem
+                label="我的数据"
+                icon={User}
+                isActive={dataSource === 'local' && poolTypeFilter === 'all'}
+                onClick={() => { setDataSource('local'); setPoolTypeFilter('all'); }}
+                count={localStats.total}
+              />
+              {dataSource === 'local' && (
+                <div className="bg-zinc-950">
+                  <SidebarItem
+                    label="限定池"
+                    icon={Star}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'limited'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('limited'); }}
+                    count={localStats.byType.limited.total}
+                  />
+                  <SidebarItem
+                    label="常驻池"
+                    icon={Layers}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'standard'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('standard'); }}
+                    count={localStats.byType.standard.total}
+                  />
+                  <SidebarItem
+                    label="武器池"
+                    icon={Search}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'weapon'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('weapon'); }}
+                    count={localStats.byType.weapon.total}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧内容区 */}
+        <div className="flex-1 space-y-6">
+          {/* 统计信息卡片 */}
+          {globalStatsLoading && dataSource === 'global' ? (
+            <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-8 text-white flex items-center justify-center">
+              <RefreshCw size={24} className="animate-spin text-zinc-500" />
+              <span className="ml-2 text-zinc-500">加载全服数据...</span>
+            </div>
+          ) : currentStats ? (
+            <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-6 text-white relative overflow-hidden">
+              <div className="relative z-10">
+                {/* 标题 */}
+                <div className="flex items-center gap-2 mb-4">
+                  {dataSource === 'global' ? (
+                    <Cloud size={20} className="text-indigo-400" />
+                  ) : (
+                    <User size={20} className="text-endfield-yellow" />
+                  )}
+                  <h2 className={`font-bold text-sm uppercase tracking-wider ${dataSource === 'global' ? 'text-indigo-400' : 'text-endfield-yellow'}`}>
+                    {currentStats.title}
+                  </h2>
+                  <span className="text-zinc-500 text-xs">/ {currentStats.subtitle}</span>
+                  {currentStats.totalUsers && (
+                    <span className="text-zinc-600 text-xs ml-auto">({currentStats.totalUsers} 位用户)</span>
+                  )}
+                </div>
+
+                {/* 统计数据 */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">总抽数</div>
+                    <div className="text-3xl font-black">{(currentStats.total || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">6星出货</div>
+                    <div className="text-3xl font-black text-yellow-400">{currentStats.sixStar || 0}</div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      出货率 {currentStats.total > 0 ? ((currentStats.sixStar / currentStats.total) * 100).toFixed(2) : 0}%
+                    </div>
+                  </div>
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">平均出货</div>
+                    <div className="text-3xl font-black text-indigo-400">{currentStats.avgPity || '-'}</div>
+                    <div className="text-xs text-zinc-500 mt-1">抽/只</div>
+                  </div>
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">限定/常驻</div>
+                    <div className="text-lg font-bold">
+                      <span className="text-orange-400">{currentStats.sixStarLimited || 0}</span>
+                      <span className="text-zinc-600 mx-1">/</span>
+                      <span className="text-red-400">{currentStats.sixStarStandard || 0}</span>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      不歪率 {currentStats.sixStar > 0 ? ((currentStats.sixStarLimited / currentStats.sixStar) * 100).toFixed(1) : 0}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -right-10 -bottom-10 text-zinc-700 opacity-20">
+                <Star size={200} />
+              </div>
+            </div>
+          ) : (
+            <div className="bg-zinc-900 p-8 text-center text-zinc-500">
+              暂无数据
+            </div>
+          )}
+
+          {/* 图表区域 */}
+          <div className="space-y-6">
+            {chartDisplayData.charts.map((chart, index) => (
+              <ChartSection
+                key={index}
+                title={chart.title}
+                subtitle={chart.subtitle}
+                color={chart.color}
+                data={chart.data}
+                isGlobal={chartDisplayData.isGlobal}
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   });
@@ -1928,7 +2164,43 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
 
       if (rpcData) {
-        // RPC 返回的数据格式（avgPity 由数据库精确计算）
+        // 辅助函数：生成饼图数据
+        const generateChartData = (counts) => {
+          if (!counts) return [];
+          return [
+            { name: '6星(限定)', value: counts['6'] || 0, color: '#FF5F00' },
+            { name: '6星(常驻)', value: counts['6_std'] || 0, color: '#EF4444' },
+            { name: '5星', value: counts['5'] || 0, color: '#EAB308' },
+            { name: '4星', value: counts['4'] || 0, color: '#A855F7' },
+          ].filter(item => item.value > 0);
+        };
+
+        // 辅助函数：处理分布数据（确保格式正确）
+        const processDistribution = (dist) => {
+          if (!dist || !Array.isArray(dist)) return [];
+          return dist.map(item => ({
+            range: item.range,
+            limited: Number(item.limited) || 0,
+            standard: Number(item.standard) || 0
+          }));
+        };
+
+        // 处理分类型数据
+        const processTypeStats = (typeData) => {
+          if (!typeData) return { total: 0, six: 0, counts: {}, distribution: [], chartData: [], avgPity: null };
+          return {
+            total: typeData.total || 0,
+            six: typeData.six || 0,
+            sixStarLimited: typeData.sixStarLimited || 0,
+            sixStarStandard: typeData.sixStarStandard || 0,
+            avgPity: typeData.avgPity || null,
+            counts: typeData.counts || {},
+            distribution: processDistribution(typeData.distribution),
+            chartData: generateChartData(typeData.counts)
+          };
+        };
+
+        // RPC 返回的数据格式（包含图表所需的详细数据）
         const stats = {
           totalPulls: rpcData.totalPulls || 0,
           totalUsers: rpcData.totalUsers || 0,
@@ -1937,13 +2209,53 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           sixStarStandard: rpcData.sixStarStandard || 0,
           fiveStar: rpcData.fiveStar || 0,
           fourStar: rpcData.fourStar || 0,
+          // 全局统计的 counts 和 distribution（用于图表）
+          counts: rpcData.counts || {},
+          distribution: processDistribution(rpcData.distribution),
+          chartData: generateChartData(rpcData.counts),
           byType: {
-            limited: { total: rpcData.byType?.limited?.total || 0 },
-            weapon: { total: rpcData.byType?.weapon?.total || 0 },
-            standard: { total: rpcData.byType?.standard?.total || 0 }
+            limited: processTypeStats(rpcData.byType?.limited),
+            weapon: processTypeStats(rpcData.byType?.weapon),
+            standard: processTypeStats(rpcData.byType?.standard)
           },
           // 使用数据库计算的精确平均出货（每个6星的垫刀数平均）
           avgPity: rpcData.avgPity || null
+        };
+
+        // 计算合并的角色池数据（限定+常驻）
+        const limitedStats = stats.byType.limited;
+        const standardStats = stats.byType.standard;
+
+        // 计算合并的平均出货（加权平均）
+        const limitedSix = limitedStats.six || 0;
+        const standardSix = standardStats.six || 0;
+        const totalSix = limitedSix + standardSix;
+        let characterAvgPity = null;
+        if (totalSix > 0 && (limitedStats.avgPity || standardStats.avgPity)) {
+          const limitedAvg = Number(limitedStats.avgPity) || 0;
+          const standardAvg = Number(standardStats.avgPity) || 0;
+          characterAvgPity = ((limitedAvg * limitedSix + standardAvg * standardSix) / totalSix).toFixed(1);
+        }
+
+        stats.byType.character = {
+          total: limitedStats.total + standardStats.total,
+          six: limitedStats.six + standardStats.six,
+          sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
+          sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
+          avgPity: characterAvgPity,
+          counts: {
+            '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+            '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+            '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+            '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+          },
+          distribution: [...limitedStats.distribution, ...standardStats.distribution],
+          chartData: generateChartData({
+            '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+            '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+            '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+            '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+          })
         };
 
         setGlobalStats(stats);
@@ -1951,6 +2263,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     } catch (error) {
       console.error('获取全局统计失败:', error);
       // 设置为空统计而不是 null，避免显示加载中
+      const emptyTypeStats = { total: 0, six: 0, counts: {}, distribution: [], chartData: [] };
       setGlobalStats({
         totalPulls: 0,
         totalUsers: 0,
@@ -1959,7 +2272,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         sixStarStandard: 0,
         fiveStar: 0,
         fourStar: 0,
-        byType: { limited: { total: 0 }, weapon: { total: 0 }, standard: { total: 0 } },
+        counts: {},
+        distribution: [],
+        chartData: [],
+        byType: {
+          limited: emptyTypeStats,
+          weapon: emptyTypeStats,
+          standard: emptyTypeStats,
+          character: emptyTypeStats
+        },
         avgPity: null
       });
     } finally {
@@ -4110,7 +4431,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         )}
 
         {activeTab === 'summary' ? (
-          <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} />
+          <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} user={user} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
           <AdminPanel showToast={showToast} />
         ) : activeTab === 'settings' ? (
