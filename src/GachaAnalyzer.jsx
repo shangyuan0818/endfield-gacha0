@@ -1615,6 +1615,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return true;
   }, [canEdit, currentPool?.locked, isSuperAdmin]);
 
+  // 卡池搜索状态（必须在 groupedPools 之前声明）
+  const [poolSearchQuery, setPoolSearchQuery] = useState('');
+
   // 按抽卡人分组的卡池列表（支持搜索）
   const groupedPools = useMemo(() => {
     // 先按搜索词过滤
@@ -1716,7 +1719,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const [activeTab, setActiveTab] = useState('summary');
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [poolSearchQuery, setPoolSearchQuery] = useState('');
 
   // 弹窗状态
   const [modalState, setModalState] = useState({ type: null, data: null });
