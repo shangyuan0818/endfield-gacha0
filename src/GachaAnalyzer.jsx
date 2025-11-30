@@ -1190,12 +1190,37 @@ const AdminPanel = React.memo(({ showToast }) => {
 });
 
 // 设置页面组件
-const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode, setThemeMode }) => {
+const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode, setThemeMode, pools, history, onDeleteAllData, onManualSync, syncing }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  // 统计当前用户的数据
+  const userPoolCount = pools?.length || 0;
+  const userHistoryCount = history?.length || 0;
+
+  const handleManualSync = async () => {
+    if (onManualSync) {
+      await onManualSync();
+    }
+  };
+
+  const handleDeleteAllData = async () => {
+    if (deleteConfirmText !== '确认删除') return;
+    setDeleteLoading(true);
+    try {
+      await onDeleteAllData();
+      setShowDeleteAllModal(false);
+      setDeleteConfirmText('');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -1345,6 +1370,79 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode,
           </div>
         </div>
       </div>
+
+      {/* 数据管理 */}
+      {user && (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
+            <Trash2 size={20} className="text-zinc-600 dark:text-zinc-400" />
+            <h3 className="font-bold text-zinc-700 dark:text-zinc-200">数据管理</h3>
+          </div>
+          <div className="p-6 space-y-4">
+            {/* 数据统计 */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="p-4 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+                <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-100">{userPoolCount}</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-500">卡池数量</div>
+              </div>
+              <div className="p-4 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800">
+                <div className="text-2xl font-bold text-zinc-800 dark:text-zinc-100">{userHistoryCount}</div>
+                <div className="text-sm text-zinc-500 dark:text-zinc-500">抽卡记录</div>
+              </div>
+            </div>
+
+            {/* 手动同步到云端 */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-zinc-700 dark:text-zinc-300">同步数据到云端</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">
+                    将你创建的卡池和抽卡记录上传到云端（不会上传其他用户的数据）
+                  </p>
+                </div>
+                <button
+                  onClick={handleManualSync}
+                  disabled={syncing || (userPoolCount === 0 && userHistoryCount === 0)}
+                  className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black text-sm font-bold tracking-wider transition-colors disabled:cursor-not-allowed"
+                >
+                  {syncing ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      同步中...
+                    </>
+                  ) : (
+                    <>
+                      <Cloud size={16} />
+                      立即同步
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 删除所有数据 */}
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-zinc-700 dark:text-zinc-300">删除所有数据</p>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-1">
+                    删除当前账号添加的所有卡池和抽卡记录
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDeleteAllModal(true)}
+                  disabled={userPoolCount === 0 && userHistoryCount === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-sm font-bold tracking-wider transition-colors disabled:cursor-not-allowed"
+                >
+                  <Trash2 size={16} />
+                  删除全部
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 修改密码弹窗 */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -1400,6 +1498,57 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode,
                 {passwordLoading ? '修改中...' : '确认修改'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 删除所有数据确认弹窗 */}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle size={32} />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">危险操作确认</h3>
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
+                您即将删除当前账号的<span className="text-red-500 font-bold">所有数据</span>，包括：
+              </p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-none mb-4 text-left">
+                <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
+                  <li>• {userPoolCount} 个卡池</li>
+                  <li>• {userHistoryCount} 条抽卡记录</li>
+                </ul>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
+                此操作<span className="text-red-500 font-bold">无法撤销</span>！请输入"确认删除"以继续：
+              </p>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder='输入"确认删除"'
+                className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none mb-4"
+              />
+            </div>
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  setShowDeleteAllModal(false);
+                  setDeleteConfirmText('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDeleteAllData}
+                disabled={deleteConfirmText !== '确认删除' || deleteLoading}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
+              >
+                {deleteLoading ? '删除中...' : '永久删除'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1622,6 +1771,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 卡池搜索状态（必须在 groupedPools 之前声明）
   const [poolSearchQuery, setPoolSearchQuery] = useState('');
+  // 折叠的抽卡人分组（存储已折叠的抽卡人名称）
+  const [collapsedDrawers, setCollapsedDrawers] = useState(new Set());
 
   // 按抽卡人分组的卡池列表（支持搜索）
   const groupedPools = useMemo(() => {
@@ -1715,7 +1866,18 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       return [];
     }
   });
-  
+
+  // 当前卡池的历史记录（多用户场景下需要同时匹配 poolId 和 user_id）
+  const currentPoolHistory = useMemo(() => {
+    if (!currentPool) return [];
+    // 如果 pool 有 user_id（来自云端），需要同时匹配 poolId 和 user_id
+    if (currentPool.user_id) {
+      return history.filter(h => h.poolId === currentPoolId && h.user_id === currentPool.user_id);
+    }
+    // 本地数据没有 user_id，只匹配 poolId
+    return history.filter(h => h.poolId === currentPoolId);
+  }, [history, currentPoolId, currentPool]);
+
   const [manualPityLimit, setManualPityLimit] = useState(DEFAULT_DISPLAY_PITY);
   
   // 列表分页状态
@@ -1934,20 +2096,40 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const [showMigrateModal, setShowMigrateModal] = useState(false);
 
   // 从云端加载数据
-  const loadCloudData = useCallback(async (userId) => {
+  // loadAll: 如果为 true（管理员/超管），加载所有卡池；否则只加载当前用户的
+  const loadCloudData = useCallback(async (userId, loadAll = false) => {
     if (!supabase || !userId) return null;
 
     setSyncing(true);
     setSyncError(null);
 
     try {
-      // 加载卡池（不指定排序，避免列名不存在的问题）
-      const { data: cloudPools, error: poolsError } = await supabase
+      // 查询卡池
+      let poolQuery = supabase
         .from('pools')
-        .select('*')
-        .eq('user_id', userId);
+        .select('*');
+
+      // 如果不是加载所有，则只加载当前用户的卡池
+      if (!loadAll) {
+        poolQuery = poolQuery.eq('user_id', userId);
+      }
+
+      const { data: cloudPools, error: poolsError } = await poolQuery;
 
       if (poolsError) throw poolsError;
+
+      // 收集所有 user_id 并查询对应的 profiles 获取用户名
+      const userIds = [...new Set(cloudPools.map(p => p.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+
+      // 创建 user_id -> username 的映射
+      const usernameMap = new Map();
+      if (profiles) {
+        profiles.forEach(p => usernameMap.set(p.id, p.username));
+      }
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
       const PAGE_SIZE = 1000;
@@ -1959,12 +2141,18 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const { data: pageData, error: historyError } = await supabase
+        let historyQuery = supabase
           .from('history')
           .select('*')
-          .eq('user_id', userId)
           .order('record_id', { ascending: true })
           .range(from, to);
+
+        // 如果不是加载所有，则只加载当前用户的历史记录
+        if (!loadAll) {
+          historyQuery = historyQuery.eq('user_id', userId);
+        }
+
+        const { data: pageData, error: historyError } = await historyQuery;
 
         if (historyError) throw historyError;
 
@@ -1979,11 +2167,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
 
       // 转换数据格式（云端字段名可能不同）
+      // 使用 usernameMap 获取创建人用户名
       const formattedPools = cloudPools.map(p => ({
         id: p.pool_id,
         name: p.name,
         type: p.type,
-        locked: p.locked || false
+        locked: p.locked || false,
+        created_at: p.created_at || null,
+        user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
+        creator_username: usernameMap.get(p.user_id) || null  // 从 profiles 查询得到的用户名
       }));
 
       const formattedHistory = allHistory.map(h => ({
@@ -1992,7 +2184,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         isStandard: h.is_standard,
         specialType: h.special_type,
         timestamp: h.timestamp,
-        poolId: h.pool_id
+        poolId: h.pool_id,
+        user_id: h.user_id  // 保留 user_id 用于判断归属
       }));
 
       return { pools: formattedPools, history: formattedHistory };
@@ -2006,8 +2199,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   }, []);
 
   // 保存卡池到云端
-  const savePoolToCloud = useCallback(async (pool) => {
-    if (!supabase || !user) return;
+  const savePoolToCloud = useCallback(async (pool, showNotification = false) => {
+    if (!supabase || !user) {
+      console.warn('savePoolToCloud: supabase 或 user 不存在');
+      return false;
+    }
 
     try {
       const { error } = await supabase
@@ -2022,9 +2218,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         }, { onConflict: 'user_id,pool_id' });
 
       if (error) throw error;
+
+      if (showNotification) {
+        console.log('卡池同步成功:', pool.name);
+      }
+      return true;
     } catch (error) {
       console.error('保存卡池到云端失败:', error);
       setSyncError(error.message);
+      return false;
     }
   }, [user]);
 
@@ -2143,7 +2345,22 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const handlePostLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) return;
 
-    const cloudData = await loadCloudData(loggedInUser.id);
+    // 先查询用户角色，决定是否加载所有数据
+    let isAdminOrSuper = false;
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', loggedInUser.id)
+        .single();
+
+      isAdminOrSuper = profile?.role === 'admin' || profile?.role === 'super_admin';
+    } catch (e) {
+      console.warn('查询用户角色失败:', e);
+    }
+
+    // 管理员/超管加载所有数据，普通用户只加载自己的
+    const cloudData = await loadCloudData(loggedInUser.id, isAdminOrSuper);
 
     if (cloudData) {
       const hasCloudData = cloudData.pools.length > 0 || cloudData.history.length > 0;
@@ -2191,20 +2408,20 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   }, [currentPoolId]);
 
   // --- 核心计算逻辑 ---
-  const currentPoolHistory = useMemo(() => {
-    // 加上全局序号 (第几抽)
+  // 为当前卡池历史记录添加全局序号
+  const currentPoolHistoryWithIndex = useMemo(() => {
+    // 基于 currentPoolHistory（已处理多用户过滤），添加全局序号
     // 确保按 id 排序（id 基于时间戳生成，代表录入顺序）
-    return history
-      .filter(item => item.poolId === currentPoolId)
+    return [...currentPoolHistory]
       .sort((a, b) => a.id - b.id)
       .map((item, index) => ({ ...item, globalIndex: index + 1 }));
-  }, [history, currentPoolId]);
+  }, [currentPoolHistory]);
 
   // 将历史记录按时间戳聚合，用于展示十连
   const groupedHistory = useMemo(() => {
     const groups = [];
     // 优化：数据默认按录入时间顺序，直接倒序即可，避免耗时的 sort
-    const sorted = [...currentPoolHistory].reverse();
+    const sorted = [...currentPoolHistoryWithIndex].reverse();
     
     if (sorted.length === 0) return [];
 
@@ -2232,7 +2449,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // 组与组之间按时间倒序（最新的组在前面）
     // 但组内元素，我们需要恢复为时间正序（从左到右显示 第1抽->第10抽）
     return groups.map(g => g.reverse());
-  }, [currentPoolHistory]);
+  }, [currentPoolHistoryWithIndex]);
 
   const stats = useMemo(() => {
     // 过滤掉赠送的记录来计算有效抽数
@@ -2481,7 +2698,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     // 同步到云端
     if (user) {
-      await savePoolToCloud(newPool);
+      const success = await savePoolToCloud(newPool, true);
+      if (success) {
+        showToast(`卡池「${newPool.name}」已创建并同步到云端`, 'success');
+      } else {
+        showToast(`卡池「${newPool.name}」已创建，但同步到云端失败`, 'warning');
+      }
+    } else {
+      showToast(`卡池「${newPool.name}」已创建（本地）`, 'success');
     }
   };
 
@@ -2500,7 +2724,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
        id: modalState.data.id,
        name: newPoolNameInput.trim(),
        type: newPoolTypeInput,
-       locked: modalState.data.locked || false  // 保留锁定状态
+       locked: modalState.data.locked || false,  // 保留锁定状态
+       created_at: modalState.data.created_at || null,  // 保留创建时间
+       creator_username: modalState.data.creator_username || null  // 保留创建人用户名
      };
 
      setPools(prev => prev.map(p => {
@@ -2595,6 +2821,84 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   };
 
+  // 删除当前账号的所有卡池数据（设置页面使用）
+  const deleteAllUserData = async () => {
+    if (!user) return;
+
+    try {
+      setSyncing(true);
+
+      // 删除云端所有卡池的历史记录
+      for (const pool of pools) {
+        await deletePoolHistoryFromCloud(pool.id);
+        await deletePoolFromCloud(pool.id);
+      }
+
+      // 清空本地数据
+      setPools([]);
+      setHistory([]);
+      setCurrentPoolId(null);
+
+      showToast('所有数据已删除', 'success');
+    } catch (error) {
+      console.error('删除所有数据失败:', error);
+      showToast('删除失败: ' + error.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // 手动同步数据到云端（设置页面使用）
+  // 只同步当前用户创建的数据，不会重复上传其他用户的数据
+  const handleManualSync = async () => {
+    if (!user) {
+      showToast('请先登录', 'warning');
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      let syncedPools = 0;
+      let syncedHistory = 0;
+      let skippedPools = 0;
+      let skippedHistory = 0;
+
+      // 只同步当前用户创建的卡池（user_id 等于当前用户，或者是本地创建的没有 user_id）
+      const myPools = pools.filter(pool => !pool.user_id || pool.user_id === user.id);
+      const otherUserPools = pools.length - myPools.length;
+      skippedPools = otherUserPools;
+
+      for (const pool of myPools) {
+        const success = await savePoolToCloud(pool);
+        if (success) syncedPools++;
+      }
+
+      // 只同步当前用户创建的历史记录
+      const myHistory = history.filter(h => !h.user_id || h.user_id === user.id);
+      const otherUserHistory = history.length - myHistory.length;
+      skippedHistory = otherUserHistory;
+
+      // 分批同步历史记录
+      const batchSize = 100;
+      for (let i = 0; i < myHistory.length; i += batchSize) {
+        const batch = myHistory.slice(i, i + batchSize);
+        await saveHistoryToCloud(batch);
+        syncedHistory += batch.length;
+      }
+
+      let message = `同步完成：${syncedPools} 个卡池，${syncedHistory} 条记录`;
+      if (skippedPools > 0 || skippedHistory > 0) {
+        message += `（跳过其他用户数据：${skippedPools} 卡池，${skippedHistory} 记录）`;
+      }
+      showToast(message, 'success');
+    } catch (error) {
+      console.error('手动同步失败:', error);
+      showToast('同步失败: ' + error.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const closeModal = () => {
     setModalState({ type: null, data: null });
     setEditItemState(null);
@@ -2602,7 +2906,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 添加单抽 (支持 isStandard)
   const addSinglePull = (rarity, isStandard = false) => {
-    const currentPoolPulls = history.filter(h => h.poolId === currentPoolId);
+    const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length;
     const isLimitedPool = currentPool.type === 'limited';
     const isWeaponPool = currentPool.type === 'weapon';
@@ -2662,7 +2966,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 提交十连
   const submitBatch = (inputData) => {
     const nowStr = new Date().toISOString(); // 确保同一批次时间戳完全一致
-    const currentPoolPulls = history.filter(h => h.poolId === currentPoolId);
+    const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length; // 已有的数量
     const isLimitedPool = currentPool.type === 'limited';
     const isWeaponPool = currentPool.type === 'weapon';
@@ -2793,7 +3097,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     if (scope === 'current') {
       exportPools = pools.filter(p => p.id === currentPoolId);
-      exportHistory = history.filter(h => h.poolId === currentPoolId);
+      exportHistory = currentPoolHistory;
     }
 
     // 计算统计摘要
@@ -2892,7 +3196,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         return;
       }
       // 当前卡池已有globalIndex，需要添加垫刀数
-      const sortedHistory = [...history.filter(h => h.poolId === currentPoolId)].sort((a, b) => a.id - b.id);
+      const sortedHistory = [...currentPoolHistory].sort((a, b) => a.id - b.id);
       let pityCounter = 0;
       dataToExport = sortedHistory.map((item, index) => {
         if (item.specialType !== 'gift') {
@@ -3526,17 +3830,38 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                           未找到匹配的卡池
                         </div>
                       ) : (
-                        groupedPools.map((group, groupIdx) => (
-                          <div key={group.drawer || 'unknown'}>
-                            {/* 抽卡人分组标题 */}
-                            <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-800/50 sticky top-0 flex items-center gap-2">
+                        groupedPools.map((group, groupIdx) => {
+                          const drawerKey = group.drawer || '未分类';
+                          const isCollapsed = collapsedDrawers.has(drawerKey);
+
+                          return (
+                          <div key={drawerKey}>
+                            {/* 抽卡人分组标题 - 可点击折叠 */}
+                            <button
+                              onClick={() => {
+                                setCollapsedDrawers(prev => {
+                                  const newSet = new Set(prev);
+                                  if (newSet.has(drawerKey)) {
+                                    newSet.delete(drawerKey);
+                                  } else {
+                                    newSet.add(drawerKey);
+                                  }
+                                  return newSet;
+                                });
+                              }}
+                              className="w-full px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-800/50 sticky top-0 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-zinc-700/50 transition-colors"
+                            >
+                              <ChevronDown
+                                size={12}
+                                className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
+                              />
                               <User size={12} />
                               {group.drawer || '未分类'}
                               <span className="text-slate-300 dark:text-zinc-600">({group.pools.length})</span>
-                            </div>
+                            </button>
 
-                            {/* 该抽卡人的卡池列表 */}
-                            {group.pools.map(pool => {
+                            {/* 该抽卡人的卡池列表 - 可折叠 */}
+                            {!isCollapsed && group.pools.map(pool => {
                               const charName = extractCharNameFromPoolName(pool.name);
                               const poolTypeLabel = pool.type === 'limited' ? '限定' : pool.type === 'weapon' ? '武器' : '常驻';
                               const poolTypeColor = pool.type === 'limited' ? 'text-orange-500' : pool.type === 'weapon' ? 'text-slate-500 dark:text-zinc-400' : 'text-yellow-600 dark:text-endfield-yellow';
@@ -3607,7 +3932,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                               );
                             })}
                           </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
 
@@ -3778,7 +4104,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         ) : activeTab === 'admin' && isSuperAdmin ? (
           <AdminPanel showToast={showToast} />
         ) : activeTab === 'settings' ? (
-          <SettingsPanel user={user} userRole={userRole} themeMode={themeMode} setThemeMode={setThemeMode} />
+          <SettingsPanel
+            user={user}
+            userRole={userRole}
+            themeMode={themeMode}
+            setThemeMode={setThemeMode}
+            pools={pools}
+            history={history}
+            onDeleteAllData={deleteAllUserData}
+            onManualSync={handleManualSync}
+            syncing={syncing}
+          />
         ) : activeTab === 'about' ? (
           <AboutPanel />
         ) : (
@@ -4105,6 +4441,27 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                         {preset.label}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 卡池添加人 - 仅编辑模式显示，只读 */}
+              {modalState.type === 'editPool' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">
+                    卡池添加人
+                  </label>
+                  <div className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-none">
+                    <User size={16} />
+                    <span>
+                      {/* 优先显示 creator_username，否则显示当前登录用户（本地数据） */}
+                      {modalState.data?.creator_username || user?.user_metadata?.username || user?.email?.split('@')[0] || '未知用户'}
+                    </span>
+                    {modalState.data?.created_at && (
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
+                        创建于 {new Date(modalState.data.created_at).toLocaleDateString('zh-CN')}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
