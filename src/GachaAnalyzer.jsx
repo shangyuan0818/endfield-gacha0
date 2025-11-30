@@ -76,6 +76,57 @@ const PRESET_POOLS = [
   { label: '常驻武器池', type: 'standard', charName: '常驻武器' },
 ];
 
+// --- 抽卡人识别工具函数 ---
+const POOL_TYPE_KEYWORDS = ['限定', '常驻', '武器', 'UP池', '卡池', '角色池', '武器池'];
+
+// 从卡池名称中提取抽卡人
+// 支持格式: "类型-角色名-抽卡人", "类型-抽卡人", "任意名称-抽卡人"
+const extractDrawerFromPoolName = (poolName) => {
+  if (!poolName || typeof poolName !== 'string') return null;
+
+  const parts = poolName.split('-').map(p => p.trim()).filter(p => p.length > 0);
+  if (parts.length < 2) return null;
+
+  // 从后往前找，排除类型关键词
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    const isTypeKeyword = POOL_TYPE_KEYWORDS.some(keyword => part.includes(keyword));
+    // 抽卡人名称通常较短（1-10字符），且不包含类型关键词
+    if (!isTypeKeyword && part.length >= 1 && part.length <= 10) {
+      return part;
+    }
+  }
+
+  return null;
+};
+
+// 从卡池名称中提取角色名（中间部分）
+const extractCharNameFromPoolName = (poolName) => {
+  if (!poolName || typeof poolName !== 'string') return null;
+
+  const parts = poolName.split('-').map(p => p.trim()).filter(p => p.length > 0);
+  if (parts.length < 3) return null;
+
+  // 格式: 类型-角色名-抽卡人，角色名在中间
+  const middlePart = parts[1];
+  const isTypeKeyword = POOL_TYPE_KEYWORDS.some(keyword => middlePart.includes(keyword));
+  if (!isTypeKeyword && middlePart.length >= 1) {
+    return middlePart;
+  }
+
+  return null;
+};
+
+// 从卡池名称中提取类型
+const extractTypeFromPoolName = (poolName) => {
+  if (!poolName || typeof poolName !== 'string') return 'limited';
+
+  const lowerName = poolName.toLowerCase();
+  if (lowerName.includes('常驻')) return 'standard';
+  if (lowerName.includes('武器')) return 'weapon';
+  return 'limited';
+};
+
 // --- 通用弹窗组件 ---
 
 // Toast 通知组件
@@ -1564,6 +1615,66 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return true;
   }, [canEdit, currentPool?.locked, isSuperAdmin]);
 
+  // 按抽卡人分组的卡池列表（支持搜索）
+  const groupedPools = useMemo(() => {
+    // 先按搜索词过滤
+    const filteredPools = poolSearchQuery.trim()
+      ? pools.filter(pool =>
+          pool.name.toLowerCase().includes(poolSearchQuery.toLowerCase())
+        )
+      : pools;
+
+    // 按抽卡人分组
+    const groups = {};
+    const noDrawerPools = [];
+
+    filteredPools.forEach(pool => {
+      const drawer = extractDrawerFromPoolName(pool.name);
+      if (drawer) {
+        if (!groups[drawer]) {
+          groups[drawer] = [];
+        }
+        groups[drawer].push(pool);
+      } else {
+        noDrawerPools.push(pool);
+      }
+    });
+
+    // 转换为数组格式，按抽卡人名称排序
+    const result = Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))
+      .map(([drawer, poolList]) => ({
+        drawer,
+        pools: poolList.sort((a, b) => {
+          // 同一抽卡人内按类型排序：限定 > 武器 > 常驻
+          const typeOrder = { limited: 0, weapon: 1, standard: 2 };
+          return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
+        })
+      }));
+
+    // 未识别抽卡人的卡池放在最后
+    if (noDrawerPools.length > 0) {
+      result.push({
+        drawer: null,
+        pools: noDrawerPools
+      });
+    }
+
+    return result;
+  }, [pools, poolSearchQuery]);
+
+  // 获取所有已知的抽卡人列表
+  const knownDrawers = useMemo(() => {
+    const drawers = new Set();
+    pools.forEach(pool => {
+      const drawer = extractDrawerFromPoolName(pool.name);
+      if (drawer) {
+        drawers.add(drawer);
+      }
+    });
+    return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  }, [pools]);
+
   // 3. 历史记录 (增加 isStandard 字段标识常驻)
   const [history, setHistory] = useState(() => {
     try {
@@ -1605,6 +1716,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const [activeTab, setActiveTab] = useState('summary');
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [poolSearchQuery, setPoolSearchQuery] = useState('');
 
   // 弹窗状态
   const [modalState, setModalState] = useState({ type: null, data: null });
@@ -2305,34 +2417,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // --- 操作函数 ---
 
   const openCreatePoolModal = () => {
-    // 自动识别抽卡人：从已有卡池名称中提取
-    let detectedDrawer = '';
-    if (pools.length > 0) {
-      // 遍历所有卡池，找到最常见的抽卡人名称
-      const drawerCounts = {};
-      pools.forEach(pool => {
-        const parts = pool.name.split('-');
-        // 卡池名称格式：类型-角色名-抽卡人 或 类型-抽卡人
-        if (parts.length >= 2) {
-          const lastPart = parts[parts.length - 1].trim();
-          // 排除常见的类型词和角色名
-          const typeWords = ['限定', '常驻', '武器', 'UP池', '卡池'];
-          const isTypePart = typeWords.some(word => lastPart.includes(word));
-          if (!isTypePart && lastPart.length > 0 && lastPart.length <= 10) {
-            drawerCounts[lastPart] = (drawerCounts[lastPart] || 0) + 1;
-          }
-        }
-      });
+    // 自动识别抽卡人：使用 extractDrawerFromPoolName 从已有卡池名称中提取
+    // 统计每个抽卡人出现的次数，选择最常见的
+    const drawerCounts = {};
+    pools.forEach(pool => {
+      const drawer = extractDrawerFromPoolName(pool.name);
+      if (drawer) {
+        drawerCounts[drawer] = (drawerCounts[drawer] || 0) + 1;
+      }
+    });
 
-      // 找到出现最多的抽卡人名称
-      let maxCount = 0;
-      Object.entries(drawerCounts).forEach(([name, count]) => {
-        if (count > maxCount) {
-          maxCount = count;
-          detectedDrawer = name;
-        }
-      });
-    }
+    // 找到出现最多的抽卡人名称
+    let detectedDrawer = '';
+    let maxCount = 0;
+    Object.entries(drawerCounts).forEach(([name, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        detectedDrawer = name;
+      }
+    });
 
     setDrawerName(detectedDrawer);
     setSelectedCharName('');
@@ -2344,6 +2447,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     setModalState({ type: 'createPool', data: null });
     setShowPoolMenu(false);
+    setPoolSearchQuery(''); // 清空搜索词
   };
 
   const confirmCreatePool = async () => {
@@ -3383,78 +3487,134 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
               {showPoolMenu && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowPoolMenu(false)}></div>
-                  <div className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 py-2 animate-fade-in">
-                    <div className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">切换卡池</div>
-                    {pools.map(pool => (
-                      <div
-                        key={pool.id}
-                        className={`w-full flex items-center justify-between px-4 py-2 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
-                      >
-                        <button
-                          onClick={() => {
-                            setCurrentPoolId(pool.id);
-                            setShowPoolMenu(false);
-                          }}
-                          className={`flex-1 text-left truncate flex items-center gap-1.5 ${currentPoolId === pool.id ? 'text-yellow-600 dark:text-endfield-yellow font-bold' : 'text-slate-600 dark:text-zinc-400'}`}
-                        >
-                          {pool.locked && <Lock size={12} className="text-amber-500 shrink-0" />}
-                          <span className="truncate">{pool.name}</span>
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                          {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider shrink-0"></div>}
-                          {/* 锁定/解锁按钮 - 仅超管可见 */}
-                          {isSuperAdmin && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                togglePoolLock(pool.id);
-                              }}
-                              className={`p-1.5 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'}`}
-                              title={pool.locked ? "解锁卡池" : "锁定卡池"}
-                            >
-                              {pool.locked ? <Unlock size={14} /> : <Lock size={14} />}
-                            </button>
-                          )}
-                          {/* 编辑卡池按钮 - 仅管理员可见且卡池未锁定或超管 */}
-                          {canEdit && (!pool.locked || isSuperAdmin) && (
-                            <button
-                              onClick={(e) => openEditPoolModal(e, pool)}
-                              className="p-1.5 text-slate-300 hover:text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded opacity-0 group-hover/item:opacity-100 transition-all"
-                              title="编辑卡池"
-                            >
-                              <Settings size={14} />
-                            </button>
-                          )}
-                          {/* 删除卡池按钮 - 仅管理员可见且卡池未锁定或超管，且不是唯一卡池 */}
-                          {canEdit && (!pool.locked || isSuperAdmin) && pools.length > 1 && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openDeletePoolModal(pool);
-                              }}
-                              className="p-1.5 text-slate-300 hover:text-red-500 dark:text-zinc-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover/item:opacity-100 transition-all"
-                              title="删除卡池"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
+                  <div className="fixed inset-0 z-10" onClick={() => { setShowPoolMenu(false); setPoolSearchQuery(''); }}></div>
+                  <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 animate-fade-in overflow-hidden">
+                    {/* 搜索框 */}
+                    <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+                        <input
+                          type="text"
+                          value={poolSearchQuery}
+                          onChange={(e) => setPoolSearchQuery(e.target.value)}
+                          placeholder="搜索卡池..."
+                          className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-none focus:ring-1 focus:ring-yellow-500 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 dark:placeholder:text-zinc-500"
+                          autoFocus
+                        />
+                        {poolSearchQuery && (
+                          <button
+                            onClick={() => setPoolSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* 卡池列表 - 按抽卡人分组 */}
+                    <div className="max-h-80 overflow-y-auto">
+                      {groupedPools.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-slate-400 dark:text-zinc-500">
+                          未找到匹配的卡池
+                        </div>
+                      ) : (
+                        groupedPools.map((group, groupIdx) => (
+                          <div key={group.drawer || 'unknown'}>
+                            {/* 抽卡人分组标题 */}
+                            <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-800/50 sticky top-0 flex items-center gap-2">
+                              <User size={12} />
+                              {group.drawer || '未分类'}
+                              <span className="text-slate-300 dark:text-zinc-600">({group.pools.length})</span>
+                            </div>
+
+                            {/* 该抽卡人的卡池列表 */}
+                            {group.pools.map(pool => {
+                              const charName = extractCharNameFromPoolName(pool.name);
+                              const poolTypeLabel = pool.type === 'limited' ? '限定' : pool.type === 'weapon' ? '武器' : '常驻';
+                              const poolTypeColor = pool.type === 'limited' ? 'text-orange-500' : pool.type === 'weapon' ? 'text-slate-500 dark:text-zinc-400' : 'text-yellow-600 dark:text-endfield-yellow';
+
+                              return (
+                                <div
+                                  key={pool.id}
+                                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
+                                >
+                                  <button
+                                    onClick={() => {
+                                      setCurrentPoolId(pool.id);
+                                      setShowPoolMenu(false);
+                                      setPoolSearchQuery('');
+                                    }}
+                                    className={`flex-1 text-left flex items-center gap-2 min-w-0 ${currentPoolId === pool.id ? 'text-yellow-600 dark:text-endfield-yellow font-bold' : 'text-slate-600 dark:text-zinc-400'}`}
+                                    title={pool.name}
+                                  >
+                                    {pool.locked && <Lock size={12} className="text-amber-500 shrink-0" />}
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold ${poolTypeColor} bg-opacity-10 ${pool.type === 'limited' ? 'bg-orange-100 dark:bg-orange-900/30' : pool.type === 'weapon' ? 'bg-slate-100 dark:bg-zinc-700' : 'bg-yellow-100 dark:bg-yellow-900/30'}`}>
+                                      {poolTypeLabel}
+                                    </span>
+                                    <span className="truncate">
+                                      {charName || (group.drawer ? pool.name.replace(`-${group.drawer}`, '') : pool.name)}
+                                    </span>
+                                  </button>
+
+                                  <div className="flex items-center gap-0.5 shrink-0">
+                                    {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow shrink-0 mr-1"></div>}
+                                    {/* 锁定/解锁按钮 - 仅超管可见 */}
+                                    {isSuperAdmin && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          togglePoolLock(pool.id);
+                                        }}
+                                        className={`p-1 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'}`}
+                                        title={pool.locked ? "解锁卡池" : "锁定卡池"}
+                                      >
+                                        {pool.locked ? <Unlock size={12} /> : <Lock size={12} />}
+                                      </button>
+                                    )}
+                                    {/* 编辑卡池按钮 */}
+                                    {canEdit && (!pool.locked || isSuperAdmin) && (
+                                      <button
+                                        onClick={(e) => openEditPoolModal(e, pool)}
+                                        className="p-1 text-slate-300 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                                        title="编辑卡池"
+                                      >
+                                        <Settings size={12} />
+                                      </button>
+                                    )}
+                                    {/* 删除卡池按钮 */}
+                                    {canEdit && (!pool.locked || isSuperAdmin) && pools.length > 1 && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          openDeletePoolModal(pool);
+                                        }}
+                                        className="p-1 text-slate-300 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover/item:opacity-100 transition-all"
+                                        title="删除卡池"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))
+                      )}
+                    </div>
+
                     {/* 新建卡池 - 仅管理员可见 */}
                     {canEdit && (
-                      <>
-                        <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+                      <div className="border-t border-zinc-100 dark:border-zinc-800">
                         <button
                           onClick={openCreatePoolModal}
-                          className="w-full text-left px-4 py-2 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2 font-medium"
+                          className="w-full text-left px-3 py-2.5 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2 font-medium"
                         >
                           <Plus size={16} />
                           新建卡池...
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 </>
@@ -3944,8 +4104,34 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">抽卡人</label>
-                <input 
-                  type="text" 
+                {/* 已知抽卡人快捷选择 */}
+                {knownDrawers.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {knownDrawers.map(drawer => (
+                      <button
+                        key={drawer}
+                        onClick={() => {
+                          setDrawerName(drawer);
+                          if (modalState.type === 'createPool') {
+                            const typeStr = newPoolTypeInput === 'limited' ? '限定' : (newPoolTypeInput === 'weapon' ? '武器' : '常驻');
+                            const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${drawer ? '-' + drawer : ''}`;
+                            setNewPoolNameInput(name);
+                          }
+                        }}
+                        className={`text-xs px-2 py-1 rounded-none border transition-colors ${
+                          drawerName === drawer
+                            ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 font-bold'
+                            : 'bg-slate-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:border-yellow-300 dark:hover:border-yellow-700'
+                        }`}
+                      >
+                        <User size={10} className="inline mr-1" />
+                        {drawer}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
                   value={drawerName}
                   onChange={(e) => {
                     const val = e.target.value;
@@ -3956,19 +4142,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                        setNewPoolNameInput(name);
                     }
                   }}
-                  placeholder="例如：Me, 朋友A"
-                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 rounded-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder={knownDrawers.length > 0 ? "选择上方已有或输入新抽卡人" : "例如：Me, 朋友A"}
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 rounded-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池名称</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newPoolNameInput}
                   onChange={(e) => setNewPoolNameInput(e.target.value)}
-                  placeholder="例如：限定池-海滨假日"
-                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 rounded-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                  placeholder="例如：限定-莱万汀-Me"
+                  className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 rounded-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
                   onKeyDown={(e) => e.key === 'Enter' && (modalState.type === 'createPool' ? confirmCreatePool() : confirmEditPool())}
                 />
               </div>
