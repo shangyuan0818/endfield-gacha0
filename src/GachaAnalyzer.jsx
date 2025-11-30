@@ -1200,9 +1200,19 @@ const SettingsPanel = React.memo(({ user, userRole, onPasswordChange, themeMode,
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
 
-  // 统计当前用户的数据
-  const userPoolCount = pools?.length || 0;
-  const userHistoryCount = history?.length || 0;
+  // 统计当前用户创建的数据（过滤掉其他用户的数据）
+  const myPools = useMemo(() => {
+    if (!pools || !user) return [];
+    return pools.filter(pool => !pool.user_id || pool.user_id === user.id);
+  }, [pools, user]);
+
+  const myHistory = useMemo(() => {
+    if (!history || !user) return [];
+    return history.filter(h => !h.user_id || h.user_id === user.id);
+  }, [history, user]);
+
+  const userPoolCount = myPools.length;
+  const userHistoryCount = myHistory.length;
 
   const handleManualSync = async () => {
     if (onManualSync) {
