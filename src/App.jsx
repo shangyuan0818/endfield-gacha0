@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import GachaAnalyzer from './GachaAnalyzer'
 import LoadingScreen from './LoadingScreen'
+import { ErrorBoundary } from './components'
 
 function App() {
   const [isLoading, setIsLoading] = useState(true)
@@ -40,14 +41,14 @@ function App() {
   }, [themeMode]);
 
   return (
-    <>
+    <ErrorBoundary>
       {isLoading && (
         <LoadingScreen onComplete={() => setIsLoading(false)} />
       )}
       <div className={`App ${isLoading ? 'hidden' : 'block'}`}>
         <GachaAnalyzer themeMode={themeMode} setThemeMode={setThemeMode} />
       </div>
-    </>
+    </ErrorBoundary>
   )
 }
 

@@ -1,11 +1,12 @@
 # Endfield Gacha Analyzer (终末地抽卡分析器)
 
-一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步和多用户协作。
+一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![React](https://img.shields.io/badge/React-18-61DAFB.svg)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF.svg)
+![React](https://img.shields.io/badge/React-19-61DAFB.svg)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
 ![Supabase](https://img.shields.io/badge/Supabase-Cloud-3ECF8E.svg)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC.svg)
 
 ## ✨ 核心功能
 
@@ -16,7 +17,11 @@
 
 ### 数据可视化
 - **看板**：实时展示各稀有度占比、不歪率、距离保底抽数、保底进度条
-- **汇总**：全账号生涯统计，分卡池的稀有度饼图和出货垫刀分布堆叠柱状图
+- **汇总**：
+  - 支持切换「全服数据」和「我的数据」
+  - 按卡池类型筛选（全部/限定池/武器池/常驻池/角色池合并）
+  - 稀有度饼图和6星出货垫刀分布堆叠柱状图
+  - 全服统计包含总抽数、用户数、平均出货等指标
 - **记录**：详细日志，支持按组查看/编辑/删除
 
 ### 高效录入
@@ -37,6 +42,8 @@
 - **本地存储**：离线也能使用，数据保存在浏览器
 - **云端备份**：登录用户数据自动同步
 - **导入/导出**：支持 JSON（完整备份）和 CSV（表格分析）格式
+- **手动同步**：设置面板支持一键同步云端数据
+- **数据清理**：支持删除本地或云端数据
 
 ## 🚀 快速开始
 
@@ -88,17 +95,25 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 - `pools` - 卡池数据
 - `history` - 抽卡记录
 - `admin_applications` - 管理员申请
-- `announcements` - 公告（可选，已改用本地JSON）
+
+### 数据库迁移文件
+
+项目包含以下迁移文件（位于 `supabase/migrations/`）：
+
+| 文件 | 说明 |
+|------|------|
+| `002_global_stats_function.sql` | 基础全服统计 RPC 函数 |
+| `003_global_stats_with_charts.sql` | 扩展全服统计，支持图表数据（分池类型统计、出货分布） |
 
 ## 🛠️ 技术栈
 
 | 类别 | 技术 |
 |------|------|
-| 核心框架 | React 18 + Vite 5 |
+| 核心框架 | React 19 + Vite 7 |
 | UI 样式 | Tailwind CSS v4 |
-| 图表库 | Recharts |
+| 图表库 | Recharts 3 |
 | 图标库 | Lucide React |
-| 后端服务 | Supabase (认证 + 数据库) |
+| 后端服务 | Supabase (认证 + PostgreSQL 数据库 + RPC 函数) |
 | 部署平台 | Vercel |
 
 ## 📂 项目结构
@@ -106,16 +121,33 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 ```
 gacha-analyzer/
 ├── src/
-│   ├── GachaAnalyzer.jsx   # 主组件（核心逻辑+UI）
+│   ├── GachaAnalyzer.jsx   # 主组件（核心逻辑+UI，包含看板/汇总/记录/设置）
 │   ├── AuthModal.jsx       # 登录/注册弹窗
+│   ├── LoadingScreen.jsx   # 加载动画组件
 │   ├── supabaseClient.js   # Supabase 客户端配置
 │   ├── main.jsx            # 应用入口
-│   └── index.css           # 全局样式
+│   ├── index.css           # 全局样式
+│   └── assets/             # 静态资源
 ├── public/
-│   └── announcements.json  # 公告配置文件
+│   ├── announcements.json  # 公告配置文件
+│   └── avatar.png          # 默认头像
+├── supabase/
+│   └── migrations/         # 数据库迁移文件
+│       ├── 002_global_stats_function.sql
+│       └── 003_global_stats_with_charts.sql
 ├── .env.example            # 环境变量模板
 └── dist/                   # 构建输出
 ```
+
+## 🔧 主要功能模块
+
+### GachaAnalyzer.jsx 组件结构
+- **DashboardView** - 仪表盘视图，展示当前卡池统计
+- **SummaryView** - 汇总视图，支持全服/个人数据对比
+- **RecordsView** - 记录视图，详细抽卡历史
+- **SettingsPanel** - 设置面板，数据管理和用户设置
+- **TenPullEditor** - 十连编辑器，快速录入
+- **SinglePullButtons** - 单抽按钮，补录漏记
 
 ## 👥 制作团队
 
