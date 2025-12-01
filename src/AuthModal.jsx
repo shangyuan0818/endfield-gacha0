@@ -105,8 +105,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           </div>
 
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded z-10"
           >
             <X size={20} />
           </button>
