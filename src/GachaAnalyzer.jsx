@@ -475,6 +475,76 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, [fetchGlobalStats, loadCloudData]);
 
+  // 实时监听卡池变化（解决锁定不立即生效的问题）
+  useEffect(() => {
+    if (!supabase) return;
+
+    // 订阅 pools 表的所有变化
+    const channel = supabase
+      .channel('pools-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // 监听所有事件：INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'pools'
+        },
+        (payload) => {
+          console.log('卡池数据变化:', payload);
+
+          if (payload.eventType === 'UPDATE') {
+            // 更新本地卡池状态
+            const updatedPool = payload.new;
+            setPools(prev => prev.map(p => {
+              if (p.id === updatedPool.pool_id) {
+                return {
+                  ...p,
+                  locked: updatedPool.locked,
+                  name: updatedPool.name,
+                  type: updatedPool.type
+                };
+              }
+              return p;
+            }));
+
+            // 如果更新的是当前卡池，显示通知
+            if (updatedPool.pool_id === currentPoolId) {
+              if (updatedPool.locked && canEdit && !isSuperAdmin) {
+                showToast(`卡池「${updatedPool.name}」已被超级管理员锁定`, 'warning', '卡池已锁定');
+              } else if (!updatedPool.locked) {
+                showToast(`卡池「${updatedPool.name}」已解锁`, 'success', '卡池已解锁');
+              }
+            }
+          } else if (payload.eventType === 'INSERT') {
+            // 新增卡池（其他用户创建）
+            const newPool = payload.new;
+            setPools(prev => {
+              // 避免重复添加
+              if (prev.some(p => p.id === newPool.pool_id)) return prev;
+              return [...prev, {
+                id: newPool.pool_id,
+                name: newPool.name,
+                type: newPool.type,
+                locked: newPool.locked || false,
+                created_at: newPool.created_at,
+                user_id: newPool.user_id
+              }];
+            });
+          } else if (payload.eventType === 'DELETE') {
+            // 删除卡池
+            const deletedPool = payload.old;
+            setPools(prev => prev.filter(p => p.id !== deletedPool.pool_id));
+          }
+        }
+      )
+      .subscribe();
+
+    // 清理订阅
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, currentPoolId, canEdit, isSuperAdmin, showToast]);
+
   // 获取用户角色
   useEffect(() => {
     if (!supabase || !user) {
@@ -1280,6 +1350,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 添加单抽 (支持 isStandard)
   const addSinglePull = (rarity, isStandard = false) => {
+    // 提交前验证：检查卡池是否已被锁定
+    if (currentPool?.locked && !isSuperAdmin) {
+      showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
+      return;
+    }
+
     const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length;
     const isLimitedPool = currentPool.type === 'limited';
@@ -1339,6 +1415,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 提交十连
   const submitBatch = (inputData) => {
+    // 提交前验证：检查卡池是否已被锁定
+    if (currentPool?.locked && !isSuperAdmin) {
+      showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
+      return;
+    }
+
     const nowStr = new Date().toISOString(); // 确保同一批次时间戳完全一致
     const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length; // 已有的数量
@@ -1413,6 +1495,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 编辑记录
   const handleUpdateItem = (id, newConfig) => {
+    // 提交前验证：检查卡池是否已被锁定
+    if (currentPool?.locked && !isSuperAdmin) {
+      showToast('卡池已被锁定，无法修改数据', 'error', '操作被阻止');
+      return;
+    }
+
     let updatedItem = null;
     setHistory(prev => prev.map(item => {
       if (item.id === id) {
@@ -1435,6 +1523,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   const confirmRealDeleteItem = async () => {
+    // 提交前验证：检查卡池是否已被锁定
+    if (currentPool?.locked && !isSuperAdmin) {
+      showToast('卡池已被锁定，无法删除数据', 'error', '操作被阻止');
+      setModalState({ type: null, data: null });
+      return;
+    }
+
     const idToDelete = modalState.data;
     setHistory(prev => prev.filter(item => item.id !== idToDelete));
     setEditItemState(null);
@@ -1452,6 +1547,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   const confirmRealDeleteGroup = async () => {
+    // 提交前验证：检查卡池是否已被锁定
+    if (currentPool?.locked && !isSuperAdmin) {
+      showToast('卡池已被锁定，无法删除数据', 'error', '操作被阻止');
+      setModalState({ type: null, data: null });
+      return;
+    }
+
     const itemsToDelete = modalState.data;
     const idsToDelete = new Set(itemsToDelete.map(i => i.id));
     setHistory(prev => prev.filter(item => !idsToDelete.has(item.id)));
