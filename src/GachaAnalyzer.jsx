@@ -588,10 +588,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
 
     try {
+      // 使用卡池的 user_id（创建者ID），如果不存在则使用当前登录用户ID
+      // 这样确保超管锁定时更新的是原创建者的记录
+      const targetUserId = pool.user_id || user.id;
+
       const { error } = await supabase
         .from('pools')
         .upsert({
-          user_id: user.id,
+          user_id: targetUserId,
           pool_id: pool.id,
           name: pool.name,
           type: pool.type,
@@ -1049,7 +1053,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       id: newId,
       name: newPoolNameInput.trim(),
       type: newPoolTypeInput,
-      locked: false
+      locked: false,
+      user_id: user?.id  // 保存创建者ID
     };
 
     // P1: 前端数据校验
@@ -1094,6 +1099,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
        type: newPoolTypeInput,
        locked: modalState.data.locked || false,  // 保留锁定状态
        created_at: modalState.data.created_at || null,  // 保留创建时间
+       user_id: modalState.data.user_id || null,  // 保留创建者ID
        creator_username: modalState.data.creator_username || null  // 保留创建人用户名
      };
 
