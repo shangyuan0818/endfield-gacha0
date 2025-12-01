@@ -166,14 +166,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   });
 
-  // 当前卡池的历史记录（多用户场景下需要同时匹配 poolId 和 user_id）
+  // 当前卡池的历史记录（方案A：完全开放模式，显示该卡池的所有数据）
   const currentPoolHistory = useMemo(() => {
     if (!currentPool) return [];
-    // 如果 pool 有 user_id（来自云端），需要同时匹配 poolId 和 user_id
-    if (currentPool.user_id) {
-      return history.filter(h => h.poolId === currentPoolId && h.user_id === currentPool.user_id);
-    }
-    // 本地数据没有 user_id，只匹配 poolId
+    // 只按 poolId 过滤，不区分 user_id
+    // 这样所有用户都能看到该卡池的全部录入数据（适合协作场景）
     return history.filter(h => h.poolId === currentPoolId);
   }, [history, currentPoolId, currentPool]);
 
@@ -355,6 +352,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
         // 获取全局统计（使用 RPC 函数，无需等待认证同步）
         await fetchGlobalStats();
+
+        // 方案A：加载云端数据（包括游客）
+        const cloudData = await loadCloudData();
+        if (cloudData && cloudData.pools.length > 0) {
+          setPools(cloudData.pools);
+          setCurrentPoolId(cloudData.pools[0].id);
+          if (cloudData.history.length > 0) {
+            setHistory(cloudData.history);
+          }
+        }
       } catch (error) {
         console.error('初始化失败:', error);
       }
@@ -372,7 +379,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       return () => subscription.unsubscribe();
     }
-  }, [fetchGlobalStats]);
+  }, [fetchGlobalStats, loadCloudData]);
 
   // 获取用户角色
   useEffect(() => {
@@ -479,24 +486,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 迁移弹窗状态
   const [showMigrateModal, setShowMigrateModal] = useState(false);
 
-  // 从云端加载数据
-  // loadAll: 如果为 true（管理员/超管），加载所有卡池；否则只加载当前用户的
-  const loadCloudData = useCallback(async (userId, loadAll = false) => {
-    if (!supabase || !userId) return null;
+  // 从云端加载数据（方案A：所有用户包括游客都能查看所有数据）
+  const loadCloudData = useCallback(async () => {
+    if (!supabase) return null;
 
     setSyncing(true);
     setSyncError(null);
 
     try {
-      // 查询卡池
+      // 方案A：所有用户（包括游客）都加载所有卡池（查看权限完全开放）
+      // RLS 策略已设置为 true，允许匿名访问
       let poolQuery = supabase
         .from('pools')
         .select('*');
-
-      // 如果不是加载所有，则只加载当前用户的卡池
-      if (!loadAll) {
-        poolQuery = poolQuery.eq('user_id', userId);
-      }
 
       const { data: cloudPools, error: poolsError } = await poolQuery;
 
@@ -525,16 +527,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
+        // 方案A：加载所有历史记录（不限制 user_id）
         let historyQuery = supabase
           .from('history')
           .select('*')
           .order('record_id', { ascending: true })
           .range(from, to);
-
-        // 如果不是加载所有，则只加载当前用户的历史记录
-        if (!loadAll) {
-          historyQuery = historyQuery.eq('user_id', userId);
-        }
 
         const { data: pageData, error: historyError } = await historyQuery;
 
@@ -725,26 +723,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, [user, pools, history, savePoolToCloud, saveHistoryToCloud]);
 
-  // 登录后处理：检查云端数据并决定是否迁移
+  // 登录后处理：检查云端数据并决定是否迁移（方案A：所有用户都加载所有数据）
   const handlePostLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) return;
 
-    // 先查询用户角色，决定是否加载所有数据
-    let isAdminOrSuper = false;
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', loggedInUser.id)
-        .single();
-
-      isAdminOrSuper = profile?.role === 'admin' || profile?.role === 'super_admin';
-    } catch (e) {
-      console.warn('查询用户角色失败:', e);
-    }
-
-    // 管理员/超管加载所有数据，普通用户只加载自己的
-    const cloudData = await loadCloudData(loggedInUser.id, isAdminOrSuper);
+    // 方案A：所有用户都加载所有数据（游客模式下已在初始化时加载）
+    const cloudData = await loadCloudData();
 
     if (cloudData) {
       const hasCloudData = cloudData.pools.length > 0 || cloudData.history.length > 0;
@@ -2470,6 +2454,40 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       </div>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
+
+        {/* 无数据提示（方案A：引导游客和新用户） */}
+        {pools.length === 0 && (
+          <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-none p-6 text-center">
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <AlertCircle size={32} className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2 text-lg">暂无卡池数据</h3>
+            <p className="text-sm text-blue-700 dark:text-blue-400/80 mb-4">
+              {user ? (
+                canEdit
+                  ? '作为管理员，您可以创建新卡池并开始录入数据。点击顶部导航栏的卡池切换器即可创建。'
+                  : '当前系统暂无数据。如需录入数据，请申请成为管理员后创建卡池。'
+              ) : (
+                '当前系统暂无数据。登录后可申请成为管理员并开始录入抽卡记录。'
+              )}
+            </p>
+            {!user ? (
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-none text-sm transition-colors"
+              >
+                登录/注册
+              </button>
+            ) : !canEdit && (
+              <button
+                onClick={() => setShowApplyModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-none text-sm transition-colors"
+              >
+                申请成为管理员
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 公告区域 */}
         {showAnnouncement && announcements.length > 0 && (
