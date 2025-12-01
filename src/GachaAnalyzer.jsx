@@ -338,6 +338,100 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, []);
 
+  // 从云端加载数据（方案A：所有用户包括游客都能查看所有数据）
+  const loadCloudData = useCallback(async () => {
+    if (!supabase) return null;
+
+    setSyncing(true);
+    setSyncError(null);
+
+    try {
+      // 方案A：所有用户（包括游客）都加载所有卡池（查看权限完全开放）
+      // RLS 策略已设置为 true，允许匿名访问
+      let poolQuery = supabase
+        .from('pools')
+        .select('*');
+
+      const { data: cloudPools, error: poolsError } = await poolQuery;
+
+      if (poolsError) throw poolsError;
+
+      // 收集所有 user_id 并查询对应的 profiles 获取用户名
+      const userIds = [...new Set(cloudPools.map(p => p.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .in('id', userIds);
+
+      // 创建 user_id -> username 的映射
+      const usernameMap = new Map();
+      if (profiles) {
+        profiles.forEach(p => usernameMap.set(p.id, p.username));
+      }
+
+      // 分页加载历史记录（Supabase 默认限制 1000 行）
+      const PAGE_SIZE = 1000;
+      let allHistory = [];
+      let page = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
+        // 方案A：加载所有历史记录（不限制 user_id）
+        let historyQuery = supabase
+          .from('history')
+          .select('*')
+          .order('record_id', { ascending: true })
+          .range(from, to);
+
+        const { data: pageData, error: historyError } = await historyQuery;
+
+        if (historyError) throw historyError;
+
+        if (pageData && pageData.length > 0) {
+          allHistory = allHistory.concat(pageData);
+          page++;
+          // 如果返回的数据少于 PAGE_SIZE，说明没有更多了
+          hasMore = pageData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      // 转换数据格式（云端字段名可能不同）
+      // 使用 usernameMap 获取创建人用户名
+      const formattedPools = cloudPools.map(p => ({
+        id: p.pool_id,
+        name: p.name,
+        type: p.type,
+        locked: p.locked || false,
+        created_at: p.created_at || null,
+        user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
+        creator_username: usernameMap.get(p.user_id) || null  // 从 profiles 查询得到的用户名
+      }));
+
+      const formattedHistory = allHistory.map(h => ({
+        id: h.record_id,
+        rarity: h.rarity,
+        isStandard: h.is_standard,
+        specialType: h.special_type,
+        timestamp: h.timestamp,
+        poolId: h.pool_id,
+        user_id: h.user_id  // 保留 user_id 用于判断归属
+      }));
+
+      return { pools: formattedPools, history: formattedHistory };
+    } catch (error) {
+      console.error('加载云端数据失败:', error);
+      setSyncError(error.message);
+      return null;
+    } finally {
+      setSyncing(false);
+    }
+  }, []);
+
   // 监听用户登录状态
   useEffect(() => {
     const initializeApp = async () => {
@@ -485,100 +579,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 迁移弹窗状态
   const [showMigrateModal, setShowMigrateModal] = useState(false);
-
-  // 从云端加载数据（方案A：所有用户包括游客都能查看所有数据）
-  const loadCloudData = useCallback(async () => {
-    if (!supabase) return null;
-
-    setSyncing(true);
-    setSyncError(null);
-
-    try {
-      // 方案A：所有用户（包括游客）都加载所有卡池（查看权限完全开放）
-      // RLS 策略已设置为 true，允许匿名访问
-      let poolQuery = supabase
-        .from('pools')
-        .select('*');
-
-      const { data: cloudPools, error: poolsError } = await poolQuery;
-
-      if (poolsError) throw poolsError;
-
-      // 收集所有 user_id 并查询对应的 profiles 获取用户名
-      const userIds = [...new Set(cloudPools.map(p => p.user_id))];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .in('id', userIds);
-
-      // 创建 user_id -> username 的映射
-      const usernameMap = new Map();
-      if (profiles) {
-        profiles.forEach(p => usernameMap.set(p.id, p.username));
-      }
-
-      // 分页加载历史记录（Supabase 默认限制 1000 行）
-      const PAGE_SIZE = 1000;
-      let allHistory = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        // 方案A：加载所有历史记录（不限制 user_id）
-        let historyQuery = supabase
-          .from('history')
-          .select('*')
-          .order('record_id', { ascending: true })
-          .range(from, to);
-
-        const { data: pageData, error: historyError } = await historyQuery;
-
-        if (historyError) throw historyError;
-
-        if (pageData && pageData.length > 0) {
-          allHistory = allHistory.concat(pageData);
-          page++;
-          // 如果返回的数据少于 PAGE_SIZE，说明没有更多了
-          hasMore = pageData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // 转换数据格式（云端字段名可能不同）
-      // 使用 usernameMap 获取创建人用户名
-      const formattedPools = cloudPools.map(p => ({
-        id: p.pool_id,
-        name: p.name,
-        type: p.type,
-        locked: p.locked || false,
-        created_at: p.created_at || null,
-        user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
-        creator_username: usernameMap.get(p.user_id) || null  // 从 profiles 查询得到的用户名
-      }));
-
-      const formattedHistory = allHistory.map(h => ({
-        id: h.record_id,
-        rarity: h.rarity,
-        isStandard: h.is_standard,
-        specialType: h.special_type,
-        timestamp: h.timestamp,
-        poolId: h.pool_id,
-        user_id: h.user_id  // 保留 user_id 用于判断归属
-      }));
-
-      return { pools: formattedPools, history: formattedHistory };
-    } catch (error) {
-      console.error('加载云端数据失败:', error);
-      setSyncError(error.message);
-      return null;
-    } finally {
-      setSyncing(false);
-    }
-  }, []);
 
   // 保存卡池到云端
   const savePoolToCloud = useCallback(async (pool, showNotification = false) => {
