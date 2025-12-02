@@ -4,6 +4,7 @@ import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calc
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
 import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard } from './components';
+import SimpleMarkdown from './components/SimpleMarkdown';
 import { Toast, ConfirmDialog } from './components/ui';
 import { useToast, useConfirm } from './hooks';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
@@ -595,18 +596,50 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     fetchUserRole();
   }, [user]);
 
-  // 加载公告 - 从本地JSON文件加载
+  // 加载公告 - 优先从 Supabase 加载，失败则回退到本地 JSON
   useEffect(() => {
     const fetchAnnouncements = async () => {
       try {
-        const response = await fetch('/announcements.json');
-        if (!response.ok) throw new Error('Failed to fetch announcements');
-        const data = await response.json();
-        // 过滤激活的公告并按优先级排序
-        const activeAnnouncements = data
-          .filter(a => a.is_active)
-          .sort((a, b) => b.priority - a.priority);
-        setAnnouncements(activeAnnouncements);
+        let data = null;
+
+        // 优先尝试从 Supabase 加载
+        if (supabase) {
+          const { data: dbData, error } = await supabase
+            .from('announcements')
+            .select('*')
+            .eq('is_active', true)
+            .order('priority', { ascending: false });
+
+          if (!error && dbData && dbData.length > 0) {
+            data = dbData;
+          }
+        }
+
+        // 回退到本地 JSON
+        if (!data) {
+          const response = await fetch('/announcements.json');
+          if (response.ok) {
+            const jsonData = await response.json();
+            data = jsonData.filter(a => a.is_active).sort((a, b) => b.priority - a.priority);
+          }
+        }
+
+        if (data && data.length > 0) {
+          // 检查是否有被用户隐藏的公告（下次更新前不显示）
+          const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
+          const visibleAnnouncements = data.filter(a => {
+            const hiddenVersion = hiddenAnnouncements[a.id];
+            // 如果公告版本更新了，重新显示
+            return !hiddenVersion || hiddenVersion !== a.version;
+          });
+          setAnnouncements(visibleAnnouncements);
+          // 如果有被隐藏的公告，默认不显示公告区域
+          if (visibleAnnouncements.length === 0 && data.length > 0) {
+            setShowAnnouncement(false);
+          }
+        } else {
+          setAnnouncements([]);
+        }
       } catch (error) {
         console.error('加载公告失败:', error);
         setAnnouncements([]);
@@ -614,6 +647,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     };
 
     fetchAnnouncements();
+  }, []);
+
+  // 隐藏公告直到下次更新
+  const hideAnnouncementUntilUpdate = useCallback((announcementId, version) => {
+    const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
+    hiddenAnnouncements[announcementId] = version;
+    localStorage.setItem('hiddenAnnouncements', JSON.stringify(hiddenAnnouncements));
+    // 从当前显示列表中移除
+    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
   }, []);
 
   // 登出处理
@@ -2913,19 +2955,37 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         {/* 公告区域 */}
         {showAnnouncement && announcements.length > 0 && (
           <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4 relative">
+            {/* 关闭按钮 */}
             <button
               onClick={() => setShowAnnouncement(false)}
               className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-400 transition-colors"
+              title="暂时关闭"
             >
               <X size={16} />
             </button>
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
                 <Bell size={20} />
               </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-1">{announcements[0].title}</h3>
-                <p className="text-sm text-amber-700 dark:text-amber-400/80 whitespace-pre-wrap">{announcements[0].content}</p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
+                  {announcements[0].version && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
+                      v{announcements[0].version}
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-amber-700 dark:text-amber-400/80">
+                  <SimpleMarkdown content={announcements[0].content} />
+                </div>
+                {/* 下次更新前不显示按钮 */}
+                <button
+                  onClick={() => hideAnnouncementUntilUpdate(announcements[0].id, announcements[0].version)}
+                  className="mt-3 text-xs text-amber-600 dark:text-amber-500 hover:text-amber-800 dark:hover:text-amber-300 underline underline-offset-2"
+                >
+                  下次更新前不再显示
+                </button>
               </div>
             </div>
           </div>

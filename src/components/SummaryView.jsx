@@ -486,11 +486,18 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
               </p>
             </div>
           </div>
-          {showPoolMechanics ? <ChevronUp size={20} className="text-zinc-400" /> : <ChevronDown size={20} className="text-zinc-400" />}
+          <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showPoolMechanics ? '' : 'rotate-180'}`} />
         </button>
 
-        {/* 展开内容 */}
-        {showPoolMechanics && (
+        {/* 展开内容 - 带动画 */}
+        <div
+          className="overflow-hidden"
+          style={{
+            maxHeight: showPoolMechanics ? '2000px' : '0px',
+            opacity: showPoolMechanics ? 1 : 0,
+            transition: 'max-height 0.3s ease-in-out, opacity 0.2s ease-in-out'
+          }}
+        >
           <div className="px-6 pb-6 space-y-6">
             {/* 三种卡池对比 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -705,99 +712,104 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
               <span>5星 15%</span>
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="flex gap-6 animate-fade-in">
-      {/* 左侧边栏 - 数据源选择 */}
-      <div className="w-56 flex-shrink-0">
-        <div className="bg-zinc-900 border border-zinc-800 sticky top-4">
-          {/* 全服数据分组 */}
-          <div className="border-b border-zinc-800">
-            <SidebarItem
-              label="全服数据"
-              icon={Cloud}
-              isActive={dataSource === 'global' && poolTypeFilter === 'all'}
-              onClick={() => { setDataSource('global'); setPoolTypeFilter('all'); }}
-              count={globalStats?.totalPulls}
-            />
-            {dataSource === 'global' && (
-              <div className="bg-zinc-950">
-                <SidebarItem
-                  label="限定池"
-                  icon={Star}
-                  indent
-                  isActive={dataSource === 'global' && poolTypeFilter === 'limited'}
-                  onClick={() => { setDataSource('global'); setPoolTypeFilter('limited'); }}
-                  count={globalStats?.byType?.limited?.total}
-                />
-                <SidebarItem
-                  label="常驻池"
-                  icon={Layers}
-                  indent
-                  isActive={dataSource === 'global' && poolTypeFilter === 'standard'}
-                  onClick={() => { setDataSource('global'); setPoolTypeFilter('standard'); }}
-                  count={globalStats?.byType?.standard?.total}
-                />
-                <SidebarItem
-                  label="武器池"
-                  icon={Search}
-                  indent
-                  isActive={dataSource === 'global' && poolTypeFilter === 'weapon'}
-                  onClick={() => { setDataSource('global'); setPoolTypeFilter('weapon'); }}
-                  count={globalStats?.byType?.weapon?.total}
-                />
-              </div>
-            )}
-          </div>
+    <div className="space-y-6 animate-fade-in">
+      {/* 卡池机制速览（全宽）*/}
+      <PoolMechanicsCard />
 
-          {/* 我的数据分组 */}
-          <div>
-            <SidebarItem
-              label="我的数据"
-              icon={User}
-              isActive={dataSource === 'local' && poolTypeFilter === 'all'}
-              onClick={() => { setDataSource('local'); setPoolTypeFilter('all'); }}
-              count={localStats.total}
-            />
-            {dataSource === 'local' && (
-              <div className="bg-zinc-950">
-                <SidebarItem
-                  label="限定池"
-                  icon={Star}
-                  indent
-                  isActive={dataSource === 'local' && poolTypeFilter === 'limited'}
-                  onClick={() => { setDataSource('local'); setPoolTypeFilter('limited'); }}
-                  count={localStats.byType.limited.total}
-                />
-                <SidebarItem
-                  label="常驻池"
-                  icon={Layers}
-                  indent
-                  isActive={dataSource === 'local' && poolTypeFilter === 'standard'}
-                  onClick={() => { setDataSource('local'); setPoolTypeFilter('standard'); }}
-                  count={localStats.byType.standard.total}
-                />
-                <SidebarItem
-                  label="武器池"
-                  icon={Search}
-                  indent
-                  isActive={dataSource === 'local' && poolTypeFilter === 'weapon'}
-                  onClick={() => { setDataSource('local'); setPoolTypeFilter('weapon'); }}
-                  count={localStats.byType.weapon.total}
-                />
-              </div>
-            )}
+      {/* 侧边栏 + 内容区（两列布局）*/}
+      <div className="flex gap-6">
+        {/* 左侧边栏 - 数据源选择 */}
+        <div className="w-56 flex-shrink-0">
+          <div className="bg-zinc-900 border border-zinc-800 sticky top-4">
+            {/* 全服数据分组 */}
+            <div className="border-b border-zinc-800">
+              <SidebarItem
+                label="全服数据"
+                icon={Cloud}
+                isActive={dataSource === 'global' && poolTypeFilter === 'all'}
+                onClick={() => { setDataSource('global'); setPoolTypeFilter('all'); }}
+                count={globalStats?.totalPulls}
+              />
+              {dataSource === 'global' && (
+                <div className="bg-zinc-950">
+                  <SidebarItem
+                    label="限定池"
+                    icon={Star}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'limited'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('limited'); }}
+                    count={globalStats?.byType?.limited?.total}
+                  />
+                  <SidebarItem
+                    label="常驻池"
+                    icon={Layers}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'standard'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('standard'); }}
+                    count={globalStats?.byType?.standard?.total}
+                  />
+                  <SidebarItem
+                    label="武器池"
+                    icon={Search}
+                    indent
+                    isActive={dataSource === 'global' && poolTypeFilter === 'weapon'}
+                    onClick={() => { setDataSource('global'); setPoolTypeFilter('weapon'); }}
+                    count={globalStats?.byType?.weapon?.total}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 我的数据分组 */}
+            <div>
+              <SidebarItem
+                label="我的数据"
+                icon={User}
+                isActive={dataSource === 'local' && poolTypeFilter === 'all'}
+                onClick={() => { setDataSource('local'); setPoolTypeFilter('all'); }}
+                count={localStats.total}
+              />
+              {dataSource === 'local' && (
+                <div className="bg-zinc-950">
+                  <SidebarItem
+                    label="限定池"
+                    icon={Star}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'limited'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('limited'); }}
+                    count={localStats.byType.limited.total}
+                  />
+                  <SidebarItem
+                    label="常驻池"
+                    icon={Layers}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'standard'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('standard'); }}
+                    count={localStats.byType.standard.total}
+                  />
+                  <SidebarItem
+                    label="武器池"
+                    icon={Search}
+                    indent
+                    isActive={dataSource === 'local' && poolTypeFilter === 'weapon'}
+                    onClick={() => { setDataSource('local'); setPoolTypeFilter('weapon'); }}
+                    count={localStats.byType.weapon.total}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 右侧内容区 */}
-      <div className="flex-1 space-y-6">
-        {/* 统计信息卡片 */}
+        {/* 右侧内容区 */}
+        <div className="flex-1 space-y-6">
+          {/* 统计信息卡片 */}
         {globalStatsLoading && dataSource === 'global' ? (
           <div className="bg-gradient-to-br from-zinc-800 to-zinc-900 p-8 text-white flex items-center justify-center">
             <RefreshCw size={24} className="animate-spin text-zinc-500" />
@@ -863,21 +875,19 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
           </div>
         )}
 
-        {/* 卡池机制说明卡片 */}
-        <PoolMechanicsCard />
-
-        {/* 图表区域 */}
-        <div className="space-y-6">
-          {chartDisplayData.charts.map((chart, index) => (
-            <ChartSection
-              key={index}
-              title={chart.title}
-              subtitle={chart.subtitle}
-              color={chart.color}
-              data={chart.data}
-              isGlobal={chartDisplayData.isGlobal}
-            />
-          ))}
+          {/* 图表区域 */}
+          <div className="space-y-6">
+            {chartDisplayData.charts.map((chart, index) => (
+              <ChartSection
+                key={index}
+                title={chart.title}
+                subtitle={chart.subtitle}
+                color={chart.color}
+                data={chart.data}
+                isGlobal={chartDisplayData.isGlobal}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
