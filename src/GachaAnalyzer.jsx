@@ -408,6 +408,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         name: p.name,
         type: p.type,
         locked: p.locked || false,
+        isLimitedWeapon: p.is_limited_weapon !== false,  // 武器池类型：限定/常驻
         created_at: p.created_at || null,
         user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
         creator_username: usernameMap.get(p.user_id) || null  // 从 profiles 查询得到的用户名
@@ -671,6 +672,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           name: pool.name,
           type: pool.type,
           locked: pool.locked || false,
+          is_limited_weapon: pool.isLimitedWeapon !== false,  // 武器池类型：限定/常驻
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,pool_id' });
 
