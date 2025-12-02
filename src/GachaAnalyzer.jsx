@@ -718,75 +718,63 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!supabase || !user) return false;
 
     try {
-      let query = supabase
+      // 直接删除，权限由 RLS 策略控制
+      const { error } = await supabase
         .from('history')
         .delete()
         .in('record_id', recordIds);
 
-      // 如果不是超管，只能删除自己创建的记录
-      if (userRole !== 'super_admin') {
-        query = query.eq('user_id', user.id);
-      }
-
-      const { error } = await query;
       if (error) throw error;
       return true;
     } catch (error) {
       console.error('从云端删除记录失败:', error);
       setSyncError(error.message);
+      showToast(`删除失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, userRole]);
+  }, [user, showToast]);
 
   // 从云端删除指定卡池的所有历史记录
   const deletePoolHistoryFromCloud = useCallback(async (poolId) => {
     if (!supabase || !user) return false;
 
     try {
-      let query = supabase
+      // 直接删除，权限由 RLS 策略控制
+      const { error } = await supabase
         .from('history')
         .delete()
         .eq('pool_id', poolId);
 
-      // 如果不是超管，只能删除自己创建的记录
-      if (userRole !== 'super_admin') {
-        query = query.eq('user_id', user.id);
-      }
-
-      const { error } = await query;
       if (error) throw error;
       return true;
     } catch (error) {
       console.error('从云端删除卡池记录失败:', error);
       setSyncError(error.message);
+      showToast(`删除卡池记录失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, userRole]);
+  }, [user, showToast]);
 
   // 从云端删除卡池本身
   const deletePoolFromCloud = useCallback(async (poolId) => {
     if (!supabase || !user) return false;
 
     try {
-      let query = supabase
+      // 直接删除，权限由 RLS 策略控制
+      const { error } = await supabase
         .from('pools')
         .delete()
         .eq('pool_id', poolId);
 
-      // 如果不是超管，只能删除自己创建的卡池
-      if (userRole !== 'super_admin') {
-        query = query.eq('user_id', user.id);
-      }
-
-      const { error } = await query;
       if (error) throw error;
       return true;
     } catch (error) {
       console.error('从云端删除卡池失败:', error);
       setSyncError(error.message);
+      showToast(`删除卡池失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, userRole]);
+  }, [user, showToast]);
 
   // 迁移本地数据到云端
   const migrateLocalToCloud = useCallback(async () => {
