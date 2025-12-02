@@ -6,8 +6,8 @@ import AuthModal from './AuthModal';
 import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard } from './components';
 import { Toast, ConfirmDialog } from './components/ui';
 import { useToast, useConfirm } from './hooks';
-import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS } from './constants';
-import { validatePullData, validatePoolData, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName } from './utils';
+import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
+import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName } from './utils';
 
 
 export default function GachaAnalyzer({ themeMode, setThemeMode }) {
@@ -186,7 +186,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 弹窗状态
   const [modalState, setModalState] = useState({ type: null, data: null });
   const [newPoolNameInput, setNewPoolNameInput] = useState('');
-  const [newPoolTypeInput, setNewPoolTypeInput] = useState('limited'); // 'limited' | 'standard'
+  const [newPoolTypeInput, setNewPoolTypeInput] = useState('limited'); // 'limited' | 'standard' | 'weapon'
+  const [isLimitedWeaponPool, setIsLimitedWeaponPool] = useState(true); // 武器池是否为限定（有额外获取）
   const [drawerName, setDrawerName] = useState('');
   const [selectedCharName, setSelectedCharName] = useState('');
   const [editItemState, setEditItemState] = useState(null); // { id, rarity, isStandard } or null
@@ -1069,7 +1070,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
     }
 
-    return { 
+    // 计算概率递增信息
+    const probabilityInfo = calculateCurrentProbability(currentPity, currentPool.type);
+
+    // 计算情报书（仅限定池，且仅获得1次）
+    const infoBookThreshold = LIMITED_POOL_RULES.infoBookThreshold; // 60抽
+    const hasInfoBook = currentPool.type === 'limited' && total >= infoBookThreshold;
+    const pullsUntilInfoBook = currentPool.type === 'limited' && !hasInfoBook
+      ? infoBookThreshold - total
+      : 0;
+
+    return {
       total, // 有效抽数
       counts, // 包含赠送的总数
       totalSixStar,
@@ -1077,7 +1088,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       winRate, // 使用修正后的不歪率
       currentPity,
       currentPity5,
-      avgPullCost, 
+      avgPullCost,
       chartData,
       pityStats: {
         history: sixStarPulls,
@@ -1085,9 +1096,61 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         min: minPityRecorded,
         avg: avgPityRecorded,
         distribution: distributionData
-      }
+      },
+      // 新增：概率递增信息
+      probabilityInfo,
+      // 新增：情报书（仅获得1次）
+      hasInfoBook,
+      pullsUntilInfoBook
     };
-  }, [currentPoolHistory, manualPityLimit]);
+  }, [currentPoolHistory, manualPityLimit, currentPool.type]);
+
+  // 跨池保底继承计算（仅限定池之间继承）
+  const inheritedPityInfo = useMemo(() => {
+    // 只有限定池才需要计算继承
+    if (currentPool.type !== 'limited') {
+      return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
+    }
+
+    // 获取所有限定池
+    const allLimitedPools = pools.filter(p => p.type === 'limited');
+
+    // 如果当前池有记录，不需要考虑继承（继承只在空池时生效）
+    if (currentPoolHistory.length > 0) {
+      return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
+    }
+
+    // 计算继承的保底
+    const { inheritedPity, inheritedPity5 } = calculateInheritedPity(
+      allLimitedPools,
+      history,
+      currentPoolId
+    );
+
+    return {
+      inheritedPity,
+      inheritedPity5,
+      hasInheritedPity: inheritedPity > 0 || inheritedPity5 > 0
+    };
+  }, [currentPool.type, pools, currentPoolHistory.length, history, currentPoolId]);
+
+  // 计算实际有效的保底数（当前池 + 继承）
+  const effectivePity = useMemo(() => {
+    // 如果当前池有记录，使用当前池的保底
+    if (currentPoolHistory.length > 0) {
+      return {
+        pity6: stats.currentPity,
+        pity5: stats.currentPity5,
+        isInherited: false
+      };
+    }
+    // 否则使用继承的保底
+    return {
+      pity6: inheritedPityInfo.inheritedPity,
+      pity5: inheritedPityInfo.inheritedPity5,
+      isInherited: inheritedPityInfo.hasInheritedPity
+    };
+  }, [currentPoolHistory.length, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
 
   // --- 操作函数 ---
 
@@ -1133,7 +1196,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       name: newPoolNameInput.trim(),
       type: newPoolTypeInput,
       locked: false,
-      user_id: user?.id  // 保存创建者ID
+      user_id: user?.id,  // 保存创建者ID
+      // 武器池特有字段：是否为限定武器池（有额外获取内容）
+      isLimitedWeapon: newPoolTypeInput === 'weapon' ? isLimitedWeaponPool : undefined
     };
 
     // P1: 前端数据校验
@@ -1165,6 +1230,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     e.stopPropagation();
     setNewPoolNameInput(pool.name);
     setNewPoolTypeInput(pool.type || 'standard');
+    // 设置武器池限定状态（默认为 true）
+    setIsLimitedWeaponPool(pool.isLimitedWeapon !== false);
     setModalState({ type: 'editPool', data: pool });
     setShowPoolMenu(false);
   };
@@ -1179,7 +1246,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
        locked: modalState.data.locked || false,  // 保留锁定状态
        created_at: modalState.data.created_at || null,  // 保留创建时间
        user_id: modalState.data.user_id || null,  // 保留创建者ID
-       creator_username: modalState.data.creator_username || null  // 保留创建人用户名
+       creator_username: modalState.data.creator_username || null,  // 保留创建人用户名
+       // 武器池特有字段：是否为限定武器池
+       isLimitedWeapon: newPoolTypeInput === 'weapon' ? isLimitedWeaponPool : undefined
      };
 
      setPools(prev => prev.map(p => {
@@ -1436,6 +1505,30 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       return;
     }
 
+    // ========== 新增：卡池规则验证 ==========
+    const ruleValidation = validateBatchAgainstRules({
+      batchData: inputData,
+      existingPulls: currentPoolHistory,
+      pool: currentPool
+    });
+
+    // 显示警告（但不阻止录入）
+    if (ruleValidation.warnings.length > 0) {
+      ruleValidation.warnings.forEach(warning => {
+        showToast(warning, 'warning', '规则提示');
+      });
+    }
+
+    // 显示错误并阻止录入
+    if (!ruleValidation.isValid) {
+      ruleValidation.errors.forEach(error => {
+        showToast(error, 'error', '录入错误');
+      });
+      console.error('卡池规则校验失败:', ruleValidation.errors);
+      return;
+    }
+    // ========================================
+
     const nowStr = new Date().toISOString(); // 确保同一批次时间戳完全一致
     const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length; // 已有的数量
@@ -1454,7 +1547,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const newPulls = inputData.map((item, index) => {
       let specialType = item.specialType || null;
       const globalIndex = currentPoolTotal + index + 1; // 1-based
-      
+
       const isLimitedItem = item.rarity === 6 && !item.isStandard;
 
       // 限定池 120 抽保底
@@ -1465,7 +1558,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             specialType = 'guaranteed';
          }
       }
-      
+
       // 武器池 80 抽首轮保底
       if (isWeaponPool && globalIndex === 80 && item.rarity === 6) {
          // 检查：已有记录前79没有 && 本次十连前面的也没有
@@ -1994,6 +2087,83 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
      );
   });
 
+  // 卡池时间信息组件
+  const PoolTimeInfo = () => {
+    const currentUpPool = getCurrentUpPool();
+    const startDate = new Date(currentUpPool.startDate);
+    const endDate = new Date(currentUpPool.endDate);
+
+    const now = new Date();
+    const remainingDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+
+    const formatDate = (date) => {
+      return `${date.getMonth() + 1}/${date.getDate()}`;
+    };
+
+    const isExpired = currentUpPool.isExpired || remainingDays <= 0;
+    const isEndingSoon = remainingDays <= 3 && remainingDays > 0;
+    const isNotStarted = currentUpPool.startsIn > 0;
+
+    return (
+      <div className="space-y-2">
+        {/* 当前UP池状态 */}
+        <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-zinc-500">
+          <span className="flex items-center gap-1">
+            <span className="text-orange-500 font-medium">{currentUpPool.name}</span>
+            {isNotStarted ? (
+              <span className="text-slate-400">即将开始</span>
+            ) : isExpired ? (
+              <span className="text-red-400">已结束</span>
+            ) : (
+              <span>UP中</span>
+            )}
+          </span>
+          <span className="text-slate-300 dark:text-zinc-600">|</span>
+          <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
+          <span className="text-slate-300 dark:text-zinc-600">|</span>
+          {isNotStarted ? (
+            <span className="text-blue-500">{currentUpPool.startsIn} 天后开始</span>
+          ) : isExpired ? (
+            <span className="text-red-500 font-medium">已结束</span>
+          ) : isEndingSoon ? (
+            <span className="text-amber-500 font-medium animate-pulse">剩余 {remainingDays} 天</span>
+          ) : (
+            <span className="text-green-500">剩余 {remainingDays} 天</span>
+          )}
+        </div>
+
+        {/* 卡池轮换计划 */}
+        <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400 dark:text-zinc-500">
+          <span>轮换:</span>
+          {LIMITED_POOL_SCHEDULE.map((pool, index) => {
+            const isCurrent = pool.name === currentUpPool.name && !isExpired && !isNotStarted;
+            const poolStart = new Date(pool.startDate);
+            const isPast = now > new Date(poolStart.getTime() + pool.duration * 24 * 60 * 60 * 1000);
+
+            return (
+              <span key={pool.name} className="flex items-center gap-1">
+                <span className={`px-1.5 py-0.5 rounded ${
+                  isCurrent
+                    ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium'
+                    : isPast
+                      ? 'bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 line-through'
+                      : 'bg-blue-50 dark:bg-blue-900/20 text-blue-500 dark:text-blue-400'
+                }`}>
+                  {pool.name}
+                </span>
+                {index < LIMITED_POOL_SCHEDULE.length - 1 && (
+                  <span className="text-slate-300 dark:text-zinc-600">→</span>
+                )}
+              </span>
+            );
+          })}
+          <span className="text-slate-300 dark:text-zinc-600">→</span>
+          <span className="text-slate-400 dark:text-zinc-500">待公布</span>
+        </div>
+      </div>
+    );
+  };
+
   // ... (inside GachaAnalyzer render)
   const PityAnalysisCard = () => {
     const isLimited = currentPool.type === 'limited';
@@ -2049,22 +2219,55 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
               当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
             </p>
+            {/* 限定池轮换时间显示 */}
+            {isLimited && (
+              <div className="mt-2 text-xs">
+                <PoolTimeInfo />
+              </div>
+            )}
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-             <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10">距离6星保底 ({maxPity})</div>
+             <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10 flex items-center gap-2">
+               距离6星保底 ({maxPity})
+               {/* 概率递增提示 - 仅限定池和常驻池有软保底 */}
+               {stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity && (
+                 <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-[10px] font-bold animate-pulse">
+                   概率UP {(stats.probabilityInfo.probability * 100).toFixed(1)}%
+                 </span>
+               )}
+               {/* 武器池无软保底标识 */}
+               {isWeapon && (
+                 <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400 rounded text-[10px]">
+                   无概率递增
+                 </span>
+               )}
+             </div>
              <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
                {Math.max(maxPity - stats.currentPity, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
              </div>
              <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
-               <div 
-                 className={`h-full transition-all duration-500 ${progressColor}`} 
+               <div
+                 className={`h-full transition-all duration-500 ${progressColor}`}
                  style={{ width: `${Math.min((stats.currentPity / maxPity) * 100, 100)}%` }}
                ></div>
              </div>
-             <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">当前垫刀: {stats.currentPity}</div>
+             <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10 flex justify-between">
+               <span>当前垫刀: {stats.currentPity}</span>
+               {/* 65抽软保底提示 - 仅限定池和常驻池 */}
+               {stats.probabilityInfo?.hasSoftPity && !stats.probabilityInfo?.isInSoftPity && stats.currentPity > 0 && (
+                 <span className="text-blue-500">距软保底: {stats.probabilityInfo?.pullsUntilSoftPity}</span>
+               )}
+             </div>
+             {/* 继承保底提示 */}
+             {effectivePity.isInherited && isLimited && (
+               <div className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 relative z-10 flex items-center gap-1">
+                 <Sparkles size={10} />
+                 继承自其他限定池: {effectivePity.pity6} 抽
+               </div>
+             )}
           </div>
 
           <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
@@ -2073,12 +2276,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                {Math.max(10 - stats.currentPity5, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
              </div>
              <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
-               <div 
-                 className="h-full bg-amber-500 transition-all duration-500" 
+               <div
+                 className="h-full bg-amber-500 transition-all duration-500"
                  style={{ width: `${Math.min((stats.currentPity5 / 10) * 100, 100)}%` }}
                ></div>
              </div>
              <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">当前垫刀: {stats.currentPity5}</div>
+             {/* 继承5星保底提示 */}
+             {effectivePity.isInherited && isLimited && effectivePity.pity5 > 0 && (
+               <div className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 relative z-10 flex items-center gap-1">
+                 <Sparkles size={10} />
+                 继承: {effectivePity.pity5} 抽
+               </div>
+             )}
           </div>
         </div>
 
@@ -2116,18 +2326,57 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                  <span className="text-slate-400 dark:text-zinc-500">{stats.total % 240} / 240</span>
                </div>
                <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-                 <div 
-                   className="h-full bg-gradient-to-r from-purple-300 to-purple-500 transition-all duration-500" 
+                 <div
+                   className="h-full bg-gradient-to-r from-purple-300 to-purple-500 transition-all duration-500"
                    style={{ width: `${((stats.total % 240) / 240) * 100}%` }}
                  ></div>
                </div>
+            </div>
+
+            {/* 60抽情报书 - 仅获得1次 */}
+            <div>
+               <div className="flex justify-between text-xs mb-1">
+                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
+                    <FileText size={12} className="mr-1 text-cyan-500" />
+                    寻访情报书 (60抽)
+                    {stats.hasInfoBook && (
+                        <span className="ml-2 flex items-center gap-1 text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-1.5 rounded text-[10px] border border-green-100 dark:border-green-800">
+                           已获得
+                        </span>
+                    )}
+                 </span>
+                 <span className="text-slate-400 dark:text-zinc-500">
+                   {stats.hasInfoBook ? '60 / 60' : `${Math.min(stats.total, 60)} / 60`}
+                 </span>
+               </div>
+               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
+                 <div
+                   className={`h-full transition-all duration-500 ${stats.hasInfoBook ? 'bg-green-500' : 'bg-gradient-to-r from-cyan-300 to-cyan-500'}`}
+                   style={{ width: `${stats.hasInfoBook ? 100 : Math.min((stats.total / 60) * 100, 100)}%` }}
+                 ></div>
+               </div>
+               {!stats.hasInfoBook && (
+                 <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
+                   距获得: {stats.pullsUntilInfoBook} 抽
+                 </div>
+               )}
             </div>
           </div>
         )}
 
         {isWeapon && (
           <div className="mb-6 space-y-4">
-             {/* 80 Spark - One Time Only */}
+             {/* 武器池类型标识 */}
+             <div className="flex items-center gap-2 text-xs">
+               <span className={`px-2 py-1 rounded font-medium ${currentPool.isLimitedWeapon !== false ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
+                 {currentPool.isLimitedWeapon !== false ? '限定武器池' : '常驻武器池'}
+               </span>
+               {currentPool.isLimitedWeapon === false && (
+                 <span className="text-slate-400 dark:text-zinc-500">无额外获取内容</span>
+               )}
+             </div>
+
+             {/* 80 Spark - 武器池基础规则 */}
              <div>
                <div className="flex justify-between text-xs mb-1">
                  <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
@@ -2139,36 +2388,38 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                  </span>
                </div>
                <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-                 <div 
-                    className={`h-full transition-all duration-500 ${hasLimitedInFirst80 ? 'bg-green-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`} 
+                 <div
+                    className={`h-full transition-all duration-500 ${hasLimitedInFirst80 ? 'bg-green-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`}
                     style={{ width: `${hasLimitedInFirst80 ? 100 : Math.min((stats.total / 80) * 100, 100)}%` }}
                  ></div>
                </div>
              </div>
 
-             {/* Weapon Gifts - Dynamic */}
-             <div>
-               <div className="flex justify-between text-xs mb-1">
-                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center gap-2">
-                    下一档赠送
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
-                      {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}武器
-                    </span>
-                 </span>
-                 <span className="text-slate-400 dark:text-zinc-500">{stats.total} / {nextWeaponGift}</span>
+             {/* Weapon Gifts - 仅限定武器池显示 */}
+             {currentPool.isLimitedWeapon !== false && (
+               <div>
+                 <div className="flex justify-between text-xs mb-1">
+                   <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center gap-2">
+                      下一档赠送
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
+                        {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}武器
+                      </span>
+                   </span>
+                   <span className="text-slate-400 dark:text-zinc-500">{stats.total} / {nextWeaponGift}</span>
+                 </div>
+                 <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
+                   <div
+                     className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'bg-orange-400' : 'bg-red-400'}`}
+                     style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}
+                   ></div>
+                 </div>
+                 <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500 flex gap-2">
+                    <span>已领:</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-sm"></span>{Math.floor(stats.counts['6_std'] - stats.pityStats.history.filter(h=>h.isStandard).length)} 常</span>
+                    <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-400 rounded-sm"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
+                 </div>
                </div>
-               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-                 <div 
-                   className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'bg-orange-400' : 'bg-red-400'}`} 
-                   style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}
-                 ></div>
-               </div>
-               <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500 flex gap-2">
-                  <span>已领:</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-sm"></span>{Math.floor(stats.counts['6_std'] - stats.pityStats.history.filter(h=>h.isStandard).length)} 常</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-400 rounded-sm"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
-               </div>
-             </div>
+             )}
           </div>
         )}
 
@@ -2285,17 +2536,18 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
             </div>
             
-            <div className="relative">
-              <button 
-                onClick={() => setShowPoolMenu(!showPoolMenu)}
-                className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
-              >
-                <Layers size={16} />
-                <span className="max-w-[100px] sm:max-w-[200px] truncate">
-                  {pools.find(p => p.id === currentPoolId)?.name}
-                </span>
-                <ChevronDown size={14} className={`transition-transform ${showPoolMenu ? 'rotate-180' : ''}`}/>
-              </button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <button
+                  onClick={() => setShowPoolMenu(!showPoolMenu)}
+                  className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
+                >
+                  <Layers size={16} />
+                  <span className="max-w-[100px] sm:max-w-[200px] truncate">
+                    {pools.find(p => p.id === currentPoolId)?.name}
+                  </span>
+                  <ChevronDown size={14} className={`transition-transform ${showPoolMenu ? 'rotate-180' : ''}`}/>
+                </button>
 
               {showPoolMenu && (
                 <>
@@ -2452,6 +2704,40 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                     )}
                   </div>
                 </>
+              )}
+              </div>
+
+              {/* UP池时间信息 - 仅限定池显示 */}
+              {currentPool.type === 'limited' && (
+                <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700">
+                  {(() => {
+                    const upPool = getCurrentUpPool();
+                    const endDate = new Date(upPool.endDate);
+                    const now = new Date();
+                    const remainingDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+                    const isExpired = upPool.isExpired || remainingDays <= 0;
+                    const isEndingSoon = remainingDays <= 3 && remainingDays > 0;
+                    const isNotStarted = upPool.startsIn > 0;
+
+                    return (
+                      <>
+                        <span className="text-orange-500 font-medium">{upPool.name}</span>
+                        <span className="text-slate-300 dark:text-zinc-600">|</span>
+                        {isNotStarted ? (
+                          <span className="text-blue-500">{upPool.startsIn}天后开始</span>
+                        ) : isExpired ? (
+                          <span className="text-red-500">已结束</span>
+                        ) : isEndingSoon ? (
+                          <span className="text-amber-500 animate-pulse">剩余 {remainingDays} 天</span>
+                        ) : (
+                          <span className="text-green-500">剩余 {remainingDays} 天</span>
+                        )}
+                        <span className="text-slate-300 dark:text-zinc-600">→</span>
+                        <span className="text-blue-500">{upPool.nextPool}</span>
+                      </>
+                    );
+                  })()}
+                </div>
               )}
             </div>
           </div>
@@ -3098,8 +3384,36 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
                   {newPoolTypeInput === 'limited' && '包含限定与歪，统计大小保底、硬保底(120)及赠送(240)。'}
                   {newPoolTypeInput === 'standard' && '仅统计常驻6星，不区分限定/歪，无大小保底统计。'}
-                  {newPoolTypeInput === 'weapon' && '6星40抽保底，首轮80抽必出限定。赠送：100(常)->180(限)->+80交替。'}
+                  {newPoolTypeInput === 'weapon' && (isLimitedWeaponPool
+                    ? '6星40抽保底，首轮80抽必出限定。赠送：100(常)->180(限)->+80交替。'
+                    : '6星40抽保底，无额外赠送内容。'
+                  )}
                 </p>
+
+                {/* 武器池限定/常驻开关 */}
+                {newPoolTypeInput === 'weapon' && (
+                  <div className="mt-3 p-3 bg-slate-50 dark:bg-zinc-800 rounded-none border border-zinc-200 dark:border-zinc-700">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">限定武器池</span>
+                        <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">
+                          限定武器池有额外获取内容（武库箱、限定武器赠送）
+                        </p>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={isLimitedWeaponPool}
+                          onChange={(e) => setIsLimitedWeaponPool(e.target.checked)}
+                          className="sr-only"
+                        />
+                        <div className={`w-11 h-6 rounded-full transition-colors ${isLimitedWeaponPool ? 'bg-orange-500' : 'bg-slate-300 dark:bg-zinc-600'}`}>
+                          <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isLimitedWeaponPool ? 'translate-x-5' : ''}`}></div>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-end">
