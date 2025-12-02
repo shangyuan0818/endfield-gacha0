@@ -718,10 +718,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!supabase || !user) return;
 
     try {
+      // 管理员可以删除任何记录（RLS 策略控制权限）
       const { error } = await supabase
         .from('history')
         .delete()
-        .eq('user_id', user.id)
         .in('record_id', recordIds);
 
       if (error) throw error;
@@ -736,10 +736,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!supabase || !user) return;
 
     try {
+      // 管理员可以删除任何卡池的历史记录（RLS 策略控制权限）
       const { error } = await supabase
         .from('history')
         .delete()
-        .eq('user_id', user.id)
         .eq('pool_id', poolId);
 
       if (error) throw error;
@@ -754,10 +754,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!supabase || !user) return;
 
     try {
+      // 管理员可以删除任何卡池（RLS 策略控制权限）
       const { error } = await supabase
         .from('pools')
         .delete()
-        .eq('user_id', user.id)
         .eq('pool_id', poolId);
 
       if (error) throw error;

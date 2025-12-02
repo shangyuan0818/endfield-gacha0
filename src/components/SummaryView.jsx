@@ -11,13 +11,13 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
   // 过滤当前用户的卡池和历史记录
   const myPools = useMemo(() => {
     if (!pools) return [];
-    if (!user) return pools; // 未登录时显示所有本地数据
+    if (!user) return []; // 未登录时返回空数组，避免泄露其他用户数据
     return pools.filter(pool => !pool.user_id || pool.user_id === user.id);
   }, [pools, user]);
 
   const myHistory = useMemo(() => {
     if (!history) return [];
-    if (!user) return history; // 未登录时显示所有本地数据
+    if (!user) return []; // 未登录时返回空数组，避免泄露其他用户数据
     return history.filter(h => !h.user_id || h.user_id === user.id);
   }, [history, user]);
 
