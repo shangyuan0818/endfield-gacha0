@@ -654,8 +654,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
     hiddenAnnouncements[announcementId] = version;
     localStorage.setItem('hiddenAnnouncements', JSON.stringify(hiddenAnnouncements));
-    // 从当前显示列表中移除
-    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+    // 关闭公告区域（和点击 X 一样的行为）
+    setShowAnnouncement(false);
   }, []);
 
   // 登出处理
