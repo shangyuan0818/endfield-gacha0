@@ -453,13 +453,13 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
 
     // 当前可获取的角色列表
     const limitedCharacters = {
-      sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余', '黎风', '艾尔黛拉', '别礼', '骏卫'],
+      sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
       fiveStar: ['佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语', '狼卫', '赛希', '昼雪', '阿列什'],
       fourStar: ['秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔']
     };
 
     const standardCharacters = {
-      sixStar: ['艾尔黛拉', '骏卫', '别礼', '余', '黎风'],
+      sixStar: ['艾尔黛拉', '骏卫', '别礼', '余烬', '黎风'],
       fiveStar: ['佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语', '狼卫', '赛希', '昼雪', '阿列什'],
       fourStar: ['秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔']
     };
