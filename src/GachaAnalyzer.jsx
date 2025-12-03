@@ -31,8 +31,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 0.1 申请和公告状态
   const [showApplyModal, setShowApplyModal] = useState(false);
   const [applicationStatus, setApplicationStatus] = useState(null); // 'pending' | 'approved' | 'rejected' | null
-  const [allAnnouncements, setAllAnnouncements] = useState([]); // 所有公告（用于按钮显示）
-  const [announcements, setAnnouncements] = useState([]); // 可见公告（未被隐藏的）
+  const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncement, setShowAnnouncement] = useState(true);
 
   // 0.2 通用弹窗
@@ -655,9 +654,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         }
 
         if (data && data.length > 0) {
-          // 保存所有公告（用于按钮常驻显示）
-          setAllAnnouncements(data);
-          
           // 检查是否有被用户隐藏的公告（下次更新前不显示）
           const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
           const visibleAnnouncements = data.filter(a => {
@@ -671,7 +667,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             setShowAnnouncement(false);
           }
         } else {
-          setAllAnnouncements([]);
           setAnnouncements([]);
         }
       } catch (error) {
@@ -688,27 +683,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
     hiddenAnnouncements[announcementId] = version;
     localStorage.setItem('hiddenAnnouncements', JSON.stringify(hiddenAnnouncements));
-    // 从可见公告中移除
-    setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
-    // 关闭公告区域
+    // 关闭公告区域（和点击 X 一样的行为）
     setShowAnnouncement(false);
   }, []);
-
-  // 切换公告显示（点击按钮时）
-  const toggleAnnouncement = useCallback(() => {
-    if (showAnnouncement) {
-      // 当前显示，点击隐藏
-      setShowAnnouncement(false);
-    } else {
-      // 当前隐藏，点击显示
-      // 如果没有可见公告但有被隐藏的公告，清除隐藏状态
-      if (announcements.length === 0 && allAnnouncements.length > 0) {
-        localStorage.removeItem('hiddenAnnouncements');
-        setAnnouncements(allAnnouncements);
-      }
-      setShowAnnouncement(true);
-    }
-  }, [showAnnouncement, announcements.length, allAnnouncements]);
 
   // 登出处理
   const handleLogout = async () => {
@@ -2914,16 +2891,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <Info size={18} />
             </button>
 
-            {/* 公告按钮 - 常驻显示（只要有公告就显示） */}
-            {allAnnouncements.length > 0 && (
+            {/* 公告按钮 - 公告关闭时显示 */}
+            {!showAnnouncement && announcements.length > 0 && (
               <button
-                onClick={toggleAnnouncement}
-                className={`text-sm px-2 py-1.5 rounded-none transition-colors ${
-                  showAnnouncement && announcements.length > 0
-                    ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' 
-                    : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-500 dark:hover:text-amber-400'
-                }`}
-                title={showAnnouncement && announcements.length > 0 ? "隐藏公告" : "查看公告"}
+                onClick={() => setShowAnnouncement(true)}
+                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-none hover:bg-amber-50 transition-colors"
+                title="查看公告"
               >
                 <Bell size={18} />
               </button>
@@ -2944,7 +2917,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                        userRole === 'admin' ? '管理' : '用户'}
                     </span>
                     <span className="text-xs text-slate-500 dark:text-zinc-500 hidden sm:inline">
-                      {user.email?.split("@")[0]}
+                      {user.user_metadata?.username || user.email?.split("@")[0]}
                     </span>
                     {/* 申请按钮 - 仅普通用户且未申请时显示 */}
                     {userRole === 'user' && applicationStatus !== 'pending' && (
