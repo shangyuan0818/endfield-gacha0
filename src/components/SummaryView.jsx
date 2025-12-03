@@ -920,7 +920,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <div className="text-xl font-bold text-yellow-400">
                           {(currentStats.byType?.limited?.six || 0) + (currentStats.byType?.standard?.six || 0)}
                           {currentStats.charGift > 0 && (
-                            <span className="text-purple-400 text-sm ml-1">+{currentStats.charGift}赠</span>
+                            <span className="text-purple-400 text-sm ml-1">(+{currentStats.charGift}赠送)</span>
                           )}
                         </div>
                       </div>
@@ -970,9 +970,9 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <div className="text-orange-500 font-medium mb-1">限定池</div>
                         <div className="text-zinc-400">
                           {(currentStats.byType?.limited?.total || 0).toLocaleString()}抽 |
-                          <span className="text-yellow-400 ml-1">{currentStats.byType?.limited?.six || 0}</span>
-                          {currentStats.charGift > 0 && <span className="text-purple-400">+{currentStats.charGift}赠</span>}
-                          <span>个6星 |</span>
+                          <span className="text-yellow-400 ml-1">{currentStats.byType?.limited?.six || 0}</span>个6星
+                          {currentStats.charGift > 0 && <span className="text-purple-400 ml-0.5">(+{currentStats.charGift}赠送)</span>}
+                          <span className="ml-1">|</span>
                           平均<span className="text-indigo-400 ml-1">{currentStats.byType?.limited?.avgPity || '-'}</span>抽
                         </div>
                       </div>
@@ -1003,7 +1003,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <div className="text-xl font-bold text-yellow-400">
                           {currentStats.byType?.weapon?.six || 0}
                           {(currentStats.weaponGiftLimited > 0 || currentStats.weaponGiftStandard > 0) && (
-                            <span className="text-purple-400 text-sm ml-1">+{currentStats.weaponGiftLimited + currentStats.weaponGiftStandard}赠</span>
+                            <span className="text-purple-400 text-sm ml-1">(+{currentStats.weaponGiftLimited + currentStats.weaponGiftStandard}赠送)</span>
                           )}
                         </div>
                       </div>
