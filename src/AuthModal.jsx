@@ -6,6 +6,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -72,6 +73,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return;
     }
 
+    // 密码确认验证
+    if (password !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      setLoading(false);
+      return;
+    }
+
     try {
       // 1. 注册用户
       const { data, error } = await supabase.auth.signUp({
@@ -129,6 +137,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const resetForm = () => {
     setEmail('');
     setPassword('');
+    setConfirmPassword('');
     setUsername('');
     setError('');
     setMessage('');
@@ -142,6 +151,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   const switchToLoginWithEmail = () => {
     setPassword('');
+    setConfirmPassword('');
     setUsername('');
     setError('');
     setMessage('');
@@ -161,7 +171,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* Header - Endfield 风格 */}
         <div className="relative bg-gradient-to-r from-zinc-900 to-zinc-800 dark:from-zinc-950 dark:to-zinc-900 text-white p-6 border-b-4 border-endfield-yellow">
           {/* 装饰性网格背景 */}
-          <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 opacity-10 pointer-events-none">
             <div className="absolute inset-0" style={{
               backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
                                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
@@ -174,7 +184,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               e.stopPropagation();
               onClose();
             }}
-            className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded z-10"
+            className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors p-1 hover:bg-white/10 rounded z-50"
           >
             <X size={20} />
           </button>
@@ -342,6 +352,39 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </div>
             )}
           </div>
+
+          {/* Confirm Password (Register only) */}
+          {mode === 'register' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                确认密码
+              </label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="再次输入密码"
+                  required
+                  className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
+                />
+              </div>
+              {/* 密码一致性提示 */}
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  两次输入的密码不一致
+                </p>
+              )}
+              {confirmPassword && password === confirmPassword && password.length >= 6 && (
+                <p className="text-xs text-green-500 dark:text-green-400 mt-1 flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  密码一致
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Submit Button */}
           <button
