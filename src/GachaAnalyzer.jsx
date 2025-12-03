@@ -2891,12 +2891,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <Info size={18} />
             </button>
 
-            {/* 公告按钮 - 公告关闭时显示 */}
-            {!showAnnouncement && announcements.length > 0 && (
+            {/* 公告按钮 - 常驻显示 */}
+            {announcements.length > 0 && (
               <button
-                onClick={() => setShowAnnouncement(true)}
-                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-none hover:bg-amber-50 transition-colors"
-                title="查看公告"
+                onClick={() => setShowAnnouncement(!showAnnouncement)}
+                className={`text-sm px-2 py-1.5 rounded-none transition-colors ${
+                  showAnnouncement 
+                    ? 'text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400' 
+                    : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-500 dark:hover:text-amber-400'
+                }`}
+                title={showAnnouncement ? "隐藏公告" : "查看公告"}
               >
                 <Bell size={18} />
               </button>
