@@ -2,6 +2,103 @@ import React, { useState } from 'react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
+// ========== 邮箱域名白名单配置 ==========
+// 主流邮箱服务商
+const MAINSTREAM_EMAIL_DOMAINS = [
+  // 国际
+  'gmail.com', 'googlemail.com',
+  'outlook.com', 'hotmail.com', 'live.com', 'msn.com',
+  'yahoo.com', 'yahoo.co.jp', 'yahoo.co.uk',
+  'icloud.com', 'me.com', 'mac.com',
+  'protonmail.com', 'proton.me',
+  'zoho.com',
+  'aol.com',
+  'mail.com',
+  'gmx.com', 'gmx.net',
+  'yandex.com', 'yandex.ru',
+  // 国内
+  'qq.com', 'foxmail.com',
+  '163.com', '126.com', 'yeah.net', 'netease.com',
+  'sina.com', 'sina.cn',
+  'sohu.com',
+  'aliyun.com', 'alibaba-inc.com',
+  '189.cn', '21cn.com',
+  'tom.com',
+];
+
+// 知名论坛/社区邮箱
+const COMMUNITY_EMAIL_DOMAINS = [
+  'linux.do',
+  'v2ex.com',
+  'github.com',
+  'gitlab.com',
+  'bitbucket.org',
+  'sourcehut.org',
+];
+
+// 教育邮箱后缀（支持模糊匹配）
+const EDU_EMAIL_SUFFIXES = [
+  '.edu',
+  '.edu.cn',
+  '.edu.tw',
+  '.edu.hk',
+  '.ac.uk',
+  '.ac.jp',
+  '.edu.au',
+];
+
+// 企业邮箱常见后缀（这些通常是可信的）
+const CORPORATE_EMAIL_PATTERNS = [
+  // 科技公司
+  'microsoft.com', 'apple.com', 'google.com', 'amazon.com', 'meta.com', 'facebook.com',
+  'tencent.com', 'alibaba.com', 'bytedance.com', 'baidu.com', 'netease.com', 'bilibili.com',
+  'mihoyo.com', 'hypergryph.com', 'grfrline.com',
+];
+
+/**
+ * 验证邮箱域名是否可信
+ * @param {string} email 邮箱地址
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+const validateEmailDomain = (email) => {
+  if (!email || !email.includes('@')) {
+    return { valid: false, reason: '邮箱格式不正确' };
+  }
+
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (!domain) {
+    return { valid: false, reason: '邮箱格式不正确' };
+  }
+
+  // 1. 检查主流邮箱服务商
+  if (MAINSTREAM_EMAIL_DOMAINS.includes(domain)) {
+    return { valid: true };
+  }
+
+  // 2. 检查知名社区邮箱
+  if (COMMUNITY_EMAIL_DOMAINS.includes(domain)) {
+    return { valid: true };
+  }
+
+  // 3. 检查企业邮箱
+  if (CORPORATE_EMAIL_PATTERNS.includes(domain)) {
+    return { valid: true };
+  }
+
+  // 4. 检查教育邮箱
+  for (const suffix of EDU_EMAIL_SUFFIXES) {
+    if (domain.endsWith(suffix)) {
+      return { valid: true };
+    }
+  }
+
+  // 5. 其他域名视为不可信
+  return { 
+    valid: false, 
+    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）或教育邮箱注册' 
+  };
+};
+
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
@@ -13,6 +110,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [message, setMessage] = useState('');
   const [showDuplicateEmailPrompt, setShowDuplicateEmailPrompt] = useState(false);
   const [emailValid, setEmailValid] = useState(true);
+  const [emailDomainError, setEmailDomainError] = useState('');
 
   if (!isOpen) return null;
 
@@ -27,7 +125,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     const newEmail = e.target.value;
     setEmail(newEmail);
     setEmailValid(validateEmail(newEmail));
-    setShowDuplicateEmailPrompt(false); // 清除重复邮箱提示
+    setShowDuplicateEmailPrompt(false);
+    
+    // 仅在注册模式下验证域名
+    if (mode === 'register' && newEmail && validateEmail(newEmail)) {
+      const domainResult = validateEmailDomain(newEmail);
+      setEmailDomainError(domainResult.valid ? '' : domainResult.reason);
+    } else {
+      setEmailDomainError('');
+    }
   };
 
   const handleLogin = async (e) => {
@@ -66,6 +172,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return;
     }
 
+    // 邮箱域名验证
+    const domainResult = validateEmailDomain(email);
+    if (!domainResult.valid) {
+      setError(domainResult.reason);
+      setLoading(false);
+      return;
+    }
+
     // 密码强度验证
     if (password.length < 6) {
       setError('密码至少需要 6 位字符');
@@ -81,7 +195,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
 
     try {
-      // 1. 注册用户
+      // 检查黑名单（如果 supabase 可用）
+      if (supabase) {
+        const { data: isBlacklisted } = await supabase.rpc('is_email_blacklisted', { 
+          check_email: email 
+        });
+        
+        if (isBlacklisted) {
+          setError('该邮箱已被禁止注册，如有疑问请联系管理员');
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 注册用户
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -142,6 +269,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
     setMessage('');
     setShowDuplicateEmailPrompt(false);
+    setEmailDomainError('');
   };
 
   const switchMode = (newMode) => {
@@ -156,8 +284,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
     setMessage('');
     setShowDuplicateEmailPrompt(false);
+    setEmailDomainError('');
     setMode('login');
   };
+
+  // 判断邮箱输入是否有错误
+  const hasEmailError = email && (!emailValid || (mode === 'register' && emailDomainError));
 
   return (
     <div
@@ -243,6 +375,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     邮箱 <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5">{email}</span> 已经注册过账号。
                   </p>
                   <button
+                    type="button"
                     onClick={switchToLoginWithEmail}
                     className="w-full bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
                   >
@@ -279,7 +412,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </label>
             <div className="relative">
               <Mail size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
-                email && !emailValid ? 'text-red-500' : 'text-slate-400 dark:text-zinc-500'
+                hasEmailError ? 'text-red-500' : 'text-slate-400 dark:text-zinc-500'
               }`} />
               <input
                 type="email"
@@ -288,16 +421,24 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 placeholder="your@email.com"
                 required
                 className={`w-full pl-10 pr-4 py-3 border rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 outline-none transition-all ${
-                  email && !emailValid
+                  hasEmailError
                     ? 'border-red-300 dark:border-red-700 focus:ring-2 focus:ring-red-500 focus:border-red-500'
                     : 'border-zinc-200 dark:border-zinc-700 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow'
                 }`}
               />
             </div>
+            {/* 邮箱格式错误提示 */}
             {email && !emailValid && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
                 <AlertCircle size={12} />
                 请输入有效的邮箱地址
+              </p>
+            )}
+            {/* 邮箱域名错误提示（仅注册模式） */}
+            {mode === 'register' && emailValid && emailDomainError && (
+              <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-start gap-1">
+                <AlertCircle size={12} className="shrink-0 mt-0.5" />
+                <span>{emailDomainError}</span>
               </p>
             )}
           </div>
@@ -389,8 +530,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6"
+            disabled={loading || (mode === 'register' && (hasEmailError || !!emailDomainError))}
+            className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6"
           >
             {loading ? (
               <Loader2 size={20} className="animate-spin" />

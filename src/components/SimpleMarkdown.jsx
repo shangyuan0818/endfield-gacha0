@@ -2,7 +2,7 @@ import React from 'react';
 
 /**
  * 简单的 Markdown 渲染组件
- * 支持: 标题(##), 粗体(**), 斜体(*), 代码(`), 引用(>), 列表(-), 链接([]()), 表格(|), 换行
+ * 支持: 标题(##), 粗体(**), 斜体(*), 代码(`), 引用(>), 列表(-), 链接([]()), 换行
  */
 const SimpleMarkdown = ({ content, className = '' }) => {
   if (!content) return null;
@@ -12,8 +12,6 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     const elements = [];
     let inList = false;
     let listItems = [];
-    let inTable = false;
-    let tableRows = [];
 
     const processInline = (line) => {
       // 处理行内元素
@@ -48,71 +46,18 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       inList = false;
     };
 
-    const flushTable = () => {
-      if (tableRows.length > 0) {
-        // 解析表格：第一行是表头，第二行是分隔符（跳过），其余是数据
-        const headerRow = tableRows[0];
-        const dataRows = tableRows.slice(2); // 跳过分隔行
-
-        const parseRow = (row) => {
-          return row
-            .split('|')
-            .map(cell => cell.trim())
-            .filter((cell, i, arr) => i > 0 && i < arr.length - 1 || cell !== '');
-        };
-
-        const headers = parseRow(headerRow);
-        const data = dataRows.map(parseRow);
-
-        elements.push(
-          <div key={`table-${elements.length}`} className="my-3 overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-zinc-100 dark:bg-zinc-800">
-                  {headers.map((header, i) => (
-                    <th 
-                      key={i} 
-                      className="border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-left font-medium text-slate-700 dark:text-zinc-300"
-                      dangerouslySetInnerHTML={{ __html: processInline(header) }}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {data.map((row, rowIndex) => (
-                  <tr key={rowIndex} className="even:bg-zinc-50 dark:even:bg-zinc-800/50">
-                    {row.map((cell, cellIndex) => (
-                      <td 
-                        key={cellIndex} 
-                        className="border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-slate-600 dark:text-zinc-400"
-                        dangerouslySetInnerHTML={{ __html: processInline(cell) }}
-                      />
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        );
-        tableRows = [];
-      }
-      inTable = false;
-    };
-
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
 
       // 空行
       if (trimmedLine === '') {
         flushList();
-        flushTable();
         return;
       }
 
       // 标题 ##
       if (trimmedLine.startsWith('## ')) {
         flushList();
-        flushTable();
         elements.push(
           <h3 key={index} className="font-bold text-lg mt-4 mb-2 text-slate-800 dark:text-zinc-200">
             {trimmedLine.slice(3)}
@@ -124,7 +69,6 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       // 标题 ###
       if (trimmedLine.startsWith('### ')) {
         flushList();
-        flushTable();
         elements.push(
           <h4 key={index} className="font-bold mt-3 mb-1 text-slate-700 dark:text-zinc-300">
             {trimmedLine.slice(4)}
@@ -136,7 +80,6 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       // 引用 >
       if (trimmedLine.startsWith('> ')) {
         flushList();
-        flushTable();
         elements.push(
           <blockquote
             key={index}
@@ -149,23 +92,13 @@ const SimpleMarkdown = ({ content, className = '' }) => {
 
       // 列表 - 或 *
       if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
-        flushTable();
         inList = true;
         listItems.push(trimmedLine.slice(2));
         return;
       }
 
-      // 表格行（以 | 开头）
-      if (trimmedLine.startsWith('|') && trimmedLine.endsWith('|')) {
-        flushList();
-        inTable = true;
-        tableRows.push(trimmedLine);
-        return;
-      }
-
       // 普通段落
       flushList();
-      flushTable();
       elements.push(
         <p
           key={index}
@@ -175,9 +108,8 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       );
     });
 
-    // 处理最后的列表和表格
+    // 处理最后的列表
     flushList();
-    flushTable();
 
     return elements;
   };

@@ -185,14 +185,24 @@ export const DEFAULT_POOL_ID = 'default_pool';
 // 卡池类型关键词
 export const POOL_TYPE_KEYWORDS = ['限定', '常驻', '武器', 'UP池', '卡池', '角色池', '武器池'];
 
-// 预设卡池列表
+// 预设卡池列表 - 基于 LIMITED_POOL_SCHEDULE 动态生成
 export const PRESET_POOLS = [
+  // 通用卡池类型
   { label: '限定角色池', type: 'limited', charName: '' },
   { label: '常驻角色池', type: 'standard', charName: '' },
-  { label: '限定武器池', type: 'weapon', charName: '' },
-  { label: '限定-莱万汀', type: 'limited', charName: '莱万汀' },
-  { label: '武器-莱万汀专武', type: 'weapon', charName: '莱万汀专武' },
-  { label: '常驻武器池', type: 'standard', charName: '常驻武器' },
+  { label: '武器池', type: 'weapon', charName: '' },
+  // 当前版本限定角色池（按轮换顺序）
+  ...LIMITED_POOL_SCHEDULE.map(pool => ({
+    label: `限定-${pool.name}`,
+    type: 'limited',
+    charName: pool.name,
+  })),
+  // 当前版本限定武器池
+  ...LIMITED_POOL_SCHEDULE.map(pool => ({
+    label: `武器-${pool.name}`,
+    type: 'weapon',
+    charName: pool.name,
+  })),
 ];
 
 // 用户角色定义
