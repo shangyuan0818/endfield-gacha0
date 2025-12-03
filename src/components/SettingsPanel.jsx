@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X } from 'lucide-react';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Mail } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, pools, history, onDeleteAllData, onManualSync, syncing }) => {
@@ -7,7 +7,6 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
@@ -44,37 +43,30 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
     }
   };
 
-  const handlePasswordSubmit = async (e) => {
-    e.preventDefault();
+  const handlePasswordReset = async () => {
+    if (!user?.email) {
+      setPasswordError('无法获取邮箱地址');
+      return;
+    }
+
     setPasswordError('');
     setPasswordSuccess('');
-
-    if (passwordForm.new !== passwordForm.confirm) {
-      setPasswordError('两次输入的新密码不一致');
-      return;
-    }
-
-    if (passwordForm.new.length < 6) {
-      setPasswordError('新密码至少需要6位字符');
-      return;
-    }
-
     setPasswordLoading(true);
+
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: passwordForm.new
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`
       });
 
       if (error) throw error;
 
-      setPasswordSuccess('密码修改成功！');
-      setPasswordForm({ current: '', new: '', confirm: '' });
+      setPasswordSuccess('密码重置邮件已发送！请查收邮箱并点击链接重置密码。');
       setTimeout(() => {
         setShowPasswordModal(false);
         setPasswordSuccess('');
-      }, 2000);
+      }, 3000);
     } catch (error) {
-      setPasswordError(error.message || '修改失败，请重试');
+      setPasswordError(error.message || '发送失败，请重试');
     } finally {
       setPasswordLoading(false);
     }
@@ -272,54 +264,49 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                 <Lock size={18} />
-                修改密码
+                重置密码
               </h3>
-              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400">
+              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300">
                 <X size={20} />
               </button>
             </div>
-            <form onSubmit={handlePasswordSubmit} className="p-6 space-y-4">
+            <div className="p-6 space-y-4">
               {passwordError && (
-                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-none text-sm">
-                  {passwordError}
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-none text-sm flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>{passwordError}</span>
                 </div>
               )}
               {passwordSuccess && (
-                <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-2 rounded-none text-sm">
-                  {passwordSuccess}
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-2 rounded-none text-sm flex items-start gap-2">
+                  <Mail size={16} className="shrink-0 mt-0.5" />
+                  <span>{passwordSuccess}</span>
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">新密码</label>
-                <input
-                  type="password"
-                  value={passwordForm.new}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, new: e.target.value }))}
-                  placeholder="至少6位字符"
-                  required
-                  minLength={6}
-                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
+
+              <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 p-4 rounded-none">
+                <div className="flex items-start gap-3">
+                  <Mail size={20} className="text-endfield-yellow shrink-0 mt-1" />
+                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                    <p className="font-medium text-zinc-800 dark:text-zinc-200 mb-2">邮件重置密码</p>
+                    <p className="mb-2">
+                      我们将向您的注册邮箱 <span className="font-mono text-endfield-yellow">{user?.email}</span> 发送一封密码重置邮件。
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-500">
+                      点击邮件中的链接即可设置新密码。链接将在 1 小时后失效。
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">确认新密码</label>
-                <input
-                  type="password"
-                  value={passwordForm.confirm}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm: e.target.value }))}
-                  placeholder="再次输入新密码"
-                  required
-                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-800 rounded-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                />
-              </div>
+
               <button
-                type="submit"
-                disabled={passwordLoading}
-                className="w-full bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 rounded-none transition-colors"
+                onClick={handlePasswordReset}
+                disabled={passwordLoading || !!passwordSuccess}
+                className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold uppercase tracking-wider py-3 rounded-none transition-colors disabled:cursor-not-allowed"
               >
-                {passwordLoading ? '修改中...' : '确认修改'}
+                {passwordLoading ? '发送中...' : passwordSuccess ? '已发送' : '发送重置邮件'}
               </button>
-            </form>
+            </div>
           </div>
         </div>
       )}
