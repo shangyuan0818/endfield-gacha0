@@ -71,22 +71,31 @@ export const LIMITED_POOL_SCHEDULE = [
   },
 ];
 
-// 获取当前UP池信息
+// 获取当前UP池信息（卡池在凌晨4点刷新）
 export const getCurrentUpPool = () => {
   const now = new Date();
   for (const pool of LIMITED_POOL_SCHEDULE) {
+    // 开始时间：当天凌晨4点
     const start = new Date(pool.startDate);
+    start.setHours(4, 0, 0, 0);
+    // 结束时间：duration天后的凌晨4点
     const end = new Date(start);
     end.setDate(end.getDate() + pool.duration);
 
     if (now >= start && now < end) {
       const index = LIMITED_POOL_SCHEDULE.indexOf(pool);
       const nextPool = LIMITED_POOL_SCHEDULE[index + 1];
+      // 计算剩余时间（毫秒）
+      const remainingMs = end - now;
+      const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
+      const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       return {
         ...pool,
-        endDate: end.toISOString().split('T')[0],
+        endDate: end,
         nextPool: nextPool?.name || '待公布',
         isActive: true,
+        remainingDays,
+        remainingHours,
       };
     }
   }
@@ -94,21 +103,30 @@ export const getCurrentUpPool = () => {
   // 如果当前时间在所有卡池之前，返回第一个
   const firstPool = LIMITED_POOL_SCHEDULE[0];
   const firstStart = new Date(firstPool.startDate);
+  firstStart.setHours(4, 0, 0, 0);
   if (now < firstStart) {
+    const end = new Date(firstStart);
+    end.setDate(end.getDate() + firstPool.duration);
+    const startsInMs = firstStart - now;
     return {
       ...firstPool,
-      endDate: new Date(new Date(firstPool.startDate).getTime() + firstPool.duration * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      endDate: end,
       nextPool: LIMITED_POOL_SCHEDULE[1]?.name || '待公布',
       isActive: false,
-      startsIn: Math.ceil((firstStart - now) / (1000 * 60 * 60 * 24)),
+      startsIn: Math.ceil(startsInMs / (1000 * 60 * 60 * 24)),
+      startsInHours: Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
     };
   }
 
   // 所有卡池都已结束，返回最后一个
   const lastPool = LIMITED_POOL_SCHEDULE[LIMITED_POOL_SCHEDULE.length - 1];
+  const lastStart = new Date(lastPool.startDate);
+  lastStart.setHours(4, 0, 0, 0);
+  const lastEnd = new Date(lastStart);
+  lastEnd.setDate(lastEnd.getDate() + lastPool.duration);
   return {
     ...lastPool,
-    endDate: new Date(new Date(lastPool.startDate).getTime() + lastPool.duration * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    endDate: lastEnd,
     nextPool: '待公布',
     isActive: false,
     isExpired: true,

@@ -18,7 +18,11 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
          {/* Header Info */}
          <div className="w-32 shrink-0">
            <div className="text-sm font-black text-slate-700 dark:text-zinc-300 font-mono mb-1">
-             No.{group[0].globalIndex} - {group[group.length - 1].globalIndex}
+             {group.length === 1 ? (
+               <>No.{group[0].globalIndex}</>
+             ) : (
+               <>No.{group[0].globalIndex} - {group[group.length - 1].globalIndex}</>
+             )}
            </div>
            <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mb-2">
              {new Date(group[0].timestamp).toLocaleString()}

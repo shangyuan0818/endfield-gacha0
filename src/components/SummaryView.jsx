@@ -9,6 +9,17 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
   const [poolTypeFilter, setPoolTypeFilter] = useState('all'); // 'all' | 'character' | 'limited' | 'weapon' | 'standard'
   const [showPoolMechanics, setShowPoolMechanics] = useState(true); // 卡池机制卡片展开状态
 
+  // 检测暗色模式
+  const isDark = document.documentElement.classList.contains('dark');
+  const tooltipStyle = {
+    borderRadius: '0px',
+    border: 'none',
+    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    fontSize: '12px',
+    backgroundColor: isDark ? '#18181b' : '#fff',
+    color: isDark ? '#e4e4e7' : '#27272a'
+  };
+
   // 过滤当前用户的卡池和历史记录
   const myPools = useMemo(() => {
     if (!pools) return [];
@@ -53,12 +64,24 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     });
 
     const allSixStarPulls = [];
+    let charGiftCount = 0;
+    let weaponGiftLimitedCount = 0;
+    let weaponGiftStandardCount = 0;
 
-    // 2. 遍历每个池子计算垫刀
+    // 2. 遍历每个池子计算垫刀和赠送
     Object.keys(pullsByPool).forEach(poolId => {
       const type = poolTypeMap.get(poolId) || 'standard';
       const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
       const validPulls = sortedPulls.filter(i => i.specialType !== 'gift');
+      const poolTotal = validPulls.length;
+
+      // 计算该卡池的赠送数量
+      if (type === 'limited') {
+        charGiftCount += Math.floor(poolTotal / 240);
+      } else if (type === 'weapon') {
+        if (poolTotal >= 100) weaponGiftStandardCount += 1 + Math.floor((poolTotal - 100) / 160);
+        if (poolTotal >= 180) weaponGiftLimitedCount += 1 + Math.floor((poolTotal - 180) / 160);
+      }
 
       let tempCounter = 0;
       validPulls.forEach(pull => {
@@ -90,12 +113,14 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
          const items = list.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
          dist.push({
            range: `${rangeStart}-${rangeEnd}`,
+           rangeStart,
            count: items.length,
            limited: items.filter(p => !p.isStandard).length,
            standard: items.filter(p => p.isStandard).length
          });
       }
-      return dist;
+      // 按 rangeStart 排序确保顺序正确
+      return dist.sort((a, b) => a.rangeStart - b.rangeStart);
     };
 
     // 辅助：生成饼图数据
@@ -117,7 +142,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       }
 
       let r = item.rarity;
-      if (r === 6) {
+      // 排除赠送的6星统计
+      if (r === 6 && item.specialType !== 'gift') {
         if (item.isStandard) {
            data.counts['6_std']++;
            typeData.counts['6_std']++;
@@ -130,7 +156,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         if (!item.isStandard && typeData.limitedSix !== undefined) {
            typeData.limitedSix++;
         }
-      } else {
+      } else if (r !== 6) {
         if (r === 5) {
            data.fiveStar++;
            data.counts[5]++;
@@ -193,6 +219,12 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       ? (allSixStarPulls.reduce((sum, p) => sum + p.count, 0) / allSixStarPulls.length).toFixed(1)
       : '-';
 
+    // 赠送数量
+    data.charGift = charGiftCount;
+    data.weaponGiftLimited = weaponGiftLimitedCount;
+    data.weaponGiftStandard = weaponGiftStandardCount;
+    data.giftTotal = charGiftCount + weaponGiftLimitedCount + weaponGiftStandardCount;
+
     return data;
   }, [myHistory, myPools]);
 
@@ -215,7 +247,11 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         avgPity: baseStats.avgPity,
         counts: baseStats.counts,
         byType: baseStats.byType,
-        totalUsers: baseStats.totalUsers
+        totalUsers: baseStats.totalUsers,
+        charGift: baseStats.charGift || 0,
+        weaponGiftLimited: baseStats.weaponGiftLimited || 0,
+        weaponGiftStandard: baseStats.weaponGiftStandard || 0,
+        giftTotal: baseStats.giftTotal || 0
       };
     }
 
@@ -406,9 +442,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                     ))}
                   </Pie>
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
-                  />
+                  <RechartsTooltip contentStyle={tooltipStyle} />
                   <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px'}}/>
                 </PieChart>
               </ResponsiveContainer>
@@ -427,8 +461,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
                   <YAxis allowDecimals={false} tick={{fontSize: 10}} />
                   <RechartsTooltip
-                    cursor={{fill: 'rgba(255,255,255,0.1)'}}
-                    contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '12px' }}
+                    cursor={{fill: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}}
+                    contentStyle={tooltipStyle}
                   />
                   <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />
                   <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" />
@@ -447,9 +481,10 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
   const PoolMechanicsCard = () => {
     const currentUpPool = getCurrentUpPool();
     const now = new Date();
-    const endDate = new Date(currentUpPool.endDate);
-    const remainingDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-    const isExpired = currentUpPool.isExpired || remainingDays <= 0;
+    const isExpired = currentUpPool.isExpired;
+    const remainingDays = currentUpPool.remainingDays ?? 0;
+    const remainingHours = currentUpPool.remainingHours ?? 0;
+    const isEndingSoon = remainingDays <= 3 && !isExpired;
 
     // 当前可获取的角色列表
     const limitedCharacters = {
@@ -479,8 +514,10 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
               <h3 className="font-bold text-slate-800 dark:text-zinc-100">卡池机制速览</h3>
               <p className="text-xs text-slate-500 dark:text-zinc-500">
                 当前UP: <span className="text-orange-500 font-medium">{currentUpPool.name}</span>
-                {!isExpired && remainingDays > 0 && (
-                  <span className="ml-2 text-green-600 dark:text-green-400">剩余 {remainingDays} 天</span>
+                {!isExpired && (
+                  <span className={`ml-2 ${isEndingSoon ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>
+                    剩余 {remainingDays}天{remainingHours}小时
+                  </span>
                 )}
                 {isExpired && <span className="ml-2 text-red-500">已结束</span>}
               </p>
@@ -592,6 +629,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
               <div className="flex flex-wrap items-center gap-2">
                 {LIMITED_POOL_SCHEDULE.map((pool, index) => {
                   const poolStart = new Date(pool.startDate);
+                  poolStart.setHours(4, 0, 0, 0);
                   const poolEnd = new Date(poolStart.getTime() + pool.duration * 24 * 60 * 60 * 1000);
                   const isCurrent = now >= poolStart && now < poolEnd;
                   const isPast = now >= poolEnd;
@@ -607,9 +645,9 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                       }`}>
                         <div className="font-bold">{pool.name}</div>
                         <div className="text-[10px] opacity-70">
-                          {new Date(pool.startDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+                          {poolStart.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
                           {' - '}
-                          {poolEnd.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })}
+                          {poolEnd.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
                         </div>
                         {isCurrent && <div className="text-[10px] text-orange-500 font-bold mt-0.5">当前UP</div>}
                       </div>
@@ -625,7 +663,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                 </div>
               </div>
               <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                * 莱万汀将于3次特许寻访后移出，伊冯4次后移出，洁尔佩塔5次后移出
+                * 卡池于凌晨04:00刷新 | 莱万汀将于3次特许寻访后移出，伊冯4次后移出，洁尔佩塔5次后移出
               </p>
             </div>
 
@@ -638,29 +676,38 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   限定池可获取角色
                 </h4>
                 <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-orange-500 font-bold w-10 shrink-0">6星:</span>
-                    {limitedCharacters.sixStar.map((char, i) => (
-                      <span key={char} className={`text-xs px-1.5 py-0.5 rounded ${
-                        i === 0
-                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold ring-1 ring-orange-300 dark:ring-orange-700'
-                          : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                      }`}>
-                        {char}{i === 0 && ' (UP)'}
-                      </span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-orange-500 font-bold w-10 shrink-0">6星:</span>
+                      {limitedCharacters.sixStar.map((char, i) => (
+                        <span key={char} className={`text-xs px-1.5 py-0.5 rounded ${
+                          i === 0
+                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold ring-1 ring-orange-300 dark:ring-orange-700'
+                            : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                        }`}>
+                          {char}{i === 0 && ' (UP)'}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 0.8%，UP占50%)</div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
-                    {limitedCharacters.fiveStar.map(char => (
-                      <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
+                      {limitedCharacters.fiveStar.map(char => (
+                        <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 8%)</div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
-                    {limitedCharacters.fourStar.map(char => (
-                      <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
+                      {limitedCharacters.fourStar.map(char => (
+                        <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 91.2%)</div>
                   </div>
                 </div>
               </div>
@@ -672,44 +719,51 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   常驻池可获取角色
                 </h4>
                 <div className="space-y-2">
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-red-500 font-bold w-10 shrink-0">6星:</span>
-                    {standardCharacters.sixStar.map(char => (
-                      <span key={char} className="text-xs px-1.5 py-0.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded">{char}</span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-red-500 font-bold w-10 shrink-0">6星:</span>
+                      {standardCharacters.sixStar.map(char => (
+                        <span key={char} className="text-xs px-1.5 py-0.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded">{char}</span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 0.8%)</div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
-                    {standardCharacters.fiveStar.map(char => (
-                      <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
+                      {standardCharacters.fiveStar.map(char => (
+                        <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 8%)</div>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
-                    {standardCharacters.fourStar.map(char => (
-                      <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
-                    ))}
+                  <div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
+                      {standardCharacters.fourStar.map(char => (
+                        <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
+                      ))}
+                    </div>
+                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 91.2%)</div>
                   </div>
                 </div>
                 <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                  * 自选赠送可选: 余、黎风、艾尔黛拉、别礼、骏卫
+                  * 自选赠送可选: 余烬、黎风、艾尔黛拉、别礼、骏卫
                 </p>
               </div>
             </div>
 
-            {/* 概率说明 */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3 text-[10px] text-zinc-500 dark:text-zinc-400">
-              <strong className="text-zinc-600 dark:text-zinc-300">基础概率:</strong>
-              <span className="ml-2">6星 0.8% (UP占50%)</span>
-              <span className="mx-2">|</span>
-              <span>5星 8%</span>
-              <span className="mx-2">|</span>
-              <span>4星 91.2%</span>
-              <span className="mx-4">|</span>
-              <strong className="text-zinc-600 dark:text-zinc-300">武器池:</strong>
-              <span className="ml-2">6星 4% (UP占25%)</span>
-              <span className="mx-2">|</span>
-              <span>5星 15%</span>
+            {/* 武器池概率说明 */}
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Swords size={14} className="text-slate-500" />
+                <span className="font-bold text-sm text-slate-700 dark:text-zinc-300">武器池概率</span>
+              </div>
+              <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
+                <div><span className="text-red-500 font-medium">6星武器:</span> 基础概率 4%，UP武器占25%</div>
+                <div><span className="text-amber-500 font-medium">5星武器:</span> 基础概率 15%</div>
+                <div><span className="text-purple-500 font-medium">4星武器:</span> 基础概率 81%</div>
+              </div>
             </div>
           </div>
         </div>
@@ -835,35 +889,183 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
               </div>
 
               {/* 统计数据 */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white/5 p-4">
-                  <div className="text-zinc-400 text-xs mb-1">总抽数</div>
-                  <div className="text-3xl font-black">{(currentStats.total || 0).toLocaleString()}</div>
-                </div>
-                <div className="bg-white/5 p-4">
-                  <div className="text-zinc-400 text-xs mb-1">6星出货</div>
-                  <div className="text-3xl font-black text-yellow-400">{currentStats.sixStar || 0}</div>
-                  <div className="text-xs text-zinc-500 mt-1">
-                    出货率 {currentStats.total > 0 ? ((currentStats.sixStar / currentStats.total) * 100).toFixed(2) : 0}%
+              {poolTypeFilter === 'all' ? (
+                /* 全部卡池时：分区显示角色池和武器池 */
+                <div className="space-y-4">
+                  {/* 总览 */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-white/5 p-4">
+                      <div className="text-zinc-400 text-xs mb-1">总抽数</div>
+                      <div className="text-3xl font-black">{(currentStats.total || 0).toLocaleString()}</div>
+                    </div>
+                    <div className="bg-white/5 p-4">
+                      <div className="text-zinc-400 text-xs mb-1">参与用户</div>
+                      <div className="text-3xl font-black text-zinc-300">{currentStats.totalUsers || '-'}</div>
+                    </div>
+                  </div>
+
+                  {/* 角色池统计（限定+常驻） */}
+                  <div className="bg-white/5 p-4">
+                    <div className="text-orange-400 text-xs font-bold mb-3 flex items-center gap-2">
+                      <Star size={14} />
+                      角色池（限定+常驻）
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">总抽数</div>
+                        <div className="text-xl font-bold">{((currentStats.byType?.limited?.total || 0) + (currentStats.byType?.standard?.total || 0)).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">6星出货</div>
+                        <div className="text-xl font-bold text-yellow-400">
+                          {(currentStats.byType?.limited?.six || 0) + (currentStats.byType?.standard?.six || 0)}
+                          {currentStats.charGift > 0 && (
+                            <span className="text-purple-400 text-sm ml-1">+{currentStats.charGift}赠</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">平均出货</div>
+                        <div className="text-xl font-bold text-indigo-400">
+                          {(() => {
+                            const limitedAvg = currentStats.byType?.limited?.avgPity;
+                            const standardAvg = currentStats.byType?.standard?.avgPity;
+                            const limitedSix = currentStats.byType?.limited?.six || 0;
+                            const standardSix = currentStats.byType?.standard?.six || 0;
+                            if (limitedSix + standardSix === 0) return '-';
+                            const weighted = ((parseFloat(limitedAvg) || 0) * limitedSix + (parseFloat(standardAvg) || 0) * standardSix) / (limitedSix + standardSix);
+                            return weighted.toFixed(1);
+                          })()}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">限定/常驻(不歪率)</div>
+                        <div className="text-lg font-bold">
+                          {(() => {
+                            const limitedPool = currentStats.byType?.limited || {};
+                            const standardPool = currentStats.byType?.standard || {};
+                            const limitedUp = (limitedPool.sixStarLimited ?? limitedPool.limitedSix ?? 0);
+                            const standardUp = (standardPool.sixStarLimited ?? standardPool.limitedSix ?? 0);
+                            const totalLimited = limitedUp + standardUp;
+                            const limitedStd = (limitedPool.six || 0) - limitedUp;
+                            const standardStd = (standardPool.six || 0) - standardUp;
+                            const totalStd = limitedStd + standardStd;
+                            const totalSix = (limitedPool.six || 0) + (standardPool.six || 0);
+                            const rate = totalSix > 0 ? ((totalLimited / totalSix) * 100).toFixed(1) : 0;
+                            return (
+                              <>
+                                <span className="text-orange-400">{totalLimited}</span>
+                                <span className="text-zinc-600 mx-1">/</span>
+                                <span className="text-red-400">{totalStd}</span>
+                                <span className="text-zinc-500 text-xs ml-2">({rate}%)</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+                    {/* 限定池 vs 常驻池细分 */}
+                    <div className="mt-3 pt-3 border-t border-zinc-700 grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <div className="text-orange-500 font-medium mb-1">限定池</div>
+                        <div className="text-zinc-400">
+                          {(currentStats.byType?.limited?.total || 0).toLocaleString()}抽 |
+                          <span className="text-yellow-400 ml-1">{currentStats.byType?.limited?.six || 0}</span>
+                          {currentStats.charGift > 0 && <span className="text-purple-400">+{currentStats.charGift}赠</span>}
+                          <span>个6星 |</span>
+                          平均<span className="text-indigo-400 ml-1">{currentStats.byType?.limited?.avgPity || '-'}</span>抽
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-indigo-500 font-medium mb-1">常驻池</div>
+                        <div className="text-zinc-400">
+                          {(currentStats.byType?.standard?.total || 0).toLocaleString()}抽 |
+                          <span className="text-yellow-400 ml-1">{currentStats.byType?.standard?.six || 0}</span>个6星 |
+                          平均<span className="text-indigo-400 ml-1">{currentStats.byType?.standard?.avgPity || '-'}</span>抽
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 武器池统计 */}
+                  <div className="bg-white/5 p-4">
+                    <div className="text-slate-400 text-xs font-bold mb-3 flex items-center gap-2">
+                      <Swords size={14} />
+                      武器池
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">总抽数</div>
+                        <div className="text-xl font-bold">{(currentStats.byType?.weapon?.total || 0).toLocaleString()}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">6星出货</div>
+                        <div className="text-xl font-bold text-yellow-400">
+                          {currentStats.byType?.weapon?.six || 0}
+                          {(currentStats.weaponGiftLimited > 0 || currentStats.weaponGiftStandard > 0) && (
+                            <span className="text-purple-400 text-sm ml-1">+{currentStats.weaponGiftLimited + currentStats.weaponGiftStandard}赠</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">平均出货</div>
+                        <div className="text-xl font-bold text-indigo-400">{currentStats.byType?.weapon?.avgPity || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-zinc-500 text-[10px]">限定/常驻(不歪率)</div>
+                        <div className="text-lg font-bold">
+                          {(() => {
+                            const weapon = currentStats.byType?.weapon || {};
+                            const limitedUp = (weapon.sixStarLimited ?? weapon.limitedSix ?? 0);
+                            const totalSix = weapon.six || 0;
+                            const stdSix = totalSix - limitedUp;
+                            const rate = totalSix > 0 ? ((limitedUp / totalSix) * 100).toFixed(1) : 0;
+                            return (
+                              <>
+                                <span className="text-orange-400">{limitedUp}</span>
+                                <span className="text-zinc-600 mx-1">/</span>
+                                <span className="text-red-400">{stdSix}</span>
+                                <span className="text-zinc-500 text-xs ml-2">({rate}%)</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-white/5 p-4">
-                  <div className="text-zinc-400 text-xs mb-1">平均出货</div>
-                  <div className="text-3xl font-black text-indigo-400">{currentStats.avgPity || '-'}</div>
-                  <div className="text-xs text-zinc-500 mt-1">抽/只</div>
-                </div>
-                <div className="bg-white/5 p-4">
-                  <div className="text-zinc-400 text-xs mb-1">限定/常驻</div>
-                  <div className="text-lg font-bold">
-                    <span className="text-orange-400">{currentStats.sixStarLimited || 0}</span>
-                    <span className="text-zinc-600 mx-1">/</span>
-                    <span className="text-red-400">{currentStats.sixStarStandard || 0}</span>
+              ) : (
+                /* 特定卡池类型时：原有显示 */
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">总抽数</div>
+                    <div className="text-3xl font-black">{(currentStats.total || 0).toLocaleString()}</div>
                   </div>
-                  <div className="text-xs text-zinc-500 mt-1">
-                    不歪率 {currentStats.sixStar > 0 ? ((currentStats.sixStarLimited / currentStats.sixStar) * 100).toFixed(1) : 0}%
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">6星出货</div>
+                    <div className="text-3xl font-black text-yellow-400">{currentStats.sixStar || 0}</div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      出货率 {currentStats.total > 0 ? ((currentStats.sixStar / currentStats.total) * 100).toFixed(2) : 0}%
+                    </div>
+                  </div>
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">平均出货</div>
+                    <div className="text-3xl font-black text-indigo-400">{currentStats.avgPity || '-'}</div>
+                    <div className="text-xs text-zinc-500 mt-1">抽/只</div>
+                  </div>
+                  <div className="bg-white/5 p-4">
+                    <div className="text-zinc-400 text-xs mb-1">限定/常驻</div>
+                    <div className="text-lg font-bold">
+                      <span className="text-orange-400">{currentStats.sixStarLimited || 0}</span>
+                      <span className="text-zinc-600 mx-1">/</span>
+                      <span className="text-red-400">{currentStats.sixStarStandard || 0}</span>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1">
+                      不歪率 {currentStats.sixStar > 0 ? ((currentStats.sixStarLimited / currentStats.sixStar) * 100).toFixed(1) : 0}%
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="absolute -right-10 -bottom-10 text-zinc-700 opacity-20">
               <Star size={200} />

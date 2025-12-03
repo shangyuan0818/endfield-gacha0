@@ -12,6 +12,9 @@ import { validatePullData, validatePoolData, validateBatchAgainstRules, calculat
 
 
 export default function GachaAnalyzer({ themeMode, setThemeMode }) {
+  // 检测暗色模式
+  const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
   // --- State ---
 
   // 0.1 用户认证状态
@@ -179,6 +182,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   
   // 列表分页状态
   const [visibleHistoryCount, setVisibleHistoryCount] = useState(20);
+  // 记录筛选状态: 'all' | '6star' | '5star' | 'gift'
+  const [historyFilter, setHistoryFilter] = useState('all');
 
   const [activeTab, setActiveTab] = useState('summary');
   const [showPoolMenu, setShowPoolMenu] = useState(false);
@@ -271,7 +276,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             standard: processTypeStats(rpcData.byType?.standard)
           },
           // 使用数据库计算的精确平均出货（每个6星的垫刀数平均）
-          avgPity: rpcData.avgPity || null
+          avgPity: rpcData.avgPity || null,
+          // 赠送数量
+          charGift: rpcData.charGift || 0,
+          weaponGiftLimited: rpcData.weaponGiftLimited || 0,
+          weaponGiftStandard: rpcData.weaponGiftStandard || 0,
+          giftTotal: rpcData.giftTotal || 0
         };
 
         // 计算合并的角色池数据（限定+常驻）
@@ -289,6 +299,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           characterAvgPity = ((limitedAvg * limitedSix + standardAvg * standardSix) / totalSix).toFixed(1);
         }
 
+        // 合并限定池和常驻池的 distribution（按 range 合并）
+        const mergeDistributions = (dist1, dist2) => {
+          const map = new Map();
+          [...(dist1 || []), ...(dist2 || [])].forEach(item => {
+            const existing = map.get(item.range);
+            if (existing) {
+              existing.limited += item.limited || 0;
+              existing.standard += item.standard || 0;
+            } else {
+              map.set(item.range, { range: item.range, limited: item.limited || 0, standard: item.standard || 0 });
+            }
+          });
+          // 按 range 排序
+          return Array.from(map.values()).sort((a, b) => {
+            const getStart = r => parseInt(r.range.split('-')[0]) || 91;
+            return getStart(a) - getStart(b);
+          });
+        };
+
         stats.byType.character = {
           total: limitedStats.total + standardStats.total,
           six: limitedStats.six + standardStats.six,
@@ -301,7 +330,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
             '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
           },
-          distribution: [...limitedStats.distribution, ...standardStats.distribution],
+          distribution: mergeDistributions(limitedStats.distribution, standardStats.distribution),
           chartData: generateChartData({
             '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
             '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
@@ -918,15 +947,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const groups = [];
     // 优化：数据默认按录入时间顺序，直接倒序即可，避免耗时的 sort
     const sorted = [...currentPoolHistoryWithIndex].reverse();
-    
+
     if (sorted.length === 0) return [];
 
     let currentGroup = [sorted[0]];
-    
+
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i-1];
       const curr = sorted[i];
-      
+
       // 判断是否为同一批次：时间差在 2 秒内视为同一批次
       // 使用时间差而非字符串比较，因为数据库返回的时间戳格式可能与前端不同
       const prevTime = new Date(prev.timestamp).getTime();
@@ -941,11 +970,29 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
     }
     groups.push(currentGroup);
-    
+
     // 组与组之间按时间倒序（最新的组在前面）
     // 但组内元素，我们需要恢复为时间正序（从左到右显示 第1抽->第10抽）
     return groups.map(g => g.reverse());
   }, [currentPoolHistoryWithIndex]);
+
+  // 筛选后的历史记录
+  const filteredGroupedHistory = useMemo(() => {
+    if (historyFilter === 'all') return groupedHistory;
+
+    // 筛选时，每个符合条件的记录单独成组（方便查看出货抽数）
+    const result = [];
+    groupedHistory.forEach(group => {
+      group.forEach(item => {
+        const match =
+          (historyFilter === '6star' && item.rarity === 6) ||
+          (historyFilter === '5star' && item.rarity === 5) ||
+          (historyFilter === 'gift' && item.specialType === 'gift');
+        if (match) result.push([item]);
+      });
+    });
+    return result;
+  }, [groupedHistory, historyFilter]);
 
   const stats = useMemo(() => {
     // 过滤掉赠送的记录来计算有效抽数
@@ -2134,18 +2181,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 卡池时间信息组件
   const PoolTimeInfo = () => {
     const currentUpPool = getCurrentUpPool();
-    const startDate = new Date(currentUpPool.startDate);
-    const endDate = new Date(currentUpPool.endDate);
-
     const now = new Date();
-    const remainingDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+    const startDate = new Date(currentUpPool.startDate);
+    startDate.setHours(4, 0, 0, 0);
+    const endDate = currentUpPool.endDate instanceof Date ? currentUpPool.endDate : new Date(currentUpPool.endDate);
 
     const formatDate = (date) => {
-      return `${date.getMonth() + 1}/${date.getDate()}`;
+      return `${date.getMonth() + 1}/${date.getDate()} 04:00`;
     };
 
-    const isExpired = currentUpPool.isExpired || remainingDays <= 0;
-    const isEndingSoon = remainingDays <= 3 && remainingDays > 0;
+    const isExpired = currentUpPool.isExpired;
+    const remainingDays = currentUpPool.remainingDays ?? 0;
+    const remainingHours = currentUpPool.remainingHours ?? 0;
+    const isEndingSoon = remainingDays <= 3 && !isExpired;
     const isNotStarted = currentUpPool.startsIn > 0;
 
     return (
@@ -2166,13 +2214,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
           <span className="text-slate-300 dark:text-zinc-600">|</span>
           {isNotStarted ? (
-            <span className="text-blue-500">{currentUpPool.startsIn} 天后开始</span>
+            <span className="text-blue-500">{currentUpPool.startsIn}天{currentUpPool.startsInHours}小时后开始</span>
           ) : isExpired ? (
             <span className="text-red-500 font-medium">已结束</span>
           ) : isEndingSoon ? (
-            <span className="text-amber-500 font-medium animate-pulse">剩余 {remainingDays} 天</span>
+            <span className="text-amber-500 font-medium animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
           ) : (
-            <span className="text-green-500">剩余 {remainingDays} 天</span>
+            <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
           )}
         </div>
 
@@ -2563,10 +2611,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans pb-20 md:pb-10 relative">
       {/* 顶部导航 */}
       <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           
           {/* 左侧：Logo + 卡池切换器 */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="flex items-center gap-3">
               <img
                 src="/endfield-logo.svg"
@@ -2753,14 +2801,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
               {/* UP池时间信息 - 仅限定池显示 */}
               {currentPool.type === 'limited' && (
-                <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700">
+                <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
                   {(() => {
                     const upPool = getCurrentUpPool();
-                    const endDate = new Date(upPool.endDate);
-                    const now = new Date();
-                    const remainingDays = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-                    const isExpired = upPool.isExpired || remainingDays <= 0;
-                    const isEndingSoon = remainingDays <= 3 && remainingDays > 0;
+                    const isExpired = upPool.isExpired;
+                    const remainingDays = upPool.remainingDays ?? 0;
+                    const remainingHours = upPool.remainingHours ?? 0;
+                    const isEndingSoon = remainingDays <= 3 && !isExpired;
                     const isNotStarted = upPool.startsIn > 0;
 
                     return (
@@ -2768,13 +2815,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                         <span className="text-orange-500 font-medium">{upPool.name}</span>
                         <span className="text-slate-300 dark:text-zinc-600">|</span>
                         {isNotStarted ? (
-                          <span className="text-blue-500">{upPool.startsIn}天后开始</span>
+                          <span className="text-blue-500">{upPool.startsIn}天{upPool.startsInHours}小时后开始</span>
                         ) : isExpired ? (
                           <span className="text-red-500">已结束</span>
                         ) : isEndingSoon ? (
-                          <span className="text-amber-500 animate-pulse">剩余 {remainingDays} 天</span>
+                          <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
                         ) : (
-                          <span className="text-green-500">剩余 {remainingDays} 天</span>
+                          <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
                         )}
                         <span className="text-slate-300 dark:text-zinc-600">→</span>
                         <span className="text-blue-500">{upPool.nextPool}</span>
@@ -2916,7 +2963,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-8">
 
         {/* 无数据提示（方案A：引导游客和新用户） */}
         {pools.length === 0 && (
@@ -3173,12 +3220,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                             <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                           ))}
                         </Pie>
-                        <RechartsTooltip 
+                        <RechartsTooltip
                           formatter={(value, name) => [
-                            `${value}个 (${(value/stats.total*100).toFixed(1)}%)`, 
+                            `${value}个 (${(value/stats.total*100).toFixed(1)}%)`,
                             name
                           ]}
-                          contentStyle={{ backgroundColor: '#09090b', border: '1px solid #333', color: '#fff', borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          contentStyle={{ backgroundColor: isDark ? '#18181b' : '#fff', color: isDark ? '#e4e4e7' : '#27272a', borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         />
                         <Legend verticalAlign="bottom" height={36} wrapperStyle={{color: '#a1a1aa', fontSize: '12px'}}/>
                       </PieChart>
@@ -3201,6 +3248,28 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                </div>
                
                <div className="flex gap-2">
+                 {/* 筛选按钮 */}
+                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 rounded-none p-0.5">
+                   <button
+                     onClick={() => { setHistoryFilter('all'); setVisibleHistoryCount(20); }}
+                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === 'all' ? 'bg-white dark:bg-zinc-700 text-slate-800 dark:text-zinc-100 shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700'}`}
+                   >
+                     全部
+                   </button>
+                   <button
+                     onClick={() => { setHistoryFilter('6star'); setVisibleHistoryCount(20); }}
+                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === '6star' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-orange-500'}`}
+                   >
+                     6星
+                   </button>
+                   <button
+                     onClick={() => { setHistoryFilter('5star'); setVisibleHistoryCount(20); }}
+                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === '5star' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-amber-500'}`}
+                   >
+                     5星
+                   </button>
+                 </div>
+
                  {/* 导入按钮 - 仅管理员可见 */}
                  {canEdit && (
                    <>
@@ -3223,11 +3292,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
                  {/* 导出菜单 */}
                  <div className="relative">
-                   <button 
+                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
                     className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
                    >
-                     <Download size={14} /> 
+                     <Download size={14} />
                      导出...
                    </button>
                    
@@ -3260,11 +3329,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
              </div>
              
              <div className="max-h-[800px] overflow-y-auto bg-slate-50 dark:bg-zinc-950/50">
-               {groupedHistory.length === 0 ? (
-                 <div className="p-12 text-center text-slate-400 dark:text-zinc-500">当前卡池暂无记录</div>
+               {filteredGroupedHistory.length === 0 ? (
+                 <div className="p-12 text-center text-slate-400 dark:text-zinc-500">
+                   {historyFilter === 'all' ? '当前卡池暂无记录' : `当前卡池暂无${historyFilter === '6star' ? '6星' : '5星'}记录`}
+                 </div>
                ) : (
                  <div className="divide-y divide-slate-100">
-                   {groupedHistory.slice(0, visibleHistoryCount).map((group, idx) => (
+                   {filteredGroupedHistory.slice(0, visibleHistoryCount).map((group, idx) => (
                      <BatchCard
                        key={idx}
                        group={group}
@@ -3274,14 +3345,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                        canEdit={canEditCurrentPool}
                      />
                    ))}
-                   
-                   {visibleHistoryCount < groupedHistory.length && (
+
+                   {visibleHistoryCount < filteredGroupedHistory.length && (
                      <div className="p-4 flex justify-center">
-                       <button 
+                       <button
                          onClick={() => setVisibleHistoryCount(prev => prev + 20)}
                          className="text-sm text-slate-500 dark:text-zinc-500 hover:text-yellow-600 dark:text-endfield-yellow font-medium px-6 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:border-yellow-200 dark:border-yellow-800 bg-white dark:bg-zinc-900 hover:bg-yellow-50 dark:bg-yellow-900/20 transition-all shadow-sm"
                        >
-                         加载更多历史记录 ({groupedHistory.length - visibleHistoryCount} 条剩余)
+                         加载更多 ({filteredGroupedHistory.length - visibleHistoryCount} 条剩余)
                        </button>
                      </div>
                    )}
