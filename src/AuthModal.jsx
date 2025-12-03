@@ -95,7 +95,7 @@ const validateEmailDomain = (email) => {
   // 5. 其他域名视为不可信
   return { 
     valid: false, 
-    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）或教育邮箱注册' 
+    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、教育邮箱、知名论坛/社区邮箱及企业邮箱注册' 
   };
 };
 
