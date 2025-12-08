@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
 // ========== 邮箱域名白名单配置 ==========
@@ -100,7 +100,7 @@ const validateEmailDomain = (email) => {
 };
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const [mode, setMode] = useState('login'); // 'login' | 'register'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgotPassword'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -111,8 +111,66 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [showDuplicateEmailPrompt, setShowDuplicateEmailPrompt] = useState(false);
   const [emailValid, setEmailValid] = useState(true);
   const [emailDomainError, setEmailDomainError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0); // 重发验证邮件倒计时
 
   if (!isOpen) return null;
+
+  // 获取客户端标识符（用于频率限制）
+  const getClientIdentifier = () => {
+    // 使用 localStorage 中的匿名ID，如果没有则生成一个
+    let clientId = localStorage.getItem('_client_id');
+    if (!clientId) {
+      clientId = 'anon_' + Math.random().toString(36).substring(2, 15);
+      localStorage.setItem('_client_id', clientId);
+    }
+    return clientId;
+  };
+
+  // 检查频率限制（调用后端RPC）
+  const checkRateLimit = async (action) => {
+    if (!supabase) return { allowed: true };
+    
+    try {
+      const { data, error } = await supabase.rpc('check_and_log_rate_limit', {
+        p_identifier: getClientIdentifier(),
+        p_action: action
+      });
+      
+      if (error) {
+        console.warn('Rate limit check failed:', error);
+        return { allowed: true }; // 如果检查失败，默认允许
+      }
+      
+      return data || { allowed: true };
+    } catch (err) {
+      console.warn('Rate limit check error:', err);
+      return { allowed: true };
+    }
+  };
+
+  // 后端邮箱域名验证
+  const validateEmailDomainBackend = async (emailToCheck) => {
+    if (!supabase) {
+      // 如果 Supabase 不可用，回退到前端验证
+      return validateEmailDomain(emailToCheck);
+    }
+    
+    try {
+      const { data, error } = await supabase.rpc('validate_email_domain', {
+        check_email: emailToCheck
+      });
+      
+      if (error) {
+        console.warn('Backend email validation failed, falling back to frontend:', error);
+        return validateEmailDomain(emailToCheck);
+      }
+      
+      return data || { valid: true };
+    } catch (err) {
+      console.warn('Email validation error:', err);
+      return validateEmailDomain(emailToCheck);
+    }
+  };
 
   // 实时邮箱格式验证
   const validateEmail = (email) => {
@@ -142,6 +200,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
 
     try {
+      // 检查频率限制
+      const rateLimitResult = await checkRateLimit('login');
+      if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 30;
+        setError(`登录尝试过于频繁，请 ${retryAfter} 分钟后再试`);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -153,6 +220,56 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       onClose();
     } catch (err) {
       setError(err.message || '登录失败，请重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 忘记密码处理
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    // 验证邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('请输入有效的邮箱地址');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // 检查频率限制
+      const rateLimitResult = await checkRateLimit('password_reset');
+      if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
+        setError(`请求过于频繁，请 ${retryAfter} 分钟后再试`);
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (error) throw error;
+
+      setMessage('密码重置邮件已发送！请查收邮箱并点击链接重置密码。');
+      // 设置60秒倒计时
+      setResendCooldown(60);
+      const timer = setInterval(() => {
+        setResendCooldown(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err) {
+      setError(err.message || '发送失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -172,14 +289,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return;
     }
 
-    // 邮箱域名验证
-    const domainResult = validateEmailDomain(email);
-    if (!domainResult.valid) {
-      setError(domainResult.reason);
-      setLoading(false);
-      return;
-    }
-
     // 密码强度验证
     if (password.length < 6) {
       setError('密码至少需要 6 位字符');
@@ -195,17 +304,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
 
     try {
-      // 检查黑名单（如果 supabase 可用）
-      if (supabase) {
-        const { data: isBlacklisted } = await supabase.rpc('is_email_blacklisted', { 
-          check_email: email 
-        });
-        
-        if (isBlacklisted) {
-          setError('该邮箱已被禁止注册，如有疑问请联系管理员');
-          setLoading(false);
-          return;
-        }
+      // 检查频率限制
+      const rateLimitResult = await checkRateLimit('register');
+      if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
+        setError(`注册尝试过于频繁，请 ${retryAfter} 分钟后再试`);
+        setLoading(false);
+        return;
+      }
+
+      // 后端邮箱域名验证（优先使用后端，回退到前端）
+      const domainResult = await validateEmailDomainBackend(email);
+      if (!domainResult.valid) {
+        setError(domainResult.reason);
+        setLoading(false);
+        return;
       }
 
       // 注册用户
@@ -270,11 +383,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setMessage('');
     setShowDuplicateEmailPrompt(false);
     setEmailDomainError('');
+    setResendCooldown(0);
   };
 
   const switchMode = (newMode) => {
     resetForm();
     setMode(newMode);
+  };
+
+  const switchToForgotPassword = () => {
+    setPassword('');
+    setConfirmPassword('');
+    setUsername('');
+    setError('');
+    setMessage('');
+    setShowDuplicateEmailPrompt(false);
+    setMode('forgotPassword');
   };
 
   const switchToLoginWithEmail = () => {
@@ -324,26 +448,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-endfield-yellow flex items-center justify-center">
-                {mode === 'login' ? <LogIn size={20} className="text-black" /> : <UserPlus size={20} className="text-black" />}
+                {mode === 'login' ? <LogIn size={20} className="text-black" /> : 
+                 mode === 'register' ? <UserPlus size={20} className="text-black" /> :
+                 <KeyRound size={20} className="text-black" />}
               </div>
               <div>
                 <h2 className="text-xl font-bold tracking-tight font-mono">
-                  {mode === 'login' ? 'SIGN IN' : 'REGISTER'}
+                  {mode === 'login' ? 'SIGN IN' : mode === 'register' ? 'REGISTER' : 'RESET PASSWORD'}
                 </h2>
                 <p className="text-zinc-400 text-xs uppercase tracking-widest">
-                  {mode === 'login' ? '登录账户' : '创建新账户'}
+                  {mode === 'login' ? '登录账户' : mode === 'register' ? '创建新账户' : '重置密码'}
                 </p>
               </div>
             </div>
             <p className="text-zinc-300 text-sm mt-3">
-              {mode === 'login' ? '登录以同步你的抽卡数据到云端' : '注册后可多设备同步数据'}
+              {mode === 'login' ? '登录以同步你的抽卡数据到云端' : 
+               mode === 'register' ? '注册后可多设备同步数据' :
+               '输入邮箱地址，我们将发送重置链接'}
             </p>
           </div>
         </div>
 
         {/* Body */}
         <form
-          onSubmit={mode === 'login' ? handleLogin : handleRegister}
+          onSubmit={mode === 'login' ? handleLogin : mode === 'register' ? handleRegister : handleForgotPassword}
           className="p-6 space-y-4 bg-slate-50 dark:bg-zinc-950"
         >
           {/* Success Message */}
@@ -443,56 +571,70 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             )}
           </div>
 
-          {/* Password */}
-          <div>
-            <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-              密码
-            </label>
-            <div className="relative">
-              <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={mode === 'register' ? '至少 6 位字符' : '输入密码'}
-                required
-                minLength={mode === 'register' ? 6 : undefined}
-                className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
-              />
-            </div>
-            {/* 密码强度提示（仅注册时显示）*/}
-            {mode === 'register' && password && (
-              <div className="mt-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${
-                        password.length < 6
-                          ? 'w-1/3 bg-red-500'
-                          : password.length < 10
-                          ? 'w-2/3 bg-amber-500'
-                          : 'w-full bg-green-500'
-                      }`}
-                    />
-                  </div>
-                  <span className={`text-xs font-medium ${
-                    password.length < 6
-                      ? 'text-red-500'
-                      : password.length < 10
-                      ? 'text-amber-500'
-                      : 'text-green-500'
-                  }`}>
-                    {password.length < 6 ? '弱' : password.length < 10 ? '中' : '强'}
-                  </span>
-                </div>
-                {password.length < 6 && (
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-                    至少需要 6 位字符
-                  </p>
-                )}
+          {/* Password - 仅登录和注册模式 */}
+          {mode !== 'forgotPassword' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                密码
+              </label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === 'register' ? '至少 6 位字符' : '输入密码'}
+                  required
+                  minLength={mode === 'register' ? 6 : undefined}
+                  className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
+                />
               </div>
-            )}
-          </div>
+              {/* 忘记密码链接 - 仅登录模式 */}
+              {mode === 'login' && (
+                <div className="mt-2 text-right">
+                  <button
+                    type="button"
+                    onClick={switchToForgotPassword}
+                    className="text-xs text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors"
+                  >
+                    忘记密码？
+                  </button>
+                </div>
+              )}
+              {/* 密码强度提示（仅注册时显示）*/}
+              {mode === 'register' && password && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          password.length < 6
+                            ? 'w-1/3 bg-red-500'
+                            : password.length < 10
+                            ? 'w-2/3 bg-amber-500'
+                            : 'w-full bg-green-500'
+                        }`}
+                      />
+                    </div>
+                    <span className={`text-xs font-medium ${
+                      password.length < 6
+                        ? 'text-red-500'
+                        : password.length < 10
+                        ? 'text-amber-500'
+                        : 'text-green-500'
+                    }`}>
+                      {password.length < 6 ? '弱' : password.length < 10 ? '中' : '强'}
+                    </span>
+                  </div>
+                  {password.length < 6 && (
+                    <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
+                      至少需要 6 位字符
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Confirm Password (Register only) */}
           {mode === 'register' && (
@@ -530,7 +672,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || (mode === 'register' && (hasEmailError || !!emailDomainError))}
+            disabled={loading || (mode === 'register' && (hasEmailError || !!emailDomainError)) || (mode === 'forgotPassword' && resendCooldown > 0)}
             className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6"
           >
             {loading ? (
@@ -540,10 +682,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 <LogIn size={20} />
                 登录
               </>
-            ) : (
+            ) : mode === 'register' ? (
               <>
                 <UserPlus size={20} />
                 注册
+              </>
+            ) : resendCooldown > 0 ? (
+              <>
+                <RefreshCw size={20} />
+                {resendCooldown}秒后可重新发送
+              </>
+            ) : (
+              <>
+                <Mail size={20} />
+                发送重置邮件
               </>
             )}
           </button>
@@ -563,7 +715,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   立即注册
                 </button>
               </>
-            ) : (
+            ) : mode === 'register' ? (
               <>
                 已有账户？{' '}
                 <button
@@ -574,6 +726,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   登录
                 </button>
               </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                className="text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors text-sm flex items-center gap-1 mx-auto"
+              >
+                <ArrowLeft size={14} />
+                返回登录
+              </button>
             )}
           </p>
         </div>
