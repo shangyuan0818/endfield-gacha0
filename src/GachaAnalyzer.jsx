@@ -516,7 +516,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         const cloudData = await loadCloudData();
         if (cloudData && cloudData.pools.length > 0) {
           setPools(cloudData.pools);
-          setCurrentPoolId(cloudData.pools[0].id);
+
+          const hasCurrent = cloudData.pools.some(p => p.id === currentPoolId);
+          const defaultPool = cloudData.pools.find(p => p.id === DEFAULT_POOL_ID);
+          const fallbackId = hasCurrent
+            ? currentPoolId
+            : defaultPool
+              ? defaultPool.id
+              : cloudData.pools[0].id;
+          setCurrentPoolId(fallbackId);
+          localStorage.setItem('gacha_current_pool_id', fallbackId);
+
           if (cloudData.history.length > 0) {
             setHistory(cloudData.history);
           }
