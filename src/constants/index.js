@@ -180,8 +180,8 @@ export const WEAPON_POOL_RULES = {
 };
 
 // 默认卡池ID
-// 需求：默认选择卡池为「限定-42-杨颜」
-export const DEFAULT_POOL_ID = 'limited-42-yangyan';
+// 需求：默认选择卡池为「限定-42-杨颜」，ID 为 pool_1764318026209
+export const DEFAULT_POOL_ID = 'pool_1764318026209';
 
 // 卡池类型关键词
 export const POOL_TYPE_KEYWORDS = ['限定', '常驻', '武器', 'UP池', '卡池', '角色池', '武器池'];

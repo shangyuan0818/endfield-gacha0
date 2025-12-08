@@ -48,9 +48,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       const saved = localStorage.getItem('gacha_pools');
       let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
 
-      // 迁移：旧的默认池 id=default_pool -> 新的限定-42-杨颜
+      // 迁移：旧的默认池 id=default_pool 或 limited-42-yangyan -> 新的 pool_1764318026209
       parsed = parsed.map(p => {
-        if (p.id === 'default_pool') {
+        if (p.id === 'default_pool' || p.id === 'limited-42-yangyan') {
           return { ...p, id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited' };
         }
         return {
@@ -74,7 +74,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 2. 当前选中卡池ID
   const [currentPoolId, setCurrentPoolId] = useState(() => {
     const saved = localStorage.getItem('gacha_current_pool_id');
-    if (!saved || saved === 'default_pool') return DEFAULT_POOL_ID;
+    if (!saved || saved === 'default_pool' || saved === 'limited-42-yangyan') return DEFAULT_POOL_ID;
     return saved;
   });
   
