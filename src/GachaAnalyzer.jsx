@@ -78,7 +78,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return saved;
   });
   
-  const currentPool = useMemo(() => pools.find(p => p.id === currentPoolId) || pools[0], [pools, currentPoolId]);
+  const currentPool = useMemo(() => {
+    const byId = pools.find(p => p.id === currentPoolId);
+    if (byId) return byId;
+    const defaultPool = pools.find(p => p.id === DEFAULT_POOL_ID);
+    if (defaultPool) return defaultPool;
+    return pools[0];
+  }, [pools, currentPoolId]);
+
+  // 如果当前选中卡池ID无效，则回退到默认池并写回 localStorage
+  useEffect(() => {
+    const exists = pools.some(p => p.id === currentPoolId);
+    if (!exists) {
+      const fallback = pools.find(p => p.id === DEFAULT_POOL_ID) || pools[0];
+      if (fallback) {
+        setCurrentPoolId(fallback.id);
+        localStorage.setItem('gacha_current_pool_id', fallback.id);
+      }
+    }
+  }, [pools, currentPoolId]);
 
   // 当前卡池是否可编辑（锁定的卡池只有超管能改）
   const canEditCurrentPool = useMemo(() => {
