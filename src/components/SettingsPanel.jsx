@@ -54,8 +54,10 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
     setPasswordLoading(true);
 
     try {
+      // 使用环境变量配置的域名，避免 window.location.origin 被篡改
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${appUrl}/reset-password`
       });
 
       if (error) throw error;

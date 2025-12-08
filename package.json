@@ -2,7 +2,7 @@
   "name": "endfield-gacha-analyzer",
   "description": "终末地抽卡分析器 - 《明日方舟：终末地》抽卡记录分析工具",
   "private": true,
-  "version": "2.1.0",
+  "version": "2.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
+    "dompurify": "^3.3.1",
     "lucide-react": "^0.555.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

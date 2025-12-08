@@ -1966,25 +1966,123 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 导入数据处理 - 使用状态存储待导入数据
   const [pendingImport, setPendingImport] = useState(null);
 
+  // 数据导入验证函数
+  const validateImportData = (data) => {
+    const errors = [];
+    
+    // 1. 基础结构验证
+    if (!data || typeof data !== 'object') {
+      return { valid: false, errors: ['无效的数据格式'] };
+    }
+    
+    if (!Array.isArray(data.pools)) {
+      errors.push('缺少 pools 字段或格式错误');
+    }
+    
+    if (!Array.isArray(data.history)) {
+      errors.push('缺少 history 字段或格式错误');
+    }
+    
+    if (errors.length > 0) {
+      return { valid: false, errors };
+    }
+    
+    // 2. 卡池数据验证
+    const validPoolIds = new Set();
+    data.pools.forEach((pool, idx) => {
+      if (!pool.id || typeof pool.id !== 'string') {
+        errors.push(`卡池 #${idx + 1}: 缺少有效的 id`);
+      } else {
+        validPoolIds.add(pool.id);
+      }
+      
+      if (!pool.name || typeof pool.name !== 'string') {
+        errors.push(`卡池 #${idx + 1}: 缺少名称 (name)`);
+      }
+      
+      if (!pool.type || !['limited', 'standard', 'weapon'].includes(pool.type)) {
+        errors.push(`卡池 #${idx + 1}: 无效的类型 (type)，应为 limited/standard/weapon`);
+      }
+    });
+    
+    // 3. 历史记录验证
+    const historyIds = new Set();
+    data.history.forEach((record, idx) => {
+      if (!record.id || typeof record.id !== 'string') {
+        errors.push(`记录 #${idx + 1}: 缺少有效的 id`);
+      } else {
+        if (historyIds.has(record.id)) {
+          errors.push(`记录 #${idx + 1}: id 重复 (${record.id})`);
+        }
+        historyIds.add(record.id);
+      }
+      
+      if (!record.pool_id || typeof record.pool_id !== 'string') {
+        errors.push(`记录 #${idx + 1}: 缺少 pool_id`);
+      } else if (!validPoolIds.has(record.pool_id) && !pools.some(p => p.id === record.pool_id)) {
+        // 检查 pool_id 是否存在于导入数据或现有数据中
+        errors.push(`记录 #${idx + 1}: pool_id (${record.pool_id}) 引用的卡池不存在`);
+      }
+      
+      if (!record.rarity || typeof record.rarity !== 'number' || record.rarity < 3 || record.rarity > 6) {
+        errors.push(`记录 #${idx + 1}: rarity 应为 3-6 的数字`);
+      }
+      
+      if (!record.item_name || typeof record.item_name !== 'string') {
+        errors.push(`记录 #${idx + 1}: 缺少 item_name`);
+      }
+    });
+    
+    // 限制错误数量显示
+    const maxErrors = 10;
+    if (errors.length > maxErrors) {
+      const totalErrors = errors.length;
+      errors.length = maxErrors;
+      errors.push(`... 还有 ${totalErrors - maxErrors} 个错误`);
+    }
+    
+    return { 
+      valid: errors.length === 0, 
+      errors,
+      stats: {
+        poolCount: data.pools.length,
+        historyCount: data.history.length
+      }
+    };
+  };
+
   const handleImportFile = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    // 文件大小限制 (10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showToast("文件过大，最大支持 10MB", 'error');
+      event.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const importedData = JSON.parse(e.target.result);
 
-        // 简单验证
-        if (!importedData.pools || !importedData.history) {
-          showToast("文件格式不正确，缺少关键数据字段。", 'error');
+        // 详细数据验证
+        const validation = validateImportData(importedData);
+        if (!validation.valid) {
+          showToast(`数据验证失败：\n${validation.errors.slice(0, 3).join('\n')}`, 'error');
           return;
         }
 
         const willSyncToCloud = !!(user && supabase);
 
         // 存储待导入数据，显示确认弹窗
-        setPendingImport({ data: importedData, willSyncToCloud });
+        setPendingImport({ 
+          data: importedData, 
+          willSyncToCloud,
+          stats: validation.stats
+        });
 
       } catch (error) {
         console.error(error);

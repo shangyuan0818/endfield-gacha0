@@ -1,11 +1,23 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 
 /**
  * 简单的 Markdown 渲染组件
  * 支持: 标题(##), 粗体(**), 斜体(*), 代码(`), 引用(>), 列表(-), 链接([]()), 换行
+ * 使用 DOMPurify 防止 XSS 攻击
  */
 const SimpleMarkdown = ({ content, className = '' }) => {
   if (!content) return null;
+
+  // 配置 DOMPurify 允许的标签和属性
+  const purifyConfig = {
+    ALLOWED_TAGS: ['a', 'strong', 'em', 'code', 'br'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+    ALLOW_DATA_ATTR: false,
+  };
+
+  // 安全地渲染 HTML
+  const sanitizeHTML = (html) => DOMPurify.sanitize(html, purifyConfig);
 
   const renderMarkdown = (text) => {
     const lines = text.split('\n');
@@ -16,6 +28,12 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     const processInline = (line) => {
       // 处理行内元素
       let result = line;
+      
+      // 先转义 HTML 特殊字符防止注入
+      result = result
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 
       // 链接 [text](url)
       result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-600 dark:text-indigo-400 hover:underline">$1</a>');
@@ -37,7 +55,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
         elements.push(
           <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-1 my-2">
             {listItems.map((item, i) => (
-              <li key={i} dangerouslySetInnerHTML={{ __html: processInline(item) }} />
+              <li key={i} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(item)) }} />
             ))}
           </ul>
         );
@@ -84,7 +102,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
           <blockquote
             key={index}
             className="border-l-4 border-amber-400 dark:border-amber-600 pl-4 py-1 my-2 text-slate-600 dark:text-zinc-400 bg-amber-50/50 dark:bg-amber-900/10"
-            dangerouslySetInnerHTML={{ __html: processInline(trimmedLine.slice(2)) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(trimmedLine.slice(2))) }}
           />
         );
         return;
@@ -103,7 +121,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
         <p
           key={index}
           className="my-1"
-          dangerouslySetInnerHTML={{ __html: processInline(trimmedLine) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(trimmedLine)) }}
         />
       );
     });

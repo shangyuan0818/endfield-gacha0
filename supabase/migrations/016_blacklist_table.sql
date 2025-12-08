@@ -75,3 +75,6 @@ GRANT EXECUTE ON FUNCTION public.is_email_blacklisted(TEXT) TO anon;
 COMMENT ON TABLE public.blacklist IS '邮箱/域名黑名单表，用于阻止刷号行为';
 COMMENT ON COLUMN public.blacklist.type IS '类型：email=完整邮箱地址, domain=邮箱域名';
 
+
+
+
