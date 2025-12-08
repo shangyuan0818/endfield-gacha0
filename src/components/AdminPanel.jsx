@@ -511,10 +511,11 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     setActionLoading('purgeUserData');
     try {
-      await supabase.from('history').delete().eq('user_id', selectedUserId);
-      await supabase.from('pools').delete().eq('user_id', selectedUserId);
-      setUserHistory([]);
-      setUserPools([]);
+      const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId);
+      if (errHistory) throw errHistory;
+      const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId);
+      if (errPools) throw errPools;
+      await loadUserData(selectedUserId);
       showToast('已清空该用户的卡池和抽卡记录', 'success');
     } catch (error) {
       console.error('清理用户数据失败:', error);
@@ -531,8 +532,9 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     setActionLoading(`purge_records_${poolId}`);
     try {
-      await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
-      setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
+      const { error } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      if (error) throw error;
+      await loadUserData(selectedUserId);
       showToast('已清空该卡池的抽卡记录', 'success');
     } catch (error) {
       console.error('清理卡池记录失败:', error);
@@ -549,15 +551,11 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     setActionLoading(`delete_pool_${poolId}`);
     try {
-      await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
-      await supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
-      setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
-      setUserPools(prev => prev.filter(p => p.pool_id !== poolId));
-      setExpandedPools(prev => {
-        const next = new Set(prev);
-        next.delete(poolId);
-        return next;
-      });
+      const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      if (errHistory) throw errHistory;
+      const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      if (errPools) throw errPools;
+      await loadUserData(selectedUserId);
       showToast('已删除卡池及其记录', 'success');
     } catch (error) {
       console.error('删除卡池失败:', error);
