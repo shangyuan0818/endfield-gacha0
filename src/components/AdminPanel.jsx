@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2, 
   Eye, EyeOff, Save, X, Search, UserPlus, ChevronRight,
-  Users, FileText, Ban, CheckCircle, XCircle, Clock
+  Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
+  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import SimpleMarkdown from './SimpleMarkdown';
@@ -11,6 +12,7 @@ import SimpleMarkdown from './SimpleMarkdown';
 const MENU_ITEMS = [
   { id: 'applications', label: '申请审批', icon: Clock, badge: 'pending' },
   { id: 'users', label: '用户管理', icon: Users },
+  { id: 'userData', label: '用户数据', icon: Database },
   { id: 'blacklist', label: '黑名单', icon: Ban },
   { id: 'announcements', label: '公告管理', icon: Bell },
   { id: 'history', label: '申请历史', icon: History },
@@ -60,6 +62,14 @@ const AdminPanel = React.memo(({ showToast }) => {
     priority: 0
   });
   const [previewMode, setPreviewMode] = useState(false);
+
+  // 用户数据管理状态
+  const [selectedUserId, setSelectedUserId] = useState(null);
+  const [userDataSearch, setUserDataSearch] = useState('');
+  const [userPools, setUserPools] = useState([]);
+  const [userHistory, setUserHistory] = useState([]);
+  const [userDataLoading, setUserDataLoading] = useState(false);
+  const [expandedPools, setExpandedPools] = useState(new Set());
 
   // 计算待审批数量
   const pendingCount = useMemo(() => 
@@ -432,6 +442,66 @@ const AdminPanel = React.memo(({ showToast }) => {
   const filteredBlacklist = blacklist.filter(entry =>
     entry.email?.toLowerCase().includes(blacklistSearch.toLowerCase()) ||
     entry.reason?.toLowerCase().includes(blacklistSearch.toLowerCase())
+  );
+
+  // ========== 用户数据管理函数 ==========
+  const loadUserData = async (userId) => {
+    if (!supabase || !userId) return;
+    
+    setUserDataLoading(true);
+    setSelectedUserId(userId);
+    setExpandedPools(new Set());
+    
+    try {
+      // 并行获取用户的卡池和历史记录
+      const [poolsRes, historyRes] = await Promise.all([
+        supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('history').select('*').eq('user_id', userId).order('timestamp', { ascending: false }).limit(500)
+      ]);
+      
+      setUserPools(poolsRes.data || []);
+      setUserHistory(historyRes.data || []);
+    } catch (error) {
+      console.error('加载用户数据失败:', error);
+      showToast('加载用户数据失败: ' + error.message, 'error');
+    } finally {
+      setUserDataLoading(false);
+    }
+  };
+
+  const togglePoolExpand = (poolId) => {
+    setExpandedPools(prev => {
+      const next = new Set(prev);
+      if (next.has(poolId)) {
+        next.delete(poolId);
+      } else {
+        next.add(poolId);
+      }
+      return next;
+    });
+  };
+
+  const getUserStats = (userId) => {
+    const userPoolCount = userPools.length;
+    const userRecordCount = userHistory.length;
+    const sixStarCount = userHistory.filter(h => h.rarity === 6).length;
+    const fiveStarCount = userHistory.filter(h => h.rarity === 5).length;
+    return { userPoolCount, userRecordCount, sixStarCount, fiveStarCount };
+  };
+
+  const getPoolStats = (poolId) => {
+    const records = userHistory.filter(h => h.pool_id === poolId);
+    const total = records.length;
+    const sixStar = records.filter(r => r.rarity === 6).length;
+    const fiveStar = records.filter(r => r.rarity === 5).length;
+    const fourStar = records.filter(r => r.rarity === 4).length;
+    const threeStar = records.filter(r => r.rarity === 3).length;
+    return { total, sixStar, fiveStar, fourStar, threeStar };
+  };
+
+  const filteredUsersForData = users.filter(user =>
+    user.username?.toLowerCase().includes(userDataSearch.toLowerCase()) ||
+    user.email?.toLowerCase().includes(userDataSearch.toLowerCase())
   );
 
   // ========== 公告管理函数 ==========
@@ -1133,6 +1203,267 @@ const AdminPanel = React.memo(({ showToast }) => {
     </div>
   );
 
+  const renderUserDataPanel = () => {
+    const selectedUser = users.find(u => u.id === selectedUserId);
+    const stats = selectedUserId ? getUserStats(selectedUserId) : null;
+
+    return (
+      <div className="space-y-4">
+        {/* 用户选择区域 */}
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* 用户列表 */}
+          <div className="lg:w-72 shrink-0">
+            <div className="mb-3 relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
+              <input
+                type="text"
+                value={userDataSearch}
+                onChange={(e) => setUserDataSearch(e.target.value)}
+                placeholder="搜索用户..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300"
+              />
+            </div>
+            <div className="border border-zinc-200 dark:border-zinc-700 max-h-[400px] overflow-y-auto">
+              {filteredUsersForData.map(user => (
+                <button
+                  key={user.id}
+                  onClick={() => loadUserData(user.id)}
+                  className={`w-full text-left px-3 py-2 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 transition-colors ${
+                    selectedUserId === user.id 
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' 
+                      : 'hover:bg-slate-50 dark:hover:bg-zinc-800 border-l-4 border-l-transparent'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-slate-700 dark:text-zinc-300 truncate">
+                    {user.username || '未设置用户名'}
+                  </div>
+                  <div className="text-xs text-slate-400 dark:text-zinc-500 truncate">
+                    {user.email}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[10px] px-1 py-0.5 rounded ${
+                      user.role === 'super_admin' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                      user.role === 'admin' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                      'bg-slate-100 text-slate-500 dark:bg-zinc-700 dark:text-zinc-400'
+                    }`}>
+                      {user.role === 'super_admin' ? '超管' : user.role === 'admin' ? '管理员' : '用户'}
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {filteredUsersForData.length === 0 && (
+                <div className="p-4 text-center text-slate-400 dark:text-zinc-500 text-sm">
+                  未找到用户
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 用户数据详情 */}
+          <div className="flex-1 min-w-0">
+            {!selectedUserId ? (
+              <div className="h-full flex items-center justify-center p-12 bg-slate-50 dark:bg-zinc-950 border border-dashed border-zinc-300 dark:border-zinc-700">
+                <div className="text-center text-slate-400 dark:text-zinc-500">
+                  <Database size={48} className="mx-auto mb-3 opacity-50" />
+                  <p>请从左侧选择一个用户查看其数据</p>
+                </div>
+              </div>
+            ) : userDataLoading ? (
+              <div className="h-full flex items-center justify-center p-12">
+                <RefreshCw size={24} className="animate-spin text-slate-400" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* 用户信息卡片 */}
+                <div className="p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                  <div className="flex items-center gap-3 mb-3">
+                    <User size={24} />
+                    <div>
+                      <h4 className="font-bold text-lg">{selectedUser?.username || '未设置用户名'}</h4>
+                      <p className="text-blue-100 text-sm">{selectedUser?.email}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 mt-4">
+                    <div className="text-center p-2 bg-white/10 rounded">
+                      <div className="text-2xl font-bold">{stats?.userPoolCount || 0}</div>
+                      <div className="text-xs text-blue-100">卡池</div>
+                    </div>
+                    <div className="text-center p-2 bg-white/10 rounded">
+                      <div className="text-2xl font-bold">{stats?.userRecordCount || 0}</div>
+                      <div className="text-xs text-blue-100">记录</div>
+                    </div>
+                    <div className="text-center p-2 bg-white/10 rounded">
+                      <div className="text-2xl font-bold text-yellow-300">{stats?.sixStarCount || 0}</div>
+                      <div className="text-xs text-blue-100">6星</div>
+                    </div>
+                    <div className="text-center p-2 bg-white/10 rounded">
+                      <div className="text-2xl font-bold text-purple-300">{stats?.fiveStarCount || 0}</div>
+                      <div className="text-xs text-blue-100">5星</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 卡池列表 */}
+                <div>
+                  <h5 className="font-bold text-slate-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+                    <Package size={16} />
+                    用户创建的卡池 ({userPools.length})
+                  </h5>
+                  {userPools.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700">
+                      该用户暂未创建任何卡池
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {userPools.map(pool => {
+                        const poolStats = getPoolStats(pool.pool_id);
+                        const isExpanded = expandedPools.has(pool.pool_id);
+                        const poolRecords = userHistory.filter(h => h.pool_id === pool.pool_id);
+
+                        return (
+                          <div key={pool.pool_id} className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+                            {/* 卡池头部 */}
+                            <button
+                              onClick={() => togglePoolExpand(pool.pool_id)}
+                              className="w-full text-left p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className={`text-xs px-2 py-1 rounded font-medium ${
+                                  pool.type === 'limited' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                  pool.type === 'weapon' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                }`}>
+                                  {pool.type === 'limited' ? '限定' : pool.type === 'weapon' ? '武器' : '常驻'}
+                                </span>
+                                <span className="font-medium text-slate-700 dark:text-zinc-300">{pool.name}</span>
+                                {pool.locked && (
+                                  <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded">
+                                    已锁定
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500">
+                                  <span>{poolStats.total} 抽</span>
+                                  <span className="text-yellow-600">★{poolStats.sixStar}</span>
+                                  <span className="text-purple-600">★{poolStats.fiveStar}</span>
+                                </div>
+                                {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              </div>
+                            </button>
+
+                            {/* 卡池详情 */}
+                            {isExpanded && (
+                              <div className="border-t border-zinc-200 dark:border-zinc-700 p-3 bg-slate-50 dark:bg-zinc-950">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                                  <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+                                    <div className="text-lg font-bold text-yellow-600">{poolStats.sixStar}</div>
+                                    <div className="text-xs text-slate-500">6星</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+                                    <div className="text-lg font-bold text-purple-600">{poolStats.fiveStar}</div>
+                                    <div className="text-xs text-slate-500">5星</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+                                    <div className="text-lg font-bold text-blue-600">{poolStats.fourStar}</div>
+                                    <div className="text-xs text-slate-500">4星</div>
+                                  </div>
+                                  <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
+                                    <div className="text-lg font-bold text-slate-500">{poolStats.threeStar}</div>
+                                    <div className="text-xs text-slate-500">3星</div>
+                                  </div>
+                                </div>
+
+                                {/* 最近记录 */}
+                                {poolRecords.length > 0 && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 dark:text-zinc-500 mb-2">
+                                      最近 {Math.min(poolRecords.length, 20)} 条记录:
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {poolRecords.slice(0, 20).map((record, idx) => (
+                                        <span
+                                          key={record.record_id || idx}
+                                          className={`text-xs px-1.5 py-0.5 rounded ${
+                                            record.rarity === 6 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 font-bold' :
+                                            record.rarity === 5 ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' :
+                                            record.rarity === 4 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                            'bg-slate-100 text-slate-600 dark:bg-zinc-700 dark:text-zinc-400'
+                                          }`}
+                                          title={`${record.rarity}星 ${record.is_standard ? '(常驻)' : ''} ${record.special_type || ''}`}
+                                        >
+                                          {record.rarity}★
+                                          {record.is_standard && <span className="opacity-60">歪</span>}
+                                          {record.special_type === 'gift' && <span className="opacity-60">礼</span>}
+                                        </span>
+                                      ))}
+                                      {poolRecords.length > 20 && (
+                                        <span className="text-xs text-slate-400 dark:text-zinc-500">
+                                          +{poolRecords.length - 20} 条
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="mt-2 text-xs text-slate-400 dark:text-zinc-600">
+                                  创建于: {new Date(pool.created_at).toLocaleString()}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 抽卡统计 */}
+                <div>
+                  <h5 className="font-bold text-slate-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
+                    <BarChart3 size={16} />
+                    抽卡记录汇总
+                  </h5>
+                  <div className="p-4 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-slate-700 dark:text-zinc-300">{userHistory.length}</div>
+                        <div className="text-xs text-slate-500">总抽数</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-yellow-600">{userHistory.filter(h => h.rarity === 6).length}</div>
+                        <div className="text-xs text-slate-500">6星</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-purple-600">{userHistory.filter(h => h.rarity === 5).length}</div>
+                        <div className="text-xs text-slate-500">5星</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-blue-600">{userHistory.filter(h => h.rarity === 4).length}</div>
+                        <div className="text-xs text-slate-500">4星</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-slate-500">{userHistory.filter(h => h.rarity === 3).length}</div>
+                        <div className="text-xs text-slate-500">3星</div>
+                      </div>
+                    </div>
+                    {userHistory.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 text-xs text-slate-500 dark:text-zinc-500">
+                        6星出率: {((userHistory.filter(h => h.rarity === 6).length / userHistory.length) * 100).toFixed(2)}%
+                        {' · '}
+                        5星出率: {((userHistory.filter(h => h.rarity === 5).length / userHistory.length) * 100).toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderHistoryPanel = () => (
     <div className="space-y-4">
       {applications.length === 0 ? (
@@ -1173,6 +1504,7 @@ const AdminPanel = React.memo(({ showToast }) => {
     switch (activeMenu) {
       case 'applications': return renderApplicationsPanel();
       case 'users': return renderUsersPanel();
+      case 'userData': return renderUserDataPanel();
       case 'blacklist': return renderBlacklistPanel();
       case 'announcements': return renderAnnouncementsPanel();
       case 'history': return renderHistoryPanel();
