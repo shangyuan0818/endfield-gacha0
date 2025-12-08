@@ -504,6 +504,26 @@ const AdminPanel = React.memo(({ showToast }) => {
     user.email?.toLowerCase().includes(userDataSearch.toLowerCase())
   );
 
+  // 清理当前选中用户的数据（卡池+记录）
+  const handleDeleteUserData = async () => {
+    if (!supabase || !selectedUserId) return;
+    if (!window.confirm('确定要清空该用户的所有卡池和抽卡记录吗？此操作不可恢复。')) return;
+
+    setActionLoading('purgeUserData');
+    try {
+      await supabase.from('history').delete().eq('user_id', selectedUserId);
+      await supabase.from('pools').delete().eq('user_id', selectedUserId);
+      setUserHistory([]);
+      setUserPools([]);
+      showToast('已清空该用户的卡池和抽卡记录', 'success');
+    } catch (error) {
+      console.error('清理用户数据失败:', error);
+      showToast('清理用户数据失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // ========== 公告管理函数 ==========
   const resetAnnouncementForm = () => {
     setAnnouncementForm({ title: '', content: '', version: '1.0.0', is_active: true, priority: 0 });
@@ -1300,6 +1320,16 @@ const AdminPanel = React.memo(({ showToast }) => {
                       <div className="text-2xl font-bold text-purple-300">{stats?.fiveStarCount || 0}</div>
                       <div className="text-xs text-blue-100">5星</div>
                     </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={handleDeleteUserData}
+                      disabled={actionLoading === 'purgeUserData'}
+                      className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                      {actionLoading === 'purgeUserData' ? '清理中...' : '清空该用户数据'}
+                    </button>
                   </div>
                 </div>
 
