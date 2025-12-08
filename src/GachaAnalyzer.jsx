@@ -46,21 +46,36 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const [pools, setPools] = useState(() => {
     try {
       const saved = localStorage.getItem('gacha_pools');
-      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard', locked: false }];
-      // 迁移数据：如果没有 type 或 locked 字段
-      return parsed.map(p => ({
-        ...p,
-        type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited'),
-        locked: p.locked || false
-      }));
+      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
+
+      // 迁移：旧的默认池 id=default_pool -> 新的限定-42-杨颜
+      parsed = parsed.map(p => {
+        if (p.id === 'default_pool') {
+          return { ...p, id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited' };
+        }
+        return {
+          ...p,
+          type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited'),
+          locked: p.locked || false
+        };
+      });
+
+      // 确保默认池存在
+      if (!parsed.some(p => p.id === DEFAULT_POOL_ID)) {
+        parsed.unshift({ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false });
+      }
+
+      return parsed;
     } catch (e) {
-      return [{ id: DEFAULT_POOL_ID, name: '常驻/默认池', type: 'standard', locked: false }];
+      return [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
     }
   });
 
   // 2. 当前选中卡池ID
   const [currentPoolId, setCurrentPoolId] = useState(() => {
-    return localStorage.getItem('gacha_current_pool_id') || DEFAULT_POOL_ID;
+    const saved = localStorage.getItem('gacha_current_pool_id');
+    if (!saved || saved === 'default_pool') return DEFAULT_POOL_ID;
+    return saved;
   });
   
   const currentPool = useMemo(() => pools.find(p => p.id === currentPoolId) || pools[0], [pools, currentPoolId]);
