@@ -2184,6 +2184,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             </div>
             <div className="p-6 space-y-4">
               {modalState.type === 'editPool' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase mb-2">卡池ID</label>
+                  <div className="font-mono bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 px-3 py-2 rounded-none border border-zinc-200 dark:border-zinc-700">
+                    {(modalState?.data?.pool?.id) || (modalState?.data?.id) || '未知'}
+                  </div>
+                </div>
+              )}
+              {modalState.type === 'editPool' && (
                 <div className="text-xs text-slate-500 dark:text-zinc-500">
                   <div className="font-mono bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 px-3 py-2 rounded-none border border-zinc-200 dark:border-zinc-700">
                     卡池ID: {modalState?.data?.pool?.id || '未知'}
