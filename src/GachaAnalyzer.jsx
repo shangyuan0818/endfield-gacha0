@@ -2421,9 +2421,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <Calculator size={20} className={textColor}/>
               {isWeapon ? '武器池分析' : isLimited ? '限定池分析' : '常驻池分析'}
             </h3>
-            <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-              当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
-            </p>
+            <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1 space-y-1">
+              <p>
+                当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
+              </p>
+              <p className="font-mono text-[11px] text-slate-400 dark:text-zinc-600">ID: {currentPool?.id || '未知'}</p>
+            </div>
             {/* 限定池轮换时间显示 */}
             {isLimited && (
               <div className="mt-2 text-xs">
@@ -2847,8 +2850,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                                     </span>
                                   </button>
 
-                                  <div className="flex items-center gap-0.5 shrink-0">
-                                    {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow shrink-0 mr-1"></div>}
+                                  <div className="flex items-center gap-1 shrink-0 text-[11px] text-slate-400 dark:text-zinc-600">
+                                    <span className="font-mono text-[10px] bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">ID:{pool.id}</span>
+                                    {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow shrink-0"></div>}
                                     {/* 锁定/解锁按钮 - 仅超管可见 */}
                                     {isSuperAdmin && (
                                       <button
