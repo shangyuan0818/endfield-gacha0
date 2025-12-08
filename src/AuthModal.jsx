@@ -116,9 +116,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       }
       
       // 使用 Supabase 重新发送验证邮件
+      // 使用环境变量配置的域名作为验证后跳转地址
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: pendingVerificationEmail,
+        options: {
+          emailRedirectTo: appUrl,
+        },
       });
       
       if (error) throw error;
@@ -352,6 +357,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       }
 
       // 注册用户
+      // 使用环境变量配置的域名作为验证后跳转地址
+      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -359,6 +366,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           data: {
             username: username || email.split('@')[0],
           },
+          emailRedirectTo: appUrl,
         },
       });
 
