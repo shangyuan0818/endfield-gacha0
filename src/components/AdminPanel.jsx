@@ -524,6 +524,49 @@ const AdminPanel = React.memo(({ showToast }) => {
     }
   };
 
+  // 删除指定卡池的所有记录
+  const handleDeletePoolRecords = async (poolId) => {
+    if (!supabase || !selectedUserId) return;
+    if (!window.confirm('确定清空该卡池的所有抽卡记录吗？此操作不可恢复。')) return;
+
+    setActionLoading(`purge_records_${poolId}`);
+    try {
+      await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
+      showToast('已清空该卡池的抽卡记录', 'success');
+    } catch (error) {
+      console.error('清理卡池记录失败:', error);
+      showToast('清理卡池记录失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 删除卡池及其记录
+  const handleDeletePool = async (poolId) => {
+    if (!supabase || !selectedUserId) return;
+    if (!window.confirm('确定删除该卡池及其所有记录吗？此操作不可恢复。')) return;
+
+    setActionLoading(`delete_pool_${poolId}`);
+    try {
+      await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      await supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
+      setUserPools(prev => prev.filter(p => p.pool_id !== poolId));
+      setExpandedPools(prev => {
+        const next = new Set(prev);
+        next.delete(poolId);
+        return next;
+      });
+      showToast('已删除卡池及其记录', 'success');
+    } catch (error) {
+      console.error('删除卡池失败:', error);
+      showToast('删除卡池失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // ========== 公告管理函数 ==========
   const resetAnnouncementForm = () => {
     setAnnouncementForm({ title: '', content: '', version: '1.0.0', is_active: true, priority: 0 });
@@ -1402,6 +1445,26 @@ const AdminPanel = React.memo(({ showToast }) => {
                                     <div className="text-lg font-bold text-slate-500">{poolStats.threeStar}</div>
                                     <div className="text-xs text-slate-500">3星</div>
                                   </div>
+                                </div>
+
+                                {/* 卡池级操作 */}
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  <button
+                                    onClick={() => handleDeletePoolRecords(pool.pool_id)}
+                                    disabled={actionLoading === `purge_records_${pool.pool_id}`}
+                                    className="flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} />
+                                    {actionLoading === `purge_records_${pool.pool_id}` ? '清理中...' : '清空该卡池记录'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePool(pool.pool_id)}
+                                    disabled={actionLoading === `delete_pool_${pool.pool_id}`}
+                                    className="flex items-center gap-2 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
+                                  >
+                                    <Trash2 size={14} />
+                                    {actionLoading === `delete_pool_${pool.pool_id}` ? '删除中...' : '删除卡池+记录'}
+                                  </button>
                                 </div>
 
                                 {/* 最近记录 */}
