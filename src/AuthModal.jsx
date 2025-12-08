@@ -36,17 +36,6 @@ const COMMUNITY_EMAIL_DOMAINS = [
   'sourcehut.org',
 ];
 
-// 教育邮箱后缀（支持模糊匹配）
-const EDU_EMAIL_SUFFIXES = [
-  '.edu',
-  '.edu.cn',
-  '.edu.tw',
-  '.edu.hk',
-  '.ac.uk',
-  '.ac.jp',
-  '.edu.au',
-];
-
 // 企业邮箱常见后缀（这些通常是可信的）
 const CORPORATE_EMAIL_PATTERNS = [
   // 科技公司
@@ -85,17 +74,10 @@ const validateEmailDomain = (email) => {
     return { valid: true };
   }
 
-  // 4. 检查教育邮箱
-  for (const suffix of EDU_EMAIL_SUFFIXES) {
-    if (domain.endsWith(suffix)) {
-      return { valid: true };
-    }
-  }
-
-  // 5. 其他域名视为不可信
+  // 4. 其他域名视为不可信
   return { 
     valid: false, 
-    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、教育邮箱、知名论坛/社区邮箱及企业邮箱注册' 
+    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、知名论坛/社区邮箱或企业邮箱注册' 
   };
 };
 

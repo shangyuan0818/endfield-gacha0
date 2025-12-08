@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS email_whitelist (
     id SERIAL PRIMARY KEY,
     domain TEXT NOT NULL UNIQUE,
-    type TEXT NOT NULL CHECK (type IN ('mainstream', 'community', 'corporate', 'edu_suffix')),
+    type TEXT NOT NULL CHECK (type IN ('mainstream', 'community', 'corporate')),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -80,17 +80,6 @@ INSERT INTO email_whitelist (domain, type) VALUES
     ('gryphline.com', 'corporate')
 ON CONFLICT (domain) DO NOTHING;
 
--- 插入教育邮箱后缀
-INSERT INTO email_whitelist (domain, type) VALUES
-    ('.edu', 'edu_suffix'),
-    ('.edu.cn', 'edu_suffix'),
-    ('.edu.tw', 'edu_suffix'),
-    ('.edu.hk', 'edu_suffix'),
-    ('.ac.uk', 'edu_suffix'),
-    ('.ac.jp', 'edu_suffix'),
-    ('.edu.au', 'edu_suffix')
-ON CONFLICT (domain) DO NOTHING;
-
 -- 创建邮箱域名验证函数 (RPC)
 CREATE OR REPLACE FUNCTION validate_email_domain(check_email TEXT)
 RETURNS JSONB
@@ -119,19 +108,8 @@ BEGIN
     END IF;
 
     -- 2. 检查精确匹配的域名
-    IF EXISTS (SELECT 1 FROM email_whitelist WHERE domain = email_domain AND type != 'edu_suffix') THEN
+    IF EXISTS (SELECT 1 FROM email_whitelist WHERE domain = email_domain) THEN
         is_valid := TRUE;
-    END IF;
-
-    -- 3. 检查教育邮箱后缀
-    IF NOT is_valid THEN
-        IF EXISTS (
-            SELECT 1 FROM email_whitelist 
-            WHERE type = 'edu_suffix' 
-            AND email_domain LIKE '%' || domain
-        ) THEN
-            is_valid := TRUE;
-        END IF;
     END IF;
 
     -- 返回结果
@@ -140,7 +118,7 @@ BEGIN
     ELSE
         RETURN jsonb_build_object(
             'valid', false, 
-            'reason', '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、教育邮箱、知名论坛/社区邮箱或企业邮箱注册'
+            'reason', '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、知名论坛/社区邮箱或企业邮箱注册'
         );
     END IF;
 END;
