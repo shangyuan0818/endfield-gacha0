@@ -73,11 +73,13 @@ const LoadingScreen = ({ onComplete }) => {
       {/* 阶段1: 加载进度 */}
       {stage === 'loading' && (
         <div className="relative z-10 flex flex-col items-center">
-          {/* Logo占位 */}
-          <div className="mb-12 animate-pulse">
-            <div className="text-6xl font-bold tracking-wider text-endfield-yellow">
-              ENDFIELD
-            </div>
+          {/* Central Logo */}
+          <div className="relative z-10 mb-12 animate-pulse">
+            <img
+              src="/endfield-logo.svg"
+              alt="Endfield Logo"
+              className="w-32 h-auto invert"
+            />
           </div>
 
           {/* 进度条 */}
