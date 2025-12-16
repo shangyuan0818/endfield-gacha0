@@ -2,26 +2,32 @@ import React, { useState } from 'react';
 
 // 游戏配方定义
 const RECIPES = {
-  // 正确路径: 烈焰棒 → 烈焰粉 ×2
+  // 烈焰棒 → 烈焰粉 ×2
   blaze_powder: {
     type: 'shapeless',
-    ingredients: ['blaze_rod'],
+    ingredients: [{ item: 'blaze_rod', count: 1 }],
     result: 'blaze_powder',
     count: 2,
     name: '烈焰粉'
   },
-  // 正确路径: 烈焰粉 + 末影珍珠 → 末影之眼
+  // 烈焰粉 + 末影珍珠 → 末影之眼
   ender_eye: {
     type: 'shapeless',
-    ingredients: ['blaze_powder', 'ender_pearl'],
+    ingredients: [
+      { item: 'blaze_powder', count: 1 },
+      { item: 'ender_pearl', count: 1 }
+    ],
     result: 'ender_eye',
     count: 1,
     name: '末影之眼'
   },
-  // 错误路径: 烈焰粉 + 粘液球 → 岩浆膏 (干扰项)
+  // 烈焰粉 + 粘液球 → 岩浆膏 (干扰项)
   magma_cream: {
     type: 'shapeless',
-    ingredients: ['blaze_powder', 'slimeball'],
+    ingredients: [
+      { item: 'blaze_powder', count: 1 },
+      { item: 'slimeball', count: 1 }
+    ],
     result: 'magma_cream',
     count: 1,
     name: '岩浆膏'
@@ -39,29 +45,44 @@ const ITEMS = {
 };
 
 const MinecraftCaptcha = ({ onVerified }) => {
-  // 初始库存: 烈焰棒、粘液球、末影珍珠
+  // 初始库存
   const [inventory, setInventory] = useState([
-    { id: 'inv_0', type: 'blaze_rod', count: 1 },
-    { id: 'inv_1', type: 'slimeball', count: 1 },
-    { id: 'inv_2', type: 'ender_pearl', count: 1 },
+    { type: 'blaze_rod', count: 1 },
+    { type: 'slimeball', count: 1 },
+    { type: 'ender_pearl', count: 1 },
     null, null, null
   ]);
 
   // 合成网格 (3x3)
   const [craftingGrid, setCraftingGrid] = useState(Array(9).fill(null));
 
-  // 输出格（自动计算，不存储）
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragSource, setDragSource] = useState(null); // { type: 'inventory'|'crafting', index: number }
+  // 手持物品（点击拾取的物品）
+  const [heldItem, setHeldItem] = useState(null);
+
+  // 鼠标位置（用于手持物品跟随）
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // 错误动画状态
   const [isWrong, setIsWrong] = useState(false);
 
-  // 实时计算输出（类似真实MC）
+  // 监听鼠标移动
+  React.useEffect(() => {
+    const handleMouseMove = (e) => {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    };
+
+    if (heldItem) {
+      window.addEventListener('mousemove', handleMouseMove);
+      return () => window.removeEventListener('mousemove', handleMouseMove);
+    }
+  }, [heldItem]);
+
+  // 实时计算输出
   const calculateOutput = (gridItems) => {
-    // 过滤空格子
     const items = gridItems.filter(item => item !== null);
     if (items.length === 0) return null;
 
-    // 统计物品类型和数量
+    // 统计物品类型和总数量
     const itemCounts = {};
     items.forEach(item => {
       itemCounts[item.type] = (itemCounts[item.type] || 0) + item.count;
@@ -71,14 +92,19 @@ const MinecraftCaptcha = ({ onVerified }) => {
     for (const recipe of Object.values(RECIPES)) {
       const recipeIngredients = {};
       recipe.ingredients.forEach(ing => {
-        recipeIngredients[ing] = (recipeIngredients[ing] || 0) + 1;
+        recipeIngredients[ing.item] = ing.count;
       });
 
-      // 对比原料
-      const match = Object.keys(recipeIngredients).every(key =>
-        itemCounts[key] >= recipeIngredients[key]
-      ) && Object.keys(itemCounts).every(key =>
-        recipeIngredients[key] >= itemCounts[key]
+      // 检查原料是否完全匹配（数量和种类）
+      const ingredientTypes = Object.keys(recipeIngredients);
+      const itemTypes = Object.keys(itemCounts);
+
+      if (ingredientTypes.length !== itemTypes.length) continue;
+
+      const match = ingredientTypes.every(type =>
+        itemCounts[type] >= recipeIngredients[type]
+      ) && itemTypes.every(type =>
+        recipeIngredients[type] !== undefined
       );
 
       if (match) {
@@ -95,220 +121,215 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
   const output = calculateOutput(craftingGrid);
 
-  // 拖拽开始
-  const handleDragStart = (e, item, sourceType, sourceIndex) => {
-    if (!item) return;
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggedItem(item);
-    setDragSource({ type: sourceType, index: sourceIndex });
-  };
-
-  // 放置处理
-  const handleDrop = (e, targetType, targetIndex) => {
-    e.preventDefault();
-    if (!draggedItem || !dragSource) return;
-
-    const { type: sourceType, index: sourceIndex } = dragSource;
-
-    // 从库存拖到合成台
-    if (sourceType === 'inventory' && targetType === 'crafting') {
-      const newInventory = [...inventory];
-      const newGrid = [...craftingGrid];
-
-      // 交换物品
-      const temp = newGrid[targetIndex];
-      newGrid[targetIndex] = draggedItem;
-      newInventory[sourceIndex] = temp;
-
-      setInventory(newInventory);
-      setCraftingGrid(newGrid);
-    }
-
-    // 从合成台拖回库存
-    else if (sourceType === 'crafting' && targetType === 'inventory') {
-      const newInventory = [...inventory];
-      const newGrid = [...craftingGrid];
-
-      // 尝试堆叠合并
-      if (newInventory[targetIndex] &&
-          newInventory[targetIndex].type === draggedItem.type) {
-        // 同类物品，合并数量
-        newInventory[targetIndex] = {
-          ...newInventory[targetIndex],
-          count: newInventory[targetIndex].count + draggedItem.count
-        };
-        newGrid[sourceIndex] = null;
-      } else {
-        // 交换物品
-        const temp = newInventory[targetIndex];
-        newInventory[targetIndex] = draggedItem;
-        newGrid[sourceIndex] = temp;
-      }
-
-      setInventory(newInventory);
-      setCraftingGrid(newGrid);
-    }
-
-    // 合成台内移动
-    else if (sourceType === 'crafting' && targetType === 'crafting') {
-      const newGrid = [...craftingGrid];
-      const temp = newGrid[targetIndex];
-      newGrid[targetIndex] = draggedItem;
-      newGrid[sourceIndex] = temp;
-      setCraftingGrid(newGrid);
-    }
-
-    // 库存内移动
-    else if (sourceType === 'inventory' && targetType === 'inventory') {
-      const newInventory = [...inventory];
-
-      // 尝试堆叠合并
-      if (newInventory[targetIndex] &&
-          newInventory[targetIndex].type === draggedItem.type) {
-        newInventory[targetIndex] = {
-          ...newInventory[targetIndex],
-          count: newInventory[targetIndex].count + draggedItem.count
-        };
-        newInventory[sourceIndex] = null;
-      } else {
-        const temp = newInventory[targetIndex];
-        newInventory[targetIndex] = draggedItem;
-        newInventory[sourceIndex] = temp;
-      }
-
-      setInventory(newInventory);
-    }
-
-    setDraggedItem(null);
-    setDragSource(null);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
-
-  // 点击输出格 - 关键改进：自动消耗原料并放入库存
-  const handleTakeOutput = () => {
-    if (!output) return;
-
-    // 找到库存中的空格子或可堆叠的同类物品
-    let targetSlot = -1;
-
-    // 优先查找同类物品堆叠
-    for (let i = 0; i < inventory.length; i++) {
-      if (inventory[i] && inventory[i].type === output.type) {
-        targetSlot = i;
-        break;
-      }
-    }
-
-    // 如果没有同类物品，找空格子
-    if (targetSlot === -1) {
-      targetSlot = inventory.findIndex(slot => slot === null);
-    }
-
-    if (targetSlot === -1) {
-      // 库存已满，无法拿取
+  // 左键点击格子
+  const handleLeftClick = (slotType, index) => {
+    if (slotType === 'output') {
+      handleTakeOutput();
       return;
     }
 
-    // 消耗合成网格中的原料（每种-1）
-    const newGrid = [...craftingGrid];
-    const consumed = new Set();
+    const slots = slotType === 'inventory' ? inventory : craftingGrid;
+    const setSlots = slotType === 'inventory' ? setInventory : setCraftingGrid;
+    const slotItem = slots[index];
 
-    // 获取配方所需原料
+    if (!heldItem && !slotItem) {
+      // 空手点击空格子，无操作
+      return;
+    }
+
+    if (!heldItem && slotItem) {
+      // 空手点击有物品的格子 → 拾起全部
+      const newSlots = [...slots];
+      newSlots[index] = null;
+      setSlots(newSlots);
+      setHeldItem(slotItem);
+    } else if (heldItem && !slotItem) {
+      // 手持物品点击空格子 → 放下全部
+      const newSlots = [...slots];
+      newSlots[index] = heldItem;
+      setSlots(newSlots);
+      setHeldItem(null);
+    } else if (heldItem && slotItem) {
+      // 手持物品点击有物品的格子
+      if (heldItem.type === slotItem.type) {
+        // 同类物品 → 堆叠合并
+        const totalCount = heldItem.count + slotItem.count;
+        const maxStack = 64; // MC最大堆叠数
+
+        if (totalCount <= maxStack) {
+          // 全部合并
+          const newSlots = [...slots];
+          newSlots[index] = { type: slotItem.type, count: totalCount };
+          setSlots(newSlots);
+          setHeldItem(null);
+        } else {
+          // 超过最大堆叠，部分合并
+          const newSlots = [...slots];
+          newSlots[index] = { type: slotItem.type, count: maxStack };
+          setSlots(newSlots);
+          setHeldItem({ type: heldItem.type, count: totalCount - maxStack });
+        }
+      } else {
+        // 不同类物品 → 交换
+        const newSlots = [...slots];
+        newSlots[index] = heldItem;
+        setSlots(newSlots);
+        setHeldItem(slotItem);
+      }
+    }
+  };
+
+  // 右键点击格子
+  const handleRightClick = (e, slotType, index) => {
+    e.preventDefault(); // 阻止浏览器右键菜单
+
+    if (slotType === 'output') return; // 输出格不支持右键
+
+    const slots = slotType === 'inventory' ? inventory : craftingGrid;
+    const setSlots = slotType === 'inventory' ? setInventory : setCraftingGrid;
+    const slotItem = slots[index];
+
+    if (!heldItem && !slotItem) {
+      // 空手右键空格子，无操作
+      return;
+    }
+
+    if (!heldItem && slotItem) {
+      // 空手右键有物品的格子 → 拾起一半（向上取整）
+      const pickCount = Math.ceil(slotItem.count / 2);
+      const remainCount = slotItem.count - pickCount;
+
+      const newSlots = [...slots];
+      if (remainCount > 0) {
+        newSlots[index] = { type: slotItem.type, count: remainCount };
+      } else {
+        newSlots[index] = null;
+      }
+      setSlots(newSlots);
+      setHeldItem({ type: slotItem.type, count: pickCount });
+    } else if (heldItem && !slotItem) {
+      // 手持物品右键空格子 → 放下1个
+      if (heldItem.count > 1) {
+        const newSlots = [...slots];
+        newSlots[index] = { type: heldItem.type, count: 1 };
+        setSlots(newSlots);
+        setHeldItem({ type: heldItem.type, count: heldItem.count - 1 });
+      } else {
+        // 只剩1个，放下
+        const newSlots = [...slots];
+        newSlots[index] = heldItem;
+        setSlots(newSlots);
+        setHeldItem(null);
+      }
+    } else if (heldItem && slotItem) {
+      // 手持物品右键有物品的格子
+      if (heldItem.type === slotItem.type) {
+        // 同类物品 → 放下1个（堆叠）
+        const maxStack = 64;
+        if (slotItem.count < maxStack && heldItem.count > 0) {
+          const newSlots = [...slots];
+          newSlots[index] = { type: slotItem.type, count: slotItem.count + 1 };
+          setSlots(newSlots);
+          if (heldItem.count > 1) {
+            setHeldItem({ type: heldItem.type, count: heldItem.count - 1 });
+          } else {
+            setHeldItem(null);
+          }
+        }
+      } else {
+        // 不同类物品 → 交换
+        const newSlots = [...slots];
+        newSlots[index] = heldItem;
+        setSlots(newSlots);
+        setHeldItem(slotItem);
+      }
+    }
+  };
+
+  // 点击输出格 - 拿取合成产物
+  const handleTakeOutput = () => {
+    if (!output) return;
+
+    // 找到库存空位
+    const emptySlot = inventory.findIndex(slot => slot === null);
+    if (emptySlot === -1) return; // 库存满
+
+    // 消耗原料（每种配方原料只消耗需要的数量）
     const recipe = Object.values(RECIPES).find(r => r.result === output.type);
     if (!recipe) return;
 
-    // 消耗每种原料1个
-    recipe.ingredients.forEach(ingredientType => {
-      if (consumed.has(ingredientType)) return;
+    const newGrid = [...craftingGrid];
 
-      for (let i = 0; i < newGrid.length; i++) {
+    // 消耗每种原料
+    recipe.ingredients.forEach(({ item: ingredientType, count: needCount }) => {
+      let remaining = needCount;
+
+      for (let i = 0; i < newGrid.length && remaining > 0; i++) {
         if (newGrid[i] && newGrid[i].type === ingredientType) {
-          if (newGrid[i].count > 1) {
-            newGrid[i] = { ...newGrid[i], count: newGrid[i].count - 1 };
+          const consumeCount = Math.min(newGrid[i].count, remaining);
+
+          if (newGrid[i].count > consumeCount) {
+            // 部分消耗
+            newGrid[i] = { ...newGrid[i], count: newGrid[i].count - consumeCount };
           } else {
+            // 完全消耗
             newGrid[i] = null;
           }
-          consumed.add(ingredientType);
-          break;
+
+          remaining -= consumeCount;
         }
       }
     });
 
-    // 将产物放入库存
+    // 产物进入库存
     const newInventory = [...inventory];
-    if (newInventory[targetSlot] && newInventory[targetSlot].type === output.type) {
-      // 堆叠
-      newInventory[targetSlot] = {
-        ...newInventory[targetSlot],
-        count: newInventory[targetSlot].count + output.count
-      };
-    } else {
-      // 新物品
-      newInventory[targetSlot] = {
-        id: `item_${Date.now()}`,
-        type: output.type,
-        count: output.count
-      };
-    }
+    newInventory[emptySlot] = {
+      type: output.type,
+      count: output.count
+    };
 
     setInventory(newInventory);
     setCraftingGrid(newGrid);
   };
 
-  // 验证按钮点击
+  // 验证
   const handleVerify = () => {
-    // 检查库存中是否有末影之眼
     const hasEnderEye = inventory.some(item => item && item.type === 'ender_eye');
 
     if (hasEnderEye) {
-      // 验证成功！
-      if (onVerified) {
-        onVerified();
-      }
+      if (onVerified) onVerified();
     } else {
-      // 验证失败，显示错误动画
       setIsWrong(true);
       setTimeout(() => setIsWrong(false), 750);
     }
   };
 
-  // 刷新重置
+  // 刷新
   const handleRefresh = () => {
     setInventory([
-      { id: 'inv_0', type: 'blaze_rod', count: 1 },
-      { id: 'inv_1', type: 'slimeball', count: 1 },
-      { id: 'inv_2', type: 'ender_pearl', count: 1 },
+      { type: 'blaze_rod', count: 1 },
+      { type: 'slimeball', count: 1 },
+      { type: 'ender_pearl', count: 1 },
       null, null, null
     ]);
     setCraftingGrid(Array(9).fill(null));
-    setDraggedItem(null);
-    setDragSource(null);
+    setHeldItem(null);
   };
 
   // 渲染物品槽
-  const renderSlot = (item, index, sourceType) => {
-    const isOutput = sourceType === 'output';
-    const isDragging = dragSource && dragSource.type === sourceType && dragSource.index === index;
+  const renderSlot = (item, index, slotType) => {
+    const isOutput = slotType === 'output';
 
     return (
       <div
-        key={`${sourceType}-${index}`}
-        className={`crafting-slot ${isOutput ? 'output-slot' : ''} ${isDragging ? 'dragging' : ''}`}
-        onDragOver={!isOutput ? handleDragOver : undefined}
-        onDrop={!isOutput ? (e) => handleDrop(e, sourceType, index) : undefined}
-        onClick={isOutput && item ? handleTakeOutput : undefined}
-        style={{ cursor: isOutput && item ? 'pointer' : 'default' }}
+        key={`${slotType}-${index}`}
+        className={`crafting-slot ${isOutput ? 'output-slot' : ''}`}
+        onClick={() => !isOutput && handleLeftClick(slotType, index)}
+        onContextMenu={(e) => !isOutput && handleRightClick(e, slotType, index)}
+        style={{ cursor: 'pointer' }}
       >
         {item && (
-          <div
-            className="stack-container"
-            draggable={!isOutput}
-            onDragStart={!isOutput ? (e) => handleDragStart(e, item, sourceType, index) : undefined}
-          >
+          <div className="stack-container">
             <img
               src={ITEMS[item.type]?.image}
               alt={ITEMS[item.type]?.name}
@@ -326,6 +347,35 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
   return (
     <div className="minecraft-captcha-container">
+      {/* 手持物品（跟随鼠标） */}
+      {heldItem && (
+        <div
+          className="held-item"
+          style={{
+            position: 'fixed',
+            pointerEvents: 'none',
+            zIndex: 10000,
+            left: `${mousePos.x}px`,
+            top: `${mousePos.y}px`,
+            transform: 'translate(-50%, -50%)',
+            width: '48px',
+            height: '48px'
+          }}
+        >
+          <div className="stack-container">
+            <img
+              src={ITEMS[heldItem.type]?.image}
+              alt={ITEMS[heldItem.type]?.name}
+              className="item-image"
+              style={{ width: '100%', height: '100%', imageRendering: 'pixelated' }}
+            />
+            {heldItem.count > 1 && (
+              <span className="item-count">{heldItem.count}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 标题 */}
       <div className="captcha-title">
         <div className="text-sm">[ ORACLE 身份验证系统 ]</div>
@@ -350,9 +400,27 @@ const MinecraftCaptcha = ({ onVerified }) => {
               </svg>
             </div>
 
-            {/* 输出格 - 实时显示配方结果 */}
+            {/* 输出格 */}
             <div className="output-container">
-              {renderSlot(output, 0, 'output')}
+              <div
+                className="crafting-slot output-slot"
+                onClick={handleTakeOutput}
+                style={{ cursor: output ? 'pointer' : 'default' }}
+              >
+                {output && (
+                  <div className="stack-container">
+                    <img
+                      src={ITEMS[output.type]?.image}
+                      alt={ITEMS[output.type]?.name}
+                      draggable={false}
+                      className="item-image"
+                    />
+                    {output.count > 1 && (
+                      <span className="item-count">{output.count}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -363,6 +431,13 @@ const MinecraftCaptcha = ({ onVerified }) => {
           <div className="inventory-grid">
             {inventory.map((item, index) => renderSlot(item, index, 'inventory'))}
           </div>
+        </div>
+      </div>
+
+      {/* 提示文本 */}
+      <div className="hint-text">
+        <div className="text-xs text-gray-600 text-center">
+          💡 左键点击: 拿起/放下全部 · 右键点击: 拿起/放下一半
         </div>
       </div>
 
@@ -387,10 +462,8 @@ const MinecraftCaptcha = ({ onVerified }) => {
       <style jsx>{`
         .minecraft-captcha-container {
           border: 1px solid #d3d3d3;
-          border-radius: 0;
           box-shadow: 0 1px 3px 1px rgba(0, 0, 0, 0.06);
           font-family: 'Microsoft YaHei', 'Roboto', sans-serif;
-          font-weight: 400;
           max-width: 500px;
           margin: 0 auto;
           background: white;
@@ -419,7 +492,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
         }
 
         .crafting-header {
-          font-size: 18px;
+          font-size: 16px;
           font-weight: 600;
           margin-bottom: 10px;
           color: #333;
@@ -459,31 +532,16 @@ const MinecraftCaptcha = ({ onVerified }) => {
           transition: background-color 0.1s;
         }
 
-        .crafting-slot:not(.output-slot) {
-          cursor: grab;
-        }
-
-        .crafting-slot:not(.output-slot):active {
-          cursor: grabbing;
-        }
-
-        .crafting-slot:hover:not(.output-slot) {
+        .crafting-slot:hover {
           background-color: #9a9a9a;
-        }
-
-        .crafting-slot.dragging {
-          opacity: 0.5;
-          background-color: #6b6b6b;
         }
 
         .output-slot {
           background-color: #707070;
-          cursor: pointer;
         }
 
         .output-slot:hover {
           background-color: #808080;
-          transform: scale(1.05);
         }
 
         .stack-container {
@@ -493,7 +551,6 @@ const MinecraftCaptcha = ({ onVerified }) => {
           align-items: center;
           justify-content: center;
           position: relative;
-          user-select: none;
         }
 
         .item-image {
@@ -511,13 +568,9 @@ const MinecraftCaptcha = ({ onVerified }) => {
           font-size: 14px;
           font-weight: bold;
           text-shadow: 2px 2px 0 #000;
-          font-family: 'Monocraft', monospace;
         }
 
         .arrow-container {
-          display: flex;
-          align-items: center;
-          justify-content: center;
           color: #373737;
           flex-shrink: 0;
         }
@@ -529,7 +582,10 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
         .output-container {
           width: 60px;
-          flex-shrink: 0;
+        }
+
+        .hint-text {
+          padding: 0 20px 10px;
         }
 
         .captcha-controls {
@@ -564,12 +620,10 @@ const MinecraftCaptcha = ({ onVerified }) => {
           padding: 10px 30px;
           transition: all 0.15s;
           text-transform: uppercase;
-          border-radius: 2px;
         }
 
         .verify-button:hover {
           background-color: #f59e0b;
-          transform: scale(1.05);
         }
 
         .verify-button:active {
@@ -579,7 +633,6 @@ const MinecraftCaptcha = ({ onVerified }) => {
         .verify-button-wrong {
           animation: wrongShake 0.25s ease-in-out 3;
           background-color: #ef4444 !important;
-          pointer-events: none;
         }
 
         @keyframes wrongShake {
