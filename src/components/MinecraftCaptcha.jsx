@@ -68,12 +68,20 @@ const MinecraftCaptcha = ({ onVerified }) => {
   // 监听鼠标移动
   React.useEffect(() => {
     const handleMouseMove = (e) => {
-      setMousePos({ x: e.clientX, y: e.clientY });
+      // 使用 pageX/pageY 而不是 clientX/clientY，避免滚动偏移问题
+      setMousePos({ x: e.pageX, y: e.pageY });
     };
 
     if (heldItem) {
-      window.addEventListener('mousemove', handleMouseMove);
-      return () => window.removeEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mousemove', handleMouseMove);
+      // 禁用右键菜单
+      const preventContextMenu = (e) => e.preventDefault();
+      document.addEventListener('contextmenu', preventContextMenu);
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('contextmenu', preventContextMenu);
+      };
     }
   }, [heldItem]);
 
@@ -352,25 +360,40 @@ const MinecraftCaptcha = ({ onVerified }) => {
         <div
           className="held-item"
           style={{
-            position: 'fixed',
+            position: 'absolute',
             pointerEvents: 'none',
             zIndex: 10000,
             left: `${mousePos.x}px`,
             top: `${mousePos.y}px`,
-            transform: 'translate(-50%, -50%)',
-            width: '48px',
-            height: '48px'
+            transform: 'translate(10px, 10px)', // 偏移到鼠标右下方，像MC
+            width: '40px',
+            height: '40px'
           }}
         >
           <div className="stack-container">
             <img
               src={ITEMS[heldItem.type]?.image}
               alt={ITEMS[heldItem.type]?.name}
-              className="item-image"
-              style={{ width: '100%', height: '100%', imageRendering: 'pixelated' }}
+              draggable={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                imageRendering: 'pixelated',
+                filter: 'drop-shadow(2px 2px 2px rgba(0,0,0,0.5))'
+              }}
             />
             {heldItem.count > 1 && (
-              <span className="item-count">{heldItem.count}</span>
+              <span className="item-count" style={{
+                position: 'absolute',
+                bottom: '0px',
+                right: '0px',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                textShadow: '2px 2px 0 #000'
+              }}>
+                {heldItem.count}
+              </span>
             )}
           </div>
         </div>
