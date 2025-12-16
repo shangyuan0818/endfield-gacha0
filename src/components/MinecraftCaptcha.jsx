@@ -69,18 +69,42 @@ const MinecraftCaptcha = ({ onVerified }) => {
   // 容器引用
   const containerRef = React.useRef(null);
 
-  // 监听鼠标移动（仅在容器内）
+  // 监听鼠标移动 - 参考实现使用 document 级别监听
+  React.useEffect(() => {
+    if (!heldItem) return;
+
+    const handleMouseMove = (e) => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      // 获取容器位置
+      const rect = container.getBoundingClientRect();
+      // 计算相对于容器的坐标（用于 absolute 定位）
+      setMousePos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      });
+    };
+
+    // 在 document 级别监听，确保拖拽物品时鼠标可以移出容器
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('touchmove', handleMouseMove);
+
+    // 禁用右键菜单
+    const preventContextMenu = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', preventContextMenu);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('contextmenu', preventContextMenu);
+    };
+  }, [heldItem]);
+
+  // 监听鼠标离开容器 - 自动放回物品
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container || !heldItem) return;
-
-    const handleMouseMove = (e) => {
-      // 使用 clientX/clientY，因为 held-item 使用 fixed 定位（相对于 viewport）
-      setMousePos({
-        x: e.clientX,
-        y: e.clientY
-      });
-    };
 
     const handleMouseLeave = () => {
       // 鼠标离开容器，自动放回物品
@@ -112,17 +136,10 @@ const MinecraftCaptcha = ({ onVerified }) => {
       }
     };
 
-    container.addEventListener('mousemove', handleMouseMove);
     container.addEventListener('mouseleave', handleMouseLeave);
 
-    // 禁用右键菜单
-    const preventContextMenu = (e) => e.preventDefault();
-    container.addEventListener('contextmenu', preventContextMenu);
-
     return () => {
-      container.removeEventListener('mousemove', handleMouseMove);
       container.removeEventListener('mouseleave', handleMouseLeave);
-      container.removeEventListener('contextmenu', preventContextMenu);
     };
   }, [heldItem, heldItemSource, inventory, craftingGrid]);
 
@@ -400,18 +417,18 @@ const MinecraftCaptcha = ({ onVerified }) => {
   };
 
   return (
-    <div className="minecraft-captcha-container">
-      {/* 手持物品（跟随鼠标） */}
+    <div ref={containerRef} className="minecraft-captcha-container" style={{ position: 'relative' }}>
+      {/* 手持物品（跟随鼠标） - 使用 absolute 定位相对于容器 */}
       {heldItem && (
         <div
           className="held-item"
           style={{
-            position: 'fixed',
+            position: 'absolute',
             pointerEvents: 'none',
             zIndex: 10000,
             left: `${mousePos.x}px`,
             top: `${mousePos.y}px`,
-            transform: 'translate(-20px, -20px)', // 居中对齐到鼠标
+            transform: 'translate(-50%, -50%)', // 居中对齐到鼠标（参考实现）
             width: '40px',
             height: '40px'
           }}
