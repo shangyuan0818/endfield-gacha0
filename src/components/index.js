@@ -19,3 +19,6 @@ export { default as RecordsView } from './records/RecordsView';
 
 // 仪表盘组件
 export { default as DashboardView } from './dashboard/DashboardView';
+
+// 弹窗组件
+export { default as EditItemModal } from './modals/EditItemModal';
