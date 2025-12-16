@@ -842,6 +842,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
 
       setSyncError(error.message);
+
+      // 修复ERROR-NEW-001: 重新抛出错误，让调用者能够捕获并回滚
+      throw error;
     }
   }, [user]);
 
@@ -1638,11 +1641,19 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       return;
     }
 
-    setHistory(prev => [...prev, newPull]);
-
-    // 同步到云端
+    // 修复ERROR-NEW-001: 先同步到云端，成功后再更新本地状态
     if (user) {
-      saveHistoryToCloud([newPull]);
+      try {
+        await saveHistoryToCloud([newPull]);
+        // 云端保存成功，更新本地状态
+        setHistory(prev => [...prev, newPull]);
+      } catch (error) {
+        // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
+        console.error('添加记录失败，未更新本地状态:', error);
+      }
+    } else {
+      // 未登录用户，仅更新本地状态
+      setHistory(prev => [...prev, newPull]);
     }
   };
 
@@ -1742,35 +1753,51 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
     }
 
-    setHistory(prev => [...prev, ...newPulls]);
-
-    // 同步到云端
+    // 修复ERROR-NEW-001: 先同步到云端，成功后再更新本地状态
     if (user) {
-      saveHistoryToCloud(newPulls);
+      try {
+        await saveHistoryToCloud(newPulls);
+        // 云端保存成功，更新本地状态
+        setHistory(prev => [...prev, ...newPulls]);
+      } catch (error) {
+        // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
+        console.error('批量添加记录失败，未更新本地状态:', error);
+      }
+    } else {
+      // 未登录用户，仅更新本地状态
+      setHistory(prev => [...prev, ...newPulls]);
     }
   };
 
   // 编辑记录
-  const handleUpdateItem = (id, newConfig) => {
+  const handleUpdateItem = async (id, newConfig) => {
     // 提交前验证：检查卡池是否已被锁定
     if (currentPool?.locked && !isSuperAdmin) {
       showToast('卡池已被锁定，无法修改数据', 'error', '操作被阻止');
       return;
     }
 
-    let updatedItem = null;
-    setHistory(prev => prev.map(item => {
-      if (item.id === id) {
-        updatedItem = { ...item, ...newConfig };
-        return updatedItem;
-      }
-      return item;
-    }));
-    setEditItemState(null);
+    // 查找要更新的记录
+    const itemToUpdate = history.find(item => item.id === id);
+    if (!itemToUpdate) return;
 
-    // 同步到云端
-    if (user && updatedItem) {
-      saveHistoryToCloud([updatedItem]);
+    const updatedItem = { ...itemToUpdate, ...newConfig };
+
+    // 修复ERROR-NEW-001: 先同步到云端，成功后再更新本地状态
+    if (user) {
+      try {
+        await saveHistoryToCloud([updatedItem]);
+        // 云端保存成功，更新本地状态
+        setHistory(prev => prev.map(item => item.id === id ? updatedItem : item));
+        setEditItemState(null);
+      } catch (error) {
+        // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
+        console.error('更新记录失败，未更新本地状态:', error);
+      }
+    } else {
+      // 未登录用户，仅更新本地状态
+      setHistory(prev => prev.map(item => item.id === id ? updatedItem : item));
+      setEditItemState(null);
     }
   };
 

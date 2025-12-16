@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from './supabaseClient';
 
@@ -96,6 +96,18 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [resendCooldown, setResendCooldown] = useState(0); // 重发验证邮件倒计时
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState(''); // 待验证的邮箱
 
+  // 管理重发验证邮件倒计时（修复内存泄漏 PERF-NEW-001）
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendCooldown(prev => Math.max(0, prev - 1));
+    }, 1000);
+
+    // 组件卸载时清理定时器，防止内存泄漏
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   if (!isOpen) return null;
   
   // 重发验证邮件
@@ -127,20 +139,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       });
       
       if (error) throw error;
-      
+
       setMessage('验证邮件已重新发送！请查收邮箱。');
-      
-      // 设置60秒倒计时
+
+      // 设置60秒倒计时（定时器由useEffect管理）
       setResendCooldown(60);
-      const timer = setInterval(() => {
-        setResendCooldown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (err) {
       setError(err.message || '发送失败，请重试');
     } finally {
@@ -153,7 +156,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     // 使用 localStorage 中的匿名ID，如果没有则生成一个
     let clientId = localStorage.getItem('_client_id');
     if (!clientId) {
-      clientId = 'anon_' + Math.random().toString(36).substring(2, 15);
+      // 使用 crypto.randomUUID() 生成不可预测的ID（修复 SEC-NEW-002）
+      clientId = 'anon_' + crypto.randomUUID();
       localStorage.setItem('_client_id', clientId);
     }
     return clientId;
