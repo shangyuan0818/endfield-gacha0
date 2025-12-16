@@ -16,3 +16,6 @@ export { default as PoolSelector } from './pool/PoolSelector';
 
 // 记录组件
 export { default as RecordsView } from './records/RecordsView';
+
+// 仪表盘组件
+export { default as DashboardView } from './dashboard/DashboardView';
