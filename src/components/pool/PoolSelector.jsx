@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Layers, ChevronDown, Search, X, User, Lock, Unlock, Settings, Trash2, Plus } from 'lucide-react';
 import { usePoolStore, useAuthStore } from '../../stores';
-import { extractCharNameFromPoolName } from '../../utils';
+import { extractCharNameFromPoolName, extractDrawerFromPoolName } from '../../utils';
 
 /**
  * 卡池选择器组件
@@ -18,7 +18,6 @@ const PoolSelector = ({
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const poolSearchQuery = usePoolStore(state => state.poolSearchQuery);
   const collapsedDrawers = usePoolStore(state => state.collapsedDrawers);
-  const groupedPools = usePoolStore(state => state.getGroupedPools());
 
   const switchPool = usePoolStore(state => state.switchPool);
   const setPoolSearchQuery = usePoolStore(state => state.setPoolSearchQuery);
@@ -30,6 +29,54 @@ const PoolSelector = ({
 
   // UI状态（使用 React.useState，因为这些是纯UI状态）
   const [showPoolMenu, setShowPoolMenu] = React.useState(false);
+
+  // 在组件内计算 groupedPools（使用 useMemo 避免无限循环）
+  const groupedPools = useMemo(() => {
+    // 先按搜索词过滤
+    const filteredPools = poolSearchQuery.trim()
+      ? pools.filter(pool =>
+          pool.name.toLowerCase().includes(poolSearchQuery.toLowerCase())
+        )
+      : pools;
+
+    // 按抽卡人分组
+    const groups = {};
+    const noDrawerPools = [];
+
+    filteredPools.forEach(pool => {
+      const drawer = extractDrawerFromPoolName(pool.name);
+      if (drawer) {
+        if (!groups[drawer]) {
+          groups[drawer] = [];
+        }
+        groups[drawer].push(pool);
+      } else {
+        noDrawerPools.push(pool);
+      }
+    });
+
+    // 转换为数组格式，按抽卡人名称排序
+    const result = Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))
+      .map(([drawer, poolList]) => ({
+        drawer,
+        pools: poolList.sort((a, b) => {
+          // 同一抽卡人内按类型排序：限定 > 武器 > 常驻
+          const typeOrder = { limited: 0, weapon: 1, standard: 2 };
+          return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
+        })
+      }));
+
+    // 未识别抽卡人的卡池放在最后
+    if (noDrawerPools.length > 0) {
+      result.push({
+        drawer: null,
+        pools: noDrawerPools
+      });
+    }
+
+    return result;
+  }, [pools, poolSearchQuery]);
 
   // 关闭菜单
   const closeMenu = () => {
