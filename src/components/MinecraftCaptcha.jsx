@@ -465,14 +465,14 @@ const MinecraftCaptcha = ({ onVerified }) => {
       {/* 标题 */}
       <div className="captcha-title">
         <div className="text-sm">[ ORACLE 身份验证系统 ]</div>
-        <div className="captcha-title-type">合成 末影之眼</div>
+        <div className="captcha-title-type">请合成【末影之眼】</div>
       </div>
 
       {/* 合成区域 */}
       <div className="captcha-content">
         {/* 合成台 */}
         <div className="crafting-area">
-          <div className="crafting-header">合成台 Crafting</div>
+          <div className="crafting-header">工作台</div>
           <div className="crafting-table">
             {/* 3x3网格 */}
             <div className="crafting-grid">
@@ -513,19 +513,14 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
         {/* 库存 */}
         <div className="inventory-area">
-          <div className="crafting-header">库存 Inventory</div>
+          <div className="crafting-header">背包</div>
           <div className="inventory-grid">
             {inventory.map((item, index) => renderSlot(item, index, 'inventory'))}
           </div>
         </div>
       </div>
 
-      {/* 提示文本 */}
-      <div className="hint-text">
-        <div className="text-xs text-gray-600 text-center">
-          💡 左键点击: 拿起/放下全部 · 右键点击: 拿起/放下一半
-        </div>
-      </div>
+      
 
       {/* 控制栏 */}
       <div className="captcha-controls">
@@ -540,7 +535,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           className={`verify-button ${isWrong ? 'verify-button-wrong' : ''}`}
           onClick={handleVerify}
         >
-          验证 VERIFY
+          点击验证
         </button>
       </div>
 
