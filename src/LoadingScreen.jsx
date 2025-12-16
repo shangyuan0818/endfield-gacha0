@@ -29,7 +29,8 @@ const LoadingScreen = ({ onComplete }) => {
       'CONNECTING TO ORACLE',
       'SYNCING DATABASE',
       'LOADING ASSETS',
-      'VERIFYING IDENTITY'
+      'VERIFYING IDENTITY',
+      'CONNECTING TO ENDFIELD'
     ];
     const textInterval = setInterval(() => {
       setText(texts[Math.floor(Math.random() * texts.length)]);
