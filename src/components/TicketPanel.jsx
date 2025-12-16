@@ -276,6 +276,32 @@ const TicketCard = ({ ticket, userRole, currentUserId, onStatusChange, onReply, 
                 {priorityConfig.label}
               </span>
             </div>
+
+            {/* 发起人信息 */}
+            <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-1.5">
+                <div className={`w-5 h-5 rounded-sm flex items-center justify-center text-white text-[10px] ${
+                  ticket.profiles?.role === 'super_admin' ? 'bg-purple-500' :
+                  ticket.profiles?.role === 'admin' ? 'bg-indigo-500' : 'bg-slate-500'
+                }`}>
+                  {ticket.profiles?.role === 'super_admin' ? <Shield size={10} /> :
+                   ticket.profiles?.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
+                </div>
+                <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
+                  {ticket.profiles?.username || '未知用户'}
+                </span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                  ticket.profiles?.role === 'super_admin' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                  ticket.profiles?.role === 'admin' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' :
+                  'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
+                }`}>
+                  {ticket.profiles?.role === 'super_admin' ? '超管' :
+                   ticket.profiles?.role === 'admin' ? '管理员' : '用户'}
+                </span>
+              </div>
+            </div>
+
+            {/* 时间和目标信息 */}
             <div className="text-xs text-slate-500 dark:text-zinc-500 flex items-center gap-3">
               <span className="flex items-center gap-1">
                 <Clock size={12} />
