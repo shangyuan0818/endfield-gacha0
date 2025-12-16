@@ -98,7 +98,6 @@ const AdminPanel = React.memo(({ showToast }) => {
         setAnnouncements(announcementsRes.data || []);
         setBlacklist(blacklistRes.data || []);
       } catch (error) {
-        console.error('加载数据失败:', error);
       } finally {
         setLoading(false);
       }
@@ -136,7 +135,6 @@ const AdminPanel = React.memo(({ showToast }) => {
 
       showToast('审批通过！该用户现已成为管理员', 'success');
     } catch (error) {
-      console.error('审批失败:', error);
       showToast('审批失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -161,7 +159,6 @@ const AdminPanel = React.memo(({ showToast }) => {
 
       showToast('已拒绝该申请', 'info');
     } catch (error) {
-      console.error('拒绝失败:', error);
       showToast('拒绝失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -299,7 +296,6 @@ const AdminPanel = React.memo(({ showToast }) => {
 
       resetUserForm();
     } catch (error) {
-      console.error('保存用户失败:', error);
       showToast('保存用户失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -338,11 +334,12 @@ const AdminPanel = React.memo(({ showToast }) => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '删除用户失败');
 
+      // 修复ERROR-NEW-002: 云端删除成功后再更新本地状态
       setUsers(prev => prev.filter(u => u.id !== user.id));
       setApplications(prev => prev.filter(a => a.user_id !== user.id));
       showToast('用户已删除', 'success');
     } catch (error) {
-      console.error('删除用户失败:', error);
+      // 云端删除失败，不更新本地状态，保持数据一致
       showToast('删除用户失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -376,7 +373,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       setBlacklist(prev => [data, ...prev]);
       showToast(`已将 ${user.email} 加入黑名单`, 'success');
     } catch (error) {
-      console.error('添加黑名单失败:', error);
       showToast('添加黑名单失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -424,7 +420,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       showToast('已添加到黑名单', 'success');
       resetBlacklistForm();
     } catch (error) {
-      console.error('添加黑名单失败:', error);
       showToast('添加黑名单失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -449,7 +444,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       setBlacklist(prev => prev.filter(b => b.id !== entry.id));
       showToast('已从黑名单移除', 'success');
     } catch (error) {
-      console.error('移除黑名单失败:', error);
       showToast('移除失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -479,7 +473,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       setUserPools(poolsRes.data || []);
       setUserHistory(historyRes.data || []);
     } catch (error) {
-      console.error('加载用户数据失败:', error);
       showToast('加载用户数据失败: ' + error.message, 'error');
     } finally {
       setUserDataLoading(false);
@@ -535,7 +528,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       await loadUserData(selectedUserId);
       showToast('已清空该用户的卡池和抽卡记录', 'success');
     } catch (error) {
-      console.error('清理用户数据失败:', error);
       showToast('清理用户数据失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -554,7 +546,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       await loadUserData(selectedUserId);
       showToast('已清空该卡池的抽卡记录', 'success');
     } catch (error) {
-      console.error('清理卡池记录失败:', error);
       showToast('清理卡池记录失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -575,7 +566,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       await loadUserData(selectedUserId);
       showToast('已删除卡池及其记录', 'success');
     } catch (error) {
-      console.error('删除卡池失败:', error);
       showToast('删除卡池失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -653,7 +643,6 @@ const AdminPanel = React.memo(({ showToast }) => {
 
       resetAnnouncementForm();
     } catch (error) {
-      console.error('保存公告失败:', error);
       showToast('保存公告失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -677,7 +666,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       ));
       showToast(announcement.is_active ? '公告已停用' : '公告已激活', 'success');
     } catch (error) {
-      console.error('切换公告状态失败:', error);
       showToast('操作失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -701,7 +689,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
       showToast('公告已删除', 'success');
     } catch (error) {
-      console.error('删除公告失败:', error);
       showToast('删除失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);

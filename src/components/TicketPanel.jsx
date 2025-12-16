@@ -446,7 +446,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
           setTableExists(false);
           setTickets([]);
         } else {
-          console.error('Error loading tickets:', error);
+          // 加载工单失败，显示错误提示
           showToast?.('加载工单失败', 'error');
         }
       } else {
@@ -478,7 +478,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
       setShowCreateForm(false);
       loadTickets();
     } catch (error) {
-      console.error('Error creating ticket:', error);
+      // 提交工单失败，显示错误提示
       showToast?.('提交工单失败：' + error.message, 'error');
     }
   };
@@ -505,7 +505,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
       showToast?.(`工单已${TICKET_STATUS[newStatus]?.label || '更新'}`, 'success');
       loadTickets();
     } catch (error) {
-      console.error('Error updating ticket:', error);
+      // 更新工单失败，显示错误提示
       showToast?.('更新失败：' + error.message, 'error');
     }
   };

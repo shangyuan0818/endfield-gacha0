@@ -172,15 +172,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         p_identifier: getClientIdentifier(),
         p_action: action
       });
-      
+
       if (error) {
-        console.warn('Rate limit check failed:', error);
-        return { allowed: true }; // 如果检查失败，默认允许
+        // 频率限制检查失败，默认允许（不影响用户体验）
+        return { allowed: true };
       }
-      
+
       return data || { allowed: true };
     } catch (err) {
-      console.warn('Rate limit check error:', err);
+      // 频率限制检查异常，默认允许
       return { allowed: true };
     }
   };
@@ -196,15 +196,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const { data, error } = await supabase.rpc('validate_email_domain', {
         check_email: emailToCheck
       });
-      
+
       if (error) {
-        console.warn('Backend email validation failed, falling back to frontend:', error);
+        // 后端验证失败，回退到前端验证
         return validateEmailDomain(emailToCheck);
       }
-      
+
       return data || { valid: true };
     } catch (err) {
-      console.warn('Email validation error:', err);
+      // 后端验证异常，回退到前端验证
       return validateEmailDomain(emailToCheck);
     }
   };

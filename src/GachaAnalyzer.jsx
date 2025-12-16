@@ -248,8 +248,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         .rpc('get_global_stats');
 
       if (rpcError) {
-        console.error('RPC 调用失败:', rpcError);
-        // 如果 RPC 失败，回退到旧方法（可能因为函数还没部署）
+        // RPC调用失败，回退到旧方法（可能因为函数还没部署）
         throw rpcError;
       }
 
@@ -375,7 +374,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         setGlobalStats(stats);
       }
     } catch (error) {
-      console.error('获取全局统计失败:', error);
       // 设置为空统计而不是 null，避免显示加载中
       const emptyTypeStats = { total: 0, six: 0, counts: {}, distribution: [], chartData: [] };
       setGlobalStats({
@@ -489,7 +487,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       return { pools: formattedPools, history: formattedHistory };
     } catch (error) {
-      console.error('加载云端数据失败:', error);
       setSyncError(error.message);
       return null;
     } finally {
@@ -532,7 +529,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           }
         }
       } catch (error) {
-        console.error('初始化失败:', error);
       }
     };
 
@@ -643,7 +639,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           const { error: insertError } = await supabase
             .from('profiles')
             .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' });
-          if (insertError) console.error('创建 profile 失败:', insertError);
+          // 创建profile失败时，依然设置默认role，不影响用户使用
           setUserRole('user');
         } else {
           setUserRole(profile.role || 'user');
@@ -659,7 +655,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
         setApplicationStatus(application?.status || null);
       } catch (error) {
-        console.error('获取用户角色失败:', error);
         setUserRole('user');
       }
     };
@@ -712,7 +707,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           setAnnouncements([]);
         }
       } catch (error) {
-        console.error('加载公告失败:', error);
         setAnnouncements([]);
       }
     };
@@ -755,7 +749,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       setShowApplyModal(false);
       return true;
     } catch (error) {
-      console.error('提交申请失败:', error);
       return false;
     }
   };
@@ -768,7 +761,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 保存卡池到云端
   const savePoolToCloud = useCallback(async (pool, showNotification = false) => {
     if (!supabase || !user) {
-      console.warn('savePoolToCloud: supabase 或 user 不存在');
       return false;
     }
 
@@ -794,7 +786,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       // 同步成功，不记录日志
       return true;
     } catch (error) {
-      console.error('保存卡池到云端失败:', error);
       setSyncError(error.message);
       return false;
     }
@@ -822,7 +813,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       if (error) throw error;
     } catch (error) {
-      console.error('保存历史记录到云端失败:', error);
 
       // 检测是否为RLS策略拒绝 (locked卡池保护)
       const errorMessage = error.message || '';
@@ -862,7 +852,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('从云端删除记录失败:', error);
       setSyncError(error.message);
       showToast(`删除失败: ${error.message}`, 'error');
       return false;
@@ -883,7 +872,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('从云端删除卡池记录失败:', error);
       setSyncError(error.message);
       showToast(`删除卡池记录失败: ${error.message}`, 'error');
       return false;
@@ -904,7 +892,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       if (error) throw error;
       return true;
     } catch (error) {
-      console.error('从云端删除卡池失败:', error);
       setSyncError(error.message);
       showToast(`删除卡池失败: ${error.message}`, 'error');
       return false;
@@ -933,7 +920,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       return true;
     } catch (error) {
-      console.error('迁移数据到云端失败:', error);
       setSyncError(error.message);
       return false;
     } finally {
@@ -1356,7 +1342,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // P1: 前端数据校验
     const validation = validatePoolData(newPool);
     if (!validation.isValid) {
-      console.error('卡池数据校验失败:', validation.errors);
       showToast(`卡池创建失败: ${validation.errors.join(', ')}`, 'error');
       return;
     }
@@ -1521,7 +1506,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       showToast('所有数据已删除', 'success');
     } catch (error) {
-      console.error('删除所有数据失败:', error);
       showToast('删除失败: ' + error.message, 'error');
     } finally {
       setSyncing(false);
@@ -1572,7 +1556,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
       showToast(message, 'success');
     } catch (error) {
-      console.error('手动同步失败:', error);
       showToast('同步失败: ' + error.message, 'error');
     } finally {
       setSyncing(false);
@@ -1636,7 +1619,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // P1: 前端数据校验
     const validation = validatePullData(newPull);
     if (!validation.isValid) {
-      console.error('数据校验失败:', validation.errors);
       showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
       return;
     }
@@ -1649,7 +1631,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         setHistory(prev => [...prev, newPull]);
       } catch (error) {
         // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
-        console.error('添加记录失败，未更新本地状态:', error);
       }
     } else {
       // 未登录用户，仅更新本地状态
@@ -1684,7 +1665,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       ruleValidation.errors.forEach(error => {
         showToast(error, 'error', '录入错误');
       });
-      console.error('卡池规则校验失败:', ruleValidation.errors);
       return;
     }
     // ========================================
@@ -1747,7 +1727,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     for (const pull of newPulls) {
       const validation = validatePullData(pull);
       if (!validation.isValid) {
-        console.error('批量数据校验失败:', validation.errors);
         showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
         return;
       }
@@ -1761,7 +1740,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         setHistory(prev => [...prev, ...newPulls]);
       } catch (error) {
         // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
-        console.error('批量添加记录失败，未更新本地状态:', error);
       }
     } else {
       // 未登录用户，仅更新本地状态
@@ -1792,7 +1770,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         setEditItemState(null);
       } catch (error) {
         // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
-        console.error('更新记录失败，未更新本地状态:', error);
       }
     } else {
       // 未登录用户，仅更新本地状态
@@ -2170,7 +2147,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         });
 
       } catch (error) {
-        console.error(error);
         showToast("导入失败：文件解析错误。请确保是合法的JSON文件。", 'error');
       }
       // 清空 input 允许重复导入同一文件
@@ -2227,7 +2203,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         }
         showToast(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`, 'success', '导入成功');
       } catch (syncError) {
-        console.error('同步到云端失败:', syncError);
         showToast(`新增了 ${addedHistory.length} 条记录，但云端同步失败: ${syncError.message}`, 'warning', '部分成功');
       } finally {
         setSyncing(false);
