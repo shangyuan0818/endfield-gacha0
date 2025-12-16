@@ -1568,7 +1568,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   // 添加单抽 (支持 isStandard)
-  const addSinglePull = (rarity, isStandard = false) => {
+  const addSinglePull = async (rarity, isStandard = false) => {
     // 提交前验证：检查卡池是否已被锁定
     if (currentPool?.locked && !isSuperAdmin) {
       showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
@@ -1639,7 +1639,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   // 提交十连
-  const submitBatch = (inputData) => {
+  const submitBatch = async (inputData) => {
     // 提交前验证：检查卡池是否已被锁定
     if (currentPool?.locked && !isSuperAdmin) {
       showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
