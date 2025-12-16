@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2, 
+import {
+  Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2,
   Eye, EyeOff, Save, X, Search, UserPlus, ChevronRight,
   Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
   Package, ListOrdered, ChevronDown, ChevronUp, BarChart3
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import SimpleMarkdown from './SimpleMarkdown';
+import { validateUserData } from '../utils/validators';
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
@@ -227,13 +228,27 @@ const AdminPanel = React.memo(({ showToast }) => {
   const saveUser = async () => {
     if (!supabase) return;
 
-    if (!editingUser && (!userForm.email.trim() || !userForm.password.trim())) {
-      showToast('邮箱和密码不能为空', 'error');
+    // ========== 增强的参数验证 ==========
+    const isCreating = !editingUser;
+    const validation = validateUserData(userForm, isCreating);
+
+    if (!validation.isValid) {
+      // 显示所有验证错误
+      validation.errors.forEach(error => {
+        showToast(error, 'error');
+      });
       return;
     }
 
-    if (editingUser && !userForm.username.trim()) {
-      showToast('用户名不能为空', 'error');
+    // 额外的前端安全检查：明确禁止创建超级管理员
+    if (userForm.role === 'super_admin') {
+      showToast('禁止通过此接口创建超级管理员', 'error');
+      return;
+    }
+
+    // 限制角色只能为 user 或 admin
+    if (!['user', 'admin'].includes(userForm.role)) {
+      showToast('无效的角色类型，只允许 user 或 admin', 'error');
       return;
     }
 
@@ -241,6 +256,7 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     try {
       if (editingUser) {
+        // 编辑现有用户
         const { error } = await supabase
           .from('profiles')
           .update({ username: userForm.username, role: userForm.role })
@@ -253,6 +269,7 @@ const AdminPanel = React.memo(({ showToast }) => {
         ));
         showToast('用户已更新', 'success');
       } else {
+        // 创建新用户
         const { data: { session } } = await supabase.auth.getSession();
 
         const response = await fetch(
@@ -264,10 +281,10 @@ const AdminPanel = React.memo(({ showToast }) => {
               'Authorization': `Bearer ${session?.access_token}`
             },
             body: JSON.stringify({
-              email: userForm.email,
+              email: userForm.email.trim(),
               password: userForm.password,
-              username: userForm.username || userForm.email.split('@')[0],
-              role: userForm.role
+              username: userForm.username?.trim() || userForm.email.split('@')[0],
+              role: userForm.role // 已经过验证，只能是 'user' 或 'admin'
             })
           }
         );

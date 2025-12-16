@@ -565,8 +565,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           table: 'pools'
         },
         (payload) => {
-          console.log('卡池数据变化:', payload);
-
+          // 卡池数据变化监听
           if (payload.eventType === 'UPDATE') {
             // 更新本地卡池状态
             const updatedPool = payload.new;
@@ -792,9 +791,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       if (error) throw error;
 
-      if (showNotification) {
-        console.log('卡池同步成功:', pool.name);
-      }
+      // 同步成功，不记录日志
       return true;
     } catch (error) {
       console.error('保存卡池到云端失败:', error);
@@ -826,6 +823,24 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       if (error) throw error;
     } catch (error) {
       console.error('保存历史记录到云端失败:', error);
+
+      // 检测是否为RLS策略拒绝 (locked卡池保护)
+      const errorMessage = error.message || '';
+      if (errorMessage.includes('policy') || errorMessage.includes('violates row-level security')) {
+        showToast(
+          '该卡池已被锁定，只有超级管理员可以修改数据',
+          'error',
+          '权限不足'
+        );
+      } else {
+        // 其他错误
+        showToast(
+          `保存失败: ${errorMessage.substring(0, 100)}`,
+          'error',
+          '同步错误'
+        );
+      }
+
       setSyncError(error.message);
     }
   }, [user]);

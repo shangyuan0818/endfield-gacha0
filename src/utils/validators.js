@@ -338,3 +338,141 @@ export const validatePoolData = (data) => {
     errors
   };
 };
+
+/**
+ * 校验用户数据 (用于AdminPanel)
+ * @param {Object} data - 用户数据
+ * @param {boolean} isCreating - 是否为创建新用户(true) 还是编辑(false)
+ * @returns {{isValid: boolean, errors: string[]}}
+ */
+export const validateUserData = (data, isCreating = true) => {
+  const errors = [];
+
+  // 1. 邮箱验证 (仅创建时需要)
+  if (isCreating) {
+    if (!data.email || typeof data.email !== 'string') {
+      errors.push('邮箱不能为空');
+    } else {
+      // 邮箱格式验证
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(data.email.trim())) {
+        errors.push('邮箱格式不正确');
+      }
+    }
+  }
+
+  // 2. 密码验证 (仅创建时需要)
+  if (isCreating) {
+    if (!data.password || typeof data.password !== 'string') {
+      errors.push('密码不能为空');
+    } else {
+      // 密码强度验证
+      if (data.password.length < 8) {
+        errors.push('密码至少需要8位字符');
+      }
+      if (data.password.length > 100) {
+        errors.push('密码长度不能超过100位');
+      }
+      // 建议包含字母和数字
+      const hasLetter = /[a-zA-Z]/.test(data.password);
+      const hasNumber = /[0-9]/.test(data.password);
+      if (!hasLetter || !hasNumber) {
+        errors.push('密码建议包含字母和数字');
+      }
+    }
+  }
+
+  // 3. 用户名验证
+  if (data.username && typeof data.username === 'string') {
+    const username = data.username.trim();
+    if (username.length > 0) {
+      if (username.length < 2) {
+        errors.push('用户名至少需要2个字符');
+      }
+      if (username.length > 50) {
+        errors.push('用户名长度不能超过50个字符');
+      }
+      // 用户名字符验证 (允许中文、字母、数字、下划线、连字符)
+      const usernameRegex = /^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/;
+      if (!usernameRegex.test(username)) {
+        errors.push('用户名只能包含中文、字母、数字、下划线和连字符');
+      }
+    }
+  }
+
+  // 4. 角色验证 (关键安全检查)
+  if (!data.role || typeof data.role !== 'string') {
+    errors.push('角色不能为空');
+  } else {
+    // 严格限制角色枚举值
+    const allowedRoles = ['user', 'admin'];
+    if (!allowedRoles.includes(data.role)) {
+      errors.push(`无效的角色类型: ${data.role}，只允许 user 或 admin`);
+    }
+    // 明确禁止创建超级管理员
+    if (data.role === 'super_admin') {
+      errors.push('禁止通过此接口创建超级管理员');
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
+/**
+ * 校验邮箱格式
+ * @param {string} email - 邮箱地址
+ * @returns {boolean}
+ */
+export const validateEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+};
+
+/**
+ * 校验密码强度
+ * @param {string} password - 密码
+ * @returns {{isValid: boolean, strength: 'weak'|'medium'|'strong', errors: string[]}}
+ */
+export const validatePasswordStrength = (password) => {
+  const errors = [];
+  let strength = 'weak';
+
+  if (!password || typeof password !== 'string') {
+    errors.push('密码不能为空');
+    return { isValid: false, strength, errors };
+  }
+
+  // 长度检查
+  if (password.length < 8) {
+    errors.push('密码至少需要8位字符');
+  }
+
+  if (password.length >= 8) strength = 'medium';
+  if (password.length >= 12) strength = 'strong';
+
+  // 复杂度检查
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+  const complexityCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+
+  if (complexityCount < 2) {
+    errors.push('密码建议包含字母和数字');
+    strength = 'weak';
+  } else if (complexityCount >= 3 && password.length >= 12) {
+    strength = 'strong';
+  }
+
+  return {
+    isValid: errors.length === 0,
+    strength,
+    errors
+  };
+};
+
