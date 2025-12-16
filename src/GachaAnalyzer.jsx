@@ -27,6 +27,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const setUser = useAuthStore(state => state.setUser);
   const setUserRole = useAuthStore(state => state.setUserRole);
   const toggleAuthModal = useAuthStore(state => state.toggleAuthModal);
+  const openAuthModal = useAuthStore(state => state.openAuthModal);
+  const closeAuthModal = useAuthStore(state => state.closeAuthModal);
   const setSyncing = useAuthStore(state => state.setSyncing);
   const setSyncError = useAuthStore(state => state.setSyncError);
 
@@ -39,6 +41,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const applicationStatus = useAppStore(state => state.applicationStatus);
   const setAnnouncements = useAppStore(state => state.setAnnouncements);
   const toggleAnnouncement = useAppStore(state => state.toggleAnnouncement);
+  const closeAnnouncement = useAppStore(state => state.closeAnnouncement);
   const toggleApplyModal = useAppStore(state => state.toggleApplyModal);
   const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
@@ -484,7 +487,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             : defaultPool
               ? defaultPool.id
               : cloudData.pools[0].id;
-          setCurrentPoolId(fallbackId);
+          switchPool(fallbackId);
           localStorage.setItem('gacha_current_pool_id', fallbackId);
 
           if (cloudData.history.length > 0) {
@@ -683,8 +686,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     hiddenAnnouncements[announcementId] = version;
     localStorage.setItem('hiddenAnnouncements', JSON.stringify(hiddenAnnouncements));
     // 关闭公告区域（和点击 X 一样的行为）
-    setShowAnnouncement(false);
-  }, []);
+    closeAnnouncement();
+  }, [closeAnnouncement]);
 
   // 登出处理
   const handleLogout = async () => {
@@ -905,7 +908,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         // 云端有数据，直接加载云端数据
         if (cloudData.pools.length > 0) {
           setPools(cloudData.pools);
-          setCurrentPoolId(cloudData.pools[0].id);
+          switchPool(cloudData.pools[0].id);
         }
         if (cloudData.history.length > 0) {
           setHistory(cloudData.history);
@@ -1310,7 +1313,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
 
     setPools(prev => [...prev, newPool]);
-    setCurrentPoolId(newId);
+    switchPool(newId);
     setModalState({ type: null, data: null });
 
     // 同步到云端
@@ -1413,7 +1416,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (currentPoolId === poolId) {
       const remainingPools = pools.filter(p => p.id !== poolId);
       if (remainingPools.length > 0) {
-        setCurrentPoolId(remainingPools[0].id);
+        switchPool(remainingPools[0].id);
       }
     }
 
@@ -1465,7 +1468,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       // 清空本地数据
       setPools([]);
       setHistory([]);
-      setCurrentPoolId(null);
+      // currentPoolId 会由 useEffect 自动处理 fallback
 
       showToast('所有数据已删除', 'success');
     } catch (error) {
@@ -2921,7 +2924,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setShowAuthModal(true)}
+                    onClick={openAuthModal}
                     className="flex items-center gap-1 text-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-3 py-1.5 rounded-none transition-colors"
                   >
                     <LogIn size={16} />
@@ -3062,7 +3065,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 </p>
                 {!user && (
                   <button
-                    onClick={() => setShowAuthModal(true)}
+                    onClick={openAuthModal}
                     className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-4 py-2 rounded-none text-sm transition-colors"
                   >
                     登录
@@ -3562,7 +3565,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       {/* 登录弹窗 */}
       <AuthModal
         isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
+        onClose={closeAuthModal}
         onAuthSuccess={(user) => setUser(user)}
       />
 
