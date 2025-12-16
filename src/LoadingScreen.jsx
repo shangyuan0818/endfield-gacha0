@@ -1,10 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import MinecraftCaptcha from './components/MinecraftCaptcha';
 
+// 验证码有效期：24小时（毫秒）
+const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
+
 const LoadingScreen = ({ onComplete }) => {
   const [stage, setStage] = useState('loading'); // loading | captcha | done
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState('INITIALIZING');
+  const [skipCaptcha, setSkipCaptcha] = useState(false);
+
+  // 检查是否需要显示验证码（Cloudflare风格的智能验证）
+  useEffect(() => {
+    const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
+    if (lastVerifiedTime) {
+      const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
+      // 如果距离上次验证不到24小时，跳过验证码
+      if (timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION) {
+        setSkipCaptcha(true);
+      }
+    }
+  }, []);
 
   // 阶段1: 进度条加载（约3秒）
   useEffect(() => {
@@ -14,8 +30,17 @@ const LoadingScreen = ({ onComplete }) => {
       setProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
-          // 进度完成后，延迟0.5秒切换到验证码阶段
-          setTimeout(() => setStage('captcha'), 500);
+          // 进度完成后，根据 skipCaptcha 决定是否显示验证码
+          setTimeout(() => {
+            if (skipCaptcha) {
+              // 跳过验证码，直接完成
+              setStage('done');
+              setTimeout(() => onComplete(), 800);
+            } else {
+              // 显示验证码
+              setStage('captcha');
+            }
+          }, 500);
           return 100;
         }
         // 随机增量，模拟加载过程
@@ -40,10 +65,13 @@ const LoadingScreen = ({ onComplete }) => {
       clearInterval(interval);
       clearInterval(textInterval);
     };
-  }, [stage]);
+  }, [stage, skipCaptcha, onComplete]);
 
   // 阶段2: 验证码完成处理
   const handleCaptchaVerified = () => {
+    // 存储验证成功时间（Cloudflare风格）
+    localStorage.setItem('lastCaptchaVerified', Date.now().toString());
+
     setStage('done');
     // 显示成功提示1秒后进入主应用
     setTimeout(() => {
@@ -99,6 +127,11 @@ const LoadingScreen = ({ onComplete }) => {
             <div className="text-xs tracking-[0.2em] opacity-80 text-endfield-yellow">
               {text}
             </div>
+            {skipCaptcha && progress > 80 && (
+              <div className="text-[10px] text-green-500 mt-2 opacity-60 animate-pulse">
+                TRUSTED SESSION DETECTED
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -131,10 +164,10 @@ const LoadingScreen = ({ onComplete }) => {
       {stage === 'done' && (
         <div className="relative z-10 flex flex-col items-center animate-pulse">
           <div className="text-endfield-yellow text-3xl font-bold tracking-wider mb-4">
-            ✓ VERIFIED
+            ✓ {skipCaptcha ? 'TRUSTED SESSION' : 'VERIFIED'}
           </div>
           <div className="text-gray-400 text-sm">
-            身份验证成功 · 正在进入系统...
+            {skipCaptcha ? '身份已验证 · 正在进入系统...' : '身份验证成功 · 正在进入系统...'}
           </div>
         </div>
       )}

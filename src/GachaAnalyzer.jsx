@@ -42,6 +42,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const setAnnouncements = useAppStore(state => state.setAnnouncements);
   const toggleAnnouncement = useAppStore(state => state.toggleAnnouncement);
   const closeAnnouncement = useAppStore(state => state.closeAnnouncement);
+  const openAnnouncement = useAppStore(state => state.openAnnouncement);
   const toggleApplyModal = useAppStore(state => state.toggleApplyModal);
   const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
@@ -2869,12 +2870,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <Info size={18} />
             </button>
 
-            {/* 公告按钮 - 公告关闭时显示 */}
-            {!showAnnouncement && announcements.length > 0 && (
+            {/* 公告按钮 - 始终显示（如果有公告） */}
+            {announcements.length > 0 && (
               <button
-                onClick={() => setShowAnnouncement(true)}
-                className="text-sm text-amber-600 hover:text-amber-700 px-2 py-1.5 rounded-none hover:bg-amber-50 transition-colors"
-                title="查看公告"
+                onClick={toggleAnnouncement}
+                className={`text-sm px-2 py-1.5 rounded-none transition-colors ${
+                  showAnnouncement
+                    ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30'
+                    : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
+                }`}
+                title={showAnnouncement ? '隐藏公告' : '查看公告'}
               >
                 <Bell size={18} />
               </button>
@@ -2982,7 +2987,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4 relative">
             {/* 关闭按钮 */}
             <button
-              onClick={() => setShowAnnouncement(false)}
+              onClick={closeAnnouncement}
               className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-400 transition-colors"
               title="暂时关闭"
             >
