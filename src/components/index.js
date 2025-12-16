@@ -10,3 +10,6 @@ export { default as AdminPanel } from './AdminPanel';
 export { default as SettingsPanel } from './SettingsPanel';
 export { default as InputSection } from './InputSection';
 export { default as BatchCard } from './BatchCard';
+
+// 卡池组件
+export { default as PoolSelector } from './pool/PoolSelector';
