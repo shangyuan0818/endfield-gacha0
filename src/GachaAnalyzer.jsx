@@ -3,10 +3,11 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, Unlock, ExternalLink, Heart, Code, Sparkles, AlertTriangle, MessageSquare } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
-import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard } from './components';
+import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
 import { Toast, ConfirmDialog } from './components/ui';
 import { useToast, useConfirm } from './hooks';
+import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
 import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName } from './utils';
 
@@ -15,24 +16,77 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 检测暗色模式
   const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  // --- State ---
+  // --- 从 Zustand Stores 获取状态 ---
 
-  // 0.1 用户认证状态
-  const [user, setUser] = useState(null);
-  const [userRole, setUserRole] = useState(null); // 'user' | 'admin' | 'super_admin'
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState(null);
+  // 认证状态
+  const user = useAuthStore(state => state.user);
+  const userRole = useAuthStore(state => state.userRole);
+  const showAuthModal = useAuthStore(state => state.showAuthModal);
+  const syncing = useAuthStore(state => state.syncing);
+  const syncError = useAuthStore(state => state.syncError);
+  const setUser = useAuthStore(state => state.setUser);
+  const setUserRole = useAuthStore(state => state.setUserRole);
+  const toggleAuthModal = useAuthStore(state => state.toggleAuthModal);
+  const setSyncing = useAuthStore(state => state.setSyncing);
+  const setSyncError = useAuthStore(state => state.setSyncError);
 
-  // 0.2 全局统计数据 (P2: 汇总页全局数据)
-  const [globalStats, setGlobalStats] = useState(null);
-  const [globalStatsLoading, setGlobalStatsLoading] = useState(false);
+  // 应用全局状态
+  const globalStats = useAppStore(state => state.globalStats);
+  const globalStatsLoading = useAppStore(state => state.globalStatsLoading);
+  const announcements = useAppStore(state => state.announcements);
+  const showAnnouncement = useAppStore(state => state.showAnnouncement);
+  const showApplyModal = useAppStore(state => state.showApplyModal);
+  const applicationStatus = useAppStore(state => state.applicationStatus);
+  const setAnnouncements = useAppStore(state => state.setAnnouncements);
+  const toggleAnnouncement = useAppStore(state => state.toggleAnnouncement);
+  const toggleApplyModal = useAppStore(state => state.toggleApplyModal);
+  const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
-  // 0.1 申请和公告状态
-  const [showApplyModal, setShowApplyModal] = useState(false);
-  const [applicationStatus, setApplicationStatus] = useState(null); // 'pending' | 'approved' | 'rejected' | null
-  const [announcements, setAnnouncements] = useState([]);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
+  // 卡池状态
+  const pools = usePoolStore(state => state.pools);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const poolSearchQuery = usePoolStore(state => state.poolSearchQuery);
+  const collapsedDrawers = usePoolStore(state => state.collapsedDrawers);
+  const setPools = usePoolStore(state => state.setPools);
+  const switchPool = usePoolStore(state => state.switchPool);
+  const setPoolSearchQuery = usePoolStore(state => state.setPoolSearchQuery);
+  const toggleDrawer = usePoolStore(state => state.toggleDrawer);
+  const createPool = usePoolStore(state => state.createPool);
+  const deletePool = usePoolStore(state => state.deletePool);
+  const updatePool = usePoolStore(state => state.updatePool);
+
+  // 历史记录状态
+  const history = useHistoryStore(state => state.history);
+  const manualPityLimit = useHistoryStore(state => state.manualPityLimit);
+  const visibleHistoryCount = useHistoryStore(state => state.visibleHistoryCount);
+  const historyFilter = useHistoryStore(state => state.historyFilter);
+  const setHistory = useHistoryStore(state => state.setHistory);
+  const setManualPityLimit = useHistoryStore(state => state.setManualPityLimit);
+  const setVisibleHistoryCount = useHistoryStore(state => state.setVisibleHistoryCount);
+  const setHistoryFilter = useHistoryStore(state => state.setHistoryFilter);
+
+  // UI 状态
+  const activeTab = useUIStore(state => state.activeTab);
+  const modalState = useUIStore(state => state.modalState);
+  const newPoolNameInput = useUIStore(state => state.newPoolNameInput);
+  const newPoolTypeInput = useUIStore(state => state.newPoolTypeInput);
+  const isLimitedWeaponPool = useUIStore(state => state.isLimitedWeaponPool);
+  const drawerName = useUIStore(state => state.drawerName);
+  const selectedCharName = useUIStore(state => state.selectedCharName);
+  const editItemState = useUIStore(state => state.editItemState);
+  const setActiveTab = useUIStore(state => state.setActiveTab);
+  const openModal = useUIStore(state => state.openModal);
+  const closeModal = useUIStore(state => state.closeModal);
+  const setNewPoolNameInput = useUIStore(state => state.setNewPoolNameInput);
+  const setNewPoolTypeInput = useUIStore(state => state.setNewPoolTypeInput);
+  const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
+  const setDrawerName = useUIStore(state => state.setDrawerName);
+  const setSelectedCharName = useUIStore(state => state.setSelectedCharName);
+  const setEditItemState = useUIStore(state => state.setEditItemState);
+
+  // 本地 UI 状态（仍然使用 useState）
+  const [showPoolMenu, setShowPoolMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // 0.2 通用弹窗
   const { toasts, showToast, removeToast } = useToast();
@@ -42,42 +96,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
   const isSuperAdmin = userRole === 'super_admin';
 
-  // 1. 卡池列表
-  const [pools, setPools] = useState(() => {
-    try {
-      const saved = localStorage.getItem('gacha_pools');
-      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
-
-      // 迁移：旧的默认池 id=default_pool 或 limited-42-yangyan -> 新的 pool_1764318026209
-      parsed = parsed.map(p => {
-        if (p.id === 'default_pool' || p.id === 'limited-42-yangyan') {
-          return { ...p, id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited' };
-        }
-        return {
-          ...p,
-          type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited'),
-          locked: p.locked || false
-        };
-      });
-
-      // 确保默认池存在
-      if (!parsed.some(p => p.id === DEFAULT_POOL_ID)) {
-        parsed.unshift({ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false });
-      }
-
-      return parsed;
-    } catch (e) {
-      return [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
-    }
-  });
-
-  // 2. 当前选中卡池ID
-  const [currentPoolId, setCurrentPoolId] = useState(() => {
-    const saved = localStorage.getItem('gacha_current_pool_id');
-    if (!saved || saved === 'default_pool' || saved === 'limited-42-yangyan') return DEFAULT_POOL_ID;
-    return saved;
-  });
-  
+  // 当前卡池对象（从 stores 计算）
   const currentPool = useMemo(() => {
     const byId = pools.find(p => p.id === currentPoolId);
     if (byId) return byId;
@@ -86,17 +105,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return pools[0];
   }, [pools, currentPoolId]);
 
-  // 如果当前选中卡池ID无效，则回退到默认池并写回 localStorage
+  // 如果当前选中卡池ID无效，则回退到默认池
   useEffect(() => {
     const exists = pools.some(p => p.id === currentPoolId);
     if (!exists) {
       const fallback = pools.find(p => p.id === DEFAULT_POOL_ID) || pools[0];
       if (fallback) {
-        setCurrentPoolId(fallback.id);
-        localStorage.setItem('gacha_current_pool_id', fallback.id);
+        switchPool(fallback.id);
       }
     }
-  }, [pools, currentPoolId]);
+  }, [pools, currentPoolId, switchPool]);
 
   // 当前卡池是否可编辑（锁定的卡池只有超管能改）
   const canEditCurrentPool = useMemo(() => {
@@ -104,11 +122,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (currentPool?.locked && !isSuperAdmin) return false;
     return true;
   }, [canEdit, currentPool?.locked, isSuperAdmin]);
-
-  // 卡池搜索状态（必须在 groupedPools 之前声明）
-  const [poolSearchQuery, setPoolSearchQuery] = useState('');
-  // 折叠的抽卡人分组（存储已折叠的抽卡人名称）
-  const [collapsedDrawers, setCollapsedDrawers] = useState(new Set());
 
   // 按抽卡人分组的卡池列表（支持搜索）
   const groupedPools = useMemo(() => {
@@ -170,39 +183,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }, [pools]);
 
-  // 3. 历史记录 (增加 isStandard 字段标识常驻)
-  const [history, setHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('gacha_history_v2');
-      let data = saved ? JSON.parse(saved) : [];
-      
-      // 数据迁移：
-      // 1. 如果老数据没有 poolId，赋予默认 poolId
-      // 2. 如果是6星且没有 isStandard 字段，默认设为 false (假设之前的都是限定，或者让用户自己改)
-      let hasMigration = false;
-      const migratedData = data.map(item => {
-        let newItem = { ...item };
-        if (!newItem.poolId) {
-          hasMigration = true;
-          newItem.poolId = DEFAULT_POOL_ID;
-        }
-        if (newItem.rarity === 6 && newItem.isStandard === undefined) {
-          // 老数据兼容，默认为限定(false)
-          newItem.isStandard = false; 
-        }
-        return newItem;
-      });
-      
-      if (hasMigration) {
-        localStorage.setItem('gacha_history_v2', JSON.stringify(migratedData));
-      }
-      
-      return migratedData;
-    } catch (e) {
-      return [];
-    }
-  });
-
   // 当前卡池的历史记录（方案A：完全开放模式，显示该卡池的所有数据）
   const currentPoolHistory = useMemo(() => {
     if (!currentPool) return [];
@@ -210,26 +190,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // 这样所有用户都能看到该卡池的全部录入数据（适合协作场景）
     return history.filter(h => h.poolId === currentPoolId);
   }, [history, currentPoolId, currentPool]);
-
-  const [manualPityLimit, setManualPityLimit] = useState(DEFAULT_DISPLAY_PITY);
-  
-  // 列表分页状态
-  const [visibleHistoryCount, setVisibleHistoryCount] = useState(20);
-  // 记录筛选状态: 'all' | '6star' | '5star' | 'gift'
-  const [historyFilter, setHistoryFilter] = useState('all');
-
-  const [activeTab, setActiveTab] = useState('summary');
-  const [showPoolMenu, setShowPoolMenu] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-
-  // 弹窗状态
-  const [modalState, setModalState] = useState({ type: null, data: null });
-  const [newPoolNameInput, setNewPoolNameInput] = useState('');
-  const [newPoolTypeInput, setNewPoolTypeInput] = useState('limited'); // 'limited' | 'standard' | 'weapon'
-  const [isLimitedWeaponPool, setIsLimitedWeaponPool] = useState(true); // 武器池是否为限定（有额外获取）
-  const [drawerName, setDrawerName] = useState('');
-  const [selectedCharName, setSelectedCharName] = useState('');
-  const [editItemState, setEditItemState] = useState(null); // { id, rarity, isStandard } or null
 
   // 文件上传 Ref
   const fileInputRef = useRef(null);
@@ -240,6 +200,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 使用 RPC 函数绕过 RLS 获取全服统计
   const fetchGlobalStats = useCallback(async () => {
     if (!supabase) return;
+
+    const setGlobalStatsLoading = useAppStore.getState().setGlobalStatsLoading;
+    const setGlobalStats = useAppStore.getState().setGlobalStats;
 
     setGlobalStatsLoading(true);
     try {
@@ -1562,8 +1525,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   };
 
-  const closeModal = () => {
-    setModalState({ type: null, data: null });
+  // 关闭弹窗并清理编辑状态的辅助函数
+  const closeModalAndClear = () => {
+    closeModal();
     setEditItemState(null);
   };
 
@@ -2802,175 +2766,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className="relative">
-                <button
-                  onClick={() => setShowPoolMenu(!showPoolMenu)}
-                  className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
-                >
-                  <Layers size={16} />
-                  <span className="max-w-[100px] sm:max-w-[200px] truncate">
-                    {pools.find(p => p.id === currentPoolId)?.name}
-                  </span>
-                  <ChevronDown size={14} className={`transition-transform ${showPoolMenu ? 'rotate-180' : ''}`}/>
-                </button>
-
-              {showPoolMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => { setShowPoolMenu(false); setPoolSearchQuery(''); }}></div>
-                  <div className="absolute top-full left-0 mt-2 w-72 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 animate-fade-in overflow-hidden">
-                    {/* 搜索框 */}
-                    <div className="p-2 border-b border-zinc-100 dark:border-zinc-800">
-                      <div className="relative">
-                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
-                        <input
-                          type="text"
-                          value={poolSearchQuery}
-                          onChange={(e) => setPoolSearchQuery(e.target.value)}
-                          placeholder="搜索卡池..."
-                          className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-none focus:ring-1 focus:ring-yellow-500 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 placeholder:text-slate-400 dark:placeholder:text-zinc-500"
-                          autoFocus
-                        />
-                        {poolSearchQuery && (
-                          <button
-                            onClick={() => setPoolSearchQuery('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400"
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 卡池列表 - 按抽卡人分组 */}
-                    <div className="max-h-80 overflow-y-auto">
-                      {groupedPools.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-slate-400 dark:text-zinc-500">
-                          未找到匹配的卡池
-                        </div>
-                      ) : (
-                        groupedPools.map((group, groupIdx) => {
-                          const drawerKey = group.drawer || '未分类';
-                          const isCollapsed = collapsedDrawers.has(drawerKey);
-
-                          return (
-                          <div key={drawerKey}>
-                            {/* 抽卡人分组标题 - 可点击折叠 */}
-                            <button
-                              onClick={() => {
-                                setCollapsedDrawers(prev => {
-                                  const newSet = new Set(prev);
-                                  if (newSet.has(drawerKey)) {
-                                    newSet.delete(drawerKey);
-                                  } else {
-                                    newSet.add(drawerKey);
-                                  }
-                                  return newSet;
-                                });
-                              }}
-                              className="w-full px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-800/50 sticky top-0 flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-zinc-700/50 transition-colors"
-                            >
-                              <ChevronDown
-                                size={12}
-                                className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
-                              />
-                              <User size={12} />
-                              {group.drawer || '未分类'}
-                              <span className="text-slate-300 dark:text-zinc-600">({group.pools.length})</span>
-                            </button>
-
-                            {/* 该抽卡人的卡池列表 - 可折叠 */}
-                            {!isCollapsed && group.pools.map(pool => {
-                              const charName = extractCharNameFromPoolName(pool.name);
-                              const poolTypeLabel = pool.type === 'limited' ? '限定' : pool.type === 'weapon' ? '武器' : '常驻';
-                              const poolTypeColor = pool.type === 'limited' ? 'text-orange-500' : pool.type === 'weapon' ? 'text-slate-500 dark:text-zinc-400' : 'text-yellow-600 dark:text-endfield-yellow';
-
-                              return (
-                                <div
-                                  key={pool.id}
-                                  className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-zinc-800 group/item ${currentPoolId === pool.id ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
-                                >
-                                  <button
-                                    onClick={() => {
-                                      setCurrentPoolId(pool.id);
-                                      setShowPoolMenu(false);
-                                      setPoolSearchQuery('');
-                                    }}
-                                    className={`flex-1 text-left flex items-center gap-2 min-w-0 ${currentPoolId === pool.id ? 'text-yellow-600 dark:text-endfield-yellow font-bold' : 'text-slate-600 dark:text-zinc-400'}`}
-                                    title={pool.name}
-                                  >
-                                    {pool.locked && <Lock size={12} className="text-amber-500 shrink-0" />}
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 font-bold ${poolTypeColor} bg-opacity-10 ${pool.type === 'limited' ? 'bg-orange-100 dark:bg-orange-900/30' : pool.type === 'weapon' ? 'bg-slate-100 dark:bg-zinc-700' : 'bg-yellow-100 dark:bg-yellow-900/30'}`}>
-                                      {poolTypeLabel}
-                                    </span>
-                                    <span className="truncate">
-                                      {charName || (group.drawer ? pool.name.replace(`-${group.drawer}`, '') : pool.name)}
-                                    </span>
-                                  </button>
-
-                                  <div className="flex items-center gap-0.5 shrink-0">
-                                    {currentPoolId === pool.id && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow shrink-0 mr-1"></div>}
-                                    {/* 锁定/解锁按钮 - 仅超管可见 */}
-                                    {isSuperAdmin && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          togglePoolLock(pool.id);
-                                        }}
-                                        className={`p-1 rounded opacity-0 group-hover/item:opacity-100 transition-all ${pool.locked ? 'text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30' : 'text-slate-300 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700'}`}
-                                        title={pool.locked ? "解锁卡池" : "锁定卡池"}
-                                      >
-                                        {pool.locked ? <Unlock size={12} /> : <Lock size={12} />}
-                                      </button>
-                                    )}
-                                    {/* 编辑卡池按钮 */}
-                                    {canEdit && (!pool.locked || isSuperAdmin) && (
-                                      <button
-                                        onClick={(e) => openEditPoolModal(e, pool)}
-                                        className="p-1 text-slate-300 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded opacity-0 group-hover/item:opacity-100 transition-all"
-                                        title="编辑卡池"
-                                      >
-                                        <Settings size={12} />
-                                      </button>
-                                    )}
-                                    {/* 删除卡池按钮 */}
-                                    {canEdit && (!pool.locked || isSuperAdmin) && pools.length > 1 && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          openDeletePoolModal(pool);
-                                        }}
-                                        className="p-1 text-slate-300 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded opacity-0 group-hover/item:opacity-100 transition-all"
-                                        title="删除卡池"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          );
-                        })
-                      )}
-                    </div>
-
-                    {/* 新建卡池 - 仅管理员可见 */}
-                    {canEdit && (
-                      <div className="border-t border-zinc-100 dark:border-zinc-800">
-                        <button
-                          onClick={openCreatePoolModal}
-                          className="w-full text-left px-3 py-2.5 text-sm text-yellow-600 dark:text-endfield-yellow hover:bg-yellow-50 dark:hover:bg-yellow-900/20 flex items-center gap-2 font-medium"
-                        >
-                          <Plus size={16} />
-                          新建卡池...
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-              </div>
+              {/* 卡池选择器组件 */}
+              <PoolSelector
+                onOpenCreatePoolModal={openCreatePoolModal}
+                onOpenEditPoolModal={openEditPoolModal}
+                onOpenDeletePoolModal={openDeletePoolModal}
+                onTogglePoolLock={togglePoolLock}
+              />
 
               {/* UP池时间信息 - 仅限定池显示 */}
               {currentPool.type === 'limited' && (
@@ -3285,7 +3087,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
             {/* 左列：保底机制分析 */}
             <div className="md:col-span-1 space-y-6">
-              <PityAnalysisCard />
+              <DashboardView currentPool={currentPool} stats={stats} effectivePity={effectivePity} />
               
               {/* 平均出货消耗 */}
               <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
@@ -3409,129 +3211,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             </div>
           </div>
         ) : (
-          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-fade-in relative">
-             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950 sticky top-0 z-10">
-               <div className="flex items-center gap-4">
-                  <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                    <History size={18} /> 详细日志
-                  </h3>
-                  <span className="text-xs px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-endfield-yellow rounded-none">
-                    {pools.find(p => p.id === currentPoolId)?.name}
-                  </span>
-               </div>
-               
-               <div className="flex gap-2">
-                 {/* 筛选按钮 */}
-                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-800 rounded-none p-0.5">
-                   <button
-                     onClick={() => { setHistoryFilter('all'); setVisibleHistoryCount(20); }}
-                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === 'all' ? 'bg-white dark:bg-zinc-700 text-slate-800 dark:text-zinc-100 shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700'}`}
-                   >
-                     全部
-                   </button>
-                   <button
-                     onClick={() => { setHistoryFilter('6star'); setVisibleHistoryCount(20); }}
-                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === '6star' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-orange-500'}`}
-                   >
-                     6星
-                   </button>
-                   <button
-                     onClick={() => { setHistoryFilter('5star'); setVisibleHistoryCount(20); }}
-                     className={`text-xs px-2 py-1 rounded-none transition-colors ${historyFilter === '5star' ? 'bg-amber-500 text-white shadow-sm' : 'text-slate-500 dark:text-zinc-400 hover:text-amber-500'}`}
-                   >
-                     5星
-                   </button>
-                 </div>
-
-                 {/* 导入按钮 - 仅管理员可见 */}
-                 {canEdit && (
-                   <>
-                     <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
-                     >
-                       <Upload size={14} />
-                       导入
-                     </button>
-                     <input
-                       type="file"
-                       ref={fileInputRef}
-                       onChange={handleImportFile}
-                       className="hidden"
-                       accept=".json"
-                     />
-                   </>
-                 )}
-
-                 {/* 导出菜单 */}
-                 <div className="relative">
-                   <button
-                    onClick={() => setShowExportMenu(!showExportMenu)}
-                    className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
-                   >
-                     <Download size={14} />
-                     导出...
-                   </button>
-                   
-                   {showExportMenu && (
-                     <>
-                       <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)}></div>
-                       <div className="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 py-2 animate-fade-in overflow-hidden">
-                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">JSON 备份</div>
-                         <button onClick={() => handleExportJSON('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:text-yellow-600 dark:text-endfield-yellow flex items-center justify-between">
-                           全部卡池 <FileJson size={14}/>
-                         </button>
-                         <button onClick={() => handleExportJSON('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:bg-yellow-900/20 hover:text-yellow-600 dark:text-endfield-yellow flex items-center justify-between">
-                           当前卡池 <FileJson size={14}/>
-                         </button>
-                         
-                         <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
-                         
-                         <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">CSV 表格</div>
-                         <button onClick={() => handleExportCSV('all')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
-                           全部卡池 <FileJson size={14}/>
-                         </button>
-                         <button onClick={() => handleExportCSV('current')} className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between">
-                           当前卡池 <FileJson size={14}/>
-                         </button>
-                       </div>
-                     </>
-                   )}
-                 </div>
-               </div>
-             </div>
-             
-             <div className="max-h-[800px] overflow-y-auto bg-slate-50 dark:bg-zinc-950/50">
-               {filteredGroupedHistory.length === 0 ? (
-                 <div className="p-12 text-center text-slate-400 dark:text-zinc-500">
-                   {historyFilter === 'all' ? '当前卡池暂无记录' : `当前卡池暂无${historyFilter === '6star' ? '6星' : '5星'}记录`}
-                 </div>
-               ) : (
-                 <div className="divide-y divide-slate-100">
-                   {filteredGroupedHistory.slice(0, visibleHistoryCount).map((group, idx) => (
-                     <BatchCard
-                       key={idx}
-                       group={group}
-                       onEdit={setEditItemState}
-                       onDeleteGroup={handleDeleteGroup}
-                       poolType={currentPool.type}
-                       canEdit={canEditCurrentPool}
-                     />
-                   ))}
-
-                   {visibleHistoryCount < filteredGroupedHistory.length && (
-                     <div className="p-4 flex justify-center">
-                       <button
-                         onClick={() => setVisibleHistoryCount(prev => prev + 20)}
-                         className="text-sm text-slate-500 dark:text-zinc-500 hover:text-yellow-600 dark:text-endfield-yellow font-medium px-6 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:border-yellow-200 dark:border-yellow-800 bg-white dark:bg-zinc-900 hover:bg-yellow-50 dark:bg-yellow-900/20 transition-all shadow-sm"
-                       >
-                         加载更多 ({filteredGroupedHistory.length - visibleHistoryCount} 条剩余)
-                       </button>
-                     </div>
-                   )}
-                 </div>
-               )}
-             </div>
+          <>
+            <RecordsView
+              filteredGroupedHistory={filteredGroupedHistory}
+              currentPool={currentPool}
+              canEditCurrentPool={canEditCurrentPool}
+              onEdit={setEditItemState}
+              onDeleteGroup={handleDeleteGroup}
+              onImportFile={handleImportFile}
+              onExportJSON={handleExportJSON}
+              onExportCSV={handleExportCSV}
+            />
 
              {/* 编辑弹窗 */}
              {editItemState && (
@@ -3542,7 +3232,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                  onDelete={handleDeleteItem}
                />
              )}
-          </div>
+          </>
         )}
         </>
       )}
@@ -3554,7 +3244,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 dark:text-zinc-300">{modalState.type === 'createPool' ? '创建新卡池' : '编辑卡池'}</h3>
-              <button onClick={closeModal} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
+              <button onClick={closeModalAndClear} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -3724,7 +3414,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             </div>
             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-end">
               <button 
-                onClick={closeModal}
+                onClick={closeModalAndClear}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
@@ -3758,7 +3448,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
              </div>
              <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button
-                onClick={closeModal}
+                onClick={closeModalAndClear}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
               >
                 取消
@@ -3790,7 +3480,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
              </div>
              <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button
-                onClick={closeModal}
+                onClick={closeModalAndClear}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
               >
                 再想想
@@ -3853,7 +3543,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
              </div>
              <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
               <button 
-                onClick={closeModal}
+                onClick={closeModalAndClear}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
               >
                 取消
