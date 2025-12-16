@@ -13,3 +13,6 @@ export { default as BatchCard } from './BatchCard';
 
 // 卡池组件
 export { default as PoolSelector } from './pool/PoolSelector';
+
+// 记录组件
+export { default as RecordsView } from './records/RecordsView';
