@@ -188,7 +188,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
   const output = calculateOutput(craftingGrid);
 
   // 左键点击格子
-  const handleLeftClick = (slotType, index) => {
+  const handleLeftClick = (e, slotType, index) => {
     if (slotType === 'output') {
       handleTakeOutput();
       return;
@@ -205,6 +205,16 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
     if (!heldItem && slotItem) {
       // 空手点击有物品的格子 → 拾起全部
+      // 立即更新鼠标位置，避免闪烁
+      const container = containerRef.current;
+      if (container && e) {
+        const rect = container.getBoundingClientRect();
+        setMousePos({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
+      }
+
       const newSlots = [...slots];
       newSlots[index] = null;
       setSlots(newSlots);
@@ -265,6 +275,16 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
     if (!heldItem && slotItem) {
       // 空手右键有物品的格子 → 拾起一半（向上取整）
+      // 立即更新鼠标位置，避免闪烁
+      const container = containerRef.current;
+      if (container && e) {
+        const rect = container.getBoundingClientRect();
+        setMousePos({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
+      }
+
       const pickCount = Math.ceil(slotItem.count / 2);
       const remainCount = slotItem.count - pickCount;
 
@@ -276,6 +296,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
       }
       setSlots(newSlots);
       setHeldItem({ type: slotItem.type, count: pickCount });
+      setHeldItemSource({ type: slotType, index }); // 记录来源
     } else if (heldItem && !slotItem) {
       // 手持物品右键空格子 → 放下1个
       if (heldItem.count > 1) {
@@ -395,7 +416,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
       <div
         key={`${slotType}-${index}`}
         className={`crafting-slot ${isOutput ? 'output-slot' : ''}`}
-        onClick={() => !isOutput && handleLeftClick(slotType, index)}
+        onClick={(e) => !isOutput && handleLeftClick(e, slotType, index)}
         onContextMenu={(e) => !isOutput && handleRightClick(e, slotType, index)}
         style={{ cursor: 'pointer' }}
       >
