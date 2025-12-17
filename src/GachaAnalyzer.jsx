@@ -2710,9 +2710,23 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                             `${value}个 (${(value/stats.total*100).toFixed(1)}%)`,
                             name
                           ]}
-                          contentStyle={{ backgroundColor: isDark ? '#18181b' : '#fff', color: isDark ? '#e4e4e7' : '#27272a', borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          contentStyle={{
+                            backgroundColor: isDark ? '#18181b' : '#ffffff',
+                            borderRadius: '0px',
+                            border: isDark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+                            boxShadow: isDark ? '0 4px 6px -1px rgb(0 0 0 / 0.3)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                          }}
+                          itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                          labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
                         />
-                        <Legend verticalAlign="bottom" height={36} wrapperStyle={{color: '#a1a1aa', fontSize: '12px'}}/>
+                        <Legend
+                          verticalAlign="bottom"
+                          height={36}
+                          wrapperStyle={{
+                            color: isDark ? '#a1a1aa' : '#71717a',
+                            fontSize: '12px'
+                          }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   )}
