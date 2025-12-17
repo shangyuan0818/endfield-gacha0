@@ -307,4 +307,97 @@
     border-color: var(--color-endfield-yellow);
     box-shadow: 0 0 0 1px var(--color-endfield-yellow);
   }
+
+  /* 公告 Markdown 样式 */
+  .announcement-content .wmde-markdown {
+    background: transparent !important;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .announcement-content .wmde-markdown,
+  .announcement-content .wmde-markdown p,
+  .announcement-content .wmde-markdown li,
+  .announcement-content .wmde-markdown span {
+    color: #b45309 !important; /* amber-700 */
+  }
+
+  html.dark .announcement-content .wmde-markdown,
+  html.dark .announcement-content .wmde-markdown p,
+  html.dark .announcement-content .wmde-markdown li,
+  html.dark .announcement-content .wmde-markdown span {
+    color: rgba(251, 191, 36, 0.8) !important; /* amber-400/80 */
+  }
+
+  .announcement-content .wmde-markdown h1,
+  .announcement-content .wmde-markdown h2,
+  .announcement-content .wmde-markdown h3,
+  .announcement-content .wmde-markdown h4 {
+    color: #92400e !important; /* amber-800 */
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 700;
+    border-bottom: none;
+  }
+
+  html.dark .announcement-content .wmde-markdown h1,
+  html.dark .announcement-content .wmde-markdown h2,
+  html.dark .announcement-content .wmde-markdown h3,
+  html.dark .announcement-content .wmde-markdown h4 {
+    color: #fcd34d !important; /* amber-300 */
+  }
+
+  .announcement-content .wmde-markdown ul,
+  .announcement-content .wmde-markdown ol {
+    padding-left: 1.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .announcement-content .wmde-markdown code {
+    background: rgba(251, 191, 36, 0.2);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+  }
+
+  .announcement-content .wmde-markdown pre {
+    background: rgba(251, 191, 36, 0.1) !important;
+    padding: 0.75rem;
+    border-radius: 0;
+    overflow-x: auto;
+  }
+
+  .announcement-content .wmde-markdown blockquote {
+    border-left: 3px solid #f59e0b;
+    padding-left: 1rem;
+    margin: 0.75rem 0;
+    color: #d97706 !important;
+  }
+
+  html.dark .announcement-content .wmde-markdown blockquote {
+    color: #fbbf24 !important;
+  }
+
+  .announcement-content .wmde-markdown a {
+    color: #d97706 !important;
+    text-decoration: underline;
+  }
+
+  html.dark .announcement-content .wmde-markdown a {
+    color: #fbbf24 !important;
+  }
+
+  .announcement-content .wmde-markdown hr {
+    border-color: rgba(251, 191, 36, 0.3);
+    margin: 1rem 0;
+  }
+
+  .announcement-content .wmde-markdown strong {
+    font-weight: 700;
+    color: #92400e !important;
+  }
+
+  html.dark .announcement-content .wmde-markdown strong {
+    color: #fcd34d !important;
+  }
 }

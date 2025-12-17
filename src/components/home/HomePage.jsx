@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
-import SimpleMarkdown from '../SimpleMarkdown';
+import MDEditor from '@uiw/react-md-editor';
 import {
   STORAGE_KEYS,
   getHomeCollapseState,
@@ -59,22 +59,43 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     setShowAnnouncement(prev => {
       const newState = !prev;
       setHomeCollapseState('announcement', !newState);
-      // 展开公告时标记为已查看
-      if (newState && isAnnouncementNew) {
-        markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
-        setIsAnnouncementNew(false);
-      }
       return newState;
     });
+  }, []);
+
+  // 用户主动点击公告区域时标记为已查看（延迟执行，让用户看到 NEW 标签）
+  const handleAnnouncementViewed = useCallback(() => {
+    if (isAnnouncementNew) {
+      // 延迟 2 秒后标记为已查看，让用户有足够时间看到 NEW 标签
+      setTimeout(() => {
+        markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
+        setIsAnnouncementNew(false);
+      }, 2000);
+    }
   }, [isAnnouncementNew]);
 
-  // 公告展开时自动标记为已查看
+  // 公告展开时延迟标记为已查看
   useEffect(() => {
     if (showAnnouncement && isAnnouncementNew) {
-      markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
-      setIsAnnouncementNew(false);
+      handleAnnouncementViewed();
     }
-  }, [showAnnouncement, isAnnouncementNew]);
+  }, [showAnnouncement, isAnnouncementNew, handleAnnouncementViewed]);
+
+  // 折叠动画辅助 - 使用 ref 获取实际高度
+  const poolMechanicsRef = useRef(null);
+  const guideRef = useRef(null);
+  const announcementRef = useRef(null);
+
+  // 折叠动画组件
+  const CollapsibleContent = ({ isOpen, children, maxHeightValue = '2000px' }) => (
+    <div
+      className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
+    >
+      <div className="overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
 
   // 倒计时组件
   const CountdownTimer = ({ targetDate, title, icon: Icon, colorClass, endedText }) => {
@@ -205,13 +226,8 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showPoolMechanics ? '' : 'rotate-180'}`} />
         </button>
 
-      {/* 展开内容 - 带动画 */}
-        <div
-          className={`overflow-hidden transition-all duration-500 ease-in-out ${showPoolMechanics ? 'opacity-100' : 'opacity-0'}`}
-          style={{
-            maxHeight: showPoolMechanics ? '2000px' : '0px',
-          }}
-        >
+      {/* 展开内容 - 使用 grid 动画 */}
+        <CollapsibleContent isOpen={showPoolMechanics}>
           <div className="px-6 pb-6 space-y-6">
             {/* 三种卡池对比 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -445,7 +461,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
               </div>
             </div>
           </div>
-        </div>
+        </CollapsibleContent>
       </div>
     );
   };
@@ -472,13 +488,8 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showGuide ? '' : 'rotate-180'}`} />
       </button>
 
-      {/* 展开内容 - 带动画 */}
-      <div
-        className={`overflow-hidden transition-all duration-500 ease-in-out ${showGuide ? 'opacity-100' : 'opacity-0'}`}
-        style={{
-          maxHeight: showGuide ? '1500px' : '0px',
-        }}
-      >
+      {/* 展开内容 - 使用 grid 动画 */}
+      <CollapsibleContent isOpen={showGuide}>
         <div className="px-6 pb-6 space-y-4">
           {/* 功能介绍 */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -584,7 +595,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             </div>
           )}
         </div>
-      </div>
+      </CollapsibleContent>
     </div>
   );
 
@@ -650,19 +661,20 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
           </button>
 
-          {/* 公告内容 - 带动画 */}
-          <div
-            className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnnouncement ? 'opacity-100' : 'opacity-0'}`}
-            style={{
-              maxHeight: showAnnouncement ? '1000px' : '0',
-            }}
-          >
+          {/* 公告内容 - 使用 grid 动画 */}
+          <CollapsibleContent isOpen={showAnnouncement}>
             <div className="px-4 pb-4">
-              <div className="text-sm text-amber-700 dark:text-amber-400/80 pl-12">
-                <SimpleMarkdown content={announcements[0].content} />
+              <div className="text-sm pl-12 announcement-content" data-color-mode="light">
+                <MDEditor.Markdown
+                  source={announcements[0].content}
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: 'inherit',
+                  }}
+                />
               </div>
             </div>
-          </div>
+          </CollapsibleContent>
         </div>
       )}
 
