@@ -259,19 +259,24 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     };
 
     return (
-      <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800 border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+      <div className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden relative group/card">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 to-cyan-500 origin-left scale-x-0 group-hover/card:scale-x-100 transition-transform duration-500"></div>
+
         {/* 标题栏 - 可点击展开/收起 */}
         <button
           onClick={handleTogglePoolMechanics}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors relative z-10"
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 rainbow-bg-light rounded-lg">
-              <Info size={20} className="rainbow-text" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+              <Info size={20} />
             </div>
             <div className="text-left">
-              <h3 className="font-bold text-slate-800 dark:text-zinc-100">卡池机制速览</h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
+              <h3 className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
+                卡池机制速览
+                <span className="text-[10px] px-1.5 py-0.5 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 uppercase tracking-wider font-mono">Mechanics</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
                 当前UP: <span className="rainbow-text font-medium">{currentUpPool.name}</span>
                 {!isExpired && (
                   <span className={`ml-2 ${isEndingSoon ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>
