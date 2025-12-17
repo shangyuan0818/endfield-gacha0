@@ -49,31 +49,36 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
     const TimeBlock = ({ value, label }) => (
       <div className="flex flex-col items-center">
-        <div className={`w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center ${colorClass} rounded-none font-mono text-xl sm:text-2xl font-bold`}>
+        <div className={`w-14 h-14 sm:w-20 sm:h-20 flex items-center justify-center ${colorClass} rounded-none font-mono text-2xl sm:text-4xl font-bold shadow-sm`}>
           {String(value).padStart(2, '0')}
         </div>
-        <span className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">{label}</span>
+        <span className="text-xs sm:text-sm text-slate-500 dark:text-zinc-500 mt-2 font-medium">{label}</span>
       </div>
     );
 
+    // 根据colorClass提取图标颜色
+    const iconColor = colorClass.includes('amber')
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-green-600 dark:text-green-400';
+
     return (
-      <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Icon size={18} className={colorClass.includes('text-') ? colorClass.split(' ')[0].replace('bg-', 'text-').replace('-100', '-600').replace('-900/30', '-400') : 'text-slate-600'} />
-          <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300">{title}</h4>
+      <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-5 sm:p-6">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <Icon size={22} className={iconColor} />
+          <h4 className="font-bold text-base sm:text-lg text-slate-700 dark:text-zinc-300">{title}</h4>
         </div>
         {timeLeft.ended ? (
-          <div className={`text-center py-4 font-bold ${colorClass.includes('amber') ? 'text-amber-600' : 'text-green-600'}`}>
+          <div className={`text-center py-6 text-xl font-bold ${colorClass.includes('amber') ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
             {endedText}
           </div>
         ) : (
-          <div className="flex items-center justify-center gap-1 sm:gap-2">
+          <div className="flex items-center justify-center gap-2 sm:gap-3">
             <TimeBlock value={timeLeft.days} label="天" />
-            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
             <TimeBlock value={timeLeft.hours} label="时" />
-            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
             <TimeBlock value={timeLeft.minutes} label="分" />
-            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
             <TimeBlock value={timeLeft.seconds} label="秒" />
           </div>
         )}
@@ -140,13 +145,11 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showPoolMechanics ? '' : 'rotate-180'}`} />
         </button>
 
-        {/* 展开内容 - 带动画 */}
+      {/* 展开内容 - 带动画 */}
         <div
-          className="overflow-hidden"
+          className={`overflow-hidden transition-all duration-500 ease-in-out ${showPoolMechanics ? 'opacity-100' : 'opacity-0'}`}
           style={{
             maxHeight: showPoolMechanics ? '2000px' : '0px',
-            opacity: showPoolMechanics ? 1 : 0,
-            transition: 'max-height 0.3s ease-in-out, opacity 0.2s ease-in-out'
           }}
         >
           <div className="px-6 pb-6 space-y-6">
@@ -409,13 +412,11 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showGuide ? '' : 'rotate-180'}`} />
       </button>
 
-      {/* 展开内容 */}
+      {/* 展开内容 - 带动画 */}
       <div
-        className="overflow-hidden"
+        className={`overflow-hidden transition-all duration-500 ease-in-out ${showGuide ? 'opacity-100' : 'opacity-0'}`}
         style={{
           maxHeight: showGuide ? '1500px' : '0px',
-          opacity: showGuide ? 1 : 0,
-          transition: 'max-height 0.3s ease-in-out, opacity 0.2s ease-in-out'
         }}
       >
         <div className="px-6 pb-6 space-y-4">
@@ -577,10 +578,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
           {/* 公告内容 - 带动画 */}
           <div
-            className="overflow-hidden transition-all duration-300 ease-in-out"
+            className={`overflow-hidden transition-all duration-500 ease-in-out ${showAnnouncement ? 'opacity-100' : 'opacity-0'}`}
             style={{
               maxHeight: showAnnouncement ? '1000px' : '0',
-              opacity: showAnnouncement ? 1 : 0
             }}
           >
             <div className="px-4 pb-4">
