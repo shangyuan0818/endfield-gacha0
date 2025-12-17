@@ -455,8 +455,19 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                     ))}
                   </Pie>
-                  <RechartsTooltip contentStyle={tooltipStyle} />
-                  <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{fontSize: '11px'}}/>
+                  <RechartsTooltip
+                    contentStyle={tooltipStyle}
+                    itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                    labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    iconSize={10}
+                    wrapperStyle={{
+                      fontSize: '11px',
+                      color: isDark ? '#a1a1aa' : '#71717a'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
@@ -476,6 +487,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   <RechartsTooltip
                     cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}}
                     contentStyle={tooltipStyle}
+                    itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                    labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
                   />
                   <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />
                   <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" />
