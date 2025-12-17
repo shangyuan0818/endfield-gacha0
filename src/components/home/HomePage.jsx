@@ -5,7 +5,7 @@ import {
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
-import MDEditor from '@uiw/react-md-editor';
+import SimpleMarkdown from '../SimpleMarkdown';
 import {
   STORAGE_KEYS,
   getHomeCollapseState,
@@ -98,7 +98,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   );
 
   // 倒计时组件
-  const CountdownTimer = ({ targetDate, title, icon: Icon, colorClass, endedText }) => {
+  const CountdownTimer = ({ targetDate, title, icon: Icon, theme = 'amber', endedText, link, linkText, description }) => {
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
 
     useEffect(() => {
@@ -128,41 +128,89 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       return () => clearInterval(timer);
     }, [targetDate]);
 
+    // 主题样式配置
+    const styles = {
+      amber: {
+        border: 'border-amber-200 dark:border-amber-800/50',
+        bg: 'bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-zinc-900 dark:to-zinc-900',
+        icon: 'text-amber-600 dark:text-amber-500',
+        title: 'text-amber-900 dark:text-amber-100',
+        numberBg: 'bg-white dark:bg-zinc-800 border border-amber-100 dark:border-amber-900/30',
+        numberText: 'text-amber-600 dark:text-amber-400',
+        desc: 'text-amber-800/70 dark:text-amber-200/70',
+        button: 'text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20 border-amber-200 dark:border-amber-800/50'
+      },
+      green: {
+        border: 'border-emerald-200 dark:border-emerald-800/50',
+        bg: 'bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-zinc-900 dark:to-zinc-900',
+        icon: 'text-emerald-600 dark:text-emerald-500',
+        title: 'text-emerald-900 dark:text-emerald-100',
+        numberBg: 'bg-white dark:bg-zinc-800 border border-emerald-100 dark:border-emerald-900/30',
+        numberText: 'text-emerald-600 dark:text-emerald-400',
+        desc: 'text-emerald-800/70 dark:text-emerald-200/70',
+        button: 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50'
+      }
+    }[theme] || styles.amber;
+
     const TimeBlock = ({ value, label }) => (
       <div className="flex flex-col items-center">
-        <div className={`w-14 h-14 sm:w-20 sm:h-20 flex items-center justify-center ${colorClass} rounded-none font-mono text-2xl sm:text-4xl font-bold shadow-sm`}>
+        <div className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center ${styles.numberBg} ${styles.numberText} rounded-none font-mono text-xl sm:text-3xl font-bold shadow-sm mb-1`}>
           {String(value).padStart(2, '0')}
         </div>
-        <span className="text-xs sm:text-sm text-slate-500 dark:text-zinc-500 mt-2 font-medium">{label}</span>
+        <span className={`text-[10px] sm:text-xs uppercase tracking-wider ${styles.desc} font-medium`}>{label}</span>
       </div>
     );
 
-    // 根据colorClass提取图标颜色
-    const iconColor = colorClass.includes('amber')
-      ? 'text-amber-600 dark:text-amber-400'
-      : 'text-green-600 dark:text-green-400';
-
     return (
-      <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-5 sm:p-6">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Icon size={22} className={iconColor} />
-          <h4 className="font-bold text-base sm:text-lg text-slate-700 dark:text-zinc-300">{title}</h4>
+      <div className={`flex-1 ${styles.bg} border ${styles.border} p-5 sm:p-6 relative overflow-hidden group`}>
+        {/* 装饰背景字 */}
+        <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none select-none">
+          <Icon size={120} />
         </div>
-        {timeLeft.ended ? (
-          <div className={`text-center py-6 text-xl font-bold ${colorClass.includes('amber') ? 'text-amber-600 dark:text-amber-400' : 'text-green-600 dark:text-green-400'}`}>
-            {endedText}
+
+        <div className="relative z-10">
+          {/* 标题栏 */}
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Icon size={18} className={styles.icon} />
+                <h4 className={`font-bold text-base sm:text-lg ${styles.title} tracking-tight`}>{title}</h4>
+              </div>
+              {description && (
+                <p className={`text-xs ${styles.desc} max-w-[200px] leading-relaxed`}>{description}</p>
+              )}
+            </div>
+            {link && (
+              <a
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-1 text-xs px-2 py-1 border rounded-none transition-all ${styles.button}`}
+              >
+                {linkText}
+                <ArrowRight size={10} />
+              </a>
+            )}
           </div>
-        ) : (
-          <div className="flex items-center justify-center gap-2 sm:gap-3">
-            <TimeBlock value={timeLeft.days} label="天" />
-            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
-            <TimeBlock value={timeLeft.hours} label="时" />
-            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
-            <TimeBlock value={timeLeft.minutes} label="分" />
-            <span className="text-2xl sm:text-3xl font-bold text-slate-300 dark:text-zinc-600 mt-[-24px]">:</span>
-            <TimeBlock value={timeLeft.seconds} label="秒" />
-          </div>
-        )}
+
+          {/* 倒计时主体 */}
+          {timeLeft.ended ? (
+            <div className={`text-center py-4 text-xl font-bold ${styles.icon} flex items-center justify-center gap-2 bg-white/50 dark:bg-black/20 border border-dashed ${styles.border}`}>
+              <RefreshCw size={20} />
+              {endedText}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <TimeBlock value={timeLeft.days} label="DAYS" />
+              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
+              <TimeBlock value={timeLeft.hours} label="HRS" />
+              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
+              <TimeBlock value={timeLeft.minutes} label="MIN" />
+              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
+              <TimeBlock value={timeLeft.seconds} label="SEC" />
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -664,13 +712,10 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           {/* 公告内容 - 使用 grid 动画 */}
           <CollapsibleContent isOpen={showAnnouncement}>
             <div className="px-4 pb-4">
-              <div className="text-sm pl-12 announcement-content" data-color-mode="light">
-                <MDEditor.Markdown
-                  source={announcements[0].content}
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: 'inherit',
-                  }}
+              <div className="pl-12 pr-2">
+                <SimpleMarkdown
+                  content={announcements[0].content}
+                  className="text-sm text-slate-700 dark:text-zinc-300"
                 />
               </div>
             </div>
@@ -679,20 +724,26 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       )}
 
       {/* 倒计时区域 */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col md:flex-row gap-4">
         <CountdownTimer
           targetDate="2025-12-29T14:00:00+08:00"
           title="三测结束倒计时"
           icon={Clock}
-          colorClass="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+          theme="amber"
           endedText="三测已结束"
+          link="https://endfield.hypergryph.com/news/0443"
+          linkText="关闭公告"
+          description="数据即将清除，请及时备份"
         />
         <CountdownTimer
           targetDate="2026-01-22T09:00:00+08:00"
           title="公测开启倒计时"
           icon={Rocket}
-          colorClass="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+          theme="green"
           endedText="公测已开启！"
+          link="https://www.bilibili.com/video/BV1h5m7BXEf8"
+          linkText="定档PV"
+          description="塔卫二，期待您的到来"
         />
       </div>
 
