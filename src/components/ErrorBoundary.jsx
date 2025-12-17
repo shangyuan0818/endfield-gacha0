@@ -17,8 +17,10 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // 可以将错误日志上报给服务
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // 仅在开发环境输出错误日志，生产环境可集成错误追踪服务
+    if (process.env.NODE_ENV === 'development') {
+      console.error('ErrorBoundary caught an error:', error, errorInfo);
+    }
     this.setState({ errorInfo });
   }
 

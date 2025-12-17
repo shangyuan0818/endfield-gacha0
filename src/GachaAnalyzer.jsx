@@ -5,7 +5,7 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
 import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
-import { Toast, ConfirmDialog } from './components/ui';
+import { Toast, ConfirmDialog, LoadingBar } from './components/ui';
 import { useToast, useConfirm } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
@@ -2206,6 +2206,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans pb-20 md:pb-10 relative">
+      {/* 全局加载进度条 */}
+      <LoadingBar isLoading={syncing || globalStatsLoading} />
+
       {/* 顶部导航 */}
       <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">

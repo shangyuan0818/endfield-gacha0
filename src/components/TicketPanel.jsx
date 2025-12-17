@@ -468,7 +468,10 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
       if (error) {
         // 检查是否是表不存在的错误
         if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
-          console.warn('Tickets table not found, migration may be needed');
+          // 仅在开发环境输出迁移提示
+          if (import.meta.env.DEV) {
+            console.warn('Tickets table not found, migration may be needed');
+          }
           setTableExists(false);
           setTickets([]);
         } else {

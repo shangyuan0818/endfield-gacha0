@@ -316,6 +316,14 @@ const AdminPanel = React.memo(({ showToast }) => {
 
     setActionLoading(user.id);
 
+    // 备份当前状态（用于回滚）
+    const backupUsers = [...users];
+    const backupApplications = [...applications];
+
+    // 乐观更新：先更新本地状态，提供即时反馈
+    setUsers(prev => prev.filter(u => u.id !== user.id));
+    setApplications(prev => prev.filter(a => a.user_id !== user.id));
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -334,12 +342,11 @@ const AdminPanel = React.memo(({ showToast }) => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '删除用户失败');
 
-      // 修复ERROR-NEW-002: 云端删除成功后再更新本地状态
-      setUsers(prev => prev.filter(u => u.id !== user.id));
-      setApplications(prev => prev.filter(a => a.user_id !== user.id));
       showToast('用户已删除', 'success');
     } catch (error) {
-      // 云端删除失败，不更新本地状态，保持数据一致
+      // 云端删除失败，回滚本地状态
+      setUsers(backupUsers);
+      setApplications(backupApplications);
       showToast('删除用户失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -520,14 +527,25 @@ const AdminPanel = React.memo(({ showToast }) => {
     if (!window.confirm('确定要清空该用户的所有卡池和抽卡记录吗？此操作不可恢复。')) return;
 
     setActionLoading('purgeUserData');
+
+    // 备份当前状态（用于回滚）
+    const backupPools = [...userPools];
+    const backupHistory = [...userHistory];
+
+    // 乐观更新
+    setUserPools([]);
+    setUserHistory([]);
+
     try {
       const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId);
       if (errHistory) throw errHistory;
       const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId);
       if (errPools) throw errPools;
-      await loadUserData(selectedUserId);
       showToast('已清空该用户的卡池和抽卡记录', 'success');
     } catch (error) {
+      // 回滚本地状态
+      setUserPools(backupPools);
+      setUserHistory(backupHistory);
       showToast('清理用户数据失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -540,12 +558,20 @@ const AdminPanel = React.memo(({ showToast }) => {
     if (!window.confirm('确定清空该卡池的所有抽卡记录吗？此操作不可恢复。')) return;
 
     setActionLoading(`purge_records_${poolId}`);
+
+    // 备份当前状态（用于回滚）
+    const backupHistory = [...userHistory];
+
+    // 乐观更新
+    setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
+
     try {
       const { error } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
       if (error) throw error;
-      await loadUserData(selectedUserId);
       showToast('已清空该卡池的抽卡记录', 'success');
     } catch (error) {
+      // 回滚本地状态
+      setUserHistory(backupHistory);
       showToast('清理卡池记录失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
@@ -558,14 +584,25 @@ const AdminPanel = React.memo(({ showToast }) => {
     if (!window.confirm('确定删除该卡池及其所有记录吗？此操作不可恢复。')) return;
 
     setActionLoading(`delete_pool_${poolId}`);
+
+    // 备份当前状态（用于回滚）
+    const backupPools = [...userPools];
+    const backupHistory = [...userHistory];
+
+    // 乐观更新
+    setUserPools(prev => prev.filter(p => p.pool_id !== poolId));
+    setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
+
     try {
       const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
       if (errHistory) throw errHistory;
       const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
       if (errPools) throw errPools;
-      await loadUserData(selectedUserId);
       showToast('已删除卡池及其记录', 'success');
     } catch (error) {
+      // 回滚本地状态
+      setUserPools(backupPools);
+      setUserHistory(backupHistory);
       showToast('删除卡池失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
