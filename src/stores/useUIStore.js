@@ -6,7 +6,7 @@ import { create } from 'zustand';
  */
 const useUIStore = create((set) => ({
   // ========== 标签页状态 ==========
-  activeTab: 'summary',
+  activeTab: 'home',
   setActiveTab: (tab) => set({ activeTab: tab }),
 
   // ========== 弹窗状态 ==========

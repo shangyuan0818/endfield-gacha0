@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, Unlock, ExternalLink, Heart, Code, Sparkles, AlertTriangle, MessageSquare } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
-import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal } from './components';
+import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal, HomePage, Footer } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
 import { Toast, ConfirmDialog, LoadingBar } from './components/ui';
 import { useToast, useConfirm } from './hooks';
@@ -2272,26 +2272,23 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           </div>
 
           <div className="flex gap-2 sm:gap-4">
-            <button 
+            <button
+              onClick={() => setActiveTab('home')}
+              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'home' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+            >
+              首页
+            </button>
+            <button
               onClick={() => setActiveTab('summary')}
               className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'summary' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
-              汇总
+              统计
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab('dashboard')}
               className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'dashboard' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
-              看板
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('history');
-                setVisibleHistoryCount(20); // 切换回记录页时重置分页，防止卡顿
-              }}
-              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'history' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
-            >
-              记录
+              卡池详情
             </button>
 
             {/* 超管管理页面 */}
@@ -2480,7 +2477,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           </div>
         )}
 
-        {activeTab === 'summary' ? (
+        {activeTab === 'home' ? (
+          <HomePage user={user} canEdit={canEdit} />
+        ) : activeTab === 'summary' ? (
           <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} user={user} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
           <AdminPanel showToast={showToast} />
@@ -2550,8 +2549,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
             )}
 
-            {activeTab === 'dashboard' ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+            {activeTab === 'dashboard' && (
+              <div className="animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* 左列：保底机制分析 */}
             <div className="md:col-span-1 space-y-6">
               <DashboardView currentPool={currentPool} stats={stats} effectivePity={effectivePity} />
@@ -2677,34 +2677,49 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
             </div>
           </div>
-        ) : (
-          <>
-            <RecordsView
-              filteredGroupedHistory={filteredGroupedHistory}
-              currentPool={currentPool}
-              canEditCurrentPool={canEditCurrentPool}
-              onEdit={setEditItemState}
-              onDeleteGroup={handleDeleteGroup}
-              onImportFile={handleImportFile}
-              onExportJSON={handleExportJSON}
-              onExportCSV={handleExportCSV}
-            />
 
-             {/* 编辑弹窗 */}
-             {editItemState && (
-               <EditItemModal
-                 item={editItemState}
-                 poolType={currentPool.type}
-                 onClose={() => setEditItemState(null)}
-                 onUpdate={handleUpdateItem}
-                 onDelete={handleDeleteItem}
-               />
-             )}
-          </>
+          {/* 详细日志 - 默认折叠 */}
+          <div className="mt-6">
+            <details className="group">
+              <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+                <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                  <History size={18} /> 详细日志
+                </span>
+                <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="mt-2">
+                <RecordsView
+                  filteredGroupedHistory={filteredGroupedHistory}
+                  currentPool={currentPool}
+                  canEditCurrentPool={canEditCurrentPool}
+                  onEdit={setEditItemState}
+                  onDeleteGroup={handleDeleteGroup}
+                  onImportFile={handleImportFile}
+                  onExportJSON={handleExportJSON}
+                  onExportCSV={handleExportCSV}
+                />
+              </div>
+            </details>
+          </div>
+
+          {/* 编辑弹窗 */}
+          {editItemState && (
+            <EditItemModal
+              item={editItemState}
+              poolType={currentPool.type}
+              onClose={() => setEditItemState(null)}
+              onUpdate={handleUpdateItem}
+              onDelete={handleDeleteItem}
+            />
+          )}
+        </div>
         )}
         </>
       )}
       </main>
+
+      {/* 全局页脚 */}
+      <Footer />
 
       {/* --- 全局弹窗 --- */}
       {(modalState.type === 'createPool' || modalState.type === 'editPool') && (

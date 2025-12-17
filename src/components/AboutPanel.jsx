@@ -30,7 +30,7 @@ const AboutPanel = React.memo(() => {
           </h2>
           <p className="text-indigo-100">记录你的每一次命运邂逅</p>
           <div className="mt-4 text-sm text-indigo-200">
-            版本 2.2.0 | 2025
+            版本 2.5.0 | 2025
           </div>
         </div>
       </div>
