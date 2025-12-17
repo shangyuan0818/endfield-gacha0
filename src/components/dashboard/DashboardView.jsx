@@ -64,8 +64,8 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
   const isStandard = currentPool.type === 'standard';
 
   const maxPity = isWeapon ? 40 : 90;
-  const textColor = isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow';
-  const progressColor = isLimited ? 'bg-orange-500' : isWeapon ? 'bg-slate-600' : 'bg-yellow-500';
+  const textColor = isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow';
+  const progressColor = isLimited ? 'rainbow-progress' : isWeapon ? 'bg-slate-600' : 'bg-yellow-500';
 
   // 武器池首轮80抽必出限定检测
   const sortedHistory = [...(stats.pityStats?.history || [])].sort((a, b) => a.index - b.index);
@@ -99,7 +99,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden transition-all hover:shadow-md">
-      <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'bg-orange-500' : isWeapon ? 'bg-slate-700' : 'bg-yellow-500 dark:bg-yellow-600'}`}></div>
+      <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-700' : 'bg-yellow-500 dark:bg-yellow-600'}`}></div>
 
       {/* 标题部分 */}
       <div className="flex justify-between items-start mb-6">
@@ -109,7 +109,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
             {isWeapon ? '武器池分析' : isLimited ? '限定池分析' : '常驻池分析'}
           </h3>
           <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-            当前: <span className={`font-medium ${isLimited ? 'text-orange-600' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
+            当前: <span className={`font-medium ${isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
           </p>
           {/* 限定池轮换时间显示 */}
           {isLimited && (
@@ -203,7 +203,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
             </div>
             <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
               <div
-                className={`h-full transition-all duration-500 ${hasLimitedInFirst120 ? 'bg-green-500' : 'bg-gradient-to-r from-orange-300 to-orange-500'}`}
+                className={`h-full transition-all duration-500 ${hasLimitedInFirst120 ? 'bg-green-500' : 'rainbow-progress'}`}
                 style={{ width: `${hasLimitedInFirst120 ? 100 : Math.min((stats.total / 120) * 100, 100)}%` }}
               ></div>
             </div>
@@ -266,7 +266,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
         <div className="mb-6 space-y-4">
           {/* 武器池类型标识 */}
           <div className="flex items-center gap-2 text-xs">
-            <span className={`px-2 py-1 rounded font-medium ${currentPool.isLimitedWeapon !== false ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
+            <span className={`px-2 py-1 rounded font-medium ${currentPool.isLimitedWeapon !== false ? 'rainbow-bg-light rainbow-border rainbow-text' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
               {currentPool.isLimitedWeapon !== false ? '限定武器池' : '常驻武器池'}
             </span>
             {currentPool.isLimitedWeapon === false && (
@@ -299,7 +299,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
               <div className="flex justify-between text-xs mb-1">
                 <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center gap-2">
                   下一档赠送
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'rainbow-bg text-white' : 'bg-red-100 text-red-600'}`}>
                     {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}武器
                   </span>
                 </span>
@@ -307,14 +307,14 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
               </div>
               <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'bg-orange-400' : 'bg-red-400'}`}
+                  className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-400'}`}
                   style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}
                 ></div>
               </div>
               <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500 flex gap-2">
                 <span>已领:</span>
                 <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-sm"></span>{Math.floor(stats.counts['6_std'] - stats.pityStats.history.filter(h=>h.isStandard).length)} 常</span>
-                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-orange-400 rounded-sm"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
+                <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rainbow-bg rounded-sm"></span>{Math.floor(stats.counts[6] - stats.pityStats.history.filter(h=>!h.isStandard).length)} 限</span>
               </div>
             </div>
           )}

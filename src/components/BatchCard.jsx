@@ -60,14 +60,14 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                       relative w-10 h-10 rounded-none flex items-center justify-center border-2 transition-all
                       ${canEdit ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
                       ${isGift ? 'bg-purple-50 border-purple-400 text-purple-600 ring-2 ring-purple-100' : ''}
-                      ${!isGift && isLimitedUp ? 'bg-orange-50 border-orange-600 text-white shadow-md glow-border overflow-hidden' : ''}
+                      ${!isGift && isLimitedUp ? 'rainbow-bg-light rainbow-border text-white shadow-md rainbow-glow overflow-hidden' : ''}
                       ${!isGift && isStandardSpook ? 'bg-red-100 border-red-300 text-red-700' : ''}
                       ${item.rarity === 5 ? 'bg-amber-50 border-amber-200 text-amber-600' : ''}
                       ${item.rarity === 4 ? 'bg-purple-50 border-purple-200 text-purple-600' : ''}
                     `}
                     title={canEdit ? "点击修改" : undefined}
                   >
-                    {!isGift && isLimitedUp && <div className="absolute inset-0 shine-effect"></div>}
+                    {!isGift && isLimitedUp && <div className="absolute inset-0 rainbow-shine"></div>}
 
                     <Star size={item.rarity >= 5 ? 14 : 12} fill="currentColor" className="relative z-10" />
 
@@ -75,7 +75,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                        <div className={`absolute -top-1 -right-1 px-1 h-3 flex items-center justify-center rounded-sm text-[8px] font-bold border border-white relative z-10
                          ${isGift ? 'bg-purple-500 text-white' :
                            isGuaranteed ? 'bg-green-500 text-white' :
-                           isLimitedUp ? 'bg-white dark:bg-zinc-900 text-orange-600' : 'bg-red-500 text-white'
+                           isLimitedUp ? 'rainbow-badge' : 'bg-red-500 text-white'
                          }`}>
                          {isGift ? '赠送' : isGuaranteed ? '保底' : isLimitedUp ? 'UP' : '歪'}
                        </div>

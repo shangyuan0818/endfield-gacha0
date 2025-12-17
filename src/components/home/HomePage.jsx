@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
-  BarChart3, Database, Shield, Cloud
+  BarChart3, Database, Shield, Cloud, Bell
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
+import SimpleMarkdown from '../SimpleMarkdown';
 
 /**
  * 首页组件
  * 包含使用指南和卡池机制速览
  */
-const HomePage = React.memo(({ user, canEdit }) => {
+const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   const [showPoolMechanics, setShowPoolMechanics] = useState(true);
   const [showGuide, setShowGuide] = useState(true);
 
@@ -23,9 +24,19 @@ const HomePage = React.memo(({ user, canEdit }) => {
     const remainingHours = currentUpPool.remainingHours ?? 0;
     const isEndingSoon = remainingDays <= 3 && !isExpired;
 
+    // 所有限定6星角色（按轮换顺序 + 常驻可歪角色）
+    const allLimitedSixStar = ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'];
+
+    // 动态计算当前UP角色排在第一位
+    const currentUpName = currentUpPool.name;
+    const limitedSixStarSorted = [
+      currentUpName,
+      ...allLimitedSixStar.filter(name => name !== currentUpName)
+    ];
+
     // 当前可获取的角色列表
     const limitedCharacters = {
-      sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
+      sixStar: limitedSixStarSorted,
       fiveStar: ['佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语', '狼卫', '赛希', '昼雪', '阿列什'],
       fourStar: ['秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔']
     };
@@ -44,13 +55,13 @@ const HomePage = React.memo(({ user, canEdit }) => {
           className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <Info size={20} className="text-indigo-600 dark:text-indigo-400" />
+            <div className="p-2 rainbow-bg-light rounded-lg">
+              <Info size={20} className="rainbow-text" />
             </div>
             <div className="text-left">
               <h3 className="font-bold text-slate-800 dark:text-zinc-100">卡池机制速览</h3>
               <p className="text-xs text-slate-500 dark:text-zinc-500">
-                当前UP: <span className="text-orange-500 font-medium">{currentUpPool.name}</span>
+                当前UP: <span className="rainbow-text font-medium">{currentUpPool.name}</span>
                 {!isExpired && (
                   <span className={`ml-2 ${isEndingSoon ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>
                     剩余 {remainingDays}天{remainingHours}小时
@@ -76,15 +87,15 @@ const HomePage = React.memo(({ user, canEdit }) => {
             {/* 三种卡池对比 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* 限定角色池 */}
-              <div className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-800/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-orange-600"></div>
+              <div className="bg-white dark:bg-zinc-900 border border-fuchsia-200 dark:border-fuchsia-800/50 p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 rainbow-bg"></div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Star size={16} className="text-orange-500" />
-                  <h4 className="font-bold text-orange-600 dark:text-orange-400">限定角色池</h4>
+                  <Star size={16} className="rainbow-text" />
+                  <h4 className="font-bold rainbow-text">限定角色池</h4>
                 </div>
                 <div className="space-y-2 text-xs text-slate-600 dark:text-zinc-400">
                   <div className="flex items-start gap-2">
-                    <Target size={12} className="text-orange-400 mt-0.5 shrink-0" />
+                    <Target size={12} className="rainbow-text mt-0.5 shrink-0" />
                     <span><strong className="text-slate-800 dark:text-zinc-200">6星保底:</strong> 80抽必出，65抽后概率递增(+5%/抽)</span>
                   </div>
                   <div className="flex items-start gap-2">
@@ -175,18 +186,18 @@ const HomePage = React.memo(({ user, canEdit }) => {
                     <React.Fragment key={pool.name}>
                       <div className={`px-3 py-2 rounded text-xs font-medium transition-all ${
                         isCurrent
-                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400 dark:ring-orange-500'
+                          ? 'rainbow-bg-light rainbow-border'
                           : isPast
                             ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 line-through'
                             : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                       }`}>
-                        <div className="font-bold">{pool.name}</div>
-                        <div className="text-[10px] opacity-70">
+                        <div className={`font-bold ${isCurrent ? 'rainbow-text' : ''}`}>{pool.name}</div>
+                        <div className={`text-[10px] ${isCurrent ? 'text-fuchsia-400' : 'opacity-70'}`}>
                           {poolStart.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
                           {' - '}
                           {poolEnd.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
                         </div>
-                        {isCurrent && <div className="text-[10px] text-orange-500 font-bold mt-0.5">当前UP</div>}
+                        {isCurrent && <div className="text-[10px] rainbow-text font-bold mt-0.5">当前UP</div>}
                       </div>
                       {index < LIMITED_POOL_SCHEDULE.length - 1 && (
                         <span className="text-zinc-300 dark:text-zinc-600">→</span>
@@ -209,21 +220,23 @@ const HomePage = React.memo(({ user, canEdit }) => {
               {/* 限定池角色 */}
               <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
                 <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-3 flex items-center gap-2">
-                  <Users size={14} className="text-orange-500" />
+                  <Users size={14} className="rainbow-text" />
                   限定池可获取角色
                 </h4>
                 <div className="space-y-2">
                   <div>
                     <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-orange-500 font-bold w-10 shrink-0">6星:</span>
+                      <span className="text-[10px] rainbow-text font-bold w-10 shrink-0">6星:</span>
                       {limitedCharacters.sixStar.map((char, i) => (
-                        <span key={char} className={`text-xs px-1.5 py-0.5 rounded ${
-                          i === 0
-                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold ring-1 ring-orange-300 dark:ring-orange-700'
-                            : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                        }`}>
-                          {char}{i === 0 && ' (UP)'}
-                        </span>
+                        i === 0 ? (
+                          <span key={char} className="text-xs px-1.5 py-0.5 rounded rainbow-bg-light rainbow-border font-bold">
+                            <span className="rainbow-text">{char} (UP)</span>
+                          </span>
+                        ) : (
+                          <span key={char} className="text-xs px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
+                            {char}
+                          </span>
+                        )
                       ))}
                     </div>
                     <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 0.8%，UP占50%)</div>
@@ -310,15 +323,15 @@ const HomePage = React.memo(({ user, canEdit }) => {
 
   // 使用指南卡片
   const GuideCard = () => (
-    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 overflow-hidden">
+    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-800 border border-amber-200 dark:border-zinc-700 overflow-hidden">
       {/* 标题栏 - 可点击展开/收起 */}
       <button
         onClick={() => setShowGuide(!showGuide)}
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-            <BookOpen size={20} className="text-blue-600 dark:text-blue-400" />
+          <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+            <BookOpen size={20} className="text-amber-600 dark:text-amber-400" />
           </div>
           <div className="text-left">
             <h3 className="font-bold text-slate-800 dark:text-zinc-100">使用指南</h3>
@@ -357,7 +370,7 @@ const HomePage = React.memo(({ user, canEdit }) => {
                 <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm">数据录入</h4>
               </div>
               <p className="text-xs text-slate-500 dark:text-zinc-500">
-                支持单抽、十连、批量粘贴多种录入方式
+                支持单抽、十连、文本录入多种方式
               </p>
             </div>
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
@@ -416,7 +429,7 @@ const HomePage = React.memo(({ user, canEdit }) => {
                     {canEdit ? '录入抽卡数据' : '查看卡池详情'}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-zinc-500">
-                    {canEdit ? '在「卡池详情」页面使用单抽、十连或批量粘贴录入数据' : '点击「卡池详情」查看各卡池的保底进度和统计'}
+                    {canEdit ? '在「卡池详情」页面使用单抽、十连或文本录入数据' : '点击「卡池详情」查看各卡池的保底进度和统计'}
                   </p>
                 </div>
               </div>
@@ -428,17 +441,18 @@ const HomePage = React.memo(({ user, canEdit }) => {
             <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
               <h4 className="font-bold text-amber-700 dark:text-amber-300 text-sm mb-2 flex items-center gap-2">
                 <FileText size={14} />
-                批量录入格式
+                文本录入格式
               </h4>
               <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
-                <p>支持直接粘贴游戏内十连结果，格式识别规则：</p>
+                <p>连续输入数字代表星级，无需空格分隔：</p>
                 <ul className="list-disc list-inside ml-2 space-y-0.5">
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6星</code> - 6星限定</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6歪</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6常</code> - 6星常驻(歪)</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">5</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">5星</code> - 5星</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4星</code> - 4星及以下</li>
+                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4</code> - 4星</li>
+                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">5</code> - 5星</li>
+                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6</code> - 6星限定</li>
+                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6s</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6歪</code> - 6星常驻(歪)</li>
                 </ul>
-                <p className="mt-2">示例: <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4 4 5 4 4 4 4 6 4 4</code></p>
+                <p className="mt-2">用逗号、分号或斜杠分隔多组十连</p>
+                <p>示例: <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4454464444,4445444454</code></p>
               </div>
             </div>
           )}
@@ -450,7 +464,7 @@ const HomePage = React.memo(({ user, canEdit }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 欢迎横幅 */}
-      <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black p-6 text-white relative overflow-hidden border-l-4 border-endfield-yellow">
         <div className="relative z-10">
           <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
             <BarChart3 size={28} />
@@ -470,6 +484,30 @@ const HomePage = React.memo(({ user, canEdit }) => {
           <Star size={200} />
         </div>
       </div>
+
+      {/* 公告区域 - 常驻显示 */}
+      {announcements.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
+              <Bell size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
+                {announcements[0].version && (
+                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
+                    v{announcements[0].version}
+                  </span>
+                )}
+              </div>
+              <div className="text-sm text-amber-700 dark:text-amber-400/80">
+                <SimpleMarkdown content={announcements[0].content} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 使用指南 */}
       <GuideCard />

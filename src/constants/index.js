@@ -1,6 +1,6 @@
 // 稀有度配置
 export const RARITY_CONFIG = {
-  6: { color: '#FF5F00', label: '6星(限定)', value: 6 }, // UP
+  6: { color: '#c44dff', label: '6星(限定)', value: 6 }, // UP - 彩虹渐变代表色（紫色）
   '6_std': { color: '#EF4444', label: '6星(常驻)', value: 6 }, // 歪
   5: { color: '#FFB800', label: '5星', value: 5 },
   4: { color: '#A855F7', label: '4星', value: 4 },

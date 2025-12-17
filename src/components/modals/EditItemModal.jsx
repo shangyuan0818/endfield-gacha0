@@ -58,7 +58,7 @@ const EditItemModal = React.memo(({ item, onClose, onUpdate, onDelete, poolType 
                     onClick={() => onUpdate(item.id, { rarity: 6, isStandard: false })}
                     className={`py-3 rounded-none border text-sm font-bold transition-colors ${
                       item.rarity === 6 && !item.isStandard
-                        ? 'bg-orange-50 border-orange-500 text-orange-700'
+                        ? 'rainbow-bg-light rainbow-border text-fuchsia-700 rainbow-glow'
                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-950'
                     }`}
                   >

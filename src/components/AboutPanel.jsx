@@ -19,7 +19,7 @@ const AboutPanel = React.memo(() => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-none p-8 text-white shadow-lg relative overflow-hidden">
+      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black rounded-none p-8 text-white shadow-lg relative overflow-hidden border-l-4 border-endfield-yellow">
         <div className="absolute top-0 right-0 opacity-10">
           <Sparkles size={200} />
         </div>
@@ -28,8 +28,8 @@ const AboutPanel = React.memo(() => {
             <BarChart3 size={32} />
             终末地抽卡分析器
           </h2>
-          <p className="text-indigo-100">记录你的每一次命运邂逅</p>
-          <div className="mt-4 text-sm text-indigo-200">
+          <p className="text-zinc-300">记录你的每一次命运邂逅</p>
+          <div className="mt-4 text-sm text-zinc-400">
             版本 2.5.0 | 2025
           </div>
         </div>

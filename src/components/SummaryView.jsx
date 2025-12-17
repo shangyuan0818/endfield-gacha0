@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { Star, User, Cloud, Layers, Search, RefreshCw, Info, Zap, Gift, Users, Swords, ChevronDown, ChevronUp, FileText, Target } from 'lucide-react';
-import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES, STANDARD_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../constants';
+import { Star, User, Cloud, Layers, Search, RefreshCw, Swords } from 'lucide-react';
+import { RARITY_CONFIG } from '../constants';
 
 const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading, user }) => {
   // 状态管理：数据源和卡池类型筛选
   const [dataSource, setDataSource] = useState('global'); // 'global' | 'local'
   const [poolTypeFilter, setPoolTypeFilter] = useState('all'); // 'all' | 'character' | 'limited' | 'weapon' | 'standard'
-  const [showPoolMechanics, setShowPoolMechanics] = useState(true); // 卡池机制卡片展开状态
 
   // 检测暗色模式
   const isDark = document.documentElement.classList.contains('dark');
@@ -308,8 +307,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         standard: '常驻池'
       };
       const typeColors = {
-        character: 'text-violet-500',
-        limited: 'text-orange-500',
+        character: 'rainbow-text',
+        limited: 'rainbow-text',
         weapon: 'text-slate-500',
         standard: 'text-indigo-500'
       };
@@ -477,305 +476,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     );
   };
 
-  // 卡池机制说明卡片
-  const PoolMechanicsCard = () => {
-    const currentUpPool = getCurrentUpPool();
-    const now = new Date();
-    const isExpired = currentUpPool.isExpired;
-    const remainingDays = currentUpPool.remainingDays ?? 0;
-    const remainingHours = currentUpPool.remainingHours ?? 0;
-    const isEndingSoon = remainingDays <= 3 && !isExpired;
-
-    // 当前可获取的角色列表
-    const limitedCharacters = {
-      sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
-      fiveStar: ['佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语', '狼卫', '赛希', '昼雪', '阿列什'],
-      fourStar: ['秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔']
-    };
-
-    const standardCharacters = {
-      sixStar: ['艾尔黛拉', '骏卫', '别礼', '余烬', '黎风'],
-      fiveStar: ['佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语', '狼卫', '赛希', '昼雪', '阿列什'],
-      fourStar: ['秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔']
-    };
-
-    return (
-      <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800 border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        {/* 标题栏 - 可点击展开/收起 */}
-        <button
-          onClick={() => setShowPoolMechanics(!showPoolMechanics)}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <Info size={20} className="text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div className="text-left">
-              <h3 className="font-bold text-slate-800 dark:text-zinc-100">卡池机制速览</h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                当前UP: <span className="text-orange-500 font-medium">{currentUpPool.name}</span>
-                {!isExpired && (
-                  <span className={`ml-2 ${isEndingSoon ? 'text-amber-500' : 'text-green-600 dark:text-green-400'}`}>
-                    剩余 {remainingDays}天{remainingHours}小时
-                  </span>
-                )}
-                {isExpired && <span className="ml-2 text-red-500">已结束</span>}
-              </p>
-            </div>
-          </div>
-          <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showPoolMechanics ? '' : 'rotate-180'}`} />
-        </button>
-
-        {/* 展开内容 - 带动画 */}
-        <div
-          className="overflow-hidden"
-          style={{
-            maxHeight: showPoolMechanics ? '2000px' : '0px',
-            opacity: showPoolMechanics ? 1 : 0,
-            transition: 'max-height 0.3s ease-in-out, opacity 0.2s ease-in-out'
-          }}
-        >
-          <div className="px-6 pb-6 space-y-6">
-            {/* 三种卡池对比 */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* 限定角色池 */}
-              <div className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-800/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-orange-600"></div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Star size={16} className="text-orange-500" />
-                  <h4 className="font-bold text-orange-600 dark:text-orange-400">限定角色池</h4>
-                </div>
-                <div className="space-y-2 text-xs text-slate-600 dark:text-zinc-400">
-                  <div className="flex items-start gap-2">
-                    <Target size={12} className="text-orange-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">6星保底:</strong> 80抽必出，65抽后概率递增(+5%/抽)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Zap size={12} className="text-green-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">硬保底:</strong> 120抽必出限定UP (仅1次)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Gift size={12} className="text-purple-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">赠送:</strong> 每240抽送限定角色信物</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <FileText size={12} className="text-cyan-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">情报书:</strong> 60抽送寻访情报书 (仅1次)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RefreshCw size={12} className="text-blue-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">继承:</strong> 保底继承到其他限定池</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 武器池 */}
-              <div className="bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 p-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-500 to-slate-700"></div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Swords size={16} className="text-slate-600 dark:text-zinc-400" />
-                  <h4 className="font-bold text-slate-700 dark:text-zinc-300">武器池</h4>
-                </div>
-                <div className="space-y-2 text-xs text-slate-600 dark:text-zinc-400">
-                  <div className="flex items-start gap-2">
-                    <Target size={12} className="text-slate-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">6星保底:</strong> 40抽(4次申领)必出，无概率递增</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Zap size={12} className="text-green-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">硬保底:</strong> 80抽必出限定UP武器 (仅1次)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Gift size={12} className="text-purple-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">赠送:</strong> 100抽送武库箱，180抽送限定</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RefreshCw size={12} className="text-red-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">继承:</strong> 保底不继承到其他武器池</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 常驻池 */}
-              <div className="bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-800/50 p-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-400 to-indigo-600"></div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Layers size={16} className="text-indigo-500" />
-                  <h4 className="font-bold text-indigo-600 dark:text-indigo-400">常驻角色池</h4>
-                </div>
-                <div className="space-y-2 text-xs text-slate-600 dark:text-zinc-400">
-                  <div className="flex items-start gap-2">
-                    <Target size={12} className="text-indigo-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">6星保底:</strong> 80抽必出，65抽后概率递增(+5%/抽)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Gift size={12} className="text-purple-500 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">自选赠送:</strong> 300抽送自选6星角色 (仅1次)</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RefreshCw size={12} className="text-red-400 mt-0.5 shrink-0" />
-                    <span><strong className="text-slate-800 dark:text-zinc-200">继承:</strong> 保底独立，不与其他池互通</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* UP池轮换时间线 */}
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-              <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-3 flex items-center gap-2">
-                <RefreshCw size={14} className="text-blue-500" />
-                限定池轮换计划
-              </h4>
-              <div className="flex flex-wrap items-center gap-2">
-                {LIMITED_POOL_SCHEDULE.map((pool, index) => {
-                  const poolStart = new Date(pool.startDate);
-                  poolStart.setHours(4, 0, 0, 0);
-                  const poolEnd = new Date(poolStart.getTime() + pool.duration * 24 * 60 * 60 * 1000);
-                  const isCurrent = now >= poolStart && now < poolEnd;
-                  const isPast = now >= poolEnd;
-
-                  return (
-                    <React.Fragment key={pool.name}>
-                      <div className={`px-3 py-2 rounded text-xs font-medium transition-all ${
-                        isCurrent
-                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 ring-2 ring-orange-400 dark:ring-orange-500'
-                          : isPast
-                            ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 line-through'
-                            : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                      }`}>
-                        <div className="font-bold">{pool.name}</div>
-                        <div className="text-[10px] opacity-70">
-                          {poolStart.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
-                          {' - '}
-                          {poolEnd.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
-                        </div>
-                        {isCurrent && <div className="text-[10px] text-orange-500 font-bold mt-0.5">当前UP</div>}
-                      </div>
-                      {index < LIMITED_POOL_SCHEDULE.length - 1 && (
-                        <span className="text-zinc-300 dark:text-zinc-600">→</span>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                <span className="text-zinc-300 dark:text-zinc-600">→</span>
-                <div className="px-3 py-2 bg-zinc-50 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 rounded text-xs">
-                  待公布...
-                </div>
-              </div>
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                * 卡池于凌晨04:00刷新 | 莱万汀将于3次特许寻访后移出，伊冯4次后移出，洁尔佩塔5次后移出
-              </p>
-            </div>
-
-            {/* 可获取角色/武器列表 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 限定池角色 */}
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-3 flex items-center gap-2">
-                  <Users size={14} className="text-orange-500" />
-                  限定池可获取角色
-                </h4>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-orange-500 font-bold w-10 shrink-0">6星:</span>
-                      {limitedCharacters.sixStar.map((char, i) => (
-                        <span key={char} className={`text-xs px-1.5 py-0.5 rounded ${
-                          i === 0
-                            ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold ring-1 ring-orange-300 dark:ring-orange-700'
-                            : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                        }`}>
-                          {char}{i === 0 && ' (UP)'}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 0.8%，UP占50%)</div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
-                      {limitedCharacters.fiveStar.map(char => (
-                        <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 8%)</div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
-                      {limitedCharacters.fourStar.map(char => (
-                        <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 91.2%)</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 常驻池角色 */}
-              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-3 flex items-center gap-2">
-                  <Users size={14} className="text-indigo-500" />
-                  常驻池可获取角色
-                </h4>
-                <div className="space-y-2">
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-red-500 font-bold w-10 shrink-0">6星:</span>
-                      {standardCharacters.sixStar.map(char => (
-                        <span key={char} className="text-xs px-1.5 py-0.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded">{char}</span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 0.8%)</div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-amber-500 font-bold w-10 shrink-0">5星:</span>
-                      {standardCharacters.fiveStar.map(char => (
-                        <span key={char} className="text-xs px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded">{char}</span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 8%)</div>
-                  </div>
-                  <div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="text-[10px] text-purple-500 font-bold w-10 shrink-0">4星:</span>
-                      {standardCharacters.fourStar.map(char => (
-                        <span key={char} className="text-xs px-1.5 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 rounded">{char}</span>
-                      ))}
-                    </div>
-                    <div className="text-[10px] text-zinc-400 ml-10 mt-0.5">(基础概率 91.2%)</div>
-                  </div>
-                </div>
-                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                  * 自选赠送可选: 余烬、黎风、艾尔黛拉、别礼、骏卫
-                </p>
-              </div>
-            </div>
-
-            {/* 武器池概率说明 */}
-            <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Swords size={14} className="text-slate-500" />
-                <span className="font-bold text-sm text-slate-700 dark:text-zinc-300">武器池概率</span>
-              </div>
-              <div className="text-xs text-zinc-600 dark:text-zinc-400 space-y-1">
-                <div><span className="text-red-500 font-medium">6星武器:</span> 基础概率 4%，UP武器占25%</div>
-                <div><span className="text-amber-500 font-medium">5星武器:</span> 基础概率 15%</div>
-                <div><span className="text-purple-500 font-medium">4星武器:</span> 基础概率 81%</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* 卡池机制速览（全宽）*/}
-      <PoolMechanicsCard />
-
       {/* 侧边栏 + 内容区（两列布局）*/}
       <div className="flex gap-6">
         {/* 左侧边栏 - 数据源选择 */}
@@ -906,7 +608,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
 
                   {/* 角色池统计（限定+常驻） */}
                   <div className="bg-white/5 p-4">
-                    <div className="text-orange-400 text-xs font-bold mb-3 flex items-center gap-2">
+                    <div className="rainbow-text text-xs font-bold mb-3 flex items-center gap-2">
                       <Star size={14} />
                       角色池（限定+常驻）
                     </div>
@@ -954,7 +656,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                             const rate = totalSix > 0 ? ((totalLimited / totalSix) * 100).toFixed(1) : 0;
                             return (
                               <>
-                                <span className="text-orange-400">{totalLimited}</span>
+                                <span className="rainbow-text">{totalLimited}</span>
                                 <span className="text-zinc-600 mx-1">/</span>
                                 <span className="text-red-400">{totalStd}</span>
                                 <span className="text-zinc-500 text-xs ml-2">({rate}%)</span>
@@ -967,7 +669,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                     {/* 限定池 vs 常驻池细分 */}
                     <div className="mt-3 pt-3 border-t border-zinc-700 grid grid-cols-2 gap-4 text-xs">
                       <div>
-                        <div className="text-orange-500 font-medium mb-1">限定池</div>
+                        <div className="rainbow-text font-medium mb-1">限定池</div>
                         <div className="text-zinc-400">
                           {(currentStats.byType?.limited?.total || 0).toLocaleString()}抽 |
                           <span className="text-yellow-400 ml-1">{currentStats.byType?.limited?.six || 0}</span>
@@ -1022,7 +724,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                             const rate = totalSix > 0 ? ((limitedUp / totalSix) * 100).toFixed(1) : 0;
                             return (
                               <>
-                                <span className="text-orange-400">{limitedUp}</span>
+                                <span className="rainbow-text">{limitedUp}</span>
                                 <span className="text-zinc-600 mx-1">/</span>
                                 <span className="text-red-400">{stdSix}</span>
                                 <span className="text-zinc-500 text-xs ml-2">({rate}%)</span>
@@ -1056,7 +758,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   <div className="bg-white/5 p-4">
                     <div className="text-zinc-400 text-xs mb-1">限定/常驻</div>
                     <div className="text-lg font-bold">
-                      <span className="text-orange-400">{currentStats.sixStarLimited || 0}</span>
+                      <span className="rainbow-text">{currentStats.sixStarLimited || 0}</span>
                       <span className="text-zinc-600 mx-1">/</span>
                       <span className="text-red-400">{currentStats.sixStarStandard || 0}</span>
                     </div>

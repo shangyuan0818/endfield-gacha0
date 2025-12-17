@@ -36,13 +36,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const globalStats = useAppStore(state => state.globalStats);
   const globalStatsLoading = useAppStore(state => state.globalStatsLoading);
   const announcements = useAppStore(state => state.announcements);
-  const showAnnouncement = useAppStore(state => state.showAnnouncement);
   const showApplyModal = useAppStore(state => state.showApplyModal);
   const applicationStatus = useAppStore(state => state.applicationStatus);
   const setAnnouncements = useAppStore(state => state.setAnnouncements);
-  const toggleAnnouncement = useAppStore(state => state.toggleAnnouncement);
-  const closeAnnouncement = useAppStore(state => state.closeAnnouncement);
-  const openAnnouncement = useAppStore(state => state.openAnnouncement);
   const toggleApplyModal = useAppStore(state => state.toggleApplyModal);
   const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
@@ -658,18 +654,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         }
 
         if (data && data.length > 0) {
-          // 检查是否有被用户隐藏的公告（下次更新前不显示）
-          const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
-          const visibleAnnouncements = data.filter(a => {
-            const hiddenVersion = hiddenAnnouncements[a.id];
-            // 如果公告版本更新了，重新显示
-            return !hiddenVersion || hiddenVersion !== a.version;
-          });
-          setAnnouncements(visibleAnnouncements);
-          // 如果有被隐藏的公告，默认不显示公告区域
-          if (visibleAnnouncements.length === 0 && data.length > 0) {
-            setShowAnnouncement(false);
-          }
+          setAnnouncements(data);
         } else {
           setAnnouncements([]);
         }
@@ -680,15 +665,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     fetchAnnouncements();
   }, []);
-
-  // 隐藏公告直到下次更新
-  const hideAnnouncementUntilUpdate = useCallback((announcementId, version) => {
-    const hiddenAnnouncements = JSON.parse(localStorage.getItem('hiddenAnnouncements') || '{}');
-    hiddenAnnouncements[announcementId] = version;
-    localStorage.setItem('hiddenAnnouncements', JSON.stringify(hiddenAnnouncements));
-    // 关闭公告区域（和点击 X 一样的行为）
-    closeAnnouncement();
-  }, [closeAnnouncement]);
 
   // 登出处理
   const handleLogout = async () => {
@@ -1607,7 +1583,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   // 提交十连
-  const submitBatch = async (inputData) => {
+  const submitBatch = async (inputData, customTimestamp = null) => {
     // 提交前验证：检查卡池是否已被锁定
     if (currentPool?.locked && !isSuperAdmin) {
       showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
@@ -1637,7 +1613,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
     // ========================================
 
-    const nowStr = new Date().toISOString(); // 确保同一批次时间戳完全一致
+    // 使用传入的时间戳或生成新的时间戳（确保同一批次时间戳完全一致）
+    const nowStr = customTimestamp
+      ? new Date(customTimestamp).toISOString()
+      : new Date().toISOString();
     const currentPoolPulls = currentPoolHistory;
     const currentPoolTotal = currentPoolPulls.length; // 已有的数量
     const isLimitedPool = currentPool.type === 'limited';
@@ -2326,21 +2305,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <Info size={18} />
             </button>
 
-            {/* 公告按钮 - 始终显示（如果有公告） */}
-            {announcements.length > 0 && (
-              <button
-                onClick={toggleAnnouncement}
-                className={`text-sm px-2 py-1.5 rounded-none transition-colors ${
-                  showAnnouncement
-                    ? 'text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30'
-                    : 'text-amber-600 hover:text-amber-700 hover:bg-amber-50'
-                }`}
-                title={showAnnouncement ? '隐藏公告' : '查看公告'}
-              >
-                <Bell size={18} />
-              </button>
-            )}
-
             {/* 登录/用户区域 */}
             <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-200 dark:border-zinc-800">
               {isSupabaseConfigured() ? (
@@ -2438,47 +2402,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           </div>
         )}
 
-        {/* 公告区域 */}
-        {showAnnouncement && announcements.length > 0 && (
-          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4 relative">
-            {/* 关闭按钮 */}
-            <button
-              onClick={closeAnnouncement}
-              className="absolute top-2 right-2 text-amber-400 hover:text-amber-600 dark:text-amber-500 dark:hover:text-amber-400 transition-colors"
-              title="暂时关闭"
-            >
-              <X size={16} />
-            </button>
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
-                <Bell size={20} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
-                  {announcements[0].version && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
-                      v{announcements[0].version}
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-amber-700 dark:text-amber-400/80">
-                  <SimpleMarkdown content={announcements[0].content} />
-                </div>
-                {/* 下次更新前不显示按钮 */}
-                <button
-                  onClick={() => hideAnnouncementUntilUpdate(announcements[0].id, announcements[0].version)}
-                  className="mt-3 text-xs text-amber-600 dark:text-amber-500 hover:text-amber-800 dark:hover:text-amber-300 underline underline-offset-2"
-                >
-                  下次更新前不再显示
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'home' ? (
-          <HomePage user={user} canEdit={canEdit} />
+          <HomePage user={user} canEdit={canEdit} announcements={announcements} />
         ) : activeTab === 'summary' ? (
           <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} user={user} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
@@ -2615,8 +2540,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                         }
                         return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占6星 ${(stats.winRate)}%`;
                      })()}
-                     colorClass="bg-orange-500" 
-                     icon={Star} 
+                     colorClass="rainbow-bg"
+                     icon={Star}
                      isAnimated={true}
                    />
                  )}

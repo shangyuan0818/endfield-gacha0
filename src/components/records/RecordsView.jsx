@@ -84,8 +84,8 @@ const RecordsView = ({
               onClick={() => handleFilterChange('6star')}
               className={`text-xs px-2 py-1 rounded-none transition-colors ${
                 historyFilter === '6star'
-                  ? 'bg-orange-500 text-white shadow-sm'
-                  : 'text-slate-500 dark:text-zinc-400 hover:text-orange-500'
+                  ? 'rainbow-bg text-white shadow-sm'
+                  : 'text-slate-500 dark:text-zinc-400 hover:rainbow-text'
               }`}
             >
               6星
