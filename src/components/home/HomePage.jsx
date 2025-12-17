@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
-  BarChart3, Database, Shield, Cloud, Bell
+  BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import SimpleMarkdown from '../SimpleMarkdown';
@@ -14,6 +14,72 @@ import SimpleMarkdown from '../SimpleMarkdown';
 const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   const [showPoolMechanics, setShowPoolMechanics] = useState(true);
   const [showGuide, setShowGuide] = useState(true);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
+
+  // 倒计时组件
+  const CountdownTimer = ({ targetDate, title, icon: Icon, colorClass, endedText }) => {
+    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
+
+    useEffect(() => {
+      const calculateTimeLeft = () => {
+        const now = new Date().getTime();
+        const target = new Date(targetDate).getTime();
+        const difference = target - now;
+
+        if (difference <= 0) {
+          return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true };
+        }
+
+        return {
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+          minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+          seconds: Math.floor((difference % (1000 * 60)) / 1000),
+          ended: false
+        };
+      };
+
+      setTimeLeft(calculateTimeLeft());
+      const timer = setInterval(() => {
+        setTimeLeft(calculateTimeLeft());
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }, [targetDate]);
+
+    const TimeBlock = ({ value, label }) => (
+      <div className="flex flex-col items-center">
+        <div className={`w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center ${colorClass} rounded-none font-mono text-xl sm:text-2xl font-bold`}>
+          {String(value).padStart(2, '0')}
+        </div>
+        <span className="text-[10px] text-slate-500 dark:text-zinc-500 mt-1">{label}</span>
+      </div>
+    );
+
+    return (
+      <div className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Icon size={18} className={colorClass.includes('text-') ? colorClass.split(' ')[0].replace('bg-', 'text-').replace('-100', '-600').replace('-900/30', '-400') : 'text-slate-600'} />
+          <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300">{title}</h4>
+        </div>
+        {timeLeft.ended ? (
+          <div className={`text-center py-4 font-bold ${colorClass.includes('amber') ? 'text-amber-600' : 'text-green-600'}`}>
+            {endedText}
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-1 sm:gap-2">
+            <TimeBlock value={timeLeft.days} label="天" />
+            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <TimeBlock value={timeLeft.hours} label="时" />
+            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <TimeBlock value={timeLeft.minutes} label="分" />
+            <span className="text-xl font-bold text-slate-300 dark:text-zinc-600 mt-[-20px]">:</span>
+            <TimeBlock value={timeLeft.seconds} label="秒" />
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // 卡池机制说明卡片（从 SummaryView 迁移）
   const PoolMechanicsCard = () => {
@@ -485,15 +551,19 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         </div>
       </div>
 
-      {/* 公告区域 - 常驻显示 */}
+      {/* 公告区域 - 可折叠 */}
       {announcements.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
-              <Bell size={20} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none overflow-hidden">
+          {/* 公告标题栏 - 可点击折叠 */}
+          <button
+            onClick={() => setShowAnnouncement(!showAnnouncement)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
+                <Bell size={20} />
+              </div>
+              <div className="text-left">
                 <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
                 {announcements[0].version && (
                   <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
@@ -501,13 +571,44 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                   </span>
                 )}
               </div>
-              <div className="text-sm text-amber-700 dark:text-amber-400/80">
+            </div>
+            <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
+          </button>
+
+          {/* 公告内容 - 带动画 */}
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: showAnnouncement ? '1000px' : '0',
+              opacity: showAnnouncement ? 1 : 0
+            }}
+          >
+            <div className="px-4 pb-4">
+              <div className="text-sm text-amber-700 dark:text-amber-400/80 pl-12">
                 <SimpleMarkdown content={announcements[0].content} />
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* 倒计时区域 */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <CountdownTimer
+          targetDate="2025-12-29T14:00:00+08:00"
+          title="三测结束倒计时"
+          icon={Clock}
+          colorClass="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+          endedText="三测已结束"
+        />
+        <CountdownTimer
+          targetDate="2026-01-22T09:00:00+08:00"
+          title="公测开启倒计时"
+          icon={Rocket}
+          colorClass="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+          endedText="公测已开启！"
+        />
+      </div>
 
       {/* 使用指南 */}
       <GuideCard />

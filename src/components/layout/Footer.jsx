@@ -14,7 +14,7 @@ const Footer = React.memo(() => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-zinc-500">
           {/* 版权信息 */}
           <div className="flex items-center gap-1">
-            <span>终末地抽卡分析器 v2.6.1</span>
+            <span>终末地抽卡分析器 v2.6.2</span>
             <span className="mx-2">|</span>
             <span>&copy; {currentYear}</span>
           </div>
