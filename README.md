@@ -2,6 +2,7 @@
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
+![Version](https://img.shields.io/badge/version-2.6.1-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -15,37 +16,45 @@
 - **武器池**：40抽6星保底、首轮80抽必出限定、阶梯赠送机制（100/180/260...）
 - **常驻池**：80抽6星保底、300抽赠送自选角色
 
+### 页面结构 (v2.5.0+)
+- **首页**：欢迎页面、使用指南、卡池机制速览、常驻公告
+- **统计**：全服/个人数据对比、稀有度饼图、出货分布图表
+- **卡池详情**：实时统计、保底进度、详细日志（可折叠）
+- **全局页脚**：版权信息、制作者链接
+
 ### 数据可视化
-- **看板**：实时展示各稀有度占比、不歪率、距离保底抽数、保底进度条
-- **汇总**：
+- **统计面板**：
   - 支持切换「全服数据」和「我的数据」
   - 按卡池类型筛选（全部/限定池/武器池/常驻池/角色池合并）
   - 稀有度饼图和6星出货垫刀分布堆叠柱状图
   - 全服统计包含总抽数、用户数、平均出货等指标
-- **记录**：详细日志，支持按组查看/编辑/删除
+- **卡池详情**：实时展示各稀有度占比、不歪率、距离保底抽数、保底进度条
+- **详细日志**：支持按组查看/编辑/删除
 
 ### 高效录入
 - **十连编辑器**：点击快速切换星级，一键保存
 - **单抽补录**：快捷按钮补录漏记的抽卡
+- **批量粘贴**：支持批量导入抽卡数据
 - **智能识别**：自动识别保底、赠送等特殊情况
 
-### 用户系统（完全重构 v2.1.0）
+### 用户系统
 - **账户认证**：
-  - ✅ 邮箱注册/登录（Supabase Auth）
-  - ✅ 实时邮箱格式验证
-  - ✅ 重复注册检测，智能引导登录
-  - ✅ 密码强度指示器（弱/中/强）
-  - ✅ 密码确认验证，防止输入错误
-  - ✅ 邮件方式密码重置
+  - 邮箱注册/登录（Supabase Auth）
+  - 实时邮箱格式验证 + 域名白名单
+  - 重复注册检测，智能引导登录
+  - 密码强度指示器（弱/中/强）
+  - 邮件方式密码重置
+  - 人机验证（Cloudflare 风格）
 
 - **权限管理**：4级权限体系
   - **游客**：仅查看全服数据
   - **用户**：查看数据，可申请管理员
   - **管理员**：录入和编辑数据
   - **超级管理员**：
-    - 用户管理（创建/编辑/删除用户）
+    - 用户管理（创建/编辑/删除/查看在线时间）
     - 审批管理员申请
-    - 公告管理
+    - 公告管理（Markdown 编辑器）
+    - 页面内容管理
 
 - **云端同步**：登录后数据自动同步到云端
 
@@ -55,6 +64,11 @@
 - **导入/导出**：支持 JSON（完整备份）和 CSV（表格分析）格式
 - **手动同步**：设置面板支持一键同步云端数据
 - **数据清理**：支持删除本地或云端数据
+
+### 视觉特效 (v2.5.1+)
+- **限定6星彩虹渐变**：限定角色使用彩虹渐变主题
+- **UP角色动态显示**：跟随轮换计划自动更新
+- **公告常驻化**：首页常驻显示最新公告
 
 ## 🚀 快速开始
 
@@ -99,7 +113,7 @@ VITE_SUPABASE_URL=你的Supabase项目URL
 VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 ```
 
-### 🔥 SMTP 配置（重要！）
+### SMTP 配置（重要！）
 
 **⚠️ Supabase 免费版邮件限制：仅 2 封/小时**
 
@@ -112,19 +126,17 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 
 详细配置指南：查看项目根目录 `../email-template/SMTP配置指南.md`
 
-邮件模板已准备：
-- 注册确认邮件
-- 密码重置邮件
-- 魔法链接登录邮件
-
 ### Supabase 数据库结构
 
 需要创建以下表：
-- `profiles` - 用户信息和角色
+- `profiles` - 用户信息和角色（含 email、last_seen_at）
 - `pools` - 卡池数据
 - `history` - 抽卡记录
 - `admin_applications` - 管理员申请
 - `announcements` - 系统公告
+- `blacklist` - 黑名单
+- `page_content` - 页面内容管理
+- `rate_limits` - 频率限制
 
 ### 数据库迁移文件
 
@@ -133,8 +145,10 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 | 文件 | 说明 |
 |------|------|
 | `002_global_stats_function.sql` | 基础全服统计 RPC 函数 |
-| `003_global_stats_with_charts.sql` | 扩展全服统计，支持图表数据（分池类型统计、出货分布） |
+| `003_global_stats_with_charts.sql` | 扩展全服统计，支持图表数据 |
 | `015_superadmin_user_management.sql` | 超级管理员用户管理功能 |
+| `024_user_management_enhancement.sql` | 用户管理增强（邮箱+在线时间） |
+| `025_page_content.sql` | 页面内容管理表 |
 
 ### Edge Functions（可选）
 
@@ -150,8 +164,9 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 | UI 样式 | Tailwind CSS v4 |
 | 图表库 | Recharts 3 |
 | 图标库 | Lucide React |
-| 后端服务 | Supabase (认证 + PostgreSQL 数据库 + RPC 函数 + Edge Functions) |
-| 状态管理 | Redux Toolkit |
+| 后端服务 | Supabase (Auth + PostgreSQL + RPC + Edge Functions) |
+| 状态管理 | Zustand 5 |
+| Markdown 编辑 | @uiw/react-md-editor |
 | 部署平台 | Vercel |
 
 ## 📂 项目结构
@@ -159,59 +174,45 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 ```
 gacha-analyzer/
 ├── src/
-│   ├── GachaAnalyzer.jsx        # 主组件（核心逻辑+UI）
-│   ├── AuthModal.jsx            # 登录/注册弹窗（增强版）
+│   ├── GachaAnalyzer.jsx        # 主组件（路由+状态协调）
+│   ├── AuthModal.jsx            # 登录/注册弹窗
 │   ├── LoadingScreen.jsx        # 加载动画组件
 │   ├── supabaseClient.js        # Supabase 客户端配置
 │   ├── components/
+│   │   ├── home/
+│   │   │   └── HomePage.jsx     # 首页组件
+│   │   ├── dashboard/
+│   │   │   └── DashboardView.jsx # 卡池详情视图
+│   │   ├── records/
+│   │   │   └── RecordsView.jsx  # 记录视图
+│   │   ├── layout/
+│   │   │   └── Footer.jsx       # 全局页脚
+│   │   ├── modals/
+│   │   │   └── EditItemModal.jsx # 编辑弹窗
 │   │   ├── AdminPanel.jsx       # 超级管理员面板
 │   │   ├── SettingsPanel.jsx    # 设置面板
-│   │   ├── SummaryView.jsx      # 汇总视图
+│   │   ├── SummaryView.jsx      # 统计视图
 │   │   ├── InputSection.jsx     # 录入组件
 │   │   ├── BatchCard.jsx        # 十连卡片
-│   │   ├── TicketPanel.jsx      # 申请面板
-│   │   ├── SimpleMarkdown.jsx   # Markdown 渲染
-│   │   └── ui/
-│   │       ├── Toast.jsx        # 提示组件
-│   │       └── ConfirmDialog.jsx # 确认对话框
+│   │   ├── PoolSelector.jsx     # 卡池选择器
+│   │   ├── TicketPanel.jsx      # 工单面板
+│   │   ├── AboutPanel.jsx       # 关于面板
+│   │   └── SimpleMarkdown.jsx   # Markdown 渲染
+│   ├── stores/
+│   │   └── useGachaStore.js     # Zustand 状态管理
+│   ├── constants/
+│   │   └── index.js             # 常量配置
+│   ├── utils/
+│   │   └── validators.js        # 验证工具
 │   ├── main.jsx                 # 应用入口
-│   ├── index.css                # 全局样式
-│   └── assets/                  # 静态资源
+│   └── index.css                # 全局样式（含彩虹渐变）
 ├── public/
-│   ├── announcements.json       # 公告配置文件
 │   └── avatar.png               # 默认头像
 ├── supabase/
 │   └── migrations/              # 数据库迁移文件
 ├── .env.example                 # 环境变量模板
 └── dist/                        # 构建输出
 ```
-
-## 🔧 主要功能模块
-
-### 用户认证流程
-1. **注册**：
-   - 实时邮箱格式验证
-   - 密码强度指示
-   - 密码确认验证
-   - 重复邮箱检测 + 智能引导登录
-   - 发送验证邮件
-
-2. **登录**：
-   - 邮箱密码登录
-   - 自动记住登录状态
-
-3. **密码重置**：
-   - 邮件方式重置
-   - 安全验证链接
-
-### GachaAnalyzer.jsx 组件结构
-- **DashboardView** - 仪表盘视图，展示当前卡池统计
-- **SummaryView** - 汇总视图，支持全服/个人数据对比
-- **RecordsView** - 记录视图，详细抽卡历史
-- **SettingsPanel** - 设置面板，数据管理和用户设置
-- **AdminPanel** - 超级管理员面板（用户管理/申请审批/公告管理）
-- **TenPullEditor** - 十连编辑器，快速录入
-- **SinglePullButtons** - 单抽按钮，补录漏记
 
 ## 🎨 UI 设计特色
 
@@ -221,6 +222,10 @@ gacha-analyzer/
   - 方正无圆角设计
   - 网格纹理背景
 
+- **限定6星彩虹特效**：
+  - 渐变背景、边框、文字
+  - UP角色动态高亮
+
 - **响应式设计**：
   - 完美适配桌面端和移动端
   - 暗色模式支持
@@ -229,21 +234,58 @@ gacha-analyzer/
   - 即时反馈和验证
   - 友好的错误提示
   - 流畅的动画效果
+  - 加载进度条
 
 ## 📝 更新日志
 
+### v2.6.1 (2025-12-18)
+- ✨ ADMIN-002: Markdown 编辑器升级
+  - 使用 @uiw/react-md-editor 替换简单 textarea
+  - 公告管理和页面内容管理支持实时预览
+  - 工具栏支持加粗、斜体、链接、图片等
+  - 支持明暗主题自动切换
+
+### v2.6.0 (2025-12-18)
+- ✨ ADMIN-001: 页面内容管理（超管可编辑首页内容）
+- ✨ ADMIN-003: 用户管理增强
+  - 用户列表显示邮箱
+  - 显示最后在线时间（友好格式化）
+- 🗄️ 新增数据库迁移文件 024、025
+
+### v2.5.1 (2025-12-17)
+- ✨ UI-001: 限定6星彩虹渐变主题
+- ✨ UI-002: 公告常驻化（移至首页）
+- ✨ UI-003: UP角色动态显示
+
+### v2.5.0 (2025-12-17)
+- ✨ PAGE-001: 新增首页（使用指南 + 卡池机制速览）
+- ✨ PAGE-002: 合并看板和记录 → 卡池详情
+- ✨ PAGE-003: 页面重命名（汇总→统计）
+- ✨ PAGE-004: 全局页脚组件
+
+### v2.2.x - v2.4.x (2025-12)
+- 🏗️ 架构重构：引入 Zustand 状态管理
+- 🧩 组件拆分：DashboardView、RecordsView、PoolSelector 等
+- 🔒 安全加固：RLS 策略、频率限制、参数验证
+- 🐛 修复多个运行时错误
+- 🧹 代码质量优化：ESLint 规则增强、console 清理
+
 ### v2.1.0 (2024-12-04)
-- ✨ 增强注册功能：实时邮箱验证、密码强度指示、密码确认
-- ✨ 重复注册检测，智能引导登录
-- ✨ 邮件方式密码重置
-- ✨ 超级管理员用户管理（创建/编辑/删除用户）
-- ✨ 用户搜索和角色筛选
-- 🐛 修复登录弹窗×按钮不可点击问题
-- 📧 添加自定义邮件模板（Endfield 风格）
-- 📚 完善 SMTP 配置指南
+- ✨ 增强注册功能：实时邮箱验证、密码强度指示
+- ✨ 超级管理员用户管理
+- 📧 自定义邮件模板
 
 ### v2.0.0
 - 初始版本发布
+
+## 🔒 安全特性
+
+- **认证安全**：Supabase Auth + 邮箱域名白名单
+- **数据安全**：RLS 行级安全策略
+- **频率限制**：API 请求频率限制（不可预测 ID）
+- **输入验证**：前后端双重参数验证
+- **XSS 防护**：DOMPurify 内容净化
+- **CSRF 防护**：Supabase 内置保护
 
 ## 👥 制作团队
 
@@ -252,7 +294,7 @@ gacha-analyzer/
 - [B站主页](https://space.bilibili.com/14932613)
 
 ### AI 开发助手
-- **Claude** (Anthropic Claude Sonnet 4.5) - 架构设计 & 全栈开发 & 功能实现
+- **Claude** (Anthropic Claude Opus 4.5) - 架构设计 & 全栈开发 & 功能实现
 - **Gemini** (Google Gemini 3 Pro) - UI 设计咨询
 
 ## 🤝 贡献
