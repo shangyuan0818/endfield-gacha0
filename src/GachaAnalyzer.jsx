@@ -223,15 +223,29 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
 
       if (rpcData) {
-        // 辅助函数：生成饼图数据
+        // 辅助函数：生成饼图数据（带增强显示值）
         const generateChartData = (counts) => {
           if (!counts) return [];
-          return [
-            { name: '6星(限定)', value: counts['6'] || 0, color: '#FF5F00' },
-            { name: '6星(常驻)', value: counts['6_std'] || 0, color: '#EF4444' },
-            { name: '5星', value: counts['5'] || 0, color: '#EAB308' },
-            { name: '4星', value: counts['4'] || 0, color: '#A855F7' },
+          const rawData = [
+            { name: '6星(限定)', value: counts['6'] || 0, color: RARITY_CONFIG[6].color },
+            { name: '6星(常驻)', value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
+            { name: '5星', value: counts['5'] || 0, color: RARITY_CONFIG[5].color },
+            { name: '4星', value: counts['4'] || 0, color: RARITY_CONFIG[4].color },
           ].filter(item => item.value > 0);
+
+          // 增强稀有度显示占比：6星最小15%，5星最小20%
+          const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
+          return rawData.map(item => {
+            const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+            let minPercent = 0;
+            if (item.name.includes('6星')) minPercent = 15;
+            else if (item.name.includes('5星')) minPercent = 20;
+
+            if (currentPercent < minPercent && totalValue > 0) {
+              return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+            }
+            return { ...item, displayValue: item.value };
+          });
         };
 
         // 辅助函数：处理分布数据（确保格式正确）
