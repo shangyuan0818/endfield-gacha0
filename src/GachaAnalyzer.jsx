@@ -458,6 +458,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, []);
 
+  // 更新用户最后在线时间
+  const updateLastSeen = useCallback(async () => {
+    if (!supabase) return;
+    try {
+      await supabase.rpc('update_last_seen');
+    } catch (error) {
+      // 静默失败，不影响用户体验
+    }
+  }, []);
+
   // 监听用户登录状态
   useEffect(() => {
     const initializeApp = async () => {
@@ -469,6 +479,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         // 获取当前会话
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
+
+        // 更新最后在线时间
+        if (session?.user) {
+          updateLastSeen();
+        }
 
         // 获取全局统计（使用 RPC 函数，无需等待认证同步）
         await fetchGlobalStats();
@@ -504,11 +519,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         setUser(session?.user ?? null);
         // 用户状态变化时刷新全局统计（RPC 函数不受 RLS 限制）
         fetchGlobalStats();
+        // 用户登录时更新最后在线时间
+        if (session?.user) {
+          updateLastSeen();
+        }
       });
 
       return () => subscription.unsubscribe();
     }
-  }, [fetchGlobalStats, loadCloudData]);
+  }, [fetchGlobalStats, loadCloudData, updateLastSeen]);
 
   // 实时监听卡池变化（解决锁定不立即生效的问题）
   useEffect(() => {

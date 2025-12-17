@@ -3,7 +3,7 @@ import {
   Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2,
   Eye, EyeOff, Save, X, Search, UserPlus, ChevronRight,
   Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
-  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3
+  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import SimpleMarkdown from './SimpleMarkdown';
@@ -16,8 +16,29 @@ const MENU_ITEMS = [
   { id: 'userData', label: '用户数据', icon: Database },
   { id: 'blacklist', label: '黑名单', icon: Ban },
   { id: 'announcements', label: '公告管理', icon: Bell },
+  { id: 'pageContent', label: '页面管理', icon: Home },
   { id: 'history', label: '申请历史', icon: History },
 ];
+
+// 格式化最后在线时间的工具函数
+const formatLastSeen = (timestamp) => {
+  if (!timestamp) return '从未';
+
+  const now = new Date();
+  const lastSeen = new Date(timestamp);
+  const diffMs = now - lastSeen;
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return '刚刚';
+  if (diffMins < 60) return `${diffMins}分钟前`;
+  if (diffHours < 24) return `${diffHours}小时前`;
+  if (diffDays < 7) return `${diffDays}天前`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前`;
+  if (diffDays < 365) return `${Math.floor(diffDays / 30)}个月前`;
+  return `${Math.floor(diffDays / 365)}年前`;
+};
 
 const AdminPanel = React.memo(({ showToast }) => {
   // 当前选中的菜单
@@ -64,6 +85,18 @@ const AdminPanel = React.memo(({ showToast }) => {
   });
   const [previewMode, setPreviewMode] = useState(false);
 
+  // 页面内容管理状态
+  const [pageContents, setPageContents] = useState([]);
+  const [editingPageContent, setEditingPageContent] = useState(null);
+  const [showPageContentForm, setShowPageContentForm] = useState(false);
+  const [pageContentForm, setPageContentForm] = useState({
+    id: '',
+    title: '',
+    content: '',
+    is_active: true
+  });
+  const [pageContentPreviewMode, setPageContentPreviewMode] = useState(false);
+
   // 用户数据管理状态
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [userDataSearch, setUserDataSearch] = useState('');
@@ -86,17 +119,19 @@ const AdminPanel = React.memo(({ showToast }) => {
       setLoading(true);
       try {
         // 并行获取所有数据
-        const [profilesRes, appsRes, announcementsRes, blacklistRes] = await Promise.all([
+        const [profilesRes, appsRes, announcementsRes, blacklistRes, pageContentRes] = await Promise.all([
           supabase.from('profiles').select('*'),
           supabase.from('admin_applications').select('*'),
           supabase.from('announcements').select('*').order('priority', { ascending: false }),
-          supabase.from('blacklist').select('*').order('created_at', { ascending: false })
+          supabase.from('blacklist').select('*').order('created_at', { ascending: false }),
+          supabase.from('page_content').select('*').order('id', { ascending: true })
         ]);
 
         setUsers(profilesRes.data || []);
         setApplications(appsRes.data || []);
         setAnnouncements(announcementsRes.data || []);
         setBlacklist(blacklistRes.data || []);
+        setPageContents(pageContentRes.data || []);
       } catch (error) {
       } finally {
         setLoading(false);
@@ -732,6 +767,137 @@ const AdminPanel = React.memo(({ showToast }) => {
     }
   };
 
+  // ========== 页面内容管理函数 ==========
+  const resetPageContentForm = () => {
+    setPageContentForm({ id: '', title: '', content: '', is_active: true });
+    setEditingPageContent(null);
+    setShowPageContentForm(false);
+    setPageContentPreviewMode(false);
+  };
+
+  const startEditPageContent = (pageContent) => {
+    setPageContentForm({
+      id: pageContent.id,
+      title: pageContent.title,
+      content: pageContent.content,
+      is_active: pageContent.is_active
+    });
+    setEditingPageContent(pageContent);
+    setShowPageContentForm(true);
+    setPageContentPreviewMode(false);
+  };
+
+  const savePageContent = async () => {
+    if (!supabase) return;
+    if (!pageContentForm.id.trim() || !pageContentForm.title.trim() || !pageContentForm.content.trim()) {
+      showToast('ID、标题和内容不能为空', 'error');
+      return;
+    }
+
+    // ID 格式校验：只允许小写字母、数字和下划线
+    if (!/^[a-z0-9_]+$/.test(pageContentForm.id)) {
+      showToast('ID 只能包含小写字母、数字和下划线', 'error');
+      return;
+    }
+
+    setActionLoading('pageContent');
+
+    try {
+      const currentUser = (await supabase.auth.getUser()).data.user;
+
+      if (editingPageContent) {
+        // 更新
+        const { error } = await supabase
+          .from('page_content')
+          .update({
+            title: pageContentForm.title,
+            content: pageContentForm.content,
+            is_active: pageContentForm.is_active,
+            updated_by: currentUser?.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingPageContent.id);
+
+        if (error) throw error;
+
+        setPageContents(prev => prev.map(p =>
+          p.id === editingPageContent.id ? { ...p, ...pageContentForm, updated_at: new Date().toISOString() } : p
+        ));
+        showToast('页面内容已更新', 'success');
+      } else {
+        // 新建
+        const { data, error } = await supabase
+          .from('page_content')
+          .insert({
+            id: pageContentForm.id,
+            title: pageContentForm.title,
+            content: pageContentForm.content,
+            is_active: pageContentForm.is_active,
+            updated_by: currentUser?.id
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setPageContents(prev => [...prev, data].sort((a, b) => a.id.localeCompare(b.id)));
+        showToast('页面内容已创建', 'success');
+      }
+
+      resetPageContentForm();
+    } catch (error) {
+      showToast('保存失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const togglePageContentActive = async (pageContent) => {
+    if (!supabase) return;
+    setActionLoading(pageContent.id);
+
+    try {
+      const { error } = await supabase
+        .from('page_content')
+        .update({ is_active: !pageContent.is_active })
+        .eq('id', pageContent.id);
+
+      if (error) throw error;
+
+      setPageContents(prev => prev.map(p =>
+        p.id === pageContent.id ? { ...p, is_active: !p.is_active } : p
+      ));
+      showToast(pageContent.is_active ? '内容已停用' : '内容已激活', 'success');
+    } catch (error) {
+      showToast('操作失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const deletePageContent = async (pageContentId) => {
+    if (!supabase) return;
+    if (!window.confirm('确定要删除这条页面内容吗？此操作无法撤销。')) return;
+
+    setActionLoading(pageContentId);
+
+    try {
+      const { error } = await supabase
+        .from('page_content')
+        .delete()
+        .eq('id', pageContentId);
+
+      if (error) throw error;
+
+      setPageContents(prev => prev.filter(p => p.id !== pageContentId));
+      showToast('页面内容已删除', 'success');
+    } catch (error) {
+      showToast('删除失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const pendingApps = applications.filter(a => a.status === 'pending');
 
   if (loading) {
@@ -956,6 +1122,7 @@ const AdminPanel = React.memo(({ showToast }) => {
                 <th className="px-4 py-3 text-left">用户名</th>
                 <th className="px-4 py-3 text-left">邮箱</th>
                 <th className="px-4 py-3 text-left">角色</th>
+                <th className="px-4 py-3 text-left">最后在线</th>
                 <th className="px-4 py-3 text-left">注册时间</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
@@ -973,6 +1140,15 @@ const AdminPanel = React.memo(({ showToast }) => {
                     }`}>
                       {u.role === 'super_admin' ? '超管' : u.role === 'admin' ? '管理员' : '用户'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 dark:text-zinc-500">
+                    {u.last_seen_at ? (
+                      <span title={new Date(u.last_seen_at).toLocaleString()}>
+                        {formatLastSeen(u.last_seen_at)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-zinc-600">从未</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-zinc-500">
                     {new Date(u.created_at).toLocaleDateString()}
@@ -1294,6 +1470,172 @@ const AdminPanel = React.memo(({ showToast }) => {
                     <Edit2 size={16} />
                   </button>
                   <button onClick={() => deleteAnnouncement(announcement.id)} disabled={actionLoading === announcement.id} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="删除">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderPageContentPanel = () => (
+    <div className="space-y-4">
+      {/* 工具栏 */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-500 dark:text-zinc-500">
+          共 {pageContents.length} 条页面内容
+        </span>
+        {!showPageContentForm && (
+          <button
+            onClick={() => setShowPageContentForm(true)}
+            className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-none transition-colors"
+          >
+            <Plus size={16} />
+            新建内容
+          </button>
+        )}
+      </div>
+
+      {/* 页面内容编辑表单 */}
+      {showPageContentForm && (
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="font-bold text-blue-800 dark:text-blue-300">
+              {editingPageContent ? '编辑页面内容' : '新建页面内容'}
+            </h4>
+            <button onClick={resetPageContentForm} className="text-blue-400 hover:text-blue-600">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">
+                  ID <span className="text-xs opacity-75">(唯一标识符)</span>
+                </label>
+                <input
+                  type="text"
+                  value={pageContentForm.id}
+                  onChange={(e) => setPageContentForm(prev => ({ ...prev, id: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') }))}
+                  disabled={!!editingPageContent}
+                  className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 disabled:bg-slate-100 disabled:dark:bg-zinc-800"
+                  placeholder="home_guide"
+                />
+                <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">仅小写字母、数字和下划线</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">标题</label>
+                <input
+                  type="text"
+                  value={pageContentForm.title}
+                  onChange={(e) => setPageContentForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                  placeholder="使用指南"
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-blue-700 dark:text-blue-300">
+                  内容 <span className="text-xs opacity-75">(支持 Markdown)</span>
+                </label>
+                <button
+                  onClick={() => setPageContentPreviewMode(!pageContentPreviewMode)}
+                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                >
+                  {pageContentPreviewMode ? <Edit2 size={12} /> : <Eye size={12} />}
+                  {pageContentPreviewMode ? '编辑' : '预览'}
+                </button>
+              </div>
+
+              {pageContentPreviewMode ? (
+                <div className="min-h-[300px] p-4 border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 overflow-auto">
+                  <SimpleMarkdown content={pageContentForm.content} className="text-slate-700 dark:text-zinc-300" />
+                </div>
+              ) : (
+                <textarea
+                  value={pageContentForm.content}
+                  onChange={(e) => setPageContentForm(prev => ({ ...prev, content: e.target.value }))}
+                  rows={12}
+                  className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 font-mono text-sm"
+                  placeholder="支持 Markdown 语法..."
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                <input
+                  type="checkbox"
+                  checked={pageContentForm.is_active}
+                  onChange={(e) => setPageContentForm(prev => ({ ...prev, is_active: e.target.checked }))}
+                  className="w-4 h-4 text-blue-500"
+                />
+                立即激活
+              </label>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={savePageContent}
+                disabled={actionLoading === 'pageContent'}
+                className="flex items-center gap-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-none transition-colors disabled:opacity-50"
+              >
+                <Save size={16} />
+                {actionLoading === 'pageContent' ? '保存中...' : '保存'}
+              </button>
+              <button onClick={resetPageContentForm} className="px-4 py-2 border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-none">
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 页面内容列表 */}
+      {pageContents.length === 0 ? (
+        <div className="p-12 text-center text-slate-400 dark:text-zinc-500">
+          <Home size={48} className="mx-auto mb-4 opacity-50" />
+          <p>暂无页面内容</p>
+          <p className="text-xs mt-2">点击「新建内容」添加可编辑的页面内容</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {pageContents.map(pageContent => (
+            <div key={pageContent.id} className={`p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 ${!pageContent.is_active ? 'opacity-50' : ''}`}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <code className="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 rounded">
+                      {pageContent.id}
+                    </code>
+                    <h4 className="font-medium text-slate-700 dark:text-zinc-300">{pageContent.title}</h4>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      pageContent.is_active ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-500'
+                    }`}>
+                      {pageContent.is_active ? '激活' : '停用'}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-zinc-500 line-clamp-2">
+                    {pageContent.content.replace(/[#*>\-`]/g, '').slice(0, 150)}...
+                  </p>
+                  <span className="text-xs text-slate-400 dark:text-zinc-600">
+                    更新于 {new Date(pageContent.updated_at || pageContent.created_at).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => togglePageContentActive(pageContent)} disabled={actionLoading === pageContent.id} className={`p-1.5 rounded ${pageContent.is_active ? 'text-green-600 hover:bg-green-50' : 'text-slate-400 hover:bg-slate-100'}`} title={pageContent.is_active ? '停用' : '激活'}>
+                    {pageContent.is_active ? <Eye size={16} /> : <EyeOff size={16} />}
+                  </button>
+                  <button onClick={() => startEditPageContent(pageContent)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="编辑">
+                    <Edit2 size={16} />
+                  </button>
+                  <button onClick={() => deletePageContent(pageContent.id)} disabled={actionLoading === pageContent.id} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded" title="删除">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -1639,6 +1981,7 @@ const AdminPanel = React.memo(({ showToast }) => {
       case 'userData': return renderUserDataPanel();
       case 'blacklist': return renderBlacklistPanel();
       case 'announcements': return renderAnnouncementsPanel();
+      case 'pageContent': return renderPageContentPanel();
       case 'history': return renderHistoryPanel();
       default: return null;
     }
