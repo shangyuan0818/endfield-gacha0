@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Star, User, Cloud, Layers, Search, RefreshCw, Swords } from 'lucide-react';
 import { RARITY_CONFIG } from '../constants';
@@ -8,14 +8,28 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
   const [dataSource, setDataSource] = useState('global'); // 'global' | 'local'
   const [poolTypeFilter, setPoolTypeFilter] = useState('all'); // 'all' | 'character' | 'limited' | 'weapon' | 'standard'
 
-  // 检测暗色模式
-  const isDark = document.documentElement.classList.contains('dark');
+  // 检测暗色模式 - 响应式监听主题变化
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
   const tooltipStyle = {
     borderRadius: '0px',
-    border: 'none',
-    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    border: isDark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+    boxShadow: isDark ? '0 4px 6px -1px rgb(0 0 0 / 0.3)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)',
     fontSize: '12px',
-    backgroundColor: isDark ? '#18181b' : '#fff',
+    backgroundColor: isDark ? '#18181b' : '#ffffff',
     color: isDark ? '#e4e4e7' : '#27272a'
   };
 
@@ -456,11 +470,11 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
             {hasDistribution ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
-                  <YAxis allowDecimals={false} tick={{fontSize: 10}} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
+                  <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
+                  <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} />
                   <RechartsTooltip
-                    cursor={{fill: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}}
+                    cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}}
                     contentStyle={tooltipStyle}
                   />
                   <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />

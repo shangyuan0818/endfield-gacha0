@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calculator, Star, FileText, Sparkles } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
@@ -59,6 +59,31 @@ const PoolTimeInfo = () => {
  * 显示卡池统计分析、保底信息、图表等
  */
 const DashboardView = ({ currentPool, stats, effectivePity }) => {
+  // 检测暗色模式 - 响应式监听主题变化
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
+  const tooltipStyle = {
+    borderRadius: '0px',
+    border: isDark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
+    boxShadow: isDark ? '0 4px 6px -1px rgb(0 0 0 / 0.3)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+    fontSize: '12px',
+    backgroundColor: isDark ? '#18181b' : '#ffffff',
+    color: isDark ? '#e4e4e7' : '#27272a'
+  };
+
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
@@ -372,12 +397,12 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
             <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2 font-medium">6星分布趋势</p>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.pityStats.distribution} stackOffset="sign">
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="range" tick={{fontSize: 10}} interval={0} />
-                <YAxis allowDecimals={false} tick={{fontSize: 10}} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
+                <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
+                <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} />
                 <RechartsTooltip
-                  cursor={{fill: 'rgba(255,255,255,0.1)'}}
-                  contentStyle={{ borderRadius: '0px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}}
+                  contentStyle={tooltipStyle}
                 />
                 {/* 堆叠柱状图：限定在下，常驻在上 */}
                 <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" radius={[0, 0, 4, 4]} />
