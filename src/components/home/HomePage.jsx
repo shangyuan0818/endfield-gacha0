@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
-  BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket
+  BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket,
+  Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import SimpleMarkdown from '../SimpleMarkdown';
@@ -647,6 +648,167 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     </div>
   );
 
+  // 待增加功能卡片
+  const RoadmapCard = () => {
+    // 待办功能列表 - 按优先级排序
+    const roadmapItems = [
+      // P1 - 高优先级（公测相关）
+      {
+        id: 'game-import',
+        icon: Import,
+        title: '游戏数据一键导入',
+        description: '公测更新后，支持从游戏内导出的数据文件一键导入历史抽卡记录',
+        status: 'planned',
+        priority: 'high',
+        tag: '公测更新'
+      },
+      {
+        id: 'gacha-simulator',
+        icon: Gamepad2,
+        title: '抽卡模拟器',
+        description: '在不消耗资源的情况下模拟抽卡，体验出货的快感或绝望',
+        status: 'planned',
+        priority: 'high',
+        tag: '娱乐功能'
+      },
+      // P2 - 中优先级
+      {
+        id: 'share',
+        icon: Share2,
+        title: '分享功能',
+        description: '生成精美的抽卡结果分享图片或链接，向朋友展示你的欧气',
+        status: 'planned',
+        priority: 'medium',
+        tag: '社交传播'
+      },
+      {
+        id: 'i18n',
+        icon: Languages,
+        title: '国际化支持',
+        description: '支持英语、日语等多语言界面，服务更多玩家',
+        status: 'planned',
+        priority: 'medium',
+        tag: '用户扩展'
+      },
+      // P3 - 低优先级
+      {
+        id: 'a11y',
+        icon: Accessibility,
+        title: '无障碍优化',
+        description: '完善ARIA标签和键盘导航，提升可访问性',
+        status: 'planned',
+        priority: 'low',
+        tag: '体验优化'
+      },
+      {
+        id: 'virtual-scroll',
+        icon: Database,
+        title: '虚拟滚动',
+        description: '优化长列表性能，支持更大数据量的流畅浏览',
+        status: 'planned',
+        priority: 'low',
+        tag: '性能优化'
+      }
+    ];
+
+    // 状态样式配置
+    const statusConfig = {
+      completed: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', label: '已完成' },
+      in_progress: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', label: '开发中' },
+      planned: { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-500 dark:text-zinc-400', label: '计划中' }
+    };
+
+    // 优先级样式
+    const priorityConfig = {
+      high: { border: 'border-l-amber-500', dot: 'bg-amber-500' },
+      medium: { border: 'border-l-blue-500', dot: 'bg-blue-500' },
+      low: { border: 'border-l-zinc-400', dot: 'bg-zinc-400' }
+    };
+
+    return (
+      <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-zinc-900 dark:to-zinc-800 border border-violet-200 dark:border-zinc-700 overflow-hidden">
+        {/* 标题栏 */}
+        <div className="px-6 py-4 flex items-center justify-between border-b border-violet-100 dark:border-zinc-700">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
+              <Lightbulb size={20} className="text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-zinc-100">功能路线图</h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-500">
+                即将到来的新功能
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <CircleDot size={12} className="text-amber-500" />
+            <span>高优先级</span>
+            <CircleDot size={12} className="text-blue-500 ml-2" />
+            <span>中</span>
+            <CircleDot size={12} className="text-zinc-400 ml-2" />
+            <span>低</span>
+          </div>
+        </div>
+
+        {/* 功能列表 */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {roadmapItems.map((item) => {
+              const status = statusConfig[item.status];
+              const priority = priorityConfig[item.priority];
+              const Icon = item.icon;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4 border-l-4 ${priority.border} hover:shadow-md transition-shadow`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg shrink-0">
+                      <Icon size={18} className="text-zinc-600 dark:text-zinc-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate">{item.title}</h4>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2 line-clamp-2">
+                        {item.description}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${status.bg} ${status.text}`}>
+                          {status.label}
+                        </span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
+                          {item.tag}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 底部提示 */}
+          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              有功能建议？欢迎通过工单反馈
+            </p>
+            <a
+              href="https://github.com/MoguJunn/endfield-gacha/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
+            >
+              提交 Issue
+              <ArrowRight size={10} />
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 欢迎横幅 */}
@@ -752,6 +914,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
       {/* 卡池机制速览 */}
       <PoolMechanicsCard />
+
+      {/* 待增加功能 */}
+      <RoadmapCard />
     </div>
   );
 });
