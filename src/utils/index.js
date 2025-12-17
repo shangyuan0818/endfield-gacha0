@@ -15,3 +15,13 @@ export {
   extractTypeFromPoolName,
   groupPoolsByDrawer
 } from './poolUtils';
+export {
+  STORAGE_KEYS,
+  getStorageItem,
+  setStorageItem,
+  removeStorageItem,
+  hasNewContent,
+  markAsViewed,
+  getHomeCollapseState,
+  setHomeCollapseState
+} from './storageUtils';

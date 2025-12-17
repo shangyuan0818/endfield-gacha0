@@ -5,11 +5,11 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 import AuthModal from './AuthModal';
 import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal, HomePage, Footer } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
-import { Toast, ConfirmDialog, LoadingBar } from './components/ui';
+import { Toast, ConfirmDialog, LoadingBar, NotificationBadge } from './components/ui';
 import { useToast, useConfirm } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
-import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName } from './utils';
+import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName, STORAGE_KEYS, hasNewContent, markAsViewed, getStorageItem, setStorageItem } from './utils';
 
 
 export default function GachaAnalyzer({ themeMode, setThemeMode }) {
@@ -88,6 +88,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 本地 UI 状态（仍然使用 useState）
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // UX-006: 通知气泡状态
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);  // 待审批申请数量（仅超管）
+  const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);          // 是否有新公告
+  const [unreadTicketsCount, setUnreadTicketsCount] = useState(0);              // 未读工单数量
 
   // 0.2 通用弹窗
   const { toasts, showToast, removeToast } = useToast();
@@ -675,16 +680,87 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
         if (data && data.length > 0) {
           setAnnouncements(data);
+          // UX-006: 检测是否有新公告
+          const latestAnnouncement = data[0];
+          if (latestAnnouncement?.updated_at) {
+            const isNew = hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at);
+            setHasNewAnnouncement(isNew);
+          }
         } else {
           setAnnouncements([]);
+          setHasNewAnnouncement(false);
         }
       } catch (error) {
         setAnnouncements([]);
+        setHasNewAnnouncement(false);
       }
     };
 
     fetchAnnouncements();
   }, []);
+
+  // UX-006: 获取待审批管理员申请数量（仅超管）
+  useEffect(() => {
+    const fetchPendingApplications = async () => {
+      if (!supabase || !isSuperAdmin) {
+        setPendingApplicationsCount(0);
+        return;
+      }
+
+      try {
+        const { count, error } = await supabase
+          .from('admin_applications')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+
+        if (!error) {
+          setPendingApplicationsCount(count || 0);
+        }
+      } catch (error) {
+        // 静默失败
+      }
+    };
+
+    fetchPendingApplications();
+  }, [isSuperAdmin]);
+
+  // UX-006: 获取未读工单数量
+  useEffect(() => {
+    const fetchUnreadTickets = async () => {
+      if (!supabase || !user) {
+        setUnreadTicketsCount(0);
+        return;
+      }
+
+      try {
+        // 获取用户上次查看工单的时间
+        const lastViewed = getStorageItem(STORAGE_KEYS.TICKETS_LAST_VIEWED, 0);
+        const lastViewedDate = lastViewed ? new Date(lastViewed).toISOString() : '1970-01-01T00:00:00Z';
+
+        // 查询更新时间晚于上次查看时间的工单
+        // 对于普通用户：查询自己创建的工单
+        // 对于超管：查询所有工单
+        let query = supabase
+          .from('tickets')
+          .select('*', { count: 'exact', head: true })
+          .gt('updated_at', lastViewedDate);
+
+        if (!isSuperAdmin) {
+          query = query.eq('user_id', user.id);
+        }
+
+        const { count, error } = await query;
+
+        if (!error) {
+          setUnreadTicketsCount(count || 0);
+        }
+      } catch (error) {
+        // 静默失败
+      }
+    };
+
+    fetchUnreadTickets();
+  }, [user, isSuperAdmin]);
 
   // 登出处理
   const handleLogout = async () => {
@@ -2271,12 +2347,21 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           </div>
 
           <div className="flex gap-2 sm:gap-4">
-            <button
-              onClick={() => setActiveTab('home')}
-              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'home' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
-            >
-              首页
-            </button>
+            <NotificationBadge showDot={hasNewAnnouncement}>
+              <button
+                onClick={() => {
+                  setActiveTab('home');
+                  // 点击首页后，如果有新公告，标记为已查看
+                  if (hasNewAnnouncement) {
+                    markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
+                    setHasNewAnnouncement(false);
+                  }
+                }}
+                className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'home' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+              >
+                首页
+              </button>
+            </NotificationBadge>
             <button
               onClick={() => setActiveTab('summary')}
               className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'summary' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
@@ -2292,23 +2377,36 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
             {/* 超管管理页面 */}
             {isSuperAdmin && (
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
-              >
-                管理
-              </button>
+              <NotificationBadge count={pendingApplicationsCount}>
+                <button
+                  onClick={() => {
+                    setActiveTab('admin');
+                    // 点击管理面板后标记为已查看（申请数量会在处理后自动减少）
+                    markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
+                  }}
+                  className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+                >
+                  管理
+                </button>
+              </NotificationBadge>
             )}
 
             {/* 工单、设置和关于按钮 */}
             {user && (
-              <button
-                onClick={() => setActiveTab('tickets')}
-                className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'tickets' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
-                title="工单"
-              >
-                <MessageSquare size={18} />
-              </button>
+              <NotificationBadge count={unreadTicketsCount}>
+                <button
+                  onClick={() => {
+                    setActiveTab('tickets');
+                    // 点击工单面板后标记为已查看
+                    markAsViewed(STORAGE_KEYS.TICKETS_LAST_VIEWED);
+                    setUnreadTicketsCount(0);
+                  }}
+                  className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'tickets' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
+                  title="工单"
+                >
+                  <MessageSquare size={18} />
+                </button>
+              </NotificationBadge>
             )}
             <button
               onClick={() => setActiveTab('settings')}

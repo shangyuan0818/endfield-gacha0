@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
@@ -6,15 +6,75 @@ import {
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import SimpleMarkdown from '../SimpleMarkdown';
+import {
+  STORAGE_KEYS,
+  getHomeCollapseState,
+  setHomeCollapseState,
+  hasNewContent,
+  markAsViewed
+} from '../../utils';
 
 /**
  * 首页组件
  * 包含使用指南和卡池机制速览
  */
 const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
-  const [showPoolMechanics, setShowPoolMechanics] = useState(true);
-  const [showGuide, setShowGuide] = useState(true);
-  const [showAnnouncement, setShowAnnouncement] = useState(true);
+  // 从 localStorage 读取初始折叠状态
+  const initialCollapseState = getHomeCollapseState();
+
+  // 检测公告是否有更新
+  const latestAnnouncement = announcements[0];
+  const hasAnnouncementUpdate = latestAnnouncement
+    ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at)
+    : false;
+
+  // 折叠状态：如果有公告更新，默认展开公告
+  const [showPoolMechanics, setShowPoolMechanics] = useState(!initialCollapseState.poolMechanics);
+  const [showGuide, setShowGuide] = useState(!initialCollapseState.guide);
+  const [showAnnouncement, setShowAnnouncement] = useState(
+    hasAnnouncementUpdate ? true : !initialCollapseState.announcement
+  );
+
+  // 公告是否为"新"（未查看过）
+  const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
+
+  // 处理折叠状态变化并保存到 localStorage
+  const handleTogglePoolMechanics = useCallback(() => {
+    setShowPoolMechanics(prev => {
+      const newState = !prev;
+      setHomeCollapseState('poolMechanics', !newState);
+      return newState;
+    });
+  }, []);
+
+  const handleToggleGuide = useCallback(() => {
+    setShowGuide(prev => {
+      const newState = !prev;
+      setHomeCollapseState('guide', !newState);
+      return newState;
+    });
+  }, []);
+
+  const handleToggleAnnouncement = useCallback(() => {
+    setShowAnnouncement(prev => {
+      const newState = !prev;
+      setHomeCollapseState('announcement', !newState);
+      // 展开公告时标记为已查看
+      if (newState && isAnnouncementNew) {
+        markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
+        setIsAnnouncementNew(false);
+      }
+      return newState;
+    });
+  }, [isAnnouncementNew]);
+
+  // 公告展开时自动标记为已查看
+  useEffect(() => {
+    if (showAnnouncement && isAnnouncementNew) {
+      markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
+      setIsAnnouncementNew(false);
+    }
+  }, [showAnnouncement, isAnnouncementNew]);
 
   // 倒计时组件
   const CountdownTimer = ({ targetDate, title, icon: Icon, colorClass, endedText }) => {
@@ -122,7 +182,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-zinc-900 dark:to-zinc-800 border border-zinc-200 dark:border-zinc-700 overflow-hidden">
         {/* 标题栏 - 可点击展开/收起 */}
         <button
-          onClick={() => setShowPoolMechanics(!showPoolMechanics)}
+          onClick={handleTogglePoolMechanics}
           className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -395,7 +455,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-800 border border-amber-200 dark:border-zinc-700 overflow-hidden">
       {/* 标题栏 - 可点击展开/收起 */}
       <button
-        onClick={() => setShowGuide(!showGuide)}
+        onClick={handleToggleGuide}
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
       >
         <div className="flex items-center gap-3">
@@ -557,15 +617,29 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none overflow-hidden">
           {/* 公告标题栏 - 可点击折叠 */}
           <button
-            onClick={() => setShowAnnouncement(!showAnnouncement)}
+            onClick={handleToggleAnnouncement}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
           >
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0 relative">
                 <Bell size={20} />
+                {/* NEW 标签 - 公告有更新时显示 */}
+                {isAnnouncementNew && (
+                  <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
+                    NEW
+                  </span>
+                )}
               </div>
               <div className="text-left">
-                <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-amber-800 dark:text-amber-300">{announcements[0].title}</h3>
+                  {/* NEW 标签（另一个位置） */}
+                  {isAnnouncementNew && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
+                      NEW
+                    </span>
+                  )}
+                </div>
                 {announcements[0].version && (
                   <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
                     v{announcements[0].version}
