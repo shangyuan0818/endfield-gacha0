@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Star, User, Cloud, Layers, Search, RefreshCw, Swords } from 'lucide-react';
 import { RARITY_CONFIG } from '../constants';
+import RainbowGradientDefs from './charts/RainbowGradientDefs';
 
 const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading, user }) => {
   // 状态管理：数据源和卡池类型筛选
@@ -136,13 +137,29 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       return dist.sort((a, b) => a.rangeStart - b.rangeStart);
     };
 
-    // 辅助：生成饼图数据
-    const generatePieData = (counts) => [
-      { name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color },
-      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
-      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
-      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
-    ].filter(item => item.value > 0);
+    // 辅助：生成饼图数据（带增强显示值）
+    const generatePieData = (counts) => {
+      const rawData = [
+        { name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color },
+        { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
+        { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
+        { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
+      ].filter(item => item.value > 0);
+
+      // 增强稀有度显示占比：6星最小15%，5星最小20%
+      const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
+      return rawData.map(item => {
+        const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+        let minPercent = 0;
+        if (item.name.includes('6星')) minPercent = 15;
+        else if (item.name.includes('5星')) minPercent = 20;
+
+        if (currentPercent < minPercent && totalValue > 0) {
+          return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+        }
+        return { ...item, displayValue: item.value };
+      });
+    };
 
     // 3. 全局统计 & 分类计数（使用过滤后的当前用户数据）
     myHistory.forEach(item => {
@@ -442,6 +459,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
             {hasChartData ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <RainbowGradientDefs />
                   <Pie
                     data={data.chartData}
                     cx="50%"
@@ -449,7 +467,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                     innerRadius={45}
                     outerRadius={70}
                     paddingAngle={2}
-                    dataKey="value"
+                    dataKey="displayValue"
                   >
                     {data.chartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
@@ -459,6 +477,14 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                     contentStyle={tooltipStyle}
                     itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
                     labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
+                    formatter={(value, name, props) => {
+                      const originalValue = props.payload.value;
+                      const total = data.chartData.reduce((sum, d) => sum + d.value, 0);
+                      return [
+                        `${originalValue}个 (${total > 0 ? (originalValue/total*100).toFixed(1) : 0}%)`,
+                        name
+                      ];
+                    }}
                   />
                   <Legend
                     verticalAlign="bottom"
@@ -466,6 +492,10 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                     wrapperStyle={{
                       fontSize: '11px',
                       color: isDark ? '#a1a1aa' : '#71717a'
+                    }}
+                    formatter={(value, entry) => {
+                      const item = data.chartData.find(d => d.name === value);
+                      return `${value} (${item?.value || 0})`;
                     }}
                   />
                 </PieChart>
@@ -481,6 +511,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
             {hasDistribution ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
+                  <RainbowGradientDefs />
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
                   <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
                   <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} />

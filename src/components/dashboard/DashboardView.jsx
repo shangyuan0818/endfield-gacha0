@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calculator, Star, FileText, Sparkles } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
+import RainbowGradientDefs from '../charts/RainbowGradientDefs';
 
 /**
  * 卡池时间信息组件
@@ -397,6 +398,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
             <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2 font-medium">6星分布趋势</p>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={stats.pityStats.distribution} stackOffset="sign">
+                <RainbowGradientDefs />
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
                 <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
                 <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} />

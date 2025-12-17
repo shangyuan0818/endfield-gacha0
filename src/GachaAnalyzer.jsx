@@ -9,6 +9,7 @@ import { Toast, ConfirmDialog, LoadingBar, NotificationBadge } from './component
 import { useToast, useConfirm } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
+import RainbowGradientDefs from './components/charts/RainbowGradientDefs';
 import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName, STORAGE_KEYS, hasNewContent, markAsViewed, getStorageItem, setStorageItem } from './utils';
 
 
@@ -1221,13 +1222,28 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       5: counts[5] > 0 ? (total / counts[5]).toFixed(2) : '0',
     };
 
-    // 6. 饼图数据
-    const chartData = [
-      ...(currentPool.type !== 'standard' ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color }] : []),
-      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
-      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
-      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
+    // 6. 饼图数据 - 使用增强显示值让稀有度分布更均匀
+    const rawChartData = [
+      ...(currentPool.type !== 'standard' ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color, originalValue: counts[6] }] : []),
+      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color, originalValue: counts['6_std'] },
+      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color, originalValue: counts[5] },
+      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color, originalValue: counts[4] },
     ].filter(item => item.value > 0);
+
+    // 增强稀有度显示占比：6星最小15%，5星最小20%
+    const chartData = rawChartData.map(item => {
+      const totalValue = rawChartData.reduce((sum, d) => sum + d.value, 0);
+      const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+      let minPercent = 0;
+      if (item.name.includes('6星')) minPercent = 15;
+      else if (item.name.includes('5星')) minPercent = 20;
+
+      // 如果实际占比小于最小值，使用增强值
+      if (currentPercent < minPercent && totalValue > 0) {
+        return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+      }
+      return { ...item, displayValue: item.value };
+    });
 
     // 7. 出货分布直方图
     const distributionData = [];
@@ -2692,6 +2708,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                   ) : (
                     <ResponsiveContainer width="100%" height={320}>
                       <PieChart>
+                        <RainbowGradientDefs />
                         <Pie
                           data={stats.chartData}
                           cx="50%"
@@ -2699,17 +2716,20 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                           innerRadius={80}
                           outerRadius={120}
                           paddingAngle={2}
-                          dataKey="value"
+                          dataKey="displayValue"
                         >
                           {stats.chartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                           ))}
                         </Pie>
                         <RechartsTooltip
-                          formatter={(value, name) => [
-                            `${value}个 (${(value/stats.total*100).toFixed(1)}%)`,
-                            name
-                          ]}
+                          formatter={(value, name, props) => {
+                            const originalValue = props.payload.value;
+                            return [
+                              `${originalValue}个 (${(originalValue/stats.total*100).toFixed(1)}%)`,
+                              name
+                            ];
+                          }}
                           contentStyle={{
                             backgroundColor: isDark ? '#18181b' : '#ffffff',
                             borderRadius: '0px',
@@ -2725,6 +2745,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                           wrapperStyle={{
                             color: isDark ? '#a1a1aa' : '#71717a',
                             fontSize: '12px'
+                          }}
+                          formatter={(value, entry) => {
+                            const item = stats.chartData.find(d => d.name === value);
+                            return `${value} (${item?.value || 0})`;
                           }}
                         />
                       </PieChart>
