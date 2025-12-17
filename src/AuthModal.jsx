@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from './supabaseClient';
+import { showFriendlyError } from './utils/errorMessages';
 
 // ========== 邮箱域名白名单配置 ==========
 // 主流邮箱服务商
@@ -145,7 +146,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       // 设置60秒倒计时（定时器由useEffect管理）
       setResendCooldown(60);
     } catch (err) {
-      setError(err.message || '发送失败，请重试');
+      setError(getSimpleFriendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -256,7 +257,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       onAuthSuccess(data.user);
       onClose();
     } catch (err) {
-      setError(err.message || '登录失败，请重试');
+      setError(getSimpleFriendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -308,7 +309,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         });
       }, 1000);
     } catch (err) {
-      setError(err.message || '发送失败，请重试');
+      setError(getSimpleFriendlyError(err));
     } finally {
       setLoading(false);
     }
