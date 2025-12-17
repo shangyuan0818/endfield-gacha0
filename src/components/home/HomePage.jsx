@@ -3,7 +3,8 @@ import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket,
-  Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot
+  Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot,
+  Map, Github
 } from 'lucide-react';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import SimpleMarkdown from '../SimpleMarkdown';
@@ -32,6 +33,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   // 折叠状态：如果有公告更新，默认展开公告
   const [showPoolMechanics, setShowPoolMechanics] = useState(!initialCollapseState.poolMechanics);
   const [showGuide, setShowGuide] = useState(!initialCollapseState.guide);
+  const [showRoadmap, setShowRoadmap] = useState(!initialCollapseState.roadmap);
   const [showAnnouncement, setShowAnnouncement] = useState(
     hasAnnouncementUpdate ? true : !initialCollapseState.announcement
   );
@@ -52,6 +54,14 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     setShowGuide(prev => {
       const newState = !prev;
       setHomeCollapseState('guide', !newState);
+      return newState;
+    });
+  }, []);
+
+  const handleToggleRoadmap = useCallback(() => {
+    setShowRoadmap(prev => {
+      const newState = !prev;
+      setHomeCollapseState('roadmap', !newState);
       return newState;
     });
   }, []);
@@ -517,129 +527,131 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   // 使用指南卡片
   const GuideCard = () => (
-    <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-800 border border-amber-200 dark:border-zinc-700 overflow-hidden">
+    <div className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden relative group/card">
+      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-orange-500 origin-left scale-x-0 group-hover/card:scale-x-100 transition-transform duration-500"></div>
+      
       {/* 标题栏 - 可点击展开/收起 */}
       <button
         onClick={handleToggleGuide}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/50 dark:hover:bg-zinc-800/50 transition-colors"
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors relative z-10"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-            <BookOpen size={20} className="text-amber-600 dark:text-amber-400" />
+          <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+            <BookOpen size={20} />
           </div>
           <div className="text-left">
-            <h3 className="font-bold text-slate-800 dark:text-zinc-100">使用指南</h3>
-            <p className="text-xs text-slate-500 dark:text-zinc-500">
-              快速了解如何使用本工具
+            <h3 className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
+              使用指南
+              <span className="text-[10px] px-1.5 py-0.5 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 uppercase tracking-wider font-mono">Guide</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
+              系统操作手册与功能索引
             </p>
           </div>
         </div>
-        <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showGuide ? '' : 'rotate-180'}`} />
+        <div className={`transition-transform duration-300 ${showGuide ? '' : 'rotate-180'}`}>
+          <ChevronUp size={20} className="text-zinc-400" />
+        </div>
       </button>
 
       {/* 展开内容 - 使用 grid 动画 */}
       <CollapsibleContent isOpen={showGuide}>
-        <div className="px-6 pb-6 space-y-4">
+        <div className="px-6 pb-6 space-y-6">
           {/* 功能介绍 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 size={16} className="text-indigo-500" />
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm">数据统计</h4>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                查看全服抽卡统计、个人数据分析、欧非程度评估
-              </p>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Database size={16} className="text-green-500" />
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm">数据录入</h4>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                支持单抽、十连、文本录入多种方式
-              </p>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Cloud size={16} className="text-blue-500" />
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm">云端同步</h4>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                数据自动同步到云端，多设备访问无忧
-              </p>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Shield size={16} className="text-red-500" />
-                <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm">权限管理</h4>
-              </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                管理员审批制度，确保数据准确可靠
-              </p>
+          <div>
+            <h4 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500"></span>
+              Core Modules // 核心模块
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { icon: BarChart3, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'hover:border-indigo-500', title: '数据统计', desc: '全服/个人欧非分析' },
+                { icon: Database, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'hover:border-emerald-500', title: '数据录入', desc: '单抽/十连/文本导入' },
+                { icon: Cloud, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'hover:border-blue-500', title: '云端同步', desc: '多设备实时数据互通' },
+                { icon: Shield, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'hover:border-red-500', title: '权限管理', desc: '管理员审批制度' },
+              ].map((item, idx) => (
+                <div key={idx} className={`p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 transition-all duration-300 group ${item.border}`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className={`p-1.5 ${item.bg} ${item.color}`}>
+                      <item.icon size={16} />
+                    </div>
+                    <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{item.title}</h4>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 pl-[38px]">{item.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* 快速开始步骤 */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4">
-            <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm mb-3 flex items-center gap-2">
-              <HelpCircle size={14} className="text-amber-500" />
-              快速开始
+          <div>
+            <h4 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <span className="w-2 h-2 bg-amber-500"></span>
+              Quick Start // 快速指引
             </h4>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">1</div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                    {user ? '查看统计数据' : '登录账号'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-zinc-500">
-                    {user ? '点击顶部「统计」查看全服数据和个人分析' : '点击右上角「登录」按钮注册或登录您的账号'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">2</div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                    {canEdit ? '选择或创建卡池' : '申请管理员权限'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-zinc-500">
-                    {canEdit ? '点击顶部卡池切换器选择现有卡池或创建新卡池' : '如需录入数据，请点击右上角「申请」按钮'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs font-bold shrink-0">3</div>
-                <div>
-                  <p className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                    {canEdit ? '录入抽卡数据' : '查看卡池详情'}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-zinc-500">
-                    {canEdit ? '在「卡池详情」页面使用单抽、十连或文本录入数据' : '点击「卡池详情」查看各卡池的保底进度和统计'}
-                  </p>
-                </div>
+            <div className="relative border border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 p-5">
+              <div className="absolute left-7 top-5 bottom-5 w-px bg-zinc-200 dark:bg-zinc-800"></div>
+              <div className="space-y-6">
+                {[
+                  { title: '登录账号', desc: '点击右上角「登录」按钮注册或登录您的账号', link: !user },
+                  { title: '申请权限', desc: '如需录入数据，请点击右上角「申请」按钮成为管理员', link: canEdit },
+                  { title: '开始使用', desc: '在「卡池详情」页面录入数据，或查看统计分析', link: true },
+                ].map((step, idx) => (
+                  <div key={idx} className="relative flex items-start gap-4 group">
+                    <div className={`relative z-10 w-5 h-5 flex items-center justify-center text-[10px] font-bold font-mono border transition-colors ${
+                      step.link 
+                        ? 'bg-amber-500 border-amber-500 text-white' 
+                        : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-400'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <h5 className={`text-sm font-bold transition-colors ${step.link ? 'text-slate-800 dark:text-zinc-200' : 'text-slate-400 dark:text-zinc-600'}`}>
+                        {step.title}
+                      </h5>
+                      <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
           {/* 录入格式说明（仅管理员可见） */}
           {canEdit && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
-              <h4 className="font-bold text-amber-700 dark:text-amber-300 text-sm mb-2 flex items-center gap-2">
-                <FileText size={14} />
-                文本录入格式
+            <div>
+              <h4 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-amber-500"></span>
+                Text Input Format // 文本录入规范
               </h4>
-              <div className="text-xs text-amber-600 dark:text-amber-400 space-y-1">
-                <p>连续输入数字代表星级，无需空格分隔：</p>
-                <ul className="list-disc list-inside ml-2 space-y-0.5">
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4</code> - 4星</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">5</code> - 5星</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6</code> - 6星限定</li>
-                  <li><code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6s</code> 或 <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">6歪</code> - 6星常驻(歪)</li>
-                </ul>
-                <p className="mt-2">用逗号、分号或斜杠分隔多组十连</p>
-                <p>示例: <code className="bg-amber-100 dark:bg-amber-800/30 px-1 rounded">4454464444,4445444454</code></p>
+              <div className="bg-zinc-900 border border-zinc-800 p-4 font-mono text-xs relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-2 opacity-20 group-hover:opacity-40 transition-opacity">
+                  <FileText size={48} />
+                </div>
+                <div className="relative z-10 space-y-3">
+                  <div className="flex gap-4 text-zinc-400">
+                    <div>
+                      <span className="text-purple-400">4</span> = 4星
+                    </div>
+                    <div>
+                      <span className="text-amber-400">5</span> = 5星
+                    </div>
+                    <div>
+                      <span className="text-fuchsia-400">6</span> = 6星限定
+                    </div>
+                    <div>
+                      <span className="text-red-400">6s/6歪</span> = 6星常驻
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-zinc-800">
+                    <p className="text-zinc-500 mb-1">// 示例输入 (多组十连用逗号分隔)</p>
+                    <div className="text-emerald-400">
+                      4454464444,4445444454
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -648,7 +660,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     </div>
   );
 
-  // 待增加功能卡片
+  // 待增加功能卡片 - 时间轴版 (横向)
   const RoadmapCard = () => {
     // 待办功能列表 - 按优先级排序
     const roadmapItems = [
@@ -713,98 +725,138 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
     // 状态样式配置
     const statusConfig = {
-      completed: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400', label: '已完成' },
-      in_progress: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400', label: '开发中' },
-      planned: { bg: 'bg-zinc-100 dark:bg-zinc-800', text: 'text-zinc-500 dark:text-zinc-400', label: '计划中' }
+      completed: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', border: 'border-green-200 dark:border-green-800', label: '已完成' },
+      in_progress: { bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800', label: '开发中' },
+      planned: { bg: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400', border: 'border-zinc-200 dark:border-zinc-800', label: '计划中' }
     };
 
     // 优先级样式
     const priorityConfig = {
-      high: { border: 'border-l-amber-500', dot: 'bg-amber-500' },
-      medium: { border: 'border-l-blue-500', dot: 'bg-blue-500' },
-      low: { border: 'border-l-zinc-400', dot: 'bg-zinc-400' }
+      high: { color: 'text-amber-500', bg: 'bg-amber-500', border: 'border-amber-500', ring: 'ring-amber-500/30' },
+      medium: { color: 'text-blue-500', bg: 'bg-blue-500', border: 'border-blue-500', ring: 'ring-blue-500/30' },
+      low: { color: 'text-zinc-400', bg: 'bg-zinc-400', border: 'border-zinc-400', ring: 'ring-zinc-500/30' }
     };
 
     return (
-      <div className="bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-zinc-900 dark:to-zinc-800 border border-violet-200 dark:border-zinc-700 overflow-hidden">
+      <div className="group relative overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 transition-all duration-300 rounded-none sm:rounded-lg">
+        {/* 背景装饰 */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+        <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
+             <Map size={240} />
+        </div>
+
         {/* 标题栏 */}
-        <div className="px-6 py-4 flex items-center justify-between border-b border-violet-100 dark:border-zinc-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-violet-100 dark:bg-violet-900/30 rounded-lg">
-              <Lightbulb size={20} className="text-violet-600 dark:text-violet-400" />
+        <button 
+          onClick={handleToggleRoadmap}
+          className="w-full relative px-6 py-5 border-b border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/50 dark:bg-zinc-900/50 backdrop-blur-sm hover:bg-white/80 dark:hover:bg-zinc-800/80 transition-colors text-left"
+        >
+          <div className="flex items-center justify-between w-full sm:w-auto">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/30 rounded-lg">
+                <Lightbulb size={20} />
+              </div>
+              <div>
+                <h3 className="font-bold text-lg text-slate-800 dark:text-zinc-100 tracking-tight">
+                  功能路线图
+                  <span className="ml-2 text-xs font-normal text-zinc-400 px-2 py-0.5 border border-zinc-200 dark:border-zinc-700 rounded-full font-mono">Roadmap</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
+                  持续进化的功能迭代计划
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-slate-800 dark:text-zinc-100">功能路线图</h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-500">
-                即将到来的新功能
-              </p>
+            <div className={`sm:hidden transition-transform duration-300 ${showRoadmap ? '' : 'rotate-180'}`}>
+              <ChevronUp size={20} className="text-zinc-400" />
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <CircleDot size={12} className="text-amber-500" />
-            <span>高优先级</span>
-            <CircleDot size={12} className="text-blue-500 ml-2" />
-            <span>中</span>
-            <CircleDot size={12} className="text-zinc-400 ml-2" />
-            <span>低</span>
+          
+          <div className="flex items-center gap-4 text-xs">
+             <div className="hidden sm:flex items-center gap-1.5" title="高优先级功能">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                <span className="text-zinc-600 dark:text-zinc-400 font-medium">High Priority</span>
+             </div>
+             <a 
+                href="https://github.com/MoguJunn/endfield-gacha/issues" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-md transition-colors"
+             >
+                <Github size={14} />
+                <span>反馈建议</span>
+             </a>
+             <div className={`hidden sm:block transition-transform duration-300 ${showRoadmap ? '' : 'rotate-180'}`}>
+                <ChevronUp size={20} className="text-zinc-400" />
+             </div>
           </div>
-        </div>
+        </button>
 
-        {/* 功能列表 */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {roadmapItems.map((item) => {
-              const status = statusConfig[item.status];
-              const priority = priorityConfig[item.priority];
-              const Icon = item.icon;
+        {/* 横向时间轴布局 - 紧凑版 */}
+        <CollapsibleContent isOpen={showRoadmap}>
+          <div className="relative px-6 py-6 overflow-x-auto scrollbar-hide">
+             <div className="min-w-max">
+               {/* 装饰线条 - 横向贯穿 */}
+               <div className="absolute top-[38px] left-6 right-6 h-0.5 bg-zinc-100 dark:bg-zinc-800"></div>
 
-              return (
-                <div
-                  key={item.id}
-                  className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4 border-l-4 ${priority.border} hover:shadow-md transition-shadow`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-lg shrink-0">
-                      <Icon size={18} className="text-zinc-600 dark:text-zinc-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate">{item.title}</h4>
+               <div className="flex gap-4">
+                 {roadmapItems.map((item, index) => {
+                    const status = statusConfig[item.status];
+                    const priority = priorityConfig[item.priority];
+                    const Icon = item.icon;
+                    
+                    return (
+                      <div 
+                        key={item.id}
+                        className="relative w-40 flex-shrink-0 group/item animate-fade-in-up pt-3"
+                        style={{ animationDelay: `${index * 100}ms` }}
+                      >
+                         {/* 时间轴节点 - 居中显示 */}
+                         <div className={`absolute top-0 left-1/2 -translate-x-1/2 p-1 rounded-full bg-white dark:bg-zinc-900 border-2 ${priority.border} ring-2 ${priority.ring} z-10 transition-transform duration-300 group-hover/item:scale-125`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${priority.bg}`}></div>
+                         </div>
+
+                         {/* 内容卡片 */}
+                         <div className="mt-5 relative bg-zinc-50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 hover:border-violet-300 dark:hover:border-violet-700/50 hover:shadow-md transition-all duration-300 h-full flex flex-col">
+                            {/* 顶部装饰条 */}
+                            <div className={`absolute top-0 left-3 right-3 h-0.5 rounded-b ${priority.bg}`}></div>
+                            
+                            <div className="flex flex-col gap-2 mb-3 mt-1 text-center">
+                               <div className="mx-auto p-2 rounded-md bg-white dark:bg-zinc-800 shadow-sm inline-flex">
+                                  <Icon size={20} className="text-zinc-500 dark:text-zinc-400 group-hover/item:text-violet-500 transition-colors" />
+                               </div>
+                               <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm leading-snug">{item.title}</h4>
+                            </div>
+                            
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed mb-3 flex-1 text-center">
+                              {item.description}
+                            </p>
+
+                            <div className="flex items-center justify-center gap-2 mt-auto pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+                                <span className={`px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase border rounded ${status.bg} ${status.border}`}>
+                                  {status.label}
+                                </span>
+                             </div>
+                         </div>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2 line-clamp-2">
-                        {item.description}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${status.bg} ${status.text}`}>
-                          {status.label}
-                        </span>
-                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded">
-                          {item.tag}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                    );
+                 })}
+               </div>
+             </div>
           </div>
-
-          {/* 底部提示 */}
-          <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">
-              有功能建议？欢迎通过工单反馈
-            </p>
-            <a
-              href="https://github.com/MoguJunn/endfield-gacha/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs text-violet-600 dark:text-violet-400 hover:underline"
-            >
-              提交 Issue
-              <ArrowRight size={10} />
-            </a>
+          
+          {/* 移动端底部按钮 */}
+          <div className="sm:hidden px-6 pb-6 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+               <a 
+                  href="https://github.com/MoguJunn/endfield-gacha/issues" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-medium text-sm rounded-lg transition-colors mt-4"
+               >
+                  <Github size={16} />
+                  <span>在 GitHub 上反馈建议</span>
+               </a>
           </div>
-        </div>
+        </CollapsibleContent>
       </div>
     );
   };
