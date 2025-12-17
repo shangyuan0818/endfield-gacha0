@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
   HOME_ANNOUNCEMENT_COLLAPSED: 'home_announcement_collapsed',
   HOME_GUIDE_COLLAPSED: 'home_guide_collapsed',
   HOME_POOL_MECHANICS_COLLAPSED: 'home_pool_mechanics_collapsed',
+  HOME_ROADMAP_COLLAPSED: 'home_roadmap_collapsed',
   // 公告最后查看时间
   ANNOUNCEMENT_LAST_VIEWED: 'announcement_last_viewed',
   // 管理面板最后查看时间
@@ -89,19 +90,20 @@ export const markAsViewed = (lastViewedKey) => {
 
 /**
  * 获取首页折叠状态
- * @returns {{ announcement: boolean, guide: boolean, poolMechanics: boolean }}
+ * @returns {{ announcement: boolean, guide: boolean, poolMechanics: boolean, roadmap: boolean }}
  */
 export const getHomeCollapseState = () => {
   return {
     announcement: getStorageItem(STORAGE_KEYS.HOME_ANNOUNCEMENT_COLLAPSED, false),
     guide: getStorageItem(STORAGE_KEYS.HOME_GUIDE_COLLAPSED, false),
     poolMechanics: getStorageItem(STORAGE_KEYS.HOME_POOL_MECHANICS_COLLAPSED, false),
+    roadmap: getStorageItem(STORAGE_KEYS.HOME_ROADMAP_COLLAPSED, false),
   };
 };
 
 /**
  * 保存首页折叠状态
- * @param {'announcement'|'guide'|'poolMechanics'} section - 区域名称
+ * @param {'announcement'|'guide'|'poolMechanics'|'roadmap'} section - 区域名称
  * @param {boolean} collapsed - 是否折叠
  */
 export const setHomeCollapseState = (section, collapsed) => {
@@ -109,6 +111,7 @@ export const setHomeCollapseState = (section, collapsed) => {
     announcement: STORAGE_KEYS.HOME_ANNOUNCEMENT_COLLAPSED,
     guide: STORAGE_KEYS.HOME_GUIDE_COLLAPSED,
     poolMechanics: STORAGE_KEYS.HOME_POOL_MECHANICS_COLLAPSED,
+    roadmap: STORAGE_KEYS.HOME_ROADMAP_COLLAPSED,
   };
   if (keyMap[section]) {
     setStorageItem(keyMap[section], collapsed);
