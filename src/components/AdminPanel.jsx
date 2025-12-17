@@ -5,6 +5,7 @@ import {
   Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
   Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home
 } from 'lucide-react';
+import MDEditor from '@uiw/react-md-editor';
 import { supabase } from '../supabaseClient';
 import SimpleMarkdown from './SimpleMarkdown';
 import { validateUserData } from '../utils/validators';
@@ -83,7 +84,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     is_active: true,
     priority: 0
   });
-  const [previewMode, setPreviewMode] = useState(false);
 
   // 页面内容管理状态
   const [pageContents, setPageContents] = useState([]);
@@ -95,7 +95,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     content: '',
     is_active: true
   });
-  const [pageContentPreviewMode, setPageContentPreviewMode] = useState(false);
 
   // 用户数据管理状态
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -649,7 +648,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     setAnnouncementForm({ title: '', content: '', version: '1.0.0', is_active: true, priority: 0 });
     setEditingAnnouncement(null);
     setShowAnnouncementForm(false);
-    setPreviewMode(false);
   };
 
   const startEditAnnouncement = (announcement) => {
@@ -662,7 +660,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     });
     setEditingAnnouncement(announcement);
     setShowAnnouncementForm(true);
-    setPreviewMode(false);
   };
 
   const saveAnnouncement = async () => {
@@ -772,7 +769,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     setPageContentForm({ id: '', title: '', content: '', is_active: true });
     setEditingPageContent(null);
     setShowPageContentForm(false);
-    setPageContentPreviewMode(false);
   };
 
   const startEditPageContent = (pageContent) => {
@@ -784,7 +780,6 @@ const AdminPanel = React.memo(({ showToast }) => {
     });
     setEditingPageContent(pageContent);
     setShowPageContentForm(true);
-    setPageContentPreviewMode(false);
   };
 
   const savePageContent = async () => {
@@ -1375,32 +1370,29 @@ const AdminPanel = React.memo(({ showToast }) => {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-amber-700 dark:text-amber-300">
-                  内容 <span className="text-xs opacity-75">(支持 Markdown)</span>
-                </label>
-                <button
-                  onClick={() => setPreviewMode(!previewMode)}
-                  className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-700"
-                >
-                  {previewMode ? <Edit2 size={12} /> : <Eye size={12} />}
-                  {previewMode ? '编辑' : '预览'}
-                </button>
-              </div>
-
-              {previewMode ? (
-                <div className="min-h-[200px] p-4 border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-900">
-                  <SimpleMarkdown content={announcementForm.content} className="text-slate-700 dark:text-zinc-300" />
-                </div>
-              ) : (
-                <textarea
+              <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
+                内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
+              </label>
+              <div data-color-mode="light" className="dark:hidden">
+                <MDEditor
                   value={announcementForm.content}
-                  onChange={(e) => setAnnouncementForm(prev => ({ ...prev, content: e.target.value }))}
-                  rows={8}
-                  className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 font-mono text-sm"
-                  placeholder="支持 Markdown 语法..."
+                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
+                  height={300}
+                  preview="live"
+                  hideToolbar={false}
+                  enableScroll={true}
                 />
-              )}
+              </div>
+              <div data-color-mode="dark" className="hidden dark:block">
+                <MDEditor
+                  value={announcementForm.content}
+                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
+                  height={300}
+                  preview="live"
+                  hideToolbar={false}
+                  enableScroll={true}
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -1540,32 +1532,29 @@ const AdminPanel = React.memo(({ showToast }) => {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-blue-700 dark:text-blue-300">
-                  内容 <span className="text-xs opacity-75">(支持 Markdown)</span>
-                </label>
-                <button
-                  onClick={() => setPageContentPreviewMode(!pageContentPreviewMode)}
-                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
-                >
-                  {pageContentPreviewMode ? <Edit2 size={12} /> : <Eye size={12} />}
-                  {pageContentPreviewMode ? '编辑' : '预览'}
-                </button>
-              </div>
-
-              {pageContentPreviewMode ? (
-                <div className="min-h-[300px] p-4 border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 overflow-auto">
-                  <SimpleMarkdown content={pageContentForm.content} className="text-slate-700 dark:text-zinc-300" />
-                </div>
-              ) : (
-                <textarea
+              <label className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+                内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
+              </label>
+              <div data-color-mode="light" className="dark:hidden">
+                <MDEditor
                   value={pageContentForm.content}
-                  onChange={(e) => setPageContentForm(prev => ({ ...prev, content: e.target.value }))}
-                  rows={12}
-                  className="w-full px-3 py-2 border border-blue-300 dark:border-blue-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 font-mono text-sm"
-                  placeholder="支持 Markdown 语法..."
+                  onChange={(val) => setPageContentForm(prev => ({ ...prev, content: val || '' }))}
+                  height={350}
+                  preview="live"
+                  hideToolbar={false}
+                  enableScroll={true}
                 />
-              )}
+              </div>
+              <div data-color-mode="dark" className="hidden dark:block">
+                <MDEditor
+                  value={pageContentForm.content}
+                  onChange={(val) => setPageContentForm(prev => ({ ...prev, content: val || '' }))}
+                  height={350}
+                  preview="live"
+                  hideToolbar={false}
+                  enableScroll={true}
+                />
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
