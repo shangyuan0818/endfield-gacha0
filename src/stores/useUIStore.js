@@ -11,6 +11,7 @@ const useUIStore = create((set) => ({
 
   // ========== 弹窗状态 ==========
   modalState: { type: null, data: null },
+  setModalState: (state) => set({ modalState: state }),
   openModal: (type, data = null) => set({ modalState: { type, data } }),
   closeModal: () => set({ modalState: { type: null, data: null } }),
 

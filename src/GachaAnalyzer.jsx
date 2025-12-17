@@ -68,6 +68,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // UI 状态
   const activeTab = useUIStore(state => state.activeTab);
   const modalState = useUIStore(state => state.modalState);
+  const setModalState = useUIStore(state => state.setModalState);
   const newPoolNameInput = useUIStore(state => state.newPoolNameInput);
   const newPoolTypeInput = useUIStore(state => state.newPoolTypeInput);
   const isLimitedWeaponPool = useUIStore(state => state.isLimitedWeaponPool);
