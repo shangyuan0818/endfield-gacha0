@@ -674,7 +674,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         id: 'game-import',
         icon: Import,
         title: '游戏数据一键导入',
-        description: '公测更新后，支持从游戏内导出的数据文件一键导入历史抽卡记录',
+        description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）',
         status: 'planned',
         priority: 'high',
         tag: '公测更新'
@@ -683,7 +683,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         id: 'gacha-simulator',
         icon: Gamepad2,
         title: '抽卡模拟器',
-        description: '在不消耗资源的情况下模拟抽卡，体验出货的快感或绝望',
+        description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉',
         status: 'planned',
         priority: 'high',
         tag: '娱乐功能'
@@ -693,7 +693,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         id: 'share',
         icon: Share2,
         title: '分享功能',
-        description: '生成精美的抽卡结果分享图片或链接，向朋友展示你的欧气',
+        description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气',
         status: 'planned',
         priority: 'medium',
         tag: '社交传播'
