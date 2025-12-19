@@ -959,8 +959,8 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           theme="amber"
           endedText="三测已结束"
           link="https://endfield.hypergryph.com/news/0443"
-          linkText="关闭公告"
-          description="数据即将清除，请及时备份"
+          linkText="关闭公告（官网）"
+          description="服务器将于2025年12月29日 14:00关闭，详见右侧公告"
         />
         <CountdownTimer
           targetDate="2026-01-22T09:00:00+08:00"
@@ -969,7 +969,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           theme="green"
           endedText="公测已开启！"
           link="https://www.bilibili.com/video/BV1h5m7BXEf8"
-          linkText="定档PV"
+          linkText="定档PV（B站）"
           description="塔卫二，期待您的到来"
         />
       </div>
