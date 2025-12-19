@@ -46,41 +46,37 @@ export const LIMITED_POOL_RULES = {
   pityInherits: true,                 // 6星和5星保底继承到其他限定池
 };
 
-// 限定池轮换计划（基于干员移出规则）
+// 限定池轮换计划（基于官方公告时间）
 // 莱万汀：3次特许寻访后移出
 // 伊冯：4次特许寻访后移出
 // 洁尔佩塔：5次特许寻访后移出
 export const LIMITED_POOL_SCHEDULE = [
   {
     name: '莱万汀',
-    startDate: '2025-11-28',
-    duration: 15,
+    startDate: '2025-11-28T11:00:00+08:00',
+    endDate: '2025-12-12T13:59:59+08:00',
     removesAfter: 3,                  // 3次后移出
   },
   {
     name: '伊冯',
-    startDate: '2025-12-13',          // 11-28 + 15天
-    duration: 15,
+    startDate: '2025-12-12T14:00:00+08:00',
+    endDate: '2025-12-26T13:59:59+08:00',
     removesAfter: 4,
   },
   {
     name: '洁尔佩塔',
-    startDate: '2025-12-28',          // 12-13 + 15天
-    duration: 15,
+    startDate: '2025-12-26T14:00:00+08:00',
+    endDate: '2026-01-10T04:00:00+08:00',  // 测试结束时间待定
     removesAfter: 5,
   },
 ];
 
-// 获取当前UP池信息（卡池在凌晨4点刷新）
+// 获取当前UP池信息
 export const getCurrentUpPool = () => {
   const now = new Date();
   for (const pool of LIMITED_POOL_SCHEDULE) {
-    // 开始时间：当天凌晨4点
     const start = new Date(pool.startDate);
-    start.setHours(4, 0, 0, 0);
-    // 结束时间：duration天后的凌晨4点
-    const end = new Date(start);
-    end.setDate(end.getDate() + pool.duration);
+    const end = new Date(pool.endDate);
 
     if (now >= start && now < end) {
       const index = LIMITED_POOL_SCHEDULE.indexOf(pool);
@@ -91,7 +87,8 @@ export const getCurrentUpPool = () => {
       const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       return {
         ...pool,
-        endDate: end,
+        startDateObj: start,
+        endDateObj: end,
         nextPool: nextPool?.name || '待公布',
         isActive: true,
         remainingDays,
@@ -103,14 +100,13 @@ export const getCurrentUpPool = () => {
   // 如果当前时间在所有卡池之前，返回第一个
   const firstPool = LIMITED_POOL_SCHEDULE[0];
   const firstStart = new Date(firstPool.startDate);
-  firstStart.setHours(4, 0, 0, 0);
   if (now < firstStart) {
-    const end = new Date(firstStart);
-    end.setDate(end.getDate() + firstPool.duration);
+    const firstEnd = new Date(firstPool.endDate);
     const startsInMs = firstStart - now;
     return {
       ...firstPool,
-      endDate: end,
+      startDateObj: firstStart,
+      endDateObj: firstEnd,
       nextPool: LIMITED_POOL_SCHEDULE[1]?.name || '待公布',
       isActive: false,
       startsIn: Math.ceil(startsInMs / (1000 * 60 * 60 * 24)),
@@ -121,12 +117,11 @@ export const getCurrentUpPool = () => {
   // 所有卡池都已结束，返回最后一个
   const lastPool = LIMITED_POOL_SCHEDULE[LIMITED_POOL_SCHEDULE.length - 1];
   const lastStart = new Date(lastPool.startDate);
-  lastStart.setHours(4, 0, 0, 0);
-  const lastEnd = new Date(lastStart);
-  lastEnd.setDate(lastEnd.getDate() + lastPool.duration);
+  const lastEnd = new Date(lastPool.endDate);
   return {
     ...lastPool,
-    endDate: lastEnd,
+    startDateObj: lastStart,
+    endDateObj: lastEnd,
     nextPool: '待公布',
     isActive: false,
     isExpired: true,

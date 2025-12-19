@@ -386,10 +386,18 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
               <div className="flex flex-wrap items-center gap-2">
                 {LIMITED_POOL_SCHEDULE.map((pool, index) => {
                   const poolStart = new Date(pool.startDate);
-                  poolStart.setHours(4, 0, 0, 0);
-                  const poolEnd = new Date(poolStart.getTime() + pool.duration * 24 * 60 * 60 * 1000);
+                  const poolEnd = new Date(pool.endDate);
                   const isCurrent = now >= poolStart && now < poolEnd;
                   const isPast = now >= poolEnd;
+
+                  // 格式化时间显示
+                  const formatDateTime = (date) => {
+                    const month = date.getMonth() + 1;
+                    const day = date.getDate();
+                    const hours = date.getHours().toString().padStart(2, '0');
+                    const minutes = date.getMinutes().toString().padStart(2, '0');
+                    return `${month}/${day} ${hours}:${minutes}`;
+                  };
 
                   return (
                     <React.Fragment key={pool.name}>
@@ -402,9 +410,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                       }`}>
                         <div className={`font-bold ${isCurrent ? 'rainbow-text' : ''}`}>{pool.name}</div>
                         <div className={`text-[10px] ${isCurrent ? 'text-fuchsia-400' : 'opacity-70'}`}>
-                          {poolStart.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
+                          {formatDateTime(poolStart)}
                           {' - '}
-                          {poolEnd.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 04:00
+                          {formatDateTime(poolEnd)}
                         </div>
                         {isCurrent && <div className="text-[10px] rainbow-text font-bold mt-0.5">当前UP</div>}
                       </div>
@@ -420,7 +428,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                 </div>
               </div>
               <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-2">
-                * 卡池于凌晨04:00刷新 | 莱万汀将于3次特许寻访后移出，伊冯4次后移出，洁尔佩塔5次后移出
+                * 莱万汀将于3次特许寻访后移出，伊冯4次后移出，洁尔佩塔5次后移出
               </p>
             </div>
 
