@@ -66,7 +66,7 @@ export const LIMITED_POOL_SCHEDULE = [
   {
     name: '洁尔佩塔',
     startDate: '2025-12-26T14:00:00+08:00',
-    endDate: '2026-01-10T04:00:00+08:00',  // 测试结束时间待定
+    endDate: '2025-12-29T14:00:00+08:00',  // 测试结束
     removesAfter: 5,
   },
 ];
