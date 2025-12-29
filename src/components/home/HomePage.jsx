@@ -6,6 +6,7 @@ import {
   Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot,
   Map, Github
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import SimpleMarkdown from '../SimpleMarkdown';
 import {
@@ -15,6 +16,206 @@ import {
   hasNewContent,
   markAsViewed
 } from '../../utils';
+import {
+  getUrgentButtonClicks,
+  incrementUrgentButtonClicksBatch,
+  subscribeToUrgentButtonClicks
+} from '../../services/statsService';
+
+// 倒计时组件 - 终末地风格（移到 HomePage 外部以避免重复渲染）
+const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, urgentClicks, onUrgentClick }) => {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
+  const hasAutoConfettiFired = useRef(false);
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date().getTime();
+      const target = new Date(targetDate).getTime();
+      const difference = target - now;
+
+      if (difference <= 0) {
+        return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true };
+      }
+
+      return {
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+        minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
+        seconds: Math.floor((difference % (1000 * 60)) / 1000),
+        ended: false
+      };
+    };
+
+    setTimeLeft(calculateTimeLeft());
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  // 自动撒花
+  useEffect(() => {
+    if (timeLeft.ended && !hasAutoConfettiFired.current) {
+      hasAutoConfettiFired.current = true;
+      confetti({
+        particleCount: 150,
+        spread: 80,
+        origin: { y: 0.6 }
+        // 使用默认彩色
+      });
+    }
+  }, [timeLeft.ended]);
+
+  const fireConfetti = useCallback(() => {
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.7 }
+      // 使用默认彩色
+    });
+  }, []);
+
+  const formatNum = (num) => String(num).padStart(2, '0');
+
+  if (timeLeft.ended) {
+    return (
+      <div className="w-full bg-black border border-zinc-800 p-8 flex flex-col gap-6 items-center justify-center relative overflow-hidden">
+        {/* 背景装饰网格 */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+
+        <div className="text-endfield-yellow text-xl sm:text-2xl font-bold font-mono tracking-widest uppercase z-10 text-center animate-fade-in">
+          Protocol Initiated // Welcome to Talos-II
+        </div>
+
+        <button
+          onClick={fireConfetti}
+          className="z-10 px-8 py-3 bg-endfield-yellow text-black font-bold font-mono tracking-wider rounded-sm hover:bg-yellow-400 hover:shadow-[0_0_20px_rgba(255,250,0,0.4)] active:scale-95 transition-all flex items-center gap-3 group"
+        >
+          <span className="text-xl group-hover:rotate-12 transition-transform">🎉</span>
+          <span>CELEBRATE</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-black relative overflow-hidden border-y-2 border-endfield-yellow/80 sm:border-2 sm:border-endfield-yellow/20">
+      {/* 背景装饰网格 */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+
+      {/* 装饰性角落标记 - 仅在大屏显示 */}
+      <div className="hidden sm:block absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-endfield-yellow"></div>
+      <div className="hidden sm:block absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-endfield-yellow"></div>
+      <div className="hidden sm:block absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-endfield-yellow"></div>
+      <div className="hidden sm:block absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-endfield-yellow"></div>
+
+      {/* "急" 按钮 - 调整位置到中间偏下，改为方形，显示点击统计 */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
+        <button
+          onClick={onUrgentClick}
+          disabled={!onUrgentClick}
+          className="w-12 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-sm shadow-lg shadow-red-600/30 flex items-center justify-center text-lg transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 enabled:opacity-90 enabled:hover:opacity-100 border border-red-400/50 group/urgent"
+          title={urgentClicks !== undefined ? `全球已急 ${urgentClicks.toLocaleString()} 次` : "急急急"}
+        >
+          急
+        </button>
+        {urgentClicks !== undefined && urgentClicks > 0 && (
+          <div className="bg-black/80 border border-red-800/50 px-2 py-0.5 rounded-sm backdrop-blur-sm">
+            <span className="text-[10px] font-mono text-red-400">
+              {urgentClicks.toLocaleString()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div className="relative z-10 flex flex-col md:flex-row items-stretch">
+        {/* 左侧：标题区 */}
+        <div className="flex-1 p-6 md:p-8 flex flex-col justify-center bg-gradient-to-r from-endfield-yellow/10 to-transparent border-b md:border-b-0 md:border-r border-zinc-800/50">
+          <div className="flex items-center gap-2 mb-3">
+             <div className="w-1.5 h-1.5 bg-endfield-yellow animate-pulse shadow-[0_0_8px_rgba(255,250,0,0.8)]"></div>
+             <span className="text-endfield-yellow/80 font-mono text-[10px] tracking-[0.2em] uppercase">System Countdown</span>
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-white uppercase italic tracking-tighter mb-2">
+            {title}
+          </h2>
+          <p className="text-zinc-500 text-xs font-mono tracking-wide uppercase">
+            {subTitle}
+          </p>
+
+          {link && (
+             <a
+               href={link}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="mt-6 inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
+             >
+                <span className="border-b border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">{linkText}</span>
+                <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
+             </a>
+          )}
+        </div>
+
+        {/* 右侧：数字区 */}
+        <div className="flex-1 p-6 md:p-8 flex items-center justify-center md:justify-end gap-2 sm:gap-4 md:gap-6 bg-zinc-900/20 backdrop-blur-sm">
+           {/* Days */}
+           <div className="flex flex-col items-center group/time">
+              <div className="relative">
+                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                    {formatNum(timeLeft.days)}
+                 </div>
+                 <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
+              </div>
+              <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest mt-3">Days</span>
+           </div>
+
+           <div className="text-2xl sm:text-4xl text-zinc-800 font-light pb-6">:</div>
+
+           {/* Hours */}
+           <div className="flex flex-col items-center group/time">
+              <div className="relative">
+                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                    {formatNum(timeLeft.hours)}
+                 </div>
+                 <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
+              </div>
+              <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest mt-3">Hrs</span>
+           </div>
+
+           <div className="text-2xl sm:text-4xl text-zinc-800 font-light pb-6">:</div>
+
+           {/* Minutes */}
+           <div className="flex flex-col items-center group/time">
+              <div className="relative">
+                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                    {formatNum(timeLeft.minutes)}
+                 </div>
+                 <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
+              </div>
+              <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest mt-3">Min</span>
+           </div>
+
+           <div className="text-2xl sm:text-4xl text-zinc-800 font-light pb-6">:</div>
+
+           {/* Seconds */}
+           <div className="flex flex-col items-center relative group/time">
+              <div className="relative p-2 -m-2">
+                 {/* 高亮背景 */}
+                 <div className="absolute inset-0 bg-endfield-yellow/10 -skew-x-6 border border-endfield-yellow/20 opacity-100 sm:opacity-0 sm:group-hover/time:opacity-100 transition-opacity duration-300"></div>
+
+                 <div className="relative text-4xl sm:text-5xl md:text-6xl font-bold text-endfield-yellow font-mono tracking-tighter leading-none">
+                    {formatNum(timeLeft.seconds)}
+                 </div>
+              </div>
+              <span className="text-[10px] text-endfield-yellow/70 font-mono uppercase tracking-widest mt-3">Sec</span>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+CountdownTimer.displayName = 'CountdownTimer';
 
 /**
  * 首页组件
@@ -40,6 +241,15 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   // 公告是否为"新"（未查看过）
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
+
+  // "急"按钮点击统计
+  const [urgentClicks, setUrgentClicks] = useState(0);
+  const [isClickingUrgent, setIsClickingUrgent] = useState(false);
+
+  // 本地点击计数器和防抖定时器
+  const pendingClicksRef = useRef(0); // 待上传的点击次数
+  const uploadTimerRef = useRef(null); // 上传定时器
+  const UPLOAD_DELAY = 2000; // 停止点击后 2 秒上传
 
   // 处理折叠状态变化并保存到 localStorage
   const handleTogglePoolMechanics = useCallback(() => {
@@ -92,6 +302,88 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     }
   }, [showAnnouncement, isAnnouncementNew, handleAnnouncementViewed]);
 
+  // 加载"急"按钮点击统计并订阅实时更新
+  useEffect(() => {
+    let unsubscribe = null;
+
+    // 获取初始点击次数
+    const loadUrgentClicks = async () => {
+      const clicks = await getUrgentButtonClicks();
+      setUrgentClicks(clicks);
+    };
+
+    loadUrgentClicks();
+
+    // 订阅实时更新
+    unsubscribe = subscribeToUrgentButtonClicks((newCount) => {
+      setUrgentClicks(newCount);
+    });
+
+    // 清理：取消订阅，并上传未提交的点击
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+
+      // 组件卸载时，如果有待上传的点击，立即上传
+      if (pendingClicksRef.current > 0) {
+        const pendingCount = pendingClicksRef.current;
+        pendingClicksRef.current = 0;
+        incrementUrgentButtonClicksBatch(pendingCount).catch(err => {
+          console.error('组件卸载时上传点击失败:', err);
+        });
+      }
+
+      // 清除定时器
+      if (uploadTimerRef.current) {
+        clearTimeout(uploadTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 批量上传点击次数
+  const uploadPendingClicks = useCallback(async () => {
+    if (pendingClicksRef.current === 0) return;
+
+    const countToUpload = pendingClicksRef.current;
+    pendingClicksRef.current = 0;
+
+    try {
+      await incrementUrgentButtonClicksBatch(countToUpload);
+      console.log(`成功上传 ${countToUpload} 次点击`);
+    } catch (error) {
+      console.error('批量上传点击失败:', error);
+      // 失败时，将点击次数加回去
+      pendingClicksRef.current += countToUpload;
+    }
+  }, []);
+
+  // 处理"急"按钮点击
+  const handleUrgentClick = useCallback(async () => {
+    if (isClickingUrgent) return; // 防止重复点击
+
+    setIsClickingUrgent(true);
+
+    // 1. 立即更新本地显示
+    setUrgentClicks(prev => prev + 1);
+    pendingClicksRef.current += 1;
+
+    // 2. 清除之前的定时器
+    if (uploadTimerRef.current) {
+      clearTimeout(uploadTimerRef.current);
+    }
+
+    // 3. 设置新的定时器：用户停止点击 2 秒后批量上传
+    uploadTimerRef.current = setTimeout(() => {
+      uploadPendingClicks();
+    }, UPLOAD_DELAY);
+
+    // 4. 短暂延迟后解锁按钮
+    setTimeout(() => {
+      setIsClickingUrgent(false);
+    }, 100);
+  }, [isClickingUrgent, uploadPendingClicks, UPLOAD_DELAY]);
+
   // 折叠动画辅助 - 使用 ref 获取实际高度
   const poolMechanicsRef = useRef(null);
   const guideRef = useRef(null);
@@ -107,124 +399,6 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       </div>
     </div>
   );
-
-  // 倒计时组件
-  const CountdownTimer = ({ targetDate, title, icon: Icon, theme = 'amber', endedText, link, linkText, description }) => {
-    const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
-
-    useEffect(() => {
-      const calculateTimeLeft = () => {
-        const now = new Date().getTime();
-        const target = new Date(targetDate).getTime();
-        const difference = target - now;
-
-        if (difference <= 0) {
-          return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true };
-        }
-
-        return {
-          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-          hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-          minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
-          seconds: Math.floor((difference % (1000 * 60)) / 1000),
-          ended: false
-        };
-      };
-
-      setTimeLeft(calculateTimeLeft());
-      const timer = setInterval(() => {
-        setTimeLeft(calculateTimeLeft());
-      }, 1000);
-
-      return () => clearInterval(timer);
-    }, [targetDate]);
-
-    // 主题样式配置
-    const styles = {
-      amber: {
-        border: 'border-amber-200 dark:border-amber-800/50',
-        bg: 'bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-zinc-900 dark:to-zinc-900',
-        icon: 'text-amber-600 dark:text-amber-500',
-        title: 'text-amber-900 dark:text-amber-100',
-        numberBg: 'bg-white dark:bg-zinc-800 border border-amber-100 dark:border-amber-900/30',
-        numberText: 'text-amber-600 dark:text-amber-400',
-        desc: 'text-amber-800/70 dark:text-amber-200/70',
-        button: 'text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/20 border-amber-200 dark:border-amber-800/50'
-      },
-      green: {
-        border: 'border-emerald-200 dark:border-emerald-800/50',
-        bg: 'bg-gradient-to-br from-emerald-50 to-teal-50/50 dark:from-zinc-900 dark:to-zinc-900',
-        icon: 'text-emerald-600 dark:text-emerald-500',
-        title: 'text-emerald-900 dark:text-emerald-100',
-        numberBg: 'bg-white dark:bg-zinc-800 border border-emerald-100 dark:border-emerald-900/30',
-        numberText: 'text-emerald-600 dark:text-emerald-400',
-        desc: 'text-emerald-800/70 dark:text-emerald-200/70',
-        button: 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50'
-      }
-    }[theme] || styles.amber;
-
-    const TimeBlock = ({ value, label }) => (
-      <div className="flex flex-col items-center">
-        <div className={`w-12 h-12 sm:w-16 sm:h-16 flex items-center justify-center ${styles.numberBg} ${styles.numberText} rounded-none font-mono text-xl sm:text-3xl font-bold shadow-sm mb-1`}>
-          {String(value).padStart(2, '0')}
-        </div>
-        <span className={`text-[10px] sm:text-xs uppercase tracking-wider ${styles.desc} font-medium`}>{label}</span>
-      </div>
-    );
-
-    return (
-      <div className={`flex-1 ${styles.bg} border ${styles.border} p-5 sm:p-6 relative overflow-hidden group`}>
-        {/* 装饰背景字 */}
-        <div className="absolute -right-4 -bottom-4 opacity-5 pointer-events-none select-none">
-          <Icon size={120} />
-        </div>
-
-        <div className="relative z-10">
-          {/* 标题栏 */}
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <Icon size={18} className={styles.icon} />
-                <h4 className={`font-bold text-base sm:text-lg ${styles.title} tracking-tight`}>{title}</h4>
-              </div>
-              {description && (
-                <p className={`text-xs ${styles.desc} max-w-[200px] leading-relaxed`}>{description}</p>
-              )}
-            </div>
-            {link && (
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`flex items-center gap-1 text-xs px-2 py-1 border rounded-none transition-all ${styles.button}`}
-              >
-                {linkText}
-                <ArrowRight size={10} />
-              </a>
-            )}
-          </div>
-
-          {/* 倒计时主体 */}
-          {timeLeft.ended ? (
-            <div className={`text-center py-4 text-xl font-bold ${styles.icon} flex items-center justify-center gap-2 bg-white/50 dark:bg-black/20 border border-dashed ${styles.border}`}>
-              <RefreshCw size={20} />
-              {endedText}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 sm:gap-3">
-              <TimeBlock value={timeLeft.days} label="DAYS" />
-              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
-              <TimeBlock value={timeLeft.hours} label="HRS" />
-              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
-              <TimeBlock value={timeLeft.minutes} label="MIN" />
-              <span className={`text-xl sm:text-3xl font-bold ${styles.numberText} mt-[-24px] opacity-50`}>:</span>
-              <TimeBlock value={timeLeft.seconds} label="SEC" />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   // 卡池机制说明卡片（从 SummaryView 迁移）
   const PoolMechanicsCard = () => {
@@ -273,7 +447,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             </div>
             <div className="text-left">
               <h3 className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
-                卡池机制速览
+                三测卡池机制速览
                 <span className="text-[10px] px-1.5 py-0.5 border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 uppercase tracking-wider font-mono">Mechanics</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
@@ -951,26 +1125,62 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       )}
 
       {/* 倒计时区域 */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <CountdownTimer
-          targetDate="2025-12-29T14:00:00+08:00"
-          title="三测结束倒计时"
-          icon={Clock}
-          theme="amber"
-          endedText="三测已结束"
-          link="https://endfield.hypergryph.com/news/0443"
-          linkText="关闭公告（官网）"
-          description="服务器将于2025年12月29日 14:00关闭，详见右侧公告"
-        />
+      <div className="flex flex-col gap-4">
+        {/* 三测已结束提示 - Endfield Style */}
+        <div className="w-full bg-zinc-900/50 border border-zinc-800 p-4 sm:p-5 relative overflow-hidden group">
+          {/* Decorative stripe */}
+          <div className="absolute top-0 left-0 w-1 h-full bg-zinc-800 group-hover:bg-zinc-600 transition-colors duration-300"></div>
+          {/* Background grid pattern */}
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pl-3">
+            {/* Left: Info */}
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="w-1.5 h-1.5 bg-zinc-500 rounded-sm"></span>
+                <h3 className="text-zinc-500 text-[10px] font-mono tracking-widest uppercase">System Status // Offline</h3>
+              </div>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-zinc-200 font-bold text-base sm:text-lg tracking-tight">全面测试 (三测) 已结束</span>
+                <span className="text-zinc-600 font-mono text-xs">2025.12.29 14:00</span>
+              </div>
+            </div>
+
+            {/* Right: Links */}
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="https://endfield.hypergryph.com/news/2676"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 border border-zinc-700 bg-black/50 hover:bg-zinc-800 hover:border-endfield-yellow hover:text-endfield-yellow text-zinc-400 text-xs font-mono transition-all flex items-center gap-2 group/btn"
+              >
+                <FileText size={12} />
+                <span>官网公告</span>
+                <ArrowRight size={10} className="group-hover/btn:-rotate-45 transition-transform" />
+              </a>
+              <a
+                href="https://www.bilibili.com/opus/1151693764614422552"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 border border-zinc-700 bg-black/50 hover:bg-zinc-800 hover:border-blue-400 hover:text-blue-400 text-zinc-400 text-xs font-mono transition-all flex items-center gap-2 group/btn"
+              >
+                <Globe size={12} />
+                <span>Bilibili 动态</span>
+                <ArrowRight size={10} className="group-hover/btn:-rotate-45 transition-transform" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* 公测倒计时 - 放大显示 */}
         <CountdownTimer
           targetDate="2026-01-22T09:00:00+08:00"
           title="公测开启倒计时"
-          icon={Rocket}
-          theme="green"
-          endedText="公测已开启！"
+          subTitle="Talos-II Awaits // 塔卫二，期待您的到来"
           link="https://www.bilibili.com/video/BV1h5m7BXEf8"
-          linkText="定档PV（B站）"
-          description="塔卫二，期待您的到来"
+          linkText="观看定档PV"
+          urgentClicks={urgentClicks}
+          onUrgentClick={handleUrgentClick}
         />
       </div>
 
