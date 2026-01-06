@@ -2,7 +2,7 @@
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-![Version](https://img.shields.io/badge/version-2.6.1-green.svg)
+![Version](https://img.shields.io/badge/version-2.8.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -113,6 +113,17 @@ VITE_SUPABASE_URL=你的Supabase项目URL
 VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 ```
 
+### 应用配置（必需）
+
+```env
+VITE_APP_URL=https://your-domain.vercel.app
+```
+
+**⚠️ 重要**: `VITE_APP_URL` 用于:
+- 密码重置邮件的回调链接
+- "急"按钮实时统计功能
+- 必须配置为应用的公开访问域名
+
 ### SMTP 配置（重要！）
 
 **⚠️ Supabase 免费版邮件限制：仅 2 封/小时**
@@ -125,6 +136,94 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 - **阿里云邮件推送**：6,000 封/月免费，适合国内用户
 
 详细配置指南：查看项目根目录 `../email-template/SMTP配置指南.md`
+
+## 📦 部署指南
+
+### 部署到 Vercel
+
+1. **Fork 并克隆仓库**
+   ```bash
+   git clone https://github.com/your-username/endfield-gacha.git
+   cd gacha-analyzer
+   ```
+
+2. **安装依赖**
+   ```bash
+   npm install
+   ```
+
+3. **配置 Supabase 项目**
+   - 在 [Supabase](https://supabase.com) 创建新项目
+   - 记录项目的 URL 和 anon key
+
+4. **执行数据库迁移**
+   - 登录 Supabase Dashboard
+   - 进入 SQL Editor
+   - 按顺序执行 `supabase/migrations/` 中的所有迁移文件
+   - 特别注意执行 `026_global_stats.sql`（v2.8.0 新增）
+
+5. **启用 Realtime 功能**
+   - 导航到: Database → Replication
+   - 找到 `global_stats` 表
+   - 启用 Realtime 开关
+   - 或执行 SQL: `ALTER PUBLICATION supabase_realtime ADD TABLE global_stats;`
+
+6. **配置 SMTP 服务**
+   - 推荐使用 Resend (3,000 封/月免费)
+   - 在 Supabase: Authentication → Email Templates
+   - 配置 SMTP 设置
+   - 详见 `../email-template/SMTP配置指南.md`
+
+7. **部署 Edge Functions（可选，超管功能需要）**
+   ```bash
+   # 部署用户管理函数
+   supabase functions deploy admin-create-user
+   supabase functions deploy admin-delete-user
+   ```
+
+8. **部署到 Vercel**
+   - 访问 [Vercel Dashboard](https://vercel.com)
+   - 导入 GitHub 仓库
+   - 配置环境变量:
+     ```
+     VITE_SUPABASE_URL=https://your-project.supabase.co
+     VITE_SUPABASE_ANON_KEY=your-anon-key
+     VITE_APP_URL=https://your-app.vercel.app
+     ```
+   - 点击 Deploy
+
+9. **部署后验证清单**
+   - [ ] 访问部署的应用 URL
+   - [ ] 测试用户注册功能
+   - [ ] 测试邮件发送（确认邮件、密码重置）
+   - [ ] 测试"急"按钮实时统计（多个浏览器窗口验证同步）
+   - [ ] 测试数据录入和云端同步
+   - [ ] 检查图表数据显示正常
+   - [ ] 测试管理员权限申请流程
+   - [ ] 超管测试用户管理功能
+
+### 故障排查
+
+#### "急"按钮统计不工作
+- 检查 `VITE_APP_URL` 是否配置正确
+- 确认 `global_stats` 表已创建（执行 026_global_stats.sql）
+- 确认 Realtime 已启用
+- 打开浏览器控制台查看错误信息
+
+#### 邮件发送失败
+- Supabase 免费版限制: 2 封/小时
+- 配置自定义 SMTP 服务
+- 检查 SMTP 设置是否正确
+
+#### 数据同步失败
+- 检查 Supabase URL 和 Key 是否正确
+- 确认用户已登录
+- 检查 RLS 策略是否正确配置
+
+#### 图表不显示
+- 确认执行了 `003_global_stats_with_charts.sql`
+- 检查是否有抽卡数据
+- 打开控制台查看错误
 
 ### Supabase 数据库结构
 
@@ -149,6 +248,9 @@ VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 | `015_superadmin_user_management.sql` | 超级管理员用户管理功能 |
 | `024_user_management_enhancement.sql` | 用户管理增强（邮箱+在线时间） |
 | `025_page_content.sql` | 页面内容管理表 |
+| `026_global_stats.sql` | "急"按钮全局点击统计功能 (v2.8.0) |
+
+**重要**: 新部署时必须按顺序执行所有迁移文件
 
 ### Edge Functions（可选）
 
@@ -237,6 +339,68 @@ gacha-analyzer/
   - 加载进度条
 
 ## 📝 更新日志
+
+### v2.8.1 (2025-12-29)
+- 🔧 DEP-002: 添加缺失的 canvas-confetti 依赖
+
+### v2.8.0 (2025-12-29)
+- ✨ FEAT-007: "急"按钮全局点击统计
+  - 全局统计所有用户的点击次数
+  - Supabase 实时订阅，所有在线用户同步更新
+  - 批量上传优化（用户停止点击2秒后批量提交，减少99%网络请求）
+  - 防抖处理，防止过快重复点击
+  - 降级方案：未配置Supabase时使用本地缓存
+  - 智能清理：页面关闭时自动上传未提交的点击
+- ✨ UI-013: 首页布局优化
+  - 隐藏三测倒计时，添加三测已结束提示框
+  - 公测倒计时放大显示，改为终末地风格
+  - 将"卡池机制速览"改名为"三测卡池机制速览"
+- ⚡ PERF-003: 性能优化
+  - CountdownTimer组件移到外部并使用React.memo
+  - 避免重复渲染，点击按钮不会导致倒计时重置
+
+### v2.7.3 (2025-12-19)
+- 🐛 FIX-007: 更新测试结束时间为12/29 14:00
+- 🐛 FIX-008: 更新公告链接文本和描述
+
+### v2.7.2 (2025-12-19)
+- 📅 DATA-001: 更新卡池轮换时间表（使用官方公告时间）
+  - 莱万汀：11/28 11:00 - 12/12 13:59
+  - 伊冯：12/12 14:00 - 12/26 13:59
+  - 洁尔佩塔：12/26 14:00 - 12/29 14:00 (测试结束)
+- 🔧 更新 getCurrentUpPool() 函数适配新数据结构
+- 🔧 首页轮换时间线显示精确到分钟
+
+### v2.7.1 (2025-12-18)
+- 🐛 FIX-001: 修复公告NEW标签不显示问题（添加2秒延迟标记已读）
+- 🐛 FIX-002: 修复使用指南/卡池速览折叠动画（CSS Grid方案）
+- 🐛 FIX-003: 优化公告Markdown渲染（回退SimpleMarkdown + 增强样式）
+- ✨ UI-004: 增强SimpleMarkdown组件样式（链接、标题、列表视觉优化）
+- ✨ UI-005: 升级倒计时组件（主题配置、外链按钮、描述文本）
+- ✨ UI-006: AboutPanel页面全面UI重构（现代化设计风格）
+- ✨ UI-007: 首页添加功能路线图卡片
+- ✨ UI-008: 使用指南卡片UI重构（现代简约风格）
+- ✨ UI-009: 功能路线图改为横向时间轴布局（支持折叠+动画）
+- ✨ UI-010: 卡池机制速览卡片样式统一（悬停渐变条+英文标签）
+- 🐛 FIX-004: 图表Tooltip深浅色模式适配（响应式监听主题切换）
+- ✨ UI-011: 图表彩虹渐变效果与饼图分布优化（SVG渐变+增强显示占比）
+- 🐛 FIX-005: 修复统计页面全服数据饼图不显示（generateChartData缺少displayValue）
+- 🐛 FIX-006: 修复功能路线图折叠状态无法记录（storageUtils遗漏roadmap）
+- ✨ UI-012: 更新关于页面AI助手官方Logo（Claude/Gemini官方SVG）
+
+### v2.7.0 (2025-12-18)
+- ✨ UX-005: 首页折叠状态记忆 + 公告更新检测
+  - 创建 src/utils/storageUtils.js 工具函数
+  - localStorage 保存用户折叠偏好（公告/指南/卡池速览）
+  - 对比公告 updated_at 与用户上次查看时间
+  - 公告有更新时显示 NEW 标签（红色动画）
+  - 有更新时公告默认展开
+- ✨ UX-006: 页面更新提示气泡
+  - 创建 NotificationBadge 气泡组件
+  - 首页按钮：有新公告时显示红点
+  - 管理按钮：待审批申请显示数字气泡（仅超管）
+  - 工单按钮：未读工单显示数字气泡
+  - 点击后自动标记为已查看
 
 ### v2.6.1 (2025-12-18)
 - ✨ ADMIN-002: Markdown 编辑器升级
