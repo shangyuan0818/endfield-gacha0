@@ -2620,72 +2620,84 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         ) : (
           <>
             {/* 卡池详情页面施工中提示 */}
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-800 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg shadow-2xl p-8 md:p-12">
-                {/* 施工图标 */}
-                <div className="flex justify-center mb-6">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-50 animate-pulse"></div>
-                    <div className="relative bg-yellow-400 dark:bg-yellow-500 p-6 rounded-full">
-                      <Settings size={64} className="text-black animate-spin" style={{ animationDuration: '3s' }} />
+            <div className="max-w-4xl mx-auto mt-8">
+              <div className="bg-white dark:bg-endfield-panel border border-zinc-200 dark:border-endfield-border rounded-none shadow-none relative overflow-hidden">
+                {/* 顶部装饰条 */}
+                <div className="h-1 w-full bg-endfield-yellow absolute top-0 left-0"></div>
+                
+                {/* 装饰性背景元素 */}
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none select-none">
+                  <Settings size={300} className="text-black dark:text-white" />
+                </div>
+
+                <div className="p-8 md:p-12 relative z-10">
+                  {/* 施工图标 - 工业风 */}
+                  <div className="flex justify-center mb-8">
+                    <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-6 rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] dark:shadow-[4px_4px_0px_0px_rgba(255,250,0,0.1)]">
+                      <Settings size={48} className="text-zinc-800 dark:text-endfield-yellow animate-spin" style={{ animationDuration: '8s' }} />
                     </div>
                   </div>
-                </div>
 
-                {/* 标题 */}
-                <h2 className="text-3xl md:text-4xl font-black text-center text-slate-800 dark:text-zinc-100 mb-4">
-                  🚧 卡池详情页面重构中 🚧
-                </h2>
+                  {/* 标题 */}
+                  <h2 className="text-3xl md:text-4xl font-black text-center text-zinc-900 dark:text-white mb-2 uppercase tracking-tighter">
+                    SYSTEM UPGRADE
+                  </h2>
+                  <h3 className="text-sm font-mono text-center text-zinc-500 dark:text-endfield-muted uppercase tracking-[0.2em] mb-8">
+                    卡池详情页面重构中
+                  </h3>
 
-                {/* 说明文字 */}
-                <div className="bg-white dark:bg-zinc-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg p-6 mb-6">
-                  <p className="text-lg text-slate-700 dark:text-zinc-300 mb-4 text-center">
-                    为了提供更好的数据导入和展示体验，我们正在重构卡池详情系统
-                  </p>
+                  {/* 说明文字 */}
+                  <div className="max-w-2xl mx-auto mb-10">
+                    <p className="text-base text-zinc-600 dark:text-zinc-300 mb-6 text-center font-medium">
+                      为了提供更好的数据导入和展示体验，我们正在重构卡池详情系统。
+                    </p>
 
-                  <div className="space-y-3 text-slate-600 dark:text-zinc-400">
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">1</div>
-                      <p>支持从官网API/截图OCR/批量粘贴导入抽卡数据</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">2</div>
-                      <p>自动识别角色名称和卡池类型</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">3</div>
-                      <p>动态卡池管理和数据同步</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">4</div>
-                      <p>更强大的统计分析和可视化展示</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
+                        <span className="font-mono text-endfield-yellow font-bold text-xl">01</span>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300">支持官网API/截图OCR导入</p>
+                      </div>
+                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
+                        <span className="font-mono text-endfield-yellow font-bold text-xl">02</span>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300">自动识别角色和卡池类型</p>
+                      </div>
+                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
+                        <span className="font-mono text-endfield-yellow font-bold text-xl">03</span>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300">动态卡池管理与云同步</p>
+                      </div>
+                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
+                        <span className="font-mono text-endfield-yellow font-bold text-xl">04</span>
+                        <p className="text-sm text-zinc-700 dark:text-zinc-300">强大的可视化统计分析</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* 引导按钮 */}
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <button
+                      onClick={() => setActiveTab('simulator')}
+                      className="flex items-center justify-center gap-2 px-8 py-3 bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] hover:shadow-lg min-w-[200px]"
+                    >
+                      <Sparkles size={18} />
+                      <span>体验模拟器</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('home')}
+                      className="flex items-center justify-center gap-2 px-8 py-3 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] min-w-[200px]"
+                    >
+                      <Star size={18} />
+                      <span>返回首页</span>
+                    </button>
+                  </div>
+
+                  {/* 预计完成时间 */}
+                  <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800 text-center">
+                    <span className="inline-block px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-s font-mono uppercase">
+                      预计完成时间：公测前
+                    </span>
+                  </div>
                 </div>
-
-                {/* 引导按钮 */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <button
-                    onClick={() => setActiveTab('simulator')}
-                    className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black text-lg rounded-lg shadow-lg transition-all transform hover:scale-105"
-                  >
-                    <Sparkles size={24} />
-                    <span>体验抽卡模拟器</span>
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab('home')}
-                    className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black text-lg rounded-lg shadow-lg transition-all transform hover:scale-105"
-                  >
-                    <Star size={24} />
-                    <span>返回首页</span>
-                  </button>
-                </div>
-
-                {/* 预计完成时间 */}
-                <p className="text-center text-slate-500 dark:text-zinc-500 mt-6 text-sm">
-                  预计完成时间：公测前 | 感谢您的理解与支持 ❤️
-                </p>
               </div>
             </div>
 
