@@ -870,22 +870,22 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     const roadmapItems = [
       // P1 - 高优先级（公测相关）
       {
-        id: 'game-import',
-        icon: Import,
-        title: '游戏数据一键导入',
-        description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）',
-        status: 'planned',
-        priority: 'high',
-        tag: '公测更新'
-      },
-      {
         id: 'gacha-simulator',
         icon: Gamepad2,
         title: '抽卡模拟器',
         description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉',
-        status: 'planned',
+        status: 'completed',
         priority: 'high',
         tag: '娱乐功能'
+      },
+      {
+        id: 'game-import',
+        icon: Import,
+        title: '游戏数据一键导入',
+        description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）',
+        status: 'in_progress',
+        priority: 'high',
+        tag: '公测更新'
       },
       // P2 - 中优先级
       {
