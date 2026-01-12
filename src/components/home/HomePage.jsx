@@ -23,7 +23,7 @@ import {
 } from '../../services/statsService';
 
 // 倒计时组件 - 终末地风格（移到 HomePage 外部以避免重复渲染）
-const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, urgentClicks, onUrgentClick }) => {
+const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, secondaryLink, secondaryLinkText, urgentClicks, onUrgentClick, customEndedContent }) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
   const hasAutoConfettiFired = useRef(false);
 
@@ -56,7 +56,7 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
 
   // 自动撒花
   useEffect(() => {
-    if (timeLeft.ended && !hasAutoConfettiFired.current) {
+    if (timeLeft.ended && !hasAutoConfettiFired.current && !customEndedContent) {
       hasAutoConfettiFired.current = true;
       confetti({
         particleCount: 150,
@@ -65,7 +65,7 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
         // 使用默认彩色
       });
     }
-  }, [timeLeft.ended]);
+  }, [timeLeft.ended, customEndedContent]);
 
   const fireConfetti = useCallback(() => {
     confetti({
@@ -79,6 +79,8 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
   const formatNum = (num) => String(num).padStart(2, '0');
 
   if (timeLeft.ended) {
+    if (customEndedContent) return customEndedContent;
+    
     return (
       <div className="w-full bg-black border border-zinc-800 p-8 flex flex-col gap-6 items-center justify-center relative overflow-hidden">
         {/* 背景装饰网格 */}
@@ -111,23 +113,25 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
       <div className="hidden sm:block absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-endfield-yellow"></div>
 
       {/* "急" 按钮 - 调整位置到中间偏下，改为方形，显示点击统计 */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
-        <button
-          onClick={onUrgentClick}
-          disabled={!onUrgentClick}
-          className="w-12 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-sm shadow-lg shadow-red-600/30 flex items-center justify-center text-lg transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 enabled:opacity-90 enabled:hover:opacity-100 border border-red-400/50 group/urgent"
-          title={urgentClicks !== undefined ? `全球已急 ${urgentClicks.toLocaleString()} 次` : "急急急"}
-        >
-          急
-        </button>
-        {urgentClicks !== undefined && urgentClicks > 0 && (
-          <div className="bg-black/80 border border-red-800/50 px-2 py-0.5 rounded-sm backdrop-blur-sm">
-            <span className="text-[10px] font-mono text-red-400">
-              {urgentClicks.toLocaleString()}
-            </span>
-          </div>
-        )}
-      </div>
+      {onUrgentClick && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
+          <button
+            onClick={onUrgentClick}
+            disabled={!onUrgentClick}
+            className="w-12 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-sm shadow-lg shadow-red-600/30 flex items-center justify-center text-lg transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 enabled:opacity-90 enabled:hover:opacity-100 border border-red-400/50 group/urgent"
+            title={urgentClicks !== undefined ? `全球已急 ${urgentClicks.toLocaleString()} 次` : "急急急"}
+          >
+            急
+          </button>
+          {urgentClicks !== undefined && urgentClicks > 0 && (
+            <div className="bg-black/80 border border-red-800/50 px-2 py-0.5 rounded-sm backdrop-blur-sm">
+              <span className="text-[10px] font-mono text-red-400">
+                {urgentClicks.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="relative z-10 flex flex-col md:flex-row items-stretch">
         {/* 左侧：标题区 */}
@@ -143,17 +147,30 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
             {subTitle}
           </p>
 
-          {link && (
-             <a
-               href={link}
-               target="_blank"
-               rel="noopener noreferrer"
-               className="mt-6 inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
-             >
-                <span className="border-b border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">{linkText}</span>
-                <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
-             </a>
-          )}
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            {link && (
+               <a
+                 href={link}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
+               >
+                  <span className="border-b border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">{linkText}</span>
+                  <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
+               </a>
+            )}
+            {secondaryLink && (
+               <a
+                 href={secondaryLink}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-400 hover:text-pink-400 transition-colors group/link2"
+               >
+                  <span className="border-b border-zinc-600 group-hover/link2:border-pink-400 pb-0.5">{secondaryLinkText}</span>
+                  <ArrowRight size={12} className="group-hover/link2:translate-x-1 transition-transform" />
+               </a>
+            )}
+          </div>
         </div>
 
         {/* 右侧：数字区 */}
@@ -1171,6 +1188,47 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             </div>
           </div>
         </div>
+
+        {/* 公测前瞻倒计时 */}
+        <CountdownTimer
+          targetDate="2026-01-16T19:30:00+08:00"
+          title="公测前瞻倒计时"
+          subTitle="Live Preview // 海猫喊你看直播！"
+          link="https://www.bilibili.com/opus/1156842985854337026"
+          linkText="查看动态详情"
+          secondaryLink="https://live.bilibili.com/1921300321"
+          secondaryLinkText="进入直播间"
+          customEndedContent={(
+             <div className="w-full bg-zinc-900 border border-zinc-800 p-8 flex flex-col gap-4 items-center justify-center relative overflow-hidden text-center">
+                <div className="absolute inset-0 bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+                <div className="relative z-10 flex flex-col items-center gap-2 animate-fade-in">
+                   <div className="flex items-center gap-2 text-pink-500 mb-2">
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-pink-500"></span>
+                      </span>
+                      <span className="font-bold tracking-widest uppercase">Live Now</span>
+                   </div>
+                   <h3 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                      公测前瞻直播进行中
+                   </h3>
+                   <p className="text-zinc-400 font-mono text-xs mb-4">
+                      START TIME: 2026-01-16 19:30
+                   </p>
+                   <a
+                      href="https://live.bilibili.com/1921300321"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-8 py-3 bg-pink-600 hover:bg-pink-500 text-white font-bold font-mono tracking-wider rounded-sm shadow-lg shadow-pink-600/20 transition-all flex items-center gap-2 group"
+                   >
+                      <Globe size={18} />
+                      <span>进入直播间</span>
+                      <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                   </a>
+                </div>
+             </div>
+          )}
+        />
 
         {/* 公测倒计时 - 放大显示 */}
         <CountdownTimer
