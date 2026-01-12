@@ -247,8 +247,14 @@ const GachaSimulator = () => {
       currentPity: pityInfo.sixStar.current,        // 当前6星保底计数
       currentPity5: pityInfo.fiveStar.current,      // 当前5星保底计数
       counts: {
-          6: stats.sixStarCount,
-          '6_std': 0, // 模拟器中不区分常驻和限定的分开统计
+          // 模拟器特殊处理：对于武器池，counts应该包含抽到的+赠送的总和
+          6: simulator.poolType === 'weapon' && stats.gifts
+            ? stats.sixStarCount + (stats.gifts.limitedCount || 0)
+            : stats.sixStarCount,
+          // 武器池的常驻武器数量（仅赠送）
+          '6_std': simulator.poolType === 'weapon' && stats.gifts
+            ? (stats.gifts.standardCount || 0)
+            : 0,
           5: stats.fiveStarCount,
           4: Math.max(0, stats.totalPulls - stats.sixStarCount - stats.fiveStarCount) // 确保不为负数
       },
@@ -323,7 +329,12 @@ const GachaSimulator = () => {
         isInSoftPity: pityInfo.sixStar.current >= (simulator.rules.sixStarSoftPityStart || 65),
         probability: stats.sixStarRate, // Adding probability for DashboardView
         pullsUntilSoftPity: Math.max(0, (simulator.rules.sixStarSoftPityStart || 65) - pityInfo.sixStar.current)
-      }
+      },
+      // 情报书信息（仅限定池）
+      hasInfoBook: stats.hasReceivedInfoBook,
+      pullsUntilInfoBook: simulator.poolType === 'limited' && !stats.hasReceivedInfoBook
+        ? Math.max(0, 60 - stats.totalPulls)
+        : 0
   };
 
   // Construct currentPool object for DashboardView

@@ -19,7 +19,7 @@ const SimulatorControls = ({ onPullOne, onPullTen, disabled, jadeCost }) => {
           </span>
           <div className="flex items-center gap-1.5 bg-zinc-200 dark:bg-black/50 px-3 py-1 rounded-none border border-zinc-300 dark:border-zinc-700">
              <Hexagon size={12} className="text-endfield-yellow fill-current" />
-             <span className="text-sm font-mono font-bold text-slate-800 dark:text-zinc-200">600</span>
+             <span className="text-sm font-mono font-bold text-slate-800 dark:text-zinc-200">500</span>
           </div>
         </div>
       </button>
@@ -41,7 +41,7 @@ const SimulatorControls = ({ onPullOne, onPullTen, disabled, jadeCost }) => {
           </span>
           <div className="flex items-center gap-1.5 bg-black/10 px-4 py-1 rounded-none border border-black/10">
              <Hexagon size={12} className="text-black fill-current" />
-             <span className="text-sm font-mono font-bold text-black">6000</span>
+             <span className="text-sm font-mono font-bold text-black">5000</span>
           </div>
         </div>
       </button>
