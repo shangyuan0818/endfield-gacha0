@@ -292,7 +292,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
         <div className="mb-6 space-y-4">
           {/* 武器池类型标识 */}
           <div className="flex items-center gap-2 text-xs">
-            <span className={`px-2 py-1 rounded font-medium ${currentPool.isLimitedWeapon !== false ? 'rainbow-bg-light rainbow-border rainbow-text' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
+            <span className={`px-2 py-1 rounded font-medium relative z-10 ${currentPool.isLimitedWeapon !== false ? 'rainbow-bg-light rainbow-border rainbow-text' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
               {currentPool.isLimitedWeapon !== false ? '限定武器池' : '常驻武器池'}
             </span>
             {currentPool.isLimitedWeapon === false && (

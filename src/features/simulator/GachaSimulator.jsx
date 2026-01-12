@@ -5,7 +5,7 @@ import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';
 import PullAnimation from './PullAnimation';
 import DashboardView from '../../components/dashboard/DashboardView'; // Reuse existing dashboard view
-import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
+import { LIMITED_POOL_SCHEDULE, getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
 import {
   saveSimulatorState,
   loadSimulatorState,
@@ -67,21 +67,20 @@ const GachaSimulator = () => {
   }, [simulator, currentPoolType]);
 
   // Handle limited weapon toggle
+  // 武器池限定/常驻切换时更新规则，但保留历史
   useEffect(() => {
     if (simulator.poolType === 'weapon') {
-        // We need to update the rules or recreate simulator if the rule logic depends on this flag inside the class
-        // Since GachaSimulator logic for weapon pool currently hardcodes the logic or uses rules passed in.
-        // Let's assume we need to recreate simulator with new rules or just update a flag if supported.
-        // For now, let's just recreate.
-        const newSim = createSimulator('weapon');
-        // If we want to support switching modes without resetting, GachaSimulator needs to support it. 
-        // Assuming reset for now to be safe, or we can try to preserve state if compatible.
-        // But changing pool rules usually invalidates pity logic (e.g. standard weapon vs limited weapon gifts).
-        // Let's reset for consistency.
-        setSimulator(newSim);
-        setLastResults(null);
+      // 只更新规则，不重置状态
+      // 限定/常驻仅影响赠送内容，不影响基础抽卡逻辑
+      const newRules = isLimitedWeapon ? WEAPON_POOL_RULES : {
+        ...WEAPON_POOL_RULES,
+        // 常驻武器池无赠送机制
+        giftInterval: Infinity
+      };
+      simulator.rules = newRules;
+      // 不重置模拟器，保留历史记录
     }
-  }, [isLimitedWeapon]);
+  }, [isLimitedWeapon, simulator]);
 
 
   const handlePull = async (type) => {

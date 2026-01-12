@@ -106,6 +106,39 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   // 增加保底计数
   const sixStarPity = state.sixStarPity + 1;
   const fiveStarPity = state.fiveStarPity + 1;
+  const guaranteedLimitedPity = state.guaranteedLimitedPity + 1;
+
+  // ========== 120抽硬保底检查（限定池）/ 80抽硬保底（武器池首轮） ==========
+  // 限定池：如果已经119抽没出限定，第120抽必定是限定6星
+  // 武器池：如果已经79抽没出限定，第80抽必定是限定6星
+  const isLimitedPool = poolType === 'limited' || poolType === 'limited_character';
+  const isWeaponPool = poolType === 'weapon' || poolType === 'limited_weapon';
+
+  const shouldTriggerGuaranteedLimited =
+    !state.hasReceivedGuaranteedLimited &&
+    guaranteedLimitedPity >= rules.guaranteedLimitedPity;
+
+  if (shouldTriggerGuaranteedLimited) {
+    // 触发硬保底，必出限定6星
+    const upChar = currentUpCharacter || getCurrentUpCharacter();
+    const characterName = getCharacterName(poolType, 6, true, upChar);
+
+    return {
+      rarity: 6,
+      isUp: true,
+      isLimited: true,
+      characterName,
+      sixStarPity: 0,
+      fiveStarPity: 0,
+      isGuaranteedUp: false,          // 重置大保底状态
+      totalPulls: state.totalPulls + 1,
+      sixStarCount: state.sixStarCount + 1,
+      fiveStarCount: state.fiveStarCount,
+      guaranteedLimitedPity: 0,       // 重置120/80抽计数
+      hasReceivedGuaranteedLimited: true  // 标记已触发
+    };
+  }
+  // ========== 硬保底检查结束 ==========
 
   // 计算概率
   const sixStarProb = calculateSixStarProbability(sixStarPity, rules);
@@ -120,6 +153,9 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
     const upChar = currentUpCharacter || getCurrentUpCharacter();
     const characterName = getCharacterName(poolType, 6, isUp, upChar);
 
+    // 如果出了限定，重置120/80抽计数
+    const shouldResetGuaranteedPity = isUp;
+
     return {
       rarity: 6,
       isUp,
@@ -131,7 +167,8 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
-      guaranteedLimitedPity: state.guaranteedLimitedPity + 1
+      guaranteedLimitedPity: shouldResetGuaranteedPity ? 0 : guaranteedLimitedPity,  // 出限定时重置
+      hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited  // 保持状态
     };
   }
 
@@ -150,7 +187,8 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount,
       fiveStarCount: state.fiveStarCount + 1,
-      guaranteedLimitedPity: state.guaranteedLimitedPity + 1
+      guaranteedLimitedPity,         // 继续累加120/80抽计数
+      hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
     };
   }
 
@@ -168,7 +206,8 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
     totalPulls: state.totalPulls + 1,
     sixStarCount: state.sixStarCount,
     fiveStarCount: state.fiveStarCount,
-    guaranteedLimitedPity: state.guaranteedLimitedPity + 1
+    guaranteedLimitedPity,         // 继续累加120/80抽计数
+    hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
   };
 }
 
