@@ -2,9 +2,11 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, Unlock, ExternalLink, Heart, Code, Sparkles, AlertTriangle, MessageSquare } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { syncManager } from './services/syncService';
 import AuthModal from './AuthModal';
 import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal, HomePage, Footer } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
+import GachaSimulator from './features/simulator/GachaSimulator';
 import { Toast, ConfirmDialog, LoadingBar, NotificationBadge } from './components/ui';
 import { useToast, useConfirm } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
@@ -548,6 +550,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       return () => subscription.unsubscribe();
     }
   }, [fetchGlobalStats, loadCloudData, updateLastSeen]);
+
+  // 启动数据同步服务（用户登录后）
+  useEffect(() => {
+    if (!user || !supabase) return;
+
+    console.log('[GachaAnalyzer] 启动数据同步服务...');
+
+    // 启动自动同步（30秒间隔）
+    syncManager.startAutoSync((syncState) => {
+      // 同步状态变化回调（可选：更新UI显示同步状态）
+      console.log('[SyncManager] 状态更新:', syncState);
+    });
+
+    // 组件卸载时停止同步
+    return () => {
+      console.log('[GachaAnalyzer] 停止数据同步服务');
+      syncManager.stopAutoSync();
+    };
+  }, [user]);
 
   // 实时监听卡池变化（解决锁定不立即生效的问题）
   useEffect(() => {
@@ -1475,7 +1496,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const togglePoolLock = async (poolId) => {
     if (!isSuperAdmin) return;
 
-    const pool = pools.find(p => p.id === poolId);
+    // 添加数组检查
+    const poolsArray = Array.isArray(pools) ? pools : [];
+    const pool = poolsArray.find(p => p.id === poolId);
     if (!pool) return;
 
     const updatedPool = { ...pool, locked: !pool.locked };
@@ -2316,7 +2339,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
       {/* 顶部导航 */}
       <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+        <div className="w-full max-w-[1440px] mx-auto px-4 h-16 flex items-center justify-between">
           
           {/* 左侧：Logo + 卡池切换器 */}
           <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -2332,18 +2355,20 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 <h1 className="font-bold">抽卡分析器</h1>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
-              {/* 卡池选择器组件 */}
-              <PoolSelector
-                onOpenCreatePoolModal={openCreatePoolModal}
-                onOpenEditPoolModal={openEditPoolModal}
-                onOpenDeletePoolModal={openDeletePoolModal}
-                onTogglePoolLock={togglePoolLock}
-              />
+              {/* 卡池选择器组件 - 暂时隐藏 */}
+              {false && (
+                <PoolSelector
+                  onOpenCreatePoolModal={openCreatePoolModal}
+                  onOpenEditPoolModal={openEditPoolModal}
+                  onOpenDeletePoolModal={openDeletePoolModal}
+                  onTogglePoolLock={togglePoolLock}
+                />
+              )}
 
               {/* UP池时间信息 - 仅限定池显示 */}
-              {currentPool.type === 'limited' && (
+              {false && currentPool.type === 'limited' && (
                 <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
                   {(() => {
                     const upPool = getCurrentUpPool();
@@ -2403,6 +2428,24 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'dashboard' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
             >
               卡池详情
+            </button>
+            <button
+              onClick={() => setActiveTab('simulator')}
+              className={`relative overflow-hidden text-sm font-black italic px-3 py-1.5 rounded-none transition-all border ${
+                activeTab === 'simulator'
+                  ? 'bg-zinc-900 dark:bg-black border-endfield-yellow'
+                  : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {/* 彩虹流光背景层 */}
+              <div className="absolute inset-0 opacity-30">
+                <div className="absolute inset-0 rainbow-flow-bg"></div>
+              </div>
+
+              {/* 文字层 - 使用自定义彩虹渐变类 */}
+              <span className="relative z-10 text-base rainbow-flow-text font-black">
+                模拟器
+              </span>
             </button>
 
             {/* 超管管理页面 */}
@@ -2514,7 +2557,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="w-full max-w-[1440px] mx-auto px-4 py-8">
 
         {/* 无数据提示（方案A：引导游客和新用户） */}
         {pools.length === 0 && (
@@ -2552,6 +2595,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
         {activeTab === 'home' ? (
           <HomePage user={user} canEdit={canEdit} announcements={announcements} />
+        ) : activeTab === 'simulator' ? (
+          <GachaSimulator />
         ) : activeTab === 'summary' ? (
           <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} user={user} />
         ) : activeTab === 'admin' && isSuperAdmin ? (
@@ -2574,55 +2619,78 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <TicketPanel user={user} userRole={userRole} showToast={showToast} />
         ) : (
           <>
-            {/* 数据录入区域 - 仅管理员可见且卡池未锁定 */}
-            {canEditCurrentPool && (
-              <InputSection
-                currentPool={currentPool}
-                poolStatsTotal={stats.total}
-                onAddSingle={addSinglePull}
-                onSubmitBatch={submitBatch}
-                onDeletePool={openDeleteConfirmModal}
-              />
-            )}
+            {/* 卡池详情页面施工中提示 */}
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-gradient-to-br from-yellow-50 to-orange-50 dark:from-zinc-900 dark:to-zinc-800 border-2 border-yellow-400 dark:border-yellow-600 rounded-lg shadow-2xl p-8 md:p-12">
+                {/* 施工图标 */}
+                <div className="flex justify-center mb-6">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-yellow-400 blur-xl opacity-50 animate-pulse"></div>
+                    <div className="relative bg-yellow-400 dark:bg-yellow-500 p-6 rounded-full">
+                      <Settings size={64} className="text-black animate-spin" style={{ animationDuration: '3s' }} />
+                    </div>
+                  </div>
+                </div>
 
-            {/* 非管理员提示 */}
-            {!canEdit && (
-              <div className="mb-8 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none p-6 text-center">
-                <Shield size={40} className="mx-auto text-slate-300 mb-3" />
-                <h3 className="font-bold text-slate-600 dark:text-zinc-400 mb-2">数据录入仅限管理员</h3>
-                <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                  {user ? (
-                    applicationStatus === 'pending'
-                      ? '您的管理员申请正在审核中，请耐心等待。'
-                      : '如需录入数据，请点击右上角申请成为管理员。'
-                  ) : (
-                    '请先登录，然后申请成为管理员。'
-                  )}
-                </p>
-                {!user && (
+                {/* 标题 */}
+                <h2 className="text-3xl md:text-4xl font-black text-center text-slate-800 dark:text-zinc-100 mb-4">
+                  🚧 卡池详情页面重构中 🚧
+                </h2>
+
+                {/* 说明文字 */}
+                <div className="bg-white dark:bg-zinc-900/50 border border-yellow-300 dark:border-yellow-700 rounded-lg p-6 mb-6">
+                  <p className="text-lg text-slate-700 dark:text-zinc-300 mb-4 text-center">
+                    为了提供更好的数据导入和展示体验，我们正在重构卡池详情系统
+                  </p>
+
+                  <div className="space-y-3 text-slate-600 dark:text-zinc-400">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">1</div>
+                      <p>支持从官网API/截图OCR/批量粘贴导入抽卡数据</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">2</div>
+                      <p>自动识别角色名称和卡池类型</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">3</div>
+                      <p>动态卡池管理和数据同步</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 dark:bg-yellow-600 rounded-full flex items-center justify-center text-black font-bold text-sm mt-0.5">4</div>
+                      <p>更强大的统计分析和可视化展示</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 引导按钮 */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <button
-                    onClick={openAuthModal}
-                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-4 py-2 rounded-none text-sm transition-colors"
+                    onClick={() => setActiveTab('simulator')}
+                    className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-black text-lg rounded-lg shadow-lg transition-all transform hover:scale-105"
                   >
-                    登录
+                    <Sparkles size={24} />
+                    <span>体验抽卡模拟器</span>
                   </button>
-                )}
-              </div>
-            )}
 
-            {/* 卡池锁定提示 - 管理员但卡池被锁定 */}
-            {canEdit && !canEditCurrentPool && (
-              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-none p-6 text-center">
-                <Lock size={40} className="mx-auto text-amber-400 mb-3" />
-                <h3 className="font-bold text-amber-700 mb-2">此卡池已被锁定</h3>
-                <p className="text-sm text-amber-600">
-                  卡池「{currentPool?.name}」已被超级管理员锁定，暂时无法编辑。
-                  <br/>如需修改，请联系超级管理员解锁。
+                  <button
+                    onClick={() => setActiveTab('home')}
+                    className="flex items-center justify-center gap-3 px-8 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white font-black text-lg rounded-lg shadow-lg transition-all transform hover:scale-105"
+                  >
+                    <Star size={24} />
+                    <span>返回首页</span>
+                  </button>
+                </div>
+
+                {/* 预计完成时间 */}
+                <p className="text-center text-slate-500 dark:text-zinc-500 mt-6 text-sm">
+                  预计完成时间：公测前 | 感谢您的理解与支持 ❤️
                 </p>
               </div>
-            )}
+            </div>
 
-            {activeTab === 'dashboard' && (
+            {/* 原有内容暂时隐藏 */}
+            {false && activeTab === 'dashboard' && (
               <div className="animate-fade-in">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* 左列：保底机制分析 */}

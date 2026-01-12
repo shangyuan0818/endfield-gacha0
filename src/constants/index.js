@@ -1,3 +1,10 @@
+// 卡池类型常量
+export const POOL_TYPES = {
+  LIMITED_CHARACTER: 'limited_character',
+  LIMITED_WEAPON: 'limited_weapon',
+  STANDARD: 'standard'
+};
+
 // 稀有度配置
 export const RARITY_CONFIG = {
   6: { color: 'url(#rainbowGradient)', solidColor: '#E879F9', label: '6星(限定)', value: 6 }, // UP - 彩虹渐变

@@ -1,6 +1,26 @@
 import { create } from 'zustand';
 import { DEFAULT_POOL_ID } from '../constants';
 import { extractDrawerFromPoolName } from '../utils';
+import { syncManager } from '../services/syncService';
+import { supabase } from '../supabaseClient';
+import { generateSemanticPoolId } from '../utils/poolIdGenerator';
+
+/**
+ * 获取当前用户ID（用于同步）
+ * @returns {string|null}
+ */
+const getCurrentUserId = () => {
+  try {
+    // 从 Supabase session 获取
+    if (supabase) {
+      const session = supabase.auth.getSession();
+      return session?.data?.session?.user?.id || null;
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+};
 
 /**
  * 卡池状态管理
@@ -82,14 +102,29 @@ const usePoolStore = create((set, get) => ({
    */
   createPool: (poolData) => {
     const { pools } = get();
+    const userId = getCurrentUserId();
+
+    // 使用语义化ID生成（如果有userId）
+    const poolId = userId
+      ? generateSemanticPoolId(poolData, userId, pools)
+      : `pool_${Date.now()}`;  // 降级到时间戳ID（未登录时）
+
     const newPool = {
-      id: `pool_${Date.now()}`,
+      id: poolId,
       ...poolData,
       locked: false,
+      user_id: userId,  // 添加用户ID
       created_at: new Date().toISOString()
     };
+
     const updatedPools = [...pools, newPool];
     get().setPools(updatedPools);
+
+    // 加入同步队列
+    if (userId) {
+      syncManager.enqueue('pools', newPool.id, newPool);
+    }
+
     return newPool;
   },
 
@@ -115,10 +150,20 @@ const usePoolStore = create((set, get) => ({
    */
   updatePool: (poolId, updates) => {
     const { pools } = get();
+    const userId = getCurrentUserId();
+
     const updatedPools = pools.map(p =>
-      p.id === poolId ? { ...p, ...updates } : p
+      p.id === poolId ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
     );
     get().setPools(updatedPools);
+
+    // 加入同步队列
+    if (userId) {
+      const updatedPool = updatedPools.find(p => p.id === poolId);
+      if (updatedPool) {
+        syncManager.enqueue('pools', poolId, { ...updatedPool, user_id: userId });
+      }
+    }
   },
 
   /**

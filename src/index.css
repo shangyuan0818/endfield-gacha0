@@ -194,6 +194,79 @@
     animation: rainbow-shine 3s ease-in-out infinite;
   }
 
+  /* 彩虹流光动画 - 模拟器按钮专用 */
+  @keyframes rainbow-flow {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  @keyframes rainbow-text {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  /* 自定义彩虹渐变背景 */
+  .rainbow-flow-bg {
+    background: linear-gradient(
+      90deg,
+      #ff0000 0%,    /* 红 */
+      #ff7f00 14%,   /* 橙 */
+      #ffff00 28%,   /* 黄 */
+      #00ff00 42%,   /* 绿 */
+      #00ffff 56%,   /* 青 */
+      #0000ff 70%,   /* 蓝 */
+      #8b00ff 84%,   /* 紫 */
+      #ff00ff 100%   /* 品红 */
+    );
+    background-size: 400% 100%;
+    animation: rainbow-flow 6s linear infinite;
+  }
+
+  /* 自定义彩虹渐变文字 */
+  .rainbow-flow-text {
+    background: linear-gradient(
+      90deg,
+      #ff3333 0%,    /* 亮红 */
+      #ff9933 12.5%, /* 亮橙 */
+      #ffff33 25%,   /* 亮黄 */
+      #33ff33 37.5%, /* 亮绿 */
+      #33ffff 50%,   /* 亮青 */
+      #3333ff 62.5%, /* 亮蓝 */
+      #9933ff 75%,   /* 亮紫 */
+      #ff33ff 87.5%, /* 亮粉 */
+      #ff3333 100%   /* 回到红 */
+    );
+    background-size: 500% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: rainbow-text 5s linear infinite;
+  }
+
+  .animate-rainbow-flow {
+    background-size: 400% 100%;
+    animation: rainbow-flow 4s ease-in-out infinite;
+  }
+
+  .animate-rainbow-text {
+    background-size: 300% 100%;
+    animation: rainbow-text 3s ease-in-out infinite;
+  }
+
   /* 限定6星专用样式 - 卡片 */
   .limited-six-star-card {
     background: linear-gradient(
