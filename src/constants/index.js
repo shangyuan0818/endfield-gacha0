@@ -38,6 +38,8 @@ export const LIMITED_POOL_RULES = {
 
   // 赠送机制
   giftInterval: 240,                  // 每240抽赠送限定信物
+  freeTenPullInterval: 30,            // 每30抽赠送不计入保底的十连
+  freeTenPullCountsTowardPity: false, // 赠送十连不计入保底
 
   // 情报书（仅获得1次）
   infoBookThreshold: 60,              // 累计60抽送1本寻访情报书
@@ -60,21 +62,21 @@ export const LIMITED_POOL_RULES = {
 export const LIMITED_POOL_SCHEDULE = [
   {
     name: '莱万汀',
-    startDate: '2025-11-28T11:00:00+08:00',
-    endDate: '2025-12-12T13:59:59+08:00',
+    startDate: '2026-01-22T11:00:00+08:00',
+    endDate: '2026-02-07T11:59:59+08:00',
     removesAfter: 3,                  // 3次后移出
   },
   {
-    name: '伊冯',
-    startDate: '2025-12-12T14:00:00+08:00',
-    endDate: '2025-12-26T13:59:59+08:00',
-    removesAfter: 4,
+    name: '洁尔佩塔',
+    startDate: '2026-02-07T12:00:00+08:00',
+    endDate: '2026-02-24T11:59:59+08:00',
+    removesAfter: 5,
   },
   {
-    name: '洁尔佩塔',
-    startDate: '2025-12-26T14:00:00+08:00',
-    endDate: '2025-12-29T14:00:00+08:00',  // 测试结束
-    removesAfter: 5,
+    name: '伊冯',
+    startDate: '2026-02-24T12:00:00+08:00',
+    endDate: '2026-03-31T23:59:59+08:00', // 直到下一版本
+    removesAfter: 4,
   },
 ];
 
@@ -116,7 +118,7 @@ export const getCurrentUpPool = () => {
       endDateObj: firstEnd,
       nextPool: LIMITED_POOL_SCHEDULE[1]?.name || '待公布',
       isActive: false,
-      startsIn: Math.ceil(startsInMs / (1000 * 60 * 60 * 24)),
+      startsIn: Math.floor(startsInMs / (1000 * 60 * 60 * 24)),
       startsInHours: Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
     };
   }

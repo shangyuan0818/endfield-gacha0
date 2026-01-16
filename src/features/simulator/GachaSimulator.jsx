@@ -4,7 +4,8 @@ import { createSimulator } from '../../utils/gachaSimulator';
 import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';
 import PullAnimation from './PullAnimation';
-import DashboardView from '../../components/dashboard/DashboardView'; // Reuse existing dashboard view
+import LimitedPoolAnalysis from './LimitedPoolAnalysis'; // 新增：限定池分析组件
+import CharacterStats from './CharacterStats'; // 新增：角色统计组件
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
 import {
   saveSimulatorState,
@@ -50,6 +51,7 @@ const GachaSimulator = () => {
   const [toastMessage, setToastMessage] = useState('');
   const [pullHistory, setPullHistory] = useState([]);
   const [expandedTenPulls, setExpandedTenPulls] = useState(new Set()); // 记录展开的十连ID
+  const [availableFreePulls, setAvailableFreePulls] = useState(0); // 可用的免费十连次数
 
   // 监听模拟器状态变化
   useEffect(() => {
@@ -57,6 +59,17 @@ const GachaSimulator = () => {
       setStats(simulator.getStatistics());
       setPityInfo(simulator.getPityInfo());
       setPullHistory(simulator.getState().pullHistory || []);
+
+      // 计算可用的免费十连次数（仅限定池）
+      if (simulator.poolType === 'limited') {
+        const stats = simulator.getStatistics();
+        const earnedFreePulls = stats.freeTenPulls?.count || 0;
+        const usedFreePulls = simulator.getState().freeTenPullsReceived || 0;
+        setAvailableFreePulls(Math.max(0, earnedFreePulls - usedFreePulls));
+      } else {
+        setAvailableFreePulls(0);
+      }
+
       // 自动保存状态
       saveSimulatorState(currentPoolType, simulator.exportState());
     };
@@ -85,7 +98,7 @@ const GachaSimulator = () => {
 
   const handlePull = async (type) => {
     if (isAnimating) return;
-    
+
     setIsAnimating(true);
     setLastResults(null); // Clear previous results immediately
 
@@ -96,9 +109,15 @@ const GachaSimulator = () => {
         const res = simulator.pullSingle();
         results = [res];
       } else {
-        results = simulator.pullTen();
+        // 检查是否使用免费十连
+        if (availableFreePulls > 0 && simulator.poolType === 'limited') {
+          results = simulator.pullFreeTen();
+          showToastMessage('使用免费十连！（不计入保底）');
+        } else {
+          results = simulator.pullTen();
+        }
       }
-      
+
       setLastResults(results);
       setIsAnimating(false);
     }, 2500); // 2.5s 动画时间
@@ -334,7 +353,11 @@ const GachaSimulator = () => {
       hasInfoBook: stats.hasReceivedInfoBook,
       pullsUntilInfoBook: simulator.poolType === 'limited' && !stats.hasReceivedInfoBook
         ? Math.max(0, 60 - stats.totalPulls)
-        : 0
+        : 0,
+      // 30抽赠送十连信息（仅限定池）
+      freeTenPulls: stats.freeTenPulls,
+      // 240抽赠送信息
+      gifts: stats.gifts
   };
 
   // Construct currentPool object for DashboardView
@@ -442,13 +465,14 @@ const GachaSimulator = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 flex-1">
-        {/* 左侧：模拟分析 (合并原保底进度和分析报告) */}
+        {/* 左侧：限定池分析 */}
         <div className="lg:col-span-3 space-y-4">
-           {/* 直接复用 DashboardView 显示完整的保底和分析信息 */}
-           <DashboardView 
-              currentPool={currentPoolObj} 
-              stats={dashboardStats} 
-              effectivePity={effectivePityObj} 
+           {/* 限定池分析卡片 */}
+           <LimitedPoolAnalysis
+              currentPool={currentPoolObj}
+              stats={dashboardStats}
+              effectivePity={effectivePityObj}
+              pityInfo={pityInfo}
            />
         </div>
 
@@ -492,11 +516,12 @@ const GachaSimulator = () => {
 
           {/* 底部控制区 */}
           <div className="mt-4">
-             <SimulatorControls 
-               onPullOne={() => handlePull('single')} 
-               onPullTen={() => handlePull('ten')} 
+             <SimulatorControls
+               onPullOne={() => handlePull('single')}
+               onPullTen={() => handlePull('ten')}
                disabled={isAnimating}
                jadeCost={600}
+               availableFreePulls={availableFreePulls}
              />
           </div>
         </div>
@@ -526,6 +551,7 @@ const GachaSimulator = () => {
                        const sixStarCount = group.pulls.filter(p => p.rarity === 6).length;
                        const fiveStarCount = group.pulls.filter(p => p.rarity === 5).length;
                        const hasHighRarity = sixStarCount > 0 || fiveStarCount > 0;
+                       const isFreePull = group.pulls[0]?.isFreePull; // 检查是否是免费十连
 
                        return (
                          <div key={`group-${group.id}`}>
@@ -534,10 +560,15 @@ const GachaSimulator = () => {
                              onClick={() => toggleTenPull(group.id)}
                              className="w-full p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors flex items-center gap-2 group"
                            >
-                             <div className="w-1 h-6 bg-blue-500 shrink-0" />
+                             <div className={`w-1 h-6 shrink-0 ${isFreePull ? 'bg-blue-500' : 'bg-blue-500'}`} />
                              <div className="flex-1 min-w-0 text-left">
                                <div className="text-xs font-bold text-blue-500 flex items-center gap-2">
                                  <span>十连</span>
+                                 {isFreePull && (
+                                   <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded border border-blue-200 dark:border-blue-700">
+                                     免费
+                                   </span>
+                                 )}
                                  {hasHighRarity && (
                                    <span className="text-[10px] font-normal">
                                      {sixStarCount > 0 && <span className="text-endfield-yellow">{sixStarCount}×6★</span>}
@@ -548,6 +579,7 @@ const GachaSimulator = () => {
                                </div>
                                <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono">
                                  第 {group.startPullNumber} - {group.startPullNumber + 9} 抽
+                                 {isFreePull && <span className="ml-2 text-blue-500">（不计入保底）</span>}
                                </div>
                              </div>
                              <ChevronDown size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -649,36 +681,11 @@ const GachaSimulator = () => {
             </div>
           </div>
 
-          {/* 模拟器专属统计 (从下方移至此处) */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4">
-             <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest mb-4">模拟统计</h3>
-             <div className="grid grid-cols-2 gap-3">
-                 <div className="p-3 bg-slate-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800">
-                     <div className="text-[10px] text-slate-500 dark:text-zinc-600 uppercase">平均出货</div>
-                     <div className="text-lg font-bold text-slate-800 dark:text-white mt-1">
-                         {stats.avgPullsPerSixStar === '-' ? '-' : stats.avgPullsPerSixStar}
-                         {stats.avgPullsPerSixStar !== '-' && <span className="text-[10px] font-normal text-slate-400 ml-1">抽</span>}
-                     </div>
-                 </div>
-                 <div className="p-3 bg-slate-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800">
-                     <div className="text-[10px] text-slate-500 dark:text-zinc-600 uppercase">期望抽数</div>
-                     <div className="text-lg font-bold text-slate-800 dark:text-white mt-1">
-                         {stats.expectedPulls || 0} <span className="text-[10px] font-normal text-slate-400 ml-1">抽</span>
-                     </div>
-                 </div>
-                 <div className="p-3 bg-slate-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 col-span-2">
-                     <div className="text-[10px] text-slate-500 dark:text-zinc-600 uppercase">
-                        {simulator.poolType === 'limited' ? '限定赠送进度' : 
-                         simulator.poolType === 'weapon' ? '武器赠送进度' : '常驻自选进度'}
-                     </div>
-                     <div className="text-sm font-bold text-slate-800 dark:text-white mt-1">
-                         {simulator.poolType === 'limited' ? `已领 ${stats.gifts?.count || 0} 次 (每240抽)` :
-                          simulator.poolType === 'weapon' ? `已领 ${(stats.gifts?.standardCount || 0) + (stats.gifts?.limitedCount || 0)} 次` :
-                          (stats.hasReceivedSelectGift ? '已领自选 (仅1次)' : '未达标 (300抽)')}
-                     </div>
-                 </div>
-             </div>
-          </div>
+          {/* 角色出货统计 */}
+          <CharacterStats
+              pullHistory={pullHistory}
+              poolType={simulator.poolType}
+           />
         </div>
       </div>
 

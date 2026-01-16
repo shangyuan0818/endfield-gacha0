@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Calculator, Star, FileText, Sparkles } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
+import { useHistoryStore, usePoolStore } from '../../stores';
 
 /**
  * 卡池时间信息组件
@@ -56,10 +57,34 @@ const PoolTimeInfo = () => {
 };
 
 /**
+ * StatBox 统计卡片组件
+ */
+const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated }) => (
+  <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-4 flex items-center gap-4 relative overflow-hidden">
+    <div className={`
+      p-3 rounded-none ${colorClass} relative shadow-sm
+      ${isAnimated ? 'glow-border' : ''}
+    `}>
+      {isAnimated && <div className="absolute inset-0 shine-effect rounded-none"></div>}
+      {Icon && <Icon size={24} className="text-white relative z-10" />}
+    </div>
+    <div>
+      <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase font-bold">{title}</p>
+      <p className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{value}</p>
+      {subValue && <p className="text-xs text-slate-400 dark:text-zinc-500">{subValue}</p>}
+    </div>
+  </div>
+);
+
+/**
  * 仪表盘视图组件
  * 显示卡池统计分析、保底信息、图表等
  */
 const DashboardView = ({ currentPool, stats, effectivePity }) => {
+  // 从 store 获取历史数据
+  const history = useHistoryStore(state => state.history);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+
   // 检测暗色模式 - 响应式监听主题变化
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
 
@@ -75,6 +100,55 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
     observer.observe(document.documentElement, { attributes: true });
     return () => observer.disconnect();
   }, []);
+
+  // 计算角色出货统计
+  const characterStats = useMemo(() => {
+    const currentPoolHistory = history.filter(h => h.poolId === currentPoolId);
+    const characters = new Map();
+
+    // 统计每个角色的出货情况
+    currentPoolHistory.forEach(item => {
+      if (item.rarity >= 5 && item.specialType !== 'gift') {
+        const name = item.character_name || item.item_name || item.name;
+        if (name) {
+          const existing = characters.get(name);
+          if (existing) {
+            existing.count++;
+          } else {
+            characters.set(name, {
+              name,
+              count: 1,
+              rarity: item.rarity,
+              isStandard: item.isStandard,
+              isLimited: !item.isStandard && item.rarity === 6
+            });
+          }
+        }
+      }
+    });
+
+    // 排序：6星限定UP -> 6星常驻 -> 5星，同级别按数量排
+    return Array.from(characters.values())
+      .sort((a, b) => {
+        // 1. 6星限定UP 优先
+        if (a.rarity === 6 && !a.isStandard && (b.rarity !== 6 || b.isStandard)) return -1;
+        if (b.rarity === 6 && !b.isStandard && (a.rarity !== 6 || a.isStandard)) return 1;
+        // 2. 6星常驻 次之
+        if (a.rarity === 6 && a.isStandard && b.rarity !== 6) return -1;
+        if (b.rarity === 6 && b.isStandard && a.rarity !== 6) return 1;
+        // 3. 同级别按数量排
+        if (a.rarity === b.rarity && a.isStandard === b.isStandard) {
+          return b.count - a.count;
+        }
+        // 4. 最后是5星
+        return b.rarity - a.rarity;
+      });
+  }, [history, currentPoolId]);
+
+  // 计算总出货数量
+  const totalCharacterCount = useMemo(() => {
+    return characterStats.reduce((sum, char) => sum + char.count, 0);
+  }, [characterStats]);
 
   const tooltipStyle = {
     borderRadius: '0px',
@@ -124,6 +198,11 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
   }
 
   return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 左列：保底机制分析 */}
+      <div className="md:col-span-1 space-y-6">
+        {/* 保底机制分析卡片 */}
+        <div className="space-y-4">
     <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden transition-all hover:shadow-md">
       <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-700' : 'bg-yellow-500 dark:bg-yellow-600'}`}></div>
 
@@ -216,6 +295,30 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
       {/* 限定池特殊进度 */}
       {isLimited && (
         <div className="mb-6 space-y-4">
+          {/* 30抽赠送十连 - 新增 */}
+          <div>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
+                赠送十连 (每30抽)
+                {Math.floor(stats.total / 30) > 0 && (
+                  <span className="ml-2 flex items-center gap-1 text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/30 px-1.5 rounded text-[10px] border border-blue-100 dark:border-blue-800">
+                    已获 x {Math.floor(stats.total / 30)}
+                  </span>
+                )}
+              </span>
+              <span className="text-slate-400 dark:text-zinc-500">{stats.total % 30} / 30</span>
+            </div>
+            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-blue-300 to-blue-500 transition-all duration-500"
+                style={{ width: `${((stats.total % 30) / 30) * 100}%` }}
+              ></div>
+            </div>
+            <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
+              不计入保底的额外十连抽取机会
+            </div>
+          </div>
+
           {/* 120 Spark - One Time Only */}
           <div>
             <div className="flex justify-between text-xs mb-1">
@@ -416,6 +519,240 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
           </div>
         </div>
       )}
+    </div>
+    </div>
+
+        {/* 平均出货消耗 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
+          <h3 className="text-slate-700 dark:text-zinc-300 font-bold mb-4">平均出货消耗</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-none border border-indigo-100 dark:border-yellow-800/50">
+              <span className="text-yellow-700 dark:text-yellow-300 font-medium">综合6星</span>
+              <div className="text-right">
+                <span className="text-xl font-bold text-indigo-800 dark:text-yellow-300">{stats.avgPullCost[6]}</span>
+                <span className="text-xs text-yellow-600 dark:text-endfield-yellow ml-1">抽/只</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-none border border-amber-100 dark:border-amber-800/50">
+              <span className="text-amber-700 dark:text-amber-300 font-medium">5星</span>
+              <div className="text-right">
+                <span className="text-xl font-bold text-amber-800 dark:text-amber-300">{stats.avgPullCost[5]}</span>
+                <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">抽/只</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 右列：图表与详细数据 */}
+      <div className="md:col-span-2 space-y-6">
+        {/* 总抽数概览 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between">
+          <div>
+            <h3 className="text-slate-500 dark:text-zinc-500 font-bold text-sm uppercase tracking-wider">当前卡池总投入</h3>
+            <div className="text-4xl font-black text-slate-800 dark:text-zinc-100 mt-1 flex items-baseline gap-2">
+              {stats.total}
+              <span className="text-lg font-medium text-slate-400 dark:text-zinc-500">抽</span>
+            </div>
+          </div>
+          <div className="h-12 w-12 bg-yellow-50 dark:bg-yellow-900/20 rounded-sm flex items-center justify-center text-indigo-500">
+            <Layers size={24} />
+          </div>
+        </div>
+
+        {/* 核心数据概览 */}
+        <div className={`grid grid-cols-2 ${currentPool.type !== 'standard' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+          {currentPool.type !== 'standard' && (
+            <StatBox
+              title="限定6星"
+              value={stats.counts[6]}
+              subValue={(() => {
+                let bonusCount = 0;
+                if (currentPool.type === 'limited') {
+                  bonusCount = Math.floor(stats.total/240);
+                } else if (currentPool.type === 'weapon') {
+                  if (stats.total >= 180) {
+                    bonusCount++;
+                    const extraPulls = stats.total - 180;
+                    const extraCycles = Math.floor(extraPulls / 80);
+                    bonusCount += Math.floor(extraCycles / 2);
+                  }
+                }
+                return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占6星 ${(stats.winRate)}%`;
+              })()}
+              colorClass="rainbow-bg"
+              icon={Star}
+              isAnimated={true}
+            />
+          )}
+          <StatBox
+            title="常驻6星"
+            value={stats.counts['6_std']}
+            subValue={
+              currentPool.type !== 'standard'
+                ? "歪了"
+                : (currentPool.type === 'standard' && stats.total >= 300 ? "含赠送 1" : "总数")
+            }
+            colorClass="bg-red-500"
+            icon={Star}
+          />
+          <StatBox title="5星总数" value={stats.counts[5]} subValue={`占比 ${(stats.total > 0 ? stats.counts[5]/stats.total*100 : 0).toFixed(2)}%`} colorClass="bg-amber-400" icon={Star} />
+          <StatBox title="4星总数" value={stats.counts[4]} subValue={`占比 ${(stats.total > 0 ? stats.counts[4]/stats.total*100 : 0).toFixed(2)}%`} colorClass="bg-purple-500" icon={Star} />
+        </div>
+
+        {/* 概率分布概览（饼图） */}
+        <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 min-h-[400px] flex flex-col">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-slate-700 dark:text-zinc-300 font-bold">概率分布概览</h3>
+            <span className="text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950 px-2 py-1 rounded">仅显示当前卡池</span>
+          </div>
+          <div className="flex-1 w-full h-full relative">
+            {stats.total === 0 ? (
+              <div className="absolute inset-0 flex items-center justify-center text-slate-300">
+                暂无数据
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <RainbowGradientDefs />
+                  <Pie
+                    data={stats.chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={120}
+                    paddingAngle={2}
+                    dataKey="displayValue"
+                  >
+                    {stats.chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip
+                    formatter={(value, name, props) => {
+                      const originalValue = props.payload.value;
+                      return [
+                        `${originalValue}个 (${(originalValue/stats.total*100).toFixed(1)}%)`,
+                        name
+                      ];
+                    }}
+                    contentStyle={tooltipStyle}
+                    itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                    labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
+                  />
+                  <Legend
+                    verticalAlign="bottom"
+                    height={36}
+                    wrapperStyle={{
+                      color: isDark ? '#a1a1aa' : '#71717a',
+                      fontSize: '12px'
+                    }}
+                    formatter={(value, entry) => {
+                      const item = stats.chartData.find(d => d.name === value);
+                      return `${value} (${item?.value || 0})`;
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* 角色出货统计卡片 */}
+        <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden transition-all hover:shadow-md">
+          <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-orange-400 to-pink-500"></div>
+
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={18} className="text-orange-500" />
+            <h3 className="text-lg font-bold text-slate-700 dark:text-zinc-300">角色出货统计</h3>
+            {totalCharacterCount > 0 && (
+              <span className="text-xs text-slate-400 dark:text-zinc-500 ml-2">
+                共 {totalCharacterCount} 个干员/武器
+              </span>
+            )}
+          </div>
+
+          {characterStats.length === 0 ? (
+            <div className="text-center py-8 text-slate-400 dark:text-zinc-500 text-sm">
+              <User size={32} className="mx-auto mb-2 opacity-50" />
+              <p>暂无5星及以上角色数据</p>
+              <p className="text-xs mt-1">导入数据后此处将显示出货统计</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {characterStats.map((char) => {
+                const isSixStar = char.rarity === 6;
+                const isLimitedChar = isSixStar && !char.isStandard;
+                const isStandardChar = isSixStar && char.isStandard;
+
+                return (
+                  <div
+                    key={char.name}
+                    className={`
+                      flex items-center gap-3 p-3 border-2 transition-all
+                      ${isLimitedChar
+                        ? 'rainbow-bg-light rainbow-border'
+                        : isStandardChar
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                          : 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700'
+                      }
+                    `}
+                  >
+                    {/* 头像预留位 */}
+                    <div className={`
+                      w-12 h-12 rounded-full flex items-center justify-center shrink-0
+                      ${isLimitedChar
+                        ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
+                        : isStandardChar
+                          ? 'bg-red-200 dark:bg-red-800 text-red-600 dark:text-red-300'
+                          : 'bg-amber-200 dark:bg-amber-800 text-amber-600 dark:text-amber-300'
+                      }
+                    `}>
+                      <User size={20} />
+                    </div>
+
+                    {/* 角色信息 */}
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-bold ${
+                        isLimitedChar
+                          ? 'text-orange-700 dark:text-orange-300'
+                          : isStandardChar
+                            ? 'text-red-700 dark:text-red-300'
+                            : 'text-amber-700 dark:text-amber-300'
+                      }`}>
+                        {char.name}
+                      </div>
+                      <div className="flex items-center gap-0.5 mt-1">
+                        {Array.from({ length: char.rarity }).map((_, i) => (
+                          <Star
+                            key={i}
+                            size={10}
+                            fill={isSixStar ? (isStandardChar ? '#f87171' : '#fb923c') : '#fbbf24'}
+                            className={isSixStar ? (isStandardChar ? 'text-red-400' : 'text-orange-400') : 'text-amber-400'}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 数量标签 */}
+                    <div className={`
+                      px-3 py-1.5 text-sm font-bold rounded
+                      ${isLimitedChar
+                        ? 'rainbow-badge text-white'
+                        : isStandardChar
+                          ? 'bg-red-500 text-white'
+                          : 'bg-amber-500 text-white'
+                      }
+                    `}>
+                      ×{char.count}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

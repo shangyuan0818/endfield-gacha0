@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from './supabaseClient';
-import { showFriendlyError } from './utils/errorMessages';
+import { showFriendlyError, getSimpleFriendlyError } from './utils/errorMessages';
 
 // ========== 邮箱域名白名单配置 ==========
 // 主流邮箱服务商

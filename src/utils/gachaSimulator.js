@@ -50,6 +50,7 @@ export function createInitialState(poolType = 'limited_character') {
 
     // 赠送机制
     giftsReceived: 0,                   // 已领取的赠送次数（限定池：每240抽）
+    freeTenPullsReceived: 0,            // 已领取的30抽赠送十连次数（限定池：每30抽）
     hasReceivedInfoBook: false,         // 是否已领取情报书（限定池：60抽，仅1次）
     hasReceivedSelectGift: false,       // 是否已领取自选赠送（常驻池：300抽，仅1次）
 
@@ -252,6 +253,76 @@ export class GachaSimulator {
   }
 
   /**
+   * 免费十连（不计入保底和总抽数）
+   * @returns {Array} 免费十连结果数组
+   */
+  pullFreeTen() {
+    // 获取当前UP角色（如果是限定池）
+    const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
+      ? this.getCurrentUpCharacter()
+      : null;
+
+    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
+    const pullRecords = [];
+
+    // 处理每一抽的结果
+    results.forEach((result, index) => {
+      const pullNumber = this.state.totalPulls + index + 1; // 显示的抽数（但不真正计入）
+
+      const pullRecord = {
+        pullNumber,
+        rarity: result.rarity,
+        isUp: result.isUp,
+        isLimited: result.isLimited,
+        characterName: result.characterName,
+        timestamp: Date.now() + index,
+        batchIndex: index,
+        isTenPull: true,
+        isFreePull: true  // 标记为免费
+      };
+
+      pullRecords.push(pullRecord);
+    });
+
+    // 免费十连：不更新保底计数、不增加总抽数，只增加已使用免费次数
+    this.updateState({
+      pullHistory: [...this.state.pullHistory, ...pullRecords],
+      freeTenPullsReceived: this.state.freeTenPullsReceived + 1,
+      lastPullResult: pullRecords
+    });
+
+    return pullRecords;
+  }
+
+  /**
+   * 检查30抽赠送十连
+   * @param {number} totalPulls - 总抽数（支付的抽数，不包括赠送）
+   * @returns {Object} 赠送信息
+   */
+  checkFreeTenPulls(totalPulls) {
+    // 仅限定池有30抽赠送机制
+    if (this.poolType !== 'limited' && this.poolType !== 'limited_character') {
+      return {
+        count: 0,
+        isNewGift: false,
+        nextGiftAt: null,
+        remainingPulls: 0
+      };
+    }
+
+    const freeTenPullCount = Math.floor(totalPulls / this.rules.freeTenPullInterval);
+    const isNewGift = freeTenPullCount > this.state.freeTenPullsReceived;
+
+    return {
+      count: freeTenPullCount,
+      isNewGift,
+      nextGiftAt: (freeTenPullCount + 1) * this.rules.freeTenPullInterval,
+      remainingPulls: (freeTenPullCount + 1) * this.rules.freeTenPullInterval - totalPulls,
+      giftType: 'free_ten_pull'
+    };
+  }
+
+  /**
    * 检查赠送机制
    * @param {number} totalPulls - 总抽数
    * @returns {Object} 赠送信息
@@ -392,6 +463,7 @@ export class GachaSimulator {
       pullHistory,
       sixStarPity,
       giftsReceived,
+      freeTenPullsReceived,
       hasReceivedInfoBook,
       hasReceivedSelectGift
     } = this.state;
@@ -435,6 +507,7 @@ export class GachaSimulator {
 
     // 获取赠送信息（根据卡池类型）
     const giftInfo = this.checkGifts(totalPulls);
+    const freeTenPullInfo = this.checkFreeTenPulls(totalPulls);
 
     return {
       totalPulls,
@@ -450,6 +523,7 @@ export class GachaSimulator {
 
       // 赠送机制统计（根据卡池类型返回不同信息）
       gifts: giftInfo,
+      freeTenPulls: freeTenPullInfo,  // 新增：30抽赠送十连信息
       hasReceivedInfoBook,
       hasReceivedSelectGift,
 
@@ -526,3 +600,4 @@ export default {
   createSimulator,
   createInitialState
 };
+
