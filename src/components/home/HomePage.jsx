@@ -616,41 +616,87 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                 Rotation Schedule // 轮换计划
               </h4>
               <div className="flex flex-wrap items-center gap-2">
-                {LIMITED_POOL_SCHEDULE.map((pool, index) => {
-                  const poolStart = new Date(pool.startDate);
-                  const poolEnd = new Date(pool.endDate);
-                  const isCurrent = now >= poolStart && now < poolEnd;
-                  const isPast = now >= poolEnd;
+                {(() => {
+                  // Determine the index of the currently active pool
+                  let currentActiveIndex = -1;
+                  for (let i = 0; i < LIMITED_POOL_SCHEDULE.length; i++) {
+                    const pool = LIMITED_POOL_SCHEDULE[i];
+                    const start = new Date(pool.startDate);
+                    const end = new Date(pool.endDate);
+                    if (now >= start && now < end) {
+                      currentActiveIndex = i;
+                      break;
+                    }
+                  }
+                  
+                  // If no pool is currently active, check if we are past the last one or before first
+                  // But the requirement says "Wait until pool starts", so if not started, no special highlights
+                  
+                  return LIMITED_POOL_SCHEDULE.map((pool, index) => {
+                    const poolStart = new Date(pool.startDate);
+                    const poolEnd = new Date(pool.endDate);
+                    const isCurrent = now >= poolStart && now < poolEnd;
+                    const isPast = now >= poolEnd;
+                    
+                    // Check if this character is currently obtainable in the limited pool
+                    // Logic: The character was introduced at `index`. 
+                    // It stays for `removesAfter` rotations.
+                    
+                    // Special Logic for Launch Trio: They are all available starting from Index 0 (Levante's Pool)
+                    const launchCharacters = ['莱万汀', '洁尔佩塔', '伊冯'];
+                    const isLaunchChar = launchCharacters.includes(pool.name);
+                    
+                    // Has the character entered the pool system?
+                    // Standard: When current index reaches their banner index.
+                    // Launch: When current index is >= 0 (Game Launched).
+                    const hasEntered = isLaunchChar ? currentActiveIndex >= 0 : index <= currentActiveIndex;
+                    
+                    // Has the character been removed?
+                    const hasNotExpired = currentActiveIndex < (index + (pool.removesAfter || 1));
 
-                  // 格式化时间显示
-                  const formatDateTime = (date) => {
-                    const month = date.getMonth() + 1;
-                    const day = date.getDate();
-                    const hours = date.getHours().toString().padStart(2, '0');
-                    const minutes = date.getMinutes().toString().padStart(2, '0');
-                    return `${month}/${day} ${hours}:${minutes}`;
-                  };
+                    const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
 
-                  return (
-                    <React.Fragment key={pool.name}>
-                      <div className={`px-3 py-2 rounded-sm text-xs font-mono transition-all border ${
-                        isCurrent
-                          ? 'bg-endfield-yellow/10 border-endfield-yellow text-amber-600 dark:text-endfield-yellow'
-                          : isPast
-                            ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 line-through'
-                            : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400'
-                      }`}>
-                        <div className="font-bold">{pool.name}</div>
-                        <div className="text-[10px] opacity-70 mt-1">
-                          {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
+                    // 格式化时间显示
+                    const formatDateTime = (date) => {
+                      const month = date.getMonth() + 1;
+                      const day = date.getDate();
+                      const hours = date.getHours().toString().padStart(2, '0');
+                      const minutes = date.getMinutes().toString().padStart(2, '0');
+                      return `${month}/${day} ${hours}:${minutes}`;
+                    };
+
+                    let containerClass = "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400"; // Default (Future/Unknown)
+                    
+                    if (isCurrent) {
+                       // Current UP
+                       containerClass = "bg-endfield-yellow/10 border-endfield-yellow text-amber-600 dark:text-endfield-yellow ring-1 ring-endfield-yellow/50 animate-pulse";
+                    } else if (isInPool) {
+                       // Not UP, but still in pool
+                       containerClass = "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400";
+                    } else if (isPast) {
+                       // Past and removed
+                       containerClass = "bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 line-through opacity-70";
+                    }
+
+                    return (
+                      <React.Fragment key={pool.name}>
+                        <div className={`px-3 py-2 rounded-sm text-xs font-mono transition-all border ${containerClass}`}>
+                          <div className="font-bold flex items-center gap-1">
+                             {pool.name}
+                             {isInPool && !isCurrent && <span className="text-[10px] opacity-80">(在卡池中)</span>}
+                             {isCurrent && <span className="text-[10px] font-bold">UP</span>}
+                          </div>
+                          <div className="text-[10px] opacity-70 mt-1">
+                            {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
+                          </div>
                         </div>
-                      </div>
-                      {index < LIMITED_POOL_SCHEDULE.length - 1 && (
-                        <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        {index < LIMITED_POOL_SCHEDULE.length - 1 && (
+                          <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+                        )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
                 <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
                 <div className="px-3 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 rounded-sm text-xs font-mono">
                   待公布...
