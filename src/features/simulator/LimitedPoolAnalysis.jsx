@@ -62,7 +62,7 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
 
-  const maxPity = isWeapon ? 40 : 90;
+  const maxPity = isWeapon ? 40 : 80;
   const textColor = isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow';
   const progressColor = isLimited ? 'rainbow-progress' : isWeapon ? 'bg-slate-600' : 'bg-yellow-500';
 

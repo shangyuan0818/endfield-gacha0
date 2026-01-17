@@ -4,7 +4,7 @@ import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calc
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { syncManager } from './services/syncService';
 import AuthModal from './AuthModal';
-import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, InputSection, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal, HomePage, Footer } from './components';
+import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, BatchCard, PoolSelector, RecordsView, DashboardView, EditItemModal, HomePage, Footer } from './components';
 import SimpleMarkdown from './components/SimpleMarkdown';
 import GachaSimulator from './features/simulator/GachaSimulator';
 import { Toast, ConfirmDialog, LoadingBar, NotificationBadge } from './components/ui';
@@ -49,11 +49,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const poolSearchQuery = usePoolStore(state => state.poolSearchQuery);
-  const collapsedDrawers = usePoolStore(state => state.collapsedDrawers);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
   const setPoolSearchQuery = usePoolStore(state => state.setPoolSearchQuery);
-  const toggleDrawer = usePoolStore(state => state.toggleDrawer);
   const createPool = usePoolStore(state => state.createPool);
   const deletePool = usePoolStore(state => state.deletePool);
   const updatePool = usePoolStore(state => state.updatePool);
@@ -89,8 +87,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const setEditItemState = useUIStore(state => state.setEditItemState);
 
   // 本地 UI 状态（仍然使用 useState）
-  const [showPoolMenu, setShowPoolMenu] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // UX-006: 通知气泡状态
   const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);  // 待审批申请数量（仅超管）
@@ -107,18 +103,20 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 当前卡池对象（从 stores 计算）
   const currentPool = useMemo(() => {
-    const byId = pools.find(p => p.id === currentPoolId);
+    const poolsArray = pools || [];
+    const byId = poolsArray.find(p => p.id === currentPoolId);
     if (byId) return byId;
-    const defaultPool = pools.find(p => p.id === DEFAULT_POOL_ID);
+    const defaultPool = poolsArray.find(p => p.id === DEFAULT_POOL_ID);
     if (defaultPool) return defaultPool;
-    return pools[0];
+    return poolsArray[0];
   }, [pools, currentPoolId]);
 
   // 如果当前选中卡池ID无效，则回退到默认池
   useEffect(() => {
-    const exists = pools.some(p => p.id === currentPoolId);
+    const poolsArray = pools || [];
+    const exists = poolsArray.some(p => p.id === currentPoolId);
     if (!exists) {
-      const fallback = pools.find(p => p.id === DEFAULT_POOL_ID) || pools[0];
+      const fallback = poolsArray.find(p => p.id === DEFAULT_POOL_ID) || poolsArray[0];
       if (fallback) {
         switchPool(fallback.id);
       }
@@ -132,58 +130,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return true;
   }, [canEdit, currentPool?.locked, isSuperAdmin]);
 
-  // 按抽卡人分组的卡池列表（支持搜索）
-  const groupedPools = useMemo(() => {
-    // 先按搜索词过滤
-    const filteredPools = poolSearchQuery.trim()
-      ? pools.filter(pool =>
-          pool.name.toLowerCase().includes(poolSearchQuery.toLowerCase())
-        )
-      : pools;
-
-    // 按抽卡人分组
-    const groups = {};
-    const noDrawerPools = [];
-
-    filteredPools.forEach(pool => {
-      const drawer = extractDrawerFromPoolName(pool.name);
-      if (drawer) {
-        if (!groups[drawer]) {
-          groups[drawer] = [];
-        }
-        groups[drawer].push(pool);
-      } else {
-        noDrawerPools.push(pool);
-      }
-    });
-
-    // 转换为数组格式，按抽卡人名称排序
-    const result = Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))
-      .map(([drawer, poolList]) => ({
-        drawer,
-        pools: poolList.sort((a, b) => {
-          // 同一抽卡人内按类型排序：限定 > 武器 > 常驻
-          const typeOrder = { limited: 0, weapon: 1, standard: 2 };
-          return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
-        })
-      }));
-
-    // 未识别抽卡人的卡池放在最后
-    if (noDrawerPools.length > 0) {
-      result.push({
-        drawer: null,
-        pools: noDrawerPools
-      });
-    }
-
-    return result;
-  }, [pools, poolSearchQuery]);
-
   // 获取所有已知的抽卡人列表
   const knownDrawers = useMemo(() => {
     const drawers = new Set();
-    pools.forEach(pool => {
+    (pools || []).forEach(pool => {
       const drawer = extractDrawerFromPoolName(pool.name);
       if (drawer) {
         drawers.add(drawer);
@@ -197,7 +147,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!currentPool) return [];
     // 只按 poolId 过滤，不区分 user_id
     // 这样所有用户都能看到该卡池的全部录入数据（适合协作场景）
-    return history.filter(h => h.poolId === currentPoolId);
+    return (history || []).filter(h => h.poolId === currentPoolId);
   }, [history, currentPoolId, currentPool]);
 
   // 文件上传 Ref
@@ -468,7 +418,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         specialType: h.special_type,
         timestamp: h.timestamp,
         poolId: h.pool_id,
-        user_id: h.user_id  // 保留 user_id 用于判断归属
+        user_id: h.user_id,  // 保留 user_id 用于判断归属
+        character_name: h.character_name,  // 角色名称（用于角色出货统计）
+        item_name: h.item_name,            // 物品名称（武器等）
+        batch_id: h.batch_id               // 批次ID（用于分组显示）
       }));
 
       return { pools: formattedPools, history: formattedHistory };
@@ -1336,12 +1289,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 跨池保底继承计算（仅限定池之间继承）
   const inheritedPityInfo = useMemo(() => {
     // 只有限定池才需要计算继承
-    if (currentPool.type !== 'limited') {
+    if (!currentPool || currentPool.type !== 'limited') {
       return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
     }
 
     // 获取所有限定池
-    const allLimitedPools = pools.filter(p => p.type === 'limited');
+    const allLimitedPools = (pools || []).filter(p => p.type === 'limited');
 
     // 如果当前池有记录，不需要考虑继承（继承只在空池时生效）
     if (currentPoolHistory.length > 0) {
@@ -1381,40 +1334,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   }, [currentPoolHistory.length, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
 
   // --- 操作函数 ---
-
-  const openCreatePoolModal = () => {
-    // 自动识别抽卡人：使用 extractDrawerFromPoolName 从已有卡池名称中提取
-    // 统计每个抽卡人出现的次数，选择最常见的
-    const drawerCounts = {};
-    pools.forEach(pool => {
-      const drawer = extractDrawerFromPoolName(pool.name);
-      if (drawer) {
-        drawerCounts[drawer] = (drawerCounts[drawer] || 0) + 1;
-      }
-    });
-
-    // 找到出现最多的抽卡人名称
-    let detectedDrawer = '';
-    let maxCount = 0;
-    Object.entries(drawerCounts).forEach(([name, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        detectedDrawer = name;
-      }
-    });
-
-    setDrawerName(detectedDrawer);
-    setSelectedCharName('');
-    setNewPoolTypeInput('limited');
-
-    // 根据识别的抽卡人生成默认卡池名称
-    const defaultName = detectedDrawer ? `限定-${detectedDrawer}` : '';
-    setNewPoolNameInput(defaultName);
-
-    setModalState({ type: 'createPool', data: null });
-    setShowPoolMenu(false);
-    setPoolSearchQuery(''); // 清空搜索词
-  };
 
   const confirmCreatePool = async () => {
     if (!newPoolNameInput.trim()) return;
@@ -1460,7 +1379,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // 设置武器池限定状态（默认为 true）
     setIsLimitedWeaponPool(pool.isLimitedWeapon !== false);
     setModalState({ type: 'editPool', data: pool });
-    setShowPoolMenu(false);
   };
 
   const confirmEditPool = async () => {
@@ -1521,7 +1439,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 打开删除卡池确认弹窗
   const openDeletePoolModal = (pool) => {
     setModalState({ type: 'deletePool', data: pool });
-    setShowPoolMenu(false);
   };
 
   // 确认删除卡池（包括所有记录）
@@ -1540,7 +1457,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     // 如果删除的是当前选中的卡池，切换到第一个卡池
     if (currentPoolId === poolId) {
-      const remainingPools = pools.filter(p => p.id !== poolId);
+      const remainingPools = (pools || []).filter(p => p.id !== poolId);
       if (remainingPools.length > 0) {
         switchPool(remainingPools[0].id);
       }
@@ -1564,7 +1481,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   const openDeleteConfirmModal = () => {
-    const currentPoolName = pools.find(p=>p.id===currentPoolId)?.name;
+    const currentPoolName = (pools || []).find(p=>p.id===currentPoolId)?.name;
     setModalState({ type: 'deleteConfirm', data: { poolName: currentPoolName } });
   };
 
@@ -1620,8 +1537,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       let skippedHistory = 0;
 
       // 只同步当前用户创建的卡池（user_id 等于当前用户，或者是本地创建的没有 user_id）
-      const myPools = pools.filter(pool => !pool.user_id || pool.user_id === user.id);
-      const otherUserPools = pools.length - myPools.length;
+      const myPools = (pools || []).filter(pool => !pool.user_id || pool.user_id === user.id);
+      const otherUserPools = (pools || []).length - myPools.length;
       skippedPools = otherUserPools;
 
       for (const pool of myPools) {
@@ -1658,189 +1575,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const closeModalAndClear = () => {
     closeModal();
     setEditItemState(null);
-  };
-
-  // 添加单抽 (支持 isStandard)
-  const addSinglePull = async (rarity, isStandard = false) => {
-    // 提交前验证：检查卡池是否已被锁定
-    if (currentPool?.locked && !isSuperAdmin) {
-      showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
-      return;
-    }
-
-    const currentPoolPulls = currentPoolHistory;
-    const currentPoolTotal = currentPoolPulls.length;
-    const isLimitedPool = currentPool.type === 'limited';
-    const isWeaponPool = currentPool.type === 'weapon';
-    let specialType = null;
-
-    // 辅助函数：检查前 N 抽是否已经出过限定
-    const hasLimitedInFirstN = (n) => {
-      // 注意：这里 currentPoolPulls 是乱序的还是按时间？
-      // history 是 append 的，filter 出来的应该大体有序，但最好 sort 一下确保准确
-      // 不过这里主要是 check 是否存在，顺序不严格影响“是否存在”，
-      // 关键是 index < n。
-      // 更严谨的做法：
-      const sorted = [...currentPoolPulls].sort((a, b) => a.id - b.id); // 假设id是递增的(timestamp可能重复)
-      // 或者直接用 slice(0, n) 如果我们认为 filter 顺序就是录入顺序
-      return sorted.slice(0, n).some(item => item.rarity === 6 && !item.isStandard);
-    };
-
-    // 限定池 120 抽保底 (如果前119抽没出过限定)
-    if (isLimitedPool && (currentPoolTotal + 1) === 120 && rarity === 6) {
-       if (!hasLimitedInFirstN(119)) {
-         specialType = 'guaranteed';
-       }
-    }
-    
-    // 武器池 80 抽首轮保底 (如果前79抽没出过限定)
-    if (isWeaponPool && (currentPoolTotal + 1) === 80 && rarity === 6) {
-       if (!hasLimitedInFirstN(79)) {
-         specialType = 'guaranteed';
-       }
-    }
-
-    const newPull = {
-      id: Date.now() + Math.random(),
-      rarity: rarity,
-      isStandard: rarity === 6 ? isStandard : false, // 确保非6星不带 isStandard
-      specialType: specialType,
-      timestamp: new Date().toISOString(),
-      poolId: currentPoolId
-    };
-
-    // P1: 前端数据校验
-    const validation = validatePullData(newPull);
-    if (!validation.isValid) {
-      showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
-      return;
-    }
-
-    // 修复ERROR-NEW-001: 先同步到云端，成功后再更新本地状态
-    if (user) {
-      try {
-        await saveHistoryToCloud([newPull]);
-        // 云端保存成功，更新本地状态
-        setHistory(prev => [...prev, newPull]);
-      } catch (error) {
-        // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
-      }
-    } else {
-      // 未登录用户，仅更新本地状态
-      setHistory(prev => [...prev, newPull]);
-    }
-  };
-
-  // 提交十连
-  const submitBatch = async (inputData, customTimestamp = null) => {
-    // 提交前验证：检查卡池是否已被锁定
-    if (currentPool?.locked && !isSuperAdmin) {
-      showToast('卡池已被锁定，无法录入数据', 'error', '操作被阻止');
-      return;
-    }
-
-    // ========== 新增：卡池规则验证 ==========
-    const ruleValidation = validateBatchAgainstRules({
-      batchData: inputData,
-      existingPulls: currentPoolHistory,
-      pool: currentPool
-    });
-
-    // 显示警告（但不阻止录入）
-    if (ruleValidation.warnings.length > 0) {
-      ruleValidation.warnings.forEach(warning => {
-        showToast(warning, 'warning', '规则提示');
-      });
-    }
-
-    // 显示错误并阻止录入
-    if (!ruleValidation.isValid) {
-      ruleValidation.errors.forEach(error => {
-        showToast(error, 'error', '录入错误');
-      });
-      return;
-    }
-    // ========================================
-
-    // 使用传入的时间戳或生成新的时间戳（确保同一批次时间戳完全一致）
-    const nowStr = customTimestamp
-      ? new Date(customTimestamp).toISOString()
-      : new Date().toISOString();
-    const currentPoolPulls = currentPoolHistory;
-    const currentPoolTotal = currentPoolPulls.length; // 已有的数量
-    const isLimitedPool = currentPool.type === 'limited';
-    const isWeaponPool = currentPool.type === 'weapon';
-
-    // 检查已有记录中，前 N 抽是否包含限定
-    const hasLimitedInExisting = (n) => {
-       const sorted = [...currentPoolPulls].sort((a, b) => a.id - b.id);
-       return sorted.slice(0, n).some(item => item.rarity === 6 && !item.isStandard);
-    };
-
-    // 此次十连中是否已经出现了限定 (用于判断同一十连中后续的保底失效)
-    let limitedFoundInBatch = false;
-
-    const newPulls = inputData.map((item, index) => {
-      let specialType = item.specialType || null;
-      const globalIndex = currentPoolTotal + index + 1; // 1-based
-
-      const isLimitedItem = item.rarity === 6 && !item.isStandard;
-
-      // 限定池 120 抽保底
-      if (isLimitedPool && globalIndex === 120 && item.rarity === 6) {
-         // 检查：已有记录前119没有 && 本次十连前面的也没有
-         const alreadyHad = hasLimitedInExisting(119);
-         if (!alreadyHad && !limitedFoundInBatch) {
-            specialType = 'guaranteed';
-         }
-      }
-
-      // 武器池 80 抽首轮保底
-      if (isWeaponPool && globalIndex === 80 && item.rarity === 6) {
-         // 检查：已有记录前79没有 && 本次十连前面的也没有
-         const alreadyHad = hasLimitedInExisting(79);
-         if (!alreadyHad && !limitedFoundInBatch) {
-            specialType = 'guaranteed';
-         }
-      }
-
-      // 如果当前这个就是限定，标记 flag，后续（index更大）的即使到了阈值也不能算保底了
-      if (isLimitedItem) {
-        limitedFoundInBatch = true;
-      }
-
-      return {
-        id: Date.now() + index,
-        rarity: item.rarity,
-        isStandard: item.rarity === 6 ? item.isStandard : false, // 确保非6星不带 isStandard
-        specialType: specialType,
-        timestamp: nowStr,
-        poolId: currentPoolId
-      };
-    });
-
-    // P1: 前端数据校验
-    for (const pull of newPulls) {
-      const validation = validatePullData(pull);
-      if (!validation.isValid) {
-        showToast(`数据校验失败: ${validation.errors.join(', ')}`, 'error');
-        return;
-      }
-    }
-
-    // 修复ERROR-NEW-001: 先同步到云端，成功后再更新本地状态
-    if (user) {
-      try {
-        await saveHistoryToCloud(newPulls);
-        // 云端保存成功，更新本地状态
-        setHistory(prev => [...prev, ...newPulls]);
-      } catch (error) {
-        // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
-      }
-    } else {
-      // 未登录用户，仅更新本地状态
-      setHistory(prev => [...prev, ...newPulls]);
-    }
   };
 
   // 编辑记录
@@ -1935,11 +1669,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 通用导出函数
   const handleExportJSON = (scope) => {
-    let exportPools = pools;
+    let exportPools = pools || [];
     let exportHistory = history;
 
     if (scope === 'current') {
-      exportPools = pools.filter(p => p.id === currentPoolId);
+      exportPools = (pools || []).filter(p => p.id === currentPoolId);
       exportHistory = currentPoolHistory;
     }
 
@@ -2000,7 +1734,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setShowExportMenu(false);
   };
 
   const handleExportCSV = (scope) => {
@@ -2056,12 +1789,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         return result;
       });
     } else {
-      if (history.length === 0) {
+      if ((history || []).length === 0) {
         showToast("无数据可导出", 'warning');
         return;
       }
       // 全部导出：为每个卡池单独计算序号和垫刀
-      pools.forEach(pool => {
+      (pools || []).forEach(pool => {
         const poolData = processHistoryWithIndex(history, pool.id);
         dataToExport.push(...poolData);
       });
@@ -2073,7 +1806,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const headers = ["卡池名称(Pool)", "卡池类型(Type)", "序号(No)", "星级(Rarity)", "限定/常驻(Limited/Std)", "特殊标记(Special)", "垫刀数(Pity)", "时间(Time)"];
 
     const rows = dataToExport.map(item => {
-      const pool = pools.find(p => p.id === item.poolId);
+      const pool = (pools || []).find(p => p.id === item.poolId);
       const poolName = pool?.name || 'Unknown';
       const poolType = pool?.type === 'limited' ? '限定池' : pool?.type === 'weapon' ? '武器池' : '常驻池';
 
@@ -2118,7 +1851,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setShowExportMenu(false);
   };
 
   // 导入数据处理 - 使用状态存储待导入数据
@@ -2177,7 +1909,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       
       if (!record.pool_id || typeof record.pool_id !== 'string') {
         errors.push(`记录 #${idx + 1}: 缺少 pool_id`);
-      } else if (!validPoolIds.has(record.pool_id) && !pools.some(p => p.id === record.pool_id)) {
+      } else if (!validPoolIds.has(record.pool_id) && !(pools || []).some(p => p.id === record.pool_id)) {
         // 检查 pool_id 是否存在于导入数据或现有数据中
         errors.push(`记录 #${idx + 1}: pool_id (${record.pool_id}) 引用的卡池不存在`);
       }
@@ -2258,7 +1990,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const { data: importedData, willSyncToCloud } = pendingImport;
 
     // 1. 合并 Pools (去重)
-    const newPools = [...pools];
+    const newPools = [...(pools || [])];
     const addedPools = [];
     importedData.pools.forEach(impPool => {
       if (!newPools.some(p => p.id === impPool.id)) {
@@ -2309,28 +2041,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   // --- 组件 ---
-  
-
-  // 卡池时间信息组件
-
-  // ... (inside GachaAnalyzer render)
-
-  const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated }) => (
-    <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-4 flex items-center gap-4 relative overflow-hidden">
-      <div className={`
-        p-3 rounded-none ${colorClass} relative shadow-sm
-        ${isAnimated ? 'glow-border' : ''}
-      `}>
-        {isAnimated && <div className="absolute inset-0 shine-effect rounded-none"></div>}
-        {Icon && <Icon size={24} className="text-white relative z-10" />}
-      </div>
-      <div>
-        <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase font-bold">{title}</p>
-        <p className="text-2xl font-bold text-slate-800 dark:text-zinc-100">{value}</p>
-        {subValue && <p className="text-xs text-slate-400 dark:text-zinc-500">{subValue}</p>}
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 font-sans pb-20 md:pb-10 relative">
@@ -2356,48 +2066,34 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* 卡池选择器组件 - 暂时隐藏 */}
-              {false && (
-                <PoolSelector
-                  onOpenCreatePoolModal={openCreatePoolModal}
-                  onOpenEditPoolModal={openEditPoolModal}
-                  onOpenDeletePoolModal={openDeletePoolModal}
-                  onTogglePoolLock={togglePoolLock}
-                />
-              )}
+            {/* UP池时间信息 - 常驻显示 */}
+            <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
+              {(() => {
+                const upPool = getCurrentUpPool();
+                const isExpired = upPool.isExpired;
+                const remainingDays = upPool.remainingDays ?? 0;
+                const remainingHours = upPool.remainingHours ?? 0;
+                const isEndingSoon = remainingDays <= 3 && !isExpired;
+                const isNotStarted = upPool.startsIn > 0;
 
-              {/* UP池时间信息 - 仅限定池显示 */}
-              {false && currentPool.type === 'limited' && (
-                <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
-                  {(() => {
-                    const upPool = getCurrentUpPool();
-                    const isExpired = upPool.isExpired;
-                    const remainingDays = upPool.remainingDays ?? 0;
-                    const remainingHours = upPool.remainingHours ?? 0;
-                    const isEndingSoon = remainingDays <= 3 && !isExpired;
-                    const isNotStarted = upPool.startsIn > 0;
-
-                    return (
-                      <>
-                        <span className="text-orange-500 font-medium">{upPool.name}</span>
-                        <span className="text-slate-300 dark:text-zinc-600">|</span>
-                        {isNotStarted ? (
-                          <span className="text-blue-500">{upPool.startsIn}天{upPool.startsInHours}小时后开始</span>
-                        ) : isExpired ? (
-                          <span className="text-red-500">已结束</span>
-                        ) : isEndingSoon ? (
-                          <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
-                        ) : (
-                          <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
-                        )}
-                        <span className="text-slate-300 dark:text-zinc-600">→</span>
-                        <span className="text-blue-500">{upPool.nextPool}</span>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
+                return (
+                  <>
+                    <span className="text-orange-500 font-medium">{upPool.name}</span>
+                    <span className="text-slate-300 dark:text-zinc-600">|</span>
+                    {isNotStarted ? (
+                      <span className="text-blue-500">{upPool.startsIn}天{upPool.startsInHours}小时后开始</span>
+                    ) : isExpired ? (
+                      <span className="text-red-500">已结束</span>
+                    ) : isEndingSoon ? (
+                      <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
+                    ) : (
+                      <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
+                    )}
+                    <span className="text-slate-300 dark:text-zinc-600">→</span>
+                    <span className="text-blue-500">{upPool.nextPool}</span>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -2619,276 +2315,90 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <TicketPanel user={user} userRole={userRole} showToast={showToast} />
         ) : (
           <>
-            {/* 卡池详情页面施工中提示 */}
-            <div className="max-w-4xl mx-auto mt-8">
-              <div className="bg-white dark:bg-endfield-panel border border-zinc-200 dark:border-endfield-border rounded-none shadow-none relative overflow-hidden">
-                {/* 顶部装饰条 */}
-                <div className="h-1 w-full bg-endfield-yellow absolute top-0 left-0"></div>
-                
-                {/* 装饰性背景元素 */}
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none select-none">
-                  <Settings size={300} className="text-black dark:text-white" />
-                </div>
-
-                <div className="p-8 md:p-12 relative z-10">
-                  {/* 施工图标 - 工业风 */}
-                  <div className="flex justify-center mb-8">
-                    <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-6 rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] dark:shadow-[4px_4px_0px_0px_rgba(255,250,0,0.1)]">
-                      <Settings size={48} className="text-zinc-800 dark:text-endfield-yellow animate-spin" style={{ animationDuration: '8s' }} />
-                    </div>
-                  </div>
-
-                  {/* 标题 */}
-                  <h2 className="text-3xl md:text-4xl font-black text-center text-zinc-900 dark:text-white mb-2 uppercase tracking-tighter">
-                    SYSTEM UPGRADE
-                  </h2>
-                  <h3 className="text-sm font-mono text-center text-zinc-500 dark:text-endfield-muted uppercase tracking-[0.2em] mb-8">
-                    卡池详情页面重构中
-                  </h3>
-
-                  {/* 说明文字 */}
-                  <div className="max-w-2xl mx-auto mb-10">
-                    <p className="text-base text-zinc-600 dark:text-zinc-300 mb-6 text-center font-medium">
-                      为了提供更好的数据导入和展示体验，我们正在重构卡池详情系统。
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                        <span className="font-mono text-endfield-yellow font-bold text-xl">01</span>
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300">支持官网API/截图OCR导入</p>
-                      </div>
-                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                        <span className="font-mono text-endfield-yellow font-bold text-xl">02</span>
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300">自动识别角色和卡池类型</p>
-                      </div>
-                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                        <span className="font-mono text-endfield-yellow font-bold text-xl">03</span>
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300">动态卡池管理与云同步</p>
-                      </div>
-                      <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                        <span className="font-mono text-endfield-yellow font-bold text-xl">04</span>
-                        <p className="text-sm text-zinc-700 dark:text-zinc-300">强大的可视化统计分析</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 引导按钮 */}
-                  <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                    <button
-                      onClick={() => setActiveTab('simulator')}
-                      className="flex items-center justify-center gap-2 px-8 py-3 bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] hover:shadow-lg min-w-[200px]"
-                    >
-                      <Sparkles size={18} />
-                      <span>体验模拟器</span>
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab('home')}
-                      className="flex items-center justify-center gap-2 px-8 py-3 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] min-w-[200px]"
-                    >
-                      <Star size={18} />
-                      <span>返回首页</span>
-                    </button>
-                  </div>
-
-                  {/* 预计完成时间 */}
-                  <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800 text-center">
-                    <span className="inline-block px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-s font-mono uppercase">
-                      预计完成时间：公测前
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 原有内容暂时隐藏 */}
-            {false && activeTab === 'dashboard' && (
-              <div className="animate-fade-in">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* 左列：保底机制分析 */}
-            <div className="md:col-span-1 space-y-6">
-              <DashboardView currentPool={currentPool} stats={stats} effectivePity={effectivePity} />
-              
-              {/* 平均出货消耗 */}
-              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6">
-                <h3 className="text-slate-700 dark:text-zinc-300 font-bold mb-4">平均出货消耗</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-none border border-indigo-100 dark:border-yellow-800/50">
-                    <span className="text-yellow-700 dark:text-yellow-300 font-medium">综合6星</span>
-                    <div className="text-right">
-                       <span className="text-xl font-bold text-indigo-800 dark:text-yellow-300">{stats.avgPullCost[6]}</span>
-                       <span className="text-xs text-yellow-600 dark:text-endfield-yellow ml-1">抽/只</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-none border border-amber-100 dark:border-amber-800/50">
-                    <span className="text-amber-700 dark:text-amber-300 font-medium">5星</span>
-                    <div className="text-right">
-                       <span className="text-xl font-bold text-amber-800 dark:text-amber-300">{stats.avgPullCost[5]}</span>
-                       <span className="text-xs text-amber-600 dark:text-amber-400 ml-1">抽/只</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 中右列：图表与详细数据 */}
-            <div className="md:col-span-2 space-y-6">
-              
-              {/* 总抽数概览 */}
-              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between">
-                <div>
-                  <h3 className="text-slate-500 dark:text-zinc-500 font-bold text-sm uppercase tracking-wider">当前卡池总投入</h3>
-                  <div className="text-4xl font-black text-slate-800 dark:text-zinc-100 mt-1 flex items-baseline gap-2">
-                    {stats.total}
-                    <span className="text-lg font-medium text-slate-400 dark:text-zinc-500">抽</span>
-                  </div>
-                </div>
-                <div className="h-12 w-12 bg-yellow-50 dark:bg-yellow-900/20 rounded-sm flex items-center justify-center text-indigo-500">
-                  <Layers size={24} />
-                </div>
-              </div>
-
-              {/* 核心数据概览 */}
-              <div className={`grid grid-cols-2 ${currentPool.type !== 'standard' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
-                 {currentPool.type !== 'standard' && (
-                   <StatBox 
-                     title="限定6星" 
-                     value={stats.counts[6]} 
-                     subValue={(() => {
-                        let bonusCount = 0;
-                        if (currentPool.type === 'limited') {
-                           bonusCount = Math.floor(stats.total/240);
-                        } else if (currentPool.type === 'weapon') {
-                           if (stats.total >= 180) {
-                             bonusCount++;
-                             const extraPulls = stats.total - 180;
-                             const extraCycles = Math.floor(extraPulls / 80);
-                             bonusCount += Math.floor(extraCycles / 2);
-                           }
-                        }
-                        return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占6星 ${(stats.winRate)}%`;
-                     })()}
-                     colorClass="rainbow-bg"
-                     icon={Star}
-                     isAnimated={true}
-                   />
-                 )}
-                 <StatBox 
-                   title="常驻6星" 
-                   value={stats.counts['6_std']} 
-                   subValue={
-                     currentPool.type !== 'standard' 
-                       ? "歪了" 
-                       : (currentPool.type === 'standard' && stats.total >= 300 ? "含赠送 1" : "总数")
-                   } 
-                   colorClass="bg-red-500" 
-                   icon={Star} 
-                 />
-                 <StatBox title="5星总数" value={stats.counts[5]} subValue={`占比 ${(stats.total > 0 ? stats.counts[5]/stats.total*100 : 0).toFixed(2)}%`} colorClass="bg-amber-400" icon={Star} />
-                 <StatBox title="4星总数" value={stats.counts[4]} subValue={`占比 ${(stats.total > 0 ? stats.counts[4]/stats.total*100 : 0).toFixed(2)}%`} colorClass="bg-purple-500" icon={Star} />
-              </div>
-
-              {/* 饼图 */}
-              <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 min-h-[400px] flex flex-col">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="text-slate-700 dark:text-zinc-300 font-bold">概率分布概览</h3>
-                  <span className="text-xs text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950 px-2 py-1 rounded">仅显示当前卡池</span>
-                </div>
-                <div className="flex-1 w-full h-full relative">
-                  {stats.total === 0 ? (
-                    <div className="absolute inset-0 flex items-center justify-center text-slate-300">
-                      暂无数据，请在上方录入
-                    </div>
+            {/* 非管理员提示 */}
+            {!canEdit && (
+              <div className="mb-8 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none p-6 text-center">
+                <Shield size={40} className="mx-auto text-slate-300 mb-3" />
+                <h3 className="font-bold text-slate-600 dark:text-zinc-400 mb-2">数据录入仅限管理员</h3>
+                <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
+                  {user ? (
+                    applicationStatus === 'pending'
+                      ? '您的管理员申请正在审核中，请耐心等待。'
+                      : '如需录入数据，请点击右上角申请成为管理员。'
                   ) : (
-                    <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
-                        <RainbowGradientDefs />
-                        <Pie
-                          data={stats.chartData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={80}
-                          outerRadius={120}
-                          paddingAngle={2}
-                          dataKey="displayValue"
-                        >
-                          {stats.chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip
-                          formatter={(value, name, props) => {
-                            const originalValue = props.payload.value;
-                            return [
-                              `${originalValue}个 (${(originalValue/stats.total*100).toFixed(1)}%)`,
-                              name
-                            ];
-                          }}
-                          contentStyle={{
-                            backgroundColor: isDark ? '#18181b' : '#ffffff',
-                            borderRadius: '0px',
-                            border: isDark ? '1px solid #3f3f46' : '1px solid #e4e4e7',
-                            boxShadow: isDark ? '0 4px 6px -1px rgb(0 0 0 / 0.3)' : '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                          }}
-                          itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
-                          labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
-                        />
-                        <Legend
-                          verticalAlign="bottom"
-                          height={36}
-                          wrapperStyle={{
-                            color: isDark ? '#a1a1aa' : '#71717a',
-                            fontSize: '12px'
-                          }}
-                          formatter={(value, entry) => {
-                            const item = stats.chartData.find(d => d.name === value);
-                            return `${value} (${item?.value || 0})`;
-                          }}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    '请先登录，然后申请成为管理员。'
                   )}
-                </div>
+                </p>
+                {!user && (
+                  <button
+                    onClick={openAuthModal}
+                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-4 py-2 rounded-none text-sm transition-colors"
+                  >
+                    登录
+                  </button>
+                )}
               </div>
-            </div>
-          </div>
+            )}
 
-          {/* 详细日志 - 默认折叠 */}
-          <div className="mt-6">
-            <details className="group">
-              <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-                <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                  <History size={18} /> 详细日志
-                </span>
-                <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
-              </summary>
-              <div className="mt-2">
-                <RecordsView
-                  filteredGroupedHistory={filteredGroupedHistory}
+            {/* 卡池锁定提示 - 管理员但卡池被锁定 */}
+            {canEdit && !canEditCurrentPool && (
+              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-none p-6 text-center">
+                <Lock size={40} className="mx-auto text-amber-400 mb-3" />
+                <h3 className="font-bold text-amber-700 mb-2">此卡池已被锁定</h3>
+                <p className="text-sm text-amber-600">
+                  卡池「{currentPool?.name}」已被超级管理员锁定，暂时无法编辑。
+                  <br/>如需修改，请联系超级管理员解锁。
+                </p>
+              </div>
+            )}
+
+            {activeTab === 'dashboard' && (
+              <div className="animate-fade-in">
+                <DashboardView
                   currentPool={currentPool}
-                  canEditCurrentPool={canEditCurrentPool}
-                  onEdit={setEditItemState}
-                  onDeleteGroup={handleDeleteGroup}
-                  onImportFile={handleImportFile}
-                  onExportJSON={handleExportJSON}
-                  onExportCSV={handleExportCSV}
+                  stats={stats}
+                  effectivePity={effectivePity}
+                  onOpenEditPoolModal={openEditPoolModal}
+                  onOpenDeletePoolModal={openDeletePoolModal}
+                  onTogglePoolLock={togglePoolLock}
                 />
-              </div>
-            </details>
-          </div>
 
-          {/* 编辑弹窗 */}
-          {editItemState && (
-            <EditItemModal
-              item={editItemState}
-              poolType={currentPool.type}
-              onClose={() => setEditItemState(null)}
-              onUpdate={handleUpdateItem}
-              onDelete={handleDeleteItem}
-            />
-          )}
-        </div>
-        )}
+                {/* 详细日志 - 默认折叠 */}
+                <div className="mt-6">
+                  <details className="group">
+                    <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+                      <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                        <History size={18} /> 详细日志
+                      </span>
+                      <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="mt-2">
+                      <RecordsView
+                        filteredGroupedHistory={filteredGroupedHistory}
+                        currentPool={currentPool}
+                        canEditCurrentPool={canEditCurrentPool}
+                        onEdit={setEditItemState}
+                        onDeleteGroup={handleDeleteGroup}
+                        onImportFile={handleImportFile}
+                        onExportJSON={handleExportJSON}
+                        onExportCSV={handleExportCSV}
+                      />
+                    </div>
+                  </details>
+                </div>
+
+                {/* 编辑弹窗 */}
+                {editItemState && (
+                  <EditItemModal
+                    item={editItemState}
+                    poolType={currentPool.type}
+                    onClose={() => setEditItemState(null)}
+                    onUpdate={handleUpdateItem}
+                    onDelete={handleDeleteItem}
+                  />
+                )}
+              </div>
+            )}
         </>
       )}
       </main>
@@ -3100,7 +2610,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">确定删除卡池？</h3>
                <p className="text-sm text-slate-500 dark:text-zinc-500">
                  您正在删除卡池 <span className="font-bold text-slate-700 dark:text-zinc-300">「{modalState.data?.name}」</span>
-                 <br/>及其所有 <span className="text-red-500 font-bold">{history.filter(h => h.poolId === modalState.data?.id).length}</span> 条抽卡记录。
+                 <br/>及其所有 <span className="text-red-500 font-bold">{(history || []).filter(h => h.poolId === modalState.data?.id).length}</span> 条抽卡记录。
                  <br/>此操作<span className="text-red-500 font-bold">无法撤销</span>。
                </p>
              </div>
@@ -3234,7 +2744,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">同步本地数据到云端？</h3>
               <p className="text-sm text-slate-500 dark:text-zinc-500">
-                检测到您有 <span className="font-bold text-slate-700 dark:text-zinc-300">{history.length}</span> 条本地记录。
+                检测到您有 <span className="font-bold text-slate-700 dark:text-zinc-300">{(history || []).length}</span> 条本地记录。
                 <br/>是否将这些数据同步到云端？
               </p>
               {syncing && (

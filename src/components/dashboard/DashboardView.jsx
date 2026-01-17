@@ -4,6 +4,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
 import { useHistoryStore, usePoolStore } from '../../stores';
+import PoolSelector from '../pool/PoolSelector';
 
 /**
  * 卡池时间信息组件
@@ -80,7 +81,14 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
  * 仪表盘视图组件
  * 显示卡池统计分析、保底信息、图表等
  */
-const DashboardView = ({ currentPool, stats, effectivePity }) => {
+const DashboardView = ({
+  currentPool,
+  stats,
+  effectivePity,
+  onOpenEditPoolModal,
+  onOpenDeletePoolModal,
+  onTogglePoolLock
+}) => {
   // 从 store 获取历史数据
   const history = useHistoryStore(state => state.history);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -163,7 +171,7 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
 
-  const maxPity = isWeapon ? 40 : 90;
+  const maxPity = isWeapon ? 40 : 80;
   const textColor = isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow';
   const progressColor = isLimited ? 'rainbow-progress' : isWeapon ? 'bg-slate-600' : 'bg-yellow-500';
 
@@ -198,7 +206,18 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-6">
+      {/* 卡池选择器区域 */}
+      <div className="bg-white dark:bg-zinc-900 rounded-none p-4 border border-zinc-200 dark:border-zinc-800">
+        <PoolSelector
+          onOpenEditPoolModal={onOpenEditPoolModal}
+          onOpenDeletePoolModal={onOpenDeletePoolModal}
+          onTogglePoolLock={onTogglePoolLock}
+        />
+      </div>
+
+      {/* 原有的统计面板布局 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {/* 左列：保底机制分析 */}
       <div className="md:col-span-1 space-y-6">
         {/* 保底机制分析卡片 */}
@@ -754,7 +773,8 @@ const DashboardView = ({ currentPool, stats, effectivePity }) => {
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default DashboardView;
