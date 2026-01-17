@@ -77,6 +77,108 @@ export function clearAllSimulatorStates() {
 }
 
 /**
+ * 将模拟器历史记录转换为可导入格式
+ * @param {Array} pullHistory - 模拟器的抽卡历史
+ * @param {string} poolId - 模拟池ID
+ * @returns {Array} 可导入的记录列表
+ */
+export function convertSimulatorHistoryToImportFormat(pullHistory, poolId) {
+  if (!pullHistory || pullHistory.length === 0) {
+    return [];
+  }
+
+  return pullHistory.map(record => ({
+    timestamp: record.timestamp || Date.now(),
+    name: record.characterName || record.name || `${record.rarity}星角色`,
+    pool: poolId,  // 使用模拟池ID
+    rarity: record.rarity,
+    // 可选字段（导入系统会自动处理）
+    character_name: record.characterName || record.name,
+    character_id: record.characterId,
+    item_name: record.itemName
+  }));
+}
+
+/**
+ * 导出模拟器数据为JSON格式（可导入）
+ * @param {Array} pullHistory - 模拟器的抽卡历史
+ * @param {string} poolId - 模拟池ID
+ * @returns {string} JSON字符串
+ */
+export function exportSimulatorDataAsJSON(pullHistory, poolId) {
+  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId);
+  return JSON.stringify(importData, null, 2);
+}
+
+/**
+ * 导出模拟器数据为CSV格式（可导入）
+ * @param {Array} pullHistory - 模拟器的抽卡历史
+ * @param {string} poolId - 模拟池ID
+ * @returns {string} CSV字符串
+ */
+export function exportSimulatorDataAsCSV(pullHistory, poolId) {
+  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId);
+
+  if (importData.length === 0) {
+    return 'timestamp,name,pool,rarity\n';
+  }
+
+  // CSV 表头
+  const headers = ['timestamp', 'name', 'pool', 'rarity'];
+  let csv = headers.join(',') + '\n';
+
+  // CSV 数据行
+  importData.forEach(record => {
+    const row = headers.map(header => {
+      const value = record[header];
+      // 处理包含逗号的字段，用双引号包裹
+      if (typeof value === 'string' && value.includes(',')) {
+        return `"${value}"`;
+      }
+      return value;
+    });
+    csv += row.join(',') + '\n';
+  });
+
+  return csv;
+}
+
+/**
+ * 下载模拟器数据（JSON或CSV格式）
+ * @param {Array} pullHistory - 模拟器的抽卡历史
+ * @param {string} poolId - 模拟池ID
+ * @param {string} poolName - 卡池名称
+ * @param {string} format - 格式（'json' 或 'csv'）
+ */
+export function downloadSimulatorData(pullHistory, poolId, poolName, format = 'json') {
+  let content, mimeType, extension;
+
+  if (format === 'csv') {
+    content = exportSimulatorDataAsCSV(pullHistory, poolId);
+    mimeType = 'text/csv;charset=utf-8;';
+    extension = 'csv';
+  } else {
+    content = exportSimulatorDataAsJSON(pullHistory, poolId);
+    mimeType = 'application/json';
+    extension = 'json';
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+  const sanitizedPoolName = poolName.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
+  const filename = `终末地模拟器_${sanitizedPoolName}_${timestamp}.${extension}`;
+
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
  * 导出模拟器分析报告为JSON
  * @param {Object} stats - 统计数据
  * @param {Object} pityInfo - 保底信息
@@ -224,6 +326,10 @@ export default {
   loadSimulatorState,
   clearSimulatorState,
   clearAllSimulatorStates,
+  convertSimulatorHistoryToImportFormat,
+  exportSimulatorDataAsJSON,
+  exportSimulatorDataAsCSV,
+  downloadSimulatorData,
   exportAnalysisReport,
   downloadJSON,
   downloadAnalysisReport,

@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { RefreshCw, Layers, Search, History, Star, Download, Share2, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, Layers, Search, History, Star, Download, Share2, ChevronDown, Zap } from 'lucide-react';
 import { createSimulator } from '../../utils/gachaSimulator';
 import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';
 import PullAnimation from './PullAnimation';
 import LimitedPoolAnalysis from './LimitedPoolAnalysis'; // 新增：限定池分析组件
 import CharacterStats from './CharacterStats'; // 新增：角色统计组件
+import PoolSelector from '../../components/pool/PoolSelector'; // 新增：卡池选择器
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
+import { calculateCurrentProbability } from '../../utils/validators';
+import { usePoolStore } from '../../stores'; // 新增：获取真实卡池列表
 import {
   saveSimulatorState,
   loadSimulatorState,
   clearSimulatorState,
   downloadAnalysisReport,
+  downloadSimulatorData,
   generateShareText,
   copyToClipboard
 } from '../../utils/simulatorStorage';
@@ -23,7 +27,31 @@ const POOL_NAMES = {
 };
 
 const GachaSimulator = () => {
-  const [currentPoolType, setCurrentPoolType] = useState('limited');
+  // 从 store 获取真实卡池列表
+  const realPools = usePoolStore(state => state.pools);
+
+  // 创建模拟池列表（为每个真实卡池添加 [模拟] 标识）
+  const simulatorPools = useMemo(() => {
+    return realPools.map(pool => ({
+      ...pool,
+      id: `sim_${pool.id}`,  // 模拟池ID前缀
+      name: `${pool.name} [模拟]`,  // 名称添加标识
+      isSimulator: true  // 标记为模拟池
+    }));
+  }, [realPools]);
+
+  // 当前选中的模拟池ID
+  const [currentSimPoolId, setCurrentSimPoolId] = useState(() => {
+    const firstPool = simulatorPools[0];
+    return firstPool ? firstPool.id : null;
+  });
+
+  // 获取当前模拟池对象
+  const currentSimPool = simulatorPools.find(p => p.id === currentSimPoolId);
+  const currentPoolType = currentSimPool?.type || 'limited';
+
+  const [skipAnimation, setSkipAnimation] = useState(false); // 跳过动画选项
+  const [showPoolMenu, setShowPoolMenu] = useState(false); // 卡池菜单显示状态
 
   // 限定卡池选择（默认最新的卡池）
   const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => {
@@ -102,6 +130,9 @@ const GachaSimulator = () => {
     setIsAnimating(true);
     setLastResults(null); // Clear previous results immediately
 
+    // 根据是否跳过动画决定延迟时间
+    const animationDelay = skipAnimation ? 0 : 2500;
+
     // 模拟网络延迟/动画时间
     setTimeout(() => {
       let results;
@@ -120,7 +151,7 @@ const GachaSimulator = () => {
 
       setLastResults(results);
       setIsAnimating(false);
-    }, 2500); // 2.5s 动画时间
+    }, animationDelay); // 可跳过的动画时间
   };
 
   const handleReset = () => {
@@ -132,26 +163,31 @@ const GachaSimulator = () => {
     }
   };
 
-  const switchPool = (type) => {
-    if (simulator.poolType === type) return;
+  const switchPool = (poolId) => {
+    if (currentSimPoolId === poolId) return;
+
+    // 找到目标模拟池
+    const targetPool = simulatorPools.find(p => p.id === poolId);
+    if (!targetPool) return;
 
     // 保存当前卡池状态
-    saveSimulatorState(currentPoolType, simulator.exportState());
+    saveSimulatorState(currentSimPoolId, simulator.exportState());
 
     // 加载新卡池状态
-    const savedState = loadSimulatorState(type);
+    const savedState = loadSimulatorState(poolId);
     // 如果是限定池，传入当前选中的UP角色
-    const upChar = type === 'limited' ? selectedLimitedPool : null;
-    const newSim = createSimulator(type, null, upChar);
+    const upChar = targetPool.type === 'limited' ? selectedLimitedPool : null;
+    const newSim = createSimulator(targetPool.type, null, upChar);
     if (savedState) {
       newSim.importState(savedState);
     }
 
-    setCurrentPoolType(type);
+    setCurrentSimPoolId(poolId);
     setSimulator(newSim);
     setLastResults(null);
     setStats(newSim.getStatistics());
     setPityInfo(newSim.getPityInfo());
+    setShowPoolMenu(false); // 关闭菜单
   };
 
   // 切换限定卡池（只在限定池生效）
@@ -175,6 +211,13 @@ const GachaSimulator = () => {
   const handleExportReport = () => {
     downloadAnalysisReport(stats, pityInfo, currentPoolType);
     showToastMessage('分析报告已导出');
+  };
+
+  // 导出可导入数据
+  const handleExportData = (format) => {
+    const poolName = currentSimPool?.name || '模拟池';
+    downloadSimulatorData(simulator.getState().pullHistory, currentSimPoolId, poolName, format);
+    showToastMessage(`已导出${format.toUpperCase()}格式数据`);
   };
 
   // 分享功能
@@ -343,12 +386,7 @@ const GachaSimulator = () => {
             }));
           })()
       },
-      probabilityInfo: {
-        hasSoftPity: simulator.rules.hasSoftPity !== false,
-        isInSoftPity: pityInfo.sixStar.current >= (simulator.rules.sixStarSoftPityStart || 65),
-        probability: stats.sixStarRate, // Adding probability for DashboardView
-        pullsUntilSoftPity: Math.max(0, (simulator.rules.sixStarSoftPityStart || 65) - pityInfo.sixStar.current)
-      },
+      probabilityInfo: calculateCurrentProbability(pityInfo.sixStar.current, simulator.poolType),
       // 情报书信息（仅限定池）
       hasInfoBook: stats.hasReceivedInfoBook,
       pullsUntilInfoBook: simulator.poolType === 'limited' && !stats.hasReceivedInfoBook
@@ -359,6 +397,34 @@ const GachaSimulator = () => {
       // 240抽赠送信息
       gifts: stats.gifts
   };
+
+  // 计算120抽必出限定机制（仅限定池）
+  const pityInfoWithGuarantee = simulator.poolType === 'limited' ? (() => {
+    // 检测前120抽内是否已经获得了限定6星
+    let cumulativePulls = 0;
+    let hasReceivedLimitedInFirst120 = false;
+
+    // 遍历所有抽取记录（包括免费十连）
+    for (const item of stats.sixStarHistory) {
+      cumulativePulls += (item.pityWhenPulled || 1);
+
+      // 如果在120抽内获得了限定6星（isUp为true），触发机制
+      if (cumulativePulls <= 120 && item.isUp) {
+        hasReceivedLimitedInFirst120 = true;
+        break;
+      }
+
+      // 如果累计抽数超过120，停止检测
+      if (cumulativePulls > 120) break;
+    }
+
+    return {
+      guaranteedUp: {
+        current: Math.min(stats.totalPulls, 120),
+        hasReceived: hasReceivedLimitedInFirst120
+      }
+    };
+  })() : {};
 
   // Construct currentPool object for DashboardView
   const currentPoolObj = {
@@ -379,60 +445,161 @@ const GachaSimulator = () => {
       {/* 顶部工具栏 */}
       <div className="flex flex-wrap items-center justify-between mb-6 px-2 gap-4">
         <div className="flex items-center gap-4">
-          <div className="flex bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none p-1">
-            {['limited', 'weapon', 'standard'].map(type => (
-              <button
-                key={type}
-                onClick={() => switchPool(type)}
-                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
-                  simulator.poolType === type 
-                    ? 'bg-endfield-yellow text-black' 
-                    : 'text-slate-500 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'
-                }`}
-              >
-                {POOL_NAMES[type]}
-              </button>
-            ))}
-          </div>
+          {/* 模拟器卡池选择器（简化版，不需要编辑/删除功能） */}
+          <div className="relative">
+            <button
+              onClick={() => setShowPoolMenu(!showPoolMenu)}
+              className="flex items-center gap-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 px-3 py-1.5 rounded-none text-sm font-medium text-slate-700 dark:text-zinc-300 transition-colors"
+            >
+              <Layers size={16} />
+              <span className="max-w-[150px] sm:max-w-[250px] truncate">
+                {currentSimPool?.name || '选择模拟卡池'}
+              </span>
+              <ChevronDown size={14} className={`transition-transform ${showPoolMenu ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* 限定池UP角色选择 */}
-          {simulator.poolType === 'limited' && (
-            <div className="relative">
-              <select
-                value={selectedLimitedPool}
-                onChange={(e) => switchLimitedPool(e.target.value)}
-                className="px-3 py-1.5 text-xs font-bold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:border-endfield-yellow transition-colors cursor-pointer appearance-none pr-8"
-              >
-                {LIMITED_POOL_SCHEDULE.map(pool => (
-                  <option key={pool.name} value={pool.name}>
-                    {pool.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
-            </div>
-          )}
+            {/* 卡池选择菜单 */}
+            {showPoolMenu && (
+              <>
+                {/* 背景遮罩 */}
+                <div className="fixed inset-0 z-10" onClick={() => setShowPoolMenu(false)}></div>
 
-          {/* 武器池限定开关 */}
-          {simulator.poolType === 'weapon' && (
-             <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input 
-                  type="checkbox" 
-                  checked={isLimitedWeapon}
-                  onChange={(e) => setIsLimitedWeapon(e.target.checked)}
-                  className="hidden"
-                />
-                <div className={`w-8 h-4 rounded-full relative transition-colors ${isLimitedWeapon ? 'bg-orange-500' : 'bg-slate-300 dark:bg-zinc-700'}`}>
-                    <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${isLimitedWeapon ? 'translate-x-4' : ''}`} />
+                {/* 下拉菜单 */}
+                <div className="absolute left-0 top-full mt-2 w-80 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 animate-fade-in overflow-hidden">
+                  {/* 卡池列表 - 按类型分组 */}
+                  <div className="max-h-80 overflow-y-auto">
+                    {simulatorPools.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-400 dark:text-zinc-500">
+                  暂无卡池，请先在卡池详情中创建卡池
                 </div>
-                <span className="text-xs font-bold text-slate-600 dark:text-zinc-400">
-                    {isLimitedWeapon ? '限定武器' : '常驻武器'}
-                </span>
-             </label>
-          )}
+              ) : (
+                // 按类型分组显示（和 PoolSelector 完全一致的逻辑）
+                (() => {
+                  // 统一类型映射后分组
+                  const groups = {
+                    limited: { label: '限定角色池', icon: <Star size={12} className="text-orange-500" />, pools: [] },
+                    weapon: { label: '限定武器池', icon: <Layers size={12} className="text-slate-500" />, pools: [] },
+                    standard: { label: '常驻池', icon: <Layers size={12} className="text-yellow-600" />, pools: [] }
+                  };
+
+                  simulatorPools.forEach(pool => {
+                    let type = pool.type || 'standard';
+
+                    // 统一类型映射：将新格式映射到分组键
+                    if (type === 'limited_character' || type === 'limited') {
+                      type = 'limited';
+                    } else if (type === 'limited_weapon' || type === 'weapon') {
+                      type = 'weapon';
+                    } else {
+                      type = 'standard';
+                    }
+
+                    if (groups[type]) {
+                      groups[type].pools.push(pool);
+                    } else {
+                      groups.standard.pools.push(pool);
+                    }
+                  });
+
+                  // 转换为数组并过滤空分组
+                  return ['limited', 'weapon', 'standard']
+                    .map(type => ({ type, ...groups[type] }))
+                    .filter(group => group.pools.length > 0)
+                    .map(group => (
+                      <div key={group.type}>
+                        {/* 类型分组标题 */}
+                        <div className="px-3 py-1.5 text-xs font-semibold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-800/50 sticky top-0 flex items-center gap-2">
+                          {group.icon}
+                          {group.label}
+                          <span className="text-slate-300 dark:text-zinc-600">({group.pools.length})</span>
+                        </div>
+
+                        {/* 该类型的卡池列表 */}
+                        {group.pools.map(pool => {
+                          const isSelected = currentSimPoolId === pool.id;
+                          return (
+                            <div
+                              key={pool.id}
+                              className={`w-full hover:bg-slate-50 dark:hover:bg-zinc-800 ${isSelected ? 'bg-yellow-50 dark:bg-yellow-900/20' : ''}`}
+                            >
+                              <button
+                                onClick={() => switchPool(pool.id)}
+                                className="w-full text-left"
+                                title={pool.name}
+                              >
+                                {/* Banner 图片（如果存在）*/}
+                                {pool.banner_url && (
+                                  <div className="relative w-full h-16 overflow-hidden">
+                                    <img
+                                      src={pool.banner_url}
+                                      alt={pool.name}
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        // 图片加载失败时隐藏
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                    {/* 渐变遮罩，让文字更清晰 */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                                  </div>
+                                )}
+
+                                {/* 卡池信息区域 */}
+                                <div className="px-3 py-2 flex items-center justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    {/* 卡池名称 */}
+                                    <div className={`flex items-center gap-2 text-sm ${isSelected ? 'text-yellow-600 dark:text-endfield-yellow font-bold' : 'text-slate-600 dark:text-zinc-400'}`}>
+                                      <span className="truncate">{pool.name}</span>
+                                    </div>
+
+                                    {/* UP 角色信息（如果存在）*/}
+                                    {pool.up_character && (
+                                      <div className="flex items-center gap-1.5 mt-1">
+                                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center shrink-0">
+                                          <Star size={10} className="text-white" fill="white" />
+                                        </div>
+                                        <span className="text-xs text-slate-500 dark:text-zinc-500 truncate">
+                                          UP: {pool.up_character}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* 右侧：选中标记 */}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {isSelected && <div className="w-1.5 h-1.5 rounded-sm bg-endfield-yellow"></div>}
+                                  </div>
+                                </div>
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ));
+                })()
+              )}
+                  </div>
+            </div>
+              </>
+            )}
+          </div>
         </div>
-        
+
         <div className="flex items-center gap-4 ml-auto">
+          {/* 跳过动画复选框 */}
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={skipAnimation}
+              onChange={(e) => setSkipAnimation(e.target.checked)}
+              className="w-4 h-4 text-endfield-yellow bg-gray-100 border-gray-300 rounded focus:ring-endfield-yellow focus:ring-2"
+            />
+            <Zap size={14} className="text-slate-500 dark:text-zinc-500" />
+            <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
+              跳过动画
+            </span>
+          </label>
+
           <button
             onClick={handleShare}
             className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
@@ -441,14 +608,41 @@ const GachaSimulator = () => {
             <Share2 size={14} />
             <span className="hidden sm:inline">分享</span>
           </button>
-          <button
-            onClick={handleExportReport}
-            className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
-            title="导出分析报告"
-          >
-            <Download size={14} />
-            <span className="hidden sm:inline">导出</span>
-          </button>
+
+          {/* 导出按钮 - 支持多种格式 */}
+          <div className="relative group">
+            <button
+              className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+              title="导出数据"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">导出</span>
+              <ChevronDown size={12} />
+            </button>
+
+            {/* 导出格式下拉菜单 */}
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <button
+                onClick={() => handleExportData('json')}
+                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                导出为 JSON（可导入）
+              </button>
+              <button
+                onClick={() => handleExportData('csv')}
+                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+              >
+                导出为 CSV（可导入）
+              </button>
+              <button
+                onClick={handleExportReport}
+                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+              >
+                导出统计报告
+              </button>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">SYSTEM ONLINE</span>
@@ -472,7 +666,7 @@ const GachaSimulator = () => {
               currentPool={currentPoolObj}
               stats={dashboardStats}
               effectivePity={effectivePityObj}
-              pityInfo={pityInfo}
+              pityInfo={pityInfoWithGuarantee}
            />
         </div>
 
