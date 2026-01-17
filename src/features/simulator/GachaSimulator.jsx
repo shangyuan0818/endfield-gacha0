@@ -216,7 +216,7 @@ const GachaSimulator = () => {
   // 导出可导入数据
   const handleExportData = (format) => {
     const poolName = currentSimPool?.name || '模拟池';
-    downloadSimulatorData(simulator.getState().pullHistory, currentSimPoolId, poolName, format);
+    downloadSimulatorData(simulator.getState().pullHistory, currentSimPoolId, poolName, currentPoolType, format);
     showToastMessage(`已导出${format.toUpperCase()}格式数据`);
   };
 

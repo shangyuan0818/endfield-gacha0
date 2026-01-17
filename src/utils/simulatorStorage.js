@@ -79,23 +79,29 @@ export function clearAllSimulatorStates() {
 /**
  * 将模拟器历史记录转换为可导入格式
  * @param {Array} pullHistory - 模拟器的抽卡历史
- * @param {string} poolId - 模拟池ID
+ * @param {string} poolId - 模拟池ID（sim_xxx格式）
+ * @param {string} poolType - 卡池类型（limited/weapon/standard）
  * @returns {Array} 可导入的记录列表
  */
-export function convertSimulatorHistoryToImportFormat(pullHistory, poolId) {
+export function convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolType) {
   if (!pullHistory || pullHistory.length === 0) {
     return [];
   }
 
+  // 将卡池类型转换为导入系统需要的格式
+  const poolTypeMap = {
+    'limited': 'limited_character',
+    'weapon': 'limited_weapon',
+    'standard': 'standard'
+  };
+  const importPoolType = poolTypeMap[poolType] || 'limited_character';
+
   return pullHistory.map(record => ({
-    timestamp: record.timestamp || Date.now(),
+    pool: importPoolType,  // 使用标准卡池类型而非模拟池ID
     name: record.characterName || record.name || `${record.rarity}星角色`,
-    pool: poolId,  // 使用模拟池ID
     rarity: record.rarity,
-    // 可选字段（导入系统会自动处理）
-    character_name: record.characterName || record.name,
-    character_id: record.characterId,
-    item_name: record.itemName
+    timestamp: record.timestamp || Date.now(),
+    isLimited: record.isUp || false  // 是否为限定角色（UP角色视为限定）
   }));
 }
 
@@ -103,10 +109,11 @@ export function convertSimulatorHistoryToImportFormat(pullHistory, poolId) {
  * 导出模拟器数据为JSON格式（可导入）
  * @param {Array} pullHistory - 模拟器的抽卡历史
  * @param {string} poolId - 模拟池ID
+ * @param {string} poolType - 卡池类型（limited/weapon/standard）
  * @returns {string} JSON字符串
  */
-export function exportSimulatorDataAsJSON(pullHistory, poolId) {
-  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId);
+export function exportSimulatorDataAsJSON(pullHistory, poolId, poolType) {
+  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolType);
   return JSON.stringify(importData, null, 2);
 }
 
@@ -114,17 +121,18 @@ export function exportSimulatorDataAsJSON(pullHistory, poolId) {
  * 导出模拟器数据为CSV格式（可导入）
  * @param {Array} pullHistory - 模拟器的抽卡历史
  * @param {string} poolId - 模拟池ID
+ * @param {string} poolType - 卡池类型（limited/weapon/standard）
  * @returns {string} CSV字符串
  */
-export function exportSimulatorDataAsCSV(pullHistory, poolId) {
-  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId);
+export function exportSimulatorDataAsCSV(pullHistory, poolId, poolType) {
+  const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolType);
 
   if (importData.length === 0) {
-    return 'timestamp,name,pool,rarity\n';
+    return 'pool,name,rarity,timestamp,isLimited\n';
   }
 
   // CSV 表头
-  const headers = ['timestamp', 'name', 'pool', 'rarity'];
+  const headers = ['pool', 'name', 'rarity', 'timestamp', 'isLimited'];
   let csv = headers.join(',') + '\n';
 
   // CSV 数据行
@@ -148,17 +156,18 @@ export function exportSimulatorDataAsCSV(pullHistory, poolId) {
  * @param {Array} pullHistory - 模拟器的抽卡历史
  * @param {string} poolId - 模拟池ID
  * @param {string} poolName - 卡池名称
+ * @param {string} poolType - 卡池类型（limited/weapon/standard）
  * @param {string} format - 格式（'json' 或 'csv'）
  */
-export function downloadSimulatorData(pullHistory, poolId, poolName, format = 'json') {
+export function downloadSimulatorData(pullHistory, poolId, poolName, poolType, format = 'json') {
   let content, mimeType, extension;
 
   if (format === 'csv') {
-    content = exportSimulatorDataAsCSV(pullHistory, poolId);
+    content = exportSimulatorDataAsCSV(pullHistory, poolId, poolType);
     mimeType = 'text/csv;charset=utf-8;';
     extension = 'csv';
   } else {
-    content = exportSimulatorDataAsJSON(pullHistory, poolId);
+    content = exportSimulatorDataAsJSON(pullHistory, poolId, poolType);
     mimeType = 'application/json';
     extension = 'json';
   }
