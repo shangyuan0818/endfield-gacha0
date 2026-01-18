@@ -7,6 +7,7 @@ import PullAnimation from './PullAnimation';
 import LimitedPoolAnalysis from './LimitedPoolAnalysis'; // 新增：限定池分析组件
 import CharacterStats from './CharacterStats'; // 新增：角色统计组件
 import PoolSelector from '../../components/pool/PoolSelector'; // 新增：卡池选择器
+import ConfirmDialog from '../../components/ui/ConfirmDialog'; // 新增：确认对话框
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
 import { calculateCurrentProbability } from '../../utils/validators';
 import { usePoolStore } from '../../stores'; // 新增：获取真实卡池列表
@@ -80,6 +81,7 @@ const GachaSimulator = () => {
   const [pullHistory, setPullHistory] = useState([]);
   const [expandedTenPulls, setExpandedTenPulls] = useState(new Set()); // 记录展开的十连ID
   const [availableFreePulls, setAvailableFreePulls] = useState(0); // 可用的免费十连次数
+  const [showResetConfirm, setShowResetConfirm] = useState(false); // 重置确认对话框状态
 
   // 监听模拟器状态变化
   useEffect(() => {
@@ -155,12 +157,15 @@ const GachaSimulator = () => {
   };
 
   const handleReset = () => {
-    if (window.confirm('确定要重置模拟器状态吗？所有数据将被清空。')) {
-      simulator.reset();
-      setLastResults(null);
-      clearSimulatorState(currentPoolType);
-      showToastMessage('模拟器已重置');
-    }
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = () => {
+    simulator.reset();
+    setLastResults(null);
+    clearSimulatorState(currentPoolType);
+    showToastMessage('模拟器已重置');
+    setShowResetConfirm(false);
   };
 
   const switchPool = (poolId) => {
@@ -907,6 +912,18 @@ const GachaSimulator = () => {
           </div>
         </div>
       )}
+
+      {/* 重置确认对话框 */}
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        title="重置模拟器"
+        message="确定要重置模拟器状态吗？所有数据将被清空。"
+        confirmText="确认重置"
+        cancelText="取消"
+        onConfirm={confirmReset}
+        onCancel={() => setShowResetConfirm(false)}
+        type="danger"
+      />
 
       <style jsx>{`
         .scrollbar-thin::-webkit-scrollbar {
