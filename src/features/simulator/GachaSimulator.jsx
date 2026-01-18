@@ -175,11 +175,20 @@ const GachaSimulator = () => {
 
     // 加载新卡池状态
     const savedState = loadSimulatorState(poolId);
-    // 如果是限定池，传入当前选中的UP角色
-    const upChar = targetPool.type === 'limited' ? selectedLimitedPool : null;
+    // 如果是限定池，使用目标卡池的UP角色
+    const upChar = targetPool.type === 'limited' ? (targetPool.up_character || selectedLimitedPool) : null;
     const newSim = createSimulator(targetPool.type, null, upChar);
     if (savedState) {
       newSim.importState(savedState);
+      // 重要：importState 后需要重新设置 UP 角色
+      if (upChar) {
+        newSim.setCurrentUpCharacter(upChar);
+      }
+    }
+
+    // 更新选中的UP角色状态（如果是限定池）
+    if (targetPool.type === 'limited' && targetPool.up_character) {
+      setSelectedLimitedPool(targetPool.up_character);
     }
 
     setCurrentSimPoolId(poolId);
@@ -400,12 +409,17 @@ const GachaSimulator = () => {
 
   // 计算120抽必出限定机制（仅限定池）
   const pityInfoWithGuarantee = simulator.poolType === 'limited' ? (() => {
-    // 检测前120抽内是否已经获得了限定6星
+    // 检测前120抽内是否已经获得了限定6星（排除免费十连）
     let cumulativePulls = 0;
     let hasReceivedLimitedInFirst120 = false;
 
-    // 遍历所有抽取记录（包括免费十连）
+    // 遍历所有抽取记录，但排除免费十连
     for (const item of stats.sixStarHistory) {
+      // 跳过免费十连中的记录
+      if (item.isFreePull) {
+        continue;
+      }
+
       cumulativePulls += (item.pityWhenPulled || 1);
 
       // 如果在120抽内获得了限定6星（isUp为true），触发机制
@@ -429,7 +443,9 @@ const GachaSimulator = () => {
   // Construct currentPool object for DashboardView
   const currentPoolObj = {
       type: simulator.poolType,
-      isLimitedWeapon: isLimitedWeapon
+      isLimitedWeapon: isLimitedWeapon,
+      name: currentSimPool?.name || '未选择',
+      up_character: currentSimPool?.up_character
   };
 
   // Construct effectivePity object for DashboardView

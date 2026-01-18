@@ -104,8 +104,9 @@ export function getCharacterName(poolType, rarity, isUp = false, currentUpCharac
         }
         return currentUpCharacter;
       } else {
-        // 歪了，从常驻6星中随机选择
-        return randomChoice(LIMITED_OFF_BANNER_CHARACTERS[6]);
+        // 歪了，从所有6星中随机选择（排除当前UP角色）
+        const allSixStar = LIMITED_ALL_SIX_STAR.filter(char => char !== currentUpCharacter);
+        return randomChoice(allSixStar);
       }
     } else if (rarity === 5) {
       return randomChoice(LIMITED_FIVE_STAR_CHARACTERS);

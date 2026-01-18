@@ -146,8 +146,8 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
   // 判断是否出6星
   if (rollProbability(sixStarProb)) {
-    // 判断是否为UP角色
-    const isUp = rollUpCharacter(state.isGuaranteedUp, rules.upProbability);
+    // 判断是否为UP角色（每次都是50/50，没有大保底）
+    const isUp = rollProbability(rules.upProbability);
 
     // 获取当前UP角色名称
     const upChar = currentUpCharacter || getCurrentUpCharacter();
@@ -163,7 +163,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       characterName,
       sixStarPity: 0,              // 重置6星保底
       fiveStarPity: 0,              // 出6星时也重置5星保底
-      isGuaranteedUp: isUp ? state.isGuaranteedUp : true, // 如果歪了，下次保底
+      isGuaranteedUp: false,        // 没有大保底机制，保持false
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
@@ -183,7 +183,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       characterName,
       sixStarPity,
       fiveStarPity: 0,              // 重置5星保底
-      isGuaranteedUp: state.isGuaranteedUp,
+      isGuaranteedUp: false,         // 没有大保底机制
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount,
       fiveStarCount: state.fiveStarCount + 1,
@@ -202,7 +202,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
     characterName,
     sixStarPity,
     fiveStarPity,
-    isGuaranteedUp: state.isGuaranteedUp,
+    isGuaranteedUp: false,         // 没有大保底机制
     totalPulls: state.totalPulls + 1,
     sixStarCount: state.sixStarCount,
     fiveStarCount: state.fiveStarCount,

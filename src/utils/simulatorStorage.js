@@ -101,7 +101,8 @@ export function convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolT
     name: record.characterName || record.name || `${record.rarity}星角色`,
     rarity: record.rarity,
     timestamp: record.timestamp || Date.now(),
-    isLimited: record.isUp || false  // 是否为限定角色（UP角色视为限定）
+    isLimited: record.isUp || false,  // 是否为限定角色（UP角色视为限定）
+    isSimulated: true  // 标记为模拟器数据
   }));
 }
 
@@ -128,11 +129,11 @@ export function exportSimulatorDataAsCSV(pullHistory, poolId, poolType) {
   const importData = convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolType);
 
   if (importData.length === 0) {
-    return 'pool,name,rarity,timestamp,isLimited\n';
+    return 'pool,name,rarity,timestamp,isLimited,isSimulated\n';
   }
 
   // CSV 表头
-  const headers = ['pool', 'name', 'rarity', 'timestamp', 'isLimited'];
+  const headers = ['pool', 'name', 'rarity', 'timestamp', 'isLimited', 'isSimulated'];
   let csv = headers.join(',') + '\n';
 
   // CSV 数据行

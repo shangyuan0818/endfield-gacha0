@@ -1,57 +1,5 @@
 import React from 'react';
 import { Calculator, Sparkles, FileText } from 'lucide-react';
-import { getCurrentUpPool } from '../../constants';
-
-/**
- * 卡池时间信息组件
- */
-const PoolTimeInfo = () => {
-  const currentUpPool = getCurrentUpPool();
-  const now = new Date();
-  const startDate = new Date(currentUpPool.startDate);
-  startDate.setHours(4, 0, 0, 0);
-  const endDate = currentUpPool.endDate instanceof Date ? currentUpPool.endDate : new Date(currentUpPool.endDate);
-
-  const formatDate = (date) => {
-    return `${date.getMonth() + 1}/${date.getDate()} 04:00`;
-  };
-
-  const isExpired = currentUpPool.isExpired;
-  const remainingDays = currentUpPool.remainingDays ?? 0;
-  const remainingHours = currentUpPool.remainingHours ?? 0;
-  const isEndingSoon = remainingDays <= 3 && !isExpired;
-  const isNotStarted = currentUpPool.startsIn > 0;
-
-  return (
-    <div className="space-y-2">
-      {/* 当前UP池状态 */}
-      <div className="flex flex-wrap items-center gap-2 text-slate-500 dark:text-zinc-500">
-        <span className="flex items-center gap-1">
-          <span className="text-orange-500 font-medium">{currentUpPool.name}</span>
-          {isNotStarted ? (
-            <span className="text-slate-400">即将开始</span>
-          ) : isExpired ? (
-            <span className="text-red-400">已结束</span>
-          ) : (
-            <span>UP中</span>
-          )}
-        </span>
-        <span className="text-slate-300 dark:text-zinc-600">|</span>
-        <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
-        <span className="text-slate-300 dark:text-zinc-600">|</span>
-        {isNotStarted ? (
-          <span className="text-blue-500">{currentUpPool.startsIn}天{currentUpPool.startsInHours}小时后开始</span>
-        ) : isExpired ? (
-          <span className="text-red-500 font-medium">已结束</span>
-        ) : isEndingSoon ? (
-          <span className="text-amber-500 font-medium animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
-        ) : (
-          <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
-        )}
-      </div>
-    </div>
-  );
-};
 
 /**
  * 限定池分析组件
@@ -80,11 +28,12 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
           <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
             当前: <span className={`font-medium ${isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
           </p>
-          {/* 限定池轮换时间显示 */}
-          {isLimited && (
-            <div className="mt-2 text-xs">
-              <PoolTimeInfo />
-            </div>
+          {/* 显示当前卡池的UP角色（只在限定池显示） */}
+          {isLimited && currentPool.up_character && (
+            <p className="text-xs text-orange-500 dark:text-orange-400 mt-1 flex items-center gap-1">
+              <span>UP:</span>
+              <span className="font-bold">{currentPool.up_character}</span>
+            </p>
           )}
         </div>
       </div>
