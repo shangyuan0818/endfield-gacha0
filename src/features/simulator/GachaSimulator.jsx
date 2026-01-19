@@ -717,7 +717,7 @@ const GachaSimulator = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 flex-1">
         {/* 左侧：限定池分析 */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-4 space-y-4">
            {/* 限定池分析卡片 */}
            <LimitedPoolAnalysis
               currentPool={currentPoolObj}
@@ -778,7 +778,7 @@ const GachaSimulator = () => {
         </div>
 
         {/* 右侧：历史记录 + 模拟器专属统计 */}
-        <div className="lg:col-span-3 flex flex-col gap-4">
+        <div className="lg:col-span-2 flex flex-col gap-4">
           {/* 抽卡记录 - 固定高度，显示所有记录 */}
           <div className="flex flex-col h-[400px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-slate-50 dark:bg-zinc-950">

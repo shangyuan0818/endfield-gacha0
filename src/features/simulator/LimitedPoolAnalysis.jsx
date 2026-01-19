@@ -1,356 +1,286 @@
 import React from 'react';
-import { Calculator, Sparkles, FileText } from 'lucide-react';
+import { Calculator, Sparkles, FileText, BarChart2, Crosshair } from 'lucide-react';
 
 /**
  * 限定池分析组件
  * 显示保底进度、特殊进度（120抽、240抽、30抽赠送）
+ * 风格：Endfield Technical Style
  */
+
+// Reusable Card Component
+const StatCard = ({ label, value, subValue, footer, progress, progressColor, extraLabel, warning }) => (
+  <div className="bg-endfield-panel border border-endfield-border p-4 relative group hover:border-zinc-500 transition-colors">
+    <div className="flex justify-between items-start mb-2">
+      <div className="text-[10px] uppercase tracking-wider text-endfield-muted font-bold flex items-center gap-2">
+        {label}
+        {extraLabel && <span className="bg-zinc-800 text-zinc-400 px-1 py-0.5 text-[8px]">{extraLabel}</span>}
+      </div>
+      {warning && (
+        <div className="px-1.5 py-0.5 bg-red-900/30 text-red-400 border border-red-900/50 text-[9px] font-mono animate-pulse">
+          {warning}
+        </div>
+      )}
+    </div>
+    
+    <div className="flex items-baseline gap-2 mb-3">
+      <span className="text-3xl font-bold font-mono text-endfield-text">{value}</span>
+      {subValue && <span className="text-sm font-mono text-endfield-muted">{subValue}</span>}
+    </div>
+
+    <div className="relative h-1 w-full bg-zinc-800 overflow-hidden">
+      <div 
+        className={`absolute top-0 left-0 h-full transition-all duration-500 ${progressColor}`}
+        style={{ width: `${Math.min(progress, 100)}%` }}
+      ></div>
+    </div>
+
+    {footer && <div className="mt-2 text-[10px] text-endfield-muted font-mono">{footer}</div>}
+  </div>
+);
+
+// Helper component for Weapon Gifts to keep main component clean
+const WeaponGifts = ({ stats }) => {
+  // Calculate next gift threshold
+  const giftThresholds = [100, 180, 260, 340, 420, 500];
+  let nextWeaponGift = 0;
+  let nextWeaponGiftType = 'standard';
+
+  for (const threshold of giftThresholds) {
+    if (stats.total < threshold) {
+      nextWeaponGift = threshold;
+      nextWeaponGiftType = threshold === 100 ? 'standard' : (threshold === 180 || threshold === 340 || threshold === 500) ? 'limited' : 'standard';
+      break;
+    }
+  }
+
+  if (nextWeaponGift === 0) {
+    const cycle = Math.floor((stats.total - 180) / 160);
+    nextWeaponGift = 180 + (cycle + 1) * 160;
+    nextWeaponGiftType = nextWeaponGift % 160 === 20 ? 'limited' : 'standard';
+  }
+
+  return (
+      <div className="bg-endfield-panel p-2 border-l-2 border-red-500 flex flex-col gap-1">
+          <div className="flex justify-between items-center">
+              <span className="text-xs text-endfield-text font-bold flex items-center gap-2">
+                  下一档赠送
+                  <span className={`px-1 rounded text-[8px] font-bold text-black ${nextWeaponGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
+                    {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}
+                  </span>
+              </span>
+              <span className="text-xs font-mono text-endfield-muted">{stats.total} / {nextWeaponGift}</span>
+          </div>
+          <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+             <div className={`h-full ${nextWeaponGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-500'}`}
+                  style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}></div>
+          </div>
+          <div className="flex gap-2 text-[9px] text-endfield-muted font-mono mt-1">
+              <span>已获得:</span>
+              <span className="text-red-400">{stats.gifts?.standardCount || 0} 常驻</span>
+              <span className="text-cyan-400">{stats.gifts?.limitedCount || 0} 限定</span>
+          </div>
+      </div>
+  );
+};
+
 const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) => {
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
 
   const maxPity = isWeapon ? 40 : 80;
-  const textColor = isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow';
-  const progressColor = isLimited ? 'rainbow-progress' : isWeapon ? 'bg-slate-600' : 'bg-yellow-500';
+  
+  // Theme Colors
+  const accentColor = isLimited ? 'text-cyan-400' : isWeapon ? 'text-slate-400' : 'text-endfield-yellow';
+  const progressClass = isLimited ? 'rainbow-progress' : isWeapon ? 'bg-slate-500' : 'bg-endfield-yellow';
+
+  // Format Helper
+  const formatNumber = (num) => {
+    if (num === undefined || num === null || num === '-') return '-';
+    const val = parseFloat(num);
+    if (isNaN(val)) return num;
+    return Number.isInteger(val) ? val : val.toFixed(1);
+  };
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden transition-all hover:shadow-md">
-      <div className={`absolute top-0 left-0 w-2 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-700' : 'bg-yellow-500 dark:bg-yellow-600'}`}></div>
-
-      {/* 标题部分 */}
-      <div className="flex justify-between items-start mb-6">
+    <div className="bg-endfield-dark border border-endfield-border p-6 relative overflow-hidden">
+      {/* Decorative Side Bar */}
+      <div className={`absolute top-0 left-0 w-1 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-700' : 'bg-endfield-yellow'}`}></div>
+      
+      {/* Header */}
+      <div className="flex justify-between items-end mb-6 pl-2">
         <div>
-          <h3 className="text-slate-700 dark:text-zinc-300 text-lg font-bold flex items-center gap-2">
-            <Calculator size={20} className={textColor} />
+          <h3 className="text-xl font-bold text-endfield-text flex items-center gap-2 uppercase tracking-wide">
+            <Calculator size={20} className={accentColor} />
             {isWeapon ? '武器池分析' : isLimited ? '限定池分析' : '常驻池分析'}
           </h3>
-          <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-            当前: <span className={`font-medium ${isLimited ? 'rainbow-text' : isWeapon ? 'text-slate-700 dark:text-zinc-300' : 'text-yellow-600 dark:text-endfield-yellow'}`}>{currentPool.name}</span>
-          </p>
-          {/* 显示当前卡池的UP角色（只在限定池显示） */}
-          {isLimited && currentPool.up_character && (
-            <p className="text-xs text-orange-500 dark:text-orange-400 mt-1 flex items-center gap-1">
-              <span>UP:</span>
-              <span className="font-bold">{currentPool.up_character}</span>
-            </p>
-          )}
+          <div className="flex items-center gap-2 mt-1">
+             <span className="text-xs text-endfield-muted uppercase">当前卡池:</span>
+             <span className={`text-xs font-bold ${accentColor} uppercase`}>{currentPool.name}</span>
+          </div>
         </div>
+        {isLimited && currentPool.up_character && (
+           <div className="text-right">
+             <div className="text-[10px] text-endfield-muted uppercase">UP 角色</div>
+             <div className="text-sm font-bold text-endfield-text">{currentPool.up_character}</div>
+           </div>
+        )}
       </div>
 
-      {/* 保底卡片（6星和5星） */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {/* 6星保底 */}
-        <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-          <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10 flex items-center gap-2">
-            距离6星保底 ({maxPity})
-            {/* 概率递增提示 - 仅限定池和常驻池有软保底 */}
-            {stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity && (
-              <span className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded text-[10px] font-bold animate-pulse">
-                概率UP {(stats.probabilityInfo.probability * 100).toFixed(1)}%
-              </span>
-            )}
-            {/* 武器池无软保底标识 */}
-            {isWeapon && (
-              <span className="px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400 rounded text-[10px]">
-                无概率递增
-              </span>
-            )}
-          </div>
-          <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
-            {Math.max(maxPity - stats.currentPity, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
-          </div>
-          <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
-            <div
-              className={`h-full transition-all duration-500 ${progressColor}`}
-              style={{ width: `${Math.min((stats.currentPity / maxPity) * 100, 100)}%` }}
-            ></div>
-          </div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10 flex justify-between">
-            <span>当前垫刀: {stats.currentPity}</span>
-            {/* 65抽软保底提示 - 仅限定池和常驻池 */}
-            {stats.probabilityInfo?.hasSoftPity && !stats.probabilityInfo?.isInSoftPity && stats.currentPity > 0 && (
-              <span className="text-blue-500">距软保底: {stats.probabilityInfo?.pullsUntilSoftPity}</span>
-            )}
-          </div>
-          {/* 继承保底提示 */}
-          {effectivePity?.isInherited && isLimited && (
-            <div className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 relative z-10 flex items-center gap-1">
-              <Sparkles size={10} />
-              继承自其他限定池: {effectivePity.pity6} 抽
-            </div>
-          )}
-        </div>
-
-        {/* 5星保底 */}
-        <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-          <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10">距离5星保底 (10)</div>
-          <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
-            {Math.max(10 - stats.currentPity5, 0)} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
-          </div>
-          <div className="absolute bottom-0 left-0 h-1 bg-slate-200 w-full">
-            <div
-              className="h-full bg-amber-500 transition-all duration-500"
-              style={{ width: `${Math.min((stats.currentPity5 / 10) * 100, 100)}%` }}
-            ></div>
-          </div>
-          <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">当前垫刀: {stats.currentPity5}</div>
-          {/* 继承5星保底提示 */}
-          {effectivePity?.isInherited && isLimited && effectivePity.pity5 > 0 && (
-            <div className="text-[10px] text-purple-600 dark:text-purple-400 mt-1 relative z-10 flex items-center gap-1">
-              <Sparkles size={10} />
-              继承: {effectivePity.pity5} 抽
-            </div>
-          )}
-        </div>
+      {/* Pity Stats Grid */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <StatCard 
+           label={`6星保底 (${maxPity})`}
+           value={Math.max(maxPity - stats.currentPity, 0)}
+           subValue="抽"
+           progress={(stats.currentPity / maxPity) * 100}
+           progressColor={progressClass}
+           warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `概率UP ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
+           footer={
+             <div className="flex justify-between">
+                <span>当前垫刀: {stats.currentPity}</span>
+                {effectivePity?.isInherited && isLimited && (
+                  <span className="text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 继承: {effectivePity.pity6}</span>
+                )}
+             </div>
+           }
+        />
+        <StatCard 
+           label="5星保底 (10)"
+           value={Math.max(10 - stats.currentPity5, 0)}
+           subValue="抽"
+           progress={(stats.currentPity5 / 10) * 100}
+           progressColor="bg-amber-500"
+           footer={
+             <div className="flex justify-between">
+                <span>当前垫刀: {stats.currentPity5}</span>
+                {effectivePity?.isInherited && isLimited && effectivePity.pity5 > 0 && (
+                  <span className="text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 继承: {effectivePity.pity5}</span>
+                )}
+             </div>
+           }
+        />
       </div>
 
-      {/* 不歪率统计卡片 - 限定池和武器池显示 */}
-      {(isLimited || isWeapon) && (
+      {/* Analytics Grid */}
+      {(isLimited || isWeapon) && stats.sixStarCount > 0 && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-          {/* 不歪率卡片 */}
-          <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-            <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10 flex items-center gap-2">
-              不歪率
-              {isLimited && (
-                <span className="text-[9px] text-slate-400 bg-slate-200 dark:bg-zinc-800 px-1 rounded">
-                  免十不计
-                </span>
-              )}
-            </div>
-            <div className={`text-3xl font-bold relative z-10 ${isLimited ? 'rainbow-text' : 'text-blue-600 dark:text-blue-400'}`}>
-              {stats.winRate}%
-            </div>
-            <div className="absolute bottom-0 left-0 h-1 bg-slate-200 dark:bg-zinc-800 w-full">
-              <div
-                className={`h-full transition-all duration-500 ${isLimited ? 'rainbow-progress' : 'bg-blue-500'}`}
-                style={{ width: `${Math.min(parseFloat(stats.winRate), 100)}%` }}
-              ></div>
-            </div>
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10 flex justify-between">
-              <span>UP: {stats.upSixStarCount}</span>
-              <span>歪: {stats.sixStarCount - stats.upSixStarCount}</span>
-            </div>
-          </div>
-
-          {/* 平均抽数卡片 */}
-          <div className="bg-slate-50 dark:bg-zinc-950 rounded-none p-4 border border-zinc-200 dark:border-zinc-800 relative overflow-hidden">
-            <div className="text-xs text-slate-500 dark:text-zinc-500 mb-1 relative z-10">
-              平均出货
-            </div>
-            <div className="text-3xl font-bold text-slate-800 dark:text-zinc-100 relative z-10">
-              {stats.avgPullCost?.[6] || stats.avgPullsPerSixStar || '-'} <span className="text-sm font-normal text-slate-400 dark:text-zinc-500">抽</span>
-            </div>
-            <div className="absolute bottom-0 left-0 h-1 bg-slate-200 dark:bg-zinc-800 w-full">
-            </div>
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 relative z-10">
-              每6星平均抽数
-            </div>
-          </div>
+           {/* Win Rate */}
+           <StatCard 
+             label="不歪率"
+             extraLabel={isLimited ? "免十不计" : null}
+             value={`${stats.winRate}%`}
+             progress={parseFloat(stats.winRate)}
+             progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
+             footer={`UP: ${stats.upSixStarCount} / 歪: ${stats.sixStarCount - stats.upSixStarCount}`}
+           />
+           {/* Average */}
+           <StatCard 
+             label="平均出货"
+             extraLabel={isLimited ? "免十不计" : null}
+             value={formatNumber(stats.avgPullCost?.[6] || stats.avgPullsPerSixStar)}
+             subValue="/ 6星"
+             progress={0} // No progress bar for Avg, just the line
+             progressColor="bg-transparent"
+             footer="基于所有6星出货统计"
+           />
         </div>
       )}
 
-      {/* 限定池特殊进度 */}
-      {isLimited && (
-        <div className="mb-6 space-y-4">
-          {/* 30抽赠送十连 */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                赠送十连 (每30抽)
-                {Math.floor(stats.total / 30) > 0 && (
-                  <span className="ml-2 flex items-center gap-1 text-blue-600 font-bold bg-blue-50 dark:bg-blue-900/30 px-1.5 rounded text-[10px] border border-blue-100 dark:border-blue-800">
-                    已获 x {Math.floor(stats.total / 30)}
-                  </span>
-                )}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">{stats.total % 30} / 30</span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-300 to-blue-500 transition-all duration-500"
-                style={{ width: `${((stats.total % 30) / 30) * 100}%` }}
-              ></div>
-            </div>
-            <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-              不计入保底的额外十连抽取机会
-            </div>
-          </div>
+      {/* Special Progress Section (Technical List Style) */}
+      <div className="space-y-3 pt-4 border-t border-endfield-border">
+         <div className="text-[10px] uppercase text-endfield-muted font-bold tracking-wider mb-2">特殊进度</div>
+         
+         {/* Limited Pool Specials */}
+         {isLimited && (
+           <>
+             {/* 30 Pulls Gift */}
+             <div className="bg-endfield-panel p-2 border-l-2 border-blue-500 flex flex-col gap-1">
+               <div className="flex justify-between items-center">
+                 <span className="text-xs text-endfield-text font-bold">赠送十连 (每30抽)</span>
+                 <span className="text-xs font-mono text-endfield-muted">{stats.total % 30} / 30</span>
+               </div>
+               <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                 <div className="h-full bg-blue-500" style={{width: `${((stats.total % 30) / 30) * 100}%`}}></div>
+               </div>
+               <div className="flex justify-between items-center mt-1">
+                 <span className="text-[9px] text-endfield-muted">不消耗保底次数</span>
+                 {Math.floor(stats.total / 30) > 0 && <span className="text-[9px] text-blue-400 font-bold">已获得: {Math.floor(stats.total / 30)}</span>}
+               </div>
+             </div>
 
-          {/* 120 Spark - One Time Only */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                必出限定 (120抽)
-                {pityInfo?.guaranteedUp?.hasReceived && <span className="ml-2 text-green-600 font-bold bg-green-50 px-1.5 rounded text-[10px] border border-green-100">已达成</span>}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">
-                {pityInfo?.guaranteedUp?.hasReceived ? '120 / 120' : `${Math.min(stats.total, 120)} / 120`}
-              </span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${pityInfo?.guaranteedUp?.hasReceived ? 'bg-green-500' : 'rainbow-progress'}`}
-                style={{ width: `${pityInfo?.guaranteedUp?.hasReceived ? 100 : Math.min((stats.total / 120) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* 240 Bonus - Recurring */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                赠送角色潜能（每240抽）
-                {Math.floor(stats.total / 240) > 0 && (
-                  <span className="ml-2 flex items-center gap-1 text-purple-600 font-bold bg-purple-50 px-1.5 rounded text-[10px] border border-purple-100">
-                    已获 x {Math.floor(stats.total / 240)}
-                  </span>
-                )}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">{stats.total % 240} / 240</span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-purple-300 to-purple-500 transition-all duration-500"
-                style={{ width: `${((stats.total % 240) / 240) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* 60抽情报书 - 仅获得1次 */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                <FileText size={12} className="mr-1 text-cyan-500" />
-                寻访情报书 (60抽)
-                {stats.hasInfoBook && (
-                  <span className="ml-2 flex items-center gap-1 text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-1.5 rounded text-[10px] border border-green-100 dark:border-green-800">
-                    已获得
-                  </span>
-                )}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">
-                {stats.hasInfoBook ? '60 / 60' : `${Math.min(stats.total, 60)} / 60`}
-              </span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${stats.hasInfoBook ? 'bg-green-500' : 'bg-gradient-to-r from-cyan-300 to-cyan-500'}`}
-                style={{ width: `${stats.hasInfoBook ? 100 : Math.min((stats.total / 60) * 100, 100)}%` }}
-              ></div>
-            </div>
-            {!stats.hasInfoBook && (
-              <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1">
-                距获得: {stats.pullsUntilInfoBook} 抽
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 武器池特殊进度 */}
-      {isWeapon && (
-        <div className="mb-6 space-y-4">
-          {/* 武器池类型标识 */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`px-2 py-1 rounded font-medium ${currentPool.isLimitedWeapon !== false ? 'rainbow-bg rainbow-border text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400'}`}>
-              {currentPool.isLimitedWeapon !== false ? '限定武器池' : '常驻武器池'}
-            </span>
-            {currentPool.isLimitedWeapon === false && (
-              <span className="text-slate-400 dark:text-zinc-500">无额外获取内容</span>
-            )}
-          </div>
-
-          {/* 80 Spark - 武器池基础规则 */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                首轮限定必出 (80抽)
-                {pityInfo?.guaranteedUp?.hasReceived && <span className="ml-2 text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-1.5 rounded text-[10px] border border-green-100 dark:border-green-800">已达成</span>}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">
-                {pityInfo?.guaranteedUp?.hasReceived ? '80 / 80' : `${Math.min(stats.total, 80)} / 80`}
-              </span>
-            </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${pityInfo?.guaranteedUp?.hasReceived ? 'bg-green-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`}
-                style={{ width: `${pityInfo?.guaranteedUp?.hasReceived ? 100 : Math.min((stats.total / 80) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Weapon Gifts - 仅限定武器池显示 */}
-          {currentPool.isLimitedWeapon !== false && (() => {
-            // 计算下一档赠送
-            const giftThresholds = [100, 180, 260, 340, 420, 500];
-            let nextWeaponGift = 0;
-            let nextWeaponGiftType = 'standard';
-
-            for (const threshold of giftThresholds) {
-              if (stats.total < threshold) {
-                nextWeaponGift = threshold;
-                nextWeaponGiftType = threshold === 100 ? 'standard' : (threshold === 180 || threshold === 340 || threshold === 500) ? 'limited' : 'standard';
-                break;
-              }
-            }
-
-            if (nextWeaponGift === 0) {
-              const cycle = Math.floor((stats.total - 180) / 160);
-              nextWeaponGift = 180 + (cycle + 1) * 160;
-              nextWeaponGiftType = nextWeaponGift % 160 === 20 ? 'limited' : 'standard';
-            }
-
-            return (
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center gap-2">
-                    下一档赠送
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${nextWeaponGiftType === 'limited' ? 'rainbow-bg text-white' : 'bg-red-100 text-red-600'}`}>
-                      {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}武器
-                    </span>
-                  </span>
-                  <span className="text-slate-400 dark:text-zinc-500">{stats.total} / {nextWeaponGift}</span>
+             {/* 120 Spark */}
+             <div className="bg-endfield-panel p-2 border-l-2 border-green-500 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-endfield-text font-bold">必出限定 (120抽)</span>
+                  <span className="text-xs font-mono text-endfield-muted">{pityInfo?.guaranteedUp?.hasReceived ? '已达成' : `${Math.min(stats.total, 120)} / 120`}</span>
                 </div>
-                <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-500 ${nextWeaponGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-400'}`}
-                    style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}
-                  ></div>
+                <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                  <div className={`h-full ${pityInfo?.guaranteedUp?.hasReceived ? 'bg-green-500' : 'rainbow-progress'}`} 
+                       style={{width: `${pityInfo?.guaranteedUp?.hasReceived ? 100 : Math.min((stats.total / 120) * 100, 100)}%`}}></div>
                 </div>
-                <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500 flex gap-2">
-                  <span>已领:</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 bg-red-400 rounded-sm"></span>{stats.gifts?.standardCount || 0} 常</span>
-                  <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rainbow-bg rounded-sm"></span>{stats.gifts?.limitedCount || 0} 限</span>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
+             </div>
 
-      {/* 常驻池特殊进度 */}
-      {isStandard && (
-        <div className="mb-6">
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
-                首次赠送自选 (300抽)
-                {stats.total >= 300 && <span className="ml-2 text-green-600 font-bold bg-green-50 px-1.5 rounded text-[10px] border border-green-100">已达成</span>}
-              </span>
-              <span className="text-slate-400 dark:text-zinc-500">
-                {Math.min(stats.total, 300)} / 300
-              </span>
+             {/* 240 Potential */}
+             <div className="bg-endfield-panel p-2 border-l-2 border-purple-500 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-endfield-text font-bold">赠送角色潜能 (每240抽)</span>
+                  <span className="text-xs font-mono text-endfield-muted">{stats.total % 240} / 240</span>
+                </div>
+                <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                  <div className="h-full bg-purple-500" style={{width: `${((stats.total % 240) / 240) * 100}%`}}></div>
+                </div>
+                {Math.floor(stats.total / 240) > 0 && <div className="text-right text-[9px] text-purple-400 font-bold">已获得: {Math.floor(stats.total / 240)}</div>}
+             </div>
+
+             {/* 60 Info Book */}
+             <div className="bg-endfield-panel p-2 border-l-2 border-cyan-500 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-endfield-text font-bold flex items-center gap-1"><FileText size={10}/> 寻访情报书 (60抽)</span>
+                  <span className="text-xs font-mono text-endfield-muted">{stats.hasInfoBook ? '已达成' : `${Math.min(stats.total, 60)} / 60`}</span>
+                </div>
+                <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                  <div className={`h-full ${stats.hasInfoBook ? 'bg-green-500' : 'bg-cyan-500'}`} 
+                       style={{width: `${stats.hasInfoBook ? 100 : Math.min((stats.total / 60) * 100, 100)}%`}}></div>
+                </div>
+             </div>
+           </>
+         )}
+
+         {/* Weapon Pool Specials */}
+         {isWeapon && (
+           <>
+             {/* 80 Spark */}
+             <div className="bg-endfield-panel p-2 border-l-2 border-slate-500 flex flex-col gap-1">
+                <div className="flex justify-between items-center">
+                   <span className="text-xs text-endfield-text font-bold">首轮限定必出 (80抽)</span>
+                   <span className="text-xs font-mono text-endfield-muted">{pityInfo?.guaranteedUp?.hasReceived ? '已达成' : `${Math.min(stats.total, 80)} / 80`}</span>
+                </div>
+                <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                   <div className={`h-full ${pityInfo?.guaranteedUp?.hasReceived ? 'bg-green-500' : 'bg-slate-500'}`}
+                        style={{width: `${pityInfo?.guaranteedUp?.hasReceived ? 100 : Math.min((stats.total / 80) * 100, 100)}%`}}></div>
+                </div>
+             </div>
+             
+             {/* Weapon Gifts */}
+             {currentPool.isLimitedWeapon !== false && <WeaponGifts stats={stats} />}
+           </>
+         )}
+
+         {/* Standard Pool Specials */}
+         {isStandard && (
+            <div className="bg-endfield-panel p-2 border-l-2 border-green-500 flex flex-col gap-1">
+               <div className="flex justify-between items-center">
+                  <span className="text-xs text-endfield-text font-bold">首次赠送自选 (300抽)</span>
+                  <span className="text-xs font-mono text-endfield-muted">{Math.min(stats.total, 300)} / 300</span>
+               </div>
+               <div className="h-1 bg-zinc-800 w-full overflow-hidden">
+                  <div className={`h-full ${stats.total >= 300 ? 'bg-green-500' : 'bg-green-600/50'}`}
+                       style={{width: `${Math.min((stats.total / 300) * 100, 100)}%`}}></div>
+               </div>
             </div>
-            <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
-              <div
-                className={`h-full transition-all duration-500 ${stats.total >= 300 ? 'bg-green-500' : 'bg-gradient-to-r from-red-300 to-red-500'}`}
-                style={{ width: `${Math.min((stats.total / 300) * 100, 100)}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      )}
+         )}
+      </div>
     </div>
   );
 };
