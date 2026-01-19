@@ -257,11 +257,17 @@ export class GachaSimulator {
    * @returns {Array} 免费十连结果数组
    */
   pullFreeTen() {
+    // 保存当前的保底状态（免费十连不应该影响保底）
+    const savedSixStarPity = this.state.sixStarPity;
+    const savedFiveStarPity = this.state.fiveStarPity;
+    const savedTotalPulls = this.state.totalPulls;
+
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
       : null;
 
+    // 正常执行十连模拟（内部10抽会相互影响，这是正确的）
     const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
     const pullRecords = [];
 
@@ -284,11 +290,16 @@ export class GachaSimulator {
       pullRecords.push(pullRecord);
     });
 
-    // 免费十连：不更新保底计数、不增加总抽数，只增加已使用免费次数
+    // 免费十连：恢复保底状态，不增加总抽数
+    // 关键：虽然免费十连内部可能出了6星/5星，但不影响外部保底进度
     this.updateState({
       pullHistory: [...this.state.pullHistory, ...pullRecords],
       freeTenPullsReceived: this.state.freeTenPullsReceived + 1,
-      lastPullResult: pullRecords
+      lastPullResult: pullRecords,
+      // 恢复免费十连开始前的保底状态
+      sixStarPity: savedSixStarPity,
+      fiveStarPity: savedFiveStarPity,
+      totalPulls: savedTotalPulls
     });
 
     return pullRecords;
