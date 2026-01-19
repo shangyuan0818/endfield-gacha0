@@ -261,6 +261,8 @@ export class GachaSimulator {
     const savedSixStarPity = this.state.sixStarPity;
     const savedFiveStarPity = this.state.fiveStarPity;
     const savedTotalPulls = this.state.totalPulls;
+    const savedGuaranteedLimitedPity = this.state.guaranteedLimitedPity;  // 修复：保存硬保底计数
+    const savedHasReceivedGuaranteedLimited = this.state.hasReceivedGuaranteedLimited;  // 修复：保存硬保底标志
 
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
@@ -299,7 +301,9 @@ export class GachaSimulator {
       // 恢复免费十连开始前的保底状态
       sixStarPity: savedSixStarPity,
       fiveStarPity: savedFiveStarPity,
-      totalPulls: savedTotalPulls
+      totalPulls: savedTotalPulls,
+      guaranteedLimitedPity: savedGuaranteedLimitedPity,  // 修复：恢复硬保底计数
+      hasReceivedGuaranteedLimited: savedHasReceivedGuaranteedLimited  // 修复：恢复硬保底标志
     });
 
     return pullRecords;

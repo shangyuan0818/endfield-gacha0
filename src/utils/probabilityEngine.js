@@ -235,7 +235,8 @@ export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'l
       totalPulls: result.totalPulls,
       sixStarCount: result.sixStarCount,
       fiveStarCount: result.fiveStarCount,
-      guaranteedLimitedPity: result.guaranteedLimitedPity
+      guaranteedLimitedPity: result.guaranteedLimitedPity,
+      hasReceivedGuaranteedLimited: result.hasReceivedGuaranteedLimited  // 修复：添加丢失的状态
     };
   }
 
