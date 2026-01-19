@@ -492,14 +492,18 @@ export class GachaSimulator {
       ? ((fiveStarCount / totalPulls) * 100).toFixed(2)
       : '0.00';
 
-    // 计算不歪率（UP 6星 / 总6星）
+    // 计算不歪率（UP 6星 / 总6星）- 保留1位小数
     const upRate = sixStarCount > 0
-      ? ((upSixStarCount / sixStarCount) * 100).toFixed(2)
-      : '0.00';
+      ? ((upSixStarCount / sixStarCount) * 100).toFixed(1)
+      : '0.0';
 
-    // 计算平均出货抽数
-    const avgPullsPerSixStar = sixStarCount > 0
-      ? (totalPulls / sixStarCount).toFixed(1)
+    // 计算平均出货抽数（排除免费十连）
+    // 统计非免费十连的抽数和6星数量
+    const nonFreePulls = pullHistory.filter(p => !p.isFreePull).length;
+    const nonFreeSixStars = pullHistory.filter(p => p.rarity === 6 && !p.isFreePull).length;
+
+    const avgPullsPerSixStar = nonFreeSixStars > 0
+      ? (nonFreePulls / nonFreeSixStars).toFixed(1)
       : '-';
 
     // 期望抽数
