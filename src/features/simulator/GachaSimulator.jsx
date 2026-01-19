@@ -414,38 +414,72 @@ const GachaSimulator = () => {
       gifts: stats.gifts
   };
 
-  // 计算120抽必出限定机制（仅限定池）
-  const pityInfoWithGuarantee = simulator.poolType === 'limited' ? (() => {
-    // 检测前120抽内是否已经获得了限定6星（排除免费十连）
-    let cumulativePulls = 0;
-    let hasReceivedLimitedInFirst120 = false;
+  // 计算硬保底机制（限定池120抽 / 武器池80抽）
+  const pityInfoWithGuarantee = (() => {
+    // 限定池：120抽必出限定
+    if (simulator.poolType === 'limited') {
+      // 检测前120抽内是否已经获得了限定6星（排除免费十连）
+      let cumulativePulls = 0;
+      let hasReceivedLimitedInFirst120 = false;
 
-    // 遍历所有抽取记录，但排除免费十连
-    for (const item of stats.sixStarHistory) {
-      // 跳过免费十连中的记录
-      if (item.isFreePull) {
-        continue;
+      // 遍历所有抽取记录，但排除免费十连
+      for (const item of stats.sixStarHistory) {
+        // 跳过免费十连中的记录
+        if (item.isFreePull) {
+          continue;
+        }
+
+        cumulativePulls += (item.pityWhenPulled || 1);
+
+        // 如果在120抽内获得了限定6星（isUp为true），触发机制
+        if (cumulativePulls <= 120 && item.isUp) {
+          hasReceivedLimitedInFirst120 = true;
+          break;
+        }
+
+        // 如果累计抽数超过120，停止检测
+        if (cumulativePulls > 120) break;
       }
 
-      cumulativePulls += (item.pityWhenPulled || 1);
-
-      // 如果在120抽内获得了限定6星（isUp为true），触发机制
-      if (cumulativePulls <= 120 && item.isUp) {
-        hasReceivedLimitedInFirst120 = true;
-        break;
-      }
-
-      // 如果累计抽数超过120，停止检测
-      if (cumulativePulls > 120) break;
+      return {
+        guaranteedUp: {
+          current: Math.min(stats.totalPulls, 120),
+          hasReceived: hasReceivedLimitedInFirst120
+        }
+      };
     }
 
-    return {
-      guaranteedUp: {
-        current: Math.min(stats.totalPulls, 120),
-        hasReceived: hasReceivedLimitedInFirst120
+    // 武器池：80抽首轮必出限定
+    if (simulator.poolType === 'weapon') {
+      // 检测前80抽内是否已经获得了限定6星武器
+      let cumulativePulls = 0;
+      let hasReceivedLimitedInFirst80 = false;
+
+      // 遍历所有6星历史记录
+      for (const item of stats.sixStarHistory) {
+        cumulativePulls += (item.pityWhenPulled || 1);
+
+        // 如果在80抽内获得了限定6星（isUp为true），触发机制
+        if (cumulativePulls <= 80 && item.isUp) {
+          hasReceivedLimitedInFirst80 = true;
+          break;
+        }
+
+        // 如果累计抽数超过80，停止检测
+        if (cumulativePulls > 80) break;
       }
-    };
-  })() : {};
+
+      return {
+        guaranteedUp: {
+          current: Math.min(stats.totalPulls, 80),
+          hasReceived: hasReceivedLimitedInFirst80
+        }
+      };
+    }
+
+    // 其他卡池类型：返回空对象
+    return {};
+  })();
 
   // Construct currentPool object for DashboardView
   const currentPoolObj = {

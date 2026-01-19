@@ -108,12 +108,31 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
       {/* 不歪率统计卡片 - 限定池和武器池显示 */}
       {(isLimited || isWeapon) && stats.sixStarCount > 0 && (
         <div className="mb-6">
-          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-none border border-blue-100 dark:border-blue-800/50 text-center">
-            <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">不歪率</div>
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.winRate}%</div>
-            <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">
-              {isLimited ? 'UP角色' : 'UP武器'} {stats.upSixStarCount} / 总6星 {stats.sixStarCount}
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-none border border-blue-100 dark:border-blue-800/50">
+            {/* 标题和六星平均抽数 */}
+            <div className="flex justify-between items-start mb-2">
+              <div className="text-center flex-1">
+                <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">不歪率</div>
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.winRate}%</div>
+                <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">
+                  {isLimited ? 'UP角色' : 'UP武器'} {stats.upSixStarCount} / 总6星 {stats.sixStarCount}
+                </div>
+              </div>
+              {/* 右侧：六星平均抽数 */}
+              <div className="text-right">
+                <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">平均抽数</div>
+                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                  {stats.avgPullCost?.[6] || stats.avgPullsPerSixStar || '-'}
+                </div>
+                <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">抽/6星</div>
+              </div>
             </div>
+            {/* 底部备注：免费十连不计入 */}
+            {isLimited && (
+              <div className="text-[9px] text-blue-400 dark:text-blue-500 text-center mt-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                * 免费十连不计入统计
+              </div>
+            )}
           </div>
         </div>
       )}
