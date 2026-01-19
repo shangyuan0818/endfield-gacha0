@@ -105,6 +105,19 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
         </div>
       </div>
 
+      {/* 不歪率统计卡片 - 限定池和武器池显示 */}
+      {(isLimited || isWeapon) && stats.sixStar > 0 && (
+        <div className="mb-6">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-none border border-blue-100 dark:border-blue-800/50 text-center">
+            <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">不歪率</div>
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.upRate}%</div>
+            <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">
+              {isLimited ? 'UP角色' : 'UP武器'} {stats.upSixStarCount} / 总6星 {stats.sixStar}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 限定池特殊进度 */}
       {isLimited && (
         <div className="mb-6 space-y-4">

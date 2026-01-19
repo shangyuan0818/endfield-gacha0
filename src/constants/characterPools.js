@@ -59,11 +59,49 @@ export const STANDARD_FOUR_STAR_CHARACTERS = [
 // 武器池（暂不实现具体武器名称）
 // ============================================
 
+// 武器池配置
 export const WEAPON_POOL_PLACEHOLDERS = {
   6: ['6星武器'],
   5: ['5星武器'],
   4: ['4星武器']
 };
+
+// 武器池 - UP限定6星武器（只有1把）
+export const LIMITED_WEAPON_SIX_STAR = [
+  '6星限定武器'
+];
+
+// 武器池 - 常驻6星武器（6把）
+export const STANDARD_WEAPON_SIX_STAR = [
+  '6星常驻武器-1',
+  '6星常驻武器-2',
+  '6星常驻武器-3',
+  '6星常驻武器-4',
+  '6星常驻武器-5',
+  '6星常驻武器-6'
+];
+
+// 武器池 - 5星武器（与限定池5星角色数量一致：9个）
+export const WEAPON_FIVE_STAR = [
+  '5星武器-1',
+  '5星武器-2',
+  '5星武器-3',
+  '5星武器-4',
+  '5星武器-5',
+  '5星武器-6',
+  '5星武器-7',
+  '5星武器-8',
+  '5星武器-9'
+];
+
+// 武器池 - 4星武器（与限定池4星角色数量一致：5个）
+export const WEAPON_FOUR_STAR = [
+  '4星武器-1',
+  '4星武器-2',
+  '4星武器-3',
+  '4星武器-4',
+  '4星武器-5'
+];
 
 // ============================================
 // 工具函数
@@ -88,8 +126,21 @@ export function randomChoice(array) {
  * @returns {string} 角色名称
  */
 export function getCharacterName(poolType, rarity, isUp = false, currentUpCharacter = null) {
-  // 武器池暂时返回占位符
+  // 武器池处理（修复：区分UP限定武器和常驻武器）
   if (poolType === 'weapon' || poolType === 'limited_weapon') {
+    if (rarity === 6) {
+      // 6星武器：25% UP限定，75% 常驻
+      if (isUp) {
+        return randomChoice(LIMITED_WEAPON_SIX_STAR);  // 返回限定6星武器
+      } else {
+        return randomChoice(STANDARD_WEAPON_SIX_STAR);  // 返回常驻6星武器
+      }
+    } else if (rarity === 5) {
+      return randomChoice(WEAPON_FIVE_STAR);
+    } else if (rarity === 4) {
+      return randomChoice(WEAPON_FOUR_STAR);
+    }
+    // 其他星级返回占位符
     return WEAPON_POOL_PLACEHOLDERS[rarity]?.[0] || `${rarity}星`;
   }
 
