@@ -106,13 +106,13 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
       </div>
 
       {/* 不歪率统计卡片 - 限定池和武器池显示 */}
-      {(isLimited || isWeapon) && stats.sixStar > 0 && (
+      {(isLimited || isWeapon) && stats.sixStarCount > 0 && (
         <div className="mb-6">
           <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-none border border-blue-100 dark:border-blue-800/50 text-center">
             <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">不歪率</div>
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.upRate}%</div>
+            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.winRate}%</div>
             <div className="text-[10px] text-blue-500 dark:text-blue-400 mt-1">
-              {isLimited ? 'UP角色' : 'UP武器'} {stats.upSixStarCount} / 总6星 {stats.sixStar}
+              {isLimited ? 'UP角色' : 'UP武器'} {stats.upSixStarCount} / 总6星 {stats.sixStarCount}
             </div>
           </div>
         </div>
@@ -234,15 +234,16 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
             <div className="flex justify-between text-xs mb-1">
               <span className="font-bold text-slate-600 dark:text-zinc-400 flex items-center">
                 首轮限定必出 (80抽)
+                {pityInfo?.guaranteedUp?.hasReceived && <span className="ml-2 text-green-600 font-bold bg-green-50 dark:bg-green-900/30 px-1.5 rounded text-[10px] border border-green-100 dark:border-green-800">已达成</span>}
               </span>
               <span className="text-slate-400 dark:text-zinc-500">
-                {Math.min(stats.total, 80)} / 80
+                {pityInfo?.guaranteedUp?.hasReceived ? '80 / 80' : `${Math.min(stats.total, 80)} / 80`}
               </span>
             </div>
             <div className="h-2 w-full bg-slate-100 rounded-sm overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-slate-400 to-slate-600 transition-all duration-500"
-                style={{ width: `${Math.min((stats.total / 80) * 100, 100)}%` }}
+                className={`h-full transition-all duration-500 ${pityInfo?.guaranteedUp?.hasReceived ? 'bg-green-500' : 'bg-gradient-to-r from-slate-400 to-slate-600'}`}
+                style={{ width: `${pityInfo?.guaranteedUp?.hasReceived ? 100 : Math.min((stats.total / 80) * 100, 100)}%` }}
               ></div>
             </div>
           </div>

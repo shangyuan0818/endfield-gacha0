@@ -335,6 +335,8 @@ const GachaSimulator = () => {
           4: Math.max(0, stats.totalPulls - stats.sixStarCount - stats.fiveStarCount) // 确保不为负数
       },
       winRate: stats.upRate || '0.00',
+      upSixStarCount: stats.upSixStarCount || 0,  // 新增：UP 6星数量（用于不歪率显示）
+      sixStarCount: stats.sixStarCount || 0,      // 新增：总6星数量（用于不歪率显示）
       avgPullCost: {
           6: stats.avgPullsPerSixStar === '-' ? 0 : parseFloat(stats.avgPullsPerSixStar) || 0,
           5: stats.fiveStarRate && parseFloat(stats.fiveStarRate) > 0
