@@ -3,12 +3,14 @@ import {
   Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2,
   Eye, EyeOff, Save, X, Search, UserPlus, ChevronRight,
   Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
-  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home
+  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home, Layers, Star
 } from 'lucide-react';
 import MDEditor from '@uiw/react-md-editor';
 import { supabase } from '../supabaseClient';
 import SimpleMarkdown from './SimpleMarkdown';
 import { validateUserData } from '../utils/validators';
+import CharacterManagement from './admin/CharacterManagement';
+import PoolManagement from './admin/PoolManagement';
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
@@ -16,6 +18,8 @@ const MENU_ITEMS = [
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'userData', label: '用户数据', icon: Database },
   { id: 'blacklist', label: '黑名单', icon: Ban },
+  { id: 'pools', label: '卡池管理', icon: Layers },
+  { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
   { id: 'pageContent', label: '页面管理', icon: Home },
   { id: 'history', label: '申请历史', icon: History },
@@ -1969,6 +1973,8 @@ const AdminPanel = React.memo(({ showToast }) => {
       case 'users': return renderUsersPanel();
       case 'userData': return renderUserDataPanel();
       case 'blacklist': return renderBlacklistPanel();
+      case 'pools': return <PoolManagement showToast={showToast} />;
+      case 'characters': return <CharacterManagement showToast={showToast} />;
       case 'announcements': return renderAnnouncementsPanel();
       case 'pageContent': return renderPageContentPanel();
       case 'history': return renderHistoryPanel();

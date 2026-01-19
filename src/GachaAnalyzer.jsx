@@ -408,7 +408,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         isLimitedWeapon: p.is_limited_weapon !== false,  // 武器池类型：限定/常驻
         created_at: p.created_at || null,
         user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
-        creator_username: usernameMap.get(p.user_id) || null  // 从 profiles 查询得到的用户名
+        creator_username: usernameMap.get(p.user_id) || null,  // 从 profiles 查询得到的用户名
+        // 扩展字段（模拟器和卡池详情需要）
+        up_character: p.up_character || null,  // UP 角色
+        description: p.description || null,     // 描述
+        banner_url: p.banner_url || null,       // Banner 图片 URL
+        start_time: p.start_time || null,       // 开始时间
+        end_time: p.end_time || null,           // 结束时间
+        featured_characters: p.featured_characters || null  // 特色角色（数组）
       }));
 
       const formattedHistory = allHistory.map(h => ({
@@ -806,6 +813,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           type: pool.type,
           locked: pool.locked || false,
           is_limited_weapon: pool.isLimitedWeapon !== false,  // 武器池类型：限定/常驻
+          // 扩展字段
+          up_character: pool.up_character || null,
+          description: pool.description || null,
+          banner_url: pool.banner_url || null,
+          start_time: pool.start_time || null,
+          end_time: pool.end_time || null,
+          featured_characters: pool.featured_characters || null,
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id,pool_id' });
 

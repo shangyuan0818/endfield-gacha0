@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, Layers, Search, History, Star, Download, Share2, ChevronDown, Zap } from 'lucide-react';
+import { RefreshCw, Layers, Search, History, Star, Download, Share2, ChevronDown, Zap, Check } from 'lucide-react';
 import { createSimulator } from '../../utils/gachaSimulator';
 import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';

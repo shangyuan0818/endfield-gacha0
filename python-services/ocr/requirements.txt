@@ -1,0 +1,20 @@
+# 终末地抽卡记录 OCR 服务依赖
+
+# 核心 OCR 框架
+paddlepaddle==2.6.0
+paddleocr==2.7.3
+
+# 图像处理
+opencv-python==4.9.0.80
+Pillow==10.2.0
+numpy==1.26.3
+
+# Web 框架
+Flask==3.0.0
+flask-cors==4.0.0
+
+# 工具库
+gunicorn==21.2.0  # 生产环境 WSGI 服务器
+
+# 可选：如果有 NVIDIA GPU，可以安装 GPU 版本的 PaddlePaddle
+# paddlepaddle-gpu==2.6.0
