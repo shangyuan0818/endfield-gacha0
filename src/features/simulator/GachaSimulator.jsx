@@ -51,7 +51,14 @@ const GachaSimulator = () => {
   const currentSimPool = simulatorPools.find(p => p.id === currentSimPoolId);
   const currentPoolType = currentSimPool?.type || 'limited';
 
-  const [skipAnimation, setSkipAnimation] = useState(false); // 跳过动画选项
+  const [skipAnimation, setSkipAnimation] = useState(() => {
+    const saved = localStorage.getItem('simulator_skipAnimation');
+    return saved === 'true';
+  }); // 跳过动画选项
+  const [onceOnlyFreeTen, setOnceOnlyFreeTen] = useState(() => {
+    const saved = localStorage.getItem('simulator_onceOnlyFreeTen');
+    return saved === 'true';
+  }); // 赠送十连只会赠送一次
   const [showPoolMenu, setShowPoolMenu] = useState(false); // 卡池菜单显示状态
 
   // 限定卡池选择（默认最新的卡池）
@@ -82,6 +89,17 @@ const GachaSimulator = () => {
   const [expandedTenPulls, setExpandedTenPulls] = useState(new Set()); // 记录展开的十连ID
   const [availableFreePulls, setAvailableFreePulls] = useState(0); // 可用的免费十连次数
   const [showResetConfirm, setShowResetConfirm] = useState(false); // 重置确认对话框状态
+  const [resetAllPools, setResetAllPools] = useState(false); // 是否重置所有卡池
+  const [resetSettings, setResetSettings] = useState(false); // 是否重置开关设置
+
+  // 保存开关状态到 localStorage
+  useEffect(() => {
+    localStorage.setItem('simulator_skipAnimation', skipAnimation);
+  }, [skipAnimation]);
+
+  useEffect(() => {
+    localStorage.setItem('simulator_onceOnlyFreeTen', onceOnlyFreeTen);
+  }, [onceOnlyFreeTen]);
 
   // 监听模拟器状态变化
   useEffect(() => {
@@ -95,7 +113,9 @@ const GachaSimulator = () => {
         const stats = simulator.getStatistics();
         const earnedFreePulls = stats.freeTenPulls?.count || 0;
         const usedFreePulls = simulator.getState().freeTenPullsReceived || 0;
-        setAvailableFreePulls(Math.max(0, earnedFreePulls - usedFreePulls));
+        // 如果开启"赠送仅一次"，则最多只能获得1次免费十连
+        const maxFreePulls = onceOnlyFreeTen ? Math.min(earnedFreePulls, 1) : earnedFreePulls;
+        setAvailableFreePulls(Math.max(0, maxFreePulls - usedFreePulls));
       } else {
         setAvailableFreePulls(0);
       }
@@ -107,7 +127,7 @@ const GachaSimulator = () => {
     // 初始化时也更新一次
     updateUI();
     return () => simulator.removeListener(updateUI);
-  }, [simulator, currentPoolType]);
+  }, [simulator, currentPoolType, onceOnlyFreeTen]);
 
   // Handle limited weapon toggle
   // 武器池限定/常驻切换时更新规则，但保留历史
@@ -161,11 +181,34 @@ const GachaSimulator = () => {
   };
 
   const confirmReset = () => {
-    simulator.reset();
-    setLastResults(null);
-    clearSimulatorState(currentPoolType);
-    showToastMessage('模拟器已重置');
+    if (resetAllPools) {
+      // 重置所有卡池
+      simulatorPools.forEach(pool => {
+        clearSimulatorState(pool.id);
+      });
+      // 重置当前模拟器
+      simulator.reset();
+      setLastResults(null);
+      showToastMessage('已重置所有卡池的模拟器状态');
+    } else {
+      // 仅重置当前卡池
+      simulator.reset();
+      setLastResults(null);
+      clearSimulatorState(currentPoolType);
+      showToastMessage('当前卡池模拟器已重置');
+    }
+
+    // 重置开关设置
+    if (resetSettings) {
+      setSkipAnimation(false);
+      setOnceOnlyFreeTen(false);
+      localStorage.removeItem('simulator_skipAnimation');
+      localStorage.removeItem('simulator_onceOnlyFreeTen');
+    }
+
     setShowResetConfirm(false);
+    setResetAllPools(false); // 重置复选框状态
+    setResetSettings(false); // 重置复选框状态
   };
 
   const switchPool = (poolId) => {
@@ -409,7 +452,10 @@ const GachaSimulator = () => {
         ? Math.max(0, 60 - stats.totalPulls)
         : 0,
       // 30抽赠送十连信息（仅限定池）
-      freeTenPulls: stats.freeTenPulls,
+      freeTenPulls: {
+        ...stats.freeTenPulls,
+        received: simulator.getState().freeTenPullsReceived  // 添加已领取次数
+      },
       // 240抽赠送信息
       gifts: stats.gifts
   };
@@ -643,20 +689,42 @@ const GachaSimulator = () => {
         </div>
 
         <div className="flex items-center gap-4 ml-auto">
-          {/* 跳过动画复选框 */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={skipAnimation}
-              onChange={(e) => setSkipAnimation(e.target.checked)}
-              className="w-4 h-4 text-endfield-yellow bg-gray-100 border-gray-300 rounded focus:ring-endfield-yellow focus:ring-2"
-            />
-            <Zap size={14} className="text-slate-500 dark:text-zinc-500" />
-            <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-              跳过动画
-            </span>
-          </label>
+          {/* 赠送十连只会赠送一次 - 技术风开关（仅限定池显示） */}
+          {simulator.poolType === 'limited' && (
+            <div
+              onClick={() => setOnceOnlyFreeTen(!onceOnlyFreeTen)}
+              className={`
+                flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
+                ${onceOnlyFreeTen
+                  ? 'bg-blue-500/10 border-blue-500 text-blue-500'
+                  : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+                }
+              `}
+              title="开启后，30抽赠送十连只会在第一次达到30抽时赠送，之后不再赠送"
+            >
+              <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${onceOnlyFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}>
+                {onceOnlyFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
+              </div>
+              <span className="text-xs font-bold uppercase">赠送仅一次</span>
+            </div>
+          )}
 
+          {/* 跳过动画 - 技术风开关 */}
+                    <div
+                      onClick={() => setSkipAnimation(!skipAnimation)}
+                      className={`
+                        flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
+                        ${skipAnimation 
+                          ? 'bg-yellow-50 dark:bg-endfield-yellow/10 border-yellow-600 dark:border-endfield-yellow text-yellow-700 dark:text-endfield-yellow' 
+                          : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+                        }
+                      `}
+                    >
+                      <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${skipAnimation ? 'border-yellow-600 dark:border-endfield-yellow bg-yellow-500 dark:bg-endfield-yellow' : 'border-current'}`}>
+                        {skipAnimation && <Check size={10} className="text-white dark:text-black" strokeWidth={4} />}
+                      </div>
+                      <span className="text-xs font-bold uppercase">跳过动画</span>
+                    </div>
           <button
             onClick={handleShare}
             className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
@@ -715,20 +783,21 @@ const GachaSimulator = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8 flex-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[32fr_48fr_20fr] gap-6 mb-8 flex-1">
         {/* 左侧：限定池分析 */}
-        <div className="lg:col-span-4 space-y-4">
+        <div className="space-y-4">
            {/* 限定池分析卡片 */}
            <LimitedPoolAnalysis
               currentPool={currentPoolObj}
               stats={dashboardStats}
               effectivePity={effectivePityObj}
               pityInfo={pityInfoWithGuarantee}
+              onceOnlyFreeTen={onceOnlyFreeTen}
            />
         </div>
 
         {/* 中间：主视觉区 (Banner) */}
-        <div className="lg:col-span-6 relative flex flex-col">
+        <div className="relative flex flex-col">
           <div className="flex-1 bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 relative overflow-hidden flex items-center justify-center min-h-[600px]">
             {/* 装饰性背景 */}
             <div className="absolute inset-0 opacity-20 pointer-events-none" 
@@ -778,7 +847,7 @@ const GachaSimulator = () => {
         </div>
 
         {/* 右侧：历史记录 + 模拟器专属统计 */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           {/* 抽卡记录 - 固定高度，显示所有记录 */}
           <div className="flex flex-col h-[400px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
             <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-slate-50 dark:bg-zinc-950">
@@ -950,16 +1019,93 @@ const GachaSimulator = () => {
       )}
 
       {/* 重置确认对话框 */}
-      <ConfirmDialog
-        isOpen={showResetConfirm}
-        title="重置模拟器"
-        message="确定要重置模拟器状态吗？所有数据将被清空。"
-        confirmText="确认重置"
-        cancelText="取消"
-        onConfirm={confirmReset}
-        onCancel={() => setShowResetConfirm(false)}
-        type="danger"
-      />
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-md w-full mx-4">
+            {/* 标题栏 */}
+            <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-red-50 dark:bg-red-900/20">
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
+                重置模拟器
+              </h3>
+            </div>
+
+            {/* 内容区 */}
+            <div className="px-6 py-6 space-y-4">
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
+                确定要重置模拟器状态吗？所有数据将被清空。
+              </p>
+
+              {/* 复选框：重置所有卡池 */}
+              <div
+                onClick={() => setResetAllPools(!resetAllPools)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
+                  ${resetAllPools
+                    ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
+                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  }
+                `}
+              >
+                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetAllPools ? 'border-red-500 bg-red-500' : 'border-current'}`}>
+                  {resetAllPools && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold">重置所有卡池</div>
+                  <div className="text-xs opacity-75 mt-0.5">清空所有卡池的模拟器状态和历史记录</div>
+                </div>
+              </div>
+
+              {/* 复选框：重置开关设置 */}
+              <div
+                onClick={() => setResetSettings(!resetSettings)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
+                  ${resetSettings
+                    ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
+                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  }
+                `}
+              >
+                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetSettings ? 'border-red-500 bg-red-500' : 'border-current'}`}>
+                  {resetSettings && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold">重置开关设置</div>
+                  <div className="text-xs opacity-75 mt-0.5">恢复"跳过动画"和"赠送仅一次"为默认状态</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 按钮区 */}
+            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex gap-3 justify-end bg-zinc-50 dark:bg-zinc-950">
+              <button
+                onClick={() => {
+                  setShowResetConfirm(false);
+                  setResetAllPools(false);
+                  setResetSettings(false);
+                }}
+                className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmReset}
+                className="px-4 py-2 text-sm font-bold bg-red-500 hover:bg-red-600 text-white transition-colors"
+              >
+                确认重置
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .scrollbar-thin::-webkit-scrollbar {

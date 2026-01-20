@@ -81,20 +81,20 @@ const SimulatorResults = ({ results, onClose }) => {
       {/* 顶部栏 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black text-white italic tracking-tighter">
+          <h2 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-white italic tracking-tighter">
             寻访结果
           </h2>
-          <div className="flex gap-4 text-sm font-mono text-zinc-400 mt-2">
-             <span>6★: <span className="text-endfield-yellow">{sixStars}</span></span>
-             <span>5★: <span className="text-white">{fiveStars}</span></span>
+          <div className="flex gap-4 text-sm font-mono text-slate-500 dark:text-zinc-400 mt-2">
+             <span>6★: <span className="text-yellow-600 dark:text-endfield-yellow">{sixStars}</span></span>
+             <span>5★: <span className="text-slate-800 dark:text-white">{fiveStars}</span></span>
           </div>
         </div>
         <div className="flex gap-2">
-           <button className="p-2 bg-zinc-800 text-white hover:bg-zinc-700 transition-colors">
+           <button className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors">
               <Share2 size={20} />
            </button>
            {/* Close button kept for manual closing if needed, but Confirm button below removed */}
-           <button onClick={onClose} className="p-2 bg-endfield-yellow text-black hover:bg-yellow-400 transition-colors">
+           <button onClick={onClose} className="p-2 bg-yellow-500 dark:bg-endfield-yellow text-white dark:text-black hover:bg-yellow-600 dark:hover:bg-yellow-400 transition-colors">
               <X size={20} />
            </button>
         </div>
