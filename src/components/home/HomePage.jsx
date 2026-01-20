@@ -392,8 +392,10 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     pendingClicksRef.current = 0;
 
     try {
-      await incrementUrgentButtonClicksBatch(countToUpload);
-      console.log(`成功上传 ${countToUpload} 次点击`);
+      const newCount = await incrementUrgentButtonClicksBatch(countToUpload);
+      // 使用服务器返回的最新值更新本地显示（包含所有用户的点击）
+      setUrgentClicks(newCount);
+      console.log(`成功上传 ${countToUpload} 次点击，当前总计: ${newCount}`);
     } catch (error) {
       console.error('批量上传点击失败:', error);
       // 失败时，将点击次数加回去
