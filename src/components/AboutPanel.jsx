@@ -31,7 +31,7 @@ const AboutPanel = React.memo(() => {
           </h2>
           <p className="text-zinc-400 text-sm tracking-widest uppercase">/ 记录你的每一次命运邂逅</p>
           <div className="mt-6 flex items-center gap-4">
-            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">版本 2.9.0-beta</span>
+            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">版本 2.9.2-beta</span>
             <span className="text-zinc-500 text-xs font-mono">构建于 2026</span>
           </div>
         </div>
@@ -139,11 +139,11 @@ const AboutPanel = React.memo(() => {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[
               { icon: Star, label: '卡池管理', desc: '限定/常驻/武器池' },
-              { icon: Calculator, label: '保底追踪', desc: '实时垫刀追踪' },
-              { icon: BarChart3, label: '数据分析', desc: '概率分布图表' },
-              { icon: Cloud, label: '云端同步', desc: '多设备数据共享' },
-              { icon: Download, label: '导入 / 导出', desc: 'JSON/CSV 格式' },
-              { icon: Shield, label: '权限管理', desc: '多角色权限控制' },
+              { icon: Calculator, label: '抽卡模拟', desc: '真实概率 + 机制复刻' },
+              { icon: BarChart3, label: '欧非分析', desc: '不歪率/平均出货' },
+              { icon: Cloud, label: '云端缓存', desc: '三级降级策略加速' },
+              { icon: Download, label: '数据导入', desc: '批量粘贴 + OCR预告' },
+              { icon: Shield, label: '全球统计', desc: '"急"按钮实时同步' },
             ].map((feature, idx) => (
               <div key={idx} className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group">
                 <feature.icon size={20} className="text-zinc-400 group-hover:text-endfield-yellow mb-3 transition-colors" />
