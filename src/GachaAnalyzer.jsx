@@ -15,6 +15,46 @@ import RainbowGradientDefs from './components/charts/RainbowGradientDefs';
 import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName, STORAGE_KEYS, hasNewContent, markAsViewed, getStorageItem, setStorageItem } from './utils';
 
 
+/**
+ * 顶栏卡池时间信息组件 - 实时更新
+ * 使用与 constants/index.js 相同的计算方式，每分钟更新一次
+ */
+const HeaderPoolTimeInfo = React.memo(() => {
+  const [timeInfo, setTimeInfo] = useState(() => getCurrentUpPool());
+
+  useEffect(() => {
+    // 每分钟更新一次时间（与首页保持一致的更新频率）
+    const timer = setInterval(() => {
+      setTimeInfo(getCurrentUpPool());
+    }, 60000); // 60秒更新一次
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const { name, nextPool, isExpired, remainingDays = 0, remainingHours = 0, startsIn, startsInHours, isActive } = timeInfo;
+  const isEndingSoon = remainingDays <= 3 && isActive && !isExpired;
+  // 修复：检查是否未开始（不是 isActive 且不是 isExpired，或者 startsIn/startsInHours 存在）
+  const isNotStarted = !isActive && !isExpired && (startsIn !== undefined || startsInHours !== undefined);
+
+  return (
+    <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
+      <span className="text-orange-500 font-medium">{name}</span>
+      <span className="text-slate-300 dark:text-zinc-600">|</span>
+      {isNotStarted ? (
+        <span className="text-blue-500">{startsIn || 0}天{startsInHours || 0}小时后开始</span>
+      ) : isExpired ? (
+        <span className="text-red-500">已结束</span>
+      ) : isEndingSoon ? (
+        <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
+      ) : (
+        <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
+      )}
+      <span className="text-slate-300 dark:text-zinc-600">→</span>
+      <span className="text-blue-500">{nextPool}</span>
+    </div>
+  );
+});
+
 export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 检测暗色模式
   const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -48,6 +88,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 卡池状态
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
+
+  // 确保 pools 始终是数组
+  const poolsArray = Array.isArray(pools) ? pools : [];
   const poolSearchQuery = usePoolStore(state => state.poolSearchQuery);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
@@ -103,17 +146,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 当前卡池对象（从 stores 计算）
   const currentPool = useMemo(() => {
-    const poolsArray = pools || [];
     const byId = poolsArray.find(p => p.id === currentPoolId);
     if (byId) return byId;
     const defaultPool = poolsArray.find(p => p.id === DEFAULT_POOL_ID);
     if (defaultPool) return defaultPool;
-    return poolsArray[0];
-  }, [pools, currentPoolId]);
+    if (poolsArray[0]) return poolsArray[0];
+    // 如果没有任何卡池，返回一个默认对象
+    return { id: DEFAULT_POOL_ID, name: '默认卡池', type: 'limited', locked: false };
+  }, [poolsArray, currentPoolId]);
 
   // 如果当前选中卡池ID无效，则回退到默认池
   useEffect(() => {
-    const poolsArray = pools || [];
     const exists = poolsArray.some(p => p.id === currentPoolId);
     if (!exists) {
       const fallback = poolsArray.find(p => p.id === DEFAULT_POOL_ID) || poolsArray[0];
@@ -121,7 +164,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         switchPool(fallback.id);
       }
     }
-  }, [pools, currentPoolId, switchPool]);
+  }, [poolsArray, currentPoolId, switchPool]);
 
   // 当前卡池是否可编辑（锁定的卡池只有超管能改）
   const canEditCurrentPool = useMemo(() => {
@@ -133,14 +176,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 获取所有已知的抽卡人列表
   const knownDrawers = useMemo(() => {
     const drawers = new Set();
-    (pools || []).forEach(pool => {
+    poolsArray.forEach(pool => {
       const drawer = extractDrawerFromPoolName(pool.name);
       if (drawer) {
         drawers.add(drawer);
       }
     });
     return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  }, [pools]);
+  }, [poolsArray]);
 
   // 当前卡池的历史记录（方案A：完全开放模式，显示该卡池的所有数据）
   const currentPoolHistory = useMemo(() => {
@@ -1308,7 +1351,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
 
     // 获取所有限定池
-    const allLimitedPools = (pools || []).filter(p => p.type === 'limited');
+    const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
 
     // 如果当前池有记录，不需要考虑继承（继承只在空池时生效）
     if (currentPoolHistory.length > 0) {
@@ -1327,7 +1370,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       inheritedPity5,
       hasInheritedPity: inheritedPity > 0 || inheritedPity5 > 0
     };
-  }, [currentPool.type, pools, currentPoolHistory.length, history, currentPoolId]);
+  }, [currentPool.type, poolsArray, currentPoolHistory.length, history, currentPoolId]);
 
   // 计算实际有效的保底数（当前池 + 继承）
   const effectivePity = useMemo(() => {
@@ -1428,8 +1471,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   const togglePoolLock = async (poolId) => {
     if (!isSuperAdmin) return;
 
-    // 添加数组检查
-    const poolsArray = Array.isArray(pools) ? pools : [];
+    // 使用已定义的 poolsArray
     const pool = poolsArray.find(p => p.id === poolId);
     if (!pool) return;
 
@@ -1471,7 +1513,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     // 如果删除的是当前选中的卡池，切换到第一个卡池
     if (currentPoolId === poolId) {
-      const remainingPools = (pools || []).filter(p => p.id !== poolId);
+      const remainingPools = poolsArray.filter(p => p.id !== poolId);
       if (remainingPools.length > 0) {
         switchPool(remainingPools[0].id);
       }
@@ -1495,7 +1537,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   };
 
   const openDeleteConfirmModal = () => {
-    const currentPoolName = (pools || []).find(p=>p.id===currentPoolId)?.name;
+    const currentPoolName = poolsArray.find(p=>p.id===currentPoolId)?.name;
     setModalState({ type: 'deleteConfirm', data: { poolName: currentPoolName } });
   };
 
@@ -1808,7 +1850,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         return;
       }
       // 全部导出：为每个卡池单独计算序号和垫刀
-      (pools || []).forEach(pool => {
+      poolsArray.forEach(pool => {
         const poolData = processHistoryWithIndex(history, pool.id);
         dataToExport.push(...poolData);
       });
@@ -2080,35 +2122,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               </div>
             </div>
 
-            {/* UP池时间信息 - 常驻显示 */}
-            <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
-              {(() => {
-                const upPool = getCurrentUpPool();
-                const isExpired = upPool.isExpired;
-                const remainingDays = upPool.remainingDays ?? 0;
-                const remainingHours = upPool.remainingHours ?? 0;
-                const isEndingSoon = remainingDays <= 3 && !isExpired;
-                const isNotStarted = upPool.startsIn > 0;
-
-                return (
-                  <>
-                    <span className="text-orange-500 font-medium">{upPool.name}</span>
-                    <span className="text-slate-300 dark:text-zinc-600">|</span>
-                    {isNotStarted ? (
-                      <span className="text-blue-500">{upPool.startsIn}天{upPool.startsInHours}小时后开始</span>
-                    ) : isExpired ? (
-                      <span className="text-red-500">已结束</span>
-                    ) : isEndingSoon ? (
-                      <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
-                    ) : (
-                      <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
-                    )}
-                    <span className="text-slate-300 dark:text-zinc-600">→</span>
-                    <span className="text-blue-500">{upPool.nextPool}</span>
-                  </>
-                );
-              })()}
-            </div>
+            {/* UP池时间信息 - 实时更新 */}
+            <HeaderPoolTimeInfo />
           </div>
 
           <div className="flex gap-2 sm:gap-4">
