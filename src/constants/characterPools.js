@@ -2,62 +2,205 @@
  * 角色池配置
  *
  * 定义各卡池中可获取的角色列表
+ * FEAT-007 扩展：改为从数据库动态读取，支持角色轮换移出机制
  */
 
+import { characterCache, getPoolCharacters, getLimitedUpCharacter, getLimitedOffBannerCharacters } from '../utils/characterUtils';
+
 // ============================================
-// 限定角色池
+// 限定角色池（动态读取）
 // ============================================
 
-// 限定UP角色（轮换）
+/**
+ * 获取限定池UP角色列表（6星）
+ * @returns {Array<string>} 角色名称数组
+ */
+function getLimitedUpCharactersList() {
+  const chars = getPoolCharacters('limited', 6, true)
+    .filter(char => char.is_limited);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取限定池可歪角色列表（6星常驻）
+ * @returns {Array<string>} 角色名称数组
+ */
+function getLimitedOffBannerCharactersList() {
+  const chars = getPoolCharacters('limited', 6, true)
+    .filter(char => !char.is_limited);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取限定池所有6星角色（UP + 常驻）
+ * @returns {Array<string>} 角色名称数组
+ */
+function getLimitedAllSixStarList() {
+  const chars = getPoolCharacters('limited', 6, true);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取限定池5星角色列表
+ * @returns {Array<string>} 角色名称数组
+ */
+function getLimitedFiveStarList() {
+  const chars = getPoolCharacters('limited', 5, true);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取限定池4星角色列表
+ * @returns {Array<string>} 角色名称数组
+ */
+function getLimitedFourStarList() {
+  const chars = getPoolCharacters('limited', 4, true);
+  return chars.map(char => char.name);
+}
+
+// 向后兼容：使用 getter 动态读取
 export const LIMITED_UP_CHARACTERS = {
-  6: ['莱万汀', '伊冯', '洁尔佩塔']
+  get 6() {
+    return getLimitedUpCharactersList();
+  }
 };
 
-// 限定池可歪6星角色（常驻角色）
 export const LIMITED_OFF_BANNER_CHARACTERS = {
-  6: ['余烬', '黎风', '艾尔黛拉', '别礼', '骏卫']
+  get 6() {
+    return getLimitedOffBannerCharactersList();
+  }
 };
 
 // 限定池所有可能的6星（UP + 常驻）
-export const LIMITED_ALL_SIX_STAR = [
-  ...LIMITED_UP_CHARACTERS[6],
-  ...LIMITED_OFF_BANNER_CHARACTERS[6]
-];
+export const LIMITED_ALL_SIX_STAR = new Proxy([], {
+  get(target, prop) {
+    // 拦截数组访问，动态返回最新数据
+    const list = getLimitedAllSixStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // 限定池5星角色
-export const LIMITED_FIVE_STAR_CHARACTERS = [
-  '佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语',
-  '狼卫', '赛希', '昼雪', '阿列什'
-];
+export const LIMITED_FIVE_STAR_CHARACTERS = new Proxy([], {
+  get(target, prop) {
+    const list = getLimitedFiveStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // 限定池4星角色
-export const LIMITED_FOUR_STAR_CHARACTERS = [
-  '秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔'
-];
+export const LIMITED_FOUR_STAR_CHARACTERS = new Proxy([], {
+  get(target, prop) {
+    const list = getLimitedFourStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // ============================================
-// 常驻角色池
+// 常驻角色池（动态读取）
 // ============================================
+
+/**
+ * 获取常驻池6星角色列表
+ * @returns {Array<string>} 角色名称数组
+ */
+function getStandardSixStarList() {
+  const chars = getPoolCharacters('standard', 6, false);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取常驻池5星角色列表
+ * @returns {Array<string>} 角色名称数组
+ */
+function getStandardFiveStarList() {
+  const chars = getPoolCharacters('standard', 5, false);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取常驻池4星角色列表
+ * @returns {Array<string>} 角色名称数组
+ */
+function getStandardFourStarList() {
+  const chars = getPoolCharacters('standard', 4, false);
+  return chars.map(char => char.name);
+}
 
 // 常驻池6星角色
-export const STANDARD_SIX_STAR_CHARACTERS = [
-  '艾尔黛拉', '骏卫', '别礼', '余烬', '黎风'
-];
+export const STANDARD_SIX_STAR_CHARACTERS = new Proxy([], {
+  get(target, prop) {
+    const list = getStandardSixStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // 常驻池5星角色（与限定池相同）
-export const STANDARD_FIVE_STAR_CHARACTERS = [
-  '佩丽卡', '弧光', '艾维文娜', '大潘', '陈千语',
-  '狼卫', '赛希', '昼雪', '阿列什'
-];
+export const STANDARD_FIVE_STAR_CHARACTERS = new Proxy([], {
+  get(target, prop) {
+    const list = getStandardFiveStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // 常驻池4星角色（与限定池相同）
-export const STANDARD_FOUR_STAR_CHARACTERS = [
-  '秋栗', '卡契尔', '埃特拉', '萤石', '安塔尔'
-];
+export const STANDARD_FOUR_STAR_CHARACTERS = new Proxy([], {
+  get(target, prop) {
+    const list = getStandardFourStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // ============================================
-// 武器池（暂不实现具体武器名称）
+// 武器池（保持占位符）
 // ============================================
+
+/**
+ * 获取武器池6星武器列表
+ * @param {boolean} isLimited - 是否限定武器
+ * @returns {Array<string>} 武器名称数组
+ */
+function getWeaponSixStarList(isLimited = false) {
+  const chars = getPoolCharacters('weapon', 6, false)
+    .filter(char => char.is_limited === isLimited);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取武器池5星武器列表
+ * @returns {Array<string>} 武器名称数组
+ */
+function getWeaponFiveStarList() {
+  const chars = getPoolCharacters('weapon', 5, false);
+  return chars.map(char => char.name);
+}
+
+/**
+ * 获取武器池4星武器列表
+ * @returns {Array<string>} 武器名称数组
+ */
+function getWeaponFourStarList() {
+  const chars = getPoolCharacters('weapon', 4, false);
+  return chars.map(char => char.name);
+}
 
 // 武器池配置
 export const WEAPON_POOL_PLACEHOLDERS = {
@@ -67,41 +210,48 @@ export const WEAPON_POOL_PLACEHOLDERS = {
 };
 
 // 武器池 - UP限定6星武器（只有1把）
-export const LIMITED_WEAPON_SIX_STAR = [
-  '6星限定武器'
-];
+export const LIMITED_WEAPON_SIX_STAR = new Proxy([], {
+  get(target, prop) {
+    const list = getWeaponSixStarList(true);
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // 武器池 - 常驻6星武器（6把）
-export const STANDARD_WEAPON_SIX_STAR = [
-  '6星常驻武器-1',
-  '6星常驻武器-2',
-  '6星常驻武器-3',
-  '6星常驻武器-4',
-  '6星常驻武器-5',
-  '6星常驻武器-6'
-];
+export const STANDARD_WEAPON_SIX_STAR = new Proxy([], {
+  get(target, prop) {
+    const list = getWeaponSixStarList(false);
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
-// 武器池 - 5星武器（与限定池5星角色数量一致：9个）
-export const WEAPON_FIVE_STAR = [
-  '5星武器-1',
-  '5星武器-2',
-  '5星武器-3',
-  '5星武器-4',
-  '5星武器-5',
-  '5星武器-6',
-  '5星武器-7',
-  '5星武器-8',
-  '5星武器-9'
-];
+// 武器池 - 5星武器
+export const WEAPON_FIVE_STAR = new Proxy([], {
+  get(target, prop) {
+    const list = getWeaponFiveStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
-// 武器池 - 4星武器（与限定池4星角色数量一致：5个）
-export const WEAPON_FOUR_STAR = [
-  '4星武器-1',
-  '4星武器-2',
-  '4星武器-3',
-  '4星武器-4',
-  '4星武器-5'
-];
+// 武器池 - 4星武器
+export const WEAPON_FOUR_STAR = new Proxy([], {
+  get(target, prop) {
+    const list = getWeaponFourStarList();
+    if (prop === 'length') return list.length;
+    if (prop === Symbol.iterator) return list[Symbol.iterator].bind(list);
+    if (typeof prop === 'string' && !isNaN(prop)) return list[parseInt(prop)];
+    return list[prop];
+  }
+});
 
 // ============================================
 // 工具函数
@@ -131,14 +281,14 @@ export function getCharacterName(poolType, rarity, isUp = false, currentUpCharac
     if (rarity === 6) {
       // 6星武器：25% UP限定，75% 常驻
       if (isUp) {
-        return randomChoice(LIMITED_WEAPON_SIX_STAR);  // 返回限定6星武器
+        return randomChoice([...LIMITED_WEAPON_SIX_STAR]);  // 返回限定6星武器
       } else {
-        return randomChoice(STANDARD_WEAPON_SIX_STAR);  // 返回常驻6星武器
+        return randomChoice([...STANDARD_WEAPON_SIX_STAR]);  // 返回常驻6星武器
       }
     } else if (rarity === 5) {
-      return randomChoice(WEAPON_FIVE_STAR);
+      return randomChoice([...WEAPON_FIVE_STAR]);
     } else if (rarity === 4) {
-      return randomChoice(WEAPON_FOUR_STAR);
+      return randomChoice([...WEAPON_FOUR_STAR]);
     }
     // 其他星级返回占位符
     return WEAPON_POOL_PLACEHOLDERS[rarity]?.[0] || `${rarity}星`;
@@ -151,29 +301,29 @@ export function getCharacterName(poolType, rarity, isUp = false, currentUpCharac
         // 必须有明确的UP角色
         if (!currentUpCharacter) {
           console.warn('限定池抽到UP但未指定UP角色，使用默认');
-          return randomChoice(LIMITED_UP_CHARACTERS[6]);
+          return randomChoice([...LIMITED_UP_CHARACTERS[6]]);
         }
         return currentUpCharacter;
       } else {
         // 歪了，从所有6星中随机选择（排除当前UP角色）
-        const allSixStar = LIMITED_ALL_SIX_STAR.filter(char => char !== currentUpCharacter);
+        const allSixStar = [...LIMITED_ALL_SIX_STAR].filter(char => char !== currentUpCharacter);
         return randomChoice(allSixStar);
       }
     } else if (rarity === 5) {
-      return randomChoice(LIMITED_FIVE_STAR_CHARACTERS);
+      return randomChoice([...LIMITED_FIVE_STAR_CHARACTERS]);
     } else if (rarity === 4) {
-      return randomChoice(LIMITED_FOUR_STAR_CHARACTERS);
+      return randomChoice([...LIMITED_FOUR_STAR_CHARACTERS]);
     }
   }
 
   // 常驻池
   if (poolType === 'standard' || poolType === 'standard_pool') {
     if (rarity === 6) {
-      return randomChoice(STANDARD_SIX_STAR_CHARACTERS);
+      return randomChoice([...STANDARD_SIX_STAR_CHARACTERS]);
     } else if (rarity === 5) {
-      return randomChoice(STANDARD_FIVE_STAR_CHARACTERS);
+      return randomChoice([...STANDARD_FIVE_STAR_CHARACTERS]);
     } else if (rarity === 4) {
-      return randomChoice(STANDARD_FOUR_STAR_CHARACTERS);
+      return randomChoice([...STANDARD_FOUR_STAR_CHARACTERS]);
     }
   }
 

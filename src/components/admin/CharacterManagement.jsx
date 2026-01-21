@@ -27,7 +27,14 @@ const CharacterManagement = ({ showToast }) => {
     type: 'character',
     avatar_url: '',
     is_limited: false,
-    aliases: []
+    aliases: [],
+    // pool_config 配置
+    pool_config: {
+      pools: [],                    // 可用卡池列表：['limited', 'standard', 'weapon']
+      limited_rotation_count: 0,    // 限定池轮换次数
+      removes_after: null,          // 几次轮换后移出限定池（null表示永不移出）
+      is_active_in_limited: true    // 是否仍在限定池中
+    }
   });
 
   // 别名输入状态
@@ -78,7 +85,13 @@ const CharacterManagement = ({ showToast }) => {
       type: 'character',
       avatar_url: '',
       is_limited: false,
-      aliases: []
+      aliases: [],
+      pool_config: {
+        pools: [],
+        limited_rotation_count: 0,
+        removes_after: null,
+        is_active_in_limited: true
+      }
     });
     setAliasInput('');
     setEditingCharacter(null);
@@ -87,6 +100,7 @@ const CharacterManagement = ({ showToast }) => {
 
   // 开始编辑
   const startEdit = (character) => {
+    const existingPoolConfig = character.pool_config || {};
     setCharacterForm({
       id: character.id || '',
       name: character.name || '',
@@ -94,7 +108,13 @@ const CharacterManagement = ({ showToast }) => {
       type: character.type || 'character',
       avatar_url: character.avatar_url || '',
       is_limited: character.is_limited || false,
-      aliases: character.aliases || []
+      aliases: character.aliases || [],
+      pool_config: {
+        pools: existingPoolConfig.pools || [],
+        limited_rotation_count: existingPoolConfig.limited_rotation_count || 0,
+        removes_after: existingPoolConfig.removes_after ?? null,
+        is_active_in_limited: existingPoolConfig.is_active_in_limited !== false
+      }
     });
     setEditingCharacter(character);
     setShowEditDialog(true);
@@ -142,6 +162,14 @@ const CharacterManagement = ({ showToast }) => {
     setActionLoading('save');
 
     try {
+      // 构建 pool_config 对象
+      const poolConfig = {
+        pools: characterForm.pool_config.pools || [],
+        limited_rotation_count: characterForm.pool_config.limited_rotation_count || 0,
+        removes_after: characterForm.pool_config.removes_after,
+        is_active_in_limited: characterForm.pool_config.is_active_in_limited
+      };
+
       const characterData = {
         id: characterForm.id.trim(),
         name: characterForm.name.trim(),
@@ -149,7 +177,8 @@ const CharacterManagement = ({ showToast }) => {
         type: characterForm.type,
         avatar_url: characterForm.avatar_url.trim() || null,
         is_limited: characterForm.is_limited,
-        aliases: characterForm.aliases.length > 0 ? characterForm.aliases : null
+        aliases: characterForm.aliases.length > 0 ? characterForm.aliases : null,
+        pool_config: poolConfig
       };
 
       if (editingCharacter) {
@@ -300,7 +329,8 @@ const CharacterManagement = ({ showToast }) => {
                 <th className="px-4 py-3 text-left">名称</th>
                 <th className="px-4 py-3 text-left">稀有度</th>
                 <th className="px-4 py-3 text-left">类型</th>
-                <th className="px-4 py-3 text-left">别名</th>
+                <th className="px-4 py-3 text-left">可用卡池</th>
+                <th className="px-4 py-3 text-left">轮换状态</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
@@ -366,19 +396,36 @@ const CharacterManagement = ({ showToast }) => {
                     </span>
                   </td>
 
-                  {/* 别名 */}
+                  {/* 可用卡池 */}
                   <td className="px-4 py-3">
-                    {char.aliases && char.aliases.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {char.aliases.slice(0, 3).map((alias, i) => (
-                          <span key={i} className="text-xs px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded">
-                            {alias}
+                    <div className="flex flex-wrap gap-1">
+                      {char.pool_config?.pools?.map(pool => (
+                        <span key={pool} className={`text-xs px-1.5 py-0.5 rounded ${
+                          pool === 'limited' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
+                          pool === 'standard' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400' :
+                          'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400'
+                        }`}>
+                          {pool === 'limited' ? '限定' : pool === 'standard' ? '常驻' : '武器'}
+                        </span>
+                      )) || <span className="text-xs text-slate-400 dark:text-zinc-600">-</span>}
+                    </div>
+                  </td>
+
+                  {/* 轮换状态 */}
+                  <td className="px-4 py-3">
+                    {char.pool_config?.pools?.includes('limited') ? (
+                      <div className="text-xs">
+                        {char.pool_config.removes_after !== null && char.pool_config.removes_after !== undefined ? (
+                          <span className={`px-1.5 py-0.5 rounded ${
+                            (char.pool_config.limited_rotation_count || 0) >= char.pool_config.removes_after
+                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                          }`}>
+                            {char.pool_config.limited_rotation_count || 0}/{char.pool_config.removes_after}
+                            {(char.pool_config.limited_rotation_count || 0) >= char.pool_config.removes_after ? ' (已移出)' : ''}
                           </span>
-                        ))}
-                        {char.aliases.length > 3 && (
-                          <span className="text-xs text-slate-400 dark:text-zinc-500">
-                            +{char.aliases.length - 3}
-                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-zinc-500">永驻</span>
                         )}
                       </div>
                     ) : (
@@ -467,7 +514,7 @@ const CharacterManagement = ({ showToast }) => {
                     type="text"
                     value={characterForm.name}
                     onChange={(e) => setCharacterForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="例如：洛可可"
+                    placeholder="例如：莱万汀"
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
                   />
                 </div>
@@ -577,6 +624,142 @@ const CharacterManagement = ({ showToast }) => {
                   <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
                     别名用于识别角色的其他名称（如昵称、英文名等）
                   </p>
+                </div>
+
+                {/* 卡池配置 (pool_config) */}
+                <div className="border-t border-zinc-200 dark:border-zinc-700 pt-4 mt-4">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
+                    <Package size={16} />
+                    卡池配置
+                  </h4>
+
+                  {/* 可用卡池 */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
+                      可用卡池
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                      {['limited', 'standard', 'weapon'].map(poolType => (
+                        <label key={poolType} className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
+                          <input
+                            type="checkbox"
+                            checked={characterForm.pool_config.pools.includes(poolType)}
+                            onChange={(e) => {
+                              setCharacterForm(prev => ({
+                                ...prev,
+                                pool_config: {
+                                  ...prev.pool_config,
+                                  pools: e.target.checked
+                                    ? [...prev.pool_config.pools, poolType]
+                                    : prev.pool_config.pools.filter(p => p !== poolType)
+                                }
+                              }));
+                            }}
+                            className="w-4 h-4"
+                          />
+                          <span className={`px-2 py-0.5 rounded text-xs ${
+                            poolType === 'limited' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
+                            poolType === 'standard' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400' :
+                            'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400'
+                          }`}>
+                            {poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
+                      选择该角色/武器可以出现的卡池类型
+                    </p>
+                  </div>
+
+                  {/* 限定池专属配置 - 仅当选择了限定池时显示 */}
+                  {characterForm.pool_config.pools.includes('limited') && (
+                    <div className="p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800/30 mb-4">
+                      <h5 className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-3 uppercase">
+                        限定池轮换配置
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* 轮换次数 */}
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                            当前轮换次数
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={characterForm.pool_config.limited_rotation_count}
+                            onChange={(e) => setCharacterForm(prev => ({
+                              ...prev,
+                              pool_config: {
+                                ...prev.pool_config,
+                                limited_rotation_count: parseInt(e.target.value) || 0
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 text-sm"
+                          />
+                        </div>
+
+                        {/* 移出限制 */}
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                            几次轮换后移出
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="留空=永不移出"
+                            value={characterForm.pool_config.removes_after ?? ''}
+                            onChange={(e) => setCharacterForm(prev => ({
+                              ...prev,
+                              pool_config: {
+                                ...prev.pool_config,
+                                removes_after: e.target.value === '' ? null : parseInt(e.target.value) || null
+                              }
+                            }))}
+                            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 text-sm"
+                          />
+                        </div>
+
+                        {/* 当前状态 */}
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                            限定池状态
+                          </label>
+                          <div className="flex items-center gap-2 h-[38px]">
+                            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
+                              <input
+                                type="checkbox"
+                                checked={characterForm.pool_config.is_active_in_limited}
+                                onChange={(e) => setCharacterForm(prev => ({
+                                  ...prev,
+                                  pool_config: {
+                                    ...prev.pool_config,
+                                    is_active_in_limited: e.target.checked
+                                  }
+                                }))}
+                                className="w-4 h-4"
+                              />
+                              仍在限定池中
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 状态提示 */}
+                      {characterForm.pool_config.removes_after !== null && (
+                        <div className={`mt-3 text-xs px-2 py-1 rounded ${
+                          characterForm.pool_config.limited_rotation_count >= characterForm.pool_config.removes_after
+                            ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                        }`}>
+                          {characterForm.pool_config.limited_rotation_count >= characterForm.pool_config.removes_after
+                            ? `⚠️ 已轮换 ${characterForm.pool_config.limited_rotation_count}/${characterForm.pool_config.removes_after} 次，已从限定池移出`
+                            : `✓ 已轮换 ${characterForm.pool_config.limited_rotation_count}/${characterForm.pool_config.removes_after} 次，仍在限定池中`
+                          }
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

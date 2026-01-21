@@ -335,6 +335,150 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
  * @property {Array<string>} [aliases] - 别名数组
  * @property {boolean} is_limited - 是否限定
  * @property {string} [release_date] - 上线日期
+ * @property {Object} [pool_config] - 卡池配置
  * @property {string} created_at - 创建时间
  * @property {string} updated_at - 更新时间
  */
+
+// ============================================
+// 卡池角色查询 API（FEAT-007 扩展）
+// ============================================
+
+/**
+ * 获取指定卡池的可抽角色列表
+ * @param {string} poolType - 卡池类型 ('limited', 'standard', 'weapon')
+ * @param {number|null} rarity - 星级过滤（可选，null表示不过滤）
+ * @param {boolean} onlyActive - 是否仅返回当前激活的角色（限定池专用，检查轮换移出）
+ * @param {Object} poolInfo - 可选的池子信息，用于更精确的过滤
+ * @param {string} poolInfo.start_time - 池子开始时间
+ * @param {number} poolInfo.rotation_position - 池子在轮换序列中的位置
+ * @returns {Array<Character>} 角色列表
+ *
+ * @example
+ * // 获取限定池所有6星角色（包括已移出的）
+ * const allSixStar = getPoolCharacters('limited', 6, false);
+ *
+ * // 获取限定池当前可抽的6星角色（排除已移出的）
+ * const activeSixStar = getPoolCharacters('limited', 6, true);
+ *
+ * // 获取武器池所有角色
+ * const weaponChars = getPoolCharacters('weapon');
+ *
+ * // 获取特定池子的可抽角色（考虑角色引入时间）
+ * const poolChars = getPoolCharacters('limited', 6, true, { start_time: '2026-01-22T11:00:00Z' });
+ */
+export function getPoolCharacters(poolType, rarity = null, onlyActive = true, poolInfo = null) {
+  const characters = characterCache.getAll();
+
+  return characters.filter(char => {
+    // 1. 检查卡池归属
+    const pools = char.pool_config?.pools || [];
+    if (!pools.includes(poolType)) return false;
+
+    // 2. 星级过滤
+    if (rarity !== null && char.rarity !== rarity) return false;
+
+    // 3. 限定池特殊逻辑：检查是否已移出 + 检查引入时间
+    if (poolType === 'limited' && onlyActive) {
+      const removesAfter = char.pool_config?.removes_after;
+      const rotationCount = char.pool_config?.limited_rotation_count || 0;
+
+      // 如果有移出限制，检查是否已达到
+      if (removesAfter !== null && removesAfter !== undefined && rotationCount >= removesAfter) {
+        return false;
+      }
+
+      // 如果提供了池子信息，检查角色是否在池子开始前就已存在
+      // 新角色只出现在他们引入时间之后的池子中
+      if (poolInfo?.start_time && char.pool_config?.introduced_at) {
+        const poolStartTime = new Date(poolInfo.start_time);
+        const charIntroducedAt = new Date(char.pool_config.introduced_at);
+        
+        // 如果角色引入时间晚于池子开始时间，则角色不应该出现在这个池子中
+        if (charIntroducedAt > poolStartTime) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
+ * 获取限定池UP角色（6星）
+ * @param {string} currentUpCharacter - 当前UP角色名称
+ * @returns {Character|null} UP角色对象或null
+ *
+ * @example
+ * const upChar = getLimitedUpCharacter('莱万汀');
+ */
+export function getLimitedUpCharacter(currentUpCharacter) {
+  if (!currentUpCharacter) return null;
+  return characterCache.searchByName(currentUpCharacter);
+}
+
+/**
+ * 获取限定池可歪角色（6星，排除当前UP）
+ * @param {string} currentUpCharacter - 当前UP角色名称
+ * @returns {Array<Character>} 可歪角色列表
+ *
+ * @example
+ * const offBannerChars = getLimitedOffBannerCharacters('莱万汀');
+ * // 返回：[艾尔黛拉, 骏卫, 别礼, 余烬, 黎风, 伊冯, 洁尔佩塔]（排除莱万汀）
+ */
+export function getLimitedOffBannerCharacters(currentUpCharacter) {
+  const allSixStar = getPoolCharacters('limited', 6, true);
+  return allSixStar.filter(char => char.name !== currentUpCharacter);
+}
+
+/**
+ * 增加限定角色的轮换次数（管理功能）
+ * @param {string} characterId - 角色ID
+ * @returns {Promise<Object>} 更新后的角色数据
+ * @throws {Error} 如果角色不存在或更新失败
+ *
+ * @example
+ * // 新UP池开启时，增加莱万汀的轮换次数
+ * await incrementRotationCount('char_levantin');
+ */
+export async function incrementRotationCount(characterId) {
+  const char = characterCache.getById(characterId);
+  if (!char) {
+    throw new Error(`角色不存在: ${characterId}`);
+  }
+
+  const currentCount = char.pool_config?.limited_rotation_count || 0;
+  const newCount = currentCount + 1;
+  const removesAfter = char.pool_config?.removes_after;
+
+  // 计算是否还在限定池中
+  const isActiveInLimited = removesAfter === null || removesAfter === undefined || newCount < removesAfter;
+
+  const updatedPoolConfig = {
+    ...char.pool_config,
+    limited_rotation_count: newCount,
+    is_active_in_limited: isActiveInLimited
+  };
+
+  // 更新数据库
+  const { data, error } = await supabase
+    .from('characters')
+    .update({
+      pool_config: updatedPoolConfig,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', characterId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`更新轮换次数失败: ${error.message}`);
+  }
+
+  console.log(
+    `[CharacterUtils] ${char.name} 轮换次数: ${newCount}/${removesAfter || '∞'} ${isActiveInLimited ? '(仍在池中)' : '(已移出)'}`
+  );
+
+  return data;
+}

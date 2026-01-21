@@ -18,7 +18,13 @@ import {
   downloadAnalysisReport,
   downloadSimulatorData,
   generateShareText,
-  copyToClipboard
+  copyToClipboard,
+  saveSharedPityState,
+  loadSharedPityState,
+  clearSharedPityState,
+  saveInfoBookState,
+  loadInfoBookState,
+  clearInfoBookState
 } from '../../utils/simulatorStorage';
 
 const POOL_NAMES = {
@@ -33,7 +39,21 @@ const GachaSimulator = () => {
 
   // 创建模拟池列表（为每个真实卡池添加 [模拟] 标识）
   const simulatorPools = useMemo(() => {
-    return realPools.map(pool => ({
+    const poolsArray = Array.isArray(realPools) ? realPools : [];
+
+    // 按照 start_time 排序（时间早的在前，没有时间的放最后）
+    const sortedPools = [...poolsArray].sort((a, b) => {
+      // 如果都没有 start_time，保持原顺序
+      if (!a.start_time && !b.start_time) return 0;
+      // 如果 a 没有 start_time，放在后面
+      if (!a.start_time) return 1;
+      // 如果 b 没有 start_time，放在后面
+      if (!b.start_time) return -1;
+      // 都有 start_time，按时间排序
+      return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
+    });
+
+    return sortedPools.map(pool => ({
       ...pool,
       id: `sim_${pool.id}`,  // 模拟池ID前缀
       name: `${pool.name} [模拟]`,  // 名称添加标识
@@ -88,6 +108,7 @@ const GachaSimulator = () => {
   const [pullHistory, setPullHistory] = useState([]);
   const [expandedTenPulls, setExpandedTenPulls] = useState(new Set()); // 记录展开的十连ID
   const [availableFreePulls, setAvailableFreePulls] = useState(0); // 可用的免费十连次数
+  const [infoBookTenPullAvailable, setInfoBookTenPullAvailable] = useState(false); // 情报书十连是否可用
   const [showResetConfirm, setShowResetConfirm] = useState(false); // 重置确认对话框状态
   const [resetAllPools, setResetAllPools] = useState(false); // 是否重置所有卡池
   const [resetSettings, setResetSettings] = useState(false); // 是否重置开关设置
@@ -116,8 +137,65 @@ const GachaSimulator = () => {
         // 如果开启"赠送仅一次"，则最多只能获得1次免费十连
         const maxFreePulls = onceOnlyFreeTen ? Math.min(earnedFreePulls, 1) : earnedFreePulls;
         setAvailableFreePulls(Math.max(0, maxFreePulls - usedFreePulls));
+
+        // 检查情报书状态
+        const state = simulator.getState();
+        const infoBooks = loadInfoBookState();
+
+        // 如果当前池获得了情报书，保存到全局映射表
+        if (state.hasUnactivatedInfoBook && !infoBooks[currentSimPoolId]) {
+          // 获取所有限定池，按开始时间排序
+          const limitedPools = simulatorPools
+            .filter(p => p.type === 'limited' || p.type === 'limited_character')
+            .sort((a, b) => {
+              const timeA = a.start_time ? new Date(a.start_time).getTime() : 0;
+              const timeB = b.start_time ? new Date(b.start_time).getTime() : 0;
+              return timeA - timeB;
+            });
+
+          // 找到当前卡池的索引和下一个卡池
+          const currentIndex = limitedPools.findIndex(p => p.id === currentSimPoolId);
+          if (currentIndex !== -1) {
+            const nextPool = limitedPools[currentIndex + 1];
+
+            // 保存情报书到映射表（即使没有下一个卡池也保存）
+            const updatedInfoBooks = { ...infoBooks };
+            updatedInfoBooks[currentSimPoolId] = {
+              activated: false,
+              used: false,
+              targetPoolId: nextPool?.id || null,  // 允许null（等待新卡池上线）
+              obtainedAt: Date.now()
+            };
+            saveInfoBookState(updatedInfoBooks);
+            console.log('[情报书] 获得情报书:', {
+              from: currentSimPoolId,
+              to: nextPool?.id || '待激活（等待新卡池）'
+            });
+          }
+        }
+
+        // 检查当前卡池是否有可用的情报书十连
+        const availableInfoBook = Object.entries(infoBooks).find(
+          ([_, book]) => book.targetPoolId === currentSimPoolId && book.activated && !book.used
+        );
+        const isInfoBookAvailable = !!availableInfoBook;
+        setInfoBookTenPullAvailable(isInfoBookAvailable);
+
+        // 同步到模拟器内部状态
+        if (state.infoBookTenPullAvailable !== isInfoBookAvailable) {
+          simulator.updateState({
+            infoBookTenPullAvailable: isInfoBookAvailable
+          });
+        }
+
+        // 保存共享保底状态（不包括120抽硬保底）
+        saveSharedPityState({
+          sixStarPity: state.sixStarPity,
+          fiveStarPity: state.fiveStarPity
+        });
       } else {
         setAvailableFreePulls(0);
+        setInfoBookTenPullAvailable(false);
       }
 
       // 自动保存状态
@@ -162,8 +240,30 @@ const GachaSimulator = () => {
         const res = simulator.pullSingle();
         results = [res];
       } else {
-        // 检查是否使用免费十连
-        if (availableFreePulls > 0 && simulator.poolType === 'limited') {
+        // 优先级：情报书十连 > 免费十连 > 普通十连
+        if (infoBookTenPullAvailable && simulator.poolType === 'limited') {
+          // 找到当前卡池可用的情报书并标记为已使用
+          const infoBooks = loadInfoBookState();
+          const sourcePoolId = Object.keys(infoBooks).find(
+            poolId => infoBooks[poolId].targetPoolId === currentSimPoolId &&
+                     infoBooks[poolId].activated &&
+                     !infoBooks[poolId].used
+          );
+
+          if (sourcePoolId) {
+            const updatedInfoBooks = { ...infoBooks };
+            updatedInfoBooks[sourcePoolId].used = true;
+            saveInfoBookState(updatedInfoBooks);
+            console.log('[情报书] 使用情报书十连:', { from: sourcePoolId, at: currentSimPoolId });
+          }
+
+          // 立即更新UI状态
+          setInfoBookTenPullAvailable(false);
+
+          // 然后执行抽卡
+          results = simulator.pullInfoBookTen();
+          showToastMessage('使用情报书十连！（计入保底）');
+        } else if (availableFreePulls > 0 && simulator.poolType === 'limited') {
           results = simulator.pullFreeTen();
           showToastMessage('使用免费十连！（不计入保底）');
         } else {
@@ -182,21 +282,36 @@ const GachaSimulator = () => {
 
   const confirmReset = () => {
     if (resetAllPools) {
-      // 重置所有卡池
+      // 重置所有类型的卡池
       simulatorPools.forEach(pool => {
         clearSimulatorState(pool.id);
       });
-      // 重置当前模拟器
-      simulator.reset();
-      setLastResults(null);
-      showToastMessage('已重置所有卡池的模拟器状态');
+      // 清除全局状态
+      clearSharedPityState();
+      clearInfoBookState();
+      showToastMessage('已重置所有类型的卡池');
     } else {
-      // 仅重置当前卡池
-      simulator.reset();
-      setLastResults(null);
-      clearSimulatorState(currentPoolType);
-      showToastMessage('当前卡池模拟器已重置');
+      // 重置当前类型的所有卡池
+      const currentType = currentSimPool?.type || 'limited';
+      simulatorPools
+        .filter(pool => pool.type === currentType)
+        .forEach(pool => {
+          clearSimulatorState(pool.id);
+        });
+
+      // 如果是限定池，清除限定池专属的全局状态
+      if (currentType === 'limited') {
+        clearSharedPityState();
+        clearInfoBookState();
+      }
+
+      const typeName = currentType === 'limited' ? '限定角色池' : currentType === 'weapon' ? '武器池' : '常驻池';
+      showToastMessage(`已重置所有${typeName}`);
     }
+
+    // 重置当前模拟器
+    simulator.reset();
+    setLastResults(null);
 
     // 重置开关设置
     if (resetSettings) {
@@ -207,8 +322,8 @@ const GachaSimulator = () => {
     }
 
     setShowResetConfirm(false);
-    setResetAllPools(false); // 重置复选框状态
-    setResetSettings(false); // 重置复选框状态
+    setResetAllPools(false);
+    setResetSettings(false);
   };
 
   const switchPool = (poolId) => {
@@ -221,6 +336,15 @@ const GachaSimulator = () => {
     // 保存当前卡池状态
     saveSimulatorState(currentSimPoolId, simulator.exportState());
 
+    // 如果当前是限定池，保存共享保底状态（不包括120抽硬保底）
+    if (simulator.poolType === 'limited') {
+      const currentState = simulator.getState();
+      saveSharedPityState({
+        sixStarPity: currentState.sixStarPity,
+        fiveStarPity: currentState.fiveStarPity
+      });
+    }
+
     // 加载新卡池状态
     const savedState = loadSimulatorState(poolId);
     // 如果是限定池，使用目标卡池的UP角色
@@ -231,6 +355,75 @@ const GachaSimulator = () => {
       // 重要：importState 后需要重新设置 UP 角色
       if (upChar) {
         newSim.setCurrentUpCharacter(upChar);
+      }
+    }
+
+    // 如果切换到限定池，加载共享保底状态和情报书状态
+    if (targetPool.type === 'limited') {
+      const sharedPity = loadSharedPityState();
+      if (sharedPity) {
+        // 应用共享保底状态（不包括120抽硬保底，每个池独立）
+        newSim.updateState({
+          sixStarPity: sharedPity.sixStarPity,
+          fiveStarPity: sharedPity.fiveStarPity
+        });
+      }
+
+      // 自动更新待激活的情报书（targetPoolId 为 null 的情报书）
+      const infoBooks = loadInfoBookState();
+      let hasUpdated = false;
+
+      // 获取所有限定池，按开始时间排序
+      const limitedPools = simulatorPools
+        .filter(p => p.type === 'limited' || p.type === 'limited_character')
+        .sort((a, b) => {
+          const timeA = a.start_time ? new Date(a.start_time).getTime() : 0;
+          const timeB = b.start_time ? new Date(b.start_time).getTime() : 0;
+          return timeA - timeB;
+        });
+
+      // 检查所有情报书，更新 targetPoolId 为 null 的
+      Object.keys(infoBooks).forEach(sourcePoolId => {
+        const book = infoBooks[sourcePoolId];
+        if (book.targetPoolId === null && !book.used) {
+          // 找到源卡池的索引
+          const sourceIndex = limitedPools.findIndex(p => p.id === sourcePoolId);
+          if (sourceIndex !== -1 && sourceIndex + 1 < limitedPools.length) {
+            // 找到下一个卡池
+            const nextPool = limitedPools[sourceIndex + 1];
+            book.targetPoolId = nextPool.id;
+            hasUpdated = true;
+            console.log('[情报书] 自动更新目标卡池:', {
+              from: sourcePoolId,
+              to: nextPool.id
+            });
+          }
+        }
+      });
+
+      // 如果有更新，保存到存储
+      if (hasUpdated) {
+        saveInfoBookState(infoBooks);
+      }
+
+      // 检查并激活情报书
+      const sourcePoolId = Object.keys(infoBooks).find(
+        sourceId => infoBooks[sourceId].targetPoolId === poolId && !infoBooks[sourceId].activated
+      );
+
+      if (sourcePoolId) {
+        // 激活情报书
+        const updatedInfoBooks = { ...infoBooks };
+        updatedInfoBooks[sourcePoolId].activated = true;
+        saveInfoBookState(updatedInfoBooks);
+
+        console.log('[情报书] 激活情报书:', { from: sourcePoolId, at: poolId });
+        showToastMessage('情报书已激活！可使用情报书十连');
+
+        // 同步到模拟器状态
+        newSim.updateState({
+          infoBookTenPullAvailable: true
+        });
       }
     }
 
@@ -842,6 +1035,7 @@ const GachaSimulator = () => {
                disabled={isAnimating}
                jadeCost={600}
                availableFreePulls={availableFreePulls}
+               infoBookTenPullAvailable={infoBookTenPullAvailable}
              />
           </div>
         </div>
@@ -1032,10 +1226,13 @@ const GachaSimulator = () => {
             {/* 内容区 */}
             <div className="px-6 py-6 space-y-4">
               <p className="text-sm text-slate-600 dark:text-zinc-400">
-                确定要重置模拟器状态吗？所有数据将被清空。
+                {resetAllPools
+                  ? '确定要重置所有类型的卡池吗？所有数据将被清空。'
+                  : `确定要重置所有${currentSimPool?.type === 'limited' ? '限定角色池' : currentSimPool?.type === 'weapon' ? '武器池' : '常驻池'}吗？该类型的所有卡池数据将被清空。`
+                }
               </p>
 
-              {/* 复选框：重置所有卡池 */}
+              {/* 复选框：重置所有类型的卡池 */}
               <div
                 onClick={() => setResetAllPools(!resetAllPools)}
                 className={`
@@ -1054,8 +1251,8 @@ const GachaSimulator = () => {
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-bold">重置所有卡池</div>
-                  <div className="text-xs opacity-75 mt-0.5">清空所有卡池的模拟器状态和历史记录</div>
+                  <div className="text-sm font-bold">重置所有类型的卡池</div>
+                  <div className="text-xs opacity-75 mt-0.5">清空限定、武器、常驻所有类型的卡池数据</div>
                 </div>
               </div>
 

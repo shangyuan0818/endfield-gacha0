@@ -7,24 +7,32 @@ import { useHistoryStore, usePoolStore } from '../../stores';
 import PoolSelector from '../pool/PoolSelector';
 
 /**
- * 卡池时间信息组件
+ * 卡池时间信息组件 - 实时更新
  */
 const PoolTimeInfo = () => {
-  const currentUpPool = getCurrentUpPool();
-  const now = new Date();
+  const [currentUpPool, setCurrentUpPool] = useState(() => getCurrentUpPool());
+
+  // 每分钟更新一次时间，与顶栏和首页保持一致
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentUpPool(getCurrentUpPool());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   const startDate = new Date(currentUpPool.startDate);
-  startDate.setHours(4, 0, 0, 0);
   const endDate = currentUpPool.endDate instanceof Date ? currentUpPool.endDate : new Date(currentUpPool.endDate);
 
   const formatDate = (date) => {
-    return `${date.getMonth() + 1}/${date.getDate()} 04:00`;
+    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:00`;
   };
 
   const isExpired = currentUpPool.isExpired;
   const remainingDays = currentUpPool.remainingDays ?? 0;
   const remainingHours = currentUpPool.remainingHours ?? 0;
-  const isEndingSoon = remainingDays <= 3 && !isExpired;
-  const isNotStarted = currentUpPool.startsIn > 0;
+  const isEndingSoon = remainingDays <= 3 && currentUpPool.isActive && !isExpired;
+  // 修复：检查是否未开始
+  const isNotStarted = !currentUpPool.isActive && !isExpired && (currentUpPool.startsIn !== undefined || currentUpPool.startsInHours !== undefined);
 
   return (
     <div className="space-y-2">

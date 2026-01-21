@@ -23,6 +23,8 @@ import {
   getCurrentUpCharacter
 } from '../constants/characterPools.js';
 
+import { characterCache } from './characterUtils.js';
+
 /**
  * 创建初始模拟器状态
  * @param {string} poolType - 卡池类型
@@ -52,6 +54,9 @@ export function createInitialState(poolType = 'limited_character') {
     giftsReceived: 0,                   // 已领取的赠送次数（限定池：每240抽）
     freeTenPullsReceived: 0,            // 已领取的30抽赠送十连次数（限定池：每30抽）
     hasReceivedInfoBook: false,         // 是否已领取情报书（限定池：60抽，仅1次）
+    hasUnactivatedInfoBook: false,      // 是否有未激活的情报书（下一个池激活）
+    infoBookTenPullAvailable: false,    // 情报书十连是否可用（下一个限定池）
+    hasUsedInfoBookTenPull: false,      // 是否已使用情报书十连
     hasReceivedSelectGift: false,       // 是否已领取自选赠送（常驻池：300抽，仅1次）
 
     // 资源
@@ -100,6 +105,22 @@ export class GachaSimulator {
     this.listeners = [];
     // 当前UP角色（限定池专用）
     this.currentUpCharacter = currentUpCharacter;
+
+    // 确保角色数据已加载
+    this.ensureCharacterDataLoaded();
+  }
+
+  /**
+   * 确保角色数据已加载
+   * @private
+   * @returns {Promise<void>}
+   */
+  async ensureCharacterDataLoaded() {
+    if (!characterCache.isLoaded()) {
+      console.log('[GachaSimulator] 等待角色数据加载...');
+      await characterCache.load();
+      console.log('[GachaSimulator] 角色数据加载完成');
+    }
   }
 
   /**
@@ -190,6 +211,8 @@ export class GachaSimulator {
       pullHistory: [...this.state.pullHistory, pullRecord],
       giftsReceived: gifts.count,
       hasReceivedInfoBook: infoBook || this.state.hasReceivedInfoBook,
+      // 如果获得情报书，标记为未激活（需要切换到下一个池才能使用）
+      hasUnactivatedInfoBook: infoBook ? true : this.state.hasUnactivatedInfoBook,
       lastPullResult: pullRecord,
       upSixStarCount: result.rarity === 6 && result.isUp
         ? this.state.upSixStarCount + 1
@@ -245,6 +268,8 @@ export class GachaSimulator {
       pullHistory: [...this.state.pullHistory, ...pullRecords],
       giftsReceived: gifts.count,
       hasReceivedInfoBook: infoBook || this.state.hasReceivedInfoBook,
+      // 如果获得情报书，标记为未激活（需要切换到下一个池才能使用）
+      hasUnactivatedInfoBook: infoBook ? true : this.state.hasUnactivatedInfoBook,
       lastPullResult: pullRecords,
       upSixStarCount: this.state.upSixStarCount + upSixStars
     });
@@ -304,6 +329,76 @@ export class GachaSimulator {
       totalPulls: savedTotalPulls,
       guaranteedLimitedPity: savedGuaranteedLimitedPity,  // 修复：恢复硬保底计数
       hasReceivedGuaranteedLimited: savedHasReceivedGuaranteedLimited  // 修复：恢复硬保底标志
+    });
+
+    return pullRecords;
+  }
+
+  /**
+   * 情报书十连（计入保底，不消耗资源）
+   * @returns {Array} 情报书十连结果数组
+   */
+  pullInfoBookTen() {
+    if (!this.state.infoBookTenPullAvailable || this.state.hasUsedInfoBookTenPull) {
+      throw new Error('情报书十连不可用');
+    }
+
+    // 获取当前UP角色（如果是限定池）
+    const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
+      ? this.getCurrentUpCharacter()
+      : null;
+
+    // 正常执行十连模拟（计入保底）
+    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
+    const pullRecords = [];
+
+    // 统计6星和5星数量
+    let sixStars = 0;
+    let fiveStars = 0;
+    let upSixStars = 0;
+
+    // 处理每一抽的结果
+    results.forEach((result, index) => {
+      const pullNumber = this.state.totalPulls + index + 1;
+
+      if (result.rarity === 6) {
+        sixStars++;
+        if (result.isUp) upSixStars++;
+      }
+      if (result.rarity === 5) fiveStars++;
+
+      const pullRecord = {
+        pullNumber,
+        rarity: result.rarity,
+        isUp: result.isUp,
+        isLimited: result.isLimited,
+        characterName: result.characterName,
+        timestamp: Date.now() + index,
+        batchIndex: index,
+        isTenPull: true,
+        isInfoBookPull: true  // 标记为情报书十连
+      };
+
+      pullRecords.push(pullRecord);
+    });
+
+    // 获取最后一抽的状态
+    const finalResult = results[results.length - 1];
+
+    // 更新状态（计入保底和总抽数）
+    this.updateState({
+      sixStarPity: finalResult.sixStarPity,
+      fiveStarPity: finalResult.fiveStarPity,
+      totalPulls: this.state.totalPulls + 10,
+      sixStarCount: this.state.sixStarCount + sixStars,
+      fiveStarCount: this.state.fiveStarCount + fiveStars,
+      guaranteedLimitedPity: finalResult.guaranteedLimitedPity,
+      hasReceivedGuaranteedLimited: finalResult.hasReceivedGuaranteedLimited,
+      pullHistory: [...this.state.pullHistory, ...pullRecords],
+      lastPullResult: pullRecords,
+      upSixStarCount: this.state.upSixStarCount + upSixStars,
+      hasUsedInfoBookTenPull: true,  // 标记已使用
+      infoBookTenPullAvailable: false  // 使用后不再可用
     });
 
     return pullRecords;
@@ -433,6 +528,20 @@ export class GachaSimulator {
   }
 
   /**
+   * 激活未激活的情报书（切换到新限定池时调用）
+   */
+  activateInfoBook() {
+    if (this.state.hasUnactivatedInfoBook && !this.state.hasUsedInfoBookTenPull) {
+      this.updateState({
+        infoBookTenPullAvailable: true,
+        hasUnactivatedInfoBook: false
+      });
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * 重置模拟器
    */
   reset() {
@@ -461,7 +570,11 @@ export class GachaSimulator {
       ...this.state,
       // 移除UI状态
       isAnimating: undefined,
-      lastPullResult: undefined
+      lastPullResult: undefined,
+      // 移除全局状态（情报书相关字段应该从全局状态读取，不保存在每个卡池）
+      hasUnactivatedInfoBook: undefined,
+      infoBookTenPullAvailable: undefined,
+      hasUsedInfoBookTenPull: undefined
     };
   }
 

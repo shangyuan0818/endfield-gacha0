@@ -5,6 +5,8 @@
  */
 
 const STORAGE_KEY = 'gacha_simulator_state';
+const SHARED_PITY_KEY = 'gacha_simulator_shared_pity'; // 限定池共享保底
+const INFO_BOOK_KEY = 'gacha_simulator_info_book'; // 情报书状态（全局）
 const STORAGE_VERSION = '1.0';
 
 /**
@@ -331,11 +333,132 @@ export async function copyToClipboard(text) {
   }
 }
 
+/**
+ * 保存限定池共享保底状态
+ * @param {Object} pityState - 保底状态
+ */
+export function saveSharedPityState(pityState) {
+  try {
+    const storageData = {
+      version: STORAGE_VERSION,
+      timestamp: Date.now(),
+      pityState
+    };
+    localStorage.setItem(SHARED_PITY_KEY, JSON.stringify(storageData));
+    return true;
+  } catch (error) {
+    console.error('保存共享保底状态失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 加载限定池共享保底状态
+ * @returns {Object|null} 保底状态或null
+ */
+export function loadSharedPityState() {
+  try {
+    const data = localStorage.getItem(SHARED_PITY_KEY);
+    if (!data) return null;
+
+    const storageData = JSON.parse(data);
+
+    // 版本检查
+    if (storageData.version !== STORAGE_VERSION) {
+      console.warn('共享保底版本不匹配，清除旧数据');
+      clearSharedPityState();
+      return null;
+    }
+
+    return storageData.pityState;
+  } catch (error) {
+    console.error('加载共享保底状态失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 清除限定池共享保底状态
+ */
+export function clearSharedPityState() {
+  try {
+    localStorage.removeItem(SHARED_PITY_KEY);
+    return true;
+  } catch (error) {
+    console.error('清除共享保底状态失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 保存情报书状态（全局，使用映射表）
+ * @param {Object} infoBooks - 情报书映射表 { [poolId]: { activated, used, targetPoolId, obtainedAt } }
+ */
+export function saveInfoBookState(infoBooks) {
+  try {
+    const storageData = {
+      version: '2.0',
+      timestamp: Date.now(),
+      infoBooks
+    };
+    localStorage.setItem(INFO_BOOK_KEY, JSON.stringify(storageData));
+    return true;
+  } catch (error) {
+    console.error('保存情报书状态失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 加载情报书状态（全局）
+ * @returns {Object} 情报书映射表或空对象
+ */
+export function loadInfoBookState() {
+  try {
+    const data = localStorage.getItem(INFO_BOOK_KEY);
+    if (!data) return {};
+
+    const storageData = JSON.parse(data);
+
+    // 版本检查和迁移
+    if (storageData.version === '2.0') {
+      return storageData.infoBooks || {};
+    }
+
+    // 旧版本数据，清除
+    console.warn('情报书状态版本不匹配，清除旧数据');
+    clearInfoBookState();
+    return {};
+  } catch (error) {
+    console.error('加载情报书状态失败:', error);
+    return {};
+  }
+}
+
+/**
+ * 清除情报书状态
+ */
+export function clearInfoBookState() {
+  try {
+    localStorage.removeItem(INFO_BOOK_KEY);
+    return true;
+  } catch (error) {
+    console.error('清除情报书状态失败:', error);
+    return false;
+  }
+}
+
 export default {
   saveSimulatorState,
   loadSimulatorState,
   clearSimulatorState,
   clearAllSimulatorStates,
+  saveSharedPityState,
+  loadSharedPityState,
+  clearSharedPityState,
+  saveInfoBookState,
+  loadInfoBookState,
+  clearInfoBookState,
   convertSimulatorHistoryToImportFormat,
   exportSimulatorDataAsJSON,
   exportSimulatorDataAsCSV,

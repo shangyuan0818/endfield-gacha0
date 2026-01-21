@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
+import usePoolStore from '../../stores/usePoolStore';
 import SimpleMarkdown from '../SimpleMarkdown';
 import {
   STORAGE_KEYS,
@@ -265,6 +266,35 @@ const CopyCode = ({ code }) => {
  * 包含使用指南和卡池机制速览
  */
 const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
+  // 从 store 获取卡池列表
+  const pools = usePoolStore(state => state.pools);
+
+  // 确保 pools 始终是数组
+  const poolsArray = Array.isArray(pools) ? pools : [];
+
+  // 动态生成轮换计划（从数据库卡池列表）
+  const dynamicPoolSchedule = React.useMemo(() => {
+    // 过滤出限定池并按开始时间排序
+    const limitedPools = poolsArray
+      .filter(p => p.type === 'limited' && p.start_time && p.end_time)
+      .sort((a, b) => {
+        const timeA = new Date(a.start_time).getTime();
+        const timeB = new Date(b.start_time).getTime();
+        return timeA - timeB;
+      });
+
+    // 转换为轮换计划格式
+    return limitedPools.map(pool => ({
+      name: pool.up_character || pool.name.replace(/^限定-/, ''),
+      startDate: pool.start_time,
+      endDate: pool.end_time,
+      removesAfter: 3, // 默认值，可以根据需要调整
+    }));
+  }, [poolsArray]);
+
+  // 使用动态轮换计划，如果为空则回退到硬编码的计划
+  const poolSchedule = dynamicPoolSchedule.length > 0 ? dynamicPoolSchedule : LIMITED_POOL_SCHEDULE;
+
   // 从 localStorage 读取初始折叠状态
   const initialCollapseState = getHomeCollapseState();
 
@@ -621,8 +651,8 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                 {(() => {
                   // Determine the index of the currently active pool
                   let currentActiveIndex = -1;
-                  for (let i = 0; i < LIMITED_POOL_SCHEDULE.length; i++) {
-                    const pool = LIMITED_POOL_SCHEDULE[i];
+                  for (let i = 0; i < poolSchedule.length; i++) {
+                    const pool = poolSchedule[i];
                     const start = new Date(pool.startDate);
                     const end = new Date(pool.endDate);
                     if (now >= start && now < end) {
@@ -630,11 +660,11 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                       break;
                     }
                   }
-                  
+
                   // If no pool is currently active, check if we are past the last one or before first
                   // But the requirement says "Wait until pool starts", so if not started, no special highlights
-                  
-                  return LIMITED_POOL_SCHEDULE.map((pool, index) => {
+
+                  return poolSchedule.map((pool, index) => {
                     const poolStart = new Date(pool.startDate);
                     const poolEnd = new Date(pool.endDate);
                     const isCurrent = now >= poolStart && now < poolEnd;
@@ -692,7 +722,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                             {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
                           </div>
                         </div>
-                        {index < LIMITED_POOL_SCHEDULE.length - 1 && (
+                        {index < poolSchedule.length - 1 && (
                           <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
                         )}
                       </React.Fragment>
