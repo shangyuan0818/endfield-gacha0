@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, Layers, Search, History, Star, Download, Share2, ChevronDown, Zap, Check } from 'lucide-react';
 import { createSimulator } from '../../utils/gachaSimulator';
 import SimulatorResults from './SimulatorResults';
@@ -61,11 +61,26 @@ const GachaSimulator = () => {
     }));
   }, [realPools]);
 
-  // 当前选中的模拟池ID
+  // 当前选中的模拟池ID（从 localStorage 恢复）
   const [currentSimPoolId, setCurrentSimPoolId] = useState(() => {
-    const firstPool = simulatorPools[0];
-    return firstPool ? firstPool.id : null;
+    // 尝试从 localStorage 读取上次选择的卡池ID
+    const savedPoolId = localStorage.getItem('simulator_currentPoolId');
+    if (savedPoolId) {
+      return savedPoolId;
+    }
+    // 新用户没有保存的ID，返回 null，稍后在 useEffect 中处理
+    return null;
   });
+
+  // 标记是否已完成初始化同步
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 保存当前选择的卡池ID到 localStorage
+  useEffect(() => {
+    if (currentSimPoolId && isInitialized) {
+      localStorage.setItem('simulator_currentPoolId', currentSimPoolId);
+    }
+  }, [currentSimPoolId, isInitialized]);
 
   // 获取当前模拟池对象
   const currentSimPool = simulatorPools.find(p => p.id === currentSimPoolId);
@@ -88,14 +103,21 @@ const GachaSimulator = () => {
     return currentUp.name;
   });
 
+  // 获取默认卡池（优先选择限定角色池）
+  const getDefaultPool = useCallback(() => {
+    if (simulatorPools.length === 0) return null;
+    // 优先找限定角色池
+    const limitedPool = simulatorPools.find(p => p.type === 'limited');
+    if (limitedPool) return limitedPool;
+    // 否则返回第一个
+    return simulatorPools[0];
+  }, [simulatorPools]);
+
   const [simulator, setSimulator] = useState(() => {
-    // 尝试从localStorage加载状态
-    const savedState = loadSimulatorState('limited');
+    // 初始化时先创建一个默认的限定池模拟器
+    // 实际的卡池同步会在 useEffect 中完成
     const currentUp = getCurrentUpPool();
     const sim = createSimulator('limited', null, currentUp.name);
-    if (savedState) {
-      sim.importState(savedState);
-    }
     return sim;
   });
   const [isAnimating, setIsAnimating] = useState(false);
@@ -121,6 +143,55 @@ const GachaSimulator = () => {
   useEffect(() => {
     localStorage.setItem('simulator_onceOnlyFreeTen', onceOnlyFreeTen);
   }, [onceOnlyFreeTen]);
+
+  // 当卡池列表加载完成后，初始化或恢复卡池选择
+  useEffect(() => {
+    if (simulatorPools.length === 0 || isInitialized) return;
+
+    const savedPoolId = localStorage.getItem('simulator_currentPoolId');
+    let targetPool = null;
+    let targetPoolId = null;
+
+    if (savedPoolId) {
+      // 检查保存的卡池ID是否存在于当前卡池列表中
+      targetPool = simulatorPools.find(p => p.id === savedPoolId);
+      if (targetPool) {
+        targetPoolId = savedPoolId;
+      }
+    }
+
+    // 如果没有有效的保存卡池，使用默认卡池
+    if (!targetPool) {
+      targetPool = getDefaultPool();
+      targetPoolId = targetPool?.id || null;
+    }
+
+    if (targetPool && targetPoolId) {
+      console.log('[GachaSimulator] 初始化卡池:', targetPool.name, 'ID:', targetPoolId);
+      
+      // 设置当前卡池ID
+      setCurrentSimPoolId(targetPoolId);
+      
+      // 加载对应的模拟器状态
+      const savedState = loadSimulatorState(targetPoolId);
+      const upChar = targetPool.type === 'limited' ? (targetPool.up_character || getCurrentUpPool().name) : null;
+      const newSim = createSimulator(targetPool.type, null, upChar);
+      if (savedState) {
+        newSim.importState(savedState);
+      }
+      setSimulator(newSim);
+      setStats(newSim.getStatistics());
+      setPityInfo(newSim.getPityInfo());
+      
+      // 更新限定池UP角色状态
+      if (targetPool.type === 'limited') {
+        setSelectedLimitedPool(upChar || getCurrentUpPool().name);
+      }
+    }
+
+    // 标记初始化完成
+    setIsInitialized(true);
+  }, [simulatorPools.length, isInitialized, getDefaultPool]); // 只在卡池列表变化时执行
 
   // 监听模拟器状态变化
   useEffect(() => {

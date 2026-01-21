@@ -1,7 +1,9 @@
 import { supabase } from '../supabaseClient';
+import { getCachedUrgentClicks } from './cacheService';
 
 /**
  * 统计服务 - 处理"急"按钮点击统计等全局统计数据
+ * 优先使用 Serverless API 缓存，失败则直连数据库
  */
 
 const STATS_TABLE = 'global_stats';
@@ -9,13 +11,25 @@ const URGENT_BUTTON_KEY = 'urgent_button_clicks';
 
 /**
  * 获取"急"按钮的点击次数
+ * 策略：Serverless API 缓存 -> 直连 Supabase -> 本地缓存
  * @returns {Promise<number>} 点击次数
  */
 export async function getUrgentButtonClicks() {
   try {
+    // 1. 优先尝试从 Serverless API 获取（已预缓存）
+    try {
+      const cachedClicks = await getCachedUrgentClicks();
+      if (cachedClicks !== undefined && cachedClicks !== null) {
+        localStorage.setItem(URGENT_BUTTON_KEY, cachedClicks.toString());
+        return cachedClicks;
+      }
+    } catch (cacheError) {
+      console.warn('Serverless API 不可用，尝试直连数据库:', cacheError.message);
+    }
+
+    // 2. 回退到直连 Supabase
     if (!supabase) {
       console.warn('Supabase 未配置，返回本地缓存数据');
-      // 从 localStorage 获取缓存
       const cached = localStorage.getItem(URGENT_BUTTON_KEY);
       return cached ? parseInt(cached, 10) : 0;
     }
@@ -27,7 +41,6 @@ export async function getUrgentButtonClicks() {
       .single();
 
     if (error) {
-      // 如果记录不存在，返回 0
       if (error.code === 'PGRST116') {
         return 0;
       }
@@ -35,12 +48,11 @@ export async function getUrgentButtonClicks() {
     }
 
     const clicks = parseInt(data?.value || '0', 10);
-    // 缓存到本地
     localStorage.setItem(URGENT_BUTTON_KEY, clicks.toString());
     return clicks;
   } catch (error) {
     console.error('获取急按钮点击次数失败:', error);
-    // 返回本地缓存
+    // 3. 最后回退到本地缓存
     const cached = localStorage.getItem(URGENT_BUTTON_KEY);
     return cached ? parseInt(cached, 10) : 0;
   }
