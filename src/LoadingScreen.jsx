@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import MinecraftCaptcha from './components/MinecraftCaptcha';
+import TerminalCaptcha from './components/TerminalCaptcha';
+import { Settings } from 'lucide-react';
 
 // 验证码有效期：24小时（毫秒）
 const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
@@ -9,10 +11,19 @@ const LoadingScreen = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState('INITIALIZING');
   const [skipCaptcha, setSkipCaptcha] = useState(false);
+  
+  // 验证码模式: 'minecraft' | 'terminal'
+  const [captchaMode, setCaptchaMode] = useState('minecraft');
 
   // 检查是否需要显示验证码（Cloudflare风格的智能验证）
   useEffect(() => {
     const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
+    // 读取上次使用的验证码模式
+    const lastMode = localStorage.getItem('captchaModePreference');
+    if (lastMode) {
+      setCaptchaMode(lastMode);
+    }
+
     if (lastVerifiedTime) {
       const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
       // 如果距离上次验证不到24小时，跳过验证码
@@ -21,6 +32,13 @@ const LoadingScreen = ({ onComplete }) => {
       }
     }
   }, []);
+
+  // 切换验证码模式
+  const toggleCaptchaMode = () => {
+    const newMode = captchaMode === 'minecraft' ? 'terminal' : 'minecraft';
+    setCaptchaMode(newMode);
+    localStorage.setItem('captchaModePreference', newMode);
+  };
 
   // 阶段1: 进度条加载（约3秒）
   useEffect(() => {
@@ -138,24 +156,46 @@ const LoadingScreen = ({ onComplete }) => {
 
       {/* 阶段2: 验证码 */}
       {stage === 'captcha' && (
-        <div className="relative z-10 flex flex-col items-center animate-fadeIn">
+        <div className="relative z-10 flex flex-col items-center animate-fadeIn w-full max-w-md px-4">
           {/* 标题 */}
-          <div className="text-endfield-yellow text-2xl mb-6 tracking-widest font-mono">
+          <div className="text-endfield-yellow text-2xl mb-6 tracking-widest font-mono text-center">
             [ ORACLE 身份验证系统 ]
           </div>
-          <div className="text-gray-400 text-sm mb-6">
+          <div className="text-gray-400 text-sm mb-6 text-center">
             ENDFIELD SECURITY PROTOCOL v2.2.2
           </div>
 
-          {/* Minecraft验证码 */}
-          <div className="transform scale-95 md:scale-100">
-            <MinecraftCaptcha onVerified={handleCaptchaVerified} />
+          {/* 验证码容器 */}
+          <div className="transform scale-95 md:scale-100 w-full flex flex-col items-center">
+            {captchaMode === 'minecraft' ? (
+              <MinecraftCaptcha onVerified={handleCaptchaVerified} />
+            ) : (
+              <TerminalCaptcha onVerified={handleCaptchaVerified} />
+            )}
           </div>
 
+          {/* 切换按钮 */}
+          <button 
+            onClick={toggleCaptchaMode}
+            className="mt-6 flex items-center gap-2 text-xs text-zinc-500 hover:text-endfield-yellow transition-colors border border-zinc-800 hover:border-endfield-yellow/50 px-3 py-1.5 rounded-none bg-black/50"
+          >
+            <Settings size={12} />
+            <span>切换验证方式: {captchaMode === 'minecraft' ? '终端指令' : 'MC合成'}</span>
+          </button>
+
           {/* 提示文本 */}
-          <div className="text-gray-500 text-xs mt-6 text-center max-w-md">
-            提示：合成末影之眼需要两步操作<br/>
-            <span className="text-endfield-yellow/70">完成验证后将自动进入系统</span>
+          <div className="text-gray-500 text-xs mt-4 text-center max-w-md">
+            {captchaMode === 'minecraft' ? (
+              <>
+                提示：合成末影之眼需要两步操作<br/>
+                <span className="text-endfield-yellow/70">完成验证后将自动进入系统</span>
+              </>
+            ) : (
+              <>
+                提示：请输入屏幕上显示的终端指令代码<br/>
+                <span className="text-endfield-yellow/70">输入正确后按回车进入系统</span>
+              </>
+            )}
           </div>
         </div>
       )}
