@@ -1,22 +1,28 @@
 /**
  * 缓存服务 - 通过 Vercel Serverless API 获取预缓存数据
  * 提供更稳定的数据访问，减少客户端直连数据库的问题
+ * 
+ * 优化版 v2.9.2：
+ * - 急按钮数据缓存从 5 分钟降到 30 秒，配合智能轮询
+ * - 其他数据保持 5 分钟缓存
  */
 
 const API_BASE = '/api/stats';
 const LOCAL_CACHE_KEY = 'app_cached_data';
-const LOCAL_CACHE_TTL = 5 * 60 * 1000; // 5分钟本地缓存
+const LOCAL_CACHE_TTL = 5 * 60 * 1000; // 5分钟本地缓存（卡池/角色等）
+const URGENT_CACHE_TTL = 30 * 1000; // 30秒缓存（急按钮数据）
 
 /**
  * 从 localStorage 获取缓存
+ * @param {number} maxAge - 可选的自定义最大缓存时间
  */
-function getLocalCache() {
+function getLocalCache(maxAge = LOCAL_CACHE_TTL) {
   try {
     const cached = localStorage.getItem(LOCAL_CACHE_KEY);
     if (cached) {
       const { data, timestamp } = JSON.parse(cached);
       // 检查是否过期
-      if (Date.now() - timestamp < LOCAL_CACHE_TTL) {
+      if (Date.now() - timestamp < maxAge) {
         return data;
       }
     }
@@ -73,22 +79,31 @@ async function fetchFromAPI(type, retries = 2) {
 /**
  * 获取急按钮点击数
  * 优先使用 Serverless API，失败则返回本地缓存
+ * @param {boolean} forceRefresh - 是否强制刷新（跳过本地缓存）
  */
-export async function getCachedUrgentClicks() {
-  // 先尝试从 API 获取
+export async function getCachedUrgentClicks(forceRefresh = false) {
+  // 如果不是强制刷新，先检查本地缓存（30秒有效期）
+  if (!forceRefresh) {
+    const localCache = getLocalCache(URGENT_CACHE_TTL);
+    if (localCache?.urgentClicks !== undefined) {
+      return localCache.urgentClicks;
+    }
+  }
+  
+  // 尝试从 API 获取
   const apiData = await fetchFromAPI('urgent');
   if (apiData?.urgentClicks !== undefined) {
     // 更新本地缓存
-    const localCache = getLocalCache() || {};
+    const localCache = getLocalCache(LOCAL_CACHE_TTL) || {};
     localCache.urgentClicks = apiData.urgentClicks;
     setLocalCache(localCache);
     return apiData.urgentClicks;
   }
   
-  // 回退到本地缓存
-  const localCache = getLocalCache();
-  if (localCache?.urgentClicks !== undefined) {
-    return localCache.urgentClicks;
+  // 回退到本地缓存（允许使用过期缓存）
+  const expiredCache = getLocalCache(LOCAL_CACHE_TTL);
+  if (expiredCache?.urgentClicks !== undefined) {
+    return expiredCache.urgentClicks;
   }
   
   // 最后尝试直接从 localStorage 获取旧数据

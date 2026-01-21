@@ -19,8 +19,9 @@ import {
 } from '../../utils';
 import {
   getUrgentButtonClicks,
+  getLocalUrgentClicks,
   incrementUrgentButtonClicksBatch,
-  subscribeToUrgentButtonClicks
+  createUrgentClicksPoller
 } from '../../services/statsService';
 
 // 倒计时组件 - 终末地风格（移到 HomePage 外部以避免重复渲染）
@@ -316,13 +317,15 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
 
   // "急"按钮点击统计
-  const [urgentClicks, setUrgentClicks] = useState(0);
+  // 使用本地缓存初始化，避免闪烁
+  const [urgentClicks, setUrgentClicks] = useState(() => getLocalUrgentClicks());
   const [isClickingUrgent, setIsClickingUrgent] = useState(false);
 
   // 本地点击计数器和防抖定时器
   const pendingClicksRef = useRef(0); // 待上传的点击次数
   const uploadTimerRef = useRef(null); // 上传定时器
   const UPLOAD_DELAY = 2000; // 停止点击后 2 秒上传
+  const POLL_INTERVAL = 30000; // 30秒轮询间隔
 
   // 处理折叠状态变化并保存到 localStorage
   const handleTogglePoolMechanics = useCallback(() => {
@@ -375,27 +378,35 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     }
   }, [showAnnouncement, isAnnouncementNew, handleAnnouncementViewed]);
 
-  // 加载"急"按钮点击统计并订阅实时更新
+  // 加载"急"按钮点击统计并启动智能轮询
   useEffect(() => {
-    let unsubscribe = null;
+    let stopPoller = null;
 
-    // 获取初始点击次数
+    // 获取初始点击次数（异步，但已有本地缓存作为初始值）
     const loadUrgentClicks = async () => {
-      const clicks = await getUrgentButtonClicks();
-      setUrgentClicks(clicks);
+      try {
+        const clicks = await getUrgentButtonClicks();
+        setUrgentClicks(clicks);
+      } catch (error) {
+        console.warn('加载急按钮数据失败，使用本地缓存:', error.message);
+      }
     };
 
     loadUrgentClicks();
 
-    // 订阅实时更新
-    unsubscribe = subscribeToUrgentButtonClicks((newCount) => {
-      setUrgentClicks(newCount);
-    });
+    // 启动智能轮询（30秒间隔，仅在页面可见时轮询）
+    stopPoller = createUrgentClicksPoller((newCount) => {
+      // 仅当没有待上传的本地点击时才更新
+      // 避免覆盖用户的乐观更新
+      if (pendingClicksRef.current === 0) {
+        setUrgentClicks(newCount);
+      }
+    }, POLL_INTERVAL);
 
-    // 清理：取消订阅，并上传未提交的点击
+    // 清理：停止轮询，并上传未提交的点击
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
+      if (stopPoller) {
+        stopPoller();
       }
 
       // 组件卸载时，如果有待上传的点击，立即上传
@@ -412,7 +423,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         clearTimeout(uploadTimerRef.current);
       }
     };
-  }, []);
+  }, [POLL_INTERVAL]);
 
   // 批量上传点击次数
   const uploadPendingClicks = useCallback(async () => {
