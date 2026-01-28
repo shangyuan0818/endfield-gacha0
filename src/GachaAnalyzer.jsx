@@ -490,9 +490,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         created_at: p.created_at || null,
         user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
         creator_username: usernameMap.get(p.user_id) || null,  // 从 profiles 查询得到的用户名
-        // 多账号支持字段
-        game_uid: p.game_uid || null,           // 游戏账号 UID
-        nick_name: p.nick_name || null,         // 游戏账号昵称
         // 扩展字段（模拟器和卡池详情需要）
         up_character: p.up_character || null,  // UP 角色
         description: p.description || null,     // 描述
@@ -928,9 +925,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           type: pool.type,
           locked: pool.locked || false,
           is_limited_weapon: pool.isLimitedWeapon !== false,  // 武器池类型：限定/常驻
-          // 多账号支持字段
-          game_uid: pool.game_uid || null,
-          nick_name: pool.nick_name || null,
           // 扩展字段
           up_character: pool.up_character || null,
           description: pool.description || null,
@@ -939,7 +933,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           end_time: pool.end_time || null,
           featured_characters: pool.featured_characters || null,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id,pool_id' });
+        }, { onConflict: 'pool_id' });  // 修改为 pool_id（全局唯一）
 
       if (error) throw error;
 
