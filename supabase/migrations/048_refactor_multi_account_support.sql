@@ -54,37 +54,46 @@ END $$;
 -- ============================================
 -- 3. 移除多账号字段
 -- ============================================
-ALTER TABLE public.pools DROP COLUMN IF EXISTS game_uid;
-ALTER TABLE public.pools DROP COLUMN IF EXISTS nick_name;
-DROP INDEX IF EXISTS idx_pools_game_uid;
+DO $$
+BEGIN
+  ALTER TABLE public.pools DROP COLUMN IF EXISTS game_uid;
+  ALTER TABLE public.pools DROP COLUMN IF EXISTS nick_name;
+  DROP INDEX IF EXISTS idx_pools_game_uid;
 
-RAISE NOTICE '✅ 已移除 game_uid 和 nick_name 字段';
+  RAISE NOTICE '✅ 已移除 game_uid 和 nick_name 字段';
+END $$;
 
 -- ============================================
 -- 4. 修改主键
 -- ============================================
--- 删除旧的复合主键
-ALTER TABLE public.pools DROP CONSTRAINT IF EXISTS pools_pkey;
+DO $$
+BEGIN
+  -- 删除旧的复合主键
+  ALTER TABLE public.pools DROP CONSTRAINT IF EXISTS pools_pkey;
 
--- 添加新的主键（pool_id全局唯一）
-ALTER TABLE public.pools ADD PRIMARY KEY (pool_id);
+  -- 添加新的主键（pool_id全局唯一）
+  ALTER TABLE public.pools ADD PRIMARY KEY (pool_id);
 
--- 为user_id创建索引（用于查询用户创建的卡池）
-CREATE INDEX IF NOT EXISTS idx_pools_user_id ON public.pools(user_id);
+  -- 为user_id创建索引（用于查询用户创建的卡池）
+  CREATE INDEX IF NOT EXISTS idx_pools_user_id ON public.pools(user_id);
 
-RAISE NOTICE '✅ 主键已修改为 pool_id';
+  RAISE NOTICE '✅ 主键已修改为 pool_id';
+END $$;
 
 -- ============================================
 -- 5. 添加beginner类型支持
 -- ============================================
--- 删除旧的CHECK约束
-ALTER TABLE public.pools DROP CONSTRAINT IF EXISTS pools_type_check;
+DO $$
+BEGIN
+  -- 删除旧的CHECK约束
+  ALTER TABLE public.pools DROP CONSTRAINT IF EXISTS pools_type_check;
 
--- 添加新的CHECK约束，包含beginner类型
-ALTER TABLE public.pools ADD CONSTRAINT pools_type_check
-  CHECK (type IN ('limited', 'standard', 'weapon', 'beginner'));
+  -- 添加新的CHECK约束，包含beginner类型
+  ALTER TABLE public.pools ADD CONSTRAINT pools_type_check
+    CHECK (type IN ('limited', 'standard', 'weapon', 'beginner'));
 
-RAISE NOTICE '✅ 已添加 beginner 类型支持';
+  RAISE NOTICE '✅ 已添加 beginner 类型支持';
+END $$;
 
 -- ============================================
 -- 6. 验证迁移

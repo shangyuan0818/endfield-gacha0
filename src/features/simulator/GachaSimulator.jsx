@@ -167,7 +167,6 @@ const GachaSimulator = () => {
     }
 
     if (targetPool && targetPoolId) {
-      console.log('[GachaSimulator] 初始化卡池:', targetPool.name, 'ID:', targetPoolId);
       
       // 设置当前卡池ID
       setCurrentSimPoolId(targetPoolId);
@@ -238,10 +237,6 @@ const GachaSimulator = () => {
               obtainedAt: Date.now()
             };
             saveInfoBookState(updatedInfoBooks);
-            console.log('[情报书] 获得情报书:', {
-              from: currentSimPoolId,
-              to: nextPool?.id || '待激活（等待新卡池）'
-            });
           }
         }
 
@@ -327,7 +322,6 @@ const GachaSimulator = () => {
             const updatedInfoBooks = { ...infoBooks };
             updatedInfoBooks[sourcePoolId].used = true;
             saveInfoBookState(updatedInfoBooks);
-            console.log('[情报书] 使用情报书十连:', { from: sourcePoolId, at: currentSimPoolId });
           }
 
           // 立即更新UI状态
@@ -466,10 +460,6 @@ const GachaSimulator = () => {
             const nextPool = limitedPools[sourceIndex + 1];
             book.targetPoolId = nextPool.id;
             hasUpdated = true;
-            console.log('[情报书] 自动更新目标卡池:', {
-              from: sourcePoolId,
-              to: nextPool.id
-            });
           }
         }
       });
@@ -490,7 +480,6 @@ const GachaSimulator = () => {
         updatedInfoBooks[sourcePoolId].activated = true;
         saveInfoBookState(updatedInfoBooks);
 
-        console.log('[情报书] 激活情报书:', { from: sourcePoolId, at: poolId });
         showToastMessage('情报书已激活！可使用情报书十连');
 
         // 同步到模拟器状态

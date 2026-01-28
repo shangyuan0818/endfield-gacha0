@@ -171,27 +171,18 @@ export async function getCachedCharacters() {
  * 在应用启动时调用，减少后续请求
  */
 export async function preloadAllData() {
-  console.log('[CacheService] 开始预加载数据...');
-  
   const apiData = await fetchFromAPI('all');
   if (apiData) {
     setLocalCache(apiData);
-    console.log('[CacheService] 预加载完成:', {
-      urgentClicks: apiData.urgentClicks,
-      poolsCount: apiData.pools?.length || 0,
-      charactersCount: apiData.characters?.length || 0
-    });
     return apiData;
   }
-  
+
   // 返回本地缓存
   const localCache = getLocalCache();
   if (localCache) {
-    console.log('[CacheService] 使用本地缓存');
     return localCache;
   }
-  
-  console.log('[CacheService] 无可用数据');
+
   return { urgentClicks: 0, pools: [], characters: [] };
 }
 

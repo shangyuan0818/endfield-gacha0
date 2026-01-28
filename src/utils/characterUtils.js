@@ -57,7 +57,6 @@ class CharacterCache {
     this.loading = true;
 
     try {
-      console.log('[CharacterCache] 开始加载角色数据...');
       const startTime = performance.now();
 
       // 从 Supabase 加载所有角色
@@ -93,9 +92,6 @@ class CharacterCache {
       });
 
       const loadTime = (performance.now() - startTime).toFixed(2);
-      console.log(
-        `[CharacterCache] ✅ 加载完成: ${data.length} 个角色, 耗时 ${loadTime}ms`
-      );
 
       this.loaded = true;
       this.loading = false;
@@ -135,7 +131,6 @@ class CharacterCache {
             table: 'characters',
           },
           (payload) => {
-            console.log('[CharacterCache] 收到角色数据更新:', payload);
             this.handleRealtimeUpdate(payload);
           }
         )
@@ -165,7 +160,6 @@ class CharacterCache {
             });
           }
           this.aliasMap.set(newRecord.name.toLowerCase(), newRecord.id);
-          console.log(`[CharacterCache] 角色已更新: ${newRecord.name}`);
         }
         break;
 
@@ -179,7 +173,6 @@ class CharacterCache {
             });
           }
           this.aliasMap.delete(oldRecord.name.toLowerCase());
-          console.log(`[CharacterCache] 角色已删除: ${oldRecord.name}`);
         }
         break;
 
@@ -475,10 +468,6 @@ export async function incrementRotationCount(characterId) {
   if (error) {
     throw new Error(`更新轮换次数失败: ${error.message}`);
   }
-
-  console.log(
-    `[CharacterUtils] ${char.name} 轮换次数: ${newCount}/${removesAfter || '∞'} ${isActiveInLimited ? '(仍在池中)' : '(已移出)'}`
-  );
 
   return data;
 }
