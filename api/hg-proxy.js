@@ -605,6 +605,13 @@ async function handleRecordsBatch(req, res) {
   }
 
   const { u8Token, serverId, pools } = req.body || {};
+  const startTime = Date.now();
+
+  console.log('[hg-proxy] Records-batch 开始:', {
+    poolsCount: pools?.length,
+    serverId,
+    hasU8Token: !!u8Token
+  });
 
   if (!u8Token) {
     return res.status(400).json({ success: false, error: 'Missing u8Token' });
@@ -624,6 +631,8 @@ async function handleRecordsBatch(req, res) {
   }
 
   try {
+    console.log('[hg-proxy] 开始并发获取', pools.length, '个卡池');
+
     // 并发获取所有卡池数据
     const results = await Promise.allSettled(
       pools.map(pool =>
@@ -641,14 +650,19 @@ async function handleRecordsBatch(req, res) {
       if (result.status === 'fulfilled') {
         successResults.push(result.value);
         totalRecords += result.value.records.length;
+        console.log(`[hg-proxy] 卡池 ${pool.poolType || pool.type}: ${result.value.records.length} 条记录, ${result.value.totalPages} 页`);
       } else {
         failedResults.push({
           type: pool.type,
           poolType: pool.poolType,
           error: result.reason?.message || 'Unknown error'
         });
+        console.log(`[hg-proxy] 卡池 ${pool.poolType || pool.type}: 失败 - ${result.reason?.message}`);
       }
     });
+
+    const elapsedTime = Date.now() - startTime;
+    console.log(`[hg-proxy] Records-batch 完成: 共 ${totalRecords} 条记录, 耗时 ${elapsedTime}ms`);
 
     // 如果全部失败
     if (successResults.length === 0) {
@@ -664,7 +678,8 @@ async function handleRecordsBatch(req, res) {
       data: {
         results: successResults,
         totalRecords,
-        failed: failedResults.length > 0 ? failedResults : undefined
+        failed: failedResults.length > 0 ? failedResults : undefined,
+        _debug: { elapsedMs: elapsedTime }
       }
     });
   } catch (error) {
