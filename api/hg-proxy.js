@@ -35,6 +35,30 @@ function randomDelay(min, max) {
 }
 
 /**
+ * 将鹰角 API 错误码转换为用户友好的错误信息
+ */
+function getErrorMessage(code, msg, context = '') {
+  const errorMap = {
+    1: 'Token已过期或账号信息不匹配，请重新获取Token',
+    401: 'Token无效，请重新登录鹰角官网获取',
+    403: '访问被拒绝，请检查账号状态',
+    429: '请求过于频繁，请稍后再试'
+  };
+
+  const friendlyMsg = errorMap[code];
+  if (friendlyMsg) {
+    return friendlyMsg;
+  }
+
+  // 如果 msg 是 "OK" 但 code 不为 0，说明是业务错误
+  if (msg === 'OK' && code !== 0) {
+    return `${context}失败 (错误码: ${code})，请检查Token是否有效`;
+  }
+
+  return msg || `${context}失败 (错误码: ${code})`;
+}
+
+/**
  * 主处理函数
  */
 export default async function handler(req, res) {
@@ -127,10 +151,21 @@ async function handleGrant(req, res) {
   }
 
   if (data.status !== 0 && data.code !== 0) {
+    const errorMsg = getErrorMessage(data.code, data.msg, 'Token验证');
+    console.error('[hg-proxy] Grant failed:', {
+      code: data.code,
+      status: data.status,
+      msg: data.msg,
+      friendlyMsg: errorMsg
+    });
     return res.status(400).json({
       success: false,
-      error: data.msg || `Grant failed: status=${data.status}`,
-      data
+      error: errorMsg,
+      details: {
+        code: data.code,
+        status: data.status,
+        originalMessage: data.msg
+      }
     });
   }
 
@@ -178,10 +213,21 @@ async function handleBindings(req, res) {
   }
 
   if (data.code !== 0 && data.status !== 0) {
+    const errorMsg = getErrorMessage(data.code, data.msg, '获取账号列表');
+    console.error('[hg-proxy] Bindings failed:', {
+      code: data.code,
+      status: data.status,
+      msg: data.msg,
+      friendlyMsg: errorMsg
+    });
     return res.status(400).json({
       success: false,
-      error: data.msg || `Bindings failed: code=${data.code}`,
-      data
+      error: errorMsg,
+      details: {
+        code: data.code,
+        status: data.status,
+        originalMessage: data.msg
+      }
     });
   }
 
@@ -305,10 +351,23 @@ async function handleU8Token(req, res) {
   }
 
   if (data.code !== 0) {
+    const errorMsg = getErrorMessage(data.code, data.msg, '获取访问凭证');
+    console.error('[hg-proxy] U8Token failed:', {
+      code: data.code,
+      status: data.status,
+      msg: data.msg,
+      uid: uid?.substring(0, 8) + '...',
+      friendlyMsg: errorMsg
+    });
     return res.status(400).json({
       success: false,
-      error: data.msg || `U8Token failed: code=${data.code}`,
-      data
+      error: errorMsg,
+      details: {
+        code: data.code,
+        status: data.status,
+        originalMessage: data.msg,
+        hint: data.code === 1 ? 'Token可能已过期或账号不匹配，请重新获取24位Token' : undefined
+      }
     });
   }
 
@@ -390,10 +449,21 @@ async function handleRecords(req, res) {
   }
 
   if (data.code !== 0) {
+    const errorMsg = getErrorMessage(data.code, data.msg, '获取抽卡记录');
+    console.error('[hg-proxy] Records failed:', {
+      code: data.code,
+      msg: data.msg,
+      type,
+      poolType,
+      friendlyMsg: errorMsg
+    });
     return res.status(400).json({
       success: false,
-      error: data.msg || `Records failed: code=${data.code}`,
-      data
+      error: errorMsg,
+      details: {
+        code: data.code,
+        originalMessage: data.msg
+      }
     });
   }
 
