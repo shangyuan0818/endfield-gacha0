@@ -604,51 +604,63 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
 
     const renderRankingRow = (items, rarity, label, pTypeForColor) => {
       if (!items || items.length === 0) return null;
-      // 颜色映射
-      const borderMap = {
-        limited: 'border-orange-400',
-        standard: 'border-indigo-400',
-        weapon: 'border-slate-400'
-      };
-      const textMap = {
-        limited: 'text-orange-600 dark:text-orange-400',
-        standard: 'text-indigo-600 dark:text-indigo-400',
-        weapon: 'text-slate-600 dark:text-slate-400'
-      };
-      const borderColor = borderMap[pTypeForColor] || 'border-zinc-400';
-      const titleColor = textMap[pTypeForColor] || 'text-zinc-500';
+      
+      const top3 = items.slice(0, 3);
+      // 领奖台排序: 2nd, 1st, 3rd
+      let podium = [];
+      if (top3.length === 1) podium = [top3[0]];
+      else if (top3.length === 2) podium = [top3[1], top3[0]];
+      else podium = [top3[1], top3[0], top3[2]];
 
       return (
-        <div className="space-y-2 mb-4">
-          <div className={`text-[10px] ${titleColor} font-bold uppercase tracking-wider pl-1 border-l-2 ${borderColor.replace('border-', 'border-l-')}`}>{label}</div>
-          <div className="grid grid-cols-1 gap-2">
-            {items.slice(0, 3).map((char, idx) => {
+        <div className="h-full">
+          <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1 border-l-2 border-zinc-300 dark:border-zinc-700 mb-3">{label}</div>
+          <div className="flex items-end justify-center gap-3">
+            {podium.map((char) => {
+              const rank = top3.indexOf(char); // 0=1st, 1=2nd, 2=3rd
+              const isFirst = rank === 0;
+              const isSecond = rank === 1;
+              // ... (rest of map logic)
               const charData = characterCache.searchByName(char.name, false);
               const avatarUrl = charData?.avatar_url;
+              
+              // 样式配置
+              const sizeClass = isFirst ? 'w-14 h-14' : 'w-11 h-11';
+              const rankBorder = isFirst ? 'border-amber-400 dark:border-amber-500 shadow-[0_0_10px_rgba(251,191,36,0.3)]' : isSecond ? 'border-zinc-400 dark:border-zinc-500' : 'border-orange-700 dark:border-orange-800';
+              const badgeBg = isFirst ? 'bg-amber-500' : isSecond ? 'bg-zinc-400' : 'bg-orange-700';
+              const zIndex = isFirst ? 'z-10' : 'z-0';
+              
               return (
-                <div key={char.name} className="flex items-center gap-3 bg-white dark:bg-zinc-900 p-2 border border-zinc-200 dark:border-zinc-800 relative group overflow-hidden">
-                  {/* Rank Badge */}
-                  <div className={`absolute top-0 left-0 w-1 h-full ${idx === 0 ? 'bg-amber-500' : idx === 1 ? 'bg-zinc-400' : 'bg-orange-700'}`}></div>
-                  
-                  {/* Avatar */}
-                  <div className={`w-10 h-10 flex-shrink-0 bg-zinc-100 dark:bg-zinc-800 border-2 ${borderColor} flex items-center justify-center relative overflow-hidden ml-2`}>
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <User size={16} className="text-zinc-400" />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0 flex justify-between items-center">
-                    <div className="flex flex-col">
-                       <span className="text-xs font-bold text-slate-700 dark:text-zinc-200 truncate">{char.name}</span>
-                       <span className={`text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : 'text-zinc-500'}`}>NO.{idx + 1}</span>
-                    </div>
-                    <div className="text-xs font-mono font-bold text-zinc-400 group-hover:text-zinc-200 transition-colors">
-                       ×{char.count}
-                    </div>
-                  </div>
+                <div key={char.name} className={`flex flex-col items-center group ${zIndex} ${isFirst ? '-mb-1' : ''}`}>
+                   <div className="relative">
+                      {/* 头像框 */}
+                      <div className={`relative ${sizeClass} bg-zinc-100 dark:bg-zinc-800 border-2 ${rankBorder} transition-transform duration-300 group-hover:-translate-y-1`}>
+                         {avatarUrl ? (
+                           <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                         ) : (
+                           <div className="w-full h-full flex items-center justify-center">
+                             <User size={isFirst ? 20 : 16} className="text-zinc-300" />
+                           </div>
+                         )}
+                         {/* 皇冠图标 (仅第一名) */}
+                         {isFirst && (
+                           <div className="absolute -top-3 -right-2 text-amber-500 transform rotate-12 drop-shadow-sm">
+                             <Star size={14} fill="currentColor" />
+                           </div>
+                         )}
+                      </div>
+                      
+                      {/* 排名标签 */}
+                      <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 ${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm border border-white dark:border-zinc-900 shadow-sm`}>
+                         #{rank + 1}
+                      </div>
+                   </div>
+                   
+                   {/* 文本信息 */}
+                   <div className="text-center mt-3">
+                      <div className="text-[10px] font-bold text-slate-700 dark:text-zinc-300 truncate max-w-[4rem]">{char.name}</div>
+                      <div className="text-[9px] font-mono text-zinc-400">×{char.count}</div>
+                   </div>
                 </div>
               );
             })}
@@ -658,27 +670,33 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     };
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold">
+      <div className="space-y-2 h-full flex flex-col">
+        <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-2 shrink-0">
           <Trophy size={12} />
           <span>{title || '出货排名 TOP3'}</span>
         </div>
-        {poolType === 'all' ? (
-          <>
-            {renderRankingRow(ranking.limited?.sixStar, 6, '限定池 6★', 'limited')}
-            {renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited')}
-            {renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard')}
-            {renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard')}
-          </>
-        ) : (
-          <>
-            {renderRankingRow(rankData.sixStar, 6, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 6★`, poolType)}
-            {renderRankingRow(rankData.fiveStar, 5, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 5★`, poolType)}
-          </>
-        )}
+        
+        <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-8 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 content-start">
+          {poolType === 'all' ? (
+            <>
+              {renderRankingRow(ranking.limited?.sixStar, 6, '限定池 6★', 'limited')}
+              {renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited')}
+              {renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard')}
+              {renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard')}
+            </>
+          ) : (
+            <>
+              {renderRankingRow(rankData.sixStar, 6, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 6★`, poolType)}
+              {renderRankingRow(rankData.fiveStar, 5, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 5★`, poolType)}
+            </>
+          )}
+        </div>
       </div>
     );
   };
+
+
+
 
   // 图表区块组件
   const ChartSection = ({ title, subtitle, color, data, isGlobal }) => {
@@ -959,139 +977,13 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                       <div className="text-3xl font-black text-slate-800 dark:text-white font-mono">{(currentStats.total || 0).toLocaleString()}</div>
                     </div>
                     {/* 第二个卡片：角色出货排名 */}
-                    <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
-                      {dataSource === 'global' && characterRanking ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold">
-                            <Trophy size={12} />
-                            <span>全服出货排名 TOP3</span>
-                          </div>
-                          {/* 限定池 6★ 排名 */}
-                          <div className="space-y-1">
-                            <div className="text-[10px] text-amber-500 font-bold">限定池 6★</div>
-                            <div className="flex gap-2 flex-wrap">
-                              {characterRanking.limited?.sixStar?.slice(0, 3).map((char, idx) => {
-                                const charData = characterCache.searchByName(char.name, false);
-                                const avatarUrl = charData?.avatar_url;
-                                return (
-                                  <div key={char.name} className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 px-2 py-1 border border-zinc-200 dark:border-zinc-700">
-                                    <span className={`text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-zinc-400' : 'text-orange-700'}`}>
-                                      #{idx + 1}
-                                    </span>
-                                    <div className="w-5 h-5 rounded-full overflow-hidden bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center shrink-0">
-                                      {avatarUrl ? (
-                                        <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <User size={10} className="text-white/80" />
-                                      )}
-                                    </div>
-                                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400 truncate max-w-[4rem]">{char.name}</span>
-                                    <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          {/* 限定池 5★ 排名 */}
-                          {characterRanking.limited?.fiveStar?.length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[10px] text-purple-500 font-bold">限定池 5★</div>
-                              <div className="flex gap-2 flex-wrap">
-                                {characterRanking.limited?.fiveStar?.slice(0, 3).map((char, idx) => {
-                                  const charData = characterCache.searchByName(char.name, false);
-                                  const avatarUrl = charData?.avatar_url;
-                                  return (
-                                    <div key={char.name} className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 px-2 py-1 border border-zinc-200 dark:border-zinc-700">
-                                      <span className={`text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-zinc-400' : 'text-orange-700'}`}>
-                                        #{idx + 1}
-                                      </span>
-                                      <div className="w-5 h-5 rounded-full overflow-hidden bg-purple-200 dark:bg-purple-800 flex items-center justify-center shrink-0">
-                                        {avatarUrl ? (
-                                          <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <User size={10} className="text-purple-600 dark:text-purple-300" />
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-zinc-600 dark:text-zinc-400 truncate max-w-[4rem]">{char.name}</span>
-                                      <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                          {/* 常驻池 6★ 排名 */}
-                          <div className="space-y-1">
-                            <div className="text-[10px] text-indigo-500 font-bold">常驻池 6★</div>
-                            <div className="flex gap-2 flex-wrap">
-                              {characterRanking.standard?.sixStar?.slice(0, 3).map((char, idx) => {
-                                const charData = characterCache.searchByName(char.name, false);
-                                const avatarUrl = charData?.avatar_url;
-                                return (
-                                  <div key={char.name} className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 px-2 py-1 border border-zinc-200 dark:border-zinc-700">
-                                    <span className={`text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-zinc-400' : 'text-orange-700'}`}>
-                                      #{idx + 1}
-                                    </span>
-                                    <div className="w-5 h-5 rounded-full overflow-hidden bg-indigo-200 dark:bg-indigo-800 flex items-center justify-center shrink-0">
-                                      {avatarUrl ? (
-                                        <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
-                                      ) : (
-                                        <User size={10} className="text-indigo-600 dark:text-indigo-300" />
-                                      )}
-                                    </div>
-                                    <span className="text-[10px] text-zinc-600 dark:text-zinc-400 truncate max-w-[4rem]">{char.name}</span>
-                                    <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          {/* 常驻池 5★ 排名 */}
-                          {characterRanking.standard?.fiveStar?.length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[10px] text-blue-500 font-bold">常驻池 5★</div>
-                              <div className="flex gap-2 flex-wrap">
-                                {characterRanking.standard?.fiveStar?.slice(0, 3).map((char, idx) => {
-                                  const charData = characterCache.searchByName(char.name, false);
-                                  const avatarUrl = charData?.avatar_url;
-                                  return (
-                                    <div key={char.name} className="flex items-center gap-1.5 bg-white dark:bg-zinc-900 px-2 py-1 border border-zinc-200 dark:border-zinc-700">
-                                      <span className={`text-[10px] font-bold ${idx === 0 ? 'text-amber-500' : idx === 1 ? 'text-zinc-400' : 'text-orange-700'}`}>
-                                        #{idx + 1}
-                                      </span>
-                                      <div className="w-5 h-5 rounded-full overflow-hidden bg-blue-200 dark:bg-blue-800 flex items-center justify-center shrink-0">
-                                        {avatarUrl ? (
-                                          <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                          <User size={10} className="text-blue-600 dark:text-blue-300" />
-                                        )}
-                                      </div>
-                                      <span className="text-[10px] text-zinc-600 dark:text-zinc-400 truncate max-w-[4rem]">{char.name}</span>
-                                      <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : rankingLoading ? (
-                        <div className="flex items-center justify-center h-full text-zinc-400 text-xs">
-                          <RefreshCw size={14} className="animate-spin mr-2" />
-                          加载排名...
-                        </div>
-                      ) : dataSource === 'local' ? (
-                        <RankingCard
-                          ranking={userRanking}
-                          loading={userRankingLoading}
-                          poolType="all"
-                          title="我的出货排名 TOP3"
-                        />
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-zinc-400 text-xs italic">
-                          请登录查看个人排名
-                        </div>
-                      )}
+                    <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 h-full">
+                      <RankingCard
+                        ranking={dataSource === 'global' ? characterRanking : userRanking}
+                        loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
+                        poolType="all"
+                        title={dataSource === 'global' ? "全服出货排名 TOP3" : "我的出货排名 TOP3"}
+                      />
                     </div>
                   </div>
 
