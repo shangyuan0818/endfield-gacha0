@@ -3,7 +3,7 @@ import {
   Shield, Bell, User, History, RefreshCw, Plus, Edit2, Trash2,
   Eye, EyeOff, Save, X, Search, UserPlus, ChevronRight,
   Users, FileText, Ban, CheckCircle, XCircle, Clock, Database,
-  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home, Layers, Star
+  Package, ListOrdered, ChevronDown, ChevronUp, BarChart3, Home, Layers, Star, ChevronsUpDown
 } from 'lucide-react';
 import MDEditor from '@uiw/react-md-editor';
 import { supabase } from '../supabaseClient';
@@ -62,6 +62,8 @@ const AdminPanel = React.memo(({ showToast }) => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [editingUser, setEditingUser] = useState(null);
   const [showUserForm, setShowUserForm] = useState(false);
+  const [userSortField, setUserSortField] = useState('created_at');
+  const [userSortDirection, setUserSortDirection] = useState('desc');
   const [userForm, setUserForm] = useState({
     username: '',
     email: '',
@@ -424,12 +426,76 @@ const AdminPanel = React.memo(({ showToast }) => {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = useMemo(() => {
+    let result = users.filter(user => {
+      const matchesSearch = user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           user.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      return matchesSearch && matchesRole;
+    });
+
+    // 排序
+    result.sort((a, b) => {
+      let aVal, bVal;
+
+      switch (userSortField) {
+        case 'username':
+          aVal = a.username || '';
+          bVal = b.username || '';
+          break;
+        case 'email':
+          aVal = a.email || '';
+          bVal = b.email || '';
+          break;
+        case 'role':
+          // 角色权重：super_admin > admin > user
+          const roleOrder = { super_admin: 3, admin: 2, user: 1 };
+          aVal = roleOrder[a.role] || 0;
+          bVal = roleOrder[b.role] || 0;
+          break;
+        case 'last_seen_at':
+          aVal = a.last_seen_at ? new Date(a.last_seen_at).getTime() : 0;
+          bVal = b.last_seen_at ? new Date(b.last_seen_at).getTime() : 0;
+          break;
+        case 'created_at':
+          aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+          break;
+        default:
+          aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal, 'zh-CN');
+        return userSortDirection === 'asc' ? cmp : -cmp;
+      } else {
+        return userSortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+    });
+
+    return result;
+  }, [users, searchQuery, roleFilter, userSortField, userSortDirection]);
+
+  // 用户排序处理函数
+  const handleUserSort = (field) => {
+    if (userSortField === field) {
+      setUserSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setUserSortField(field);
+      setUserSortDirection(field === 'username' || field === 'email' ? 'asc' : 'desc');
+    }
+  };
+
+  // 排序图标组件
+  const UserSortIcon = ({ field }) => {
+    if (userSortField !== field) {
+      return <ChevronsUpDown size={14} className="text-slate-300 dark:text-zinc-600" />;
+    }
+    return userSortDirection === 'asc'
+      ? <ChevronUp size={14} className="text-blue-500" />
+      : <ChevronDown size={14} className="text-blue-500" />;
+  };
 
   // ========== 黑名单管理函数 ==========
   const resetBlacklistForm = () => {
@@ -1118,11 +1184,46 @@ const AdminPanel = React.memo(({ showToast }) => {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-zinc-950 text-xs text-slate-500 dark:text-zinc-500 uppercase">
               <tr>
-                <th className="px-4 py-3 text-left">用户名</th>
-                <th className="px-4 py-3 text-left">邮箱</th>
-                <th className="px-4 py-3 text-left">角色</th>
-                <th className="px-4 py-3 text-left">最后在线</th>
-                <th className="px-4 py-3 text-left">注册时间</th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleUserSort('username')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    用户名 <UserSortIcon field="username" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleUserSort('email')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    邮箱 <UserSortIcon field="email" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleUserSort('role')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    角色 <UserSortIcon field="role" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleUserSort('last_seen_at')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    最后在线 <UserSortIcon field="last_seen_at" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleUserSort('created_at')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    注册时间 <UserSortIcon field="created_at" />
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>

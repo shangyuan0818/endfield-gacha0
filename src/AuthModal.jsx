@@ -521,6 +521,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                mode === 'register' ? '注册后可多设备同步数据' :
                '输入邮箱地址，我们将发送重置链接'}
             </p>
+
           </div>
         </div>
 

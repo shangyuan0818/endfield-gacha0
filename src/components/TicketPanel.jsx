@@ -567,15 +567,18 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
-      <div className="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-none p-6 text-white shadow-lg">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          <MessageSquare size={28} />
-          工单系统
-        </h2>
-        <p className="text-indigo-100 mt-1">
-          {userRole === 'super_admin' ? '管理所有用户工单' :
-           userRole === 'admin' ? '处理用户工单 / 向超管反馈' : '向管理员提交问题或建议'}
-        </p>
+      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 border-l-4 border-endfield-yellow p-6 text-white shadow-lg relative overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+        <div className="relative z-10">
+          <h2 className="text-2xl font-bold flex items-center gap-3 font-mono tracking-tighter">
+            <MessageSquare size={28} />
+            工单反馈
+          </h2>
+          <p className="text-zinc-400 mt-1 text-xs tracking-widest uppercase">
+            {userRole === 'super_admin' ? '系统管理与用户反馈' :
+             userRole === 'admin' ? '用户支持与反馈升级' : '支持与反馈通道'}
+          </p>
+        </div>
       </div>
 
       {/* 操作栏 */}
@@ -583,16 +586,20 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-sm rounded-none transition-colors ${
-              filter === 'all' ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+              filter === 'all' 
+                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' 
+                : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
             }`}
           >
             全部 ({stats.total})
           </button>
           <button
             onClick={() => setFilter('my')}
-            className={`px-3 py-1.5 text-sm rounded-none transition-colors ${
-              filter === 'my' ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+              filter === 'my' 
+                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' 
+                : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
             }`}
           >
             我的 ({stats.my})
@@ -600,8 +607,10 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
           {(userRole === 'admin' || userRole === 'super_admin') && (
             <button
               onClick={() => setFilter('pending')}
-              className={`px-3 py-1.5 text-sm rounded-none transition-colors ${
-                filter === 'pending' ? 'bg-indigo-500 text-white' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200'
+              className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
+                filter === 'pending' 
+                  ? 'bg-amber-500 text-white border-amber-500' 
+                  : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               }`}
             >
               待处理 ({stats.pending})
@@ -612,16 +621,16 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         <div className="flex items-center gap-2">
           <button
             onClick={loadTickets}
-            className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-none transition-colors"
+            className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-sm transition-colors"
             title="刷新"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => setShowCreateForm(true)}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-none transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-endfield-yellow hover:bg-yellow-400 text-black text-xs font-bold uppercase tracking-wider rounded-sm transition-colors flex items-center gap-2"
           >
-            <Plus size={18} />
+            <Plus size={16} />
             新建工单
           </button>
         </div>
@@ -629,22 +638,25 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
 
       {/* 创建工单表单 */}
       {showCreateForm && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none p-6">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-4 flex items-center gap-2">
-            <Plus size={20} />
-            新建工单
-          </h3>
-          <CreateTicketForm
-            userRole={userRole}
-            onSubmit={handleCreateTicket}
-            onCancel={() => setShowCreateForm(false)}
-          />
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-sm p-6 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+          <div className="relative z-10">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-4 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <Plus size={20} className="text-endfield-yellow" />
+              新建工单
+            </h3>
+            <CreateTicketForm
+              userRole={userRole}
+              onSubmit={handleCreateTicket}
+              onCancel={() => setShowCreateForm(false)}
+            />
+          </div>
         </div>
       )}
 
       {/* 工单列表 */}
       {!tableExists ? (
-        <div className="text-center py-12 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-none">
+        <div className="text-center py-12 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-sm">
           <AlertCircle size={48} className="mx-auto text-amber-500 mb-4" />
           <h3 className="font-bold text-amber-800 dark:text-amber-300 mb-2">工单功能尚未启用</h3>
           <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
@@ -656,15 +668,15 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         </div>
       ) : loading ? (
         <div className="text-center py-12">
-          <RefreshCw size={24} className="animate-spin mx-auto text-indigo-500 mb-2" />
-          <p className="text-slate-500">加载中...</p>
+          <RefreshCw size={24} className="animate-spin mx-auto text-zinc-400 mb-2" />
+          <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest">加载工单中...</p>
         </div>
       ) : filteredTickets.length === 0 ? (
-        <div className="text-center py-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none">
-          <MessageSquare size={48} className="mx-auto text-slate-300 mb-4" />
-          <p className="text-slate-500">
-            {filter === 'my' ? '您还没有提交过工单' :
-             filter === 'pending' ? '没有待处理的工单' : '暂无工单'}
+        <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-sm">
+          <MessageSquare size={48} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-4 opacity-50" />
+          <p className="text-zinc-500 font-mono text-sm">
+            {filter === 'my' ? '无工单记录' :
+             filter === 'pending' ? '无待处理工单' : '暂无工单'}
           </p>
         </div>
       ) : (

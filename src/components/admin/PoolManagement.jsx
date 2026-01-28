@@ -302,6 +302,117 @@ const PoolManagement = ({ showToast }) => {
     return characters.some(c => c.name === upCharacterName.trim());
   };
 
+  // 重新计算所有记录的 isStandard 字段
+  const recalculateIsStandard = async () => {
+    if (!supabase) return;
+
+    setActionLoading('recalculate');
+
+    try {
+      // 1. 构建 poolId -> UP角色 的映射
+      const poolUpCharacterMap = new Map();
+      pools.forEach(pool => {
+        if (pool.up_character) {
+          // 使用 pool_id 作为 key
+          poolUpCharacterMap.set(pool.pool_id, pool.up_character);
+        }
+      });
+
+      console.log('[PoolManagement] UP角色映射:', Object.fromEntries(poolUpCharacterMap));
+
+      if (poolUpCharacterMap.size === 0) {
+        showToast('没有卡池设置了UP角色，请先在卡池管理中设置UP角色', 'warning');
+        return;
+      }
+
+      // 2. 获取所有6星记录
+      const { data: records, error: fetchError } = await supabase
+        .from('history')
+        .select('record_id, pool_id, rarity, character_name, item_name, is_standard')
+        .eq('rarity', 6);
+
+      if (fetchError) throw fetchError;
+
+      if (!records || records.length === 0) {
+        showToast('没有找到6星记录', 'info');
+        return;
+      }
+
+      console.log('[PoolManagement] 找到', records.length, '条6星记录');
+
+      // 3. 计算每条记录的新 isStandard 值
+      const updates = [];
+      let changedCount = 0;
+
+      for (const record of records) {
+        const poolId = record.pool_id;
+        const characterName = record.character_name || record.item_name || '';
+        const upCharacter = poolUpCharacterMap.get(poolId);
+
+        // 判断是否为常驻
+        let newIsStandard;
+
+        // 检查是否为限定池
+        const isLimitedPool = poolId?.toLowerCase().includes('special') ||
+                             poolId?.toLowerCase().includes('weponbox') ||
+                             poolId?.toLowerCase().includes('weapon');
+
+        if (!isLimitedPool) {
+          // 非限定池（常驻池/新手池）的6星都算常驻
+          newIsStandard = true;
+        } else if (upCharacter) {
+          // 限定池有UP角色，检查是否匹配
+          // 如果角色名不匹配UP角色，则为常驻（被歪了）
+          newIsStandard = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+        } else {
+          // 限定池但没有UP角色信息，保持原样或默认为限定
+          newIsStandard = record.is_standard ?? false;
+        }
+
+        // 如果值有变化，添加到更新列表
+        if (newIsStandard !== record.is_standard) {
+          updates.push({
+            record_id: record.record_id,
+            is_standard: newIsStandard
+          });
+          changedCount++;
+        }
+      }
+
+      console.log('[PoolManagement] 需要更新', changedCount, '条记录');
+
+      if (updates.length === 0) {
+        showToast('所有记录已是最新状态，无需更新', 'info');
+        return;
+      }
+
+      // 4. 批量更新
+      const batchSize = 50;
+      for (let i = 0; i < updates.length; i += batchSize) {
+        const batch = updates.slice(i, i + batchSize);
+
+        for (const update of batch) {
+          const { error: updateError } = await supabase
+            .from('history')
+            .update({ is_standard: update.is_standard })
+            .eq('record_id', update.record_id);
+
+          if (updateError) {
+            console.warn('更新记录失败:', update.record_id, updateError);
+          }
+        }
+      }
+
+      showToast(`已更新 ${changedCount} 条记录的限定/常驻状态。刷新页面后生效。`, 'success');
+
+    } catch (error) {
+      console.error('[PoolManagement] 重新计算失败:', error);
+      showToast('重新计算失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // 过滤并排序后的卡池列表
   const filteredPools = useMemo(() => {
     let result = pools.filter(pool => {
@@ -689,6 +800,17 @@ const PoolManagement = ({ showToast }) => {
         >
           <Plus size={16} />
           新增卡池
+        </button>
+
+        {/* 重新计算限定/常驻按钮 */}
+        <button
+          onClick={recalculateIsStandard}
+          disabled={actionLoading === 'recalculate'}
+          className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-none transition-colors disabled:opacity-50"
+          title="根据各卡池的UP角色重新计算所有6星记录的限定/常驻状态"
+        >
+          <RotateCw size={16} className={actionLoading === 'recalculate' ? 'animate-spin' : ''} />
+          {actionLoading === 'recalculate' ? '计算中...' : '重算限定/常驻'}
         </button>
       </div>
 
