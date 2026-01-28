@@ -1,0 +1,16 @@
+{
+  "name": "endfield-gacha-proxy",
+  "version": "1.0.0",
+  "description": "鹰角 API 代理服务器 - 独立部署版本",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["endfield", "gacha", "proxy", "hypergryph"],
+  "license": "MIT"
+}

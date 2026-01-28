@@ -16,7 +16,14 @@
  */
 
 // API 代理地址
-const PROXY_BASE = '/api/hg-proxy';
+// 支持通过环境变量配置外部后端服务器
+const PROXY_BASE = import.meta.env.VITE_PROXY_URL 
+  ? `${import.meta.env.VITE_PROXY_URL}/api/hg-proxy`
+  : '/api/hg-proxy';
+
+// 调试：打印当前使用的代理地址
+console.log('[AuthChain] VITE_PROXY_URL:', import.meta.env.VITE_PROXY_URL);
+console.log('[AuthChain] PROXY_BASE:', PROXY_BASE);
 
 // 卡池类型
 export const POOL_TYPES = {
