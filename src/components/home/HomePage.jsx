@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Info, Star, Layers, Swords, Target, Zap, Gift, FileText, RefreshCw,
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket,
   Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot,
-  Map, Github, Radio, Sparkles, Copy, Check
+  Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
@@ -17,44 +17,57 @@ import {
   hasNewContent,
   markAsViewed
 } from '../../utils';
-import {
-  getUrgentButtonClicks,
-  getLocalUrgentClicks,
-  incrementUrgentButtonClicksBatch,
-  createUrgentClicksPoller
-} from '../../services/statsService';
+import { characterCache } from '../../utils/characterUtils';
 
-// 倒计时组件 - 终末地风格（移到 HomePage 外部以避免重复渲染）
-const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, secondaryLink, secondaryLinkText, urgentClicks, onUrgentClick, customEndedContent }) => {
+// 倒计时组件 - 终末地风格（支持 small 模式）
+const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, secondaryLink, secondaryLinkText, customEndedContent, size = 'normal', upcomingPools = [], characterName = null }) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
+  const [upcomingTimeLeft, setUpcomingTimeLeft] = useState(null); // 用于下下个卡池的倒计时
   const hasAutoConfettiFired = useRef(false);
 
+  // 辅助函数：计算并格式化时间差
+  const calculateAndFormat = useCallback((target) => {
+    const now = new Date().getTime();
+    const tgt = new Date(target).getTime();
+    const diff = tgt - now;
+
+    if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true };
+    return {
+      days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diff % (1000 * 60)) / 1000),
+      ended: false
+    };
+  }, []);
+
   useEffect(() => {
-    const calculateTimeLeft = () => {
-      const now = new Date().getTime();
-      const target = new Date(targetDate).getTime();
-      const difference = target - now;
+    const updateTimers = () => {
+      const newMainTime = calculateAndFormat(targetDate);
+      
+      // 避免不必要的重渲染：只有当秒数变化时才更新状态
+      setTimeLeft(prev => {
+        if (prev.seconds === newMainTime.seconds && prev.ended === newMainTime.ended) return prev;
+        return newMainTime;
+      });
 
-      if (difference <= 0) {
-        return { days: 0, hours: 0, minutes: 0, seconds: 0, ended: true };
+      // 下下个卡池倒计时 (index 1)
+      if (upcomingPools && upcomingPools.length >= 2) {
+        const nextNextPool = upcomingPools[1];
+        const newUpcomingTime = calculateAndFormat(nextNextPool.startDate);
+        
+        setUpcomingTimeLeft(prev => {
+          if (prev && prev.seconds === newUpcomingTime.seconds && prev.ended === newUpcomingTime.ended) return prev;
+          return newUpcomingTime;
+        });
       }
-
-      return {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-        minutes: Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60)),
-        seconds: Math.floor((difference % (1000 * 60)) / 1000),
-        ended: false
-      };
     };
 
-    setTimeLeft(calculateTimeLeft());
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
+    updateTimers(); // 立即执行一次
+    const timer = setInterval(updateTimers, 1000);
 
     return () => clearInterval(timer);
-  }, [targetDate]);
+  }, [targetDate, upcomingPools, calculateAndFormat]); // 依赖项保持，但内部状态更新已优化
 
   // 自动撒花
   useEffect(() => {
@@ -79,154 +92,230 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
   }, []);
 
   const formatNum = (num) => String(num).padStart(2, '0');
+  const isSmall = size === 'small';
+
+  // 格式化日期显示 (MM/DD HH:mm)
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${month}/${day} ${hours}:${minutes}`;
+  };
 
   if (timeLeft.ended) {
     if (customEndedContent) return customEndedContent;
     
     return (
-      <div className="w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 p-8 flex flex-col gap-6 items-center justify-center relative overflow-hidden">
+      <div className={`w-full bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 ${isSmall ? 'p-4' : 'p-8'} flex flex-col gap-4 items-center justify-center relative overflow-hidden`}>
         {/* 背景装饰网格 */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
 
-        <div className="text-zinc-900 dark:text-endfield-yellow text-xl sm:text-2xl font-bold font-mono tracking-widest uppercase z-10 text-center animate-fade-in">
-          Protocol Initiated // Welcome to Talos-II
+        <div className={`text-zinc-900 dark:text-endfield-yellow font-bold font-mono tracking-widest uppercase z-10 text-center animate-fade-in ${isSmall ? 'text-lg' : 'text-xl sm:text-2xl'}`}>
+          协议已启动 // 欢迎来到塔罗斯II
         </div>
 
         <button
           onClick={fireConfetti}
-          className="z-10 px-8 py-3 bg-endfield-yellow text-black font-bold font-mono tracking-wider rounded-sm hover:bg-yellow-400 hover:shadow-[0_0_20px_rgba(255,250,0,0.4)] active:scale-95 transition-all flex items-center gap-3 group"
+          className={`z-10 bg-endfield-yellow text-black font-bold font-mono tracking-wider rounded-sm hover:bg-yellow-400 hover:shadow-[0_0_20px_rgba(255,250,0,0.4)] active:scale-95 transition-all flex items-center gap-3 group ${isSmall ? 'px-4 py-2 text-xs' : 'px-8 py-3'}`}
         >
           <span className="text-xl group-hover:rotate-12 transition-transform">🎉</span>
-          <span>CELEBRATE</span>
+          <span>庆祝时刻</span>
         </button>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white dark:bg-black relative overflow-hidden border-y-2 border-endfield-yellow/80 sm:border-2 sm:border-endfield-yellow/20">
+    <div className={`w-full bg-white dark:bg-black relative overflow-hidden border-y-2 border-endfield-yellow/80 sm:border-2 sm:border-endfield-yellow/20 ${isSmall ? 'rounded-none sm:rounded-sm h-full flex flex-col' : ''}`}>
       {/* 背景装饰网格 */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
 
-      {/* 装饰性角落标记 - 仅在大屏显示 */}
-      <div className="hidden sm:block absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-endfield-yellow"></div>
-      <div className="hidden sm:block absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-endfield-yellow"></div>
-      <div className="hidden sm:block absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-endfield-yellow"></div>
-      <div className="hidden sm:block absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-endfield-yellow"></div>
+      {/* 装饰性角落标记 - 仅在大屏显示且非small模式 */}
+      {!isSmall && (
+        <>
+          <div className="hidden sm:block absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-endfield-yellow"></div>
+          <div className="hidden sm:block absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-endfield-yellow"></div>
+          <div className="hidden sm:block absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-endfield-yellow"></div>
+          <div className="hidden sm:block absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-endfield-yellow"></div>
+        </>
+      )}
 
-      {/* "急" 按钮 - 调整位置到中间偏下，改为方形，显示点击统计 */}
-      {onUrgentClick && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1">
-          <button
-            onClick={onUrgentClick}
-            disabled={!onUrgentClick}
-            className="w-12 h-12 bg-red-600 hover:bg-red-500 text-white font-bold rounded-sm shadow-lg shadow-red-600/30 flex items-center justify-center text-lg transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 enabled:opacity-90 enabled:hover:opacity-100 border border-red-400/50 group/urgent"
-            title={urgentClicks !== undefined ? `全球已急 ${urgentClicks.toLocaleString()} 次` : "急急急"}
-          >
-            急
-          </button>
-          {urgentClicks !== undefined && urgentClicks > 0 && (
-            <div className="bg-white/80 dark:bg-black/80 border border-red-200 dark:border-red-800/50 px-2 py-0.5 rounded-sm backdrop-blur-sm">
-              <span className="text-[10px] font-mono text-red-600 dark:text-red-400">
-                {urgentClicks.toLocaleString()}
-              </span>
+      <div className={`relative z-10 flex ${isSmall ? 'flex-col gap-3 p-4 flex-1' : 'flex-col md:flex-row items-stretch'}`}>
+        {/* 左侧：标题区 & 后续卡池信息 */}
+        <div className={`${isSmall ? 'border-b border-zinc-100 dark:border-zinc-800 pb-3' : 'flex-1 p-6 md:p-8 flex flex-col justify-between bg-gradient-to-r from-endfield-yellow/10 to-transparent border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800/50'}`}>
+          <div>
+            {!isSmall && (
+              <div className="flex items-center gap-2 mb-3">
+                 <div className="w-1.5 h-1.5 bg-endfield-yellow animate-pulse shadow-[0_0_8px_rgba(255,250,0,0.8)]"></div>
+                 <span className="text-zinc-500 dark:text-endfield-yellow/80 font-mono text-[10px] tracking-[0.2em] uppercase">系统倒计时</span>
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              {/* 当前UP角色头像 */}
+              {characterName && !isSmall && (() => {
+                const charData = characterCache.searchByName(characterName, false);
+                const avatarUrl = charData?.avatar_url;
+                return (
+                  <div className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-gradient-to-br from-orange-400 to-pink-500 ring-2 ring-endfield-yellow shadow-[0_0_20px_rgba(255,250,0,0.3)]">
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={characterName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                      <User size={32} />
+                    </div>
+                  </div>
+                );
+              })()}
+              <div>
+                <h2 className={`${isSmall ? 'text-lg leading-tight' : 'text-3xl md:text-4xl'} font-bold text-zinc-900 dark:text-white uppercase italic tracking-tighter mb-1`}>
+                  {title}
+                </h2>
+                <p className="text-zinc-500 text-xs font-mono tracking-wide uppercase truncate">
+                  {subTitle}
+                </p>
+              </div>
+            </div>
+
+            <div className={`${isSmall ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-4`}>
+              {link && (
+                 <a
+                   href={link}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
+                 >
+                    <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">{linkText}</span>
+                    <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
+                 </a>
+              )}
+              {secondaryLink && (
+                 <a
+                   href={secondaryLink}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-pink-400 transition-colors group/link2"
+                 >
+                    <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link2:border-pink-400 pb-0.5">{secondaryLinkText}</span>
+                    <ArrowRight size={12} className="group-hover/link2:translate-x-1 transition-transform" />
+                 </a>
+              )}
+            </div>
+          </div>
+
+          {/* 后续卡池简化展示 (仅大屏且有数据时显示) */}
+          {!isSmall && upcomingPools.length > 0 && (
+            <div className="mt-8 pt-4 border-t border-zinc-200/50 dark:border-zinc-700/50">
+              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-widest font-mono mb-2">后续卡池预告</div>
+              <div className="space-y-3">
+                {upcomingPools.slice(0, 2).map((pool, idx) => {
+                  const isNextNext = idx === 1;
+                  const charData = characterCache.searchByName(pool.name, false);
+                  const avatarUrl = charData?.avatar_url;
+                  return (
+                    <div key={pool.name} className="flex items-center gap-3 text-xs">
+                      <div className={`w-1 h-3 ${isNextNext ? 'bg-zinc-300 dark:bg-zinc-700' : 'bg-endfield-yellow'}`}></div>
+                      {/* 角色头像 */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                        isNextNext ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-gradient-to-br from-orange-400 to-pink-500'
+                      }`}>
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={pool.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              e.target.nextSibling.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                          <User size={14} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-2">
+                          {pool.name}
+                          {isNextNext && upcomingTimeLeft && !upcomingTimeLeft.ended && (
+                             <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 font-normal">
+                               (倒计时: {upcomingTimeLeft.days}天{upcomingTimeLeft.hours}时)
+                             </span>
+                          )}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
+                          开启时间: {formatDate(pool.startDate)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
-      )}
-
-      <div className="relative z-10 flex flex-col md:flex-row items-stretch">
-        {/* 左侧：标题区 */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col justify-center bg-gradient-to-r from-endfield-yellow/10 to-transparent border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800/50">
-          <div className="flex items-center gap-2 mb-3">
-             <div className="w-1.5 h-1.5 bg-endfield-yellow animate-pulse shadow-[0_0_8px_rgba(255,250,0,0.8)]"></div>
-             <span className="text-zinc-500 dark:text-endfield-yellow/80 font-mono text-[10px] tracking-[0.2em] uppercase">System Countdown</span>
-          </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-white uppercase italic tracking-tighter mb-2">
-            {title}
-          </h2>
-          <p className="text-zinc-500 text-xs font-mono tracking-wide uppercase">
-            {subTitle}
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            {link && (
-               <a
-                 href={link}
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
-               >
-                  <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">{linkText}</span>
-                  <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
-               </a>
-            )}
-            {secondaryLink && (
-               <a
-                 href={secondaryLink}
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-pink-400 transition-colors group/link2"
-               >
-                  <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link2:border-pink-400 pb-0.5">{secondaryLinkText}</span>
-                  <ArrowRight size={12} className="group-hover/link2:translate-x-1 transition-transform" />
-               </a>
-            )}
-          </div>
-        </div>
 
         {/* 右侧：数字区 */}
-        <div className="flex-1 p-6 md:p-8 flex items-center justify-center md:justify-end gap-2 sm:gap-4 md:gap-6 bg-zinc-50/50 dark:bg-zinc-900/20 backdrop-blur-sm">
+        <div className={`${isSmall ? 'flex justify-center gap-3 sm:gap-4 items-center flex-1 py-2' : 'flex-1 p-6 md:p-8 flex items-center justify-center md:justify-end gap-2 sm:gap-4 md:gap-6 bg-zinc-50/50 dark:bg-zinc-900/20 backdrop-blur-sm'}`}>
            {/* Days */}
            <div className="flex flex-col items-center group/time">
               <div className="relative">
-                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                 <div className={`${isSmall ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl'} font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300`}>
                     {formatNum(timeLeft.days)}
                  </div>
                  <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-200 dark:bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
               </div>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-3">Days</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-2">天</span>
            </div>
 
-           <div className="text-2xl sm:text-4xl text-zinc-300 dark:text-zinc-800 font-light pb-6">:</div>
+           <div className={`${isSmall ? 'text-3xl sm:text-4xl pb-3' : 'text-2xl sm:text-4xl pb-6'} text-zinc-300 dark:text-zinc-800 font-light`}>:</div>
 
            {/* Hours */}
            <div className="flex flex-col items-center group/time">
               <div className="relative">
-                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                 <div className={`${isSmall ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl'} font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300`}>
                     {formatNum(timeLeft.hours)}
                  </div>
                  <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-200 dark:bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
               </div>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-3">Hrs</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-2">时</span>
            </div>
 
-           <div className="text-2xl sm:text-4xl text-zinc-300 dark:text-zinc-800 font-light pb-6">:</div>
+           <div className={`${isSmall ? 'text-3xl sm:text-4xl pb-3' : 'text-2xl sm:text-4xl pb-6'} text-zinc-300 dark:text-zinc-800 font-light`}>:</div>
 
            {/* Minutes */}
            <div className="flex flex-col items-center group/time">
               <div className="relative">
-                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300">
+                 <div className={`${isSmall ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl'} font-bold text-zinc-800 dark:text-white font-mono tracking-tighter leading-none group-hover/time:text-endfield-yellow transition-colors duration-300`}>
                     {formatNum(timeLeft.minutes)}
                  </div>
                  <div className="absolute -bottom-2 left-0 w-full h-0.5 bg-zinc-200 dark:bg-zinc-800 group-hover/time:bg-endfield-yellow transition-colors duration-300"></div>
               </div>
-              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-3">Min</span>
+              <span className="text-[10px] text-zinc-400 dark:text-zinc-600 font-mono uppercase tracking-widest mt-2">分</span>
            </div>
 
-           <div className="text-2xl sm:text-4xl text-zinc-300 dark:text-zinc-800 font-light pb-6">:</div>
+           <div className={`${isSmall ? 'text-3xl sm:text-4xl pb-3' : 'text-2xl sm:text-4xl pb-6'} text-zinc-300 dark:text-zinc-800 font-light`}>:</div>
 
            {/* Seconds */}
            <div className="flex flex-col items-center relative group/time">
-              <div className="relative p-2 -m-2">
+              <div className="relative p-1 -m-1">
                  {/* 高亮背景 */}
                  <div className="absolute inset-0 bg-endfield-yellow/10 -skew-x-6 border border-endfield-yellow/20 opacity-100 sm:opacity-0 sm:group-hover/time:opacity-100 transition-opacity duration-300"></div>
 
-                 <div className="relative text-4xl sm:text-5xl md:text-6xl font-bold text-amber-500 dark:text-endfield-yellow font-mono tracking-tighter leading-none">
+                 <div className={`relative ${isSmall ? 'text-5xl sm:text-6xl' : 'text-4xl sm:text-5xl md:text-6xl'} font-bold text-amber-500 dark:text-endfield-yellow font-mono tracking-tighter leading-none`}>
                     {formatNum(timeLeft.seconds)}
                  </div>
               </div>
-              <span className="text-[10px] text-amber-500/70 dark:text-endfield-yellow/70 font-mono uppercase tracking-widest mt-3">Sec</span>
+              <span className="text-[10px] text-amber-500/70 dark:text-endfield-yellow/70 font-mono uppercase tracking-widest mt-2">秒</span>
            </div>
         </div>
       </div>
@@ -273,28 +362,69 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   // 确保 pools 始终是数组
   const poolsArray = Array.isArray(pools) ? pools : [];
 
-  // 动态生成轮换计划（从数据库卡池列表）
-  const dynamicPoolSchedule = React.useMemo(() => {
-    // 过滤出限定池并按开始时间排序
-    const limitedPools = poolsArray
-      .filter(p => p.type === 'limited' && p.start_time && p.end_time)
-      .sort((a, b) => {
-        const timeA = new Date(a.start_time).getTime();
-        const timeB = new Date(b.start_time).getTime();
-        return timeA - timeB;
-      });
+  // 时间状态，用于驱动倒计时轮换（每分钟更新）
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
 
-    // 转换为轮换计划格式
-    return limitedPools.map(pool => ({
-      name: pool.up_character || pool.name.replace(/^限定-/, ''),
-      startDate: pool.start_time,
-      endDate: pool.end_time,
-      removesAfter: 3, // 默认值，可以根据需要调整
-    }));
-  }, [poolsArray]);
+  // 使用官方轮换计划
+  const poolSchedule = LIMITED_POOL_SCHEDULE;
 
-  // 使用动态轮换计划，如果为空则回退到硬编码的计划
-  const poolSchedule = dynamicPoolSchedule.length > 0 ? dynamicPoolSchedule : LIMITED_POOL_SCHEDULE;
+  // 计算倒计时目标（返回3个：主卡池 + 2个后续）
+  const countdowns = useMemo(() => {
+    // 确保按开始时间排序
+    const sortedPools = [...poolSchedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    
+    // 找到当前正在进行的池子
+    let activeIndex = sortedPools.findIndex(p => now >= new Date(p.startDate) && now < new Date(p.endDate));
+    
+    // 如果没有正在进行的，找到下一个开始的池子
+    if (activeIndex === -1) {
+       activeIndex = sortedPools.findIndex(p => now < new Date(p.startDate));
+    }
+    
+    // 如果所有池子都已结束（activeIndex = -1 且 now > last.endDate）
+    // 或者没有数据
+    // 此时显示公测倒计时作为Main
+    
+    // 辅助函数：格式化池子数据
+    const getPoolData = (index) => {
+        if (index < 0 || index >= sortedPools.length) return null;
+        const p = sortedPools[index];
+        const start = new Date(p.startDate);
+        const end = new Date(p.endDate);
+        const isActive = now >= start && now < end;
+        return {
+            ...p,
+            targetDate: isActive ? p.endDate : p.startDate,
+            title: isActive ? `${p.name} 池结束倒计时` : `${p.name} 池开启倒计时`,
+            subTitle: isActive ? `Current Banner Ending // ${p.name}` : `Next Banner Starting // ${p.name}`,
+            isActive
+        };
+    };
+
+    let main = null;
+    let others = [];
+
+    if (activeIndex !== -1) {
+       main = getPoolData(activeIndex);
+       if (activeIndex + 1 < sortedPools.length) others.push(getPoolData(activeIndex + 1));
+       if (activeIndex + 2 < sortedPools.length) others.push(getPoolData(activeIndex + 2));
+    }
+
+    // 如果没有找到有效的主池子（比如activeIndex为-1且不是未来），使用默认值（公测/下个版本）
+    if (!main) {
+       main = {
+          targetDate: "2026-03-12T11:00:00+08:00",
+          title: "下个版本倒计时",
+          subTitle: "Waiting for Next Version"
+       };
+    }
+
+    return { main, others };
+  }, [poolSchedule, now]);
 
   // 从 localStorage 读取初始折叠状态
   const initialCollapseState = getHomeCollapseState();
@@ -305,7 +435,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at)
     : false;
 
-  // 折叠状态：如果有公告更新，默认展开公告
+  // 折叠状态
   const [showPoolMechanics, setShowPoolMechanics] = useState(!initialCollapseState.poolMechanics);
   const [showGuide, setShowGuide] = useState(!initialCollapseState.guide);
   const [showRoadmap, setShowRoadmap] = useState(!initialCollapseState.roadmap);
@@ -313,21 +443,10 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     hasAnnouncementUpdate ? true : !initialCollapseState.announcement
   );
 
-  // 公告是否为"新"（未查看过）
+  // 公告是否为"新"
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
 
-  // "急"按钮点击统计
-  // 使用本地缓存初始化，避免闪烁
-  const [urgentClicks, setUrgentClicks] = useState(() => getLocalUrgentClicks());
-  const [isClickingUrgent, setIsClickingUrgent] = useState(false);
-
-  // 本地点击计数器和防抖定时器
-  const pendingClicksRef = useRef(0); // 待上传的点击次数
-  const uploadTimerRef = useRef(null); // 上传定时器
-  const UPLOAD_DELAY = 2000; // 停止点击后 2 秒上传
-  const POLL_INTERVAL = 30000; // 30秒轮询间隔
-
-  // 处理折叠状态变化并保存到 localStorage
+  // 处理折叠状态变化
   const handleTogglePoolMechanics = useCallback(() => {
     setShowPoolMechanics(prev => {
       const newState = !prev;
@@ -360,10 +479,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     });
   }, []);
 
-  // 用户主动点击公告区域时标记为已查看（延迟执行，让用户看到 NEW 标签）
+  // 公告查看逻辑
   const handleAnnouncementViewed = useCallback(() => {
     if (isAnnouncementNew) {
-      // 延迟 2 秒后标记为已查看，让用户有足够时间看到 NEW 标签
       setTimeout(() => {
         markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
         setIsAnnouncementNew(false);
@@ -371,112 +489,27 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     }
   }, [isAnnouncementNew]);
 
-  // 公告展开时延迟标记为已查看
   useEffect(() => {
     if (showAnnouncement && isAnnouncementNew) {
       handleAnnouncementViewed();
     }
   }, [showAnnouncement, isAnnouncementNew, handleAnnouncementViewed]);
 
-  // 加载"急"按钮点击统计并启动智能轮询
-  useEffect(() => {
-    let stopPoller = null;
-
-    // 获取初始点击次数（异步，但已有本地缓存作为初始值）
-    const loadUrgentClicks = async () => {
-      try {
-        const clicks = await getUrgentButtonClicks();
-        setUrgentClicks(clicks);
-      } catch (error) {
-        console.warn('加载急按钮数据失败，使用本地缓存:', error.message);
-      }
-    };
-
-    loadUrgentClicks();
-
-    // 启动智能轮询（30秒间隔，仅在页面可见时轮询）
-    stopPoller = createUrgentClicksPoller((newCount) => {
-      // 仅当没有待上传的本地点击时才更新
-      // 避免覆盖用户的乐观更新
-      if (pendingClicksRef.current === 0) {
-        setUrgentClicks(newCount);
-      }
-    }, POLL_INTERVAL);
-
-    // 清理：停止轮询，并上传未提交的点击
-    return () => {
-      if (stopPoller) {
-        stopPoller();
-      }
-
-      // 组件卸载时，如果有待上传的点击，立即上传
-      if (pendingClicksRef.current > 0) {
-        const pendingCount = pendingClicksRef.current;
-        pendingClicksRef.current = 0;
-        incrementUrgentButtonClicksBatch(pendingCount).catch(err => {
-          console.error('组件卸载时上传点击失败:', err);
-        });
-      }
-
-      // 清除定时器
-      if (uploadTimerRef.current) {
-        clearTimeout(uploadTimerRef.current);
-      }
-    };
-  }, [POLL_INTERVAL]);
-
-  // 批量上传点击次数
-  const uploadPendingClicks = useCallback(async () => {
-    if (pendingClicksRef.current === 0) return;
-
-    const countToUpload = pendingClicksRef.current;
-    pendingClicksRef.current = 0;
-
-    try {
-      const newCount = await incrementUrgentButtonClicksBatch(countToUpload);
-      // 使用服务器返回的最新值更新本地显示（包含所有用户的点击）
-      setUrgentClicks(newCount);
-      console.log(`成功上传 ${countToUpload} 次点击，当前总计: ${newCount}`);
-    } catch (error) {
-      console.error('批量上传点击失败:', error);
-      // 失败时，将点击次数加回去
-      pendingClicksRef.current += countToUpload;
-    }
+  // 庆祝按钮逻辑
+  const handleCelebrationClick = useCallback((e) => {
+    e.preventDefault();
+    const x = e.clientX / window.innerWidth;
+    const y = e.clientY / window.innerHeight;
+    
+    confetti({
+      particleCount: 150,
+      spread: 80,
+      origin: { x, y }
+    });
   }, []);
 
-  // 处理"急"按钮点击
-  const handleUrgentClick = useCallback(async () => {
-    if (isClickingUrgent) return; // 防止重复点击
-
-    setIsClickingUrgent(true);
-
-    // 1. 立即更新本地显示
-    setUrgentClicks(prev => prev + 1);
-    pendingClicksRef.current += 1;
-
-    // 2. 清除之前的定时器
-    if (uploadTimerRef.current) {
-      clearTimeout(uploadTimerRef.current);
-    }
-
-    // 3. 设置新的定时器：用户停止点击 2 秒后批量上传
-    uploadTimerRef.current = setTimeout(() => {
-      uploadPendingClicks();
-    }, UPLOAD_DELAY);
-
-    // 4. 短暂延迟后解锁按钮
-    setTimeout(() => {
-      setIsClickingUrgent(false);
-    }, 100);
-  }, [isClickingUrgent, uploadPendingClicks, UPLOAD_DELAY]);
-
-  // 折叠动画辅助 - 使用 ref 获取实际高度
-  const poolMechanicsRef = useRef(null);
-  const guideRef = useRef(null);
-  const announcementRef = useRef(null);
-
   // 折叠动画组件
-  const CollapsibleContent = ({ isOpen, children, maxHeightValue = '2000px' }) => (
+  const CollapsibleContent = ({ isOpen, children }) => (
     <div
       className={`grid transition-all duration-500 ease-in-out ${isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}
     >
@@ -486,10 +519,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     </div>
   );
 
-  // 卡池机制说明卡片（从 SummaryView 迁移）
+  // 卡池机制说明卡片
   const PoolMechanicsCard = () => {
     const currentUpPool = getCurrentUpPool();
-    const now = new Date();
     const { isActive, isExpired, remainingDays, remainingHours, startsIn, startsInHours } = currentUpPool;
     const isEndingSoon = remainingDays <= 3 && isActive;
     const isUpcoming = !isActive && !isExpired;
@@ -538,7 +570,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                 <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 text-blue-600 dark:text-blue-400 uppercase tracking-wider font-mono">System Info</span>
               </h3>
               <p className="text-xs text-zinc-500 mt-1 font-mono">
-                CURRENT UP: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{currentUpPool.name}</span>
+                CURRENT UP: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{currentUpName}</span>
                 {isActive && (
                   <span className={`ml-2 ${isEndingSoon ? 'text-amber-500' : 'text-green-600 dark:text-green-500'}`}>
                     // 剩余 {remainingDays}天{remainingHours}小时
@@ -556,7 +588,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           <ChevronUp size={20} className={`text-zinc-400 dark:text-zinc-500 transition-transform duration-300 ${showPoolMechanics ? '' : 'rotate-180'}`} />
         </button>
 
-      {/* 展开内容 - 使用 grid 动画 */}
+      {/* 展开内容 */}
         <CollapsibleContent isOpen={showPoolMechanics}>
           <div className="p-6 space-y-6 bg-zinc-50/50 dark:bg-black/20">
             {/* 三种卡池对比 */}
@@ -699,6 +731,10 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
                     const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
 
+                    // 获取角色头像
+                    const charData = characterCache.searchByName(pool.name, false);
+                    const avatarUrl = charData?.avatar_url;
+
                     // 格式化时间显示
                     const formatDateTime = (date) => {
                       const month = date.getMonth() + 1;
@@ -724,12 +760,35 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                     return (
                       <React.Fragment key={pool.name}>
                         <div className={`px-3 py-2 rounded-sm text-xs font-mono transition-all border ${containerClass}`}>
-                          <div className="font-bold flex items-center gap-1">
-                             {pool.name}
+                          <div className="font-bold flex items-center gap-2">
+                             {/* 角色头像 */}
+                             <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                               isCurrent
+                                 ? 'bg-gradient-to-br from-orange-400 to-pink-500 ring-1 ring-endfield-yellow'
+                                 : isInPool
+                                   ? 'bg-blue-200 dark:bg-blue-800'
+                                   : 'bg-zinc-200 dark:bg-zinc-700'
+                             }`}>
+                               {avatarUrl ? (
+                                 <img
+                                   src={avatarUrl}
+                                   alt={pool.name}
+                                   className="w-full h-full object-cover"
+                                   onError={(e) => {
+                                     e.target.style.display = 'none';
+                                     e.target.nextSibling.style.display = 'flex';
+                                   }}
+                                 />
+                               ) : null}
+                               <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                                 <User size={12} />
+                               </div>
+                             </div>
+                             <span>{pool.name}</span>
                              {isInPool && !isCurrent && <span className="text-[10px] opacity-80">(在卡池中)</span>}
                              {isCurrent && <span className="text-[10px] font-bold">UP</span>}
                           </div>
-                          <div className="text-[10px] opacity-70 mt-1">
+                          <div className="text-[10px] opacity-70 mt-1 ml-8">
                             {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
                           </div>
                         </div>
@@ -751,74 +810,25 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             </div>
 
             {/* 可获取角色列表 */}
+            {/* ... (reused code from above) ... */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-zinc-200 dark:border-zinc-800 pt-6">
-              {/* 限定池角色 */}
+              {/* Limited */}
               <div>
-                <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-3 flex items-center gap-2 uppercase tracking-widest">
-                   Limited Pool // 限定池内容
-                </h4>
+                <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-3 flex items-center gap-2 uppercase tracking-widest">Limited Pool // 限定池内容</h4>
                 <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/50 p-3 border border-zinc-200 dark:border-zinc-800/50">
-                  <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-fuchsia-500 font-bold font-mono w-8 shrink-0">6★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {limitedCharacters.sixStar.map((char, i) => (
-                           <span key={char} className={`text-xs px-1.5 py-0.5 rounded-sm ${i === 0 ? 'bg-fuchsia-100 dark:bg-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-500/30' : 'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-100 dark:border-transparent'}`}>
-                              {char}{i === 0 && ' (UP)'}
-                           </span>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-amber-500 font-bold font-mono w-8 shrink-0">5★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {limitedCharacters.fiveStar.map(char => (
-                           <span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-purple-500 font-bold font-mono w-8 shrink-0">4★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {limitedCharacters.fourStar.map(char => (
-                           <span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>
-                        ))}
-                     </div>
-                  </div>
+                  {/* ... same content ... */}
+                  <div className="flex items-baseline gap-2"><span className="text-[10px] text-fuchsia-500 font-bold font-mono w-8 shrink-0">6★</span><div className="flex flex-wrap gap-1">{limitedCharacters.sixStar.map((char,i)=><span key={char} className={`text-xs px-1.5 py-0.5 rounded-sm ${i===0?'bg-fuchsia-100 dark:bg-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 border border-fuchsia-200 dark:border-fuchsia-500/30':'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-100 dark:border-transparent'}`}>{char}{i===0&&' (UP)'}</span>)}</div></div>
+                  <div className="flex items-baseline gap-2"><span className="text-[10px] text-amber-500 font-bold font-mono w-8 shrink-0">5★</span><div className="flex flex-wrap gap-1">{limitedCharacters.fiveStar.map(char=><span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>)}</div></div>
+                  <div className="flex items-baseline gap-2"><span className="text-[10px] text-purple-500 font-bold font-mono w-8 shrink-0">4★</span><div className="flex flex-wrap gap-1">{limitedCharacters.fourStar.map(char=><span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>)}</div></div>
                 </div>
               </div>
-
-              {/* 常驻池角色 */}
+              {/* Standard */}
               <div>
-                <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-3 flex items-center gap-2 uppercase tracking-widest">
-                   Standard Pool // 常驻池内容
-                </h4>
+                <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-3 flex items-center gap-2 uppercase tracking-widest">Standard Pool // 常驻池内容</h4>
                 <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/50 p-3 border border-zinc-200 dark:border-zinc-800/50">
-                   <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-indigo-500 font-bold font-mono w-8 shrink-0">6★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {standardCharacters.sixStar.map((char) => (
-                           <span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-100 dark:border-transparent rounded-sm">
-                              {char}
-                           </span>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-amber-500 font-bold font-mono w-8 shrink-0">5★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {standardCharacters.fiveStar.map(char => (
-                           <span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>
-                        ))}
-                     </div>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                     <span className="text-[10px] text-purple-500 font-bold font-mono w-8 shrink-0">4★</span>
-                     <div className="flex flex-wrap gap-1">
-                        {standardCharacters.fourStar.map(char => (
-                           <span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>
-                        ))}
-                     </div>
-                  </div>
+                   <div className="flex items-baseline gap-2"><span className="text-[10px] text-indigo-500 font-bold font-mono w-8 shrink-0">6★</span><div className="flex flex-wrap gap-1">{standardCharacters.sixStar.map(char=><span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>)}</div></div>
+                   <div className="flex items-baseline gap-2"><span className="text-[10px] text-amber-500 font-bold font-mono w-8 shrink-0">5★</span><div className="flex flex-wrap gap-1">{standardCharacters.fiveStar.map(char=><span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-500 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>)}</div></div>
+                   <div className="flex items-baseline gap-2"><span className="text-[10px] text-purple-500 font-bold font-mono w-8 shrink-0">4★</span><div className="flex flex-wrap gap-1">{standardCharacters.fourStar.map(char=><span key={char} className="text-xs px-1.5 py-0.5 bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-600 border border-zinc-100 dark:border-transparent rounded-sm">{char}</span>)}</div></div>
                 </div>
               </div>
             </div>
@@ -845,7 +855,6 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
           <div className="text-left">
             <h3 className="font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2">
               使用指南
-              <span className="text-[10px] px-1.5 py-0.5 border border-amber-200 dark:border-amber-800 text-amber-600 dark:text-amber-400 uppercase tracking-wider font-mono">Guide</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-zinc-500 mt-0.5">
               系统操作手册与功能索引
@@ -859,70 +868,96 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
       {/* 展开内容 - 使用 grid 动画 */}
       <CollapsibleContent isOpen={showGuide}>
-        <div className="px-6 pb-6 space-y-6">
-          {/* 功能介绍 */}
-          <div>
-            <h4 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-amber-500"></span>
-              Core Modules // 核心模块
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              {[
-                { icon: BarChart3, color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'hover:border-indigo-500', title: '数据统计', desc: '全服/个人欧非分析' },
-                { icon: Database, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'hover:border-emerald-500', title: '数据录入', desc: '单抽/十连/文本导入' },
-                { icon: Cloud, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'hover:border-blue-500', title: '云端同步', desc: '多设备实时数据互通' },
-                { icon: Shield, color: 'text-red-500', bg: 'bg-red-50 dark:bg-red-900/20', border: 'hover:border-red-500', title: '权限管理', desc: '管理员审批制度' },
-              ].map((item, idx) => (
-                <div key={idx} className={`p-4 border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 transition-all duration-300 group ${item.border}`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`p-1.5 ${item.bg} ${item.color}`}>
-                      <item.icon size={16} />
-                    </div>
-                    <h4 className="font-bold text-slate-700 dark:text-zinc-300 text-sm group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{item.title}</h4>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 pl-[38px]">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* 快速开始步骤 */}
-          <div>
-            <h4 className="text-xs font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 bg-amber-500"></span>
-              Quick Start // 快速指引
-            </h4>
-            <div className="relative border border-zinc-200 dark:border-zinc-800 bg-zinc-50/30 dark:bg-zinc-900/30 p-5">
-              <div className="absolute left-7 top-5 bottom-5 w-px bg-zinc-200 dark:bg-zinc-800"></div>
-              <div className="space-y-6">
-                {[
-                  { title: '登录账号', desc: '点击右上角「登录」按钮注册或登录您的账号', link: !user },
-                  { title: '申请权限', desc: '如需录入数据，请点击右上角「申请」按钮成为管理员', link: canEdit },
-                  { title: '开始使用', desc: '在「卡池详情」页面录入数据，或查看统计分析', link: true },
-                ].map((step, idx) => (
-                  <div key={idx} className="relative flex items-start gap-4 group">
-                    <div className={`relative z-10 w-5 h-5 flex items-center justify-center text-[10px] font-bold font-mono border transition-colors ${
-                      step.link 
-                        ? 'bg-amber-500 border-amber-500 text-white' 
-                        : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-400'
-                    }`}>
-                      {idx + 1}
-                    </div>
-                    <div>
-                      <h5 className={`text-sm font-bold transition-colors ${step.link ? 'text-slate-800 dark:text-zinc-200' : 'text-slate-400 dark:text-zinc-600'}`}>
-                        {step.title}
-                      </h5>
-                      <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-                        {step.desc}
+        <div className="px-6 pb-6 bg-zinc-50/50 dark:bg-black/20">
+          <div className="border border-zinc-200 dark:border-zinc-700 bg-zinc-100/50 dark:bg-zinc-900/50">
+             <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-zinc-200 dark:divide-zinc-800">
+                
+                {/* Step 1: 导入数据 */}
+                <div className="p-6 flex flex-col gap-3">
+                   <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-mono text-[10px] px-1.5 py-0.5 rounded-sm font-bold">STEP 01</span>
+                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm">数据录入流程</h4>
+                   </div>
+                   <div className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed space-y-2">
+                      <p>
+                         <span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">01.</span>
+                         点击右上角 <span className="font-bold text-slate-700 dark:text-zinc-300">登录/注册</span> 账号，确保数据可云端保存。
                       </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                      <p>
+                         <span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">02.</span>
+                         点击顶部的 <span className="font-bold text-slate-700 dark:text-zinc-300">「导入数据」</span> 按钮，打开导入面板。
+                      </p>
+                      <p>
+                         <span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">03.</span>
+                         按照指引登录鹰角网络通行证（支持官服/B服），复制显示的<span className="font-bold text-slate-700 dark:text-zinc-300">数据内容</span>。
+                      </p>
+                      <p>
+                         <span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">04.</span>
+                         将复制的内容粘贴至输入框，系统将自动获取您的历史抽卡记录。
+                      </p>
+                   </div>
+                   <div className="mt-auto pt-3 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono uppercase">
+                         <Import size={12} />
+                         <span>Token Import System</span>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Step 2: 统计分析 */}
+                <div className="p-6 flex flex-col gap-3">
+                   <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-endfield-yellow/20 text-amber-700 dark:text-endfield-yellow font-mono text-[10px] px-1.5 py-0.5 rounded-sm font-bold">STEP 02</span>
+                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm">深度数据分析</h4>
+                   </div>
+                   <div className="text-xs text-slate-500 dark:text-zinc-400 space-y-3 leading-relaxed">
+                      <div>
+                         <strong className="block text-slate-700 dark:text-zinc-300 mb-1">📊 卡池详情页</strong>
+                         <ul className="list-disc pl-4 space-y-1">
+                            <li>查看当前卡池的<span className="text-amber-600 dark:text-amber-500">水位垫刀</span>与保底进度。</li>
+                            <li>分析 6 星出货的<span className="text-blue-600 dark:text-blue-400">平均消耗</span>与不歪率。</li>
+                            <li>追踪 120 抽硬保底与 240 抽赠送进度。</li>
+                         </ul>
+                      </div>
+                      <div>
+                         <strong className="block text-slate-700 dark:text-zinc-300 mb-1">📈 统计汇总页</strong>
+                         <p>全账号生涯数据总览，包含欧非评价（基于全服数据对比）、各稀有度分布占比及历史出货曲线。</p>
+                      </div>
+                   </div>
+                   <div className="mt-auto pt-3 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono uppercase">
+                         <BarChart3 size={12} />
+                         <span>Visual Analytics</span>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Step 3: 更多功能 */}
+                <div className="p-6 flex flex-col gap-3">
+                   <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-mono text-[10px] px-1.5 py-0.5 rounded-sm font-bold">STEP 03</span>
+                      <h4 className="font-bold text-slate-800 dark:text-zinc-200 text-sm">实用工具与服务</h4>
+                   </div>
+                   <div className="text-xs text-slate-500 dark:text-zinc-400 space-y-3 leading-relaxed">
+                      <div>
+                         <strong className="block text-slate-700 dark:text-zinc-300 mb-1 flex items-center gap-1"><Gamepad2 size={12}/> 抽卡模拟器</strong>
+                         <p>真实还原游戏内概率模型（含 65 抽软保底机制），支持无限十连，用于测试手气或规划资源。</p>
+                      </div>
+                      <div>
+                         <strong className="block text-slate-700 dark:text-zinc-300 mb-1 flex items-center gap-1"><Cloud size={12}/> 云端同步服务</strong>
+                         <p>登录后您的所有数据将加密存储于云端数据库，支持在 PC、手机等不同设备间无缝切换，数据永不丢失。</p>
+                      </div>
+                   </div>
+                   <div className="mt-auto pt-3 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                      <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono uppercase">
+                         <Zap size={12} />
+                         <span>Tools & Cloud Sync</span>
+                      </div>
+                   </div>
+                </div>
+
+             </div>
           </div>
-
-
         </div>
       </CollapsibleContent>
     </div>
@@ -930,75 +965,22 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   // 待增加功能卡片 - 时间轴版 (横向)
   const RoadmapCard = () => {
-    // 待办功能列表 - 按优先级排序
+    // ... (reused items) ...
     const roadmapItems = [
-      // P1 - 高优先级（公测相关）
-      {
-        id: 'gacha-simulator',
-        icon: Gamepad2,
-        title: '抽卡模拟器',
-        description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉',
-        status: 'completed',
-        priority: 'high',
-        tag: '娱乐功能'
-      },
-      {
-        id: 'game-import',
-        icon: Import,
-        title: '游戏数据一键导入',
-        description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）',
-        status: 'in_progress',
-        priority: 'high',
-        tag: '公测更新'
-      },
-      // P2 - 中优先级
-      {
-        id: 'share',
-        icon: Share2,
-        title: '分享功能',
-        description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气',
-        status: 'planned',
-        priority: 'medium',
-        tag: '社交传播'
-      },
-      {
-        id: 'i18n',
-        icon: Languages,
-        title: '国际化支持',
-        description: '支持英语、日语等多语言界面，服务更多玩家',
-        status: 'planned',
-        priority: 'medium',
-        tag: '用户扩展'
-      },
-      // P3 - 低优先级
-      {
-        id: 'a11y',
-        icon: Accessibility,
-        title: '无障碍优化',
-        description: '完善ARIA标签和键盘导航，提升可访问性',
-        status: 'planned',
-        priority: 'low',
-        tag: '体验优化'
-      },
-      {
-        id: 'virtual-scroll',
-        icon: Database,
-        title: '虚拟滚动',
-        description: '优化长列表性能，支持更大数据量的流畅浏览',
-        status: 'planned',
-        priority: 'low',
-        tag: '性能优化'
-      }
+      { id: 'gacha-simulator', icon: Gamepad2, title: '抽卡模拟器', description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉', status: 'completed', priority: 'high', tag: '娱乐功能' },
+      { id: 'game-import', icon: Import, title: '游戏数据一键导入', description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）', status: 'in_progress', priority: 'high', tag: '公测更新' },
+      { id: 'share', icon: Share2, title: '分享功能', description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气', status: 'planned', priority: 'medium', tag: '社交传播' },
+      { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'medium', tag: '用户扩展' },
+      { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low', tag: '体验优化' },
+      { id: 'virtual-scroll', icon: Database, title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low', tag: '性能优化' }
     ];
 
-    // 状态样式配置
     const statusConfig = {
       completed: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', border: 'border-green-200 dark:border-green-800', label: '已完成' },
       in_progress: { bg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400', border: 'border-blue-200 dark:border-blue-800', label: '开发中' },
       planned: { bg: 'bg-zinc-500/10 text-zinc-500 dark:text-zinc-400', border: 'border-zinc-200 dark:border-zinc-800', label: '计划中' }
     };
 
-    // 优先级样式
     const priorityConfig = {
       high: { color: 'text-amber-500', bg: 'bg-amber-500', border: 'border-amber-500', ring: 'ring-amber-500/30' },
       medium: { color: 'text-blue-500', bg: 'bg-blue-500', border: 'border-blue-500', ring: 'ring-blue-500/30' },
@@ -1133,20 +1115,35 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     <div className="space-y-6 animate-fade-in">
       {/* 欢迎横幅 */}
       <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black p-6 text-white relative overflow-hidden border-l-4 border-endfield-yellow">
-        <div className="relative z-10">
-          <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-            <BarChart3 size={28} />
-            终末地抽卡分析器
-          </h2>
-          <p className="text-indigo-100 text-sm">
-            记录您的抽卡历程，分析出货规律，为后续规划提供参考
-          </p>
-          {!user && (
-            <p className="text-xs text-indigo-200 mt-2 flex items-center gap-1">
-              <ArrowRight size={12} />
-              登录后可录入数据并同步到云端
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-3">
+                <BarChart3 size={28} />
+                终末地抽卡分析器
+              </div>
+            </h2>
+            <p className="text-indigo-100 text-sm">
+              记录您的抽卡历程，分析出货规律，为后续规划提供参考
             </p>
-          )}
+            {!user && (
+              <p className="text-xs text-indigo-200 mt-2 flex items-center gap-1">
+                <ArrowRight size={12} />
+                登录后可录入数据并同步到云端
+              </p>
+            )}
+          </div>
+          
+          {/* 庆祝按钮 - 可点击区域扩大，动画优化 */}
+          <button 
+             onClick={handleCelebrationClick}
+             className="group flex items-center gap-3 px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/50 rounded-full animate-fade-in-up self-end md:self-center transition-all cursor-pointer"
+          >
+             <span className="text-sm font-bold text-endfield-yellow font-mono tracking-wide">恭喜终末地公测！</span>
+             <div className="p-1.5 bg-yellow-500/20 rounded-full group-hover:bg-yellow-500 group-hover:text-black transition-colors text-yellow-500">
+               <Sparkles size={16} className="animate-pulse" />
+             </div>
+          </button>
         </div>
         <div className="absolute -right-10 -bottom-10 text-white/10">
           <Star size={200} />
@@ -1207,75 +1204,62 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
       {/* 倒计时区域 */}
       <div className="flex flex-col gap-4">
-        {/* 公测倒计时 - 放大显示 */}
-        <CountdownTimer
-          targetDate="2026-01-22T11:00:00+08:00"
-          title="公测开启倒计时"
-          subTitle="Talos-II Awaits // 塔卫二，期待您的到来"
-          link="https://www.bilibili.com/video/BV1h5m7BXEf8"
-          linkText="观看定档PV"
-          urgentClicks={urgentClicks}
-          onUrgentClick={handleUrgentClick}
-        />
+        {/* 动态倒计时 - 主卡池 (Large) */}
+        <div className="relative">
+          {countdowns.main && (
+            <CountdownTimer
+              targetDate={countdowns.main.targetDate}
+              title={countdowns.main.title}
+              subTitle={countdowns.main.subTitle}
+              link={null}
+              upcomingPools={countdowns.others} // 传入后续卡池列表
+              characterName={countdowns.main.name} // 传入当前UP角色名称
+            />
+          )}
+        </div>
 
-        {/* 公测前瞻回顾 */}
-        <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group">
-          {/* Background Gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-zinc-50 via-zinc-50 to-indigo-50/30 dark:from-zinc-900 dark:via-zinc-900 dark:to-indigo-950/30 pointer-events-none"></div>
-          <div className="absolute top-0 right-0 p-8 opacity-5">
-             <Radio size={120} />
-          </div>
+        {/* 移除原来的 Small 倒计时 Grid */}
 
-          <div className="relative z-10">
-             <div className="flex items-center gap-2 mb-4">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-widest uppercase">Broadcast Archived // 公测前瞻情报汇总</h3>
-             </div>
+        {/* 公测兑换码汇总 & 下版本倒计时 - 分离的两个卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Redemption Code Summary */}
+          <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group">
+             {/* Background Gradient */}
+             <div className="absolute inset-0 bg-gradient-to-br from-zinc-50 via-zinc-50 to-indigo-50/30 dark:from-zinc-900 dark:via-zinc-900 dark:to-indigo-950/30 pointer-events-none"></div>
              
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Codes */}
+             <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                   <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-widest uppercase">Redemption Codes // 公测兑换码汇总</h3>
+                </div>
+                
                 <div className="bg-zinc-100/50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800 p-4 rounded-sm">
                    <h4 className="text-amber-600 dark:text-endfield-yellow font-bold text-sm mb-3 flex flex-wrap items-center gap-2">
                       <Gift size={14} />
-                      <span>兑换码</span>
+                      <span>通用兑换码</span>
                       <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500 dark:text-zinc-400 font-normal">有效期至 01/29 23:59</span>
                    </h4>
                    <div className="flex flex-col gap-2">
                       <CopyCode code="RETURNOFALL" />
                       <CopyCode code="ALLFIELD" />
+                      <CopyCode code="BILIBILI0122" />
                    </div>
                    <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
-                      奖励包含: <span className="text-zinc-700 dark:text-zinc-300">2000嵌金玉 + 12000折金票 + 1个存续的痕迹 + 若干养成材料</span>
+                      包含: <span className="text-zinc-700 dark:text-zinc-300">嵌金玉、折金票、存续的痕迹、养成材料等</span>
                    </p>
                 </div>
-
-                {/* Gifts & Info */}
-                <div className="space-y-4">
-                   <div>
-                      <h4 className="text-zinc-800 dark:text-white font-bold text-sm mb-2 flex items-center gap-2">
-                         <Sparkles size={14} className="text-pink-500 dark:text-pink-400" />
-                         公测福利 (共127抽)
-                      </h4>
-                      <ul className="text-xs text-zinc-500 dark:text-zinc-400 space-y-1.5 list-disc pl-4">
-                         <li>赠送 <span className="text-zinc-700 dark:text-zinc-200">12抽UP池</span> (专享)</li>
-                         <li>每个UP池免费 <span className="text-zinc-700 dark:text-zinc-200">5抽</span></li>
-                         <li>赠送 <span className="text-zinc-700 dark:text-zinc-200">60抽常驻池+40抽新手池</span></li>
-                         <li>4000+2000玉 (等效12抽)</li>
-                         <li><span className="text-pink-500 dark:text-pink-400 font-bold">赠送艾尔黛拉（小羊）及其专武</span></li>
-                      </ul>
-                   </div>
-                   
-                   <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800">
-                      <div className="flex items-center gap-2">
-                         <Clock size={14} className="text-blue-500 dark:text-blue-400" />
-                         <span className="text-sm font-bold text-zinc-700 dark:text-zinc-200">预下载开启</span>
-                      </div>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 pl-6">
-                         2026.01.20 10:00 (上午)
-                      </p>
-                   </div>
-                </div>
              </div>
+          </div>
+
+          {/* Next Version Countdown Card - 使用 small 模式直接展示 */}
+          <div className="h-full">
+             <CountdownTimer 
+               targetDate="2026-03-12T11:00:00+08:00" 
+               title="下个版本倒计时"
+               subTitle="下个版本发布"
+               customEndedContent={<span>版本已上线</span>}
+               size="small"
+             />
           </div>
         </div>
       </div>
