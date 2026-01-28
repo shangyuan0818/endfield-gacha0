@@ -568,10 +568,34 @@ async function handleRecords(query, res) {
 }
 
 /**
+ * 获取 CORS 允许的 Origin
+ */
+function getCorsOrigin(reqOrigin) {
+  if (ALLOWED_ORIGINS === '*') {
+    return '*';
+  }
+  
+  // 解析允许的来源列表（去除末尾斜杠）
+  const allowedList = ALLOWED_ORIGINS.split(',').map(o => o.trim().replace(/\/$/, ''));
+  
+  // 检查请求来源是否在允许列表中（去除末尾斜杠后比较）
+  const cleanReqOrigin = (reqOrigin || '').replace(/\/$/, '');
+  if (allowedList.includes(cleanReqOrigin)) {
+    return cleanReqOrigin;
+  }
+  
+  // 如果不匹配，返回第一个允许的来源
+  return allowedList[0] || '*';
+}
+
+// 存储当前请求的 origin（用于 CORS）
+let currentRequestOrigin = '';
+
+/**
  * 发送 JSON 响应
  */
 function sendJSON(res, status, data) {
-  const origin = ALLOWED_ORIGINS === '*' ? '*' : ALLOWED_ORIGINS.split(',')[0];
+  const origin = getCorsOrigin(currentRequestOrigin);
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': origin,
@@ -612,9 +636,12 @@ function parseQuery(url) {
 
 // 创建服务器
 const server = http.createServer(async (req, res) => {
+  // 保存请求来源用于 CORS
+  currentRequestOrigin = req.headers.origin || '';
+  
   // 处理 CORS 预检请求
   if (req.method === 'OPTIONS') {
-    const origin = ALLOWED_ORIGINS === '*' ? '*' : ALLOWED_ORIGINS.split(',')[0];
+    const origin = getCorsOrigin(currentRequestOrigin);
     res.writeHead(200, {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
