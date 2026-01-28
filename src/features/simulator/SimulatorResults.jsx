@@ -1,5 +1,6 @@
 import React from 'react';
-import { X, Star, Share2, Download } from 'lucide-react';
+import { X, Star, Share2, Download, User } from 'lucide-react';
+import { characterCache } from '../../utils/characterUtils';
 
 const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index }) => {
   // 延迟动画
@@ -10,28 +11,38 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index 
   let borderColor = 'border-zinc-300 dark:border-zinc-700';
   let textColor = 'text-slate-500 dark:text-zinc-500';
   let glowClass = '';
+  let avatarBg = 'bg-slate-300 dark:bg-zinc-700';
 
   if (rarity === 6) {
     bgColor = 'bg-orange-50 dark:bg-orange-500/10';
     borderColor = 'border-orange-500';
     textColor = 'text-orange-600 dark:text-orange-500';
+    avatarBg = 'bg-orange-200 dark:bg-orange-800';
     if (isUp) { // 限定UP
         borderColor = 'border-yellow-500 dark:border-endfield-yellow';
         textColor = 'text-yellow-600 dark:text-endfield-yellow';
         glowClass = 'shadow-[0_0_15px_rgba(255,250,0,0.2)] dark:shadow-[0_0_15px_rgba(255,250,0,0.4)]';
+        avatarBg = 'bg-gradient-to-br from-orange-400 to-pink-500';
     } else if (isStandard) { // 常驻
         borderColor = 'border-red-500';
         textColor = 'text-red-600 dark:text-red-500';
+        avatarBg = 'bg-red-200 dark:bg-red-800';
     }
   } else if (rarity === 5) {
     bgColor = 'bg-yellow-50 dark:bg-yellow-500/5';
     borderColor = 'border-yellow-500 dark:border-yellow-600';
     textColor = 'text-yellow-700 dark:text-yellow-600';
+    avatarBg = 'bg-amber-200 dark:bg-amber-800';
   } else if (rarity === 4) {
     bgColor = 'bg-purple-50 dark:bg-purple-500/5';
     borderColor = 'border-purple-400 dark:border-purple-500';
     textColor = 'text-purple-700 dark:text-purple-500';
+    avatarBg = 'bg-purple-200 dark:bg-purple-800';
   }
+
+  // 获取角色头像
+  const charData = characterName ? characterCache.searchByName(characterName, false) : null;
+  const avatarUrl = charData?.avatar_url;
 
   return (
     <div
@@ -43,6 +54,24 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index 
         <div className={`text-[10px] font-mono font-bold ${textColor}`}>0{index + 1}</div>
       </div>
 
+      {/* 角色头像 */}
+      <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center overflow-hidden mb-2 ${avatarBg}`}>
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={characterName}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+          <User size={24} />
+        </div>
+      </div>
+
       {/* 稀有度图标 */}
       <div className="flex gap-0.5 mb-1">
         {Array.from({ length: rarity }).map((_, i) => (
@@ -50,14 +79,9 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index 
         ))}
       </div>
 
-      {/* 文本内容 */}
-      <div className={`text-xl md:text-2xl font-black ${textColor}`}>
-        {rarity}★
-      </div>
-
       {/* 角色名称 */}
       {characterName && (
-        <div className={`mt-1 text-xs md:text-sm font-bold ${textColor} px-2 text-center line-clamp-2 max-w-full`}>
+        <div className={`text-xs md:text-sm font-bold ${textColor} px-2 text-center line-clamp-2 max-w-full`}>
           {characterName}
         </div>
       )}

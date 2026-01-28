@@ -269,8 +269,10 @@ const GachaSimulator = () => {
         setInfoBookTenPullAvailable(false);
       }
 
-      // 自动保存状态
-      saveSimulatorState(currentPoolType, simulator.exportState());
+      // 自动保存状态（使用卡池ID作为key，确保每个卡池独立存储）
+      if (currentSimPoolId) {
+        saveSimulatorState(currentSimPoolId, simulator.exportState());
+      }
     };
     simulator.addListener(updateUI);
     // 初始化时也更新一次

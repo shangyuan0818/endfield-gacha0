@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { TrendingUp, User, Star } from 'lucide-react';
+import { characterCache } from '../../utils/characterUtils';
 
 /**
  * 角色出货统计组件
@@ -93,9 +94,9 @@ const CharacterStats = ({ pullHistory, poolType }) => {
                   }
                 `}
               >
-                {/* 头像预留位 - 缩小 */}
+                {/* 角色头像 */}
                 <div className={`
-                  w-8 h-8 rounded-full flex items-center justify-center shrink-0
+                  w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden
                   ${isLimitedChar
                     ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
                     : isStandardChar
@@ -103,7 +104,30 @@ const CharacterStats = ({ pullHistory, poolType }) => {
                       : 'bg-amber-200 dark:bg-amber-800 text-amber-600 dark:text-amber-300'
                   }
                 `}>
-                  <User size={14} />
+                  {(() => {
+                    const charData = characterCache.searchByName(char.name, false);
+                    const avatarUrl = charData?.avatar_url;
+
+                    if (avatarUrl) {
+                      return (
+                        <img
+                          src={avatarUrl}
+                          alt={char.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+                  <div className={`w-full h-full items-center justify-center ${
+                    characterCache.searchByName(char.name, false)?.avatar_url ? 'hidden' : 'flex'
+                  }`}>
+                    <User size={14} />
+                  </div>
                 </div>
 
                 {/* 角色信息 - 缩小字体 */}
