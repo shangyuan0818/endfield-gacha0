@@ -87,7 +87,12 @@ const usePoolStore = create((set, get) => ({
   // ========== 当前游戏账号（UI 状态，保留 localStorage）==========
   currentGameUid: (() => {
     const saved = localStorage.getItem('gacha_current_game_uid');
-    return saved || null;
+    // ⚠️ 修复：localStorage 会将 null 保存为字符串 "null"
+    // 需要显式检查并转换
+    if (!saved || saved === 'null' || saved === 'undefined') {
+      return null;
+    }
+    return saved;
   })(),
 
   // ========== 卡池搜索 ==========
@@ -136,7 +141,13 @@ const usePoolStore = create((set, get) => ({
    */
   switchGameAccount: (gameUid) => {
     set({ currentGameUid: gameUid });
-    localStorage.setItem('gacha_current_game_uid', gameUid);
+    // ⚠️ 修复：如果 gameUid 是 null，从 localStorage 中删除
+    // 避免保存字符串 "null"
+    if (gameUid === null || gameUid === undefined) {
+      localStorage.removeItem('gacha_current_game_uid');
+    } else {
+      localStorage.setItem('gacha_current_game_uid', gameUid);
+    }
   },
 
   /**
