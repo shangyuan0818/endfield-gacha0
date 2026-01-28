@@ -71,32 +71,47 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
   /**
    * 直接保存卡池到 Supabase
+   * 修改为：首次创建，后续不更新（避免多账号导入时覆盖）
    */
-  const savePoolsToServer = useCallback(async (poolInfos, userInfo = null) => {
+  const savePoolsToServer = useCallback(async (poolInfos) => {
     if (!supabase || !user || poolInfos.length === 0) return;
 
-    const poolsToSave = poolInfos.map(info => ({
-      user_id: user.id,
-      pool_id: info.poolId,
-      name: info.poolName || info.poolId,
-      type: getPoolTypeFromId(info.poolId),
-      locked: false,
-      game_uid: userInfo?.gameUid || userInfo?.hgUid || null,
-      nick_name: userInfo?.nickName || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }));
-
-    const { error } = await supabase
+    // 1. 查询已存在的卡池
+    const poolIds = poolInfos.map(info => info.poolId);
+    const { data: existingPools } = await supabase
       .from('pools')
-      .upsert(poolsToSave, { onConflict: 'user_id,pool_id' });
+      .select('pool_id')
+      .in('pool_id', poolIds);
 
-    if (error) {
-      console.error('[ImportManager] 保存卡池失败:', error);
-      throw error;
+    const existingPoolIds = new Set(existingPools?.map(p => p.pool_id) || []);
+
+    // 2. 只创建不存在的卡池
+    const poolsToCreate = poolInfos
+      .filter(info => !existingPoolIds.has(info.poolId))
+      .map(info => ({
+        pool_id: info.poolId,
+        name: info.poolName || info.poolId,
+        type: getPoolTypeFromId(info.poolId),
+        locked: false,
+        user_id: user.id, // 记录创建者
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
+    if (poolsToCreate.length > 0) {
+      const { error } = await supabase
+        .from('pools')
+        .insert(poolsToCreate); // 改用insert，不再upsert
+
+      if (error) {
+        console.error('[ImportManager] 保存卡池失败:', error);
+        throw error;
+      }
+
+      console.log('[ImportManager] 新建卡池:', poolsToCreate.length);
+    } else {
+      console.log('[ImportManager] 所有卡池已存在，跳过创建');
     }
-
-    console.log('[ImportManager] 卡池保存成功:', poolsToSave.length);
   }, [user]);
 
   /**
@@ -226,8 +241,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         }
       });
 
-      // 2. 保存卡池到服务器（传入用户信息以保存 game_uid 和 nick_name）
-      await savePoolsToServer(poolInfos, result.userInfo);
+      // 2. 保存卡池到服务器（不再传递 userInfo）
+      await savePoolsToServer(poolInfos);
 
       // 2.1 构建 poolId -> UP角色 的映射
       const poolUpCharacterMap = new Map();
@@ -322,21 +337,17 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         total: historyRecords.length
       });
 
-      // ⚠️ 修复：先设置结果和状态，确保组件能正确渲染成功页面
+      // ⚠️ 修复：直接设置状态，不使用 setTimeout
+      // 不调用 onImportComplete 回调，避免父组件状态更新导致组件卸载
       setImportResult(finalResult);
+      setImportStatus(ImportStatus.SUCCESS);
+      console.log('[ImportManager] 导入状态已更新为 SUCCESS');
 
-      // 使用 setTimeout 确保状态更新在下一个事件循环中执行
-      // 避免与 onImportComplete 回调的状态更新冲突
-      setTimeout(() => {
-        setImportStatus(ImportStatus.SUCCESS);
-        console.log('[ImportManager] 导入状态已更新为 SUCCESS');
-
-        // 在状态更新后再调用回调
-        if (onImportComplete) {
-          console.log('[ImportManager] 调用 onImportComplete 回调');
-          onImportComplete(finalResult);
-        }
-      }, 100);
+      // 不再调用 onImportComplete，让 ImportManager 完全控制显示
+      // if (onImportComplete) {
+      //   console.log('[ImportManager] 调用 onImportComplete 回调');
+      //   onImportComplete(finalResult);
+      // }
 
     } catch (error) {
       console.error('[ImportManager] 保存数据失败:', error);

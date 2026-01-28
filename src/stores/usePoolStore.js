@@ -315,37 +315,6 @@ const usePoolStore = create((set, get) => ({
       }))
       .filter(group => group.pools.length > 0);
   },
-
-  /**
-   * 获取所有已知的游戏账号
-   * @returns {Array<{gameUid: string, nickName: string}>}
-   */
-  getGameAccounts: () => {
-    const { pools } = get();
-    const accountMap = new Map();
-
-    pools.forEach(pool => {
-      if (pool.game_uid && !accountMap.has(pool.game_uid)) {
-        accountMap.set(pool.game_uid, {
-          gameUid: pool.game_uid,
-          nickName: pool.nick_name || pool.game_uid
-        });
-      }
-    });
-
-    return Array.from(accountMap.values());
-  },
-
-  /**
-   * 按游戏账号筛选卡池
-   * @param {string} gameUid - 游戏账号 UID
-   * @returns {Array} 该账号的卡池列表
-   */
-  getPoolsByGameAccount: (gameUid) => {
-    const { pools } = get();
-    if (!gameUid) return pools;
-    return pools.filter(p => p.game_uid === gameUid);
-  },
 }));
 
 export default usePoolStore;

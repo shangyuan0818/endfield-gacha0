@@ -14,9 +14,8 @@ const PoolSelector = () => {
   const switchPool = usePoolStore(state => state.switchPool);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const switchGameAccount = usePoolStore(state => state.switchGameAccount);
-  const getGameAccounts = usePoolStore(state => state.getGameAccounts);
-  const getPoolsByGameAccount = usePoolStore(state => state.getPoolsByGameAccount);
   const history = useHistoryStore(state => state.history);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
 
   const user = useAuthStore(state => state.user);
 
@@ -25,36 +24,15 @@ const PoolSelector = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
-  // 获取所有游戏账号
+  // 获取所有游戏账号（从历史记录）
   const gameAccounts = useMemo(() => {
-    const accounts = getGameAccounts();
-    console.log('[PoolSelector] 游戏账号列表:', accounts);
-    console.log('[PoolSelector] 卡池数据示例:', pools.slice(0, 2).map(p => ({
-      id: p.id,
-      name: p.name,
-      game_uid: p.game_uid,
-      nick_name: p.nick_name
-    })));
+    const accounts = getGameAccountsFromHistory();
+    console.log('[PoolSelector] 游戏账号列表（从历史记录）:', accounts);
     return accounts;
-  }, [pools, getGameAccounts]);
+  }, [history, getGameAccountsFromHistory]); // 依赖history而不是pools
 
-  // 根据当前选择的账号筛选卡池
-  const filteredPools = useMemo(() => {
-    console.log('[PoolSelector] 筛选卡池:', {
-      currentGameUid,
-      gameAccountsCount: gameAccounts.length,
-      totalPools: pools.length
-    });
-
-    if (!currentGameUid || gameAccounts.length <= 1) {
-      console.log('[PoolSelector] 不筛选，返回所有卡池');
-      return pools;
-    }
-
-    const filtered = getPoolsByGameAccount(currentGameUid);
-    console.log('[PoolSelector] 筛选后的卡池数量:', filtered.length);
-    return filtered;
-  }, [pools, currentGameUid, gameAccounts.length, getPoolsByGameAccount]);
+  // 直接使用所有卡池（不再按账号筛选）
+  const filteredPools = pools;
 
   // 计算每个卡池的抽数
   const poolPullCounts = useMemo(() => {
@@ -318,9 +296,9 @@ const PoolSelector = () => {
             setShowImportManager(false);
           }}
           onImportComplete={(result) => {
-            // ❌ 不要关闭弹窗！让用户看到成功页面
-            console.log('[PoolSelector] 导入完成，保持弹窗打开:', result);
-            // setShowImportManager(false); // 注释掉，不关闭
+            // ⚠️ 什么都不做，让 ImportManager 自己控制显示
+            // 避免父组件状态更新导致 ImportManager 重新渲染
+            console.log('[PoolSelector] 导入完成（不做任何操作）:', result);
           }}
         />
       )}

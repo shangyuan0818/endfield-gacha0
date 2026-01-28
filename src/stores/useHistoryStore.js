@@ -218,6 +218,42 @@ const useHistoryStore = create((set, get) => ({
   },
 
   /**
+   * 从历史记录中提取所有游戏账号
+   * @returns {Array<{gameUid: string, nickName: string, recordCount: number}>}
+   */
+  getGameAccountsFromHistory: () => {
+    const { history } = get();
+    const accountMap = new Map();
+
+    history.forEach(h => {
+      if (h.game_uid) {
+        if (!accountMap.has(h.game_uid)) {
+          accountMap.set(h.game_uid, {
+            gameUid: h.game_uid,
+            nickName: h.game_uid, // 默认使用UID作为昵称
+            recordCount: 0
+          });
+        }
+        accountMap.get(h.game_uid).recordCount++;
+      }
+    });
+
+    return Array.from(accountMap.values())
+      .sort((a, b) => b.recordCount - a.recordCount); // 按记录数降序
+  },
+
+  /**
+   * 按游戏账号筛选历史记录
+   * @param {string|null} gameUid - 游戏账号UID，null表示全部
+   * @returns {Array} 筛选后的历史记录
+   */
+  getHistoryByGameAccount: (gameUid) => {
+    const { history } = get();
+    if (!gameUid) return history;
+    return history.filter(h => h.game_uid === gameUid);
+  },
+
+  /**
    * 获取所有游戏账号的历史记录统计
    * @returns {Map<string, object>} gameUid -> 统计数据
    */
