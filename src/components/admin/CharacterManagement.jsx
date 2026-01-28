@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, Edit2, Trash2, Save, X, Link as LinkIcon, Star, User, Swords, Package } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, Save, X, Link as LinkIcon, Star, User, Swords, Package, RefreshCw, Download, Check, Square, CheckSquare, ChevronUp, ChevronDown, ChevronsUpDown, Image, CloudUpload } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { syncAllCharacters, syncAllWeapons } from '../../utils/endfieldDataSync';
+import { batchSyncAvatars, ensureBucketExists } from '../../utils/avatarStorage';
+import { characterCache } from '../../utils/characterUtils';
 
 /**
  * 角色管理界面
@@ -11,11 +14,24 @@ const CharacterManagement = ({ showToast }) => {
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState('');
+
+  // Tab切换状态：角色/武器
+  const [activeTab, setActiveTab] = useState('character');
+
+  // 批量选择状态
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBatchMenu, setShowBatchMenu] = useState(false);
 
   // 搜索和筛选状态
   const [searchQuery, setSearchQuery] = useState('');
   const [rarityFilter, setRarityFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [limitedFilter, setLimitedFilter] = useState('all');
+
+  // 排序状态
+  const [sortField, setSortField] = useState('rarity');
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' | 'desc'
 
   // 编辑对话框状态
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -39,6 +55,10 @@ const CharacterManagement = ({ showToast }) => {
 
   // 别名输入状态
   const [aliasInput, setAliasInput] = useState('');
+
+  // 头像同步状态
+  const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
+  const [avatarUploadProgress, setAvatarUploadProgress] = useState('');
 
   // 加载角色列表
   useEffect(() => {
@@ -64,17 +84,409 @@ const CharacterManagement = ({ showToast }) => {
     }
   };
 
-  // 过滤后的角色列表
+  // 从 EndfieldTools API 同步角色和武器数据（包含头像上传）
+  const handleSyncFromAPI = async (uploadAvatars = false) => {
+    if (!supabase) {
+      showToast('数据库未连接', 'error');
+      return;
+    }
+
+    // 如果需要上传头像，先检查 bucket
+    if (uploadAvatars) {
+      const bucketReady = await ensureBucketExists();
+      if (!bucketReady) {
+        showToast('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶，并配置上传策略', 'error');
+        return;
+      }
+    }
+
+    setIsSyncing(true);
+    setSyncProgress('正在获取数据...');
+
+    try {
+      // 1. 获取角色数据
+      setSyncProgress('正在获取角色数据...');
+      const characterResult = await syncAllCharacters((current, total, msg) => {
+        setSyncProgress(`角色: ${msg}`);
+      });
+
+      // 2. 获取武器数据
+      setSyncProgress('正在获取武器数据...');
+      const weaponResult = await syncAllWeapons((current, total, msg) => {
+        setSyncProgress(`武器: ${msg}`);
+      });
+
+      // 3. 合并数据
+      const allItems = [
+        ...characterResult.characters.map(c => ({ ...c, type: 'character' })),
+        ...weaponResult.weapons.map(w => ({ ...w, type: 'weapon' })),
+      ];
+
+      // 4. 如果需要上传头像，先上传到 Storage
+      let avatarUrlMap = new Map(); // id -> new storage url
+      if (uploadAvatars) {
+        setSyncProgress(`正在上传头像 (0/${allItems.length})...`);
+
+        const { success, failed, results } = await batchSyncAvatars(
+          allItems,
+          (current, total, name) => {
+            setSyncProgress(`上传头像: ${current}/${total} - ${name}`);
+          }
+        );
+
+        avatarUrlMap = results;
+        console.log(`[Sync] 头像上传完成: 成功 ${success}, 失败 ${failed}`);
+      }
+
+      // 5. 更新数据库
+      setSyncProgress(`正在更新数据库 (${allItems.length} 项)...`);
+
+      let newCount = 0;
+      let updateCount = 0;
+      let errorCount = 0;
+
+      // 获取现有数据进行对比
+      const existingIds = new Set(characters.map(c => c.id));
+
+      for (const item of allItems) {
+        try {
+          // 优先使用上传到 Storage 的 URL，否则使用原始 URL
+          const finalAvatarUrl = avatarUrlMap.get(item.id) || item.avatar_url;
+
+          const dbData = {
+            id: item.id,
+            name: item.name,
+            rarity: item.rarity,
+            type: item.type,
+            avatar_url: finalAvatarUrl,
+          };
+
+          if (existingIds.has(item.id)) {
+            // 更新现有记录
+            const { error } = await supabase
+              .from('characters')
+              .update(dbData)
+              .eq('id', item.id);
+            if (error) throw error;
+            updateCount++;
+          } else {
+            // 插入新记录 - 六星默认不设为限定，需要手动设置
+            const { error } = await supabase
+              .from('characters')
+              .insert({
+                ...dbData,
+                aliases: [],
+                is_limited: false,  // 默认不限定，需要手动设置
+                pool_config: {
+                  pools: item.rarity >= 5 ? ['standard'] : [],
+                  limited_rotation_count: 0,
+                  removes_after: null,
+                  is_active_in_limited: false
+                }
+              });
+            if (error) throw error;
+            newCount++;
+          }
+        } catch (err) {
+          console.error(`同步 ${item.name} 失败:`, err);
+          errorCount++;
+        }
+      }
+
+      // 6. 刷新列表和缓存
+      await loadCharacters();
+      // 刷新 characterCache 以便 BatchCard 能获取最新的 avatar_url
+      await characterCache.refresh();
+
+      // 7. 显示结果
+      let message = `同步完成！新增 ${newCount} 个，更新 ${updateCount} 个`;
+      if (uploadAvatars && avatarUrlMap.size > 0) {
+        message += `，头像已上传 ${avatarUrlMap.size} 个`;
+      }
+      if (errorCount > 0) {
+        message += `，失败 ${errorCount} 个`;
+      }
+      showToast(message, errorCount > 0 ? 'warning' : 'success');
+
+    } catch (error) {
+      console.error('同步失败:', error);
+      showToast('同步失败: ' + error.message, 'error');
+    } finally {
+      setIsSyncing(false);
+      setSyncProgress('');
+    }
+  };
+
+  // 上传头像到 Supabase Storage
+  const handleUploadAvatars = async () => {
+    if (!supabase) {
+      showToast('数据库未连接', 'error');
+      return;
+    }
+
+    // 检查 bucket 是否存在
+    const bucketReady = await ensureBucketExists();
+    if (!bucketReady) {
+      showToast('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶', 'error');
+      return;
+    }
+
+    // 获取当前 Tab 对应的项目
+    const itemsToUpload = characters.filter(c => c.type === activeTab);
+
+    if (itemsToUpload.length === 0) {
+      showToast('没有可上传的项目', 'warning');
+      return;
+    }
+
+    if (!window.confirm(`确定要将 ${itemsToUpload.length} 个${activeTab === 'character' ? '角色' : '武器'}的头像上传到服务器吗？\n\n这将从 endfieldtools.dev 下载图片并保存到您的 Supabase Storage。`)) {
+      return;
+    }
+
+    setIsUploadingAvatars(true);
+    setAvatarUploadProgress('准备上传...');
+
+    try {
+      const { success, failed, results } = await batchSyncAvatars(
+        itemsToUpload,
+        (current, total, name) => {
+          setAvatarUploadProgress(`上传中: ${current}/${total} - ${name}`);
+        }
+      );
+
+      // 更新数据库中的 avatar_url
+      if (results.size > 0) {
+        setAvatarUploadProgress('正在更新数据库...');
+
+        let updateSuccess = 0;
+        for (const [id, newUrl] of results) {
+          try {
+            const { error } = await supabase
+              .from('characters')
+              .update({ avatar_url: newUrl })
+              .eq('id', id);
+
+            if (!error) updateSuccess++;
+          } catch (err) {
+            console.error(`更新 ${id} 的 avatar_url 失败:`, err);
+          }
+        }
+
+        // 刷新列表
+        await loadCharacters();
+
+        showToast(
+          `头像上传完成！成功 ${success} 个，失败 ${failed} 个，已更新 ${updateSuccess} 条记录`,
+          failed > 0 ? 'warning' : 'success'
+        );
+      } else {
+        showToast(`头像上传失败，请检查网络连接`, 'error');
+      }
+
+    } catch (error) {
+      console.error('上传头像失败:', error);
+      showToast('上传头像失败: ' + error.message, 'error');
+    } finally {
+      setIsUploadingAvatars(false);
+      setAvatarUploadProgress('');
+    }
+  };
+
+  // 过滤后的角色列表（按Tab分离角色和武器）
   const filteredCharacters = useMemo(() => {
-    return characters.filter(char => {
+    let result = characters.filter(char => {
+      // 首先按Tab过滤类型
+      const matchesTab = char.type === activeTab;
       const matchesSearch = char.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            char.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            char.aliases?.some(alias => alias.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesRarity = rarityFilter === 'all' || char.rarity === parseInt(rarityFilter);
-      const matchesType = typeFilter === 'all' || char.type === typeFilter;
-      return matchesSearch && matchesRarity && matchesType;
+      const matchesLimited = limitedFilter === 'all' ||
+                            (limitedFilter === 'limited' && char.is_limited) ||
+                            (limitedFilter === 'standard' && !char.is_limited);
+      return matchesTab && matchesSearch && matchesRarity && matchesLimited;
     });
-  }, [characters, searchQuery, rarityFilter, typeFilter]);
+
+    // 排序
+    result.sort((a, b) => {
+      let aVal, bVal;
+
+      switch (sortField) {
+        case 'id':
+          aVal = a.id || '';
+          bVal = b.id || '';
+          break;
+        case 'name':
+          aVal = a.name || '';
+          bVal = b.name || '';
+          break;
+        case 'rarity':
+          aVal = a.rarity || 0;
+          bVal = b.rarity || 0;
+          break;
+        case 'is_limited':
+          aVal = a.is_limited ? 1 : 0;
+          bVal = b.is_limited ? 1 : 0;
+          break;
+        default:
+          aVal = a.rarity || 0;
+          bVal = b.rarity || 0;
+      }
+
+      if (typeof aVal === 'string') {
+        const cmp = aVal.localeCompare(bVal, 'zh-CN');
+        return sortDirection === 'asc' ? cmp : -cmp;
+      } else {
+        return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      }
+    });
+
+    return result;
+  }, [characters, activeTab, searchQuery, rarityFilter, limitedFilter, sortField, sortDirection]);
+
+  // 排序处理函数
+  const handleSort = (field) => {
+    if (sortField === field) {
+      // 同一列：切换排序方向
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      // 新列：设置为降序（数字）或升序（文本）
+      setSortField(field);
+      setSortDirection(field === 'name' || field === 'id' ? 'asc' : 'desc');
+    }
+  };
+
+  // 排序图标组件
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) {
+      return <ChevronsUpDown size={14} className="text-slate-300 dark:text-zinc-600" />;
+    }
+    return sortDirection === 'asc'
+      ? <ChevronUp size={14} className="text-blue-500" />
+      : <ChevronDown size={14} className="text-blue-500" />;
+  };
+
+  // 切换Tab时清空选择
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab]);
+
+  // 批量选择函数
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    const allIds = filteredCharacters.map(c => c.id);
+    setSelectedIds(new Set(allIds));
+  };
+
+  const deselectAll = () => {
+    setSelectedIds(new Set());
+  };
+
+  const isAllSelected = filteredCharacters.length > 0 &&
+    filteredCharacters.every(c => selectedIds.has(c.id));
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const confirmMsg = `确定要删除选中的 ${selectedIds.size} 个${activeTab === 'character' ? '角色' : '武器'}吗？此操作不可恢复！`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setActionLoading('batch-delete');
+    try {
+      const { error } = await supabase
+        .from('characters')
+        .delete()
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      showToast(`成功删除 ${selectedIds.size} 个项目`, 'success');
+      setSelectedIds(new Set());
+      await loadCharacters();
+    } catch (error) {
+      showToast('批量删除失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 批量设置限定状态
+  const handleBatchSetLimited = async (isLimited) => {
+    if (selectedIds.size === 0) return;
+
+    setActionLoading('batch-limited');
+    try {
+      const { error } = await supabase
+        .from('characters')
+        .update({ is_limited: isLimited })
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      showToast(`成功将 ${selectedIds.size} 个项目设为${isLimited ? '限定' : '常驻'}`, 'success');
+      setSelectedIds(new Set());
+      await loadCharacters();
+    } catch (error) {
+      showToast('批量设置失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // 批量设置卡池
+  const handleBatchSetPool = async (poolType) => {
+    if (selectedIds.size === 0) return;
+
+    setActionLoading('batch-pool');
+    try {
+      // 获取当前选中的记录
+      const { data: currentItems, error: fetchError } = await supabase
+        .from('characters')
+        .select('id, pool_config')
+        .in('id', Array.from(selectedIds));
+
+      if (fetchError) throw fetchError;
+
+      // 更新每个记录的pool_config
+      for (const item of currentItems) {
+        const currentConfig = item.pool_config || { pools: [] };
+        let newPools = currentConfig.pools || [];
+
+        if (!newPools.includes(poolType)) {
+          newPools = [...newPools, poolType];
+        }
+
+        const { error } = await supabase
+          .from('characters')
+          .update({
+            pool_config: { ...currentConfig, pools: newPools }
+          })
+          .eq('id', item.id);
+
+        if (error) throw error;
+      }
+
+      showToast(`成功为 ${selectedIds.size} 个项目添加卡池: ${poolType}`, 'success');
+      setSelectedIds(new Set());
+      await loadCharacters();
+    } catch (error) {
+      showToast('批量设置卡池失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   // 重置表单
   const resetForm = () => {
@@ -267,6 +679,32 @@ const CharacterManagement = ({ showToast }) => {
 
   return (
     <div className="space-y-4">
+      {/* Tab切换：角色/武器 */}
+      <div className="flex border-b border-zinc-200 dark:border-zinc-800">
+        <button
+          onClick={() => setActiveTab('character')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'character'
+              ? 'border-red-500 text-red-600 dark:text-red-400'
+              : 'border-transparent text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+          }`}
+        >
+          <User size={16} className="inline mr-2" />
+          角色 ({characters.filter(c => c.type === 'character').length})
+        </button>
+        <button
+          onClick={() => setActiveTab('weapon')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'weapon'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-300'
+          }`}
+        >
+          <Swords size={16} className="inline mr-2" />
+          武器 ({characters.filter(c => c.type === 'weapon').length})
+        </button>
+      </div>
+
       {/* 工具栏 */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1 min-w-[200px] relative">
@@ -275,7 +713,7 @@ const CharacterManagement = ({ showToast }) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索角色名称、ID或别名..."
+            placeholder={`搜索${activeTab === 'character' ? '角色' : '武器'}名称、ID...`}
             className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 focus:ring-2 focus:ring-red-500 outline-none"
           />
         </div>
@@ -291,71 +729,184 @@ const CharacterManagement = ({ showToast }) => {
           <option value="3">3星</option>
         </select>
         <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          value={limitedFilter}
+          onChange={(e) => setLimitedFilter(e.target.value)}
           className="px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
         >
           <option value="all">全部类型</option>
-          <option value="character">角色</option>
-          <option value="weapon">武器</option>
+          <option value="limited">限定</option>
+          <option value="standard">常驻</option>
         </select>
         <button
           onClick={() => setShowEditDialog(true)}
           className="flex items-center gap-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-none transition-colors"
         >
           <Plus size={16} />
-          新增角色
+          新增{activeTab === 'character' ? '角色' : '武器'}
+        </button>
+        <button
+          onClick={() => handleSyncFromAPI(false)}
+          disabled={isSyncing}
+          className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white text-sm font-medium rounded-none transition-colors"
+          title="从 EndfieldTools.dev 同步数据（使用原始图片链接）"
+        >
+          <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
+          {isSyncing ? syncProgress || '同步中...' : '同步数据'}
+        </button>
+        <button
+          onClick={() => handleSyncFromAPI(true)}
+          disabled={isSyncing}
+          className="flex items-center gap-1 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white text-sm font-medium rounded-none transition-colors"
+          title="同步数据并将头像上传到您的服务器（推荐）"
+        >
+          <CloudUpload size={16} className={isSyncing ? 'animate-pulse' : ''} />
+          {isSyncing ? syncProgress || '同步中...' : '同步+上传头像'}
         </button>
       </div>
 
+      {/* 批量操作栏 */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded">
+          <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">
+            已选择 {selectedIds.size} 项
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={() => handleBatchSetLimited(true)}
+            disabled={actionLoading}
+            className="px-3 py-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded transition-colors"
+          >
+            设为限定
+          </button>
+          <button
+            onClick={() => handleBatchSetLimited(false)}
+            disabled={actionLoading}
+            className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
+          >
+            设为常驻
+          </button>
+          <button
+            onClick={() => handleBatchSetPool('standard')}
+            disabled={actionLoading}
+            className="px-3 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded transition-colors"
+          >
+            添加常驻池
+          </button>
+          <button
+            onClick={() => handleBatchSetPool('limited')}
+            disabled={actionLoading}
+            className="px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors"
+          >
+            添加限定池
+          </button>
+          <button
+            onClick={handleBatchDelete}
+            disabled={actionLoading}
+            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+          >
+            批量删除
+          </button>
+          <button
+            onClick={deselectAll}
+            className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded transition-colors"
+          >
+            取消选择
+          </button>
+        </div>
+      )}
+
       {/* 统计信息 */}
       <div className="text-xs text-slate-500 dark:text-zinc-500">
-        显示 {filteredCharacters.length} / {characters.length} 个角色
+        显示 {filteredCharacters.length} / {characters.filter(c => c.type === activeTab).length} 个{activeTab === 'character' ? '角色' : '武器'}
       </div>
 
-      {/* 角色列表 */}
+      {/* 列表 */}
       {filteredCharacters.length === 0 ? (
         <div className="p-12 text-center text-slate-400 dark:text-zinc-500">
           <Package size={48} className="mx-auto mb-4 opacity-50" />
-          <p>{characters.length === 0 ? '暂无角色' : '未找到匹配的角色'}</p>
+          <p>{characters.filter(c => c.type === activeTab).length === 0 ? `暂无${activeTab === 'character' ? '角色' : '武器'}` : '未找到匹配项'}</p>
         </div>
       ) : (
         <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-zinc-950 text-xs text-slate-500 dark:text-zinc-500 uppercase">
               <tr>
+                <th className="px-4 py-3 text-left w-10">
+                  <button
+                    onClick={isAllSelected ? deselectAll : selectAll}
+                    className="text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                  >
+                    {isAllSelected ? <CheckSquare size={18} /> : <Square size={18} />}
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-left">头像</th>
-                <th className="px-4 py-3 text-left">角色ID</th>
-                <th className="px-4 py-3 text-left">名称</th>
-                <th className="px-4 py-3 text-left">稀有度</th>
-                <th className="px-4 py-3 text-left">类型</th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleSort('id')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    ID <SortIcon field="id" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleSort('name')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    名称 <SortIcon field="name" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleSort('rarity')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    稀有度 <SortIcon field="rarity" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button
+                    onClick={() => handleSort('is_limited')}
+                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    限定 <SortIcon field="is_limited" />
+                  </button>
+                </th>
                 <th className="px-4 py-3 text-left">可用卡池</th>
-                <th className="px-4 py-3 text-left">轮换状态</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
               {filteredCharacters.map(char => (
-                <tr key={char.id} className="hover:bg-slate-50 dark:hover:bg-zinc-950">
+                <tr key={char.id} className={`hover:bg-slate-50 dark:hover:bg-zinc-950 ${selectedIds.has(char.id) ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}>
+                  {/* 选择框 */}
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => toggleSelect(char.id)}
+                      className="text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                    >
+                      {selectedIds.has(char.id) ? <CheckSquare size={18} className="text-blue-500" /> : <Square size={18} />}
+                    </button>
+                  </td>
                   {/* 头像 */}
                   <td className="px-4 py-3">
                     {char.avatar_url ? (
                       <img
                         src={char.avatar_url}
                         alt={char.name}
-                        className="w-10 h-10 rounded-full object-cover"
+                        className="w-10 h-10 rounded object-cover"
                         onError={(e) => {
                           e.target.style.display = 'none';
                         }}
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-zinc-700 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded bg-slate-200 dark:bg-zinc-700 flex items-center justify-center">
                         {getTypeIcon(char.type)}
                       </div>
                     )}
                   </td>
 
-                  {/* 角色ID */}
+                  {/* ID */}
                   <td className="px-4 py-3 font-mono text-xs text-slate-500 dark:text-zinc-500">
                     {char.id}
                   </td>
@@ -363,12 +914,10 @@ const CharacterManagement = ({ showToast }) => {
                   {/* 名称 */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-700 dark:text-zinc-300">
-                        {char.name}
-                      </span>
-                      {char.is_limited && (
-                        <span className="text-xs px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded">
-                          限定
+                      <span className="font-medium text-slate-700 dark:text-zinc-200">{char.name}</span>
+                      {char.aliases?.length > 0 && (
+                        <span className="text-xs text-slate-400 dark:text-zinc-500">
+                          ({char.aliases.join(', ')})
                         </span>
                       )}
                     </div>
@@ -376,23 +925,20 @@ const CharacterManagement = ({ showToast }) => {
 
                   {/* 稀有度 */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-0.5">
-                      {Array.from({ length: char.rarity }).map((_, i) => (
-                        <Star
-                          key={i}
-                          size={12}
-                          fill={char.rarity === 6 ? '#f97316' : char.rarity === 5 ? '#a855f7' : char.rarity === 4 ? '#3b82f6' : '#64748b'}
-                          className={char.rarity === 6 ? 'text-orange-500' : char.rarity === 5 ? 'text-purple-500' : char.rarity === 4 ? 'text-blue-500' : 'text-slate-500'}
-                        />
-                      ))}
-                    </div>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium ${getRarityColor(char.rarity)}`}>
+                      <Star size={12} />
+                      {char.rarity}星
+                    </span>
                   </td>
 
-                  {/* 类型 */}
+                  {/* 限定状态 */}
                   <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-0.5 bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400 rounded flex items-center gap-1 w-fit">
-                      {getTypeIcon(char.type)}
-                      {char.type === 'weapon' ? '武器' : '角色'}
+                    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded ${
+                      char.is_limited
+                        ? 'text-orange-600 bg-orange-100 dark:bg-orange-900/30 dark:text-orange-400'
+                        : 'text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400'
+                    }`}>
+                      {char.is_limited ? '限定' : '常驻'}
                     </span>
                   </td>
 
@@ -400,57 +946,41 @@ const CharacterManagement = ({ showToast }) => {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {char.pool_config?.pools?.map(pool => (
-                        <span key={pool} className={`text-xs px-1.5 py-0.5 rounded ${
-                          pool === 'limited' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
-                          pool === 'standard' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400' :
-                          'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400'
-                        }`}>
-                          {pool === 'limited' ? '限定' : pool === 'standard' ? '常驻' : '武器'}
+                        <span
+                          key={pool}
+                          className={`px-1.5 py-0.5 text-xs rounded ${
+                            pool === 'limited' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                            pool === 'standard' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                            pool === 'weapon' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                            'bg-slate-100 text-slate-600 dark:bg-zinc-700 dark:text-zinc-400'
+                          }`}
+                        >
+                          {pool === 'limited' ? '限定池' : pool === 'standard' ? '常驻池' : pool === 'weapon' ? '武器池' : pool}
                         </span>
-                      )) || <span className="text-xs text-slate-400 dark:text-zinc-600">-</span>}
+                      ))}
+                      {(!char.pool_config?.pools || char.pool_config.pools.length === 0) && (
+                        <span className="text-xs text-slate-400 dark:text-zinc-600">-</span>
+                      )}
                     </div>
                   </td>
 
-                  {/* 轮换状态 */}
-                  <td className="px-4 py-3">
-                    {char.pool_config?.pools?.includes('limited') ? (
-                      <div className="text-xs">
-                        {char.pool_config.removes_after !== null && char.pool_config.removes_after !== undefined ? (
-                          <span className={`px-1.5 py-0.5 rounded ${
-                            (char.pool_config.limited_rotation_count || 0) >= char.pool_config.removes_after
-                              ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                              : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                          }`}>
-                            {char.pool_config.limited_rotation_count || 0}/{char.pool_config.removes_after}
-                            {(char.pool_config.limited_rotation_count || 0) >= char.pool_config.removes_after ? ' (已移出)' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 dark:text-zinc-500">永驻</span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400 dark:text-zinc-600">-</span>
-                    )}
-                  </td>
-
                   {/* 操作 */}
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => startEdit(char)}
-                        disabled={actionLoading === char.id}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded disabled:opacity-50"
+                        className="p-1.5 text-slate-400 hover:text-blue-500 dark:text-zinc-500 dark:hover:text-blue-400"
                         title="编辑"
                       >
-                        <Edit2 size={14} />
+                        <Edit2 size={16} />
                       </button>
                       <button
-                        onClick={() => deleteCharacter(char)}
+                        onClick={() => handleDelete(char)}
                         disabled={actionLoading === char.id}
-                        className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50"
+                        className="p-1.5 text-slate-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400"
                         title="删除"
                       >
-                        <Trash2 size={14} />
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </td>
