@@ -263,12 +263,73 @@ export async function fetchAllPoolRecords(u8Token, options = {}, onProgress) {
 }
 
 /**
- * 执行完整认证链
+ * 执行完整认证链（阶段1：获取账号列表）
  * @param {string} initialToken - 24位初始token
  * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<{appToken: string, accounts: Array}>}
+ */
+export async function fetchAccountsList(initialToken, onProgress) {
+  // 步骤1: Grant - 获取 app_token
+  if (onProgress) onProgress('正在验证token...');
+  const grantResult = await grantAppToken(initialToken);
+  const { appToken } = grantResult;
+
+  if (!appToken) {
+    throw new AuthChainError('未能获取 app_token', 'grant');
+  }
+
+  // 步骤2: Bindings - 获取绑定列表
+  if (onProgress) onProgress('正在获取账号信息...');
+  await delay(1000 + Math.random() * 500);
+  const bindingResult = await fetchBindingList(appToken);
+  const { accounts } = bindingResult;
+
+  if (!accounts || accounts.length === 0) {
+    throw new AuthChainError('未找到终末地账号绑定', 'bindings');
+  }
+
+  return {
+    appToken,
+    accounts  // 返回所有绑定账号列表
+  };
+}
+
+/**
+ * 执行完整认证链（阶段2：为选定账号获取 u8_token）
+ * @param {string} appToken - app_token
+ * @param {object} selectedAccount - 选定的账号
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<{u8Token: string, account: object}>}
+ */
+export async function executeAuthChainForAccount(appToken, selectedAccount, onProgress) {
+  if (!selectedAccount?.uid) {
+    throw new AuthChainError('未选择账号', 'u8token');
+  }
+
+  // 获取 u8_token
+  if (onProgress) onProgress(`正在获取 ${selectedAccount.channelName} 访问凭证...`);
+  await delay(1000 + Math.random() * 500);
+  const u8Result = await fetchU8Token(selectedAccount.uid, appToken);
+  const { u8Token } = u8Result;
+
+  if (!u8Token) {
+    throw new AuthChainError('未能获取 u8_token', 'u8token');
+  }
+
+  return {
+    u8Token,
+    account: selectedAccount
+  };
+}
+
+/**
+ * 执行完整认证链（向后兼容：自动选择第一个账号）
+ * @param {string} initialToken - 24位初始token
+ * @param {Function} [onProgress] - 进度回调
+ * @param {object} [selectedAccount] - 可选：指定账号，不传则使用第一个
  * @returns {Promise<{u8Token: string, hgUid: string, gameUid: string, nickName: string}>}
  */
-export async function executeAuthChain(initialToken, onProgress) {
+export async function executeAuthChain(initialToken, onProgress, selectedAccount = null) {
   // 步骤1: Grant - 获取 app_token
   if (onProgress) onProgress('正在验证token...');
   const grantResult = await grantAppToken(initialToken);
@@ -282,14 +343,26 @@ export async function executeAuthChain(initialToken, onProgress) {
   if (onProgress) onProgress('正在获取账号信息...');
   await delay(1000 + Math.random() * 500);
   const bindingResult = await fetchBindingList(appToken);
-  const { hgUid, gameUid, nickName } = bindingResult;
+
+  // 如果指定了账号，使用指定的；否则使用默认的
+  const account = selectedAccount || bindingResult.accounts?.[0] || {
+    uid: bindingResult.hgUid,
+    gameUid: bindingResult.gameUid,
+    nickName: bindingResult.nickName,
+    channelName: bindingResult.channelName,
+    channelMasterId: bindingResult.channelMasterId,
+    isOfficial: bindingResult.isOfficial,
+    serverId: bindingResult.serverId
+  };
+
+  const { uid: hgUid, gameUid, nickName, channelName, channelMasterId, isOfficial } = account;
 
   if (!hgUid) {
     throw new AuthChainError('未找到终末地账号绑定', 'bindings');
   }
 
   // 步骤3: U8Token - 获取 u8_token
-  if (onProgress) onProgress('正在获取访问凭证...');
+  if (onProgress) onProgress(`正在获取 ${channelName || '账号'} 访问凭证...`);
   await delay(1000 + Math.random() * 500);
   const u8Result = await fetchU8Token(hgUid, appToken);
   const { u8Token } = u8Result;
@@ -303,7 +376,12 @@ export async function executeAuthChain(initialToken, onProgress) {
     hgUid,
     gameUid,  // 游戏内角色 UID（1开头的十位数）
     nickName,
-    appToken
+    channelName,
+    channelMasterId,
+    isOfficial,
+    appToken,
+    // 返回完整账号列表（用于 UI）
+    accounts: bindingResult.accounts
   };
 }
 
@@ -440,15 +518,16 @@ export async function fetchAllGachaRecords(u8Token, onProgress) {
  * 一键获取全部抽卡记录（使用并发优化）
  * @param {string} initialToken - 24位初始token
  * @param {Function} [onProgress] - 进度回调
- * @returns {Promise<{records: Array, userInfo: object}>}
+ * @param {object} [selectedAccount] - 可选：指定账号，不传则使用第一个
+ * @returns {Promise<{records: Array, userInfo: object, accounts: Array}>}
  */
-export async function importAllRecords(initialToken, onProgress) {
+export async function importAllRecords(initialToken, onProgress, selectedAccount = null) {
   // 执行认证链
-  const authResult = await executeAuthChain(initialToken, onProgress);
-  const { u8Token, hgUid, gameUid, nickName } = authResult;
+  const authResult = await executeAuthChain(initialToken, onProgress, selectedAccount);
+  const { u8Token, hgUid, gameUid, nickName, channelName, channelMasterId, isOfficial, accounts } = authResult;
 
   // 获取全部记录（使用并发版本）
-  if (onProgress) onProgress('认证成功，开始并发获取抽卡记录...');
+  if (onProgress) onProgress(`认证成功，开始获取 ${channelName || '账号'} 抽卡记录...`);
   await delay(1000);
 
   let records;
@@ -464,10 +543,14 @@ export async function importAllRecords(initialToken, onProgress) {
   return {
     records,
     userInfo: {
-      hgUid,    // 鹰角内部UID（认证用）
-      gameUid,  // 游戏内角色UID（存储用，1开头的十位数）
-      nickName
-    }
+      hgUid,           // 鹰角内部UID（认证用）
+      gameUid,         // 游戏内角色UID（存储用，1开头的十位数）
+      nickName,
+      channelName,     // 渠道名称（官服/B服）
+      channelMasterId, // 渠道ID：1=官服，2=B服
+      isOfficial       // 是否官服
+    },
+    accounts  // 返回所有可用账号列表
   };
 }
 
@@ -482,11 +565,14 @@ export default {
   POOL_TYPES,
   AuthChainError,
   RiskControlError,
+  ServerConnectionError,
   grantAppToken,
   fetchBindingList,
   fetchU8Token,
   fetchRecordsPage,
   fetchAllPoolRecords,
+  fetchAccountsList,
+  executeAuthChainForAccount,
   executeAuthChain,
   fetchAllGachaRecords,
   fetchAllGachaRecordsConcurrent,

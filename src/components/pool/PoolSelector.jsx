@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Layers, Lock, Upload, Star, Swords, User, Search, X } from 'lucide-react';
+import { Layers, Lock, Upload, Star, Swords, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
 import ImportManager from '../../features/import/ImportManager';
 
@@ -12,6 +12,10 @@ const PoolSelector = () => {
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const switchPool = usePoolStore(state => state.switchPool);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
+  const getGameAccounts = usePoolStore(state => state.getGameAccounts);
+  const getPoolsByGameAccount = usePoolStore(state => state.getPoolsByGameAccount);
   const history = useHistoryStore(state => state.history);
 
   const user = useAuthStore(state => state.user);
@@ -19,6 +23,18 @@ const PoolSelector = () => {
   // UI状态
   const [showImportManager, setShowImportManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+
+  // 获取所有游戏账号
+  const gameAccounts = useMemo(() => getGameAccounts(), [pools, getGameAccounts]);
+
+  // 根据当前选择的账号筛选卡池
+  const filteredPools = useMemo(() => {
+    if (!currentGameUid || gameAccounts.length <= 1) {
+      return pools;
+    }
+    return getPoolsByGameAccount(currentGameUid);
+  }, [pools, currentGameUid, gameAccounts.length, getPoolsByGameAccount]);
 
   // 计算每个卡池的抽数
   const poolPullCounts = useMemo(() => {
@@ -31,9 +47,9 @@ const PoolSelector = () => {
 
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
-    const filtered = searchQuery.trim()
-      ? pools.filter(pool => pool.name?.toLowerCase().includes(searchQuery.toLowerCase()))
-      : pools;
+    const searchFiltered = searchQuery.trim()
+      ? filteredPools.filter(pool => pool.name?.toLowerCase().includes(searchQuery.toLowerCase()))
+      : filteredPools;
 
     const groups = {
       limited: { label: '限定角色', pools: [] },
@@ -43,7 +59,7 @@ const PoolSelector = () => {
       beginner: { label: '新手', pools: [] }
     };
 
-    filtered.forEach(pool => {
+    searchFiltered.forEach(pool => {
       let type = pool.type || 'standard';
       if (type === 'limited_character') type = 'limited';
       if (type === 'limited_weapon' || type === 'weapon') {
@@ -71,7 +87,7 @@ const PoolSelector = () => {
     });
 
     return result;
-  }, [pools, searchQuery]);
+  }, [filteredPools, searchQuery]);
 
   const totalPools = pools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
@@ -142,7 +158,7 @@ const PoolSelector = () => {
     <div className="space-y-4">
       {/* 顶部工具栏 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        {/* 导入按钮 */}
+        {/* 导入按钮 & 账号切换 */}
         <div className="flex items-center gap-3">
           {user ? (
             <button
@@ -155,6 +171,53 @@ const PoolSelector = () => {
           ) : (
             <div className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
               [ 请登录以导入数据 ]
+            </div>
+          )}
+
+          {/* 账号切换器 - 仅在有多个账号时显示 */}
+          {gameAccounts.length > 1 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowAccountDropdown(!showAccountDropdown)}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-xs font-mono transition-colors"
+              >
+                <User size={14} className="text-slate-500 dark:text-zinc-400" />
+                <span className="text-slate-700 dark:text-zinc-300">
+                  {gameAccounts.find(a => a.gameUid === currentGameUid)?.nickName || '全部账号'}
+                </span>
+                <ChevronDown size={12} className={`text-slate-400 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showAccountDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-lg z-20">
+                  <button
+                    onClick={() => {
+                      switchGameAccount(null);
+                      setShowAccountDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
+                      !currentGameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
+                    }`}
+                  >
+                    全部账号
+                  </button>
+                  {gameAccounts.map(account => (
+                    <button
+                      key={account.gameUid}
+                      onClick={() => {
+                        switchGameAccount(account.gameUid);
+                        setShowAccountDropdown(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
+                        currentGameUid === account.gameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
+                      }`}
+                    >
+                      <div className="font-bold">{account.nickName}</div>
+                      <div className="text-[10px] text-slate-400 dark:text-zinc-500">UID: {account.gameUid}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

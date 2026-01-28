@@ -72,7 +72,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   /**
    * 直接保存卡池到 Supabase
    */
-  const savePoolsToServer = useCallback(async (poolInfos) => {
+  const savePoolsToServer = useCallback(async (poolInfos, userInfo = null) => {
     if (!supabase || !user || poolInfos.length === 0) return;
 
     const poolsToSave = poolInfos.map(info => ({
@@ -81,6 +81,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       name: info.poolName || info.poolId,
       type: getPoolTypeFromId(info.poolId),
       locked: false,
+      game_uid: userInfo?.gameUid || userInfo?.hgUid || null,
+      nick_name: userInfo?.nickName || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }));
@@ -155,22 +157,31 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
   /**
    * 从服务器查询已存在的 seqId（用于去重）
+   * 使用 game_uid + seq_id 组合作为唯一标识
    */
-  const getExistingSeqIds = useCallback(async () => {
+  const getExistingSeqIds = useCallback(async (gameUid) => {
     if (!supabase || !user) return new Set();
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('history')
-      .select('seq_id')
+      .select('seq_id, game_uid')
       .eq('user_id', user.id)
       .not('seq_id', 'is', null);
+
+    // 如果指定了 gameUid，只查询该账号的记录
+    if (gameUid) {
+      query = query.eq('game_uid', gameUid);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[ImportManager] 查询已有记录失败:', error);
       return new Set();
     }
 
-    return new Set(data.map(r => r.seq_id));
+    // 返回 game_uid:seq_id 组合的 Set
+    return new Set(data.map(r => `${r.game_uid || 'unknown'}:${r.seq_id}`));
   }, [user]);
 
   /**
@@ -208,8 +219,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         }
       });
 
-      // 2. 保存卡池到服务器
-      await savePoolsToServer(poolInfos);
+      // 2. 保存卡池到服务器（传入用户信息以保存 game_uid 和 nick_name）
+      await savePoolsToServer(poolInfos, result.userInfo);
 
       // 2.1 构建 poolId -> UP角色 的映射
       const poolUpCharacterMap = new Map();
@@ -221,7 +232,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       });
 
       // 3. 转换记录格式
+      const currentGameUid = result.userInfo?.gameUid || result.userInfo?.hgUid || null;
       const historyRecords = result.records.map((record, index) => {
+        // 保持原有的 record_id 计算方式（向后兼容已有数据）
         const poolHash = simpleStringHash(record.pool_id || 'unknown');
         const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
         const numericId = poolHash * 10000000 + seqNum;
@@ -260,10 +273,14 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         };
       });
 
-      // 4. 从服务器获取已存在的 seqId 进行去重
-      const existingSeqIds = await getExistingSeqIds();
+      // 4. 从服务器获取已存在的 seqId 进行去重（基于 game_uid + seq_id）
+      const existingSeqIds = await getExistingSeqIds(currentGameUid);
       const newRecords = historyRecords.filter(record => {
-        if (record.seqId && existingSeqIds.has(record.seqId)) return false;
+        if (record.seqId) {
+          // 使用 game_uid:seq_id 组合进行去重
+          const compositeKey = `${record.gameUid || 'unknown'}:${record.seqId}`;
+          if (existingSeqIds.has(compositeKey)) return false;
+        }
         return true;
       });
 

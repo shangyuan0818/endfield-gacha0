@@ -206,30 +206,53 @@ async function handleBindings(req, res) {
     });
   }
 
-  // 取第一个绑定账号
-  const binding = bindingList[0];
-  const role = binding.roles?.[0];
+  // 构建完整的账号列表（支持多账号选择）
+  const accounts = bindingList.map(b => {
+    const role = b.roles?.[0];
+    return {
+      uid: b.uid,                          // 鹰角内部 UID（用于认证链）
+      isOfficial: b.isOfficial,            // 是否官服
+      channelMasterId: b.channelMasterId,  // 渠道ID：1=官服，2=B服
+      channelName: b.channelName,          // 渠道名称
+      gameUid: role?.roleId || null,       // 游戏内角色 UID
+      nickName: role?.nickName || b.channelName || '未知',
+      serverId: role?.serverId || '1',
+      level: role?.level || 0,
+      // 如果有多个角色
+      roles: b.roles?.map(r => ({
+        roleId: r.roleId,
+        nickName: r.nickName,
+        serverId: r.serverId,
+        level: r.level
+      })) || []
+    };
+  });
 
-  // gameUid 是游戏内角色 UID（1开头的十位数），用于存储
-  // hgUid 是鹰角内部账号 UID，用于认证链
-  const gameUid = role?.roleId || null;
+  // 默认选择第一个账号（向后兼容）
+  const defaultAccount = accounts[0];
 
   return res.status(200).json({
     success: true,
     data: {
-      hgUid: binding.uid,  // 鹰角内部UID（用于认证链获取u8token）
-      gameUid: gameUid,    // 游戏内角色UID（用于存储，1开头的十位数）
-      nickName: role?.nickName || binding.channelName || '未知',
-      channelName: binding.channelName,
-      serverId: role?.serverId || '1',
-      roleId: role?.roleId,
-      level: role?.level,
-      // 返回所有绑定角色，方便多角色时选择
+      // 默认账号信息（向后兼容）
+      hgUid: defaultAccount.uid,
+      gameUid: defaultAccount.gameUid,
+      nickName: defaultAccount.nickName,
+      channelName: defaultAccount.channelName,
+      channelMasterId: defaultAccount.channelMasterId,
+      isOfficial: defaultAccount.isOfficial,
+      serverId: defaultAccount.serverId,
+      level: defaultAccount.level,
+      // 完整账号列表（用于多账号选择）
+      accounts: accounts,
+      // 旧格式兼容
       bindingList: bindingList.map(b => ({
         uid: b.uid,
         channelName: b.channelName,
+        isOfficial: b.isOfficial,
+        channelMasterId: b.channelMasterId,
         roles: b.roles?.map(r => ({
-          roleId: r.roleId,      // 游戏内角色 UID
+          roleId: r.roleId,
           nickName: r.nickName,
           serverId: r.serverId,
           level: r.level

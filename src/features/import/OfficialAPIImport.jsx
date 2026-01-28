@@ -19,6 +19,10 @@ import {
 } from 'lucide-react';
 import {
   importAllRecords,
+  fetchAccountsList,
+  executeAuthChainForAccount,
+  fetchAllGachaRecordsConcurrent,
+  fetchAllGachaRecords,
   AuthChainError,
   RiskControlError,
   ServerConnectionError
@@ -33,6 +37,7 @@ import {
 const ImportStatus = {
   IDLE: 'idle',
   AUTHENTICATING: 'authenticating',
+  ACCOUNT_SELECTION: 'account_selection',  // 新增：账号选择阶段
   FETCHING: 'fetching',
   PROCESSING: 'processing',
   SUCCESS: 'success',
@@ -74,6 +79,11 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
   const [error, setError] = useState(null);
   const [showGuide, setShowGuide] = useState(true);
   const [autoDetected, setAutoDetected] = useState(false); // 是否自动识别了JSON
+
+  // 多账号支持
+  const [availableAccounts, setAvailableAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [appToken, setAppToken] = useState(null);  // 保存 appToken 用于后续请求
 
   // 通知父组件状态变化
   useEffect(() => {
@@ -151,29 +161,123 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     setFetchedRecords([]);
     setImportSummary(null);
     setUserInfo(null);
+    setAvailableAccounts([]);
+    setSelectedAccount(null);
+    setAppToken(null);
     cancelRef.current = false;
 
     try {
-      const result = await importAllRecords(validation.token, (msg) => {
+      // 阶段1：获取账号列表
+      setStatusMessage('正在验证token...');
+      setProgress(10);
+
+      const accountsResult = await fetchAccountsList(validation.token, (msg) => {
         if (cancelRef.current) return;
         setStatusMessage(msg);
         if (msg.includes('验证')) setProgress(10);
         else if (msg.includes('账号')) setProgress(20);
-        else if (msg.includes('凭证')) setProgress(30);
-        else if (msg.includes('限定角色')) setProgress(45);
-        else if (msg.includes('常驻角色')) setProgress(60);
-        else if (msg.includes('新手')) setProgress(75);
-        else if (msg.includes('武器')) setProgress(90);
       });
 
       if (cancelRef.current) return;
 
-      setUserInfo(result.userInfo);
+      const { appToken: token, accounts } = accountsResult;
+      setAppToken(token);
+      setAvailableAccounts(accounts);
+
+      // 如果有多个账号，显示选择界面
+      if (accounts.length > 1) {
+        setStatus(ImportStatus.ACCOUNT_SELECTION);
+        setProgress(25);
+        setStatusMessage('请选择要导入的账号');
+        return;
+      }
+
+      // 只有一个账号，自动选择并继续
+      setSelectedAccount(accounts[0]);
+      await continueImportWithAccount(token, accounts[0]);
+
+    } catch (err) {
+      console.error('[OfficialAPIImport] 导入失败:', err);
+      if (cancelRef.current) return;
+      let errorMessage = err.message || 'Unknown Error';
+      if (err instanceof ServerConnectionError) errorMessage = `服务器连接异常: ${err.message}`;
+      else if (err instanceof RiskControlError) errorMessage = '触发频率限制，请稍候再试。';
+      else if (err instanceof AuthChainError) errorMessage = `认证失败: ${err.message}`;
+
+      setError(errorMessage);
+      setStatus(ImportStatus.ERROR);
+    }
+  }, [tokenInput, validateToken]);
+
+  /**
+   * 选择账号后继续导入
+   */
+  const handleAccountSelect = useCallback(async (account) => {
+    setSelectedAccount(account);
+    await continueImportWithAccount(appToken, account);
+  }, [appToken]);
+
+  /**
+   * 使用选定账号继续导入流程
+   */
+  const continueImportWithAccount = useCallback(async (token, account) => {
+    try {
+      setStatus(ImportStatus.FETCHING);
+      setProgress(30);
+      cancelRef.current = false;
+
+      // 阶段2：获取 u8_token
+      setStatusMessage(`正在获取 ${account.channelName} 访问凭证...`);
+      const authResult = await executeAuthChainForAccount(token, account, (msg) => {
+        if (cancelRef.current) return;
+        setStatusMessage(msg);
+      });
+
+      if (cancelRef.current) return;
+
+      const { u8Token } = authResult;
+
+      // 阶段3：获取抽卡记录
+      setStatusMessage(`正在获取 ${account.channelName} 抽卡记录...`);
+      setProgress(40);
+
+      let records;
+      try {
+        records = await fetchAllGachaRecordsConcurrent(u8Token, account.serverId || '1', (msg) => {
+          if (cancelRef.current) return;
+          setStatusMessage(msg);
+          if (msg.includes('限定角色')) setProgress(50);
+          else if (msg.includes('常驻角色')) setProgress(60);
+          else if (msg.includes('新手')) setProgress(70);
+          else if (msg.includes('武器')) setProgress(80);
+          else if (msg.includes('失败')) setProgress(85);
+          else if (msg.includes('完成')) setProgress(90);
+        });
+      } catch (error) {
+        setStatusMessage('并发获取失败，切换到串行模式...');
+        records = await fetchAllGachaRecords(u8Token, (msg) => {
+          if (cancelRef.current) return;
+          setStatusMessage(msg);
+        });
+      }
+
+      if (cancelRef.current) return;
+
+      // 设置用户信息
+      setUserInfo({
+        hgUid: account.uid,
+        gameUid: account.gameUid,
+        nickName: account.nickName,
+        channelName: account.channelName,
+        channelMasterId: account.channelMasterId,
+        isOfficial: account.isOfficial
+      });
+
       setStatus(ImportStatus.PROCESSING);
       setProgress(95);
       setStatusMessage('正在处理数据...');
 
-      const convertedRecords = result.records.map(record => {
+      const convertedRecords = records.map(record => {
         const poolType = record._poolType || 'unknown';
         return {
           name: record.charName || record.weaponName || '未知',
@@ -200,8 +304,8 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       });
 
       let processedRecords = [];
-      Object.entries(recordsByPool).forEach(([poolType, records]) => {
-        const withPity = calculatePity(records, poolType);
+      Object.entries(recordsByPool).forEach(([poolType, recs]) => {
+        const withPity = calculatePity(recs, poolType);
         processedRecords.push(...withPity);
       });
 
@@ -223,11 +327,11 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       if (err instanceof ServerConnectionError) errorMessage = `服务器连接异常: ${err.message}`;
       else if (err instanceof RiskControlError) errorMessage = '触发频率限制，请稍候再试。';
       else if (err instanceof AuthChainError) errorMessage = `认证失败: ${err.message}`;
-      
+
       setError(errorMessage);
       setStatus(ImportStatus.ERROR);
     }
-  }, [tokenInput, validateToken]);
+  }, []);
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;
@@ -258,6 +362,9 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     setUserInfo(null);
     setError(null);
     setAutoDetected(false);
+    setAvailableAccounts([]);
+    setSelectedAccount(null);
+    setAppToken(null);
   }, []);
 
   return (
@@ -349,6 +456,66 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
         </div>
       )}
 
+      {/* Account Selection - 多账号选择界面 */}
+      {status === ImportStatus.ACCOUNT_SELECTION && availableAccounts.length > 1 && (
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 transition-colors">
+            <div className="flex items-center gap-2 mb-3">
+              <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">检测到多个游戏账号</span>
+            </div>
+            <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono mb-4">
+              请选择要导入抽卡记录的账号：
+            </p>
+
+            <div className="space-y-2">
+              {availableAccounts.map((account, index) => (
+                <button
+                  key={account.uid}
+                  onClick={() => handleAccountSelect(account)}
+                  className={`w-full p-3 border transition-all text-left flex items-center gap-3 ${
+                    account.isOfficial
+                      ? 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+                      : 'border-pink-300 dark:border-pink-600 bg-pink-50 dark:bg-pink-900/20 hover:bg-pink-100 dark:hover:bg-pink-900/30'
+                  }`}
+                >
+                  <div className={`w-10 h-10 flex items-center justify-center ${
+                    account.isOfficial
+                      ? 'bg-amber-100 dark:bg-amber-800/50'
+                      : 'bg-pink-100 dark:bg-pink-800/50'
+                  }`}>
+                    <User size={20} className={account.isOfficial ? 'text-amber-600 dark:text-amber-400' : 'text-pink-600 dark:text-pink-400'} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-800 dark:text-white">{account.nickName}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${
+                        account.isOfficial
+                          ? 'bg-amber-500 dark:bg-amber-600 text-white'
+                          : 'bg-pink-500 dark:bg-pink-600 text-white'
+                      }`}>
+                        {account.channelName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5">
+                      UID: {account.gameUid} • Lv.{account.level}
+                    </p>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400 dark:text-zinc-500" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={handleReset}
+            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
+          >
+            [ 取消并返回 ]
+          </button>
+        </div>
+      )}
+
       {/* Fetching Progress */}
       {(status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING || status === ImportStatus.PROCESSING) && (
         <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
@@ -386,11 +553,26 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
         <div className="space-y-6">
           {userInfo && (
             <div className="flex items-center gap-3 p-3 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
-              <div className="w-10 h-10 bg-slate-200 dark:bg-zinc-800 flex items-center justify-center">
-                <User size={20} className="text-slate-500 dark:text-zinc-400" />
+              <div className={`w-10 h-10 flex items-center justify-center ${
+                userInfo.isOfficial !== false
+                  ? 'bg-amber-100 dark:bg-amber-800/50'
+                  : 'bg-pink-100 dark:bg-pink-800/50'
+              }`}>
+                <User size={20} className={userInfo.isOfficial !== false ? 'text-amber-600 dark:text-amber-400' : 'text-pink-600 dark:text-pink-400'} />
               </div>
-              <div>
-                <p className="text-sm font-bold text-slate-800 dark:text-white">{userInfo.nickName || 'Unknown User'}</p>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-slate-800 dark:text-white">{userInfo.nickName || 'Unknown User'}</span>
+                  {userInfo.channelName && (
+                    <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${
+                      userInfo.isOfficial !== false
+                        ? 'bg-amber-500 dark:bg-amber-600 text-white'
+                        : 'bg-pink-500 dark:bg-pink-600 text-white'
+                    }`}>
+                      {userInfo.channelName}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono">UID: {userInfo.gameUid || userInfo.hgUid}</p>
               </div>
             </div>
