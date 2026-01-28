@@ -1,0 +1,427 @@
+/**
+ * 终末地认证链工具
+ *
+ * 通过 Vercel 代理实现四层 Token 认证链
+ * 从 24 位初始 token 自动获取 u8_token
+ *
+ * 认证流程：
+ * 1. 用户登录鹰角官网获取 24 位 token
+ * 2. grant: 24位token → app_token
+ * 3. bindings: app_token → hgUid
+ * 4. u8token: hgUid + app_token → u8_token
+ * 5. records: u8_token → 抽卡记录
+ *
+ * @version 1.0.0
+ * @date 2026-01-27
+ */
+
+// API 代理地址
+const PROXY_BASE = '/api/hg-proxy';
+
+// 卡池类型
+export const POOL_TYPES = {
+  CHARACTER: {
+    SPECIAL: 'E_CharacterGachaPoolType_Special',   // 限定池（特许寻访）
+    STANDARD: 'E_CharacterGachaPoolType_Standard', // 常驻池（基础寻访）
+    BEGINNER: 'E_CharacterGachaPoolType_Beginner'  // 新手池（启程寻访）
+  }
+};
+
+/**
+ * 认证链错误
+ */
+export class AuthChainError extends Error {
+  constructor(message, step, data = null) {
+    super(message);
+    this.name = 'AuthChainError';
+    this.step = step;
+    this.data = data;
+  }
+}
+
+/**
+ * 风控错误
+ */
+export class RiskControlError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'RiskControlError';
+  }
+}
+
+/**
+ * 步骤2: 使用 24 位 token 换取 app_token
+ * @param {string} initialToken - 24位初始token
+ * @returns {Promise<{appToken: string, uid: string}>}
+ */
+export async function grantAppToken(initialToken) {
+  const response = await fetch(`${PROXY_BASE}?action=grant`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ token: initialToken })
+  });
+
+  const result = await response.json();
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Grant failed', 'grant', result);
+  }
+
+  return result.data;
+}
+
+/**
+ * 步骤3: 获取绑定列表（获取 hgUid 和 gameUid）
+ * @param {string} appToken - app_token
+ * @returns {Promise<{hgUid: string, gameUid: string, nickName: string, bindingList: Array}>}
+ */
+export async function fetchBindingList(appToken) {
+  const response = await fetch(`${PROXY_BASE}?action=bindings&appToken=${encodeURIComponent(appToken)}`, {
+    method: 'GET'
+  });
+
+  const result = await response.json();
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Bindings failed', 'bindings', result);
+  }
+
+  return result.data;
+}
+
+/**
+ * 步骤4: 获取 u8_token
+ * @param {string} hgUid - 游戏 UID
+ * @param {string} appToken - app_token
+ * @returns {Promise<{u8Token: string, uid: string}>}
+ */
+export async function fetchU8Token(hgUid, appToken) {
+  const response = await fetch(`${PROXY_BASE}?action=u8token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ uid: hgUid, appToken })
+  });
+
+  const result = await response.json();
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'U8Token failed', 'u8token', result);
+  }
+
+  return result.data;
+}
+
+/**
+ * 步骤5: 获取抽卡记录（单页）
+ * @param {string} u8Token - u8_token
+ * @param {object} options - 请求选项
+ * @param {string} options.type - 记录类型 'char' | 'weapon'
+ * @param {string} [options.poolType] - 卡池类型（角色池需要）
+ * @param {string} [options.seqId] - 分页标记
+ * @param {string} [options.serverId] - 服务器ID
+ * @returns {Promise<{list: Array, hasMore: boolean}>}
+ */
+export async function fetchRecordsPage(u8Token, options = {}) {
+  const { type = 'char', poolType, seqId, serverId = '1' } = options;
+
+  const params = new URLSearchParams({
+    action: 'records',
+    u8Token,
+    type,
+    serverId
+  });
+
+  if (poolType) {
+    params.append('poolType', poolType);
+  }
+  if (seqId) {
+    params.append('seqId', seqId);
+  }
+
+  const response = await fetch(`${PROXY_BASE}?${params.toString()}`, {
+    method: 'GET'
+  });
+
+  const result = await response.json();
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Records failed', 'records', result);
+  }
+
+  return result.data;
+}
+
+/**
+ * 获取某个卡池的全部记录（自动分页）
+ * @param {string} u8Token - u8_token
+ * @param {object} options - 请求选项
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<Array>} 全部记录
+ */
+export async function fetchAllPoolRecords(u8Token, options = {}, onProgress) {
+  const allRecords = [];
+  let hasMore = true;
+  let lastSeqId = null;
+  let page = 0;
+
+  while (hasMore) {
+    page++;
+    if (onProgress) {
+      onProgress(`第${page}页，已获取${allRecords.length}条记录...`);
+    }
+
+    const result = await fetchRecordsPage(u8Token, {
+      ...options,
+      seqId: lastSeqId
+    });
+
+    const records = result.list || [];
+    allRecords.push(...records);
+
+    hasMore = result.hasMore;
+    if (records.length > 0) {
+      lastSeqId = records[records.length - 1].seqId;
+    }
+
+    // 如果还有更多，添加延迟防止风控
+    if (hasMore) {
+      await delay(800 + Math.random() * 700);
+    }
+  }
+
+  return allRecords;
+}
+
+/**
+ * 执行完整认证链
+ * @param {string} initialToken - 24位初始token
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<{u8Token: string, hgUid: string, gameUid: string, nickName: string}>}
+ */
+export async function executeAuthChain(initialToken, onProgress) {
+  // 步骤1: Grant - 获取 app_token
+  if (onProgress) onProgress('正在验证token...');
+  const grantResult = await grantAppToken(initialToken);
+  const { appToken } = grantResult;
+
+  if (!appToken) {
+    throw new AuthChainError('未能获取 app_token', 'grant');
+  }
+
+  // 步骤2: Bindings - 获取绑定列表和 hgUid、gameUid
+  if (onProgress) onProgress('正在获取账号信息...');
+  await delay(1000 + Math.random() * 500);
+  const bindingResult = await fetchBindingList(appToken);
+  const { hgUid, gameUid, nickName } = bindingResult;
+
+  if (!hgUid) {
+    throw new AuthChainError('未找到终末地账号绑定', 'bindings');
+  }
+
+  // 步骤3: U8Token - 获取 u8_token
+  if (onProgress) onProgress('正在获取访问凭证...');
+  await delay(1000 + Math.random() * 500);
+  const u8Result = await fetchU8Token(hgUid, appToken);
+  const { u8Token } = u8Result;
+
+  if (!u8Token) {
+    throw new AuthChainError('未能获取 u8_token', 'u8token');
+  }
+
+  return {
+    u8Token,
+    hgUid,
+    gameUid,  // 游戏内角色 UID（1开头的十位数）
+    nickName,
+    appToken
+  };
+}
+
+/**
+ * 获取全部抽卡记录（所有卡池）- 并发版本
+ * 同时请求角色池和武器池，减少总耗时
+ * @param {string} u8Token - u8_token
+ * @param {string} serverId - 服务器ID
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<Array>} 全部记录
+ */
+export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress) {
+  if (onProgress) onProgress('正在并发获取所有卡池记录（含武器池）...');
+
+  // 使用批量并发 API - 包含所有4种卡池
+  const response = await fetch(`${PROXY_BASE}?action=records-batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      u8Token,
+      serverId,
+      pools: [
+        { type: 'char', poolType: POOL_TYPES.CHARACTER.SPECIAL },   // 限定角色池
+        { type: 'char', poolType: POOL_TYPES.CHARACTER.STANDARD },  // 常驻角色池
+        { type: 'char', poolType: POOL_TYPES.CHARACTER.BEGINNER },  // 新手池
+        { type: 'weapon' }  // 武器池
+      ]
+    })
+  });
+
+  const result = await response.json();
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Batch records failed', 'records-batch', result);
+  }
+
+  // 处理所有卡池结果
+  const allRecords = [];
+  const poolTypeMap = {
+    [POOL_TYPES.CHARACTER.SPECIAL]: 'limited_character',
+    [POOL_TYPES.CHARACTER.STANDARD]: 'standard',
+    [POOL_TYPES.CHARACTER.BEGINNER]: 'beginner',
+    'weapon': 'limited_weapon',
+    'undefined': 'limited_weapon'  // 武器池没有 poolType
+  };
+
+  result.data.results.forEach(poolResult => {
+    // 武器池的 poolType 是 undefined，需要通过 type 判断
+    let poolType;
+    if (poolResult.type === 'weapon') {
+      poolType = 'limited_weapon';
+    } else {
+      poolType = poolTypeMap[poolResult.poolType] || 'unknown';
+    }
+    const records = poolResult.records.map(r => ({ ...r, _poolType: poolType }));
+    allRecords.push(...records);
+  });
+
+  if (onProgress) onProgress(`全部记录获取完成，共 ${allRecords.length} 条`);
+
+  return allRecords;
+}
+
+/**
+ * 获取全部抽卡记录（所有卡池）- 串行版本（备用）
+ * @param {string} u8Token - u8_token
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<Array>} 全部记录
+ */
+export async function fetchAllGachaRecords(u8Token, onProgress) {
+  const allRecords = [];
+
+  // 1. 限定角色池（特许寻访）
+  if (onProgress) onProgress('正在获取限定角色池记录...');
+  const specialRecords = await fetchAllPoolRecords(u8Token, {
+    type: 'char',
+    poolType: POOL_TYPES.CHARACTER.SPECIAL
+  }, onProgress);
+  allRecords.push(...specialRecords.map(r => ({ ...r, _poolType: 'limited_character' })));
+
+  // 2. 常驻角色池（基础寻访）
+  if (onProgress) onProgress('正在获取常驻角色池记录...');
+  await delay(1500 + Math.random() * 1000);
+  const standardRecords = await fetchAllPoolRecords(u8Token, {
+    type: 'char',
+    poolType: POOL_TYPES.CHARACTER.STANDARD
+  }, onProgress);
+  allRecords.push(...standardRecords.map(r => ({ ...r, _poolType: 'standard' })));
+
+  // 3. 新手池（启程寻访）
+  if (onProgress) onProgress('正在获取新手池记录...');
+  await delay(1500 + Math.random() * 1000);
+  const beginnerRecords = await fetchAllPoolRecords(u8Token, {
+    type: 'char',
+    poolType: POOL_TYPES.CHARACTER.BEGINNER
+  }, onProgress);
+  allRecords.push(...beginnerRecords.map(r => ({ ...r, _poolType: 'beginner' })));
+
+  // 4. 武器池
+  if (onProgress) onProgress('正在获取武器池记录...');
+  await delay(2000 + Math.random() * 1000);
+  const weaponRecords = await fetchAllPoolRecords(u8Token, {
+    type: 'weapon'
+  }, onProgress);
+  allRecords.push(...weaponRecords.map(r => ({ ...r, _poolType: 'limited_weapon' })));
+
+  return allRecords;
+}
+
+/**
+ * 一键获取全部抽卡记录（使用并发优化）
+ * @param {string} initialToken - 24位初始token
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Promise<{records: Array, userInfo: object}>}
+ */
+export async function importAllRecords(initialToken, onProgress) {
+  // 执行认证链
+  const authResult = await executeAuthChain(initialToken, onProgress);
+  const { u8Token, hgUid, gameUid, nickName } = authResult;
+
+  // 获取全部记录（使用并发版本）
+  if (onProgress) onProgress('认证成功，开始并发获取抽卡记录...');
+  await delay(1000);
+
+  let records;
+  try {
+    // 优先使用并发版本
+    records = await fetchAllGachaRecordsConcurrent(u8Token, '1', onProgress);
+  } catch (error) {
+    // 如果并发失败，回退到串行版本
+    if (onProgress) onProgress('并发获取失败，切换到串行模式...');
+    records = await fetchAllGachaRecords(u8Token, onProgress);
+  }
+
+  return {
+    records,
+    userInfo: {
+      hgUid,    // 鹰角内部UID（认证用）
+      gameUid,  // 游戏内角色UID（存储用，1开头的十位数）
+      nickName
+    }
+  };
+}
+
+/**
+ * 延迟函数
+ */
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export default {
+  POOL_TYPES,
+  AuthChainError,
+  RiskControlError,
+  grantAppToken,
+  fetchBindingList,
+  fetchU8Token,
+  fetchRecordsPage,
+  fetchAllPoolRecords,
+  executeAuthChain,
+  fetchAllGachaRecords,
+  fetchAllGachaRecordsConcurrent,
+  importAllRecords
+};

@@ -1,271 +1,484 @@
 /**
- * 终末地官网API导入适配器（方案A）
- *
- * ⚠️ 待完善：此文件为占位实现，需要在游戏正式上线后
- * 通过抓包分析确定实际API端点和数据格式
- *
- * 预计实现时间：开服后1-2天
+ * 终末地官网API导入组件 V2 (Technical Style)
  */
 
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  ImportAdapter,
-  ImportStatus,
-  createImportError,
-  ImportErrorType
-} from '../importTypes';
+  Link,
+  RefreshCw,
+  CheckCircle,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Copy,
+  ExternalLink,
+  User,
+  Shield,
+  ArrowRight
+} from 'lucide-react';
 import {
-  validateRecords,
-  mergeRecords,
-  normalizeRecord,
-  calculateImportSummary,
-  assignBatchIds
-} from '../importParsers';
+  importAllRecords,
+  AuthChainError,
+  RiskControlError
+} from '../../utils/endfieldAuthChain';
+import {
+  convertRecords,
+  generateImportSummary,
+  assignBatchIds,
+  calculatePity
+} from '../../utils/endfieldImportAdapter';
 
-/**
- * 终末地API端点（占位 - 需要游戏上线后确定）
- *
- * 参考明日方舟的API结构，推测可能的端点：
- * - 认证: https://endfield-api.hypergryph.com/account/info/hg
- * - 抽卡记录: https://endfield-api.hypergryph.com/user/api/inquiry/gacha
- *
- * TODO: 游戏上线后需要：
- * 1. 确认实际域名和路径
- * 2. 分析请求参数格式
- * 3. 确认响应数据结构
- * 4. 测试分页机制
- */
-const ENDFIELD_API = {
-  // ⚠️ 占位值 - 需要确认
-  AUTH_URL: 'https://endfield-api.hypergryph.com/account/info/hg',
-  GACHA_URL: 'https://endfield-api.hypergryph.com/user/api/inquiry/gacha',
-  CHANNEL_ID: '1'
+const ImportStatus = {
+  IDLE: 'idle',
+  AUTHENTICATING: 'authenticating',
+  FETCHING: 'fetching',
+  PROCESSING: 'processing',
+  SUCCESS: 'success',
+  ERROR: 'error'
 };
 
 /**
- * 终末地导入适配器类
+ * 进度条组件 (Fetching Phase)
  */
-export class EndfieldOfficialApiAdapter extends ImportAdapter {
-  constructor() {
-    super();
-    this.token = null;
-    this.channelId = ENDFIELD_API.CHANNEL_ID;
-    this.cancelled = false;
-    this.config = null;
-  }
+const FetchProgressBar = ({ progress, message }) => (
+  <div className="w-full">
+    <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-zinc-500">
+      <span className="flex items-center gap-2">
+        <RefreshCw size={10} className="animate-spin text-yellow-500" />
+        正在获取数据
+      </span>
+      <span>{progress}%</span>
+    </div>
+    <div className="h-1 w-full bg-zinc-800 relative overflow-hidden">
+      <div 
+        className="h-full bg-yellow-500 transition-all duration-300"
+        style={{ width: `${progress}%` }}
+      ></div>
+    </div>
+    <div className="mt-2 flex justify-between items-center text-xs font-mono">
+      <span className="text-zinc-300">{message}</span>
+    </div>
+  </div>
+);
+
+export default function OfficialAPIImport({ onImportComplete, onBack, onFetchStatusChange }) {
+  const [tokenInput, setTokenInput] = useState('');
+  const [status, setStatus] = useState(ImportStatus.IDLE);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [fetchedRecords, setFetchedRecords] = useState([]);
+  const [importSummary, setImportSummary] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+  const [error, setError] = useState(null);
+  const [showGuide, setShowGuide] = useState(true);
+  const [autoDetected, setAutoDetected] = useState(false); // 是否自动识别了JSON
+
+  // 通知父组件状态变化
+  useEffect(() => {
+    onFetchStatusChange?.(status);
+  }, [status, onFetchStatusChange]);
+
+  const cancelRef = useRef(false);
 
   /**
-   * 初始化适配器
+   * 智能解析输入内容，支持：
+   * 1. 直接粘贴24位token
+   * 2. 粘贴完整JSON自动提取content字段
    */
-  async initialize(config) {
-    this.config = config;
-    this.token = config.token;
-    this.channelId = config.channelId || ENDFIELD_API.CHANNEL_ID;
-    this.cancelled = false;
+  const parseTokenInput = useCallback((input) => {
+    const trimmed = input.trim();
+    if (!trimmed) return { token: '', fromJson: false };
 
-    // TODO: 游戏上线后添加初始化逻辑
-    console.log('终末地API适配器初始化完成');
-  }
-
-  /**
-   * 验证token有效性
-   */
-  async validate() {
-    if (!this.token) {
-      return {
-        valid: false,
-        message: '请提供认证token'
-      };
+    // 尝试解析JSON
+    if (trimmed.startsWith('{')) {
+      try {
+        const json = JSON.parse(trimmed);
+        if (json?.data?.content) {
+          return { token: json.data.content, fromJson: true };
+        }
+      } catch (e) {
+        // 不是有效JSON，继续当作普通文本处理
+      }
     }
+
+    return { token: trimmed, fromJson: false };
+  }, []);
+
+  /**
+   * 处理输入变化，自动识别JSON
+   */
+  const handleInputChange = useCallback((e) => {
+    const rawInput = e.target.value;
+    const { token, fromJson } = parseTokenInput(rawInput);
+
+    if (fromJson) {
+      // 从JSON中提取了token，显示提取后的值
+      setTokenInput(token);
+      setAutoDetected(true);
+    } else {
+      // 普通输入
+      setTokenInput(rawInput);
+      setAutoDetected(false);
+    }
+  }, [parseTokenInput]);
+
+  const validateToken = useCallback((token) => {
+    const trimmed = token.trim();
+    if (!trimmed) return { valid: false, error: '请输入Token' };
+
+    if (trimmed.length !== 24) {
+      return { valid: false, error: `Token长度错误：期望24位，实际${trimmed.length}位` };
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(trimmed)) {
+      return { valid: false, error: 'Token格式错误：只能包含字母和数字' };
+    }
+    return { valid: true, token: trimmed };
+  }, []);
+
+  const handleImport = useCallback(async () => {
+    const validation = validateToken(tokenInput);
+    if (!validation.valid) {
+      setError(validation.error);
+      setStatus(ImportStatus.ERROR);
+      return;
+    }
+
+    setStatus(ImportStatus.AUTHENTICATING);
+    setProgress(0);
+    setError(null);
+    setFetchedRecords([]);
+    setImportSummary(null);
+    setUserInfo(null);
+    cancelRef.current = false;
 
     try {
-      // TODO: 游戏上线后实现实际的验证逻辑
-      // 参考明日方舟的实现：尝试获取第一页数据来验证token
-
-      // 临时实现：返回提示信息
-      console.warn('⚠️ 终末地API验证功能待实现');
-
-      return {
-        valid: false,
-        message: '⚠️ 终末地官网API功能尚未开放，请等待游戏正式上线后使用'
-      };
-
-    } catch (error) {
-      return {
-        valid: false,
-        message: `验证失败: ${error.message}`
-      };
-    }
-  }
-
-  /**
-   * 执行数据导入
-   *
-   * TODO: 游戏上线后实现完整导入逻辑
-   * 参考 arkImportAdapter.js 的实现流程：
-   * 1. 初始化进度
-   * 2. 获取现有数据（增量导入）
-   * 3. 分页获取API数据
-   * 4. 解析和标准化数据
-   * 5. 验证数据完整性
-   * 6. 合并去重
-   * 7. 返回结果
-   */
-  async import(onProgress) {
-    try {
-      onProgress({
-        status: ImportStatus.INITIALIZING,
-        percentage: 0,
-        message: '正在初始化...'
+      const result = await importAllRecords(validation.token, (msg) => {
+        if (cancelRef.current) return;
+        setStatusMessage(msg);
+        if (msg.includes('验证')) setProgress(10);
+        else if (msg.includes('账号')) setProgress(20);
+        else if (msg.includes('凭证')) setProgress(30);
+        else if (msg.includes('限定角色')) setProgress(45);
+        else if (msg.includes('常驻角色')) setProgress(60);
+        else if (msg.includes('新手')) setProgress(75);
+        else if (msg.includes('武器')) setProgress(90);
       });
 
-      // TODO: 游戏上线后实现实际的导入逻辑
+      if (cancelRef.current) return;
 
-      // 临时实现：返回占位错误
-      throw new Error('终末地官网API功能尚未实现，请等待游戏正式上线');
+      setUserInfo(result.userInfo);
+      setStatus(ImportStatus.PROCESSING);
+      setProgress(95);
+      setStatusMessage('正在处理数据...');
 
-    } catch (error) {
-      const importError = createImportError(
-        ImportErrorType.UNKNOWN,
-        error.message,
-        error
-      );
-
-      onProgress({
-        status: ImportStatus.ERROR,
-        percentage: 0,
-        message: `导入失败: ${error.message}`
+      const convertedRecords = result.records.map(record => {
+        const poolType = record._poolType || 'unknown';
+        return {
+          name: record.charName || record.weaponName || '未知',
+          character_name: record.charName || record.weaponName || '未知',
+          item_id: record.charId || record.weaponId || '',
+          rarity: record.rarity,
+          timestamp: parseInt(record.gachaTs, 10),
+          pool: poolType,
+          pool_id: record.poolId,
+          pool_name: record.poolName,
+          isNew: record.isNew || false,
+          isFree: record.isFree || false,
+          isLimited: poolType === 'limited_character' || poolType === 'limited_weapon',
+          seqId: record.seqId,
+          recordType: record.charId ? 'character' : 'weapon'
+        };
       });
 
-      return {
-        success: false,
-        records: [],
-        summary: {},
-        error: importError.message
-      };
+      // Calculate Pity logic locally for preview
+      const recordsByPool = {};
+      convertedRecords.forEach(record => {
+        if (!recordsByPool[record.pool]) recordsByPool[record.pool] = [];
+        recordsByPool[record.pool].push(record);
+      });
+
+      let processedRecords = [];
+      Object.entries(recordsByPool).forEach(([poolType, records]) => {
+        const withPity = calculatePity(records, poolType);
+        processedRecords.push(...withPity);
+      });
+
+      processedRecords = assignBatchIds(processedRecords);
+      processedRecords.sort((a, b) => b.timestamp - a.timestamp);
+
+      const summary = generateImportSummary(processedRecords);
+
+      setFetchedRecords(processedRecords);
+      setImportSummary(summary);
+      setProgress(100);
+      setStatus(ImportStatus.SUCCESS);
+      setStatusMessage('数据准备就绪');
+
+    } catch (err) {
+      console.error('[OfficialAPIImport] 导入失败:', err);
+      if (cancelRef.current) return;
+      let errorMessage = err.message || 'Unknown Error';
+      if (err instanceof RiskControlError) errorMessage = '触发频率限制，请稍候再试。';
+      else if (err instanceof AuthChainError) errorMessage = `认证失败: ${err.message}`;
+      
+      setError(errorMessage);
+      setStatus(ImportStatus.ERROR);
     }
-  }
+  }, [tokenInput, validateToken]);
 
-  /**
-   * 获取所有分页数据
-   * @private
-   */
-  async fetchAllRecords(lastTimestamp, onProgress) {
-    // TODO: 游戏上线后实现
-    // 参考 ArkImportAdapter.fetchAllRecords()
+  const handleCancel = useCallback(() => {
+    cancelRef.current = true;
+    setStatus(ImportStatus.IDLE);
+    setProgress(0);
+    setStatusMessage('');
+  }, []);
 
-    const allRecords = [];
+  const handleConfirmImport = useCallback(() => {
+    if (fetchedRecords.length === 0) return;
+    if (onImportComplete) {
+      onImportComplete({
+        success: true,
+        records: fetchedRecords,
+        summary: importSummary,
+        userInfo
+      });
+    }
+  }, [fetchedRecords, importSummary, userInfo, onImportComplete]);
 
-    // 实现要点：
-    // 1. 循环获取每一页数据
-    // 2. 检查是否到达已有数据（增量优化）
-    // 3. 更新进度回调
-    // 4. 处理API错误和重试
-    // 5. 添加请求延迟避免限流
+  const handleReset = useCallback(() => {
+    setTokenInput('');
+    setStatus(ImportStatus.IDLE);
+    setProgress(0);
+    setStatusMessage('');
+    setFetchedRecords([]);
+    setImportSummary(null);
+    setUserInfo(null);
+    setError(null);
+    setAutoDetected(false);
+  }, []);
 
-    return allRecords;
-  }
+  return (
+    <div className="space-y-6">
+      {/* 状态指示器 & 指南 */}
+      {status === ImportStatus.IDLE && (
+        <div className="bg-zinc-800/50 border border-zinc-700 p-4">
+          <h3 className="text-zinc-300 text-sm font-bold flex items-center gap-2 mb-4">
+            <HelpCircle size={14} className="text-yellow-500" />
+            快速指南
+          </h3>
+          
+          <div className="space-y-4 pt-2 text-xs text-zinc-400 font-mono">
+            <div className="flex gap-3">
+              <div className="w-5 h-5 flex-shrink-0 bg-zinc-800 border border-zinc-600 flex items-center justify-center text-zinc-300">1</div>
+              <div>
+                <p className="text-zinc-300 font-bold mb-1">登录官网并绑定</p>
+                <p className="mb-1 text-zinc-500">官服与B服均需在此绑定终末地角色：</p>
+                <a href="https://user.hypergryph.com/bindCharacters?game=endfield" target="_blank" className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline">
+                  user.hypergryph.com <ExternalLink size={10} />
+                </a>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-5 h-5 flex-shrink-0 bg-zinc-800 border border-zinc-600 flex items-center justify-center text-zinc-300">2</div>
+              <div>
+                <p className="text-zinc-300 font-bold mb-1">获取数据内容</p>
+                <p className="mb-1 text-zinc-500">在新标签页打开链接，建议复制页面显示的<span className="text-zinc-300">完整内容</span>，或仅复制 <span className="text-zinc-300">content</span> 字段的值：</p>
+                <a href="https://web-api.hypergryph.com/account/info/hg" target="_blank" className="text-blue-400 hover:text-blue-300 flex items-center gap-1 underline">
+                  web-api.hypergryph.com <ExternalLink size={10} />
+                </a>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-5 h-5 flex-shrink-0 bg-zinc-800 border border-zinc-600 flex items-center justify-center text-zinc-300">3</div>
+              <div>
+                <p className="text-zinc-300 font-bold mb-1">粘贴至下方</p>
+                <p className="text-zinc-500 mb-2">将复制的内容粘贴在下方输入框中：</p>
+                <div className="bg-black/40 border border-zinc-700 p-2 text-[10px] font-mono rounded-sm leading-relaxed">
+                  <span className="text-zinc-500">{'{'}</span><br/>
+                  <span className="text-zinc-500 ml-2">"code": 0,</span><br/>
+                  <span className="text-zinc-500 ml-2">"data": {'{'}</span><br/>
+                  <span className="text-purple-400 ml-4">"content"</span><span className="text-zinc-500">: </span>
+                  <span className="text-green-400">"AbCdEf123456789012345678"</span><br/>
+                  <span className="text-zinc-500 ml-2">{'}'}</span><span className="text-zinc-600 ml-2">// ← 复制引号内的24位字符</span><br/>
+                  <span className="text-zinc-500">{'}'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-  /**
-   * 解析原始API数据为标准格式
-   * @private
-   */
-  parseRecords(rawRecords) {
-    // TODO: 游戏上线后实现
-    // 根据实际API响应格式调整解析逻辑
+      {/* 输入区域 */}
+      {status === ImportStatus.IDLE && (
+        <div className="space-y-4">
+          <div className="relative">
+            <label className="block text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2">
+              身份认证 Token
+            </label>
+            <input
+              type="text"
+              value={tokenInput}
+              onChange={handleInputChange}
+              className="w-full bg-black/30 border border-zinc-700 p-4 font-mono text-center text-lg text-white focus:border-yellow-500 focus:outline-none transition-colors placeholder:text-zinc-700"
+              placeholder="粘贴24位Token或完整JSON"
+            />
+            <div className="absolute right-3 top-[38px] text-[10px] text-zinc-600 font-mono pointer-events-none">
+              {tokenInput.trim().length} 字符
+            </div>
+          </div>
 
-    return rawRecords.map(raw => {
-      // 示例映射（需要根据实际API调整）
-      return {
-        pool: raw.pool || raw.poolId,
-        name: raw.name || raw.itemName,
-        rarity: raw.rarity || raw.star,
-        isLimited: raw.isLimited || false,
-        timestamp: raw.timestamp || raw.ts || raw.time,
-        pity: raw.pity || 0
-      };
-    });
-  }
+          {/* 自动识别提示 */}
+          {autoDetected && tokenInput.length === 24 && (
+            <div className="flex items-center gap-2 text-xs text-green-500 font-mono bg-green-900/20 border border-green-900/30 px-3 py-2">
+              <CheckCircle size={14} />
+              <span>已从JSON中自动提取Token</span>
+            </div>
+          )}
 
-  /**
-   * 取消导入
-   */
-  async cancel() {
-    this.cancelled = true;
-  }
+          <button
+            onClick={handleImport}
+            disabled={!tokenInput.trim()}
+            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:hover:bg-yellow-500 text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2 group"
+          >
+            开始导入
+            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      )}
 
-  /**
-   * 清理资源
-   */
-  async cleanup() {
-    this.token = null;
-    this.config = null;
-  }
+      {/* Fetching Progress */}
+      {(status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING || status === ImportStatus.PROCESSING) && (
+        <div className="py-8 px-4 border border-zinc-800 bg-zinc-900/50">
+          <FetchProgressBar progress={progress} message={statusMessage} />
+          <button
+            onClick={handleCancel}
+            className="mt-6 w-full text-zinc-500 hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
+          >
+            [ 取消操作 ]
+          </button>
+        </div>
+      )}
+
+      {/* Error State */}
+      {status === ImportStatus.ERROR && (
+        <div className="space-y-4">
+          <div className="bg-red-900/20 border border-red-500/30 p-4 flex gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <div>
+              <h4 className="text-red-500 font-bold text-sm mb-1">导入失败</h4>
+              <p className="text-zinc-400 text-xs font-mono">{error}</p>
+            </div>
+          </div>
+          <button
+            onClick={handleReset}
+            className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+          >
+            重试
+          </button>
+        </div>
+      )}
+
+      {/* Success Preview */}
+      {status === ImportStatus.SUCCESS && importSummary && (
+        <div className="space-y-6">
+          {userInfo && (
+            <div className="flex items-center gap-3 p-3 border border-zinc-800 bg-zinc-900/50">
+              <div className="w-10 h-10 bg-zinc-800 flex items-center justify-center">
+                <User size={20} className="text-zinc-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-white">{userInfo.nickName || 'Unknown User'}</p>
+                <p className="text-xs text-zinc-500 font-mono">UID: {userInfo.gameUid || userInfo.hgUid}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-green-900/10 border border-green-500/20 p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <CheckCircle className="text-green-500" size={16} />
+              <span className="text-green-500 font-bold text-sm">数据获取成功</span>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-2">
+               {/* 总抽数 */}
+               <div className="text-center bg-zinc-900/50 p-2 border border-zinc-800/50">
+                  <div className="text-xs font-bold text-zinc-400">TOTAL</div>
+                  <div className="text-lg font-mono text-white">{importSummary.total}</div>
+               </div>
+               
+               {/* 稀有度统计 */}
+               {['6', '5', '4'].map(rarity => (
+                 <div key={rarity} className="text-center bg-zinc-900/50 p-2 border border-zinc-800/50">
+                    <div className={`text-xs font-bold ${rarity === '6' ? 'text-yellow-500' : rarity === '5' ? 'text-purple-400' : 'text-blue-400'}`}>
+                      {rarity}★
+                    </div>
+                    <div className="text-lg font-mono text-zinc-300">{importSummary.byRarity[rarity] || 0}</div>
+                 </div>
+               ))}
+            </div>
+
+            {/* 卡池分布 */}
+            <div className="mt-4 pt-4 border-t border-zinc-800/50">
+              <p className="text-[10px] text-zinc-500 font-mono uppercase mb-2">卡池分布</p>
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(importSummary.byPoolType || importSummary.byPool).map(([pool, count]) => (
+                  <span
+                    key={pool}
+                    className="bg-zinc-900/50 border border-zinc-800 px-2 py-1 text-xs text-zinc-400 font-mono"
+                  >
+                    {getPoolName(pool)}: <span className="text-white">{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* 6星列表 */}
+            {importSummary.sixStars && importSummary.sixStars.length > 0 && (
+              <div className="mt-4">
+                <p className="text-[10px] text-yellow-500/70 font-mono uppercase mb-2">获得的6星</p>
+                <div className="flex flex-wrap gap-2">
+                  {importSummary.sixStars.map((record, index) => (
+                    <span
+                      key={index}
+                      className="bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 text-xs text-yellow-500 font-bold"
+                    >
+                      {record.name}
+                      {record.isNew && <span className="ml-1 text-[10px] bg-yellow-500 text-black px-1 rounded-sm">NEW</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={handleReset}
+              className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+            >
+              重新获取
+            </button>
+            <button
+              onClick={handleConfirmImport}
+              className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-sm tracking-wider transition-colors"
+            >
+              确认并保存
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
-/**
- * 从浏览器中提取token
- * TODO: 游戏上线后确定token存储位置
- */
-export function extractEndfieldToken() {
-  if (typeof document === 'undefined') {
-    throw new Error('此函数只能在浏览器环境中使用');
-  }
-
-  // TODO: 确定终末地token的存储方式
-  // 可能位置：
-  // 1. Cookie
-  // 2. LocalStorage
-  // 3. SessionStorage
-  // 4. IndexedDB
-
-  console.warn('⚠️ 终末地token提取功能待实现');
-  return null;
+function getPoolName(poolType) {
+  const nameMap = {
+    'limited_character': '限定角色',
+    'standard': '常驻',
+    'beginner': '新手',
+    'limited_weapon': '武器',
+    'unknown': '未知'
+  };
+  return nameMap[poolType] || poolType;
 }
-
-/**
- * 开发指南注释
- *
- * ## 游戏上线后的开发步骤：
- *
- * ### 第一步：抓包分析（预计1-2小时）
- * 1. 在浏览器中打开终末地官网
- * 2. 登录账号并进入抽卡记录页面
- * 3. 打开浏览器开发者工具 -> Network
- * 4. 刷新页面，记录以下信息：
- *    - API请求URL（完整地址）
- *    - 请求方法（GET/POST）
- *    - 请求头（特别注意认证相关）
- *    - 请求参数（page, token, channelId等）
- *    - 响应数据结构（JSON格式）
- *
- * ### 第二步：更新API配置（预计30分钟）
- * 1. 更新 ENDFIELD_API 常量中的URL
- * 2. 添加必要的请求头配置
- * 3. 确认分页参数名称
- *
- * ### 第三步：实现数据获取（预计2-3小时）
- * 1. 实现 validate() 方法
- * 2. 实现 fetchAllRecords() 方法
- * 3. 添加错误处理和重试逻辑
- * 4. 测试分页机制
- *
- * ### 第四步：实现数据解析（预计1-2小时）
- * 1. 分析API响应的数据结构
- * 2. 更新 parseRecords() 方法
- * 3. 添加字段映射逻辑
- * 4. 处理特殊情况（赠送、保底等）
- *
- * ### 第五步：完整测试（预计2-3小时）
- * 1. 测试token验证
- * 2. 测试完整导入流程
- * 3. 测试增量导入
- * 4. 测试错误处理
- * 5. 验证数据准确性
- *
- * ## 参考资源：
- * - 明日方舟适配器实现: src/utils/arkImportAdapter.js
- * - EndfieldRecord项目: D:\Learning\Endfield Gacha\EndfieldRecord
- * - 数据解析工具: src/utils/importParsers.js
- */
-
-export default EndfieldOfficialApiAdapter;
