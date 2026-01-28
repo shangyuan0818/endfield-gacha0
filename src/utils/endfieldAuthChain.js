@@ -18,7 +18,7 @@
 // API 代理地址
 // 支持通过环境变量配置外部后端服务器
 const PROXY_BASE = import.meta.env.VITE_PROXY_URL 
-  ? `${import.meta.env.VITE_PROXY_URL}/api/hg-proxy`
+  ? `${import.meta.env.VITE_PROXY_URL.replace(/\/+$/, '')}/api/hg-proxy`  // 自动去除末尾斜杠
   : '/api/hg-proxy';
 
 // 调试：打印当前使用的代理地址
