@@ -188,6 +188,12 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
    * 处理 API 导入完成
    */
   const handleAPIImportComplete = useCallback(async (result) => {
+    console.log('[ImportManager] handleAPIImportComplete 被调用:', {
+      hasResult: !!result,
+      success: result?.success,
+      recordsCount: result?.records?.length
+    });
+
     if (!result.success || !result.records || result.records.length === 0) {
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage('没有获取到任何记录');
@@ -201,6 +207,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     }
 
     try {
+      console.log('[ImportManager] 开始保存数据...');
       setImportStatus(ImportStatus.SAVING);
       setSaveProgress({ current: 0, total: result.records.length });
 
@@ -315,15 +322,21 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         total: historyRecords.length
       });
 
+      // ⚠️ 修复：先设置结果和状态，确保组件能正确渲染成功页面
       setImportResult(finalResult);
-      setImportStatus(ImportStatus.SUCCESS);
 
-      console.log('[ImportManager] 导入状态已更新为 SUCCESS');
+      // 使用 setTimeout 确保状态更新在下一个事件循环中执行
+      // 避免与 onImportComplete 回调的状态更新冲突
+      setTimeout(() => {
+        setImportStatus(ImportStatus.SUCCESS);
+        console.log('[ImportManager] 导入状态已更新为 SUCCESS');
 
-      if (onImportComplete) {
-        console.log('[ImportManager] 调用 onImportComplete 回调');
-        onImportComplete(finalResult);
-      }
+        // 在状态更新后再调用回调
+        if (onImportComplete) {
+          console.log('[ImportManager] 调用 onImportComplete 回调');
+          onImportComplete(finalResult);
+        }
+      }, 100);
 
     } catch (error) {
       console.error('[ImportManager] 保存数据失败:', error);

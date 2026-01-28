@@ -140,13 +140,14 @@ const usePoolStore = create((set, get) => ({
    * 切换当前游戏账号
    */
   switchGameAccount: (gameUid) => {
-    set({ currentGameUid: gameUid });
-    // ⚠️ 修复：如果 gameUid 是 null，从 localStorage 中删除
-    // 避免保存字符串 "null"
-    if (gameUid === null || gameUid === undefined) {
+    // ⚠️ 修复：确保不会保存字符串 "null"
+    const normalizedUid = (!gameUid || gameUid === 'null' || gameUid === 'undefined') ? null : gameUid;
+    set({ currentGameUid: normalizedUid });
+
+    if (normalizedUid === null) {
       localStorage.removeItem('gacha_current_game_uid');
     } else {
-      localStorage.setItem('gacha_current_game_uid', gameUid);
+      localStorage.setItem('gacha_current_game_uid', normalizedUid);
     }
   },
 
