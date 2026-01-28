@@ -50,6 +50,56 @@ export class RiskControlError extends Error {
 }
 
 /**
+ * 服务器连接错误
+ */
+export class ServerConnectionError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ServerConnectionError';
+  }
+}
+
+/**
+ * 安全解析 JSON 响应
+ * @param {Response} response - fetch 响应对象
+ * @param {string} context - 上下文描述（用于错误信息）
+ * @returns {Promise<object>}
+ */
+async function safeParseJSON(response, context = 'API') {
+  // 检查响应状态
+  if (!response.ok && response.status === 0) {
+    throw new ServerConnectionError(
+      `无法连接到代理服务器，请检查后端服务是否已启动（npm run dev:full）`
+    );
+  }
+
+  // 获取响应文本
+  const text = await response.text();
+
+  // 检查是否为空响应
+  if (!text || text.trim() === '') {
+    throw new ServerConnectionError(
+      `${context}返回空响应，请检查后端代理服务器是否正常运行`
+    );
+  }
+
+  // 尝试解析 JSON
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // JSON 解析失败
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+      throw new ServerConnectionError(
+        `${context}返回了 HTML 页面而非 JSON，可能是代理服务器未启动或路由配置错误`
+      );
+    }
+    throw new ServerConnectionError(
+      `${context}返回了无效的 JSON 数据，请检查后端服务器状态。原始响应: ${text.substring(0, 100)}...`
+    );
+  }
+}
+
+/**
  * 步骤2: 使用 24 位 token 换取 app_token
  * @param {string} initialToken - 24位初始token
  * @returns {Promise<{appToken: string, uid: string}>}
@@ -63,7 +113,7 @@ export async function grantAppToken(initialToken) {
     body: JSON.stringify({ token: initialToken })
   });
 
-  const result = await response.json();
+  const result = await safeParseJSON(response, 'Grant API');
 
   if (result.riskControl) {
     throw new RiskControlError(result.error);
@@ -86,7 +136,7 @@ export async function fetchBindingList(appToken) {
     method: 'GET'
   });
 
-  const result = await response.json();
+  const result = await safeParseJSON(response, 'Bindings API');
 
   if (result.riskControl) {
     throw new RiskControlError(result.error);
@@ -114,7 +164,7 @@ export async function fetchU8Token(hgUid, appToken) {
     body: JSON.stringify({ uid: hgUid, appToken })
   });
 
-  const result = await response.json();
+  const result = await safeParseJSON(response, 'U8Token API');
 
   if (result.riskControl) {
     throw new RiskControlError(result.error);
@@ -158,7 +208,7 @@ export async function fetchRecordsPage(u8Token, options = {}) {
     method: 'GET'
   });
 
-  const result = await response.json();
+  const result = await safeParseJSON(response, 'Records API');
 
   if (result.riskControl) {
     throw new RiskControlError(result.error);
@@ -286,7 +336,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     })
   });
 
-  const result = await response.json();
+  const result = await safeParseJSON(response, 'Records Batch API');
 
   if (result.riskControl) {
     throw new RiskControlError(result.error);
@@ -318,7 +368,24 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     allRecords.push(...records);
   });
 
-  if (onProgress) onProgress(`全部记录获取完成，共 ${allRecords.length} 条`);
+  // 检查是否有失败的卡池
+  const failedPools = result.data.failed || [];
+  if (failedPools.length > 0) {
+    const failedNames = failedPools.map(f => {
+      if (f.type === 'weapon') return '武器池';
+      if (f.poolType?.includes('Special')) return '限定角色池';
+      if (f.poolType?.includes('Standard')) return '常驻角色池';
+      if (f.poolType?.includes('Beginner')) return '新手池';
+      return f.type || '未知卡池';
+    }).join('、');
+
+    if (onProgress) onProgress(`部分卡池获取失败: ${failedNames}，已获取 ${allRecords.length} 条记录`);
+
+    // 如果有记录则继续，但标记警告
+    console.warn('[fetchAllGachaRecordsConcurrent] 部分卡池失败:', failedPools);
+  } else {
+    if (onProgress) onProgress(`全部记录获取完成，共 ${allRecords.length} 条`);
+  }
 
   return allRecords;
 }
