@@ -294,6 +294,10 @@ const PoolSelector = () => {
         <ImportManager
           isOpen={showImportManager}
           onClose={() => setShowImportManager(false)}
+          onImportComplete={(result) => {
+            // 导入完成后不关闭弹窗，让用户看到成功页面
+            console.log('[PoolSelector] 导入完成:', result);
+          }}
         />
       )}
     </div>
