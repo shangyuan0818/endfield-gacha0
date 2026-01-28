@@ -455,6 +455,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           )}
 
           {/* 导入成功 */}
+          {console.log('[ImportManager] 检查渲染条件:', {
+            importStatus,
+            isSuccess: importStatus === ImportStatus.SUCCESS,
+            successValue: ImportStatus.SUCCESS,
+            hasResult: !!importResult,
+            shouldRender: importStatus === ImportStatus.SUCCESS && !!importResult
+          })}
           {importStatus === ImportStatus.SUCCESS && importResult && (
             <div className="space-y-6">
               {console.log('[ImportManager] 渲染导入成功页面:', { importStatus, hasResult: !!importResult })}
