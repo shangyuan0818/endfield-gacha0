@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import confetti from 'canvas-confetti';
 import { Plus, Trash2, Settings, History, Save, RotateCcw, BarChart3, Star, Calculator, Search, Download, Layers, FolderPlus, ChevronDown, X, AlertCircle, Upload, FileJson, CheckCircle2, LogIn, LogOut, User, Cloud, CloudOff, RefreshCw, UserPlus, Bell, FileText, Shield, Info, Moon, Sun, Monitor, Lock, Unlock, ExternalLink, Heart, Code, Sparkles, AlertTriangle, MessageSquare } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { syncManager } from './services/syncService';
@@ -13,6 +14,7 @@ import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } 
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
 import RainbowGradientDefs from './components/charts/RainbowGradientDefs';
 import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName, STORAGE_KEYS, hasNewContent, markAsViewed, getStorageItem, setStorageItem } from './utils';
+import { characterCache } from './utils/characterUtils';
 
 
 /**
@@ -33,24 +35,40 @@ const HeaderPoolTimeInfo = React.memo(() => {
 
   const { name, nextPool, isExpired, remainingDays = 0, remainingHours = 0, startsIn, startsInHours, isActive } = timeInfo;
   const isEndingSoon = remainingDays <= 3 && isActive && !isExpired;
-  // 修复：检查是否未开始（不是 isActive 且不是 isExpired，或者 startsIn/startsInHours 存在）
   const isNotStarted = !isActive && !isExpired && (startsIn !== undefined || startsInHours !== undefined);
 
   return (
-    <div className="hidden md:flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-800 px-3 py-1.5 rounded-none border border-zinc-200 dark:border-zinc-700 shrink-0">
-      <span className="text-orange-500 font-medium">{name}</span>
-      <span className="text-slate-300 dark:text-zinc-600">|</span>
-      {isNotStarted ? (
-        <span className="text-blue-500">{startsIn || 0}天{startsInHours || 0}小时后开始</span>
-      ) : isExpired ? (
-        <span className="text-red-500">已结束</span>
-      ) : isEndingSoon ? (
-        <span className="text-amber-500 animate-pulse">剩余 {remainingDays}天{remainingHours}小时</span>
-      ) : (
-        <span className="text-green-500">剩余 {remainingDays}天{remainingHours}小时</span>
+    <div className="hidden md:flex items-center gap-3 text-xs font-mono bg-zinc-50 dark:bg-zinc-900 px-4 py-1.5 border-l border-r border-zinc-200 dark:border-zinc-800 h-full">
+      <div className="flex items-center gap-2">
+        <span className={`px-1.5 py-0.5 text-[10px] font-bold uppercase ${isActive ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'}`}>
+          {isActive ? 'CURRENT' : 'UPCOMING'}
+        </span>
+        <span className="text-orange-600 dark:text-orange-400 font-bold">{name}</span>
+      </div>
+      
+      <div className="w-px h-3 bg-zinc-300 dark:bg-zinc-700"></div>
+      
+      <div className="text-zinc-500 dark:text-zinc-400">
+        {isNotStarted ? (
+          <span className="text-blue-500">T-{startsIn}D {startsInHours}H</span>
+        ) : isExpired ? (
+          <span className="text-red-500">ENDED</span>
+        ) : isEndingSoon ? (
+          <span className="text-amber-500 font-bold animate-pulse">{remainingDays}D {remainingHours}H LEFT</span>
+        ) : (
+          <span>{remainingDays}D {remainingHours}H LEFT</span>
+        )}
+      </div>
+
+      {nextPool && (
+        <>
+          <div className="w-px h-3 bg-zinc-300 dark:bg-zinc-700"></div>
+          <div className="flex items-center gap-1 text-zinc-400 dark:text-zinc-500">
+            <span className="text-[10px] uppercase">NEXT:</span>
+            <span>{nextPool}</span>
+          </div>
+        </>
       )}
-      <span className="text-slate-300 dark:text-zinc-600">→</span>
-      <span className="text-blue-500">{nextPool}</span>
     </div>
   );
 });
@@ -185,13 +203,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }, [poolsArray]);
 
-  // 当前卡池的历史记录（方案A：完全开放模式，显示该卡池的所有数据）
+  // 当前卡池的历史记录（只显示当前用户的数据）
   const currentPoolHistory = useMemo(() => {
     if (!currentPool) return [];
-    // 只按 poolId 过滤，不区分 user_id
-    // 这样所有用户都能看到该卡池的全部录入数据（适合协作场景）
-    return (history || []).filter(h => h.poolId === currentPoolId);
-  }, [history, currentPoolId, currentPool]);
+    // 只显示当前用户的数据
+    // 游客无法看到任何数据，登录用户只能看到自己的数据
+    if (!user) return [];
+    return (history || []).filter(h => h.poolId === currentPoolId && h.user_id === user.id);
+  }, [history, currentPoolId, currentPool, user]);
 
   // 文件上传 Ref
   const fileInputRef = useRef(null);
@@ -255,13 +274,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
         // 处理分类型数据
         const processTypeStats = (typeData) => {
-          if (!typeData) return { total: 0, six: 0, counts: {}, distribution: [], chartData: [], avgPity: null };
+          if (!typeData) return { total: 0, six: 0, counts: {}, distribution: [], chartData: [], avgPity: null, avgPityExcludingFree: null };
           return {
             total: typeData.total || 0,
             six: typeData.six || 0,
             sixStarLimited: typeData.sixStarLimited || 0,
             sixStarStandard: typeData.sixStarStandard || 0,
             avgPity: typeData.avgPity || null,
+            avgPityExcludingFree: typeData.avgPityExcludingFree || null,
             counts: typeData.counts || {},
             distribution: processDistribution(typeData.distribution),
             chartData: generateChartData(typeData.counts)
@@ -329,12 +349,21 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           });
         };
 
+        // 计算合并的不含免费的平均出货（加权平均）
+        let characterAvgPityExclFree = null;
+        if (totalSix > 0 && (limitedStats.avgPityExcludingFree || standardStats.avgPityExcludingFree)) {
+          const limitedAvgExcl = Number(limitedStats.avgPityExcludingFree) || Number(limitedStats.avgPity) || 0;
+          const standardAvgExcl = Number(standardStats.avgPityExcludingFree) || Number(standardStats.avgPity) || 0;
+          characterAvgPityExclFree = ((limitedAvgExcl * limitedSix + standardAvgExcl * standardSix) / totalSix).toFixed(1);
+        }
+
         stats.byType.character = {
           total: limitedStats.total + standardStats.total,
           six: limitedStats.six + standardStats.six,
           sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
           sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
           avgPity: characterAvgPity,
+          avgPityExcludingFree: characterAvgPityExclFree,
           counts: {
             '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
             '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
@@ -379,19 +408,27 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, []);
 
-  // 从云端加载数据（方案A：所有用户包括游客都能查看所有数据）
-  const loadCloudData = useCallback(async () => {
+  // 从云端加载数据（只加载当前用户的数据）
+  const loadCloudData = useCallback(async (targetUser = null) => {
     if (!supabase) return null;
+
+    // 使用传入的用户或当前用户
+    const currentUser = targetUser || user;
+
+    // 未登录用户不加载数据
+    if (!currentUser) {
+      return { pools: [], history: [] };
+    }
 
     setSyncing(true);
     setSyncError(null);
 
     try {
-      // 方案A：所有用户（包括游客）都加载所有卡池（查看权限完全开放）
-      // RLS 策略已设置为 true，允许匿名访问
+      // 只加载当前用户的卡池
       let poolQuery = supabase
         .from('pools')
-        .select('*');
+        .select('*')
+        .eq('user_id', currentUser.id);
 
       const { data: cloudPools, error: poolsError } = await poolQuery;
 
@@ -420,10 +457,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        // 方案A：加载所有历史记录（不限制 user_id）
+        // 只加载当前用户的历史记录
         let historyQuery = supabase
           .from('history')
           .select('*')
+          .eq('user_id', currentUser.id)
           .order('record_id', { ascending: true })
           .range(from, to);
 
@@ -469,9 +507,23 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         timestamp: h.timestamp,
         poolId: h.pool_id,
         user_id: h.user_id,  // 保留 user_id 用于判断归属
-        character_name: h.character_name,  // 角色名称（用于角色出货统计）
-        item_name: h.item_name,            // 物品名称（武器等）
-        batch_id: h.batch_id               // 批次ID（用于分组显示）
+        // 名称字段（用于显示）
+        name: h.character_name || h.item_name,  // 主要显示字段
+        character_name: h.character_name,       // 角色名称
+        item_name: h.item_name,                 // 物品名称
+        character_id: h.character_id,           // 可选：关联 characters 表
+        // V2 新增字段
+        batchId: h.batch_id,                    // 批次ID（用于分组显示）
+        batch_id: h.batch_id,
+        seqId: h.seq_id,                        // 官方序列ID（去重用）
+        seq_id: h.seq_id,
+        pity: h.pity || 0,                      // 当时的垫刀数
+        isNew: h.is_new || false,               // 是否新获得
+        is_new: h.is_new,
+        isFree: h.is_free || false,             // 是否免费
+        is_free: h.is_free,
+        gameUid: h.game_uid,                    // 游戏账号UID
+        game_uid: h.game_uid
       }));
 
       return { pools: formattedPools, history: formattedHistory };
@@ -501,6 +553,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       }
 
       try {
+        // 预加载角色缓存（确保头像数据可用）
+        await characterCache.load();
+
         // 获取当前会话
         const { data: { session } } = await supabase.auth.getSession();
         setUser(session?.user ?? null);
@@ -513,23 +568,25 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         // 获取全局统计（使用 RPC 函数，无需等待认证同步）
         await fetchGlobalStats();
 
-        // 方案A：加载云端数据（包括游客）
-        const cloudData = await loadCloudData();
-        if (cloudData && cloudData.pools.length > 0) {
-          setPools(cloudData.pools);
+        // 只有登录用户才加载数据
+        if (session?.user) {
+          const cloudData = await loadCloudData(session.user);
+          if (cloudData && cloudData.pools.length > 0) {
+            setPools(cloudData.pools);
 
-          const hasCurrent = cloudData.pools.some(p => p.id === currentPoolId);
-          const defaultPool = cloudData.pools.find(p => p.id === DEFAULT_POOL_ID);
-          const fallbackId = hasCurrent
-            ? currentPoolId
-            : defaultPool
-              ? defaultPool.id
-              : cloudData.pools[0].id;
-          switchPool(fallbackId);
-          localStorage.setItem('gacha_current_pool_id', fallbackId);
+            const hasCurrent = cloudData.pools.some(p => p.id === currentPoolId);
+            const defaultPool = cloudData.pools.find(p => p.id === DEFAULT_POOL_ID);
+            const fallbackId = hasCurrent
+              ? currentPoolId
+              : defaultPool
+                ? defaultPool.id
+                : cloudData.pools[0].id;
+            switchPool(fallbackId);
+            localStorage.setItem('gacha_current_pool_id', fallbackId);
 
-          if (cloudData.history.length > 0) {
-            setHistory(cloudData.history);
+            if (cloudData.history.length > 0) {
+              setHistory(cloudData.history);
+            }
           }
         }
       } catch (error) {
@@ -887,8 +944,20 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         pool_id: r.poolId,
         rarity: r.rarity,
         is_standard: r.isStandard,
-        special_type: r.specialType,
-        timestamp: r.timestamp,
+        // 名称字段
+        character_name: r.character_name || r.name || null,
+        item_name: r.item_name || r.name || r.character_name || null,
+        // V2 新增字段
+        batch_id: r.batchId || r.batch_id || null,
+        seq_id: r.seqId || r.seq_id || null,
+        pity: r.pity || 0,
+        is_new: r.isNew || r.is_new || false,
+        is_free: r.isFree || r.is_free || false,
+        game_uid: r.gameUid || r.game_uid || null,
+        // 时间戳
+        timestamp: typeof r.timestamp === 'number'
+          ? new Date(r.timestamp).toISOString()
+          : r.timestamp,
         updated_at: new Date().toISOString()
       }));
 
@@ -1012,16 +1081,15 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, [user, pools, history, savePoolToCloud, saveHistoryToCloud]);
 
-  // 登录后处理：检查云端数据并决定是否迁移（方案A：所有用户都加载所有数据）
+  // 登录后处理：加载当前用户的云端数据
   const handlePostLogin = useCallback(async (loggedInUser) => {
     if (!loggedInUser) return;
 
-    // 方案A：所有用户都加载所有数据（游客模式下已在初始化时加载）
-    const cloudData = await loadCloudData();
+    // 加载当前用户的数据
+    const cloudData = await loadCloudData(loggedInUser);
 
     if (cloudData) {
       const hasCloudData = cloudData.pools.length > 0 || cloudData.history.length > 0;
-      const hasLocalData = history.length > 0;
 
       if (hasCloudData) {
         // 云端有数据，直接加载云端数据
@@ -1032,12 +1100,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         if (cloudData.history.length > 0) {
           setHistory(cloudData.history);
         }
-      } else if (hasLocalData) {
-        // 云端无数据但本地有，询问是否迁移
-        setShowMigrateModal(true);
       }
+      // 移除本地数据迁移逻辑（不再使用 localStorage 存储历史数据）
     }
-  }, [history, loadCloudData]);
+  }, [loadCloudData]);
 
   // 监听用户登录状态变化，登录后加载云端数据
   const prevUserRef = useRef(null);
@@ -1049,16 +1115,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     prevUserRef.current = user;
   }, [user, handlePostLogin]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      localStorage.setItem('gacha_history_v2', JSON.stringify(history));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [history]);
-
-  useEffect(() => {
-    localStorage.setItem('gacha_pools', JSON.stringify(pools));
-  }, [pools]);
+  // 注意：历史记录和卡池列表不再保存到 localStorage，只存储在服务器端
+  // 仅保留 UI 状态（当前选中卡池ID）在 localStorage
 
   useEffect(() => {
     localStorage.setItem('gacha_current_pool_id', currentPoolId);
@@ -2104,21 +2162,23 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       <LoadingBar isLoading={syncing || globalStatsLoading} />
 
       {/* 顶部导航 */}
-      <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 shadow-sm">
-        <div className="w-full max-w-[1440px] mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-40 shadow-sm dark:shadow-md">
+        {/* 背景装饰网格 */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+
+        <div className="w-full max-w-[1440px] mx-auto px-4 h-16 flex items-center justify-between relative z-10">
           
-          {/* 左侧：Logo + 卡池切换器 */}
+          {/* 左侧：Logo + 标题 */}
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <div className="flex items-center gap-3">
-              <img
-                src="/endfield-logo.svg"
-                alt="终末地"
-                className="h-10 w-auto dark:invert"
-              />
-              <div className="hidden sm:block h-8 w-px bg-slate-200"></div>
-              <div className="hidden sm:flex items-center gap-1.5 text-slate-600 dark:text-zinc-400">
-                <BarChart3 size={18} className="text-indigo-500" />
-                <h1 className="font-bold">抽卡分析器</h1>
+              <div className="w-8 h-8 bg-endfield-yellow flex items-center justify-center rounded-sm shadow-sm dark:shadow-[0_0_10px_rgba(255,204,0,0.3)]">
+                <BarChart3 className="text-black w-5 h-5" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-none">
+                  ENDFIELD <span className="text-amber-500 dark:text-endfield-yellow">GACHA</span>
+                </h1>
+                <span className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono tracking-[0.2em] uppercase block">Analyzer System</span>
               </div>
             </div>
 
@@ -2131,46 +2191,49 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
               <button
                 onClick={() => {
                   setActiveTab('home');
-                  // 点击首页后，如果有新公告，标记为已查看
                   if (hasNewAnnouncement) {
                     markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
                     setHasNewAnnouncement(false);
                   }
                 }}
-                className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'home' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+                className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                  activeTab === 'home' 
+                    ? 'bg-endfield-yellow text-black shadow-sm dark:shadow-[0_0_10px_rgba(255,204,0,0.2)]' 
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+                }`}
               >
                 首页
               </button>
             </NotificationBadge>
             <button
               onClick={() => setActiveTab('summary')}
-              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'summary' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+              className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'summary' 
+                  ? 'bg-endfield-yellow text-black shadow-sm dark:shadow-[0_0_10px_rgba(255,204,0,0.2)]' 
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+              }`}
             >
               统计
             </button>
             <button
               onClick={() => setActiveTab('dashboard')}
-              className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'dashboard' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+              className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'dashboard' 
+                  ? 'bg-endfield-yellow text-black shadow-sm dark:shadow-[0_0_10px_rgba(255,204,0,0.2)]' 
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+              }`}
             >
               卡池详情
             </button>
             <button
               onClick={() => setActiveTab('simulator')}
-              className={`relative overflow-hidden text-sm font-black italic px-3 py-1.5 rounded-none transition-all border ${
-                activeTab === 'simulator'
-                  ? 'bg-zinc-900 dark:bg-black border-endfield-yellow'
-                  : 'border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'simulator' 
+                  ? 'bg-endfield-yellow text-black shadow-sm dark:shadow-[0_0_10px_rgba(255,204,0,0.2)]' 
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
               }`}
             >
-              {/* 彩虹流光背景层 */}
-              <div className="absolute inset-0 opacity-30">
-                <div className="absolute inset-0 rainbow-flow-bg"></div>
-              </div>
-
-              {/* 文字层 - 使用自定义彩虹渐变类 */}
-              <span className="relative z-10 text-base rainbow-flow-text font-black">
-                模拟器
-              </span>
+              模拟器
             </button>
 
             {/* 超管管理页面 */}
@@ -2179,10 +2242,13 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 <button
                   onClick={() => {
                     setActiveTab('admin');
-                    // 点击管理面板后标记为已查看（申请数量会在处理后自动减少）
                     markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
                   }}
-                  className={`text-sm font-medium px-3 py-1.5 rounded-none transition-colors ${activeTab === 'admin' ? 'bg-red-50 text-red-700' : 'text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:text-zinc-100'}`}
+                  className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                    activeTab === 'admin' 
+                      ? 'bg-red-600 text-white' 
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-white/5'
+                  }`}
                 >
                   管理
                 </button>
@@ -2195,11 +2261,14 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
                 <button
                   onClick={() => {
                     setActiveTab('tickets');
-                    // 点击工单面板后标记为已查看
                     markAsViewed(STORAGE_KEYS.TICKETS_LAST_VIEWED);
                     setUnreadTicketsCount(0);
                   }}
-                  className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'tickets' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
+                  className={`text-sm font-medium px-2 py-1.5 rounded-sm transition-all duration-200 ${
+                    activeTab === 'tickets' 
+                      ? 'bg-indigo-600 text-white' 
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-white/5'
+                  }`}
                   title="工单"
                 >
                   <MessageSquare size={18} />
@@ -2208,14 +2277,22 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             )}
             <button
               onClick={() => setActiveTab('settings')}
-              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'settings' ? 'bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-100' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
+              className={`text-sm font-medium px-2 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'settings' 
+                  ? 'bg-slate-100 dark:bg-zinc-800 text-amber-600 dark:text-endfield-yellow border border-amber-500 dark:border-endfield-yellow' 
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
+              }`}
               title="设置"
             >
               <Settings size={18} />
             </button>
             <button
               onClick={() => setActiveTab('about')}
-              className={`text-sm font-medium px-2 py-1.5 rounded-none transition-colors ${activeTab === 'about' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300' : 'text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400'}`}
+              className={`text-sm font-medium px-2 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'about' 
+                  ? 'bg-yellow-50 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400' 
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-white/5'
+              }`}
               title="关于"
             >
               <Info size={18} />
@@ -2225,56 +2302,48 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
             <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-200 dark:border-zinc-800">
               {isSupabaseConfigured() ? (
                 user ? (
-                  <div className="flex items-center gap-2">
-                    {/* 角色标签 */}
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold hidden sm:inline ${
-                      userRole === 'super_admin' ? 'bg-red-100 text-red-600' :
-                      userRole === 'admin' ? 'bg-green-100 text-green-600' :
-                      'bg-slate-100 text-slate-500 dark:text-zinc-500'
-                    }`}>
-                      {userRole === 'super_admin' ? '超管' :
-                       userRole === 'admin' ? '管理' : '用户'}
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-zinc-500 hidden sm:inline">
-                      {user.user_metadata?.username || user.email?.split("@")[0]}
-                    </span>
-                    {/* 申请按钮 - 仅普通用户且未申请时显示 */}
-                    {userRole === 'user' && applicationStatus !== 'pending' && (
-                      <button
-                        onClick={() => setShowApplyModal(true)}
-                        className="flex items-center gap-1 text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded transition-colors"
-                        title="申请成为管理员"
-                      >
-                        <UserPlus size={14} />
-                        <span className="hidden sm:inline">申请</span>
-                      </button>
-                    )}
-                    {/* 申请待审核状态 */}
+                  <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex flex-col items-end">
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{user.user_metadata?.username || user.email?.split('@')[0]}</span>
+                      <span className="text-[10px] text-amber-600 dark:text-endfield-yellow uppercase tracking-wider font-mono">
+                        {(userRole === 'super_admin' || userRole === 'admin') ? 'Super-Endmin' : 'Endmin'}
+                      </span>
+                    </div>
+                    
                     {applicationStatus === 'pending' && (
-                      <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">
+                      <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded border border-yellow-200 dark:border-yellow-900/50">
                         审核中
                       </span>
                     )}
+                    
                     <button
                       onClick={handleLogout}
-                      className="flex items-center gap-1 text-sm text-slate-500 dark:text-zinc-500 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                      className="p-1.5 text-slate-400 dark:text-zinc-500 hover:text-red-500 transition-colors"
                       title="退出登录"
                     >
-                      <LogOut size={16} />
+                      <LogOut size={18} />
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={openAuthModal}
-                    className="flex items-center gap-1 text-sm bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-3 py-1.5 rounded-none transition-colors"
-                  >
-                    <LogIn size={16} />
-                    <span className="hidden sm:inline">登录</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex flex-col items-end">
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">游客</span>
+                      <span className="text-[10px] text-slate-500 dark:text-zinc-500 uppercase tracking-wider font-mono">
+                        GUEST
+                      </span>
+                    </div>
+                    <button
+                      onClick={openAuthModal}
+                      className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow hover:bg-yellow-400 text-black text-sm font-bold uppercase tracking-wider rounded-sm transition-colors shadow-sm dark:shadow-lg dark:shadow-yellow-500/20"
+                    >
+                      <LogIn size={16} />
+                      <span className="hidden sm:inline">登录</span>
+                    </button>
+                  </div>
                 )
               ) : (
-                <span className="text-xs text-slate-400 dark:text-zinc-500 flex items-center gap-1" title="未配置 Supabase">
-                  <CloudOff size={14} /> 本地模式
+                <span className="text-xs text-slate-400 dark:text-zinc-500 flex items-center gap-1 font-mono" title="未配置 Supabase">
+                  <CloudOff size={14} /> LOCAL MODE
                 </span>
               )}
             </div>
@@ -2283,40 +2352,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       </div>
 
       <main className="w-full max-w-[1440px] mx-auto px-4 py-8">
-
-        {/* 无数据提示（方案A：引导游客和新用户） */}
-        {pools.length === 0 && (
-          <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-none p-6 text-center">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-              <AlertCircle size={32} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2 text-lg">暂无卡池数据</h3>
-            <p className="text-sm text-blue-700 dark:text-blue-400/80 mb-4">
-              {user ? (
-                canEdit
-                  ? '作为管理员，您可以创建新卡池并开始录入数据。点击顶部导航栏的卡池切换器即可创建。'
-                  : '当前系统暂无数据。如需录入数据，请申请成为管理员后创建卡池。'
-              ) : (
-                '当前系统暂无数据。登录后可申请成为管理员并开始录入抽卡记录。'
-              )}
-            </p>
-            {!user ? (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-none text-sm transition-colors"
-              >
-                登录/注册
-              </button>
-            ) : !canEdit && (
-              <button
-                onClick={() => setShowApplyModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-none text-sm transition-colors"
-              >
-                申请成为管理员
-              </button>
-            )}
-          </div>
-        )}
 
         {activeTab === 'home' ? (
           <HomePage user={user} canEdit={canEdit} announcements={announcements} />
@@ -2344,176 +2379,86 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <TicketPanel user={user} userRole={userRole} showToast={showToast} />
         ) : (
           <>
-            {/* 非管理员提示 */}
-            {!canEdit && (
-              <div className="mb-8 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-none p-6 text-center">
-                <Shield size={40} className="mx-auto text-slate-300 mb-3" />
-                <h3 className="font-bold text-slate-600 dark:text-zinc-400 mb-2">数据录入仅限管理员</h3>
-                <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                  {user ? (
-                    applicationStatus === 'pending'
-                      ? '您的管理员申请正在审核中，请耐心等待。'
-                      : '如需录入数据，请点击右上角申请成为管理员。'
-                  ) : (
-                    '请先登录，然后申请成为管理员。'
-                  )}
+            {/* 游客提示 - 未登录时显示 */}
+            {!user && (
+              <div className="mb-8 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-zinc-900 dark:to-zinc-950 border border-amber-200 dark:border-amber-900/50 rounded-none p-8 text-center">
+                <div className="w-16 h-16 bg-endfield-yellow/20 dark:bg-endfield-yellow/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <LogIn size={32} className="text-amber-600 dark:text-endfield-yellow" />
+                </div>
+                <h3 className="font-bold text-xl text-slate-800 dark:text-zinc-100 mb-3">登录后即可导入抽卡数据</h3>
+                <p className="text-sm text-slate-600 dark:text-zinc-400 mb-6 max-w-md mx-auto">
+                  注册并登录后，您可以导入自己的抽卡记录进行分析。
+                  <br/>数据安全存储在云端，可在任意设备访问。
                 </p>
-                {!user && (
+                <div className="flex gap-3 justify-center">
                   <button
                     onClick={openAuthModal}
-                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-4 py-2 rounded-none text-sm transition-colors"
+                    className="bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider px-6 py-3 rounded-none text-sm transition-colors shadow-lg shadow-yellow-500/20"
                   >
-                    登录
+                    立即登录 / 注册
                   </button>
-                )}
+                </div>
+                <p className="text-xs text-slate-400 dark:text-zinc-500 mt-4">
+                  已有账号？点击上方按钮登录
+                </p>
               </div>
             )}
 
             {/* 卡池锁定提示 - 管理员但卡池被锁定 */}
-            {canEdit && !canEditCurrentPool && (
-              <div className="mb-8 bg-amber-50 border border-amber-200 rounded-none p-6 text-center">
+            {user && canEdit && !canEditCurrentPool && (
+              <div className="mb-8 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-none p-6 text-center">
                 <Lock size={40} className="mx-auto text-amber-400 mb-3" />
-                <h3 className="font-bold text-amber-700 mb-2">此卡池已被锁定</h3>
-                <p className="text-sm text-amber-600">
+                <h3 className="font-bold text-amber-700 dark:text-amber-400 mb-2">此卡池已被锁定</h3>
+                <p className="text-sm text-amber-600 dark:text-amber-500">
                   卡池「{currentPool?.name}」已被超级管理员锁定，暂时无法编辑。
                   <br/>如需修改，请联系超级管理员解锁。
                 </p>
               </div>
             )}
 
-            {activeTab === 'dashboard' && (
-              <>
-                {/* 卡池详情页面施工中提示 */}
-                <div className="max-w-4xl mx-auto mt-8">
-                  <div className="bg-white dark:bg-endfield-panel border border-zinc-200 dark:border-endfield-border rounded-none shadow-none relative overflow-hidden">
-                    {/* 顶部装饰条 */}
-                    <div className="h-1 w-full bg-endfield-yellow absolute top-0 left-0"></div>
+            {activeTab === 'dashboard' && user && (
+              <div className="animate-fade-in">
+                <DashboardView
+                  currentPool={currentPool}
+                  stats={stats}
+                  effectivePity={effectivePity}
+                />
 
-                    {/* 装饰性背景元素 */}
-                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none select-none">
-                      <Settings size={300} className="text-black dark:text-white" />
+                {/* 详细日志 - 默认折叠 */}
+                <div className="mt-6">
+                  <details className="group">
+                    <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+                      <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                        <History size={18} /> 详细日志
+                      </span>
+                      <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
+                    </summary>
+                    <div className="mt-2">
+                      <RecordsView
+                        filteredGroupedHistory={filteredGroupedHistory}
+                        currentPool={currentPool}
+                        canEditCurrentPool={canEditCurrentPool}
+                        onEdit={setEditItemState}
+                        onDeleteGroup={handleDeleteGroup}
+                        onImportFile={handleImportFile}
+                        onExportJSON={handleExportJSON}
+                        onExportCSV={handleExportCSV}
+                      />
                     </div>
-
-                    <div className="p-8 md:p-12 relative z-10">
-                      {/* 施工图标 - 工业风 */}
-                      <div className="flex justify-center mb-8">
-                        <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-6 rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,0.1)] dark:shadow-[4px_4px_0px_0px_rgba(255,250,0,0.1)]">
-                          <Settings size={48} className="text-zinc-800 dark:text-endfield-yellow animate-spin" style={{ animationDuration: '8s' }} />
-                        </div>
-                      </div>
-
-                      {/* 标题 */}
-                      <h2 className="text-3xl md:text-4xl font-black text-center text-zinc-900 dark:text-white mb-2 uppercase tracking-tighter">
-                        SYSTEM UPGRADE
-                      </h2>
-                      <h3 className="text-sm font-mono text-center text-zinc-500 dark:text-endfield-muted uppercase tracking-[0.2em] mb-8">
-                        卡池详情页面重构中
-                      </h3>
-
-                      {/* 说明文字 */}
-                      <div className="max-w-2xl mx-auto mb-10">
-                        <p className="text-base text-zinc-600 dark:text-zinc-300 mb-6 text-center font-medium">
-                          为了提供更好的数据导入和展示体验，我们正在重构卡池详情系统。
-                        </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                            <span className="font-mono text-endfield-yellow font-bold text-xl">01</span>
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300">支持官网API/截图OCR导入</p>
-                          </div>
-                          <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                            <span className="font-mono text-endfield-yellow font-bold text-xl">02</span>
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300">自动识别角色和卡池类型</p>
-                          </div>
-                          <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                            <span className="font-mono text-endfield-yellow font-bold text-xl">03</span>
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300">动态卡池管理与云同步</p>
-                          </div>
-                          <div className="flex items-center gap-3 p-4 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-100 dark:border-zinc-800 transition-colors hover:border-endfield-yellow/50">
-                            <span className="font-mono text-endfield-yellow font-bold text-xl">04</span>
-                            <p className="text-sm text-zinc-700 dark:text-zinc-300">强大的可视化统计分析</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 引导按钮 */}
-                      <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                        <button
-                          onClick={() => setActiveTab('simulator')}
-                          className="flex items-center justify-center gap-2 px-8 py-3 bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] hover:shadow-lg min-w-[200px]"
-                        >
-                          <Sparkles size={18} />
-                          <span>体验模拟器</span>
-                        </button>
-
-                        <button
-                          onClick={() => setActiveTab('home')}
-                          className="flex items-center justify-center gap-2 px-8 py-3 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-bold uppercase tracking-wider rounded-none transition-all hover:translate-y-[-2px] min-w-[200px]"
-                        >
-                          <Star size={18} />
-                          <span>返回首页</span>
-                        </button>
-                      </div>
-
-                      {/* 预计完成时间 */}
-                      <div className="mt-8 pt-6 border-t border-zinc-100 dark:border-zinc-800 text-center">
-                        <span className="inline-block px-2 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 text-s font-mono uppercase">
-                          预计完成时间：公测前
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                  </details>
                 </div>
 
-                {/* 原有内容暂时隐藏 */}
-                {false && (
-                  <div className="animate-fade-in">
-                    <DashboardView
-                      currentPool={currentPool}
-                      stats={stats}
-                      effectivePity={effectivePity}
-                      onOpenEditPoolModal={openEditPoolModal}
-                      onOpenDeletePoolModal={openDeletePoolModal}
-                      onTogglePoolLock={togglePoolLock}
-                    />
-
-                    {/* 详细日志 - 默认折叠 */}
-                    <div className="mt-6">
-                      <details className="group">
-                        <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-                          <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                            <History size={18} /> 详细日志
-                          </span>
-                          <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
-                        </summary>
-                        <div className="mt-2">
-                          <RecordsView
-                            filteredGroupedHistory={filteredGroupedHistory}
-                            currentPool={currentPool}
-                            canEditCurrentPool={canEditCurrentPool}
-                            onEdit={setEditItemState}
-                            onDeleteGroup={handleDeleteGroup}
-                            onImportFile={handleImportFile}
-                            onExportJSON={handleExportJSON}
-                            onExportCSV={handleExportCSV}
-                          />
-                        </div>
-                      </details>
-                    </div>
-
-                    {/* 编辑弹窗 */}
-                    {editItemState && (
-                      <EditItemModal
-                        item={editItemState}
-                        poolType={currentPool.type}
-                        onClose={() => setEditItemState(null)}
-                        onUpdate={handleUpdateItem}
-                        onDelete={handleDeleteItem}
-                      />
-                    )}
-                  </div>
+                {/* 编辑弹窗 */}
+                {editItemState && (
+                  <EditItemModal
+                    item={editItemState}
+                    poolType={currentPool.type}
+                    onClose={() => setEditItemState(null)}
+                    onUpdate={handleUpdateItem}
+                    onDelete={handleDeleteItem}
+                  />
                 )}
-              </>
+              </div>
             )}
         </>
       )}

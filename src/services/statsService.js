@@ -221,3 +221,59 @@ export function subscribeToUrgentButtonClicks(callback) {
   return createUrgentClicksPoller(callback, 30000);
 }
 
+/**
+ * 获取角色出货排名统计
+ * @returns {Promise<Object>} 角色排名数据
+ */
+export async function getCharacterRankingStats() {
+  try {
+    if (!supabase) {
+      console.warn('[statsService] Supabase 未配置，无法获取角色排名');
+      return null;
+    }
+
+    const { data, error } = await supabase.rpc('get_character_ranking_stats');
+
+    if (error) {
+      console.error('[statsService] 获取角色排名失败:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[statsService] 获取角色排名异常:', error);
+    return null;
+  }
+}
+
+/**
+ * 获取用户个人出货排名统计
+ * @param {string} userId - 用户ID
+ * @returns {Promise<Object>} 用户个人排名数据
+ */
+export async function getUserRankingStats(userId) {
+  try {
+    if (!supabase) {
+      console.warn('[statsService] Supabase 未配置，无法获取用户排名');
+      return null;
+    }
+
+    if (!userId) {
+      console.warn('[statsService] 未提供用户ID');
+      return null;
+    }
+
+    const { data, error } = await supabase.rpc('get_user_ranking_stats', { p_user_id: userId });
+
+    if (error) {
+      console.error('[statsService] 获取用户排名失败:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[statsService] 获取用户排名异常:', error);
+    return null;
+  }
+}
+
