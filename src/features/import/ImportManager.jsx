@@ -150,6 +150,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         is_new: Boolean(r.isNew),
         is_free: Boolean(r.isFree),
         game_uid: r.gameUid || null,
+        nick_name: r.nickName || null,  // 添加昵称
         timestamp: typeof r.timestamp === 'number'
           ? new Date(r.timestamp).toISOString()
           : new Date(r.timestamp).toISOString(),
@@ -290,6 +291,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           isNew: record.isNew || false,
           isFree: record.isFree || false,
           gameUid: result.userInfo?.gameUid || result.userInfo?.hgUid || null,
+          nickName: result.userInfo?.nickName || null,  // 添加昵称
           timestamp: record.timestamp,
           created_at: new Date().toISOString()
         };

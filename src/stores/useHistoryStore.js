@@ -230,7 +230,7 @@ const useHistoryStore = create((set, get) => ({
         if (!accountMap.has(h.game_uid)) {
           accountMap.set(h.game_uid, {
             gameUid: h.game_uid,
-            nickName: h.game_uid, // 默认使用UID作为昵称
+            nickName: h.nick_name || h.game_uid, // 优先使用 nick_name，否则使用 UID
             recordCount: 0
           });
         }

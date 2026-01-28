@@ -523,7 +523,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         isFree: h.is_free || false,             // 是否免费
         is_free: h.is_free,
         gameUid: h.game_uid,                    // 游戏账号UID
-        game_uid: h.game_uid
+        game_uid: h.game_uid,
+        nickName: h.nick_name,                  // 游戏账号昵称
+        nick_name: h.nick_name
       }));
 
       return { pools: formattedPools, history: formattedHistory };
