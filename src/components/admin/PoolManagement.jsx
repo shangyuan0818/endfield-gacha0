@@ -303,18 +303,17 @@ const PoolManagement = ({ showToast }) => {
     setActionLoading('recalculate');
 
     try {
-      // 1. 构建 poolId -> UP角色 的映射
-      const poolUpCharacterMap = new Map();
+      // 1. 构建 poolId -> 卡池信息 的映射（包含 type 和 up_character）
+      const poolInfoMap = new Map();
       pools.forEach(pool => {
-        if (pool.up_character) {
-          // 使用 pool_id 作为 key
-          poolUpCharacterMap.set(pool.pool_id, pool.up_character);
-        }
+        poolInfoMap.set(pool.pool_id, {
+          type: pool.type,
+          up_character: pool.up_character
+        });
       });
 
-
-      if (poolUpCharacterMap.size === 0) {
-        showToast('没有卡池设置了UP角色，请先在卡池管理中设置UP角色', 'warning');
+      if (poolInfoMap.size === 0) {
+        showToast('没有找到卡池信息，请先创建卡池', 'warning');
         return;
       }
 
@@ -331,7 +330,6 @@ const PoolManagement = ({ showToast }) => {
         return;
       }
 
-
       // 3. 计算每条记录的新 isStandard 值
       const updates = [];
       let changedCount = 0;
@@ -339,26 +337,35 @@ const PoolManagement = ({ showToast }) => {
       for (const record of records) {
         const poolId = record.pool_id;
         const characterName = record.character_name || record.item_name || '';
-        const upCharacter = poolUpCharacterMap.get(poolId);
+        const poolInfo = poolInfoMap.get(poolId);
 
         // 判断是否为常驻
         let newIsStandard;
 
-        // 检查是否为限定池
-        const isLimitedPool = poolId?.toLowerCase().includes('special') ||
-                             poolId?.toLowerCase().includes('weponbox') ||
-                             poolId?.toLowerCase().includes('weapon');
-
-        if (!isLimitedPool) {
-          // 非限定池（常驻池/新手池）的6星都算常驻
-          newIsStandard = true;
-        } else if (upCharacter) {
-          // 限定池有UP角色，检查是否匹配
-          // 如果角色名不匹配UP角色，则为常驻（被歪了）
-          newIsStandard = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
-        } else {
-          // 限定池但没有UP角色信息，保持原样或默认为限定
+        if (!poolInfo) {
+          // 找不到卡池信息，保持原值
           newIsStandard = record.is_standard ?? false;
+        } else {
+          const poolType = poolInfo.type;
+          const upCharacter = poolInfo.up_character;
+
+          // 根据卡池类型判断
+          if (poolType === 'standard' || poolType === 'beginner') {
+            // 常驻池/新手池的6星都算常驻
+            newIsStandard = true;
+          } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+            // 限定池：检查是否匹配UP角色
+            if (upCharacter) {
+              // 如果角色名不匹配UP角色，则为常驻（被歪了）
+              newIsStandard = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+            } else {
+              // 限定池但没有UP角色信息，默认为限定
+              newIsStandard = false;
+            }
+          } else {
+            // 其他类型，保持原值
+            newIsStandard = record.is_standard ?? false;
+          }
         }
 
         // 如果值有变化，添加到更新列表
