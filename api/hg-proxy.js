@@ -350,13 +350,19 @@ async function handleU8Token(req, res) {
     });
   }
 
-  if (data.code !== 0) {
-    const errorMsg = getErrorMessage(data.code, data.msg, '获取访问凭证');
+  // 兼容两种响应格式：优先检查 status，其次检查 code
+  const hasError = (data.status !== undefined && data.status !== 0) ||
+                   (data.code !== undefined && data.code !== 0);
+
+  if (hasError) {
+    const errorCode = data.code !== undefined ? data.code : data.status;
+    const errorMsg = getErrorMessage(errorCode, data.msg, '获取访问凭证');
     console.error('[hg-proxy] U8Token failed:', {
       code: data.code,
       status: data.status,
       msg: data.msg,
       uid: uid?.substring(0, 8) + '...',
+      errorCode,
       friendlyMsg: errorMsg
     });
     return res.status(400).json({
@@ -366,7 +372,7 @@ async function handleU8Token(req, res) {
         code: data.code,
         status: data.status,
         originalMessage: data.msg,
-        hint: data.code === 1 ? 'Token可能已过期或账号不匹配，请重新获取24位Token' : undefined
+        hint: errorCode === 1 ? 'Token可能已过期或账号不匹配，请重新获取24位Token' : undefined
       }
     });
   }
