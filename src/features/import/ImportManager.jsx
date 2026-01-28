@@ -308,10 +308,20 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         userInfo: result.userInfo
       };
 
+      console.log('[ImportManager] 准备设置导入成功状态:', {
+        importStatus: 'SUCCESS',
+        hasResult: !!finalResult,
+        newRecords: newRecords.length,
+        total: historyRecords.length
+      });
+
       setImportResult(finalResult);
       setImportStatus(ImportStatus.SUCCESS);
 
+      console.log('[ImportManager] 导入状态已更新为 SUCCESS');
+
       if (onImportComplete) {
+        console.log('[ImportManager] 调用 onImportComplete 回调');
         onImportComplete(finalResult);
       }
 
@@ -447,6 +457,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {/* 导入成功 */}
           {importStatus === ImportStatus.SUCCESS && importResult && (
             <div className="space-y-6">
+              {console.log('[ImportManager] 渲染导入成功页面:', { importStatus, hasResult: !!importResult })}
               <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 p-6 text-center transition-colors">
                 <div className="flex justify-center mb-4">
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center text-green-600 dark:text-green-500">
