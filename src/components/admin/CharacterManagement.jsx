@@ -53,6 +53,17 @@ const CharacterManagement = ({ showToast }) => {
     }
   });
 
+  // 批量编辑对话框状态
+  const [showBatchEditDialog, setShowBatchEditDialog] = useState(false);
+  const [batchEditForm, setBatchEditForm] = useState({
+    is_limited: null,           // null表示不修改，true/false表示要设置的值
+    pools: {
+      limited: null,            // null=不修改, true=添加, false=移除
+      standard: null,
+      weapon: null
+    }
+  });
+
   // 别名输入状态
   const [aliasInput, setAliasInput] = useState('');
 
@@ -135,14 +146,13 @@ const CharacterManagement = ({ showToast }) => {
         );
 
         avatarUrlMap = results;
-        console.log(`[Sync] 头像上传完成: 成功 ${success}, 失败 ${failed}`);
       }
 
       // 5. 更新数据库
       setSyncProgress(`正在更新数据库 (${allItems.length} 项)...`);
 
       let newCount = 0;
-      let updateCount = 0;
+      let skippedCount = 0;
       let errorCount = 0;
 
       // 获取现有数据进行对比
@@ -153,40 +163,34 @@ const CharacterManagement = ({ showToast }) => {
           // 优先使用上传到 Storage 的 URL，否则使用原始 URL
           const finalAvatarUrl = avatarUrlMap.get(item.id) || item.avatar_url;
 
+          if (existingIds.has(item.id)) {
+            // 跳过已存在的角色，不更新（保护用户手动修改的数据）
+            skippedCount++;
+            continue;
+          }
+
+          // 插入新记录 - 六星默认不设为限定，需要手动设置
           const dbData = {
             id: item.id,
             name: item.name,
             rarity: item.rarity,
             type: item.type,
             avatar_url: finalAvatarUrl,
+            aliases: [],
+            is_limited: false,  // 默认不限定，需要手动设置
+            pool_config: {
+              pools: item.rarity >= 5 ? ['standard'] : [],
+              limited_rotation_count: 0,
+              removes_after: null,
+              is_active_in_limited: false
+            }
           };
 
-          if (existingIds.has(item.id)) {
-            // 更新现有记录
-            const { error } = await supabase
-              .from('characters')
-              .update(dbData)
-              .eq('id', item.id);
-            if (error) throw error;
-            updateCount++;
-          } else {
-            // 插入新记录 - 六星默认不设为限定，需要手动设置
-            const { error } = await supabase
-              .from('characters')
-              .insert({
-                ...dbData,
-                aliases: [],
-                is_limited: false,  // 默认不限定，需要手动设置
-                pool_config: {
-                  pools: item.rarity >= 5 ? ['standard'] : [],
-                  limited_rotation_count: 0,
-                  removes_after: null,
-                  is_active_in_limited: false
-                }
-              });
-            if (error) throw error;
-            newCount++;
-          }
+          const { error } = await supabase
+            .from('characters')
+            .insert(dbData);
+          if (error) throw error;
+          newCount++;
         } catch (err) {
           console.error(`同步 ${item.name} 失败:`, err);
           errorCount++;
@@ -199,7 +203,10 @@ const CharacterManagement = ({ showToast }) => {
       await characterCache.refresh();
 
       // 7. 显示结果
-      let message = `同步完成！新增 ${newCount} 个，更新 ${updateCount} 个`;
+      let message = `同步完成！新增 ${newCount} 个`;
+      if (skippedCount > 0) {
+        message += `，跳过 ${skippedCount} 个已存在的项目`;
+      }
       if (uploadAvatars && avatarUrlMap.size > 0) {
         message += `，头像已上传 ${avatarUrlMap.size} 个`;
       }
@@ -422,67 +429,110 @@ const CharacterManagement = ({ showToast }) => {
     }
   };
 
-  // 批量设置限定状态
-  const handleBatchSetLimited = async (isLimited) => {
-    if (selectedIds.size === 0) return;
-
-    setActionLoading('batch-limited');
-    try {
-      const { error } = await supabase
-        .from('characters')
-        .update({ is_limited: isLimited })
-        .in('id', Array.from(selectedIds));
-
-      if (error) throw error;
-
-      showToast(`成功将 ${selectedIds.size} 个项目设为${isLimited ? '限定' : '常驻'}`, 'success');
-      setSelectedIds(new Set());
-      await loadCharacters();
-    } catch (error) {
-      showToast('批量设置失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
+  // 打开批量编辑对话框
+  const openBatchEditDialog = () => {
+    if (selectedIds.size === 0) {
+      showToast('请先选择要编辑的项目', 'warning');
+      return;
     }
+    // 重置表单
+    setBatchEditForm({
+      is_limited: null,
+      pools: {
+        limited: null,
+        standard: null,
+        weapon: null
+      }
+    });
+    setShowBatchEditDialog(true);
   };
 
-  // 批量设置卡池
-  const handleBatchSetPool = async (poolType) => {
+  // 关闭批量编辑对话框
+  const closeBatchEditDialog = () => {
+    setShowBatchEditDialog(false);
+    setBatchEditForm({
+      is_limited: null,
+      pools: {
+        limited: null,
+        standard: null,
+        weapon: null
+      }
+    });
+  };
+
+  // 执行批量编辑
+  const executeBatchEdit = async () => {
     if (selectedIds.size === 0) return;
 
-    setActionLoading('batch-pool');
+    setActionLoading('batch-edit');
     try {
       // 获取当前选中的记录
       const { data: currentItems, error: fetchError } = await supabase
         .from('characters')
-        .select('id, pool_config')
+        .select('id, is_limited, pool_config')
         .in('id', Array.from(selectedIds));
 
       if (fetchError) throw fetchError;
 
-      // 更新每个记录的pool_config
-      for (const item of currentItems) {
-        const currentConfig = item.pool_config || { pools: [] };
-        let newPools = currentConfig.pools || [];
+      let updateCount = 0;
 
-        if (!newPools.includes(poolType)) {
-          newPools = [...newPools, poolType];
+      // 更新每个记录
+      for (const item of currentItems) {
+        const updates = {};
+        let needUpdate = false;
+
+        // 处理限定状态
+        if (batchEditForm.is_limited !== null) {
+          updates.is_limited = batchEditForm.is_limited;
+          needUpdate = true;
         }
 
-        const { error } = await supabase
-          .from('characters')
-          .update({
-            pool_config: { ...currentConfig, pools: newPools }
-          })
-          .eq('id', item.id);
+        // 处理卡池配置
+        const currentConfig = item.pool_config || { pools: [] };
+        let newPools = [...(currentConfig.pools || [])];
+        let poolsChanged = false;
 
-        if (error) throw error;
+        // 处理每个卡池类型
+        ['limited', 'standard', 'weapon'].forEach(poolType => {
+          const action = batchEditForm.pools[poolType];
+          if (action === true) {
+            // 添加卡池
+            if (!newPools.includes(poolType)) {
+              newPools.push(poolType);
+              poolsChanged = true;
+            }
+          } else if (action === false) {
+            // 移除卡池
+            if (newPools.includes(poolType)) {
+              newPools = newPools.filter(p => p !== poolType);
+              poolsChanged = true;
+            }
+          }
+        });
+
+        if (poolsChanged) {
+          updates.pool_config = { ...currentConfig, pools: newPools };
+          needUpdate = true;
+        }
+
+        // 如果有更新，执行更新
+        if (needUpdate) {
+          const { error } = await supabase
+            .from('characters')
+            .update(updates)
+            .eq('id', item.id);
+
+          if (error) throw error;
+          updateCount++;
+        }
       }
 
-      showToast(`成功为 ${selectedIds.size} 个项目添加卡池: ${poolType}`, 'success');
+      showToast(`成功更新 ${updateCount} 个项目`, 'success');
       setSelectedIds(new Set());
       await loadCharacters();
+      closeBatchEditDialog();
     } catch (error) {
-      showToast('批量设置卡池失败: ' + error.message, 'error');
+      showToast('批量编辑失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
     }
@@ -772,38 +822,19 @@ const CharacterManagement = ({ showToast }) => {
           </span>
           <div className="flex-1" />
           <button
-            onClick={() => handleBatchSetLimited(true)}
+            onClick={openBatchEditDialog}
             disabled={actionLoading}
-            className="px-3 py-1.5 text-xs bg-orange-500 hover:bg-orange-600 text-white rounded transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
           >
-            设为限定
-          </button>
-          <button
-            onClick={() => handleBatchSetLimited(false)}
-            disabled={actionLoading}
-            className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors"
-          >
-            设为常驻
-          </button>
-          <button
-            onClick={() => handleBatchSetPool('standard')}
-            disabled={actionLoading}
-            className="px-3 py-1.5 text-xs bg-purple-500 hover:bg-purple-600 text-white rounded transition-colors"
-          >
-            添加常驻池
-          </button>
-          <button
-            onClick={() => handleBatchSetPool('limited')}
-            disabled={actionLoading}
-            className="px-3 py-1.5 text-xs bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors"
-          >
-            添加限定池
+            <Edit2 size={14} />
+            批量编辑
           </button>
           <button
             onClick={handleBatchDelete}
             disabled={actionLoading}
-            className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors"
           >
+            <Trash2 size={14} />
             批量删除
           </button>
           <button
@@ -1305,6 +1336,283 @@ const CharacterManagement = ({ showToast }) => {
                 </button>
                 <button
                   onClick={resetForm}
+                  className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 批量编辑对话框 */}
+      {showBatchEditDialog && (
+        <>
+          {/* 背景遮罩 */}
+          <div className="fixed inset-0 bg-black/50 z-40" onClick={closeBatchEditDialog}></div>
+
+          {/* 对话框 */}
+          <div className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl z-50">
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 max-h-full overflow-y-auto">
+              {/* 对话框标题 */}
+              <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800">
+                <h3 className="text-lg font-bold text-slate-700 dark:text-zinc-300">
+                  批量编辑 ({selectedIds.size} 项)
+                </h3>
+                <button
+                  onClick={closeBatchEditDialog}
+                  className="text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 表单内容 */}
+              <div className="p-4 space-y-4">
+                {/* 提示信息 */}
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-sm">
+                  <p className="text-blue-700 dark:text-blue-300">
+                    💡 只有勾选的选项才会被修改，未勾选的选项将保持原值不变
+                  </p>
+                </div>
+
+                {/* 限定状态设置 */}
+                <div className="border border-zinc-200 dark:border-zinc-700 rounded p-4">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-zinc-300 mb-3">
+                    限定状态
+                  </h4>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="is_limited"
+                        checked={batchEditForm.is_limited === null}
+                        onChange={() => setBatchEditForm(prev => ({ ...prev, is_limited: null }))}
+                        className="w-4 h-4"
+                      />
+                      不修改（保持原值）
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="is_limited"
+                        checked={batchEditForm.is_limited === true}
+                        onChange={() => setBatchEditForm(prev => ({ ...prev, is_limited: true }))}
+                        className="w-4 h-4"
+                      />
+                      <span className="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+                        设为限定
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="is_limited"
+                        checked={batchEditForm.is_limited === false}
+                        onChange={() => setBatchEditForm(prev => ({ ...prev, is_limited: false }))}
+                        className="w-4 h-4"
+                      />
+                      <span className="px-2 py-0.5 rounded text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                        设为常驻
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* 卡池配置 */}
+                <div className="border border-zinc-200 dark:border-zinc-700 rounded p-4">
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-zinc-300 mb-3 flex items-center gap-2">
+                    <Package size={16} />
+                    卡池配置
+                  </h4>
+
+                  {/* 限定池 */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
+                      <span className="px-2 py-0.5 rounded text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+                        限定池
+                      </span>
+                    </label>
+                    <div className="space-y-2 ml-4">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_limited"
+                          checked={batchEditForm.pools.limited === null}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, limited: null }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        不修改
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_limited"
+                          checked={batchEditForm.pools.limited === true}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, limited: true }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        添加到限定池
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_limited"
+                          checked={batchEditForm.pools.limited === false}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, limited: false }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        从限定池移除
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 常驻池 */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
+                      <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400">
+                        常驻池
+                      </span>
+                    </label>
+                    <div className="space-y-2 ml-4">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_standard"
+                          checked={batchEditForm.pools.standard === null}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, standard: null }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        不修改
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_standard"
+                          checked={batchEditForm.pools.standard === true}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, standard: true }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        添加到常驻池
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_standard"
+                          checked={batchEditForm.pools.standard === false}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, standard: false }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        从常驻池移除
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* 武器池 */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
+                      <span className="px-2 py-0.5 rounded text-xs bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400">
+                        武器池
+                      </span>
+                    </label>
+                    <div className="space-y-2 ml-4">
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_weapon"
+                          checked={batchEditForm.pools.weapon === null}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, weapon: null }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        不修改
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_weapon"
+                          checked={batchEditForm.pools.weapon === true}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, weapon: true }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        添加到武器池
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="pool_weapon"
+                          checked={batchEditForm.pools.weapon === false}
+                          onChange={() => setBatchEditForm(prev => ({
+                            ...prev,
+                            pools: { ...prev.pools, weapon: false }
+                          }))}
+                          className="w-4 h-4"
+                        />
+                        从武器池移除
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 预览将要修改的内容 */}
+                <div className="p-3 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded text-xs">
+                  <p className="font-medium text-slate-700 dark:text-zinc-300 mb-2">将要执行的操作：</p>
+                  <ul className="space-y-1 text-slate-600 dark:text-zinc-400">
+                    {batchEditForm.is_limited !== null && (
+                      <li>• 限定状态 → {batchEditForm.is_limited ? '限定' : '常驻'}</li>
+                    )}
+                    {batchEditForm.pools.limited === true && <li>• 添加到限定池</li>}
+                    {batchEditForm.pools.limited === false && <li>• 从限定池移除</li>}
+                    {batchEditForm.pools.standard === true && <li>• 添加到常驻池</li>}
+                    {batchEditForm.pools.standard === false && <li>• 从常驻池移除</li>}
+                    {batchEditForm.pools.weapon === true && <li>• 添加到武器池</li>}
+                    {batchEditForm.pools.weapon === false && <li>• 从武器池移除</li>}
+                    {batchEditForm.is_limited === null &&
+                     batchEditForm.pools.limited === null &&
+                     batchEditForm.pools.standard === null &&
+                     batchEditForm.pools.weapon === null && (
+                      <li className="text-slate-400 dark:text-zinc-500 italic">暂无修改项</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 对话框操作按钮 */}
+              <div className="flex items-center gap-2 p-4 border-t border-zinc-200 dark:border-zinc-800">
+                <button
+                  onClick={executeBatchEdit}
+                  disabled={actionLoading === 'batch-edit'}
+                  className="flex items-center gap-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-none transition-colors disabled:opacity-50"
+                >
+                  <Save size={16} />
+                  {actionLoading === 'batch-edit' ? '保存中...' : '保存修改'}
+                </button>
+                <button
+                  onClick={closeBatchEditDialog}
                   className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none"
                 >
                   取消

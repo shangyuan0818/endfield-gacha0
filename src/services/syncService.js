@@ -77,8 +77,6 @@ class SyncManager {
       'visibilitychange',
       this.handleVisibilityChange.bind(this)
     );
-
-    console.log('[SyncManager] ✅ 自动同步服务已启动（间隔30秒）');
   }
 
   /**
@@ -94,7 +92,6 @@ class SyncManager {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
 
     this.isStarted = false;
-    console.log('[SyncManager] 自动同步服务已停止');
   }
 
   /**
@@ -140,7 +137,6 @@ class SyncManager {
   async flushQueue(sync = false) {
     // 防止并发同步
     if (this.isSyncing) {
-      console.log('[SyncManager] 同步正在进行，跳过本次请求');
       return;
     }
 
@@ -161,7 +157,6 @@ class SyncManager {
     }
 
     try {
-      console.log('[SyncManager] 开始同步，队列大小:', this.getQueueSize());
       const startTime = performance.now();
 
       const { pools, history, characters } = this.syncQueue;
@@ -189,7 +184,6 @@ class SyncManager {
       this.stats.lastSyncTime = new Date().toISOString();
       this.stats.successfulSyncs++;
 
-      console.log(`[SyncManager] ✅ 同步完成，耗时 ${syncTime}ms`);
     } catch (error) {
       console.error('[SyncManager] ❌ 同步失败:', error);
       this.stats.failedSyncs++;
@@ -218,7 +212,6 @@ class SyncManager {
   async syncPools(pools) {
     if (pools.length === 0) return;
 
-    console.log(`[SyncManager] 正在同步 ${pools.length} 个卡池...`);
 
     const { error } = await supabase.from('pools').upsert(
       pools.map((p) => ({
@@ -244,7 +237,6 @@ class SyncManager {
       throw new Error(`卡池同步失败: ${error.message}`);
     }
 
-    console.log(`[SyncManager] ✓ ${pools.length} 个卡池已同步`);
   }
 
   /**
@@ -256,7 +248,6 @@ class SyncManager {
   async syncHistory(records) {
     if (records.length === 0) return;
 
-    console.log(`[SyncManager] 正在同步 ${records.length} 条历史记录...`);
 
     const batchSize = 100;
     let syncedCount = 0;
@@ -311,10 +302,8 @@ class SyncManager {
       }
 
       syncedCount += batch.length;
-      console.log(`[SyncManager] ✓ 已同步 ${syncedCount}/${records.length} 条记录`);
     }
 
-    console.log(`[SyncManager] ✓ 全部 ${records.length} 条历史记录已同步`);
   }
 
   /**
@@ -326,7 +315,6 @@ class SyncManager {
   async syncCharacters(characters) {
     if (characters.length === 0) return;
 
-    console.log(`[SyncManager] 正在同步 ${characters.length} 个角色...`);
 
     const { error } = await supabase.from('characters').upsert(
       characters.map((c) => ({
@@ -351,7 +339,6 @@ class SyncManager {
         throw new Error(`角色同步失败: ${error.message}`);
       }
     } else {
-      console.log(`[SyncManager] ✓ ${characters.length} 个角色已同步`);
     }
   }
 
@@ -363,7 +350,6 @@ class SyncManager {
   handleBeforeUnload(event) {
     if (this.getQueueSize() === 0) return;
 
-    console.log('[SyncManager] 页面关闭，正在同步未保存的数据...');
 
     // 尝试使用 sendBeacon（异步，不阻塞页面关闭）
     // 注意：sendBeacon 仅支持 POST 请求，需要配合 Supabase Edge Functions
@@ -384,7 +370,6 @@ class SyncManager {
   handleVisibilityChange() {
     // 页面从隐藏变为可见时，立即同步
     if (!document.hidden && this.getQueueSize() > 0) {
-      console.log('[SyncManager] 页面恢复可见，触发同步');
       this.flushQueue();
     }
   }

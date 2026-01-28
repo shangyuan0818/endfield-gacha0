@@ -189,11 +189,6 @@ const PoolManagement = ({ showToast }) => {
     // 按结束时间排序（先结束的先处理）
     pending.sort((a, b) => new Date(a.end_time) - new Date(b.end_time));
     setPendingRotationPools(pending);
-
-    if (pending.length > 0) {
-      console.log(`[PoolManagement] 发现 ${pending.length} 个已结束但未处理轮换的卡池:`,
-        pending.map(p => `${p.name} (结束于 ${new Date(p.end_time).toLocaleString()})`));
-    }
   };
 
   // 自动处理所有待轮换的卡池（无需确认，直接执行）
@@ -212,7 +207,6 @@ const PoolManagement = ({ showToast }) => {
     try {
       // 逐个处理每个待轮换的卡池
       for (const pool of pendingRotationPools) {
-        console.log(`[PoolManagement] 处理卡池轮换: ${pool.name}`);
 
         // 为所有限定池6星角色增加轮换次数
         for (const char of limitedChars) {
@@ -318,7 +312,6 @@ const PoolManagement = ({ showToast }) => {
         }
       });
 
-      console.log('[PoolManagement] UP角色映射:', Object.fromEntries(poolUpCharacterMap));
 
       if (poolUpCharacterMap.size === 0) {
         showToast('没有卡池设置了UP角色，请先在卡池管理中设置UP角色', 'warning');
@@ -338,7 +331,6 @@ const PoolManagement = ({ showToast }) => {
         return;
       }
 
-      console.log('[PoolManagement] 找到', records.length, '条6星记录');
 
       // 3. 计算每条记录的新 isStandard 值
       const updates = [];
@@ -379,7 +371,6 @@ const PoolManagement = ({ showToast }) => {
         }
       }
 
-      console.log('[PoolManagement] 需要更新', changedCount, '条记录');
 
       if (updates.length === 0) {
         showToast('所有记录已是最新状态，无需更新', 'info');
@@ -548,7 +539,6 @@ const PoolManagement = ({ showToast }) => {
 
     if (error) throw error;
 
-    console.log('[PoolManagement] 自动创建UP角色:', data, '当前轮换数:', processedPoolsCount);
     return data;
   };
 
