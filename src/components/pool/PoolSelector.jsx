@@ -26,14 +26,34 @@ const PoolSelector = () => {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
   // 获取所有游戏账号
-  const gameAccounts = useMemo(() => getGameAccounts(), [pools, getGameAccounts]);
+  const gameAccounts = useMemo(() => {
+    const accounts = getGameAccounts();
+    console.log('[PoolSelector] 游戏账号列表:', accounts);
+    console.log('[PoolSelector] 卡池数据示例:', pools.slice(0, 2).map(p => ({
+      id: p.id,
+      name: p.name,
+      game_uid: p.game_uid,
+      nick_name: p.nick_name
+    })));
+    return accounts;
+  }, [pools, getGameAccounts]);
 
   // 根据当前选择的账号筛选卡池
   const filteredPools = useMemo(() => {
+    console.log('[PoolSelector] 筛选卡池:', {
+      currentGameUid,
+      gameAccountsCount: gameAccounts.length,
+      totalPools: pools.length
+    });
+
     if (!currentGameUid || gameAccounts.length <= 1) {
+      console.log('[PoolSelector] 不筛选，返回所有卡池');
       return pools;
     }
-    return getPoolsByGameAccount(currentGameUid);
+
+    const filtered = getPoolsByGameAccount(currentGameUid);
+    console.log('[PoolSelector] 筛选后的卡池数量:', filtered.length);
+    return filtered;
   }, [pools, currentGameUid, gameAccounts.length, getPoolsByGameAccount]);
 
   // 计算每个卡池的抽数
