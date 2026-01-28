@@ -20,29 +20,29 @@ const ImportStatus = {
 const ImportProgressBar = ({ progress, status, message }) => {
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-zinc-500">
+      <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors">
         <span className="flex items-center gap-2">
           {status === ImportStatus.SAVING ? (
             <>
-              <Save size={10} className="animate-pulse text-blue-500" />
+              <Save size={10} className="animate-pulse text-blue-600 dark:text-blue-500" />
               正在保存到云端
             </>
           ) : (
             <>
-              <RefreshCw size={10} className="animate-spin text-yellow-500" />
+              <RefreshCw size={10} className="animate-spin text-amber-500 dark:text-yellow-500" />
               处理中
             </>
           )}
         </span>
         <span>{Math.round(progress)}%</span>
       </div>
-      <div className="h-1.5 w-full bg-zinc-800 relative overflow-hidden">
+      <div className="h-1.5 w-full bg-slate-200 dark:bg-zinc-800 relative overflow-hidden transition-colors">
         <div 
-          className={`h-full transition-all duration-300 ${status === ImportStatus.SAVING ? 'bg-blue-500' : 'bg-yellow-500'}`}
+          className={`h-full transition-all duration-300 ${status === ImportStatus.SAVING ? 'bg-blue-600 dark:bg-blue-500' : 'bg-amber-500 dark:bg-yellow-500'}`}
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      <div className="mt-1 text-xs text-zinc-400 font-mono text-center">
+      <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 font-mono text-center transition-colors">
         {message}
       </div>
     </div>
@@ -330,17 +330,24 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-zinc-900 border-l-4 border-l-yellow-500 border-y border-r border-zinc-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
+    <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-colors">
+      <div className="bg-white dark:bg-zinc-900 border-l-4 border-l-amber-500 dark:border-l-yellow-500 border-y border-r border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative transition-colors">
         {/* Header */}
-        <div className="sticky top-0 bg-zinc-900/95 backdrop-blur border-b border-zinc-800 p-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between z-10 transition-colors">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-white uppercase tracking-wider">导入抽卡记录</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider">导入抽卡记录</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowGuide(!showGuide)}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-yellow-500 transition-colors"
+              title="帮助"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
+            <button
               onClick={handleClose}
-              className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors"
               disabled={importStatus === ImportStatus.SAVING}
             >
               <X className="w-5 h-5" />
@@ -349,33 +356,33 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         </div>
 
         {/* Steps Indicator (Always Visible) */}
-        <div className="px-6 py-4 border-b border-zinc-800 bg-zinc-900/50">
+        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
            <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wide">
               {/* 步骤1：等待输入token时亮起 */}
               <div className={`flex items-center gap-2 ${
                 importStatus === ImportStatus.IDLE && fetchStatus === 'idle'
-                  ? 'text-yellow-500'
-                  : 'text-zinc-500'
+                  ? 'text-amber-600 dark:text-yellow-500'
+                  : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">1</span>
                  <span>登录获取Token</span>
               </div>
-              <div className="h-px bg-zinc-800 flex-1 mx-4"></div>
+              <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
               {/* 步骤2：正在获取数据时亮起 */}
               <div className={`flex items-center gap-2 ${
                 ['authenticating', 'fetching', 'processing', 'success'].includes(fetchStatus) && importStatus === ImportStatus.IDLE
-                  ? 'text-yellow-500'
-                  : 'text-zinc-500'
+                  ? 'text-amber-600 dark:text-yellow-500'
+                  : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">2</span>
                  <span>获取数据</span>
               </div>
-              <div className="h-px bg-zinc-800 flex-1 mx-4"></div>
+              <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
               {/* 步骤3：保存中或成功时亮起 */}
               <div className={`flex items-center gap-2 ${
                 importStatus === ImportStatus.SAVING || importStatus === ImportStatus.SUCCESS
-                  ? 'text-yellow-500'
-                  : 'text-zinc-500'
+                  ? 'text-amber-600 dark:text-yellow-500'
+                  : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">3</span>
                  <span>保存同步</span>
@@ -386,14 +393,26 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         <div className="p-6">
           {/* 未登录提示 */}
           {!user && (
-            <div className="mb-6 bg-red-900/20 border border-red-900/50 p-4">
-              <div className="flex items-center gap-2 text-red-500 mb-2">
+            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-4 transition-colors">
+              <div className="flex items-center gap-2 text-red-600 dark:text-red-500 mb-2">
                 <AlertCircle className="w-5 h-5" />
                 <span className="font-bold">需要登录</span>
               </div>
-              <p className="text-zinc-400 text-xs font-mono">
+              <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">
                 请先登录账号以启用云端同步功能。
               </p>
+            </div>
+          )}
+
+          {/* 导入说明 */}
+          {showGuide && (
+            <div className="mb-6 bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 font-mono transition-colors">
+              <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2">
+                <HelpCircle size={14}/> 使用指南
+              </h3>
+              <p>1. 登录鹰角网络通行证。</p>
+              <p>2. 获取专用的访问 Token。</p>
+              <p>3. 系统将自动获取并在本地处理数据，最后加密上传至您的云端存档。</p>
             </div>
           )}
 
@@ -411,39 +430,39 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {/* 导入成功 */}
           {importStatus === ImportStatus.SUCCESS && importResult && (
             <div className="space-y-6">
-              <div className="bg-green-900/10 border border-green-900/30 p-6 text-center">
+              <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 p-6 text-center transition-colors">
                 <div className="flex justify-center mb-4">
-                  <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center text-green-500">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center text-green-600 dark:text-green-500">
                     <CheckCircle className="w-8 h-8" />
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-white mb-1">导入完成</h3>
-                <p className="text-zinc-500 text-xs font-mono uppercase">数据已成功同步至云端</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">导入完成</h3>
+                <p className="text-slate-500 dark:text-zinc-500 text-xs font-mono uppercase">数据已成功同步至云端</p>
               </div>
 
               {/* 统计网格 */}
               <div className="grid grid-cols-3 gap-1">
-                <div className="bg-zinc-800 p-4 text-center">
-                  <p className="text-xs text-zinc-500 font-mono uppercase">总数</p>
-                  <p className="text-xl font-bold text-white mt-1">{importResult.summary?.total || 0}</p>
+                <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">总数</p>
+                  <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">{importResult.summary?.total || 0}</p>
                 </div>
-                <div className="bg-zinc-800 p-4 text-center">
-                  <p className="text-xs text-zinc-500 font-mono uppercase">新增</p>
-                  <p className="text-xl font-bold text-green-500 mt-1">{importResult.summary?.newRecords || 0}</p>
+                <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">新增</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-500 mt-1">{importResult.summary?.newRecords || 0}</p>
                 </div>
-                <div className="bg-zinc-800 p-4 text-center">
-                  <p className="text-xs text-zinc-500 font-mono uppercase">跳过</p>
-                  <p className="text-xl font-bold text-zinc-500 mt-1">{importResult.summary?.duplicates || 0}</p>
+                <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">跳过</p>
+                  <p className="text-xl font-bold text-slate-500 dark:text-zinc-500 mt-1">{importResult.summary?.duplicates || 0}</p>
                 </div>
               </div>
 
               {/* 刷新提示 */}
               {importResult.summary?.newRecords > 0 && (
-                <div className="bg-amber-900/20 border border-amber-700/50 p-4 flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 flex items-start gap-3 transition-colors">
+                  <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-amber-400 text-sm font-medium">需要刷新页面以显示新数据</p>
-                    <p className="text-zinc-500 text-xs mt-1">点击下方按钮刷新页面，将自动跳转到卡池详情页查看您的抽卡记录。</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">需要刷新页面以显示新数据</p>
+                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">点击下方按钮刷新页面，将自动跳转到卡池详情页查看您的抽卡记录。</p>
                   </div>
                 </div>
               )}
@@ -452,14 +471,14 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               <div className="flex gap-4">
                 <button
                   onClick={handleReset}
-                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+                  className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
                 >
                   继续导入
                 </button>
                 {importResult.summary?.newRecords > 0 ? (
                   <button
                     onClick={handleRefreshAndNavigate}
-                    className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2"
                   >
                     <RefreshCw className="w-4 h-4" />
                     刷新并查看数据
@@ -467,7 +486,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 ) : (
                   <button
                     onClick={handleClose}
-                    className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+                    className="flex-1 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-600 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
                   >
                     关闭
                   </button>
@@ -479,16 +498,16 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {/* 导入错误 */}
           {importStatus === ImportStatus.ERROR && (
             <div className="space-y-4 py-6">
-              <div className="bg-red-900/20 border border-red-500/30 p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 p-4 flex items-start gap-3 transition-colors">
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5" />
                 <div>
-                  <h4 className="text-red-500 font-bold mb-1">导入失败</h4>
-                  <p className="text-zinc-400 text-sm font-mono break-all">{errorMessage}</p>
+                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1">导入失败</h4>
+                  <p className="text-slate-600 dark:text-zinc-400 text-sm font-mono break-all">{errorMessage}</p>
                 </div>
               </div>
               <button
                 onClick={handleReset}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+                className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
               >
                 重试
               </button>
