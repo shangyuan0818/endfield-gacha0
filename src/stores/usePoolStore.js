@@ -1,9 +1,52 @@
 import { create } from 'zustand';
 import { DEFAULT_POOL_ID } from '../constants';
-import { extractDrawerFromPoolName } from '../utils';
 import { syncManager } from '../services/syncService';
 import { supabase } from '../supabaseClient';
-import { generateSemanticPoolId } from '../utils/poolIdGenerator';
+
+/**
+ * 卡池类型映射：官方 poolId 前缀 -> 本地类型
+ */
+const POOL_TYPE_MAP = {
+  'special': 'limited_character',      // 限定角色池（特许寻访）
+  'standard': 'standard',              // 常驻池（基础寻访）
+  'beginner': 'beginner',              // 新手池（启程寻访）
+  'weponbox': 'limited_weapon',        // 武器池（注意官方拼写错误）
+  'weaponbox': 'limited_weapon',       // 武器池
+};
+
+/**
+ * 从官方 poolId 推断卡池类型
+ * @param {string} poolId - 官方 poolId (如 "special_1_0_1", "standard", "beginner")
+ * @returns {string} 卡池类型
+ */
+export function getPoolTypeFromId(poolId) {
+  if (!poolId) return 'unknown';
+  const prefix = poolId.split('_')[0].toLowerCase();
+  return POOL_TYPE_MAP[prefix] || 'unknown';
+}
+
+/**
+ * 根据 poolId 和类型生成默认的卡池名称
+ * @param {string} poolId - 官方 poolId
+ * @param {string} type - 卡池类型
+ * @returns {string} 默认名称
+ */
+function getDefaultPoolName(poolId, type) {
+  switch (type) {
+    case 'limited_character':
+    case 'limited':
+      return '限定角色池';
+    case 'standard':
+      return '基础寻访';
+    case 'beginner':
+      return '启程寻访';
+    case 'limited_weapon':
+    case 'weapon':
+      return '武器池';
+    default:
+      return poolId || '未知卡池';
+  }
+}
 
 /**
  * 获取当前用户ID（用于同步）
@@ -11,7 +54,6 @@ import { generateSemanticPoolId } from '../utils/poolIdGenerator';
  */
 const getCurrentUserId = () => {
   try {
-    // 从 Supabase session 获取
     if (supabase) {
       const session = supabase.auth.getSession();
       return session?.data?.session?.user?.id || null;
@@ -23,70 +65,62 @@ const getCurrentUserId = () => {
 };
 
 /**
- * 卡池状态管理
- * 管理卡池列表、当前选中卡池、卡池搜索、分组等
+ * 卡池状态管理 V3
+ *
+ * 主要变更：
+ * - 移除按抽卡人分组（改为按官方卡池类型分组）
+ * - 新增多游戏账号支持
+ * - 简化卡池创建逻辑（只通过 API 导入创建）
+ * - 移除 localStorage 存储卡池数据（数据只保存在服务器）
+ * - 仅保留 UI 状态（当前选中卡池ID、当前游戏账号）在 localStorage
  */
 const usePoolStore = create((set, get) => ({
-  // ========== 卡池列表 ==========
-  pools: (() => {
-    try {
-      const saved = localStorage.getItem('gacha_pools');
-      let parsed = saved ? JSON.parse(saved) : [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
+  // ========== 卡池列表（仅内存，不使用 localStorage）==========
+  pools: [],
 
-      // 迁移：旧的默认池 id=default_pool 或 limited-42-yangyan -> 新的 pool_1764318026209
-      parsed = parsed.map(p => {
-        if (p.id === 'default_pool' || p.id === 'limited-42-yangyan') {
-          return { ...p, id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited' };
-        }
-        return {
-          ...p,
-          type: p.type || (p.name.includes('常驻') || p.id === DEFAULT_POOL_ID ? 'standard' : 'limited'),
-          locked: p.locked || false
-        };
-      });
-
-      // 确保默认池存在
-      if (!parsed.some(p => p.id === DEFAULT_POOL_ID)) {
-        parsed.unshift({ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false });
-      }
-
-      return parsed;
-    } catch (e) {
-      return [{ id: DEFAULT_POOL_ID, name: '限定-42-杨颜', type: 'limited', locked: false }];
-    }
-  })(),
-
-  // ========== 当前选中卡池 ==========
+  // ========== 当前选中卡池（UI 状态，保留 localStorage）==========
   currentPoolId: (() => {
     const saved = localStorage.getItem('gacha_current_pool_id');
-    if (!saved || saved === 'default_pool' || saved === 'limited-42-yangyan') return DEFAULT_POOL_ID;
-    return saved;
+    return saved || null;
+  })(),
+
+  // ========== 当前游戏账号（UI 状态，保留 localStorage）==========
+  currentGameUid: (() => {
+    const saved = localStorage.getItem('gacha_current_game_uid');
+    return saved || null;
   })(),
 
   // ========== 卡池搜索 ==========
   poolSearchQuery: '',
   setPoolSearchQuery: (query) => set({ poolSearchQuery: query }),
 
-  // ========== 折叠的抽卡人分组 ==========
-  collapsedDrawers: new Set(),
-  toggleDrawer: (drawer) => set((state) => {
-    const next = new Set(state.collapsedDrawers);
-    if (next.has(drawer)) {
-      next.delete(drawer);
-    } else {
-      next.add(drawer);
-    }
-    return { collapsedDrawers: next };
-  }),
-
   // ========== 操作方法 ==========
 
   /**
-   * 设置卡池列表（同步到 localStorage）
+   * 设置卡池列表（仅更新内存状态，不写入 localStorage）
+   * 支持直接传入数组或函数更新器
    */
-  setPools: (pools) => {
-    set({ pools });
-    localStorage.setItem('gacha_pools', JSON.stringify(pools));
+  setPools: (poolsOrUpdater) => {
+    // 支持函数更新器模式：setPools(prev => [...prev, newPool])
+    if (typeof poolsOrUpdater === 'function') {
+      const currentPools = get().pools;
+      const newPools = poolsOrUpdater(currentPools);
+      // 确保结果是数组
+      if (!Array.isArray(newPools)) {
+        console.error('[usePoolStore] setPools 函数更新器必须返回数组');
+        return;
+      }
+      set({ pools: newPools });
+      // 不再写入 localStorage，数据只保存在服务器
+    } else {
+      // 确保传入的是数组
+      if (!Array.isArray(poolsOrUpdater)) {
+        console.error('[usePoolStore] setPools 必须接收数组或函数更新器');
+        return;
+      }
+      set({ pools: poolsOrUpdater });
+      // 不再写入 localStorage，数据只保存在服务器
+    }
   },
 
   /**
@@ -98,22 +132,29 @@ const usePoolStore = create((set, get) => ({
   },
 
   /**
+   * 切换当前游戏账号
+   */
+  switchGameAccount: (gameUid) => {
+    set({ currentGameUid: gameUid });
+    localStorage.setItem('gacha_current_game_uid', gameUid);
+  },
+
+  /**
    * 创建新卡池
+   * @param {object} poolData - 卡池数据
    */
   createPool: (poolData) => {
     const { pools } = get();
     const userId = getCurrentUserId();
 
-    // 使用语义化ID生成（如果有userId）
-    const poolId = userId
-      ? generateSemanticPoolId(poolData, userId, pools)
-      : `pool_${Date.now()}`;  // 降级到时间戳ID（未登录时）
+    const poolId = poolData.id || `pool_${Date.now()}`;
 
     const newPool = {
-      id: poolId,
       ...poolData,
+      id: poolId,
+      type: poolData.type || getPoolTypeFromId(poolId),
       locked: false,
-      user_id: userId,  // 添加用户ID
+      user_id: userId,
       created_at: new Date().toISOString()
     };
 
@@ -129,6 +170,53 @@ const usePoolStore = create((set, get) => ({
   },
 
   /**
+   * 根据官方 poolId 获取或创建卡池
+   * @param {string} poolId - 官方 poolId
+   * @param {string} [poolName] - 官方 poolName
+   * @returns {object} 卡池对象
+   */
+  getOrCreatePool: (poolId, poolName) => {
+    const { pools } = get();
+
+    // 先查找是否已存在
+    let pool = pools.find(p => p.id === poolId);
+    if (pool) {
+      // 如果名称有更新，更新卡池名称
+      if (poolName && pool.name !== poolName) {
+        get().updatePool(poolId, { name: poolName });
+        pool = { ...pool, name: poolName };
+      }
+      return pool;
+    }
+
+    // 不存在则创建
+    const type = getPoolTypeFromId(poolId);
+    const name = poolName || getDefaultPoolName(poolId, type);
+
+    return get().createPool({
+      id: poolId,
+      name: name,
+      type: type
+    });
+  },
+
+  /**
+   * 批量获取或创建卡池
+   * @param {Array<{poolId: string, poolName: string}>} poolInfos
+   * @returns {Map<string, object>} poolId -> pool 映射
+   */
+  getOrCreatePools: (poolInfos) => {
+    const poolMap = new Map();
+    poolInfos.forEach(({ poolId, poolName }) => {
+      if (!poolMap.has(poolId)) {
+        const pool = get().getOrCreatePool(poolId, poolName);
+        poolMap.set(poolId, pool);
+      }
+    });
+    return poolMap;
+  },
+
+  /**
    * 删除卡池
    */
   deletePool: (poolId) => {
@@ -136,12 +224,9 @@ const usePoolStore = create((set, get) => ({
     const updatedPools = pools.filter(p => p.id !== poolId);
     get().setPools(updatedPools);
 
-    // 如果删除的是当前卡池，切换到默认池
-    if (currentPoolId === poolId) {
-      const fallback = updatedPools.find(p => p.id === DEFAULT_POOL_ID) || updatedPools[0];
-      if (fallback) {
-        get().switchPool(fallback.id);
-      }
+    // 如果删除的是当前卡池，切换到第一个
+    if (currentPoolId === poolId && updatedPools.length > 0) {
+      get().switchPool(updatedPools[0].id);
     }
   },
 
@@ -171,17 +256,15 @@ const usePoolStore = create((set, get) => ({
    */
   getCurrentPool: () => {
     const { pools, currentPoolId } = get();
-    const byId = pools.find(p => p.id === currentPoolId);
-    if (byId) return byId;
-    const defaultPool = pools.find(p => p.id === DEFAULT_POOL_ID);
-    if (defaultPool) return defaultPool;
-    return pools[0];
+    if (!currentPoolId) return pools[0] || null;
+    return pools.find(p => p.id === currentPoolId) || pools[0] || null;
   },
 
   /**
-   * 获取分组的卡池列表
+   * 获取按官方类型分组的卡池列表
+   * @returns {Array<{type: string, label: string, pools: Array}>}
    */
-  getGroupedPools: () => {
+  getPoolsByType: () => {
     const { pools, poolSearchQuery } = get();
 
     // 先按搜索词过滤
@@ -191,58 +274,65 @@ const usePoolStore = create((set, get) => ({
         )
       : pools;
 
-    // 按抽卡人分组
-    const groups = {};
-    const noDrawerPools = [];
+    // 按类型分组
+    const groups = {
+      limited_character: { label: '限定角色池', pools: [] },
+      standard: { label: '常驻池', pools: [] },
+      beginner: { label: '新手池', pools: [] },
+      limited_weapon: { label: '武器池', pools: [] }
+    };
 
     filteredPools.forEach(pool => {
-      const drawer = extractDrawerFromPoolName(pool.name);
-      if (drawer) {
-        if (!groups[drawer]) {
-          groups[drawer] = [];
-        }
-        groups[drawer].push(pool);
+      // 统一类型映射
+      let type = pool.type || 'standard';
+      if (type === 'limited') type = 'limited_character';
+      if (type === 'weapon') type = 'limited_weapon';
+
+      if (groups[type]) {
+        groups[type].pools.push(pool);
       } else {
-        noDrawerPools.push(pool);
+        groups.standard.pools.push(pool);
       }
     });
 
-    // 转换为数组格式，按抽卡人名称排序
-    const result = Object.entries(groups)
-      .sort(([a], [b]) => a.localeCompare(b, 'zh-CN'))
-      .map(([drawer, poolList]) => ({
-        drawer,
-        pools: poolList.sort((a, b) => {
-          // 同一抽卡人内按类型排序：限定 > 武器 > 常驻
-          const typeOrder = { limited: 0, weapon: 1, standard: 2 };
-          return (typeOrder[a.type] || 0) - (typeOrder[b.type] || 0);
-        })
-      }));
-
-    // 未识别抽卡人的卡池放在最后
-    if (noDrawerPools.length > 0) {
-      result.push({
-        drawer: null,
-        pools: noDrawerPools
-      });
-    }
-
-    return result;
+    // 转换为数组，按预定顺序，过滤空分组
+    return ['limited_character', 'standard', 'beginner', 'limited_weapon']
+      .map(type => ({
+        type,
+        ...groups[type]
+      }))
+      .filter(group => group.pools.length > 0);
   },
 
   /**
-   * 获取所有已知的抽卡人列表
+   * 获取所有已知的游戏账号
+   * @returns {Array<{gameUid: string, nickName: string}>}
    */
-  getKnownDrawers: () => {
+  getGameAccounts: () => {
     const { pools } = get();
-    const drawers = new Set();
+    const accountMap = new Map();
+
     pools.forEach(pool => {
-      const drawer = extractDrawerFromPoolName(pool.name);
-      if (drawer) {
-        drawers.add(drawer);
+      if (pool.game_uid && !accountMap.has(pool.game_uid)) {
+        accountMap.set(pool.game_uid, {
+          gameUid: pool.game_uid,
+          nickName: pool.nick_name || pool.game_uid
+        });
       }
     });
-    return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+    return Array.from(accountMap.values());
+  },
+
+  /**
+   * 按游戏账号筛选卡池
+   * @param {string} gameUid - 游戏账号 UID
+   * @returns {Array} 该账号的卡池列表
+   */
+  getPoolsByGameAccount: (gameUid) => {
+    const { pools } = get();
+    if (!gameUid) return pools;
+    return pools.filter(p => p.game_uid === gameUid);
   },
 }));
 

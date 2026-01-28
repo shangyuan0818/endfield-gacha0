@@ -228,12 +228,13 @@ class SyncManager {
         type: p.type,
         locked: p.locked || false,
         is_limited_weapon: p.isLimitedWeapon !== undefined ? p.isLimitedWeapon : true,
-        description: p.description || null,
-        start_time: p.start_time || null,
-        end_time: p.end_time || null,
-        banner_url: p.banner_url || null,
-        featured_characters: p.featured_characters || null,
-        legacy_pool_id: p.legacy_pool_id || null,
+        // V2 新增字段
+        game_uid: p.gameUid || p.game_uid || null,
+        nick_name: p.nickName || p.nick_name || null,
+        up_character: p.upCharacter || p.up_character || null,
+        banner_url: p.banner_url || p.bannerUrl || null,
+        start_time: p.start_time || p.startTime || null,
+        end_time: p.end_time || p.endTime || null,
         updated_at: new Date().toISOString(),
       })),
       { onConflict: 'user_id,pool_id' }
@@ -264,21 +265,44 @@ class SyncManager {
       const batch = records.slice(i, i + batchSize);
 
       const { error } = await supabase.from('history').upsert(
-        batch.map((r) => ({
-          user_id: r.user_id,
-          record_id: r.id,
-          pool_id: r.poolId,
-          rarity: r.rarity,
-          is_standard: r.isStandard || false,
-          special_type: r.specialType || null,
-          item_name: r.itemName || null,
-          timestamp: r.timestamp ? new Date(r.timestamp).toISOString() : new Date().toISOString(),
-          character_name: r.character_name || null,
-          character_id: r.character_id || null,
-          avatar_url: r.avatar_url || null,
-          legacy_pool_id: r.legacy_pool_id || null,
-          updated_at: new Date().toISOString(),
-        })),
+        batch.map((r) => {
+          // record_id 必须是数字（数据库 double precision 类型）
+          let recordId = r.id || r.record_id;
+          if (typeof recordId === 'string') {
+            // 如果是字符串，尝试解析为数字
+            recordId = parseInt(recordId, 10);
+            // 如果解析失败（NaN），使用 seqId 或时间戳
+            if (isNaN(recordId)) {
+              recordId = parseInt(r.seqId || r.seq_id, 10) || Date.now();
+            }
+          }
+
+          return {
+            user_id: r.user_id,
+            record_id: recordId,
+            pool_id: String(r.poolId || r.pool_id),
+            rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
+            is_standard: Boolean(r.isStandard || r.is_standard),
+            special_type: r.specialType || r.special_type || null,
+            // 名称字段：优先使用 character_name，备选 name
+            character_name: r.character_name || r.name || null,
+            item_name: r.item_name || r.name || r.character_name || null,
+            // V2 新增字段（严格类型检查）
+            batch_id: r.batchId || r.batch_id || null,
+            seq_id: r.seqId || r.seq_id || null,
+            pity: typeof r.pity === 'number' ? r.pity : (parseInt(r.pity, 10) || 0),
+            is_new: Boolean(r.isNew || r.is_new),
+            is_free: Boolean(r.isFree || r.is_free),
+            game_uid: r.gameUid || r.game_uid || null,
+            // 时间戳（处理数字或字符串格式）
+            timestamp: r.timestamp
+              ? (typeof r.timestamp === 'number'
+                ? new Date(r.timestamp).toISOString()
+                : new Date(r.timestamp).toISOString())
+              : new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+        }),
         { onConflict: 'user_id,record_id' }
       );
 

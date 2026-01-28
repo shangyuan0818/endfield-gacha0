@@ -1,48 +1,22 @@
 import { create } from 'zustand';
-import { DEFAULT_POOL_ID, DEFAULT_DISPLAY_PITY } from '../constants';
+import { DEFAULT_DISPLAY_PITY } from '../constants';
 
 /**
- * 抽卡历史记录状态管理
- * 管理所有抽卡记录、筛选、分页等
+ * 抽卡历史记录状态管理 V3
+ *
+ * 主要变更：
+ * - 移除 localStorage 存储（数据只保存在服务器）
+ * - 添加新字段支持：character_name, batch_id, seq_id, pity, is_new, is_free, game_uid
+ * - 新增按游戏账号筛选功能
  */
 const useHistoryStore = create((set, get) => ({
-  // ========== 历史记录 ==========
-  history: (() => {
-    try {
-      const saved = localStorage.getItem('gacha_history_v2');
-      let data = saved ? JSON.parse(saved) : [];
-
-      // 数据迁移：
-      // 1. 如果老数据没有 poolId，赋予默认 poolId
-      // 2. 如果是6星且没有 isStandard 字段，默认设为 false (假设之前的都是限定，或者让用户自己改)
-      let hasMigration = false;
-      const migratedData = data.map(item => {
-        let newItem = { ...item };
-        if (!newItem.poolId) {
-          hasMigration = true;
-          newItem.poolId = DEFAULT_POOL_ID;
-        }
-        if (newItem.rarity === 6 && newItem.isStandard === undefined) {
-          // 老数据兼容，默认为限定(false)
-          newItem.isStandard = false;
-        }
-        return newItem;
-      });
-
-      if (hasMigration) {
-        localStorage.setItem('gacha_history_v2', JSON.stringify(migratedData));
-      }
-
-      return migratedData;
-    } catch (e) {
-      return [];
-    }
-  })(),
+  // ========== 历史记录（仅内存，不使用 localStorage）==========
+  history: [],
 
   // ========== 筛选和分页 ==========
   manualPityLimit: DEFAULT_DISPLAY_PITY,
   visibleHistoryCount: 20,
-  historyFilter: 'all', // 'all' | '6star' | '5star' | 'gift'
+  historyFilter: 'all', // 'all' | '6star' | '5star'
 
   setManualPityLimit: (limit) => set({ manualPityLimit: limit }),
   setVisibleHistoryCount: (count) => set({ visibleHistoryCount: count }),
@@ -54,22 +28,39 @@ const useHistoryStore = create((set, get) => ({
   // ========== 操作方法 ==========
 
   /**
-   * 设置历史记录（同步到 localStorage）
+   * 设置历史记录（仅更新内存状态，不写入 localStorage）
    */
   setHistory: (history) => {
     set({ history });
-    localStorage.setItem('gacha_history_v2', JSON.stringify(history));
+    // 不再写入 localStorage，数据只保存在服务器
   },
 
   /**
    * 获取当前卡池的历史记录
+   * @param {string} poolId - 卡池 ID
+   * @returns {Array} 该卡池的历史记录
    */
   getCurrentPoolHistory: (poolId) => {
     const { history } = get();
     if (!poolId) return [];
-    // 只按 poolId 过滤，不区分 user_id
-    // 这样所有用户都能看到该卡池的全部录入数据（适合协作场景）
     return history.filter(h => h.poolId === poolId);
+  },
+
+  /**
+   * 获取指定游戏账号和卡池的历史记录
+   * @param {string} poolId - 卡池 ID
+   * @param {string} [gameUid] - 游戏账号 UID
+   * @returns {Array} 历史记录
+   */
+  getPoolHistoryByGameAccount: (poolId, gameUid) => {
+    const { history } = get();
+    if (!poolId) return [];
+
+    return history.filter(h => {
+      if (h.poolId !== poolId) return false;
+      if (gameUid && h.game_uid !== gameUid) return false;
+      return true;
+    });
   },
 
   /**
@@ -113,6 +104,7 @@ const useHistoryStore = create((set, get) => ({
 
   /**
    * 删除整组记录（十连）
+   * @param {string} batchId - 批次 ID
    */
   deleteBatch: (batchId) => {
     const { history } = get();
@@ -144,14 +136,33 @@ const useHistoryStore = create((set, get) => ({
   },
 
   /**
-   * 合并历史记录（不重复添加）
+   * 合并历史记录（基于 seqId 或 id 去重）
    */
   mergeHistory: (importedHistory) => {
     const { history } = get();
+
+    // 优先使用 seqId 去重（官方 API 返回的唯一标识）
+    const existingSeqIds = new Set(
+      history.filter(h => h.seqId).map(h => h.seqId)
+    );
     const existingIds = new Set(history.map(h => h.id));
-    const newPulls = importedHistory.filter(h => !existingIds.has(h.id));
+
+    const newPulls = importedHistory.filter(h => {
+      // 如果有 seqId，用 seqId 去重
+      if (h.seqId && existingSeqIds.has(h.seqId)) return false;
+      // 否则用 id 去重
+      if (existingIds.has(h.id)) return false;
+      return true;
+    });
+
     const mergedHistory = [...history, ...newPulls];
     get().setHistory(mergedHistory);
+
+    return {
+      total: importedHistory.length,
+      added: newPulls.length,
+      duplicates: importedHistory.length - newPulls.length
+    };
   },
 
   /**
@@ -166,11 +177,71 @@ const useHistoryStore = create((set, get) => ({
         return poolHistory.filter(h => h.rarity === 6);
       case '5star':
         return poolHistory.filter(h => h.rarity === 5);
-      case 'gift':
-        return poolHistory.filter(h => h.specialType === 'gift');
       default:
         return poolHistory;
     }
+  },
+
+  /**
+   * 获取某卡池的统计数据
+   * @param {string} poolId - 卡池 ID
+   * @returns {object} 统计数据
+   */
+  getPoolStats: (poolId) => {
+    const poolHistory = get().getCurrentPoolHistory(poolId);
+
+    const stats = {
+      total: poolHistory.length,
+      byRarity: { 6: 0, 5: 0, 4: 0 },
+      sixStars: [],
+      currentPity: 0
+    };
+
+    // 统计各稀有度数量
+    poolHistory.forEach(h => {
+      if (stats.byRarity[h.rarity] !== undefined) {
+        stats.byRarity[h.rarity]++;
+      }
+      if (h.rarity === 6) {
+        stats.sixStars.push(h);
+      }
+    });
+
+    // 计算当前保底（从最后一条6星之后算起）
+    const sortedHistory = [...poolHistory].sort((a, b) => b.timestamp - a.timestamp);
+    for (const h of sortedHistory) {
+      if (h.rarity === 6) break;
+      stats.currentPity++;
+    }
+
+    return stats;
+  },
+
+  /**
+   * 获取所有游戏账号的历史记录统计
+   * @returns {Map<string, object>} gameUid -> 统计数据
+   */
+  getStatsByGameAccount: () => {
+    const { history } = get();
+    const statsMap = new Map();
+
+    history.forEach(h => {
+      const uid = h.game_uid || 'unknown';
+      if (!statsMap.has(uid)) {
+        statsMap.set(uid, {
+          gameUid: uid,
+          total: 0,
+          sixStars: 0,
+          fiveStars: 0
+        });
+      }
+      const stats = statsMap.get(uid);
+      stats.total++;
+      if (h.rarity === 6) stats.sixStars++;
+      if (h.rarity === 5) stats.fiveStars++;
+    });
+
+    return statsMap;
   },
 }));
 
