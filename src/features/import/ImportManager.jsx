@@ -313,16 +313,19 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     setFetchStatus('idle');
   }, []);
 
+  /**
+   * 刷新页面并跳转到卡池详情
+   */
+  const handleRefreshAndNavigate = useCallback(() => {
+    // 保存目标页面到 sessionStorage，刷新后自动跳转
+    sessionStorage.setItem('redirect_after_import', 'dashboard');
+    window.location.reload();
+  }, []);
+
   const handleClose = useCallback(() => {
-    if (importStatus === ImportStatus.SUCCESS && importResult?.summary?.newRecords > 0) {
-      handleReset();
-      onClose();
-      window.location.reload();
-      return;
-    }
     handleReset();
     onClose();
-  }, [handleReset, onClose, importStatus, importResult]);
+  }, [handleReset, onClose]);
 
   if (!isOpen) return null;
 
@@ -434,6 +437,17 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 </div>
               </div>
 
+              {/* 刷新提示 */}
+              {importResult.summary?.newRecords > 0 && (
+                <div className="bg-amber-900/20 border border-amber-700/50 p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-amber-400 text-sm font-medium">需要刷新页面以显示新数据</p>
+                    <p className="text-zinc-500 text-xs mt-1">点击下方按钮刷新页面，将自动跳转到卡池详情页查看您的抽卡记录。</p>
+                  </div>
+                </div>
+              )}
+
               {/* 按钮组 */}
               <div className="flex gap-4">
                 <button
@@ -442,12 +456,22 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 >
                   继续导入
                 </button>
-                <button
-                  onClick={handleClose}
-                  className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-sm tracking-wider transition-colors"
-                >
-                  完成
-                </button>
+                {importResult.summary?.newRecords > 0 ? (
+                  <button
+                    onClick={handleRefreshAndNavigate}
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    刷新并查看数据
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleClose}
+                    className="flex-1 bg-zinc-700 hover:bg-zinc-600 text-white font-bold py-3 text-sm tracking-wider transition-colors"
+                  >
+                    关闭
+                  </button>
+                )}
               </div>
             </div>
           )}

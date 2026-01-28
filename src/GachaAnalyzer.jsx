@@ -545,6 +545,18 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
   }, []);
 
+  // 检查导入后重定向
+  useEffect(() => {
+    const redirectTarget = sessionStorage.getItem('redirect_after_import');
+    if (redirectTarget) {
+      sessionStorage.removeItem('redirect_after_import');
+      // 延迟一点确保页面渲染完成
+      setTimeout(() => {
+        setActiveTab(redirectTarget);
+      }, 100);
+    }
+  }, [setActiveTab]);
+
   // 监听用户登录状态
   useEffect(() => {
     const initializeApp = async () => {
