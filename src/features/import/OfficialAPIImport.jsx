@@ -141,8 +141,9 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     if (trimmed.length !== 24) {
       return { valid: false, error: `Token长度错误：期望24位，实际${trimmed.length}位` };
     }
-    if (!/^[a-zA-Z0-9]+$/.test(trimmed)) {
-      return { valid: false, error: 'Token格式错误：只能包含字母和数字' };
+    // 允许 Base64 字符集（字母、数字、+、/、=）
+    if (!/^[a-zA-Z0-9+/=]+$/.test(trimmed)) {
+      return { valid: false, error: 'Token格式错误：包含不支持的字符' };
     }
     return { valid: true, token: trimmed };
   }, []);

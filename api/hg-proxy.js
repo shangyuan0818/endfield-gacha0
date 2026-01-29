@@ -118,11 +118,19 @@ async function handleGrant(req, res) {
     return res.status(400).json({ success: false, error: 'Missing token' });
   }
 
-  // 验证 token 格式（24位）
+  // 验证 token 格式（24位，允许 Base64 字符）
   if (token.length !== 24) {
     return res.status(400).json({
       success: false,
       error: `Token格式错误：期望24位，实际${token.length}位`
+    });
+  }
+  
+  // 验证字符集（字母、数字、+、/、=）
+  if (!/^[a-zA-Z0-9+/=]+$/.test(token)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Token格式错误：包含不支持的字符'
     });
   }
 

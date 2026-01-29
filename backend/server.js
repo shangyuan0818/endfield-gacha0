@@ -137,6 +137,14 @@ async function handleGrant(body, res) {
     });
   }
 
+  // 验证字符集（字母、数字、+、/、=）
+  if (!/^[a-zA-Z0-9+/=]+$/.test(token)) {
+    return sendJSON(res, 400, {
+      success: false,
+      error: 'Token格式错误：包含不支持的字符'
+    });
+  }
+
   try {
     const response = await httpsRequest(ENDPOINTS.GRANT, {
       method: 'POST',

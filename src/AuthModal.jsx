@@ -353,15 +353,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return;
       }
 
-      // 后端邮箱域名验证（优先使用后端，回退到前端）
-      const domainResult = await validateEmailDomainBackend(email);
-      if (!domainResult.valid) {
-        setError(domainResult.reason);
-        setLoading(false);
-        return;
-      }
-
-      // 注册用户
+      // 注册用户（已移除邮箱域名白名单验证，简化注册流程）
       // 使用环境变量配置的域名作为验证后跳转地址
       const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { data, error } = await supabase.auth.signUp({
@@ -388,25 +380,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         throw error;
       }
 
-      // 检查是否需要邮箱验证
-      if (data.user && !data.session) {
-        setMessage('注册成功！请查收邮箱验证链接后登录。');
-        setPendingVerificationEmail(email); // 保存待验证邮箱，用于重发验证邮件
-        // 设置初始60秒倒计时
-        setResendCooldown(60);
-        const timer = setInterval(() => {
-          setResendCooldown(prev => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-      } else if (data.user && data.session) {
-        // 如果不需要验证，直接登录成功
-        onAuthSuccess(data.user);
-        onClose();
+      // 注册成功，直接登录（已禁用邮箱验证）
+      if (data.user) {
+        // 注册成功后自动登录
+        if (data.session) {
+          onAuthSuccess(data.user);
+          onClose();
+        } else {
+          // 如果没有 session，可能是 Supabase 配置问题
+          setMessage('注册成功！请直接登录。');
+        }
       }
     } catch (err) {
       // 处理其他错误
@@ -537,37 +520,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
                 <span>{message}</span>
               </div>
-              {/* 重发验证邮件按钮 */}
-              {pendingVerificationEmail && (
-                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
-                  <p className="text-xs text-green-600 dark:text-green-500 mb-2">
-                    没有收到邮件？检查垃圾邮件箱，或点击下方按钮重新发送。
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleResendVerification}
-                    disabled={loading || resendCooldown > 0}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 dark:disabled:bg-green-800 text-white text-sm font-medium rounded-none transition-colors disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 size={16} className="animate-spin" />
-                        发送中...
-                      </>
-                    ) : resendCooldown > 0 ? (
-                      <>
-                        <RefreshCw size={16} />
-                        {resendCooldown}秒后可重发
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw size={16} />
-                        重新发送验证邮件
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
             </div>
           )}
 
