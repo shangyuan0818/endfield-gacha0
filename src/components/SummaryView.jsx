@@ -370,8 +370,14 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
 
   // 根据数据源和筛选条件获取当前显示的统计数据
   const currentStats = useMemo(() => {
-    const isGlobal = dataSource === 'global' && globalStats;
+    // 修复：当选择全服数据但 globalStats 为空时，不要回退到本地数据
+    const isGlobal = dataSource === 'global';
     const baseStats = isGlobal ? globalStats : localStats;
+    
+    // 如果选择全服数据但数据未加载，返回 null（会显示 loading 或提示）
+    if (isGlobal && !globalStats) {
+      return null;
+    }
 
     if (!baseStats) return null;
 
@@ -446,11 +452,37 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     };
   }, [dataSource, poolTypeFilter, globalStats, localStats]);
 
+  // 辅助函数：为全服数据生成 chartData（饼图数据）
+  const generateChartDataFromCounts = (counts) => {
+    if (!counts) return [];
+    const rawData = [
+      { name: '6星(限定)', value: counts[6] || counts['6'] || 0, color: RARITY_CONFIG[6].color },
+      { name: '6星(常驻)', value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
+      { name: '5星', value: counts[5] || counts['5'] || 0, color: RARITY_CONFIG[5].color },
+      { name: '4星', value: counts[4] || counts['4'] || 0, color: RARITY_CONFIG[4].color },
+    ].filter(item => item.value > 0);
+
+    const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
+    return rawData.map(item => {
+      const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+      let minPercent = 0;
+      if (item.name.includes('6星')) minPercent = 15;
+      else if (item.name.includes('5星')) minPercent = 20;
+
+      if (currentPercent < minPercent && totalValue > 0) {
+        return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+      }
+      return { ...item, displayValue: item.value };
+    });
+  };
+
   // 获取图表显示数据
   const chartDisplayData = useMemo(() => {
-    const isGlobal = dataSource === 'global' && globalStats;
+    // 修复：当选择全服数据但 globalStats 为空时，不要回退到本地数据
+    const isGlobal = dataSource === 'global';
     const baseStats = isGlobal ? globalStats : localStats;
 
+    // 如果选择全服数据但数据未加载，返回空
     if (!baseStats) return { charts: [], isGlobal };
 
     // 如果选择了特定类型，只显示该类型
@@ -471,17 +503,55 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         standard: 'text-indigo-500'
       };
 
+      // 为全服数据生成 chartData（如果没有的话）
+      const chartData = typeData.chartData || generateChartDataFromCounts(typeData.counts);
+
       return {
         isGlobal,
         charts: [{
           title: typeNames[poolTypeFilter],
           color: typeColors[poolTypeFilter],
-          data: typeData
+          data: {
+            ...typeData,
+            chartData
+          }
         }]
       };
     }
 
     // 全部数据时：角色池（合并）+ 武器池
+    const limitedCounts = baseStats.byType?.limited?.counts || {};
+    const standardCounts = baseStats.byType?.standard?.counts || {};
+    const characterCounts = {
+      6: (limitedCounts[6] || limitedCounts['6'] || 0) + (standardCounts[6] || standardCounts['6'] || 0),
+      '6_std': (limitedCounts['6_std'] || 0) + (standardCounts['6_std'] || 0),
+      5: (limitedCounts[5] || limitedCounts['5'] || 0) + (standardCounts[5] || standardCounts['5'] || 0),
+      4: (limitedCounts[4] || limitedCounts['4'] || 0) + (standardCounts[4] || standardCounts['4'] || 0)
+    };
+
+    // 合并限定池和常驻池的分布数据
+    const mergeDistributions = (limited, standard) => {
+      if (!limited?.length && !standard?.length) return [];
+      const merged = {};
+      (limited || []).forEach(item => {
+        merged[item.range] = { range: item.range, limited: item.limited || 0, standard: item.standard || 0 };
+      });
+      (standard || []).forEach(item => {
+        if (merged[item.range]) {
+          merged[item.range].limited += item.limited || 0;
+          merged[item.range].standard += item.standard || 0;
+        } else {
+          merged[item.range] = { range: item.range, limited: item.limited || 0, standard: item.standard || 0 };
+        }
+      });
+      // 按 range 排序
+      return Object.values(merged).sort((a, b) => {
+        const aNum = parseInt(a.range.split('-')[0]);
+        const bNum = parseInt(b.range.split('-')[0]);
+        return aNum - bNum;
+      });
+    };
+
     return {
       isGlobal,
       charts: [
@@ -492,20 +562,18 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
           data: baseStats.byType?.character || {
             total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
             six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
-            counts: {
-              6: (baseStats.byType?.limited?.counts?.[6] || 0) + (baseStats.byType?.standard?.counts?.[6] || 0),
-              '6_std': (baseStats.byType?.limited?.counts?.['6_std'] || 0) + (baseStats.byType?.standard?.counts?.['6_std'] || 0),
-              5: (baseStats.byType?.limited?.counts?.[5] || 0) + (baseStats.byType?.standard?.counts?.[5] || 0),
-              4: (baseStats.byType?.limited?.counts?.[4] || 0) + (baseStats.byType?.standard?.counts?.[4] || 0)
-            },
-            distribution: [...(baseStats.byType?.limited?.distribution || [])],
-            chartData: baseStats.byType?.limited?.chartData || []
+            counts: characterCounts,
+            distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
+            chartData: baseStats.byType?.character?.chartData || generateChartDataFromCounts(characterCounts)
           }
         },
         {
           title: '武器池',
           color: 'text-slate-500',
-          data: baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [], chartData: [] }
+          data: {
+            ...(baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [] }),
+            chartData: baseStats.byType?.weapon?.chartData || generateChartDataFromCounts(baseStats.byType?.weapon?.counts)
+          }
         }
       ]
     };
@@ -927,7 +995,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         {/* 右侧内容区 */}
         <div className="flex-1 space-y-6">
           {/* 统计信息卡片 */}
-        {globalStatsLoading && dataSource === 'global' ? (
+        {(globalStatsLoading || (dataSource === 'global' && !globalStats)) ? (
           <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 p-12 text-center flex flex-col items-center justify-center gap-3">
             <RefreshCw size={32} className="animate-spin text-zinc-400" />
             <span className="text-sm font-mono text-zinc-500 uppercase tracking-widest">Loading Global Data...</span>
