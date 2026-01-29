@@ -97,7 +97,7 @@ function getRulesByPoolType(poolType) {
  * 抽卡模拟器类
  */
 export class GachaSimulator {
-  constructor(poolType = 'limited_character', customRules = null, currentUpCharacter = null) {
+  constructor(poolType = 'limited_character', customRules = null, currentUpCharacter = null, poolCharactersList = null) {
     this.poolType = poolType;
     this.state = createInitialState(poolType);
     // 如果提供自定义规则则使用，否则根据 poolType 自动选择
@@ -105,6 +105,8 @@ export class GachaSimulator {
     this.listeners = [];
     // 当前UP角色（限定池专用）
     this.currentUpCharacter = currentUpCharacter;
+    // 卡池角色列表（从 pool_characters 表加载）
+    this.poolCharactersList = poolCharactersList;
 
     // 确保角色数据已加载
     this.ensureCharacterDataLoaded();
@@ -117,9 +119,7 @@ export class GachaSimulator {
    */
   async ensureCharacterDataLoaded() {
     if (!characterCache.isLoaded()) {
-      console.log('[GachaSimulator] 等待角色数据加载...');
       await characterCache.load();
-      console.log('[GachaSimulator] 角色数据加载完成');
     }
   }
 
@@ -129,6 +129,14 @@ export class GachaSimulator {
    */
   setCurrentUpCharacter(characterName) {
     this.currentUpCharacter = characterName;
+  }
+
+  /**
+   * 设置卡池角色列表
+   * @param {Object} list - 角色列表 {up: [], offBanner: [], fiveStar: [], fourStar: []}
+   */
+  setPoolCharactersList(list) {
+    this.poolCharactersList = list;
   }
 
   /**
@@ -189,7 +197,7 @@ export class GachaSimulator {
       ? this.getCurrentUpCharacter()
       : null;
 
-    const result = simulateSinglePull(this.state, this.rules, this.poolType, currentUpChar);
+    const result = simulateSinglePull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
 
     // 更新历史记录
     const pullRecord = {
@@ -232,7 +240,7 @@ export class GachaSimulator {
       ? this.getCurrentUpCharacter()
       : null;
 
-    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
+    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
     const pullRecords = [];
 
     // 处理每一抽的结果
@@ -295,7 +303,7 @@ export class GachaSimulator {
       : null;
 
     // 正常执行十连模拟（内部10抽会相互影响，这是正确的）
-    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
+    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
     const pullRecords = [];
 
     // 处理每一抽的结果
@@ -349,7 +357,7 @@ export class GachaSimulator {
       : null;
 
     // 正常执行十连模拟（计入保底）
-    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar);
+    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
     const pullRecords = [];
 
     // 统计6星和5星数量
@@ -721,10 +729,11 @@ export class GachaSimulator {
  * @param {string} poolType - 卡池类型 ('limited', 'weapon', 'standard')
  * @param {Object} customRules - 自定义规则（可选）
  * @param {string} currentUpCharacter - 当前UP角色（可选）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
  * @returns {GachaSimulator} 模拟器实例
  */
-export function createSimulator(poolType, customRules = null, currentUpCharacter = null) {
-  return new GachaSimulator(poolType, customRules, currentUpCharacter);
+export function createSimulator(poolType, customRules = null, currentUpCharacter = null, poolCharactersList = null) {
+  return new GachaSimulator(poolType, customRules, currentUpCharacter, poolCharactersList);
 }
 
 export default {

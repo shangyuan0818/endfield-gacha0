@@ -181,6 +181,7 @@ export const STANDARD_FOUR_STAR_CHARACTERS = new Proxy([], {
 function getWeaponSixStarList(isLimited = false) {
   const chars = getPoolCharacters('weapon', 6, false)
     .filter(char => char.is_limited === isLimited);
+  
   return chars.map(char => char.name);
 }
 
@@ -273,9 +274,26 @@ export function randomChoice(array) {
  * @param {number} rarity - 星级 (4, 5, 6)
  * @param {boolean} isUp - 是否为UP角色（仅限定池6星有效）
  * @param {string} currentUpCharacter - 当前UP角色名称（必须传入）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表 {up: [], offBanner: [], fiveStar: [], fourStar: []}
  * @returns {string} 角色名称
  */
-export function getCharacterName(poolType, rarity, isUp = false, currentUpCharacter = null) {
+export function getCharacterName(poolType, rarity, isUp = false, currentUpCharacter = null, poolCharactersList = null) {
+  // 如果提供了卡池角色列表，优先使用
+  if (poolCharactersList) {
+    if (rarity === 6) {
+      if (isUp && poolCharactersList.up?.length > 0) {
+        return randomChoice(poolCharactersList.up.map(c => c.name));
+      } else if (!isUp && poolCharactersList.offBanner?.length > 0) {
+        return randomChoice(poolCharactersList.offBanner.map(c => c.name));
+      }
+    } else if (rarity === 5 && poolCharactersList.fiveStar?.length > 0) {
+      return randomChoice(poolCharactersList.fiveStar.map(c => c.name));
+    } else if (rarity === 4 && poolCharactersList.fourStar?.length > 0) {
+      return randomChoice(poolCharactersList.fourStar.map(c => c.name));
+    }
+    // 如果卡池列表中没有找到，继续使用下面的后备逻辑
+  }
+
   // 武器池处理（修复：区分UP限定武器和常驻武器）
   if (poolType === 'weapon' || poolType === 'limited_weapon') {
     if (rarity === 6) {

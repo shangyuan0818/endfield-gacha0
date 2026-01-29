@@ -100,9 +100,10 @@ export function rollUpCharacter(isGuaranteed, upProbability = 0.5) {
  * @param {Object} rules - 卡池规则
  * @param {string} poolType - 卡池类型
  * @param {string} currentUpCharacter - 当前UP角色（可选）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
  * @returns {Object} 抽卡结果
  */
-export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null) {
+export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
   // 增加保底计数
   const sixStarPity = state.sixStarPity + 1;
   const fiveStarPity = state.fiveStarPity + 1;
@@ -121,7 +122,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   if (shouldTriggerGuaranteedLimited) {
     // 触发硬保底，必出限定6星
     const upChar = currentUpCharacter || getCurrentUpCharacter();
-    const characterName = getCharacterName(poolType, 6, true, upChar);
+    const characterName = getCharacterName(poolType, 6, true, upChar, poolCharactersList);
 
     return {
       rarity: 6,
@@ -151,7 +152,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
     // 获取当前UP角色名称
     const upChar = currentUpCharacter || getCurrentUpCharacter();
-    const characterName = getCharacterName(poolType, 6, isUp, upChar);
+    const characterName = getCharacterName(poolType, 6, isUp, upChar, poolCharactersList);
 
     // 如果出了限定，重置120/80抽计数
     const shouldResetGuaranteedPity = isUp;
@@ -174,7 +175,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
   // 判断是否出5星
   if (rollProbability(fiveStarProb)) {
-    const characterName = getCharacterName(poolType, 5, false);
+    const characterName = getCharacterName(poolType, 5, false, null, poolCharactersList);
 
     return {
       rarity: 5,
@@ -193,7 +194,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   }
 
   // 其他情况为4星（去掉三星）
-  const characterName = getCharacterName(poolType, 4, false);
+  const characterName = getCharacterName(poolType, 4, false, null, poolCharactersList);
 
   return {
     rarity: 4,
@@ -217,14 +218,15 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
  * @param {Object} rules - 卡池规则
  * @param {string} poolType - 卡池类型
  * @param {string} currentUpCharacter - 当前UP角色（可选）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
  * @returns {Array} 十连抽卡结果数组
  */
-export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null) {
+export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
   const results = [];
   let currentState = { ...state };
 
   for (let i = 0; i < 10; i++) {
-    const result = simulateSinglePull(currentState, rules, poolType, currentUpCharacter);
+    const result = simulateSinglePull(currentState, rules, poolType, currentUpCharacter, poolCharactersList);
     results.push(result);
 
     // 更新状态用于下一抽
