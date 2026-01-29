@@ -112,30 +112,41 @@ BEGIN
   ) INTO global_distribution FROM grouped_ranges;
 
   -- ============================================
-  -- 3. 计算限定池统计（修复：匹配 limited 和 limited_character）
+  -- 3. 计算限定池统计（含 pool_type 预处理）
   -- ============================================
-  WITH limited_pulls AS (
-    SELECT h.*
+  WITH base_pulls AS (
+    SELECT
+      h.*,
+      COALESCE(
+        CASE
+          WHEN p.type IN ('limited', 'limited_character') THEN 'limited'
+          WHEN p.type IN ('weapon', 'limited_weapon') THEN 'weapon'
+          WHEN p.type IN ('standard', 'beginner') THEN 'standard'
+          ELSE NULL
+        END,
+        CASE
+          WHEN split_part(h.pool_id, '_', 2) IN ('limited', 'limited-character', 'limitedcharacter', 'limited_character') THEN 'limited'
+          WHEN split_part(h.pool_id, '_', 2) IN ('weapon', 'limited-weapon', 'limitedweapon', 'limited_weapon') THEN 'weapon'
+          WHEN split_part(h.pool_id, '_', 2) IN ('standard', 'beginner') THEN 'standard'
+          WHEN h.is_standard = true THEN 'standard'
+          ELSE 'limited'
+        END
+      ) AS pool_type
     FROM history h
-    JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
-    WHERE p.type IN ('limited', 'limited_character')
+    LEFT JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
+    WHERE h.special_type IS DISTINCT FROM 'gift'
+  ),
+  limited_pulls AS (
+    SELECT * FROM base_pulls WHERE pool_type = 'limited'
   ),
   limited_ordered AS (
-    SELECT
-      pool_id,
-      user_id,
-      rarity,
-      is_standard,
-      ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
+    SELECT pool_id, user_id, rarity, is_standard,
+           ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
     FROM limited_pulls
-    WHERE special_type IS DISTINCT FROM 'gift'
   ),
   limited_six_pity AS (
-    SELECT
-      pool_id,
-      user_id,
-      is_standard,
-      rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
+    SELECT pool_id, user_id, is_standard,
+           rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
     FROM limited_ordered
     WHERE rarity = 6
   ),
@@ -165,7 +176,7 @@ BEGIN
     GROUP BY range_label
   )
   SELECT json_build_object(
-    'total', COALESCE((SELECT COUNT(*) FROM limited_pulls WHERE special_type IS DISTINCT FROM 'gift'), 0),
+    'total', COALESCE((SELECT COUNT(*) FROM limited_pulls), 0),
     'six', COALESCE((SELECT COUNT(*) FROM limited_pulls WHERE rarity = 6), 0),
     'sixStarLimited', COALESCE((SELECT COUNT(*) FROM limited_pulls WHERE rarity = 6 AND is_standard = false), 0),
     'sixStarStandard', COALESCE((SELECT COUNT(*) FROM limited_pulls WHERE rarity = 6 AND is_standard = true), 0),
@@ -189,30 +200,41 @@ BEGIN
   ) INTO limited_stats;
 
   -- ============================================
-  -- 4. 计算武器池统计（修复：匹配 weapon 和 limited_weapon）
+  -- 4. 计算武器池统计（含 pool_type 预处理）
   -- ============================================
-  WITH weapon_pulls AS (
-    SELECT h.*
+  WITH base_pulls AS (
+    SELECT
+      h.*,
+      COALESCE(
+        CASE
+          WHEN p.type IN ('limited', 'limited_character') THEN 'limited'
+          WHEN p.type IN ('weapon', 'limited_weapon') THEN 'weapon'
+          WHEN p.type IN ('standard', 'beginner') THEN 'standard'
+          ELSE NULL
+        END,
+        CASE
+          WHEN split_part(h.pool_id, '_', 2) IN ('limited', 'limited-character', 'limitedcharacter', 'limited_character') THEN 'limited'
+          WHEN split_part(h.pool_id, '_', 2) IN ('weapon', 'limited-weapon', 'limitedweapon', 'limited_weapon') THEN 'weapon'
+          WHEN split_part(h.pool_id, '_', 2) IN ('standard', 'beginner') THEN 'standard'
+          WHEN h.is_standard = true THEN 'standard'
+          ELSE 'limited'
+        END
+      ) AS pool_type
     FROM history h
-    JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
-    WHERE p.type IN ('weapon', 'limited_weapon')
+    LEFT JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
+    WHERE h.special_type IS DISTINCT FROM 'gift'
+  ),
+  weapon_pulls AS (
+    SELECT * FROM base_pulls WHERE pool_type = 'weapon'
   ),
   weapon_ordered AS (
-    SELECT
-      pool_id,
-      user_id,
-      rarity,
-      is_standard,
-      ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
+    SELECT pool_id, user_id, rarity, is_standard,
+           ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
     FROM weapon_pulls
-    WHERE special_type IS DISTINCT FROM 'gift'
   ),
   weapon_six_pity AS (
-    SELECT
-      pool_id,
-      user_id,
-      is_standard,
-      rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
+    SELECT pool_id, user_id, is_standard,
+           rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
     FROM weapon_ordered
     WHERE rarity = 6
   ),
@@ -242,7 +264,7 @@ BEGIN
     GROUP BY range_label
   )
   SELECT json_build_object(
-    'total', COALESCE((SELECT COUNT(*) FROM weapon_pulls WHERE special_type IS DISTINCT FROM 'gift'), 0),
+    'total', COALESCE((SELECT COUNT(*) FROM weapon_pulls), 0),
     'six', COALESCE((SELECT COUNT(*) FROM weapon_pulls WHERE rarity = 6), 0),
     'sixStarLimited', COALESCE((SELECT COUNT(*) FROM weapon_pulls WHERE rarity = 6 AND is_standard = false), 0),
     'sixStarStandard', COALESCE((SELECT COUNT(*) FROM weapon_pulls WHERE rarity = 6 AND is_standard = true), 0),
@@ -266,30 +288,41 @@ BEGIN
   ) INTO weapon_stats;
 
   -- ============================================
-  -- 5. 计算常驻池统计（修复：匹配 standard 和 beginner）
+  -- 5. 计算常驻池统计（含 pool_type 预处理）
   -- ============================================
-  WITH standard_pulls AS (
-    SELECT h.*
+  WITH base_pulls AS (
+    SELECT
+      h.*,
+      COALESCE(
+        CASE
+          WHEN p.type IN ('limited', 'limited_character') THEN 'limited'
+          WHEN p.type IN ('weapon', 'limited_weapon') THEN 'weapon'
+          WHEN p.type IN ('standard', 'beginner') THEN 'standard'
+          ELSE NULL
+        END,
+        CASE
+          WHEN split_part(h.pool_id, '_', 2) IN ('limited', 'limited-character', 'limitedcharacter', 'limited_character') THEN 'limited'
+          WHEN split_part(h.pool_id, '_', 2) IN ('weapon', 'limited-weapon', 'limitedweapon', 'limited_weapon') THEN 'weapon'
+          WHEN split_part(h.pool_id, '_', 2) IN ('standard', 'beginner') THEN 'standard'
+          WHEN h.is_standard = true THEN 'standard'
+          ELSE 'limited'
+        END
+      ) AS pool_type
     FROM history h
-    JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
-    WHERE p.type IN ('standard', 'beginner')
+    LEFT JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
+    WHERE h.special_type IS DISTINCT FROM 'gift'
+  ),
+  standard_pulls AS (
+    SELECT * FROM base_pulls WHERE pool_type = 'standard'
   ),
   standard_ordered AS (
-    SELECT
-      pool_id,
-      user_id,
-      rarity,
-      is_standard,
-      ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
+    SELECT pool_id, user_id, rarity, is_standard,
+           ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) as rn
     FROM standard_pulls
-    WHERE special_type IS DISTINCT FROM 'gift'
   ),
   standard_six_pity AS (
-    SELECT
-      pool_id,
-      user_id,
-      is_standard,
-      rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
+    SELECT pool_id, user_id, is_standard,
+           rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0) as pity
     FROM standard_ordered
     WHERE rarity = 6
   ),
@@ -319,7 +352,7 @@ BEGIN
     GROUP BY range_label
   )
   SELECT json_build_object(
-    'total', COALESCE((SELECT COUNT(*) FROM standard_pulls WHERE special_type IS DISTINCT FROM 'gift'), 0),
+    'total', COALESCE((SELECT COUNT(*) FROM standard_pulls), 0),
     'six', COALESCE((SELECT COUNT(*) FROM standard_pulls WHERE rarity = 6), 0),
     'sixStarLimited', COALESCE((SELECT COUNT(*) FROM standard_pulls WHERE rarity = 6 AND is_standard = false), 0),
     'sixStarStandard', COALESCE((SELECT COUNT(*) FROM standard_pulls WHERE rarity = 6 AND is_standard = true), 0),
@@ -343,7 +376,7 @@ BEGIN
   ) INTO standard_stats;
 
   -- ============================================
-  -- 6. 组装最终结果
+  -- 7. 组装最终结果
   -- ============================================
   SELECT json_build_object(
     'totalPulls', COALESCE((SELECT COUNT(*) FROM history WHERE special_type IS DISTINCT FROM 'gift'), 0),

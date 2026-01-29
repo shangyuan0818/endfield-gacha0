@@ -248,15 +248,33 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              }
            />
            {/* 平均出货 */}
-           <StatCard 
-             label="平均出货"
-             extraLabel={isLimited ? "仅UP·免十不计" : isWeapon ? "仅UP" : null}
-             value={stats.upSixStarCount > 0 ? (stats.avgPullCost?.[6] || stats.avgPullsPerSixStar) : '-'}
-             subValue={stats.upSixStarCount > 0 ? "抽" : null}
-             progress={0} 
-             progressColor="bg-transparent"
-             footer={stats.upSixStarCount > 0 ? "基于UP角色出货统计" : '暂无UP数据'}
-           />
+           {(() => {
+             // 理论期望值：角色池约62.5抽，武器池约31.25抽
+             const expectedPulls = isWeapon ? 31.25 : 62.5;
+             const avgValue = parseFloat(stats.avgPullCost?.[6]) || 0;
+             // 进度条显示：期望值=50%，越低越好（绿色），越高越差（红色）
+             const progressPercent = avgValue > 0 ? Math.min((expectedPulls / avgValue) * 50, 100) : 0;
+             const isLucky = avgValue > 0 && avgValue < expectedPulls;
+             
+             return (
+               <StatCard 
+                 label="平均出货"
+                 extraLabel={isLimited ? "仅UP·免十不计" : isWeapon ? "仅UP" : null}
+                 value={stats.upSixStarCount > 0 ? stats.avgPullCost?.[6] : '-'}
+                 subValue={stats.upSixStarCount > 0 ? "抽" : null}
+                 progress={progressPercent}
+                 progressColor={isLucky ? 'bg-green-500' : 'bg-amber-500'}
+                 footer={
+                   stats.upSixStarCount > 0 
+                     ? <span className="flex justify-between">
+                         <span>期望: ~{expectedPulls}抽</span>
+                         {isLucky && <span className="text-green-600 dark:text-green-400">运气不错!</span>}
+                       </span>
+                     : '暂无UP数据'
+                 }
+               />
+             );
+           })()}
         </div>
       )}
 

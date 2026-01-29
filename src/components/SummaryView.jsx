@@ -82,8 +82,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     if (!pools) return [];
     // 未登录时，不显示"我的数据"（避免读取localStorage数据）
     if (!user) return [];
-    // 登录后，只显示当前用户创建的数据（严格匹配 user_id）
-    return pools.filter(pool => pool.user_id === user.id);
+    // 统计“我的数据”时使用全量卡池（卡池由超管维护，pool_id 唯一）
+    return pools;
   }, [pools, user]);
 
   const myHistory = useMemo(() => {
@@ -94,7 +94,53 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     return history.filter(h => h.user_id === user.id);
   }, [history, user]);
 
-  // 计算当前用户统计数据（只使用过滤后的数据）
+  // 归一化 myHistory 的 isStandard（基于 UP 角色匹配重新计算）
+  const normalizedMyHistory = useMemo(() => {
+    // 创建卡池映射：pool_id -> pool 信息
+    const poolMap = new Map();
+    myPools.forEach(p => {
+      poolMap.set(p.id, { type: p.type, upCharacter: p.up_character });
+    });
+
+    return myHistory.map(h => {
+      const pool = poolMap.get(h.poolId);
+      if (!pool) {
+        // 没有找到对应卡池，保持原值
+        return h;
+      }
+
+      const poolType = pool.type;
+      const upCharacter = pool.upCharacter;
+      const characterName = h.character_name || h.item_name || h.name || '';
+      let isStd;
+
+      // 根据卡池类型和 UP 角色判断
+      if (poolType === 'standard' || poolType === 'beginner') {
+        // 常驻池/新手池的6星都算常驻
+        isStd = true;
+      } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+        // 限定池/武器池：检查是否匹配UP角色
+        if (upCharacter && h.rarity === 6) {
+          // 如果角色名不匹配UP角色，则为常驻（被歪了）
+          isStd = !characterName.toLowerCase().includes(upCharacter.toLowerCase()) && 
+                  !upCharacter.toLowerCase().includes(characterName.toLowerCase());
+        } else if (h.rarity === 6) {
+          // 没有UP角色信息的6星，默认为限定
+          isStd = false;
+        } else {
+          // 非6星保持原值或默认 false
+          isStd = h.isStandard ?? false;
+        }
+      } else {
+        // 其他类型，保持原值
+        isStd = h.isStandard ?? false;
+      }
+
+      return { ...h, isStandard: isStd };
+    });
+  }, [myHistory, myPools]);
+
+  // 计算当前用户统计数据（使用归一化后的数据，排除免费十连）
   const localStats = useMemo(() => {
     const data = {
       total: 0,
@@ -120,9 +166,9 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       return 'standard'; // standard, beginner 等都归为 standard
     };
 
-    // 1. 分组（使用过滤后的当前用户数据）
+    // 1. 分组（使用归一化后的当前用户数据）
     const pullsByPool = {};
-    myHistory.forEach(item => {
+    normalizedMyHistory.forEach(item => {
       if (!pullsByPool[item.poolId]) pullsByPool[item.poolId] = [];
       pullsByPool[item.poolId].push(item);
     });
@@ -138,7 +184,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       const rawType = poolTypeMap.get(poolId) || 'standard';
       const type = normalizePoolType(rawType);
       const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
-      const validPulls = sortedPulls.filter(i => i.specialType !== 'gift');
+      const validPulls = sortedPulls.filter(i => i.specialType !== 'gift' && i.isFree !== true && i.is_free !== true);
       const poolTotal = validPulls.length;
 
       // 计算该卡池的赠送数量
@@ -233,8 +279,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       });
     };
 
-    // 3. 全局统计 & 分类计数（使用过滤后的当前用户数据）
-    myHistory.forEach(item => {
+    // 3. 全局统计 & 分类计数（使用归一化后的当前用户数据，排除免费十连）
+    normalizedMyHistory.forEach(item => {
       const rawType = poolTypeMap.get(item.poolId) || 'standard';
       const type = normalizePoolType(rawType);
       const typeData = data.byType[type];
@@ -244,14 +290,15 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         return;
       }
 
-      if (item.specialType !== 'gift') {
+      const isFree = item.isFree || item.is_free;
+      if (item.specialType !== 'gift' && !isFree) {
          data.total++;
          typeData.total++;
       }
 
       let r = item.rarity;
-      // 排除赠送的6星统计
-      if (r === 6 && item.specialType !== 'gift') {
+      // 排除赠送的6星和免费十连统计
+      if (r === 6 && item.specialType !== 'gift' && !isFree) {
         if (item.isStandard) {
            data.counts['6_std']++;
            typeData.counts['6_std']++;
@@ -366,14 +413,14 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
     data.giftTotal = charGiftCount + weaponGiftLimitedCount + weaponGiftStandardCount;
 
     return data;
-  }, [myHistory, myPools]);
+  }, [normalizedMyHistory, myPools]);
 
   // 根据数据源和筛选条件获取当前显示的统计数据
   const currentStats = useMemo(() => {
     // 修复：当选择全服数据但 globalStats 为空时，不要回退到本地数据
     const isGlobal = dataSource === 'global';
     const baseStats = isGlobal ? globalStats : localStats;
-    
+
     // 如果选择全服数据但数据未加载，返回 null（会显示 loading 或提示）
     if (isGlobal && !globalStats) {
       return null;
@@ -383,7 +430,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
 
     // 根据筛选条件返回对应数据
     if (poolTypeFilter === 'all') {
-      return {
+      const result = {
         title: isGlobal ? '全服数据' : '我的数据',
         subtitle: '全部卡池',
         total: baseStats.totalPulls ?? baseStats.total,
@@ -399,6 +446,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         weaponGiftStandard: baseStats.weaponGiftStandard || 0,
         giftTotal: baseStats.giftTotal || 0
       };
+
+      return result;
     }
 
     // 特定卡池类型
@@ -436,7 +485,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       }
     }
 
-    return {
+    const result = {
       title: isGlobal ? '全服数据' : '我的数据',
       subtitle: typeNames[poolTypeFilter],
       total: typeData.total,
@@ -450,6 +499,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       chartData: typeData.chartData,
       totalUsers: baseStats.totalUsers
     };
+
+    return result;
   }, [dataSource, poolTypeFilter, globalStats, localStats]);
 
   // 辅助函数：为全服数据生成 chartData（饼图数据）
@@ -1077,8 +1128,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                             const standardSixTotal = currentStats.byType?.standard?.six || 0;
                             const totalSix = limitedSixTotal + standardSixTotal;
 
-                            // 从characterRanking获取不含免费的数量（如果有）
-                            const limitedSixExcl = characterRanking?.limited?.sixStarExcludingFree;
+                            // 从characterRanking获取不含免费的数量（仅全服数据时使用）
+                            const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
                             const hasExclData = limitedSixExcl !== undefined && limitedSixExcl !== null;
 
                             if (hasExclData) {
@@ -1096,7 +1147,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           const limitedSixTotal = currentStats.byType?.limited?.six || 0;
                           const standardSixTotal = currentStats.byType?.standard?.six || 0;
                           const totalSix = limitedSixTotal + standardSixTotal;
-                          const limitedSixExcl = characterRanking?.limited?.sixStarExcludingFree;
+                          const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
 
                           if (limitedSixExcl === undefined || limitedSixExcl === null) return null;
 

@@ -11,6 +11,7 @@ import GachaSimulator from './features/simulator/GachaSimulator';
 import { Toast, ConfirmDialog, LoadingBar, NotificationBadge } from './components/ui';
 import { useToast, useConfirm } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
+import { getPoolTypeFromId } from './stores/usePoolStore';
 import { RARITY_CONFIG, DEFAULT_DISPLAY_PITY, DEFAULT_POOL_ID, PRESET_POOLS, POOL_TYPE_KEYWORDS, LIMITED_POOL_RULES, WEAPON_POOL_RULES, LIMITED_POOL_SCHEDULE, getCurrentUpPool } from './constants';
 import RainbowGradientDefs from './components/charts/RainbowGradientDefs';
 import { validatePullData, validatePoolData, validateBatchAgainstRules, calculateCurrentProbability, calculateInheritedPity, getPoolRules, extractDrawerFromPoolName, extractCharNameFromPoolName, extractTypeFromPoolName, STORAGE_KEYS, hasNewContent, markAsViewed, getStorageItem, setStorageItem } from './utils';
@@ -211,6 +212,40 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     if (!user) return [];
     return (history || []).filter(h => h.poolId === currentPoolId && h.user_id === user.id);
   }, [history, currentPoolId, currentPool, user]);
+
+  // 归一化当前卡池历史的 isStandard（基于 UP 角色匹配重新计算，不信任数据库原值）
+  const normalizedCurrentPoolHistory = useMemo(() => {
+    const poolType = currentPool?.type;
+    const upCharacter = currentPool?.up_character;
+
+    return currentPoolHistory.map(h => {
+      const characterName = h.character_name || h.item_name || h.name || '';
+      let isStd;
+
+      // 根据卡池类型和 UP 角色判断
+      if (poolType === 'standard' || poolType === 'beginner') {
+        // 常驻池/新手池的6星都算常驻
+        isStd = true;
+      } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+        // 限定池/武器池：检查是否匹配UP角色
+        if (upCharacter && h.rarity === 6) {
+          // 如果角色名不匹配UP角色，则为常驻（被歪了）
+          isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+        } else if (h.rarity === 6) {
+          // 没有UP角色信息的6星，默认为限定
+          isStd = false;
+        } else {
+          // 非6星保持原值或默认 false
+          isStd = h.isStandard ?? false;
+        }
+      } else {
+        // 其他类型，保持原值
+        isStd = h.isStandard ?? false;
+      }
+
+      return { ...h, isStandard: isStd };
+    });
+  }, [currentPoolHistory, currentPool?.type, currentPool?.up_character]);
 
   // 文件上传 Ref
   const fileInputRef = useRef(null);
@@ -424,11 +459,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     setSyncError(null);
 
     try {
-      // 只加载当前用户的卡池
+      // 加载所有卡池（公共池由超管维护，不再按 user 过滤）
       let poolQuery = supabase
         .from('pools')
-        .select('*')
-        .eq('user_id', currentUser.id);
+        .select('*');
 
       const { data: cloudPools, error: poolsError } = await poolQuery;
 
@@ -438,13 +472,17 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       const userIds = [...new Set(cloudPools.map(p => p.user_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, username')
+        .select('id, username, role')
         .in('id', userIds);
 
       // 创建 user_id -> username 的映射
       const usernameMap = new Map();
+      const roleMap = new Map();
       if (profiles) {
-        profiles.forEach(p => usernameMap.set(p.id, p.username));
+        profiles.forEach(p => {
+          usernameMap.set(p.id, p.username);
+          roleMap.set(p.id, p.role);
+        });
       }
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
@@ -479,17 +517,26 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         }
       }
 
+      const normalizeType = (type, isLimitedWeaponFlag) => {
+        if (type === 'limited_character') return 'limited';
+        if (type === 'limited_weapon') return 'weapon';
+        if (type === 'weapon' && isLimitedWeaponFlag === false) return 'weapon'; // 保持武器池
+        return type || 'standard';
+      };
+
       // 转换数据格式（云端字段名可能不同）
       // 使用 usernameMap 获取创建人用户名
       const formattedPools = cloudPools.map(p => ({
         id: p.pool_id,
         name: p.name,
-        type: p.type,
+        type: normalizeType(p.type, p.is_limited_weapon),
         locked: p.locked || false,
         isLimitedWeapon: p.is_limited_weapon !== false,  // 武器池类型：限定/常驻
         created_at: p.created_at || null,
+        updated_at: p.updated_at || null,
         user_id: p.user_id,  // 保留 user_id 用于判断是否为当前用户创建
         creator_username: usernameMap.get(p.user_id) || null,  // 从 profiles 查询得到的用户名
+        creator_role: roleMap.get(p.user_id) || null,
         // 扩展字段（模拟器和卡池详情需要）
         up_character: p.up_character || null,  // UP 角色
         description: p.description || null,     // 描述
@@ -528,7 +575,94 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
         nick_name: h.nick_name
       }));
 
-      return { pools: formattedPools, history: formattedHistory };
+      // 如果历史里存在但 pools 表不存在的 pool_id，补一份占位池，避免选择器缺池
+      const knownPoolIds = new Set(formattedPools.map(p => p.id));
+      const historyPoolIds = [...new Set(formattedHistory.map(h => h.poolId))];
+      const placeholderPools = historyPoolIds
+        .filter(pid => !knownPoolIds.has(pid))
+        .map(pid => {
+        const inferredType = normalizeType(getPoolTypeFromId(pid));
+          const defaultName = (() => {
+            switch (inferredType) {
+              case 'limited_character':
+              case 'limited':
+                return '限定角色池';
+              case 'standard':
+                return '基础寻访';
+              case 'beginner':
+                return '启程寻访';
+              case 'limited_weapon':
+              case 'weapon':
+                return '武器池';
+              default:
+                return pid || '未知卡池';
+            }
+          })();
+          return {
+            id: pid,
+            name: defaultName,
+            type: inferredType === 'unknown' ? 'standard' : inferredType,
+            locked: false,
+            isLimitedWeapon: inferredType === 'limited_weapon',
+            created_at: null,
+            updated_at: null,
+            user_id: null,
+            creator_username: null,
+            up_character: null,
+            description: null,
+            banner_url: null,
+            start_time: null,
+            end_time: null,
+            featured_characters: null,
+          };
+        });
+
+      // 同一 pool_id 可能有多个 user 版本：优先带 up_character 的、再按 updated_at 较新
+      const dedupedPoolsMap = new Map();
+      const roleWeight = (p) => {
+        const role = p.creator_role;
+        if (role === 'super_admin') return 3;
+        if (role === 'admin') return 2;
+        return 1;
+      };
+      const score = (p) =>
+        (p.up_character ? 3 : 0) +
+        (p.banner_url ? 1 : 0) +
+        (p.description ? 1 : 0) +
+        (p.locked ? 1 : 0) +
+        roleWeight(p);
+      const chooseBetter = (a, b) => {
+        const scoreA = score(a);
+        const scoreB = score(b);
+        if (scoreA !== scoreB) return scoreA > scoreB ? a : b;
+        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return timeA >= timeB ? a : b;
+      };
+
+      [...formattedPools, ...placeholderPools].forEach(p => {
+        const existing = dedupedPoolsMap.get(p.id);
+        if (!existing) {
+          dedupedPoolsMap.set(p.id, p);
+        } else {
+          dedupedPoolsMap.set(p.id, chooseBetter(existing, p));
+        }
+      });
+
+      const dedupedPools = Array.from(dedupedPoolsMap.values());
+
+      // 根据池类型回填历史记录的 isStandard（防止导入缺失标记导致限定/常驻混淆）
+      const poolTypeLookup = new Map(dedupedPools.map(p => [p.id, p.type]));
+      const normalizedHistory = formattedHistory.map(h => {
+        const poolType = poolTypeLookup.get(h.poolId);
+        const inferredIsStandard = (poolType === 'standard' || poolType === 'beginner') ? true
+          : (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') ? false
+          : null;
+        const isStandard = inferredIsStandard !== null ? inferredIsStandard : Boolean(h.isStandard);
+        return { ...h, isStandard };
+      });
+
+      return { pools: dedupedPools, history: normalizedHistory };
     } catch (error) {
       setSyncError(error.message);
       return null;
@@ -1137,14 +1271,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   }, [currentPoolId]);
 
   // --- 核心计算逻辑 ---
-  // 为当前卡池历史记录添加全局序号
+  // 为当前卡池历史记录添加全局序号（使用归一化后的历史）
   const currentPoolHistoryWithIndex = useMemo(() => {
-    // 基于 currentPoolHistory（已处理多用户过滤），添加全局序号
-    // 确保按 id 排序（id 基于时间戳生成，代表录入顺序）
-    return [...currentPoolHistory]
+    return [...normalizedCurrentPoolHistory]
       .sort((a, b) => a.id - b.id)
       .map((item, index) => ({ ...item, globalIndex: index + 1 }));
-  }, [currentPoolHistory]);
+  }, [normalizedCurrentPoolHistory]);
 
   // 将历史记录按时间戳聚合，用于展示十连
   const groupedHistory = useMemo(() => {
@@ -1199,8 +1331,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   }, [groupedHistory, historyFilter]);
 
   const stats = useMemo(() => {
-    // 过滤掉赠送的记录来计算有效抽数
-    const validPullsList = currentPoolHistory.filter(item => item.specialType !== 'gift');
+    // 过滤掉赠送的记录（包括免费十连）来计算有效抽数
+    const validPullsList = normalizedCurrentPoolHistory.filter(item => 
+      item.specialType !== 'gift' && item.isFree !== true
+    );
     const total = validPullsList.length;
     
     // 统计 counts (包含赠送，展示用)
@@ -1211,11 +1345,11 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     let currentPity = 0;
     let currentPity5 = 0;
     
-    // 1. 计算当前6星保底 (忽略 gift)
-    // 我们需要在完整历史中倒序查找，遇到 gift 跳过，遇到非 gift 的 6星 则停止
-    for (let i = currentPoolHistory.length - 1; i >= 0; i--) {
-      const item = currentPoolHistory[i];
-      if (item.specialType === 'gift') continue; // 跳过赠送，不影响垫刀
+    // 1. 计算当前6星保底 (忽略 gift 和免费十连)
+    // 我们需要在完整历史中倒序查找，遇到 gift/免费 跳过，遇到非 gift 的 6星 则停止
+    for (let i = normalizedCurrentPoolHistory.length - 1; i >= 0; i--) {
+      const item = normalizedCurrentPoolHistory[i];
+      if (item.specialType === 'gift' || item.isFree === true) continue; // 跳过赠送和免费十连，不影响垫刀
       
       if (item.rarity === 6) {
         break; // 遇到非赠送的6星，保底重置
@@ -1223,10 +1357,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       currentPity++;
     }
 
-    // 2. 计算当前5星保底 (忽略 gift)
-    for (let i = currentPoolHistory.length - 1; i >= 0; i--) {
-      const item = currentPoolHistory[i];
-      if (item.specialType === 'gift') continue;
+    // 2. 计算当前5星保底 (忽略 gift 和免费十连)
+    for (let i = normalizedCurrentPoolHistory.length - 1; i >= 0; i--) {
+      const item = normalizedCurrentPoolHistory[i];
+      if (item.specialType === 'gift' || item.isFree === true) continue;
 
       if (item.rarity >= 5) {
         break;
@@ -1235,7 +1369,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     }
 
     // 3. 统计各稀有度数量
-    currentPoolHistory.forEach(pull => {
+    normalizedCurrentPoolHistory.forEach(pull => {
       let r = pull.rarity;
       
       if (pull.specialType === 'gift') {
@@ -1262,8 +1396,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     // 我们重新统计一下“真实抽到的”数量
     let realLimited = 0;
     let realStandard = 0;
-    currentPoolHistory.forEach(pull => {
-       if (pull.rarity === 6 && pull.specialType !== 'gift') {
+    normalizedCurrentPoolHistory.forEach(pull => {
+       if (pull.rarity === 6 && pull.specialType !== 'gift' && pull.isFree !== true) {
           if (pull.isStandard) realStandard++;
           else realLimited++;
        }
@@ -1308,6 +1442,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     // 4. 统计历史6星出货分布 (仅统计非赠送)
     const sixStarPulls = [];
+    const upSixStarPulls = []; // 仅UP角色的出货记录
     let tempCounter = 0;
     
     // 正序遍历计算垫刀
@@ -1316,11 +1451,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     validPullsList.forEach(pull => {
       tempCounter++;
       if (pull.rarity === 6) {
-        sixStarPulls.push({ 
+        const pullRecord = { 
           count: tempCounter, 
           isStandard: pull.isStandard,
           isGuaranteed: pull.specialType === 'guaranteed'
-        });
+        };
+        sixStarPulls.push(pullRecord);
+        // 记录UP角色的出货抽数
+        if (!pull.isStandard) {
+          upSixStarPulls.push(pullRecord);
+        }
         tempCounter = 0;
       }
     });
@@ -1334,8 +1474,16 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       : 0;
 
     // 5. 计算平均出货抽数 (排除赠送)
+    // 计算所有6星的平均出货
+    const avgAllSixStar = realTotalSix > 0 ? (total / realTotalSix).toFixed(2) : '0';
+    // 计算仅UP角色的平均出货（基于每次出货的实际抽数，而非总抽数/数量）
+    const avgUpSixStar = upSixStarPulls.length > 0 
+      ? (upSixStarPulls.reduce((sum, p) => sum + p.count, 0) / upSixStarPulls.length).toFixed(2) 
+      : '0';
+    
     const avgPullCost = {
-      6: validSixStar > 0 ? (total / validSixStar).toFixed(2) : '0', 
+      6: avgUpSixStar, // 限定/武器池使用UP角色的平均出货
+      '6_all': avgAllSixStar, // 所有6星的平均出货
       5: counts[5] > 0 ? (total / counts[5]).toFixed(2) : '0',
     };
 
@@ -1396,6 +1544,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       totalSixStar,
       validSixStar,
       winRate, // 使用修正后的不歪率
+      // 新增：不歪率所需的详细数据（排除赠送）
+      sixStarCount: realTotalSix, // 真实抽到的6星总数
+      upSixStarCount: realLimited, // 真实抽到的UP角色数
+      stdSixStarCount: realStandard, // 真实抽到的常驻6星数
       currentPity,
       currentPity5,
       avgPullCost,
@@ -1413,7 +1565,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       hasInfoBook,
       pullsUntilInfoBook
     };
-  }, [currentPoolHistory, manualPityLimit, currentPool.type]);
+  }, [normalizedCurrentPoolHistory, manualPityLimit, currentPool.type]);
 
   // 跨池保底继承计算（仅限定池之间继承）
   const inheritedPityInfo = useMemo(() => {
@@ -1426,7 +1578,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
 
     // 如果当前池有记录，不需要考虑继承（继承只在空池时生效）
-    if (currentPoolHistory.length > 0) {
+    if (normalizedCurrentPoolHistory.length > 0) {
       return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
     }
 
@@ -1442,12 +1594,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       inheritedPity5,
       hasInheritedPity: inheritedPity > 0 || inheritedPity5 > 0
     };
-  }, [currentPool.type, poolsArray, currentPoolHistory.length, history, currentPoolId]);
+  }, [currentPool.type, poolsArray, normalizedCurrentPoolHistory.length, history, currentPoolId]);
 
   // 计算实际有效的保底数（当前池 + 继承）
   const effectivePity = useMemo(() => {
     // 如果当前池有记录，使用当前池的保底
-    if (currentPoolHistory.length > 0) {
+    if (normalizedCurrentPoolHistory.length > 0) {
       return {
         pity6: stats.currentPity,
         pity5: stats.currentPity5,
@@ -1460,7 +1612,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       pity5: inheritedPityInfo.inheritedPity5,
       isInherited: inheritedPityInfo.hasInheritedPity
     };
-  }, [currentPoolHistory.length, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
+  }, [normalizedCurrentPoolHistory.length, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
 
   // --- 操作函数 ---
 
@@ -1802,7 +1954,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     if (scope === 'current') {
       exportPools = (pools || []).filter(p => p.id === currentPoolId);
-      exportHistory = currentPoolHistory;
+      exportHistory = normalizedCurrentPoolHistory;
     }
 
     // 计算统计摘要
@@ -1895,12 +2047,12 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     };
 
     if (scope === 'current') {
-      if (currentPoolHistory.length === 0) {
+      if (normalizedCurrentPoolHistory.length === 0) {
         showToast("当前卡池无数据", 'warning');
         return;
       }
       // 当前卡池已有globalIndex，需要添加垫刀数
-      const sortedHistory = [...currentPoolHistory].sort((a, b) => a.id - b.id);
+      const sortedHistory = [...normalizedCurrentPoolHistory].sort((a, b) => a.id - b.id);
       let pityCounter = 0;
       dataToExport = sortedHistory.map((item, index) => {
         if (item.specialType !== 'gift') {

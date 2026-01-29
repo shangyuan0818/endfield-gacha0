@@ -38,10 +38,11 @@ const DashboardView = ({
   stats,
   effectivePity
 }) => {
-  // 从 store 获取历史数据
+  // 从 store 获取历史数据和当前选中的游戏账号
   const history = useHistoryStore(state => state.history);
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
   const user = useAuthStore(state => state.user);
 
   // 检查是否有卡池数据
@@ -62,9 +63,53 @@ const DashboardView = ({
     return () => observer.disconnect();
   }, []);
 
-  // 计算角色出货统计
+  // 当前卡池历史（按用户与账号筛选）
+  const currentPoolHistory = useMemo(() => {
+    let poolHistory = history.filter(h => h.poolId === currentPoolId && h.user_id === user?.id);
+    if (currentGameUid) {
+      poolHistory = poolHistory.filter(h => h.game_uid === currentGameUid);
+    }
+    return poolHistory;
+  }, [history, currentPoolId, currentGameUid, user]);
+
+  // 归一化 isStandard，基于 UP 角色匹配重新计算（不信任数据库原值）
+  const normalizedPoolHistory = useMemo(() => {
+    const poolType = currentPool?.type;
+    const upCharacter = currentPool?.up_character;
+
+    return currentPoolHistory.map(h => {
+      const characterName = h.character_name || h.item_name || h.name || '';
+      let isStd;
+
+      // 根据卡池类型和 UP 角色判断
+      if (poolType === 'standard' || poolType === 'beginner') {
+        // 常驻池/新手池的6星都算常驻
+        isStd = true;
+      } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+        // 限定池/武器池：检查是否匹配UP角色
+        if (upCharacter && h.rarity === 6) {
+          // 如果角色名不匹配UP角色，则为常驻（被歪了）
+          isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+        } else if (h.rarity === 6) {
+          // 没有UP角色信息的6星，默认为限定
+          isStd = false;
+        } else {
+          // 非6星保持原值或默认 false
+          isStd = h.isStandard ?? false;
+        }
+      } else {
+        // 其他类型，保持原值
+        isStd = h.isStandard ?? false;
+      }
+
+      return { ...h, isStandard: isStd };
+    });
+  }, [currentPoolHistory, currentPool?.type, currentPool?.up_character]);
+
+  // 计算角色出货统计（按游戏账号筛选）
   const characterStats = useMemo(() => {
-    const currentPoolHistory = history.filter(h => h.poolId === currentPoolId);
+    const currentPoolHistory = normalizedPoolHistory;
+
     const characters = new Map();
 
     let pullIndex = 0;
@@ -122,7 +167,7 @@ const DashboardView = ({
       }
     });
 
-    return Array.from(characters.values()).sort((a, b) => {
+    const result = Array.from(characters.values()).sort((a, b) => {
       if (a.rarity === 6 && !a.isStandard && (b.rarity !== 6 || b.isStandard)) return -1;
       if (b.rarity === 6 && !b.isStandard && (a.rarity !== 6 || a.isStandard)) return 1;
       if (a.rarity === 6 && a.isStandard && b.rarity !== 6) return -1;
@@ -130,7 +175,9 @@ const DashboardView = ({
       if (a.rarity === b.rarity && a.isStandard === b.isStandard) return b.count - a.count;
       return b.rarity - a.rarity;
     });
-  }, [history, currentPoolId]);
+
+    return result;
+  }, [normalizedPoolHistory, currentPool?.up_character]);
 
   const totalCharacterCount = useMemo(() => characterStats.reduce((sum, char) => sum + char.count, 0), [characterStats]);
 
@@ -147,14 +194,12 @@ const DashboardView = ({
 
   // 计算累计抽数时排除免费十连
   const validPullCount = useMemo(() => {
-    const currentPoolHistory = history.filter(h => h.poolId === currentPoolId);
-    return currentPoolHistory.filter(h => h.specialType !== 'gift' && !h.isFree && !h.is_free).length;
-  }, [history, currentPoolId]);
+    return normalizedPoolHistory.filter(h => h.specialType !== 'gift' && !h.isFree && !h.is_free).length;
+  }, [normalizedPoolHistory]);
 
   // 检测限定逻辑
   const checkLimitedInFirstN = useMemo(() => {
-    const currentPoolHistory = history.filter(h => h.poolId === currentPoolId);
-    const sorted = [...currentPoolHistory].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    const sorted = [...normalizedPoolHistory].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
     let pullCount = 0;
     let firstLimitedIndex120 = 0;
