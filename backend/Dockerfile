@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --production
 
-COPY server.js ./
+COPY server.js requestQueue.js ./
 
 ENV PORT=3001
 EXPOSE 3001
