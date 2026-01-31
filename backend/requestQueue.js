@@ -36,7 +36,8 @@ class RequestQueue {
       priority = 10,
       maxRetries = this.maxRetries,
       timeout = this.timeout,
-      label = 'Request'
+      label = 'Request',
+      silent = false  // 静默模式：不输出成功日志
     } = options;
 
     return new Promise((resolve, reject) => {
@@ -49,7 +50,8 @@ class RequestQueue {
         timeout,
         retryCount: 0,
         addedAt: Date.now(),
-        label
+        label,
+        silent
       };
 
       // 按优先级插入队列
@@ -100,12 +102,15 @@ class RequestQueue {
    * @param {Object} task - 任务对象
    */
   async executeTask(task) {
-    const { requestFn, resolve, reject, maxRetries, timeout, retryCount, label } = task;
+    const { requestFn, resolve, reject, maxRetries, timeout, retryCount, label, silent } = task;
 
     try {
       // 添加超时控制
       const result = await this.withTimeout(requestFn(), timeout);
-      console.log(`[RequestQueue] ${label} 成功 (尝试 ${retryCount + 1} 次)`);
+      // 静默模式下不输出成功日志
+      if (!silent) {
+        console.log(`[RequestQueue] ${label} 成功 (尝试 ${retryCount + 1} 次)`);
+      }
       resolve(result);
     } catch (error) {
       // 判断是否需要重试

@@ -432,7 +432,8 @@ async function fetchRecordsInternal(u8Token, type, poolType, serverId = '1') {
     const endpoint = type === 'weapon' ? ENDPOINTS.RECORDS_WEAPON : ENDPOINTS.RECORDS_CHAR;
     const url = `${endpoint}?${params.toString()}`;
 
-    const response = await httpsRequest(url, { method: 'GET' });
+    // 使用静默模式，不输出每个请求的成功日志
+    const response = await httpsRequest(url, { method: 'GET' }, null, { silent: true });
 
     if (checkRiskControl(response.data)) {
       throw new Error('触发风控，请稍后重试');
@@ -495,7 +496,7 @@ async function handleRecordsBatch(body, res) {
   }
 
   try {
-    console.log('[Server] 开始并发获取', pools.length, '个卡池');
+    console.log(`[Server] Records-batch 开始: ${pools.length} 个卡池并发获取`);
 
     const results = await Promise.allSettled(
       pools.map(pool =>
@@ -506,25 +507,26 @@ async function handleRecordsBatch(body, res) {
     const successResults = [];
     const failedResults = [];
     let totalRecords = 0;
+    const poolSummary = [];
 
     results.forEach((result, index) => {
       const pool = pools[index];
       if (result.status === 'fulfilled') {
         successResults.push(result.value);
         totalRecords += result.value.records.length;
-        console.log(`[Server] 卡池 ${pool.poolType || pool.type}: ${result.value.records.length} 条记录, ${result.value.totalPages} 页`);
+        poolSummary.push(`${pool.poolType || pool.type}(${result.value.records.length}条/${result.value.totalPages}页)`);
       } else {
         failedResults.push({
           type: pool.type,
           poolType: pool.poolType,
           error: result.reason?.message || 'Unknown error'
         });
-        console.log(`[Server] 卡池 ${pool.poolType || pool.type}: 失败 - ${result.reason?.message}`);
+        poolSummary.push(`${pool.poolType || pool.type}(失败)`);
       }
     });
 
     const elapsedTime = Date.now() - startTime;
-    console.log(`[Server] Records-batch 完成: 共 ${totalRecords} 条记录, 耗时 ${elapsedTime}ms`);
+    console.log(`[Server] Records-batch 完成: ${poolSummary.join(', ')} | 总计 ${totalRecords} 条记录 | 耗时 ${elapsedTime}ms`);
 
     if (successResults.length === 0) {
       return sendJSON(res, 500, {

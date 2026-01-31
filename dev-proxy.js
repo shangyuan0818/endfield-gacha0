@@ -421,7 +421,8 @@ async function fetchRecordsInternal(u8Token, type, poolType, serverId = '1') {
     const endpoint = type === 'weapon' ? ENDPOINTS.RECORDS_WEAPON : ENDPOINTS.RECORDS_CHAR;
     const url = `${endpoint}?${params.toString()}`;
 
-    const response = await httpsRequest(url, { method: 'GET' });
+    // 使用静默模式，不输出每个请求的成功日志
+    const response = await httpsRequest(url, { method: 'GET' }, null, { silent: true });
 
     // 检查风控（与 Vercel 版本保持一致）
     if (checkRiskControl(response.data)) {
@@ -479,7 +480,7 @@ async function handleRecordsBatch(body, res) {
   }
 
   try {
-    console.log('[Proxy] Records-batch: 并发获取', pools.length, '个卡池');
+    console.log(`[Proxy] Records-batch 开始: ${pools.length} 个卡池并发获取`);
 
     const results = await Promise.allSettled(
       pools.map(pool =>
@@ -490,32 +491,25 @@ async function handleRecordsBatch(body, res) {
     const successResults = [];
     const failedResults = [];
     let totalRecords = 0;
+    const poolSummary = [];
 
     results.forEach((result, index) => {
       const pool = pools[index];
       if (result.status === 'fulfilled') {
         successResults.push(result.value);
         totalRecords += result.value.records.length;
-        console.log(`[Proxy] 卡池 ${pool.poolType || pool.type}: ${result.value.records.length} 条记录`);
+        poolSummary.push(`${pool.poolType || pool.type}(${result.value.records.length}条/${result.value.totalPages}页)`);
       } else {
         failedResults.push({
           type: pool.type,
           poolType: pool.poolType,
           error: result.reason?.message || 'Unknown error'
         });
-        console.log(`[Proxy] 卡池 ${pool.poolType || pool.type}: 失败 - ${result.reason?.message}`);
+        poolSummary.push(`${pool.poolType || pool.type}(失败)`);
       }
     });
 
-    if (successResults.length === 0) {
-      return sendJSON(res, 500, {
-        success: false,
-        error: '所有卡池请求均失败',
-        failed: failedResults
-      });
-    }
-
-    console.log('[Proxy] Records-batch 完成: 共', totalRecords, '条记录');
+    console.log(`[Proxy] Records-batch 完成: ${poolSummary.join(', ')} | 总计 ${totalRecords} 条记录`);
 
     sendJSON(res, 200, {
       success: true,
