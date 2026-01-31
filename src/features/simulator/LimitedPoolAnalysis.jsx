@@ -83,7 +83,7 @@ const WeaponGifts = ({ stats }) => {
   );
 };
 
-const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, onceOnlyFreeTen = false }) => {
+const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, multipleFreeTen = false }) => {
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
@@ -210,23 +210,23 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, once
                <div className="flex justify-between items-center">
                  <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">赠送十连 (每30抽)</span>
                  <span className="text-xs font-mono text-slate-500 dark:text-endfield-muted">
-                   {onceOnlyFreeTen && stats.freeTenPulls?.received >= 1
+                   {!multipleFreeTen && stats.freeTenPulls?.received >= 1
                      ? '已完成'
                      : `${stats.total % 30} / 30`}
                  </span>
                </div>
                <div className="h-1 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden">
-                 <div className={`h-full ${onceOnlyFreeTen && stats.freeTenPulls?.received >= 1 ? 'bg-green-500' : 'bg-blue-500'}`}
-                      style={{width: `${onceOnlyFreeTen && stats.freeTenPulls?.received >= 1 ? 100 : ((stats.total % 30) / 30) * 100}%`}}></div>
+                 <div className={`h-full ${!multipleFreeTen && stats.freeTenPulls?.received >= 1 ? 'bg-green-500' : 'bg-blue-500'}`}
+                      style={{width: `${!multipleFreeTen && stats.freeTenPulls?.received >= 1 ? 100 : ((stats.total % 30) / 30) * 100}%`}}></div>
                </div>
                <div className="flex justify-between items-center mt-1">
                  <span className="text-[9px] text-slate-500 dark:text-endfield-muted">不消耗保底次数</span>
-                 {!onceOnlyFreeTen && stats.freeTenPulls?.count > 0 && (
+                 {multipleFreeTen && stats.freeTenPulls?.count > 0 && (
                    <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold">
                      已获得: {stats.freeTenPulls?.received} / {stats.freeTenPulls?.count}
                    </span>
                  )}
-                 {onceOnlyFreeTen && stats.freeTenPulls?.received >= 1 && (
+                 {!multipleFreeTen && stats.freeTenPulls?.received >= 1 && (
                    <span className="text-[9px] text-green-600 dark:text-green-400 font-bold">已完成 (仅一次)</span>
                  )}
                </div>

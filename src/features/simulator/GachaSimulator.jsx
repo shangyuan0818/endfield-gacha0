@@ -188,10 +188,10 @@ const GachaSimulator = () => {
     const saved = localStorage.getItem('simulator_skipAnimation');
     return saved === 'true';
   }); // 跳过动画选项
-  const [onceOnlyFreeTen, setOnceOnlyFreeTen] = useState(() => {
-    const saved = localStorage.getItem('simulator_onceOnlyFreeTen');
+  const [multipleFreeTen, setMultipleFreeTen] = useState(() => {
+    const saved = localStorage.getItem('simulator_multipleFreeTen');
     return saved === 'true';
-  }); // 赠送十连只会赠送一次
+  }); // 多次免费十连（BUG特性）
   const [showPoolMenu, setShowPoolMenu] = useState(false); // 卡池菜单显示状态
 
   // 限定卡池选择（默认最新的卡池）
@@ -224,8 +224,8 @@ const GachaSimulator = () => {
   }, [skipAnimation]);
 
   useEffect(() => {
-    localStorage.setItem('simulator_onceOnlyFreeTen', onceOnlyFreeTen);
-  }, [onceOnlyFreeTen]);
+    localStorage.setItem('simulator_multipleFreeTen', multipleFreeTen);
+  }, [multipleFreeTen]);
 
   // 当卡池列表加载完成后，初始化或恢复卡池选择
   useEffect(() => {
@@ -291,8 +291,8 @@ const GachaSimulator = () => {
         const stats = simulator.getStatistics();
         const earnedFreePulls = stats.freeTenPulls?.count || 0;
         const usedFreePulls = simulator.getState().freeTenPullsReceived || 0;
-        // 如果开启"赠送仅一次"，则最多只能获得1次免费十连
-        const maxFreePulls = onceOnlyFreeTen ? Math.min(earnedFreePulls, 1) : earnedFreePulls;
+        // 默认只能获得1次免费十连，开启"多次免费十连"后可以获得多次
+        const maxFreePulls = multipleFreeTen ? earnedFreePulls : Math.min(earnedFreePulls, 1);
         setAvailableFreePulls(Math.max(0, maxFreePulls - usedFreePulls));
 
         // 检查情报书状态
@@ -360,7 +360,7 @@ const GachaSimulator = () => {
     // 初始化时也更新一次
     updateUI();
     return () => simulator.removeListener(updateUI);
-  }, [simulator, currentPoolType, onceOnlyFreeTen]);
+  }, [simulator, currentPoolType, multipleFreeTen]);
 
   // Handle limited weapon toggle
   // 武器池限定/常驻切换时更新规则，但保留历史
@@ -470,9 +470,9 @@ const GachaSimulator = () => {
     // 重置开关设置
     if (resetSettings) {
       setSkipAnimation(false);
-      setOnceOnlyFreeTen(false);
+      setMultipleFreeTen(false);
       localStorage.removeItem('simulator_skipAnimation');
-      localStorage.removeItem('simulator_onceOnlyFreeTen');
+      localStorage.removeItem('simulator_multipleFreeTen');
     }
 
     setShowResetConfirm(false);
@@ -1036,23 +1036,23 @@ const GachaSimulator = () => {
         </div>
 
         <div className="flex items-center gap-4 ml-auto">
-          {/* 赠送十连只会赠送一次 - 技术风开关（仅限定池显示） */}
+          {/* 多次免费十连 - 技术风开关（仅限定池显示） */}
           {simulator.poolType === 'limited' && (
             <div
-              onClick={() => setOnceOnlyFreeTen(!onceOnlyFreeTen)}
+              onClick={() => setMultipleFreeTen(!multipleFreeTen)}
               className={`
                 flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
-                ${onceOnlyFreeTen
+                ${multipleFreeTen
                   ? 'bg-blue-500/10 border-blue-500 text-blue-500'
                   : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
                 }
               `}
-              title="开启后，30抽赠送十连只会在第一次达到30抽时赠送，之后不再赠送"
+              title="多次十连是BUG（划掉）特性哦~"
             >
-              <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${onceOnlyFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}>
-                {onceOnlyFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
+              <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}>
+                {multipleFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
               </div>
-              <span className="text-xs font-bold uppercase">赠送仅一次</span>
+              <span className="text-xs font-bold uppercase">多次免费十连</span>
             </div>
           )}
 
@@ -1139,7 +1139,7 @@ const GachaSimulator = () => {
               stats={dashboardStats}
               effectivePity={effectivePityObj}
               pityInfo={pityInfoWithGuarantee}
-              onceOnlyFreeTen={onceOnlyFreeTen}
+              multipleFreeTen={multipleFreeTen}
            />
         </div>
 
@@ -1430,7 +1430,7 @@ const GachaSimulator = () => {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-bold">重置开关设置</div>
-                  <div className="text-xs opacity-75 mt-0.5">恢复"跳过动画"和"赠送仅一次"为默认状态</div>
+                  <div className="text-xs opacity-75 mt-0.5">恢复"跳过动画"和"多次免费十连"为默认状态</div>
                 </div>
               </div>
             </div>
