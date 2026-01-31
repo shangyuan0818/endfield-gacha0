@@ -2,7 +2,7 @@
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.0.0--public-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -345,7 +345,7 @@ gacha-analyzer/
 
 ## 📝 更新日志
 
-### v2.9.0 (2026-02-01)
+### v3.0.0-public (2026-02-01)
 - ✨ FEAT-008: 官方 API 数据导入功能
   - 支持通过官方 Token 一键导入完整抽卡记录
   - 自动获取所有卡池数据（限定/常驻/新手/武器）
@@ -358,6 +358,9 @@ gacha-analyzer/
   - 统一使用官方 API 导入
 - 🔒 SECURITY-001: 优化项目结构
   - 简化代码库，提升维护性
+- 🎨 UI-014: 优化并发请求日志输出
+  - 批量获取时使用静默模式，减少日志噪音
+  - 将多行卡池日志合并为单行汇总输出
 
 ### v2.8.1 (2025-12-29)
 - 🔧 DEP-002: 添加缺失的 canvas-confetti 依赖
