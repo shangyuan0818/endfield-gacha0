@@ -2,7 +2,7 @@
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-![Version](https://img.shields.io/badge/version-2.8.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -31,11 +31,12 @@
 - **卡池详情**：实时展示各稀有度占比、不歪率、距离保底抽数、保底进度条
 - **详细日志**：支持按组查看/编辑/删除
 
-### 高效录入
-- **十连编辑器**：点击快速切换星级，一键保存
-- **单抽补录**：快捷按钮补录漏记的抽卡
-- **批量粘贴**：支持批量导入抽卡数据
-- **智能识别**：自动识别保底、赠送等特殊情况
+### 数据导入
+- **官方 API 导入**：
+  - 支持通过官方 Token 一键导入完整抽卡记录
+  - 自动获取所有卡池数据（限定/常驻/新手/武器）
+  - 智能去重和数据校验
+  - 实时进度显示和错误处理
 
 ### 用户系统
 - **账户认证**：
@@ -48,8 +49,8 @@
 
 - **权限管理**：4级权限体系
   - **游客**：仅查看全服数据
-  - **用户**：查看数据，可申请管理员
-  - **管理员**：录入和编辑数据
+  - **用户**：导入和查看个人数据，可申请管理员
+  - **管理员**：审核权限，管理系统内容
   - **超级管理员**：
     - 用户管理（创建/编辑/删除/查看在线时间）
     - 审批管理员申请
@@ -59,6 +60,7 @@
 - **云端同步**：登录后数据自动同步到云端
 
 ### 数据管理
+- **官方 API 导入**：通过官方 Token 一键导入完整抽卡记录
 - **本地存储**：离线也能使用，数据保存在浏览器
 - **云端备份**：登录用户数据自动同步
 - **导入/导出**：支持 JSON（完整备份）和 CSV（表格分析）格式
@@ -285,8 +287,8 @@ gacha-analyzer/
 │   │   │   └── HomePage.jsx     # 首页组件
 │   │   ├── dashboard/
 │   │   │   └── DashboardView.jsx # 卡池详情视图
-│   │   ├── records/
-│   │   │   └── RecordsView.jsx  # 记录视图
+│   │   ├── import/
+│   │   │   └── OfficialAPIImport.jsx # 官方 API 导入
 │   │   ├── layout/
 │   │   │   └── Footer.jsx       # 全局页脚
 │   │   ├── modals/
@@ -294,8 +296,6 @@ gacha-analyzer/
 │   │   ├── AdminPanel.jsx       # 超级管理员面板
 │   │   ├── SettingsPanel.jsx    # 设置面板
 │   │   ├── SummaryView.jsx      # 统计视图
-│   │   ├── InputSection.jsx     # 录入组件
-│   │   ├── BatchCard.jsx        # 十连卡片
 │   │   ├── PoolSelector.jsx     # 卡池选择器
 │   │   ├── TicketPanel.jsx      # 工单面板
 │   │   ├── AboutPanel.jsx       # 关于面板
@@ -303,9 +303,14 @@ gacha-analyzer/
 │   ├── stores/
 │   │   └── useGachaStore.js     # Zustand 状态管理
 │   ├── constants/
-│   │   └── index.js             # 常量配置
+│   │   └── characterPools.js    # 角色池配置
 │   ├── utils/
-│   │   └── validators.js        # 验证工具
+│   │   ├── validators.js        # 验证工具
+│   │   ├── endfieldAuthChain.js # 官方 API 认证链
+│   │   └── requestQueue.js      # 请求队列管理
+│   ├── services/
+│   │   ├── cacheService.js      # 缓存服务
+│   │   └── syncService.js       # 数据同步服务
 │   ├── main.jsx                 # 应用入口
 │   └── index.css                # 全局样式（含彩虹渐变）
 ├── public/
@@ -339,6 +344,20 @@ gacha-analyzer/
   - 加载进度条
 
 ## 📝 更新日志
+
+### v2.9.0 (2026-02-01)
+- ✨ FEAT-008: 官方 API 数据导入功能
+  - 支持通过官方 Token 一键导入完整抽卡记录
+  - 自动获取所有卡池数据（限定/常驻/新手/武器）
+  - 智能去重和数据校验
+  - 实时进度显示和错误处理
+  - 请求队列管理，防止并发冲突
+  - 指数退避重试机制，提高成功率
+- 🔧 REFACTOR-001: 移除手动录入功能
+  - 简化用户操作流程
+  - 统一使用官方 API 导入
+- 🔒 SECURITY-001: 优化项目结构
+  - 简化代码库，提升维护性
 
 ### v2.8.1 (2025-12-29)
 - 🔧 DEP-002: 添加缺失的 canvas-confetti 依赖
