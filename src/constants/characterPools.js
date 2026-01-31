@@ -278,20 +278,37 @@ export function randomChoice(array) {
  * @returns {string} 角色名称
  */
 export function getCharacterName(poolType, rarity, isUp = false, currentUpCharacter = null, poolCharactersList = null) {
-  // 如果提供了卡池角色列表，优先使用
+  // 如果提供了卡池角色列表，优先使用（完全信任，不使用后备逻辑）
   if (poolCharactersList) {
     if (rarity === 6) {
-      if (isUp && poolCharactersList.up?.length > 0) {
-        return randomChoice(poolCharactersList.up.map(c => c.name));
-      } else if (!isUp && poolCharactersList.offBanner?.length > 0) {
-        return randomChoice(poolCharactersList.offBanner.map(c => c.name));
+      if (isUp) {
+        // UP角色/武器
+        if (poolCharactersList.up?.length > 0) {
+          return randomChoice(poolCharactersList.up.map(c => c.name));
+        }
+        // 如果UP列表为空，返回占位符（避免跨池污染）
+        return `${rarity}星UP`;
+      } else {
+        // 非UP的6星
+        if (poolCharactersList.offBanner?.length > 0) {
+          return randomChoice(poolCharactersList.offBanner.map(c => c.name));
+        }
+        // 如果offBanner列表为空，返回占位符（避免跨池污染）
+        return `${rarity}星`;
       }
-    } else if (rarity === 5 && poolCharactersList.fiveStar?.length > 0) {
-      return randomChoice(poolCharactersList.fiveStar.map(c => c.name));
-    } else if (rarity === 4 && poolCharactersList.fourStar?.length > 0) {
-      return randomChoice(poolCharactersList.fourStar.map(c => c.name));
+    } else if (rarity === 5) {
+      if (poolCharactersList.fiveStar?.length > 0) {
+        return randomChoice(poolCharactersList.fiveStar.map(c => c.name));
+      }
+      return `${rarity}星`;
+    } else if (rarity === 4) {
+      if (poolCharactersList.fourStar?.length > 0) {
+        return randomChoice(poolCharactersList.fourStar.map(c => c.name));
+      }
+      return `${rarity}星`;
     }
-    // 如果卡池列表中没有找到，继续使用下面的后备逻辑
+    // 其他稀有度返回占位符
+    return `${rarity}星`;
   }
 
   // 武器池处理（修复：区分UP限定武器和常驻武器）

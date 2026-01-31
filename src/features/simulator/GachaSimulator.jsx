@@ -499,20 +499,22 @@ const GachaSimulator = () => {
       });
     }
 
+    // 🔧 修复：立即清空旧卡池的角色列表，防止新模拟器使用旧数据
+    setPoolCharactersList(null);
+
     // 加载新卡池状态
     const savedState = loadSimulatorState(poolId);
     // 如果是限定池，使用目标卡池的UP角色
     const upChar = targetPool.type === 'limited' ? (targetPool.up_character || selectedLimitedPool) : null;
-    const newSim = createSimulator(targetPool.type, null, upChar, poolCharactersList);
+    // 🔧 修复：创建新模拟器时不传入旧的 poolCharactersList，传入 null
+    const newSim = createSimulator(targetPool.type, null, upChar, null);
     if (savedState) {
       newSim.importState(savedState);
-      // 重要：importState 后需要重新设置 UP 角色和角色列表
+      // 重要：importState 后需要重新设置 UP 角色
       if (upChar) {
         newSim.setCurrentUpCharacter(upChar);
       }
-      if (poolCharactersList) {
-        newSim.setPoolCharactersList(poolCharactersList);
-      }
+      // 🔧 修复：不在这里设置角色列表，等待 useEffect 加载新卡池的角色列表
     }
 
     // 如果切换到限定池，加载共享保底状态和情报书状态
@@ -1184,7 +1186,7 @@ const GachaSimulator = () => {
              <SimulatorControls
                onPullOne={() => handlePull('single')}
                onPullTen={() => handlePull('ten')}
-               disabled={isAnimating}
+               disabled={isAnimating || !poolCharactersList}
                jadeCost={600}
                availableFreePulls={availableFreePulls}
                infoBookTenPullAvailable={infoBookTenPullAvailable}

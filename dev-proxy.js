@@ -8,11 +8,15 @@
  *   1. npm run dev (启动 Vite)
  *   2. node dev-proxy.js (启动代理服务器)
  *   3. 访问 http://localhost:5173
+ *
+ * @version 1.1.0 - 添加请求队列和重试机制
+ * @date 2026-02-01
  */
 
 import http from 'http';
 import https from 'https';
 import { URL } from 'url';
+import { globalRequestQueue } from './backend/requestQueue.js';
 
 const PORT = 3001;
 
@@ -28,9 +32,31 @@ const ENDPOINTS = {
 const ENDFIELD_APP_CODE = 'be36d44aa36bfb5b';
 
 /**
- * 发起 HTTPS 请求
+ * 发起 HTTPS 请求（带请求队列和重试机制）
+ * @param {string} url - 请求 URL
+ * @param {Object} options - 请求选项
+ * @param {*} body - 请求体
+ * @param {Object} queueOptions - 队列选项
+ * @returns {Promise<Object>}
  */
-function httpsRequest(url, options, body = null) {
+function httpsRequest(url, options, body = null, queueOptions = {}) {
+  // 将请求包装在队列中
+  return globalRequestQueue.enqueue(
+    () => httpsRequestInternal(url, options, body),
+    {
+      label: `${options.method || 'GET'} ${url}`,
+      priority: queueOptions.priority || 10,
+      maxRetries: queueOptions.maxRetries !== undefined ? queueOptions.maxRetries : 3,
+      timeout: queueOptions.timeout || 30000
+    }
+  );
+}
+
+/**
+ * 内部 HTTPS 请求实现（不带队列）
+ * @private
+ */
+function httpsRequestInternal(url, options, body = null) {
   return new Promise((resolve, reject) => {
     const urlObj = new URL(url);
     const reqOptions = {
@@ -64,7 +90,19 @@ function httpsRequest(url, options, body = null) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (error) => {
+      // 为网络错误添加更详细的信息
+      error.isNetworkError = true;
+      reject(error);
+    });
+
+    // 添加请求超时
+    req.setTimeout(30000, () => {
+      req.destroy();
+      const timeoutError = new Error('Request timeout after 30000ms');
+      timeoutError.code = 'ETIMEDOUT';
+      reject(timeoutError);
+    });
 
     if (body) {
       req.write(typeof body === 'string' ? body : JSON.stringify(body));

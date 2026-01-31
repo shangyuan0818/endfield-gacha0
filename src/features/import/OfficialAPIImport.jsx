@@ -1,5 +1,8 @@
 /**
  * 终末地官网API导入组件 V2 (Technical Style)
+ *
+ * @version 1.1.0 - 添加请求队列状态显示
+ * @date 2026-02-01
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -15,7 +18,9 @@ import {
   ExternalLink,
   User,
   Shield,
-  ArrowRight
+  ArrowRight,
+  Clock,
+  Loader2
 } from 'lucide-react';
 import {
   importAllRecords,
@@ -33,6 +38,7 @@ import {
   assignBatchIds,
   calculatePity
 } from '../../utils/endfieldImportAdapter';
+import { getGlobalQueue } from '../../utils/requestQueue';
 
 const ImportStatus = {
   IDLE: 'idle',
@@ -57,7 +63,7 @@ const FetchProgressBar = ({ progress, message }) => (
       <span>{progress}%</span>
     </div>
     <div className="h-1 w-full bg-slate-200 dark:bg-zinc-800 relative overflow-hidden transition-colors">
-      <div 
+      <div
         className="h-full bg-amber-500 dark:bg-yellow-500 transition-all duration-300"
         style={{ width: `${progress}%` }}
       ></div>
@@ -67,6 +73,80 @@ const FetchProgressBar = ({ progress, message }) => (
     </div>
   </div>
 );
+
+/**
+ * 请求队列状态显示组件
+ */
+const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
+  if (!queueStatus && !retryInfo) return null;
+
+  return (
+    <div className="mt-3 p-3 bg-slate-100 dark:bg-zinc-800/70 border border-slate-300 dark:border-zinc-600 rounded transition-colors">
+      <div className="flex items-start gap-2">
+        <Clock size={14} className="text-amber-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+        <div className="flex-1 space-y-2">
+          {/* 队列状态 */}
+          {queueStatus && (
+            <div className="text-xs font-mono">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-slate-700 dark:text-zinc-300 font-semibold">请求队列状态</span>
+                {queueStatus.isProcessing && (
+                  <Loader2 size={12} className="animate-spin text-amber-500 dark:text-yellow-500" />
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-zinc-400">队列长度:</span>
+                  <span className="text-slate-700 dark:text-zinc-200 font-semibold">{queueStatus.queueLength}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-zinc-400">活动请求:</span>
+                  <span className="text-slate-700 dark:text-zinc-200 font-semibold">{queueStatus.activeRequests || 0}</span>
+                </div>
+              </div>
+              {queueStatus.oldestTaskAge > 0 && (
+                <div className="mt-1 text-[10px] text-slate-500 dark:text-zinc-400">
+                  最早任务等待: {Math.round(queueStatus.oldestTaskAge / 1000)}秒
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 重试信息 */}
+          {retryInfo && (
+            <div className="text-xs font-mono border-t border-slate-300 dark:border-zinc-600 pt-2">
+              <div className="flex items-center gap-2 mb-1">
+                <RefreshCw size={12} className="text-orange-500 dark:text-orange-400" />
+                <span className="text-slate-700 dark:text-zinc-300 font-semibold">正在重试</span>
+              </div>
+              <div className="text-[10px] space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-zinc-400">重试次数:</span>
+                  <span className="text-orange-600 dark:text-orange-400 font-semibold">
+                    {retryInfo.currentRetry}/{retryInfo.maxRetries}
+                  </span>
+                </div>
+                {retryInfo.nextRetryIn && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-zinc-400">下次重试:</span>
+                    <span className="text-slate-700 dark:text-zinc-200 font-semibold">
+                      {Math.round(retryInfo.nextRetryIn / 1000)}秒后
+                    </span>
+                  </div>
+                )}
+                {retryInfo.reason && (
+                  <div className="mt-1 text-orange-600 dark:text-orange-400">
+                    原因: {retryInfo.reason}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function OfficialAPIImport({ onImportComplete, onBack, onFetchStatusChange }) {
   const [tokenInput, setTokenInput] = useState('');
@@ -85,10 +165,59 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [appToken, setAppToken] = useState(null);  // 保存 appToken 用于后续请求
 
+  // 🆕 请求队列状态
+  const [queueStatus, setQueueStatus] = useState(null);
+  const [retryInfo, setRetryInfo] = useState(null);
+
   // 通知父组件状态变化
   useEffect(() => {
     onFetchStatusChange?.(status);
   }, [status, onFetchStatusChange]);
+
+  // 🆕 定时更新队列状态
+  useEffect(() => {
+    if (status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING) {
+      // 定时更新队列状态
+      const interval = setInterval(() => {
+        const queue = getGlobalQueue();
+        const currentStatus = queue.getStatus();
+        setQueueStatus(currentStatus);
+      }, 500); // 每500ms更新一次
+
+      // 监听队列事件
+      const queue = getGlobalQueue();
+      const handleQueueEvent = (event, data) => {
+        if (event === 'request:retry') {
+          // 显示重试信息
+          setRetryInfo({
+            currentRetry: data.currentRetry,
+            maxRetries: data.maxRetries,
+            nextRetryIn: data.nextRetryIn,
+            reason: data.reason
+          });
+
+          // 更新状态消息
+          setStatusMessage(`网络不稳定，正在重试 (${data.currentRetry}/${data.maxRetries})...`);
+        } else if (event === 'request:success') {
+          // 清除重试信息
+          setRetryInfo(null);
+        } else if (event === 'request:error') {
+          // 清除重试信息
+          setRetryInfo(null);
+        }
+      };
+
+      queue.addListener(handleQueueEvent);
+
+      return () => {
+        clearInterval(interval);
+        queue.removeListener(handleQueueEvent);
+      };
+    } else {
+      setQueueStatus(null);
+      setRetryInfo(null);
+    }
+  }, [status]);
 
   const cancelRef = useRef(false);
 
@@ -521,6 +650,10 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       {(status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING || status === ImportStatus.PROCESSING) && (
         <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
           <FetchProgressBar progress={progress} message={statusMessage} />
+
+          {/* 🆕 队列状态显示 */}
+          <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} />
+
           <button
             onClick={handleCancel}
             className="mt-6 w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"

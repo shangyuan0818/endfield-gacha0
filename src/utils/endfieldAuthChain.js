@@ -11,9 +11,11 @@
  * 4. u8token: hgUid + app_token → u8_token
  * 5. records: u8_token → 抽卡记录
  *
- * @version 1.0.0
- * @date 2026-01-27
+ * @version 1.1.0 - 添加请求队列和重试机制
+ * @date 2026-02-01
  */
+
+import { queuedFetch } from './requestQueue.js';
 
 // API 代理地址
 // 支持通过环境变量配置外部后端服务器
@@ -112,12 +114,17 @@ async function safeParseJSON(response, context = 'API') {
  * @returns {Promise<{appToken: string, uid: string}>}
  */
 export async function grantAppToken(initialToken) {
-  const response = await fetch(`${PROXY_BASE}?action=grant`, {
+  // 🔧 修复：使用请求队列和重试机制
+  const response = await queuedFetch(`${PROXY_BASE}?action=grant`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ token: initialToken })
+  }, {
+    priority: 1, // 高优先级（认证链第一步）
+    maxRetries: 3,
+    timeout: 30000
   });
 
   const result = await safeParseJSON(response, 'Grant API');
@@ -139,8 +146,13 @@ export async function grantAppToken(initialToken) {
  * @returns {Promise<{hgUid: string, gameUid: string, nickName: string, bindingList: Array}>}
  */
 export async function fetchBindingList(appToken) {
-  const response = await fetch(`${PROXY_BASE}?action=bindings&appToken=${encodeURIComponent(appToken)}`, {
+  // 🔧 修复：使用请求队列和重试机制
+  const response = await queuedFetch(`${PROXY_BASE}?action=bindings&appToken=${encodeURIComponent(appToken)}`, {
     method: 'GET'
+  }, {
+    priority: 2, // 认证链第二步
+    maxRetries: 3,
+    timeout: 30000
   });
 
   const result = await safeParseJSON(response, 'Bindings API');
@@ -163,12 +175,17 @@ export async function fetchBindingList(appToken) {
  * @returns {Promise<{u8Token: string, uid: string}>}
  */
 export async function fetchU8Token(hgUid, appToken) {
-  const response = await fetch(`${PROXY_BASE}?action=u8token`, {
+  // 🔧 修复：使用请求队列和重试机制
+  const response = await queuedFetch(`${PROXY_BASE}?action=u8token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({ uid: hgUid, appToken })
+  }, {
+    priority: 3, // 认证链第三步
+    maxRetries: 3,
+    timeout: 30000
   });
 
   const result = await safeParseJSON(response, 'U8Token API');
@@ -211,8 +228,13 @@ export async function fetchRecordsPage(u8Token, options = {}) {
     params.append('seqId', seqId);
   }
 
-  const response = await fetch(`${PROXY_BASE}?${params.toString()}`, {
+  // 🔧 修复：使用请求队列和重试机制
+  const response = await queuedFetch(`${PROXY_BASE}?${params.toString()}`, {
     method: 'GET'
+  }, {
+    priority: 5, // 数据获取优先级较低
+    maxRetries: 3,
+    timeout: 30000
   });
 
   const result = await safeParseJSON(response, 'Records API');
@@ -403,8 +425,8 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
 export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress) {
   if (onProgress) onProgress('正在并发获取所有卡池记录（含武器池）...');
 
-  // 使用批量并发 API - 包含所有4种卡池
-  const response = await fetch(`${PROXY_BASE}?action=records-batch`, {
+  // 🔧 修复：使用批量并发 API + 请求队列和重试机制
+  const response = await queuedFetch(`${PROXY_BASE}?action=records-batch`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -419,6 +441,10 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
         { type: 'weapon' }  // 武器池
       ]
     })
+  }, {
+    priority: 4, // 批量请求优先级
+    maxRetries: 3,
+    timeout: 60000 // 批量请求超时时间更长
   });
 
   const result = await safeParseJSON(response, 'Records Batch API');
