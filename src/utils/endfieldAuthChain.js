@@ -561,6 +561,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
   }
 
   // 直接返回结果（没有排队）
+  if (onProgress) onProgress('正在获取抽卡记录...');
   return processRecordsBatchResult(result, onProgress);
 }
 
