@@ -157,9 +157,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         updated_at: new Date().toISOString()
       }));
 
+      // 使用 user_id + game_uid + seq_id 作为唯一约束，支持官服/B服多账号
       const { error } = await supabase
         .from('history')
-        .upsert(recordsToSave, { onConflict: 'user_id,record_id' });
+        .upsert(recordsToSave, { onConflict: 'user_id,game_uid,seq_id' });
 
       if (error) {
         console.error('[ImportManager] 保存历史记录失败:', error);
@@ -481,16 +482,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           )}
 
           {/* 导入成功 */}
-          {console.log('[ImportManager] 检查渲染条件:', {
-            importStatus,
-            isSuccess: importStatus === ImportStatus.SUCCESS,
-            successValue: ImportStatus.SUCCESS,
-            hasResult: !!importResult,
-            shouldRender: importStatus === ImportStatus.SUCCESS && !!importResult
-          })}
           {importStatus === ImportStatus.SUCCESS && importResult && (
             <div className="space-y-6">
-              {console.log('[ImportManager] 渲染导入成功页面:', { importStatus, hasResult: !!importResult })}
               <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-900/30 p-6 text-center transition-colors">
                 <div className="flex justify-center mb-4">
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center text-green-600 dark:text-green-500">

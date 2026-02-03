@@ -26,3 +26,4 @@ export { default as DashboardView } from './dashboard/DashboardView';
 
 // 弹窗组件
 export { default as EditItemModal } from './modals/EditItemModal';
+export { GachaModals } from './modals';

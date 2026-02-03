@@ -69,6 +69,23 @@ export class ServerConnectionError extends Error {
 }
 
 /**
+ * 网络连接错误（用户友好提示）
+ */
+export class NetworkConnectionError extends Error {
+  constructor(originalMessage) {
+    const friendlyMessage =
+      '网络连接失败，请尝试以下方法：\n' +
+      '• 检查网络连接是否正常\n' +
+      '• 如果使用公司/学校网络，可能被防火墙拦截，请尝试使用手机热点\n' +
+      '• 关闭 VPN 或代理软件后重试\n' +
+      '• 刷新页面后重试';
+    super(friendlyMessage);
+    this.name = 'NetworkConnectionError';
+    this.originalMessage = originalMessage;
+  }
+}
+
+/**
  * 安全解析 JSON 响应
  * @param {Response} response - fetch 响应对象
  * @param {string} context - 上下文描述（用于错误信息）

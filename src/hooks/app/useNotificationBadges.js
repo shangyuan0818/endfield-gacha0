@@ -1,0 +1,140 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '../../supabaseClient';
+import { useAuthStore, useAppStore } from '../../stores';
+import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
+
+/**
+ * 通知徽标 Hook
+ * 处理待审批申请数量（仅超管）、新公告检测、未读工单数量
+ */
+export function useNotificationBadges() {
+  const user = useAuthStore(state => state.user);
+  const userRole = useAuthStore(state => state.userRole);
+  const setAnnouncements = useAppStore(state => state.setAnnouncements);
+
+  const isSuperAdmin = userRole === 'super_admin';
+
+  // UX-006: 通知气泡状态
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
+  const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
+  const [unreadTicketsCount, setUnreadTicketsCount] = useState(0);
+
+  // 加载公告 - 优先从 Supabase 加载，失败则回退到本地 JSON
+  useEffect(() => {
+    const fetchAnnouncements = async () => {
+      try {
+        let data = null;
+
+        // 优先尝试从 Supabase 加载
+        if (supabase) {
+          const { data: dbData, error } = await supabase
+            .from('announcements')
+            .select('*')
+            .eq('is_active', true)
+            .order('priority', { ascending: false });
+
+          if (!error && dbData && dbData.length > 0) {
+            data = dbData;
+          }
+        }
+
+        // 回退到本地 JSON
+        if (!data) {
+          const response = await fetch('/announcements.json');
+          if (response.ok) {
+            const jsonData = await response.json();
+            data = jsonData.filter(a => a.is_active).sort((a, b) => b.priority - a.priority);
+          }
+        }
+
+        if (data && data.length > 0) {
+          setAnnouncements(data);
+          // UX-006: 检测是否有新公告
+          const latestAnnouncement = data[0];
+          if (latestAnnouncement?.updated_at) {
+            const isNew = hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at);
+            setHasNewAnnouncement(isNew);
+          }
+        } else {
+          setAnnouncements([]);
+          setHasNewAnnouncement(false);
+        }
+      } catch (error) {
+        setAnnouncements([]);
+        setHasNewAnnouncement(false);
+      }
+    };
+
+    fetchAnnouncements();
+  }, []);
+
+  // UX-006: 获取待审批管理员申请数量（仅超管）
+  useEffect(() => {
+    const fetchPendingApplications = async () => {
+      if (!supabase || !isSuperAdmin) {
+        setPendingApplicationsCount(0);
+        return;
+      }
+
+      try {
+        const { count, error } = await supabase
+          .from('admin_applications')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+
+        if (!error) {
+          setPendingApplicationsCount(count || 0);
+        }
+      } catch (error) {
+        // 静默失败
+      }
+    };
+
+    fetchPendingApplications();
+  }, [isSuperAdmin]);
+
+  // UX-006: 获取未读工单数量
+  useEffect(() => {
+    const fetchUnreadTickets = async () => {
+      if (!supabase || !user) {
+        setUnreadTicketsCount(0);
+        return;
+      }
+
+      try {
+        const lastViewed = getStorageItem(STORAGE_KEYS.TICKETS_LAST_VIEWED, 0);
+        const lastViewedDate = lastViewed ? new Date(lastViewed).toISOString() : '1970-01-01T00:00:00Z';
+
+        let query = supabase
+          .from('tickets')
+          .select('*', { count: 'exact', head: true })
+          .gt('updated_at', lastViewedDate);
+
+        if (!isSuperAdmin) {
+          query = query.eq('user_id', user.id);
+        }
+
+        const { count, error } = await query;
+
+        if (!error) {
+          setUnreadTicketsCount(count || 0);
+        }
+      } catch (error) {
+        // 静默失败
+      }
+    };
+
+    fetchUnreadTickets();
+  }, [user, isSuperAdmin]);
+
+  return {
+    pendingApplicationsCount,
+    setPendingApplicationsCount,
+    hasNewAnnouncement,
+    setHasNewAnnouncement,
+    unreadTicketsCount,
+    setUnreadTicketsCount
+  };
+}
+
+export default useNotificationBadges;

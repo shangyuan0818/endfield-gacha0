@@ -26,22 +26,28 @@ const PoolSelector = () => {
 
   // 获取所有游戏账号（从历史记录）
   const gameAccounts = useMemo(() => {
-    const accounts = getGameAccountsFromHistory();
-    console.log('[PoolSelector] 游戏账号列表（从历史记录）:', accounts);
-    return accounts;
+    return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]); // 依赖history而不是pools
+
+  // 根据当前选中账号过滤历史记录
+  const filteredHistory = useMemo(() => {
+    if (!currentGameUid) {
+      return history; // 全部账号
+    }
+    return history.filter(h => h.gameUid === currentGameUid || h.game_uid === currentGameUid);
+  }, [history, currentGameUid]);
 
   // 直接使用所有卡池（不再按账号筛选）
   const filteredPools = pools;
 
-  // 计算每个卡池的抽数
+  // 计算每个卡池的抽数（根据当前账号过滤）
   const poolPullCounts = useMemo(() => {
     const counts = {};
-    history.forEach(h => {
+    filteredHistory.forEach(h => {
       counts[h.poolId] = (counts[h.poolId] || 0) + 1;
     });
     return counts;
-  }, [history]);
+  }, [filteredHistory]);
 
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
