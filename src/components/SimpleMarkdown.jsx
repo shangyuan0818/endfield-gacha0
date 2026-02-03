@@ -1,254 +1,283 @@
 import React from 'react';
-import DOMPurify from 'dompurify';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 
 /**
- * 增强版 Markdown 渲染组件
- * 支持: 标题(#/##/###), 粗体(**), 斜体(*), 删除线(~~), 代码(`), 代码块(```),
- *       引用(>), 无序列表(-/*), 有序列表(1.), 链接([]()), 水平线(---), 换行
- * 使用 DOMPurify 防止 XSS 攻击
+ * Markdown 渲染组件 - Endfield 风格定制版
+ * 基于 react-markdown + remark-gfm
+ * 特点: 直角设计, 高对比度, 工业/科技感, Endfield Yellow (#FFFA00) 点缀
  */
 const SimpleMarkdown = ({ content, className = '' }) => {
   if (!content) return null;
 
-  // 配置 DOMPurify 允许的标签和属性
-  const purifyConfig = {
-    ALLOWED_TAGS: ['a', 'strong', 'em', 'code', 'br', 'del', 's'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
-    ALLOW_DATA_ATTR: false,
-  };
+  // 自定义组件样式
+  const components = {
+    // 标题
+    h1: ({ children }) => (
+      <h1 className="font-black text-2xl mt-5 mb-2 text-white flex items-center gap-3 uppercase tracking-tight">
+        <span className="w-1.5 h-7 bg-endfield-yellow inline-block"></span>
+        {children}
+      </h1>
+    ),
+    h2: ({ children }) => (
+      <h2 className="font-black text-xl mt-4 mb-2 text-white flex items-center gap-3 uppercase tracking-tight">
+        <span className="w-1.5 h-6 bg-endfield-yellow inline-block"></span>
+        {children}
+      </h2>
+    ),
+    h3: ({ children }) => (
+      <h3 className="font-bold text-lg mt-3 mb-1.5 text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-1.5">
+        <span className="w-1 h-1 bg-endfield-yellow inline-block"></span>
+        {children}
+      </h3>
+    ),
+    h4: ({ children }) => (
+      <h4 className="font-bold text-base mt-2.5 mb-1 text-zinc-200 pl-2 border-l-2 border-zinc-700">
+        {children}
+      </h4>
+    ),
+    h5: ({ children }) => (
+      <h5 className="font-semibold text-sm mt-2 mb-0.5 text-zinc-300">
+        {children}
+      </h5>
+    ),
+    h6: ({ children }) => (
+      <h6 className="font-medium text-xs mt-1.5 mb-0.5 text-zinc-400 uppercase tracking-wider">
+        {children}
+      </h6>
+    ),
 
-  // 安全地渲染 HTML
-  const sanitizeHTML = (html) => DOMPurify.sanitize(html, purifyConfig);
+    // 段落
+    p: ({ children }) => (
+      <p className="my-1 text-sm leading-6 text-zinc-300">
+        {children}
+      </p>
+    ),
 
-  const renderMarkdown = (text) => {
-    const lines = text.split('\n');
-    const elements = [];
-    let inUnorderedList = false;
-    let inOrderedList = false;
-    let inCodeBlock = false;
-    let codeBlockContent = [];
-    let codeBlockLang = '';
-    let unorderedListItems = [];
-    let orderedListItems = [];
+    // 链接
+    a: ({ href, children }) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-bold text-endfield-yellow hover:text-white hover:underline decoration-2 underline-offset-4 transition-colors duration-200"
+      >
+        {children}
+      </a>
+    ),
 
-    const processInline = (line) => {
-      // 处理行内元素
-      let result = line;
+    // 图片 - 支持尺寸调整
+    // 语法: ![alt](url "title =宽x高") 或 ![alt](url "=宽") 或 ![alt](url "=宽x高")
+    // 示例: ![图片](url "=300") 宽300px, ![图片](url "=300x200") 宽300高200, ![图片](url "说明 =50%") 宽50%
+    img: ({ src, alt, title }) => {
+      let width, height, actualTitle;
 
-      // 先转义 HTML 特殊字符防止注入
-      result = result
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-
-      // 链接 [text](url)
-      result = result.replace(
-        /\[([^\]]+)\]\(([^)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer" class="font-bold text-amber-600 dark:text-yellow-400 border-b border-dashed border-amber-400 dark:border-yellow-400/50 hover:bg-amber-100 dark:hover:bg-yellow-400/10 transition-colors pb-0.5">$1</a>'
-      );
-
-      // 粗体 **text** 或 __text__
-      result = result.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-black text-slate-900 dark:text-zinc-100">$1</strong>');
-      result = result.replace(/__([^_]+)__/g, '<strong class="font-black text-slate-900 dark:text-zinc-100">$1</strong>');
-
-      // 删除线 ~~text~~
-      result = result.replace(/~~([^~]+)~~/g, '<del class="line-through text-slate-400 dark:text-zinc-500">$1</del>');
-
-      // 斜体 *text* 或 _text_
-      result = result.replace(/\*([^*]+)\*/g, '<em class="italic text-slate-600 dark:text-zinc-400">$1</em>');
-      result = result.replace(/_([^_]+)_/g, '<em class="italic text-slate-600 dark:text-zinc-400">$1</em>');
-
-      // 行内代码 `code`
-      result = result.replace(
-        /`([^`]+)`/g,
-        '<code class="bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-none text-xs font-mono text-pink-600 dark:text-pink-400">$1</code>'
-      );
-
-      return result;
-    };
-
-    const flushUnorderedList = () => {
-      if (unorderedListItems.length > 0) {
-        elements.push(
-          <ul key={`ul-${elements.length}`} className="list-disc list-inside space-y-0.5 my-2 ml-2 marker:text-zinc-400 dark:marker:text-zinc-600">
-            {unorderedListItems.map((item, i) => (
-              <li key={i} className="text-slate-700 dark:text-zinc-300 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(item)) }} />
-            ))}
-          </ul>
-        );
-        unorderedListItems = [];
-      }
-      inUnorderedList = false;
-    };
-
-    const flushOrderedList = () => {
-      if (orderedListItems.length > 0) {
-        elements.push(
-          <ol key={`ol-${elements.length}`} className="list-decimal list-inside space-y-0.5 my-2 ml-2 marker:text-zinc-400 dark:marker:text-zinc-600 marker:font-mono">
-            {orderedListItems.map((item, i) => (
-              <li key={i} className="text-slate-700 dark:text-zinc-300 text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(item)) }} />
-            ))}
-          </ol>
-        );
-        orderedListItems = [];
-      }
-      inOrderedList = false;
-    };
-
-    const flushCodeBlock = () => {
-      if (codeBlockContent.length > 0) {
-        elements.push(
-          <pre key={`code-${elements.length}`} className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 p-3 rounded-none my-2 overflow-x-auto text-xs font-mono">
-            <code>{codeBlockContent.join('\n')}</code>
-          </pre>
-        );
-        codeBlockContent = [];
-        codeBlockLang = '';
-      }
-      inCodeBlock = false;
-    };
-
-    lines.forEach((line, index) => {
-      // 代码块处理
-      if (line.trim().startsWith('```')) {
-        if (inCodeBlock) {
-          flushCodeBlock();
+      if (title) {
+        // 解析尺寸: 支持 "=300", "=300x200", "=50%", "=50%x30%", "标题 =300"
+        const sizeMatch = title.match(/=(\d+%?)(x(\d+%?))?$/);
+        if (sizeMatch) {
+          width = sizeMatch[1];
+          height = sizeMatch[3];
+          // 提取实际标题（去掉尺寸部分）
+          actualTitle = title.replace(/\s*=\d+%?(x\d+%?)?$/, '').trim() || undefined;
         } else {
-          flushUnorderedList();
-          flushOrderedList();
-          inCodeBlock = true;
-          codeBlockLang = line.trim().slice(3);
+          actualTitle = title;
         }
-        return;
       }
 
-      if (inCodeBlock) {
-        codeBlockContent.push(line);
-        return;
+      // 构建样式
+      const style = {};
+      if (width) {
+        style.width = width.includes('%') ? width : `${width}px`;
+      }
+      if (height) {
+        style.height = height.includes('%') ? height : `${height}px`;
       }
 
-      const trimmedLine = line.trim();
-
-      // 空行
-      if (trimmedLine === '') {
-        flushUnorderedList();
-        flushOrderedList();
-        return;
-      }
-
-      // 水平线 --- 或 ***
-      if (trimmedLine === '---' || trimmedLine === '***' || trimmedLine === '___') {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <hr key={index} className="my-3 border-t border-dashed border-zinc-300 dark:border-zinc-700" />
-        );
-        return;
-      }
-
-      // 一级标题 #
-      if (trimmedLine.startsWith('# ') && !trimmedLine.startsWith('## ')) {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <h2 key={index} className="font-black text-lg mt-4 mb-2 text-slate-900 dark:text-zinc-100 flex items-center gap-2">
-            <span className="w-1 h-4 bg-endfield-yellow inline-block"></span>
-            {trimmedLine.slice(2)}
-          </h2>
-        );
-        return;
-      }
-
-      // 二级标题 ##
-      if (trimmedLine.startsWith('## ')) {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <h3 key={index} className="font-bold text-base mt-3 mb-1.5 text-slate-800 dark:text-zinc-200">
-            {trimmedLine.slice(3)}
-          </h3>
-        );
-        return;
-      }
-
-      // 三级标题 ###
-      if (trimmedLine.startsWith('### ')) {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <h4 key={index} className="font-bold text-sm mt-2 mb-1 text-slate-700 dark:text-zinc-300 uppercase tracking-wide opacity-90">
-            {trimmedLine.slice(4)}
-          </h4>
-        );
-        return;
-      }
-
-      // 四级标题 ####
-      if (trimmedLine.startsWith('#### ')) {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <h5 key={index} className="font-semibold mt-2 mb-1 text-slate-600 dark:text-zinc-400 text-xs">
-            {trimmedLine.slice(5)}
-          </h5>
-        );
-        return;
-      }
-
-      // 引用 >
-      if (trimmedLine.startsWith('> ')) {
-        flushUnorderedList();
-        flushOrderedList();
-        elements.push(
-          <blockquote
-            key={index}
-            className="border-l-2 border-amber-400 dark:border-amber-600 pl-3 py-1.5 my-2 text-sm text-slate-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50"
-            dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(trimmedLine.slice(2))) }}
-          />
-        );
-        return;
-      }
-
-      // 无序列表 - 或 *
-      if (trimmedLine.startsWith('- ') || (trimmedLine.startsWith('* ') && !trimmedLine.startsWith('**'))) {
-        flushOrderedList();
-        inUnorderedList = true;
-        unorderedListItems.push(trimmedLine.slice(2));
-        return;
-      }
-
-      // 有序列表 1. 2. 等
-      const orderedMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
-      if (orderedMatch) {
-        flushUnorderedList();
-        inOrderedList = true;
-        orderedListItems.push(orderedMatch[2]);
-        return;
-      }
-
-      // 普通段落
-      flushUnorderedList();
-      flushOrderedList();
-      elements.push(
-        <p
-          key={index}
-          className="my-1 text-sm leading-normal text-slate-700 dark:text-zinc-300"
-          dangerouslySetInnerHTML={{ __html: sanitizeHTML(processInline(trimmedLine)) }}
+      return (
+        <img
+          src={src}
+          alt={alt}
+          title={actualTitle}
+          style={style}
+          className={`${width ? '' : 'max-w-full'} h-auto rounded-none my-2 border border-zinc-700 bg-zinc-950`}
         />
       );
-    });
+    },
 
-    // 处理最后的列表和代码块
-    flushUnorderedList();
-    flushOrderedList();
-    flushCodeBlock();
+    // 粗体
+    strong: ({ children }) => (
+      <strong className="font-bold text-zinc-100">{children}</strong>
+    ),
 
-    return elements;
+    // 斜体
+    em: ({ children }) => (
+      <em className="italic text-zinc-400">{children}</em>
+    ),
+
+    // 删除线
+    del: ({ children }) => (
+      <del className="line-through text-zinc-500 decoration-zinc-600">{children}</del>
+    ),
+
+    // 行内代码
+    code: ({ inline, className, children }) => {
+      if (inline) {
+        return (
+          <code className="bg-[#1a1a1a] border border-zinc-700 px-1.5 py-0.5 rounded-none text-xs font-mono text-zinc-200">
+            {children}
+          </code>
+        );
+      }
+      // 代码块内的 code 标签
+      return (
+        <code className="text-zinc-300 font-mono text-xs">
+          {children}
+        </code>
+      );
+    },
+
+    // 代码块
+    pre: ({ children }) => (
+      <div className="relative my-4 group">
+        <div className="relative border-l-2 border-endfield-yellow bg-[#0F0F0F] border-y border-r border-zinc-800 overflow-hidden">
+          <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+            {children}
+          </pre>
+        </div>
+      </div>
+    ),
+
+    // 引用
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-2 border-endfield-yellow pl-4 py-1 my-4 text-sm text-zinc-400 italic bg-transparent">
+        {children}
+      </blockquote>
+    ),
+
+    // 无序列表
+    ul: ({ children }) => (
+      <ul className="list-none space-y-2 my-3 ml-1">
+        {children}
+      </ul>
+    ),
+
+    // 有序列表
+    ol: ({ children }) => (
+      <ol className="list-decimal list-inside space-y-1 my-3 ml-2 text-zinc-300 marker:text-endfield-yellow/70 marker:font-mono marker:font-bold">
+        {children}
+      </ol>
+    ),
+
+    // 列表项
+    li: ({ children, checked, ordered }) => {
+      // 任务列表项
+      if (checked !== null && checked !== undefined) {
+        return (
+          <li className="flex items-start gap-3 text-zinc-300 text-sm leading-relaxed group list-none">
+            <span className={`flex items-center justify-center w-4 h-4 mt-0.5 border flex-shrink-0 transition-colors ${
+              checked
+                ? 'bg-endfield-yellow border-endfield-yellow text-black'
+                : 'bg-transparent border-zinc-600 group-hover:border-zinc-500'
+            }`}>
+              {checked && (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="square" strokeLinejoin="miter" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+            <span className={checked ? 'text-zinc-500 line-through decoration-zinc-600' : 'text-zinc-300'}>
+              {children}
+            </span>
+          </li>
+        );
+      }
+
+      // 普通无序列表项
+      if (!ordered) {
+        return (
+          <li className="flex items-start gap-2.5 text-zinc-300 text-sm leading-relaxed">
+            <span className="w-1.5 h-1.5 bg-endfield-yellow mt-2 shrink-0 opacity-80"></span>
+            <span>{children}</span>
+          </li>
+        );
+      }
+
+      // 有序列表项
+      return (
+        <li className="text-sm leading-relaxed pl-1">
+          {children}
+        </li>
+      );
+    },
+
+    // 水平线
+    hr: () => (
+      <hr className="my-6 border-t border-zinc-800" />
+    ),
+
+    // 表格
+    table: ({ children }) => (
+      <div className="my-5 overflow-x-auto border border-zinc-800 bg-[#0F0F0F]">
+        <table className="w-full border-collapse text-sm">
+          {children}
+        </table>
+      </div>
+    ),
+
+    thead: ({ children }) => (
+      <thead className="bg-zinc-900 border-b border-zinc-700">
+        {children}
+      </thead>
+    ),
+
+    tbody: ({ children }) => (
+      <tbody>{children}</tbody>
+    ),
+
+    tr: ({ children }) => (
+      <tr className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+        {children}
+      </tr>
+    ),
+
+    th: ({ children, style }) => {
+      const align = style?.textAlign || 'left';
+      return (
+        <th className={`px-4 py-3 font-bold text-zinc-100 uppercase tracking-wider text-xs text-${align}`}>
+          {children}
+        </th>
+      );
+    },
+
+    td: ({ children, style }) => {
+      const align = style?.textAlign || 'left';
+      return (
+        <td className={`px-4 py-2.5 text-zinc-300 text-${align}`}>
+          {children}
+        </td>
+      );
+    },
+
+    // 输入框（用于任务列表的复选框）
+    input: ({ type, checked }) => {
+      if (type === 'checkbox') {
+        return null; // 我们在 li 中自定义渲染复选框
+      }
+      return <input type={type} checked={checked} readOnly />;
+    },
   };
 
   return (
-    <div className={`prose-sm ${className}`}>
-      {renderMarkdown(content)}
+    <div className={`markdown-content ${className}`}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw]}
+        components={components}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 };

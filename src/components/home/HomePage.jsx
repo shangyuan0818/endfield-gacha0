@@ -508,6 +508,70 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     });
   }, []);
 
+  // 公告内容组件 - 带滚动检测
+  const AnnouncementContent = ({ content }) => {
+    const scrollRef = useRef(null);
+    const [showScrollHint, setShowScrollHint] = useState(true);
+    const [canScroll, setCanScroll] = useState(false);
+
+    // 检测是否需要滚动（内容超出容器）
+    useEffect(() => {
+      const el = scrollRef.current;
+      if (el) {
+        const checkScrollable = () => {
+          setCanScroll(el.scrollHeight > el.clientHeight);
+        };
+        checkScrollable();
+        // 内容变化时重新检测
+        const observer = new ResizeObserver(checkScrollable);
+        observer.observe(el);
+        return () => observer.disconnect();
+      }
+    }, [content]);
+
+    // 滚动事件处理
+    const handleScroll = useCallback((e) => {
+      const el = e.target;
+      const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 20;
+      setShowScrollHint(!isAtBottom);
+    }, []);
+
+    return (
+      <div className="px-4 pb-4">
+        <div className="relative">
+          {/* 滚动容器 */}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="pl-12 pr-4 max-h-[400px] overflow-y-auto announcement-scrollbar"
+            style={{
+              scrollbarWidth: 'auto',
+              scrollbarColor: 'rgb(251 191 36) transparent'
+            }}
+          >
+            <SimpleMarkdown
+              content={content}
+              className="text-sm text-slate-700 dark:text-zinc-300"
+            />
+            {/* 底部占位，确保渐变不遮挡内容 */}
+            <div className="h-8"></div>
+          </div>
+          {/* 底部渐变遮罩 + 滚动提示 - 仅在可滚动且未到底部时显示 */}
+          {canScroll && (
+            <div
+              className={`absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-amber-50 dark:from-amber-900/40 to-transparent pointer-events-none flex items-end justify-center pb-1 transition-opacity duration-300 ${showScrollHint ? 'opacity-100' : 'opacity-0'}`}
+            >
+              <div className="flex items-center gap-1 text-amber-500 dark:text-amber-400 text-xs animate-bounce">
+                <ChevronDown size={14} />
+                <span className="font-medium">向下滚动查看更多</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   // 折叠动画组件
   const CollapsibleContent = ({ isOpen, children }) => (
     <div
@@ -1188,16 +1252,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
             <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
           </button>
 
-          {/* 公告内容 - 使用 grid 动画 */}
+          {/* 公告内容 - 使用 grid 动画，限制最大高度 */}
           <CollapsibleContent isOpen={showAnnouncement}>
-            <div className="px-4 pb-4">
-              <div className="pl-12 pr-2">
-                <SimpleMarkdown
-                  content={announcements[0].content}
-                  className="text-sm text-slate-700 dark:text-zinc-300"
-                />
-              </div>
-            </div>
+            <AnnouncementContent content={announcements[0].content} />
           </CollapsibleContent>
         </div>
       )}

@@ -28,6 +28,7 @@ import {
   executeAuthChainForAccount,
   fetchAllGachaRecordsConcurrent,
   fetchAllGachaRecords,
+  fetchImportQueueStatus,
   AuthChainError,
   RiskControlError,
   ServerConnectionError
@@ -174,35 +175,40 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     onFetchStatusChange?.(status);
   }, [status, onFetchStatusChange]);
 
-  // 🆕 定时更新队列状态
+  // 🆕 定时更新队列状态（从后端获取）
   useEffect(() => {
     if (status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING) {
-      // 定时更新队列状态
-      const interval = setInterval(() => {
-        const queue = getGlobalQueue();
-        const currentStatus = queue.getStatus();
-        setQueueStatus(currentStatus);
-      }, 500); // 每500ms更新一次
+      // 定时从后端获取队列状态
+      const updateQueueStatus = async () => {
+        try {
+          const backendStatus = await fetchImportQueueStatus();
+          setQueueStatus({
+            queueLength: backendStatus.queueLength,
+            activeRequests: backendStatus.isProcessing ? 1 : 0,
+            isProcessing: backendStatus.isProcessing,
+            oldestTaskAge: backendStatus.oldestTaskAge || 0,
+            currentTaskMeta: backendStatus.currentTaskMeta
+          });
+        } catch (error) {
+          console.warn('[OfficialAPIImport] 获取队列状态失败:', error);
+        }
+      };
 
-      // 监听队列事件
+      updateQueueStatus(); // 立即执行一次
+      const interval = setInterval(updateQueueStatus, 2000); // 每2秒更新一次
+
+      // 监听本地队列事件（用于重试信息）
       const queue = getGlobalQueue();
       const handleQueueEvent = (event, data) => {
         if (event === 'request:retry') {
-          // 显示重试信息
           setRetryInfo({
             currentRetry: data.currentRetry,
             maxRetries: data.maxRetries,
             nextRetryIn: data.nextRetryIn,
             reason: data.reason
           });
-
-          // 更新状态消息
           setStatusMessage(`网络不稳定，正在重试 (${data.currentRetry}/${data.maxRetries})...`);
-        } else if (event === 'request:success') {
-          // 清除重试信息
-          setRetryInfo(null);
-        } else if (event === 'request:error') {
-          // 清除重试信息
+        } else if (event === 'request:success' || event === 'request:error') {
           setRetryInfo(null);
         }
       };
@@ -382,6 +388,10 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
           else if (msg.includes('武器')) setProgress(80);
           else if (msg.includes('失败')) setProgress(85);
           else if (msg.includes('完成')) setProgress(90);
+          else if (msg.includes('排队')) setProgress(35);
+        }, {
+          gameUid: account.gameUid,
+          nickName: account.nickName
         });
       } catch (error) {
         setStatusMessage('并发获取失败，切换到串行模式...');

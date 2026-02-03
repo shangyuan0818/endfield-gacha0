@@ -64,6 +64,39 @@
     background-color: var(--color-endfield-yellow);
   }
 
+  /* 公告区域专用滚动条 - 更大、常驻显示 */
+  .announcement-scrollbar::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .announcement-scrollbar::-webkit-scrollbar-track {
+    background-color: rgba(251, 191, 36, 0.1);
+    border-radius: 0;
+  }
+
+  .announcement-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(251, 191, 36);
+    border-radius: 0;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .announcement-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(245, 158, 11);
+  }
+
+  html.dark .announcement-scrollbar::-webkit-scrollbar-track {
+    background-color: rgba(251, 191, 36, 0.05);
+  }
+
+  html.dark .announcement-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgb(180, 83, 9);
+  }
+
+  html.dark .announcement-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-endfield-yellow);
+  }
+
   ::selection {
     background-color: var(--color-endfield-yellow);
     color: black;

@@ -432,15 +432,87 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
 }
 
 /**
+ * 轮询任务状态直到完成
+ * @param {string} taskId - 任务ID
+ * @param {Function} [onProgress] - 进度回调
+ * @param {number} [maxWaitTime] - 最大等待时间（毫秒）
+ * @returns {Promise<Object>} 任务结果
+ */
+async function pollTaskUntilComplete(taskId, onProgress, maxWaitTime = 300000) {
+  const startTime = Date.now();
+  const pollInterval = 2000; // 每2秒轮询一次
+
+  while (Date.now() - startTime < maxWaitTime) {
+    try {
+      const response = await fetch(`${PROXY_BASE}?action=task-status&taskId=${encodeURIComponent(taskId)}`);
+      const result = await safeParseJSON(response, 'Task Status API');
+
+      if (!result.success) {
+        throw new AuthChainError(result.error || 'Failed to get task status', 'task-status', result);
+      }
+
+      const status = result.data;
+
+      if (status.status === 'completed') {
+        // 任务完成，返回结果
+        return status.result;
+      }
+
+      if (status.status === 'failed') {
+        throw new AuthChainError(status.error || 'Task failed', 'task-failed', status);
+      }
+
+      // 任务仍在排队或处理中
+      if (status.status === 'pending') {
+        if (onProgress) onProgress(`排队中... 前面还有 ${status.position} 个任务`);
+      } else if (status.status === 'processing') {
+        if (onProgress) onProgress('正在获取抽卡记录...');
+      }
+
+      // 等待后继续轮询
+      await delay(pollInterval);
+    } catch (error) {
+      // 网络错误，等待后重试
+      console.warn('[pollTaskUntilComplete] 轮询失败，重试中...', error.message);
+      await delay(pollInterval);
+    }
+  }
+
+  throw new AuthChainError('等待超时，请稍后重试', 'task-timeout');
+}
+
+/**
+ * 获取后端导入队列状态
+ * @returns {Promise<Object>} 队列状态
+ */
+export async function fetchImportQueueStatus() {
+  try {
+    const response = await fetch(`${PROXY_BASE}?action=queue-status`);
+    const result = await safeParseJSON(response, 'Queue Status API');
+
+    if (!result.success) {
+      return { queueLength: 0, isProcessing: false };
+    }
+
+    return result.data;
+  } catch (error) {
+    console.warn('[fetchImportQueueStatus] 获取队列状态失败:', error.message);
+    return { queueLength: 0, isProcessing: false };
+  }
+}
+
+/**
  * 获取全部抽卡记录（所有卡池）- 并发版本
  * 同时请求角色池和武器池，减少总耗时
+ * 使用后端队列确保同时只有一个导入任务执行
  * @param {string} u8Token - u8_token
  * @param {string} serverId - 服务器ID
  * @param {Function} [onProgress] - 进度回调
+ * @param {Object} [metadata] - 元数据（用于队列显示）
  * @returns {Promise<Array>} 全部记录
  */
-export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress) {
-  if (onProgress) onProgress('正在并发获取所有卡池记录（含武器池）...');
+export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress, metadata = {}) {
+  if (onProgress) onProgress('正在提交导入请求...');
 
   // 🔧 修复：使用批量并发 API + 请求队列和重试机制
   const response = await queuedFetch(`${PROXY_BASE}?action=records-batch`, {
@@ -456,12 +528,15 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
         { type: 'char', poolType: POOL_TYPES.CHARACTER.STANDARD },  // 常驻角色池
         { type: 'char', poolType: POOL_TYPES.CHARACTER.BEGINNER },  // 新手池
         { type: 'weapon' }  // 武器池
-      ]
+      ],
+      // 传递元数据用于队列显示
+      gameUid: metadata.gameUid,
+      nickName: metadata.nickName
     })
   }, {
     priority: 4, // 批量请求优先级
     maxRetries: 3,
-    timeout: 60000 // 批量请求超时时间更长
+    timeout: 120000 // 批量请求超时时间更长（考虑排队时间）
   });
 
   const result = await safeParseJSON(response, 'Records Batch API');
@@ -474,6 +549,28 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     throw new AuthChainError(result.error || 'Batch records failed', 'records-batch', result);
   }
 
+  // 检查是否被放入队列（需要轮询等待）
+  if (result.queued) {
+    if (onProgress) onProgress(`导入请求已加入队列，前面还有 ${result.position - 1} 个任务...`);
+
+    // 轮询等待任务完成
+    const taskResult = await pollTaskUntilComplete(result.taskId, onProgress);
+
+    // 使用任务结果继续处理
+    return processRecordsBatchResult({ success: true, data: taskResult }, onProgress);
+  }
+
+  // 直接返回结果（没有排队）
+  return processRecordsBatchResult(result, onProgress);
+}
+
+/**
+ * 处理 records-batch 结果
+ * @param {Object} result - API 响应结果
+ * @param {Function} [onProgress] - 进度回调
+ * @returns {Array} 处理后的记录数组
+ */
+function processRecordsBatchResult(result, onProgress) {
   // 处理所有卡池结果
   const allRecords = [];
   const poolTypeMap = {
@@ -626,5 +723,6 @@ export default {
   executeAuthChain,
   fetchAllGachaRecords,
   fetchAllGachaRecordsConcurrent,
+  fetchImportQueueStatus,
   importAllRecords
 };
