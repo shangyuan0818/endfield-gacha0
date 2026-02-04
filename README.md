@@ -2,7 +2,7 @@
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-![Version](https://img.shields.io/badge/version-3.0.0--public-blue.svg)
+![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -344,6 +344,31 @@ gacha-analyzer/
   - 加载进度条
 
 ## 📝 更新日志
+
+### v3.2.0 (2026-02-05)
+- 🐛 BUG-FIX-003: 武器池数据导入修复
+  - 修复 seqId 去重逻辑缺少 pool_id 导致武器池数据丢失
+  - seqId 是每个卡池独立的序列号，不同卡池可能有相同的 seqId
+  - 更新去重键: `game_uid:seq_id` → `game_uid:pool_id:seq_id`
+  - 新增迁移 055/056 修复数据库唯一约束
+- 🏗️ REFACTOR-001: 大文件拆分阶段2
+  - PoolManagement.jsx: 1,587行 → 230行 (缩减85%)
+  - 创建 services/admin/poolService.js 云同步服务
+  - 创建 hooks/admin/usePools.js 状态管理 Hook
+  - 创建 components/admin/pools/ 5个子组件
+- 🎨 CODE-002: CSS动画收敛
+  - 13个动画定义统一到 index.css
+  - 删除组件内重复的 @keyframes 定义
+- 🧹 CLEANUP-001: 代码库清理
+  - 删除 22 个未使用文件，共 5,394 行代码
+  - 移除 OCR 相关、旧导入工具、Python 服务、过时文档
+
+### v3.1.0 (2026-02-01)
+- 🐛 BUG-FIX-001: 数据导入网络错误修复
+  - 请求队列管理器 + 指数退避重试机制
+- 🐛 BUG-FIX-002: 模拟器切换卡池状态残留修复
+- ✨ FEAT-NEW-001: 导入排队信息展示
+  - 实时队列状态 + 重试信息显示
 
 ### v3.0.0-public (2026-02-01)
 - ✨ FEAT-008: 官方 API 数据导入功能
