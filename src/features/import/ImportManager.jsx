@@ -300,6 +300,20 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
       // 4. 从服务器获取已存在的 seqId 进行去重（基于 game_uid + seq_id）
       const existingSeqIds = await getExistingSeqIds(currentGameUid);
+
+      // 🔍 诊断日志
+      console.log('[ImportManager] 去重诊断:', {
+        currentGameUid,
+        existingSeqIdsCount: existingSeqIds.size,
+        existingSeqIdsSample: Array.from(existingSeqIds).slice(0, 5),
+        historyRecordsCount: historyRecords.length,
+        sampleRecord: historyRecords[0] ? {
+          seqId: historyRecords[0].seqId,
+          gameUid: historyRecords[0].gameUid,
+          compositeKey: `${historyRecords[0].gameUid || 'unknown'}:${historyRecords[0].seqId}`
+        } : null
+      });
+
       const newRecords = historyRecords.filter(record => {
         if (record.seqId) {
           // 使用 game_uid:seq_id 组合进行去重
@@ -307,6 +321,12 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           if (existingSeqIds.has(compositeKey)) return false;
         }
         return true;
+      });
+
+      // 🔍 更多诊断
+      console.log('[ImportManager] 去重结果:', {
+        newRecordsCount: newRecords.length,
+        duplicateCount: historyRecords.length - newRecords.length
       });
 
       const duplicateCount = historyRecords.length - newRecords.length;
