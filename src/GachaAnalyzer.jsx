@@ -540,54 +540,22 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       />
 
       <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes scale-up {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.2s ease-out forwards;
-        }
-        .animate-scale-up {
-          animation: scale-up 0.2s ease-out forwards;
-        }
-        
-        @keyframes shine {
-          0% { background-position: -100% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .shine-effect {
+        /* 组件特有样式 - 通用动画已移至 index.css */
+        .shine-effect-rainbow {
           background-image: linear-gradient(
-            120deg, 
-            rgba(255,255,255,0) 30%, 
-            rgba(255, 215, 0, 0.5) 40%, 
-            rgba(255, 0, 128, 0.5) 50%, 
-            rgba(0, 255, 255, 0.5) 60%, 
+            120deg,
+            rgba(255,255,255,0) 30%,
+            rgba(255, 215, 0, 0.5) 40%,
+            rgba(255, 0, 128, 0.5) 50%,
+            rgba(0, 255, 255, 0.5) 60%,
             rgba(255,255,255,0) 70%
           );
           background-size: 200% 100%;
           animation: shine 3s infinite linear;
         }
-        
+
         .glow-border {
            box-shadow: 0 0 8px rgba(255, 165, 0, 0.6);
-        }
-
-        @keyframes slide-in {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out forwards;
         }
       `}</style>
     </div>

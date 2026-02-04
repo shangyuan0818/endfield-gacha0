@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
  * Markdown 渲染组件 - Endfield 风格定制版
  * 基于 react-markdown + remark-gfm
  * 特点: 直角设计, 高对比度, 工业/科技感, Endfield Yellow (#FFFA00) 点缀
+ * 2026-02-04 Update: Added Light Mode adaptation
  */
 const SimpleMarkdown = ({ content, className = '' }) => {
   if (!content) return null;
@@ -15,42 +16,42 @@ const SimpleMarkdown = ({ content, className = '' }) => {
   const components = {
     // 标题
     h1: ({ children }) => (
-      <h1 className="font-black text-2xl mt-5 mb-2 text-white flex items-center gap-3 uppercase tracking-tight">
-        <span className="w-1.5 h-7 bg-endfield-yellow inline-block"></span>
+      <h1 className="font-black text-2xl mt-5 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
+        <span className="w-1.5 h-7 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h1>
     ),
     h2: ({ children }) => (
-      <h2 className="font-black text-xl mt-4 mb-2 text-white flex items-center gap-3 uppercase tracking-tight">
-        <span className="w-1.5 h-6 bg-endfield-yellow inline-block"></span>
+      <h2 className="font-black text-xl mt-4 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
+        <span className="w-1.5 h-6 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h2>
     ),
     h3: ({ children }) => (
-      <h3 className="font-bold text-lg mt-3 mb-1.5 text-zinc-100 flex items-center gap-2 border-b border-zinc-800 pb-1.5">
-        <span className="w-1 h-1 bg-endfield-yellow inline-block"></span>
+      <h3 className="font-bold text-lg mt-3 mb-1.5 text-zinc-800 dark:text-zinc-100 flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
+        <span className="w-1 h-1 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h3>
     ),
     h4: ({ children }) => (
-      <h4 className="font-bold text-base mt-2.5 mb-1 text-zinc-200 pl-2 border-l-2 border-zinc-700">
+      <h4 className="font-bold text-base mt-2.5 mb-1 text-zinc-700 dark:text-zinc-200 pl-2 border-l-2 border-zinc-300 dark:border-zinc-700">
         {children}
       </h4>
     ),
     h5: ({ children }) => (
-      <h5 className="font-semibold text-sm mt-2 mb-0.5 text-zinc-300">
+      <h5 className="font-semibold text-sm mt-2 mb-0.5 text-zinc-600 dark:text-zinc-300">
         {children}
       </h5>
     ),
     h6: ({ children }) => (
-      <h6 className="font-medium text-xs mt-1.5 mb-0.5 text-zinc-400 uppercase tracking-wider">
+      <h6 className="font-medium text-xs mt-1.5 mb-0.5 text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
         {children}
       </h6>
     ),
 
     // 段落
     p: ({ children }) => (
-      <p className="my-1 text-sm leading-6 text-zinc-300">
+      <p className="my-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
         {children}
       </p>
     ),
@@ -61,7 +62,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-bold text-endfield-yellow hover:text-white hover:underline decoration-2 underline-offset-4 transition-colors duration-200"
+        className="font-bold text-amber-600 dark:text-endfield-yellow hover:text-amber-700 dark:hover:text-white hover:underline decoration-2 underline-offset-4 transition-colors duration-200"
       >
         {children}
       </a>
@@ -101,38 +102,38 @@ const SimpleMarkdown = ({ content, className = '' }) => {
           alt={alt}
           title={actualTitle}
           style={style}
-          className={`${width ? '' : 'max-w-full'} h-auto rounded-none my-2 border border-zinc-700 bg-zinc-950`}
+          className={`${width ? '' : 'max-w-full'} h-auto rounded-none my-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-950`}
         />
       );
     },
 
     // 粗体
     strong: ({ children }) => (
-      <strong className="font-bold text-zinc-100">{children}</strong>
+      <strong className="font-bold text-zinc-900 dark:text-zinc-100">{children}</strong>
     ),
 
     // 斜体
     em: ({ children }) => (
-      <em className="italic text-zinc-400">{children}</em>
+      <em className="italic text-zinc-500 dark:text-zinc-400">{children}</em>
     ),
 
     // 删除线
     del: ({ children }) => (
-      <del className="line-through text-zinc-500 decoration-zinc-600">{children}</del>
+      <del className="line-through text-zinc-400 dark:text-zinc-500 decoration-zinc-400 dark:decoration-zinc-600">{children}</del>
     ),
 
     // 行内代码
     code: ({ inline, className, children }) => {
       if (inline) {
         return (
-          <code className="bg-[#1a1a1a] border border-zinc-700 px-1.5 py-0.5 rounded-none text-xs font-mono text-zinc-200">
+          <code className="bg-zinc-100 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-none text-xs font-mono text-zinc-800 dark:text-zinc-200">
             {children}
           </code>
         );
       }
       // 代码块内的 code 标签
       return (
-        <code className="text-zinc-300 font-mono text-xs">
+        <code className="text-zinc-700 dark:text-zinc-300 font-mono text-xs">
           {children}
         </code>
       );
@@ -141,8 +142,8 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     // 代码块
     pre: ({ children }) => (
       <div className="relative my-4 group">
-        <div className="relative border-l-2 border-endfield-yellow bg-[#0F0F0F] border-y border-r border-zinc-800 overflow-hidden">
-          <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+        <div className="relative border-l-2 border-amber-500 dark:border-endfield-yellow bg-zinc-50 dark:bg-[#0F0F0F] border-y border-r border-zinc-200 dark:border-zinc-800 overflow-hidden">
+          <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700 scrollbar-track-transparent">
             {children}
           </pre>
         </div>
@@ -151,7 +152,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
 
     // 引用
     blockquote: ({ children }) => (
-      <blockquote className="border-l-2 border-endfield-yellow pl-4 py-1 my-4 text-sm text-zinc-400 italic bg-transparent">
+      <blockquote className="border-l-2 border-amber-500 dark:border-endfield-yellow pl-4 py-1 my-4 text-sm text-zinc-500 dark:text-zinc-400 italic bg-transparent">
         {children}
       </blockquote>
     ),
@@ -165,7 +166,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
 
     // 有序列表
     ol: ({ children }) => (
-      <ol className="list-decimal list-inside space-y-1 my-3 ml-2 text-zinc-300 marker:text-endfield-yellow/70 marker:font-mono marker:font-bold">
+      <ol className="list-decimal list-inside space-y-1 my-3 ml-2 text-zinc-600 dark:text-zinc-300 marker:text-amber-600 dark:marker:text-endfield-yellow/70 marker:font-mono marker:font-bold">
         {children}
       </ol>
     ),
@@ -175,11 +176,11 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       // 任务列表项
       if (checked !== null && checked !== undefined) {
         return (
-          <li className="flex items-start gap-3 text-zinc-300 text-sm leading-relaxed group list-none">
+          <li className="flex items-start gap-3 text-zinc-600 dark:text-zinc-300 text-sm leading-relaxed group list-none">
             <span className={`flex items-center justify-center w-4 h-4 mt-0.5 border flex-shrink-0 transition-colors ${
               checked
-                ? 'bg-endfield-yellow border-endfield-yellow text-black'
-                : 'bg-transparent border-zinc-600 group-hover:border-zinc-500'
+                ? 'bg-amber-500 dark:bg-endfield-yellow border-amber-500 dark:border-endfield-yellow text-white dark:text-black'
+                : 'bg-transparent border-zinc-300 dark:border-zinc-600 group-hover:border-zinc-400 dark:group-hover:border-zinc-500'
             }`}>
               {checked && (
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -187,7 +188,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
                 </svg>
               )}
             </span>
-            <span className={checked ? 'text-zinc-500 line-through decoration-zinc-600' : 'text-zinc-300'}>
+            <span className={checked ? 'text-zinc-400 dark:text-zinc-500 line-through decoration-zinc-400 dark:decoration-zinc-600' : 'text-zinc-600 dark:text-zinc-300'}>
               {children}
             </span>
           </li>
@@ -197,8 +198,8 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       // 普通无序列表项
       if (!ordered) {
         return (
-          <li className="flex items-start gap-2.5 text-zinc-300 text-sm leading-relaxed">
-            <span className="w-1.5 h-1.5 bg-endfield-yellow mt-2 shrink-0 opacity-80"></span>
+          <li className="flex items-start gap-2.5 text-zinc-600 dark:text-zinc-300 text-sm leading-relaxed">
+            <span className="w-1.5 h-1.5 bg-amber-500 dark:bg-endfield-yellow mt-2 shrink-0 opacity-80"></span>
             <span>{children}</span>
           </li>
         );
@@ -214,12 +215,12 @@ const SimpleMarkdown = ({ content, className = '' }) => {
 
     // 水平线
     hr: () => (
-      <hr className="my-6 border-t border-zinc-800" />
+      <hr className="my-6 border-t border-zinc-200 dark:border-zinc-800" />
     ),
 
     // 表格
     table: ({ children }) => (
-      <div className="my-5 overflow-x-auto border border-zinc-800 bg-[#0F0F0F]">
+      <div className="my-5 overflow-x-auto border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-[#0F0F0F]">
         <table className="w-full border-collapse text-sm">
           {children}
         </table>
@@ -227,7 +228,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     ),
 
     thead: ({ children }) => (
-      <thead className="bg-zinc-900 border-b border-zinc-700">
+      <thead className="bg-zinc-100 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-700">
         {children}
       </thead>
     ),
@@ -237,7 +238,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     ),
 
     tr: ({ children }) => (
-      <tr className="border-b border-zinc-800/50 hover:bg-zinc-800/30 transition-colors">
+      <tr className="border-b border-zinc-200/50 dark:border-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800/30 transition-colors">
         {children}
       </tr>
     ),
@@ -245,7 +246,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     th: ({ children, style }) => {
       const align = style?.textAlign || 'left';
       return (
-        <th className={`px-4 py-3 font-bold text-zinc-100 uppercase tracking-wider text-xs text-${align}`}>
+        <th className={`px-4 py-3 font-bold text-zinc-800 dark:text-zinc-100 uppercase tracking-wider text-xs text-${align}`}>
           {children}
         </th>
       );
@@ -254,7 +255,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     td: ({ children, style }) => {
       const align = style?.textAlign || 'left';
       return (
-        <td className={`px-4 py-2.5 text-zinc-300 text-${align}`}>
+        <td className={`px-4 py-2.5 text-zinc-600 dark:text-zinc-300 text-${align}`}>
           {children}
         </td>
       );
