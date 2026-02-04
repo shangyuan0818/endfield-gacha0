@@ -157,10 +157,11 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         updated_at: new Date().toISOString()
       }));
 
-      // 使用 user_id + game_uid + seq_id 作为唯一约束，支持官服/B服多账号
+      // 使用 user_id + game_uid + pool_id + seq_id 作为唯一约束
+      // 注意：seqId 是每个卡池独立的序列号，不同卡池可能有相同的 seqId
       const { error } = await supabase
         .from('history')
-        .upsert(recordsToSave, { onConflict: 'user_id,game_uid,seq_id' });
+        .upsert(recordsToSave, { onConflict: 'user_id,game_uid,pool_id,seq_id' });
 
       if (error) {
         console.error('[ImportManager] 保存历史记录失败:', error);
@@ -173,15 +174,16 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   }, [user]);
 
   /**
-   * 从服务器查询已存在的 seqId（用于去重）
-   * 使用 game_uid + seq_id 组合作为唯一标识
+   * 从服务器查询已存在的记录（用于去重）
+   * 使用 game_uid + pool_id + seq_id 组合作为唯一标识
+   * 注意：seqId 是每个卡池独立的序列号，不同卡池可能有相同的 seqId
    */
   const getExistingSeqIds = useCallback(async (gameUid) => {
     if (!supabase || !user) return new Set();
 
     let query = supabase
       .from('history')
-      .select('seq_id, game_uid')
+      .select('seq_id, game_uid, pool_id')
       .eq('user_id', user.id)
       .not('seq_id', 'is', null);
 
@@ -197,8 +199,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       return new Set();
     }
 
-    // 返回 game_uid:seq_id 组合的 Set
-    return new Set(data.map(r => `${r.game_uid || 'unknown'}:${r.seq_id}`));
+    // 返回 game_uid:pool_id:seq_id 组合的 Set（包含 pool_id 以区分不同卡池）
+    return new Set(data.map(r => `${r.game_uid || 'unknown'}:${r.pool_id || 'unknown'}:${r.seq_id}`));
   }, [user]);
 
   /**
@@ -298,7 +300,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         };
       });
 
-      // 4. 从服务器获取已存在的 seqId 进行去重（基于 game_uid + seq_id）
+      // 4. 从服务器获取已存在的记录进行去重（基于 game_uid + pool_id + seq_id）
       const existingSeqIds = await getExistingSeqIds(currentGameUid);
 
       // 🔍 诊断日志
@@ -309,15 +311,16 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         historyRecordsCount: historyRecords.length,
         sampleRecord: historyRecords[0] ? {
           seqId: historyRecords[0].seqId,
+          poolId: historyRecords[0].poolId,
           gameUid: historyRecords[0].gameUid,
-          compositeKey: `${historyRecords[0].gameUid || 'unknown'}:${historyRecords[0].seqId}`
+          compositeKey: `${historyRecords[0].gameUid || 'unknown'}:${historyRecords[0].poolId || 'unknown'}:${historyRecords[0].seqId}`
         } : null
       });
 
       const newRecords = historyRecords.filter(record => {
         if (record.seqId) {
-          // 使用 game_uid:seq_id 组合进行去重
-          const compositeKey = `${record.gameUid || 'unknown'}:${record.seqId}`;
+          // 使用 game_uid:pool_id:seq_id 组合进行去重（seqId 是每个卡池独立的）
+          const compositeKey = `${record.gameUid || 'unknown'}:${record.poolId || 'unknown'}:${record.seqId}`;
           if (existingSeqIds.has(compositeKey)) return false;
         }
         return true;
