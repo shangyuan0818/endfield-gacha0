@@ -2,12 +2,42 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
+
+/**
+ * 自定义 HTML 净化规则
+ * 基于 rehype-sanitize 的 defaultSchema，添加必要的扩展
+ * 安全性: 禁止 script/style/iframe/form 等危险标签和 on* 事件属性
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    // 允许的额外标签（用于 Markdown 扩展）
+    'summary',
+    'details',
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    // 允许 a 标签的 target 和 rel 属性
+    a: [...(defaultSchema.attributes?.a || []), 'target', 'rel'],
+    // 允许 img 标签的 style 属性（用于尺寸调整）
+    img: [...(defaultSchema.attributes?.img || []), 'style'],
+    // 允许 span 的 class 属性
+    span: [...(defaultSchema.attributes?.span || []), 'className', 'class'],
+    // 允许所有元素的 class 属性
+    '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'class'],
+  },
+  // 禁止所有 on* 事件属性（默认已禁止，显式声明以确保安全）
+  strip: ['script', 'style', 'iframe', 'form', 'input', 'button', 'textarea', 'select'],
+};
 
 /**
  * Markdown 渲染组件 - Endfield 风格定制版
  * 基于 react-markdown + remark-gfm
  * 特点: 直角设计, 高对比度, 工业/科技感, Endfield Yellow (#FFFA00) 点缀
  * 2026-02-04 Update: Added Light Mode adaptation
+ * 2026-02-07 Update: Added XSS protection with rehype-sanitize (SECURITY-002)
  */
 const SimpleMarkdown = ({ content, className = '' }) => {
   if (!content) return null;
@@ -274,7 +304,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         components={components}
       >
         {content}
