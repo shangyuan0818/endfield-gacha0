@@ -282,24 +282,120 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                 {/* 统计数据 */}
                 {poolTypeFilter === 'all' ? (
                   <div className="space-y-4">
-                    {/* 总览 */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 relative overflow-hidden group/stat">
+                    {/* 排名区域：左右双栏 */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* 左侧列：总抽数 + 限定池UP分析 */}
+                    <div className="space-y-4 flex flex-col">
+                      {/* 总抽数 */}
+                      <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 relative overflow-hidden group/stat flex-shrink-0">
                         <div className="absolute right-0 top-0 p-2 text-zinc-200 dark:text-zinc-800 group-hover/stat:scale-110 transition-transform"><Layers size={40} /></div>
                         <div className="text-zinc-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-wider mb-1">总抽数</div>
                         <div className="text-3xl font-black text-slate-800 dark:text-white font-mono">{(currentStats.total || 0).toLocaleString()}</div>
                       </div>
-                      <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 h-full">
-                        <RankingCard
-                          ranking={dataSource === 'global' ? characterRanking : userRanking}
-                          loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
-                          poolType="all"
-                          title={dataSource === 'global' ? "全服出货排名 TOP3" : "我的出货排名 TOP3"}
-                        />
+
+                      {/* 限定池 UP 六星排名 & 分类统计 (合并卡片) */}
+                      <div className="bg-zinc-50 dark:bg-zinc-950/30 border border-zinc-200 dark:border-zinc-800 p-5 flex-1">
+                        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
+                          <Star size={16} className="text-amber-500" />
+                          <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300 uppercase tracking-wide">限定池 UP 6★ 分析</h4>
+                          <span className="text-[10px] text-zinc-400 ml-auto font-mono">排名 & 分布</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                          {/* 左侧：UP 六星排名 */}
+                          <div className="h-full border-r-0 xl:border-r border-zinc-100 dark:border-zinc-800 xl:pr-6 border-b xl:border-b-0 pb-6 xl:pb-0">
+                             <RankingCard
+                                ranking={dataSource === 'global' ? characterRanking : userRanking}
+                                loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
+                                poolType="limited"
+                                title="限定池 UP 6★ 数量"
+                                visibleSections={['limitedUp']}
+                                flatLayout={true}
+                              />
+                          </div>
+
+                          {/* 右侧：六星出货分类统计 */}
+                          <div className="grid grid-cols-2 gap-4 content-start pt-2">
+                            {/* UP六星 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                                UP 6★ (不歪)
+                              </div>
+                              <div className="text-xl font-bold font-mono text-emerald-500">
+                                {(() => {
+                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
+                                  return ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? '-';
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                限定池抽中UP角色
+                              </div>
+                            </div>
+                            {/* 歪出六星 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
+                                歪出 6★
+                              </div>
+                              <div className="text-xl font-bold font-mono text-rose-500">
+                                {(() => {
+                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
+                                  return ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                限定池歪到常驻
+                              </div>
+                            </div>
+                            {/* 不歪率 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold">不歪率</div>
+                              <div className="text-xl font-bold font-mono text-indigo-500">
+                                {(() => {
+                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
+                                  const upCount = ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? 0;
+                                  const offCount = ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? 0;
+                                  const total = upCount + offCount;
+                                  if (total === 0) return '-';
+                                  return ((upCount / total) * 100).toFixed(1) + '%';
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                抽中UP的概率
+                              </div>
+                            </div>
+                            {/* 常驻池六星 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                常驻池 6★
+                              </div>
+                              <div className="text-xl font-bold font-mono text-indigo-400">
+                                {currentStats.byType?.standard?.six || currentStats.byType?.standard?.sixStarTotal || 0}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                常驻池出货
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    {/* 角色池统计 */}
+                    {/* 右侧列：其他排名 */}
+                    <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 h-full">
+                      <RankingCard
+                        ranking={dataSource === 'global' ? characterRanking : userRanking}
+                        loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
+                        poolType="all"
+                        title={dataSource === 'global' ? "全服出货排名 (其他)" : "我的出货排名 (其他)"}
+                        visibleSections={['limitedOff', 'standard', 'limitedFive', 'standardFive']}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 角色池统计 */}
                     <div className="bg-zinc-50 dark:bg-zinc-950/30 border border-zinc-200 dark:border-zinc-800 p-5">
                       <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
                         <Star size={16} className="text-violet-500" />

@@ -4,25 +4,57 @@ import { characterCache } from '../../utils/characterUtils';
 
 /**
  * 排名卡片组件
- * 显示角色出货排名 TOP3，支持领奖台样式布局
+ * 显示角色出货排名，支持领奖台样式布局
+ * FEAT-010 增强：支持 UP/歪出分类、常驻池 TOP5
  */
-const RankingCard = ({ ranking, loading, poolType, title }) => {
+const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false }) => {
   // 根据 poolType 获取对应的排名数据
   const getRankingData = () => {
-    if (!ranking) return { sixStar: [], fiveStar: [] };
-    if (poolType === 'limited') return ranking.limited || { sixStar: [], fiveStar: [] };
-    if (poolType === 'standard') return ranking.standard || { sixStar: [], fiveStar: [] };
-    if (poolType === 'weapon') return ranking.weapon || { sixStar: [], fiveStar: [] };
+    if (!ranking) return { sixStarUp: [], sixStarOff: [], sixStar: [], fiveStar: [] };
+    if (poolType === 'limited') {
+      const limited = ranking.limited || {};
+      return {
+        sixStarUp: limited.sixStarUp || limited.sixStar || [],
+        sixStarOff: limited.sixStarOff || [],
+        sixStar: limited.sixStar || [],
+        fiveStar: limited.fiveStar || []
+      };
+    }
+    if (poolType === 'standard') {
+      return {
+        sixStar: ranking.standard?.sixStar || [],
+        fiveStar: ranking.standard?.fiveStar || []
+      };
+    }
+    if (poolType === 'weapon') {
+      const weapon = ranking.weapon || {};
+      return {
+        sixStarUp: weapon.sixStarUp || weapon.sixStar || [],
+        sixStarOff: weapon.sixStarOff || [],
+        sixStar: weapon.sixStar || [],
+        fiveStar: weapon.fiveStar || []
+      };
+    }
     // all: 合并限定池和常驻池
     return {
-      sixStar: [...(ranking.limited?.sixStar || []), ...(ranking.standard?.sixStar || [])].sort((a, b) => b.count - a.count).slice(0, 3),
+      sixStarUp: ranking.limited?.sixStarUp || ranking.limited?.sixStar || [],
+      sixStarOff: ranking.limited?.sixStarOff || [],
+      sixStar: [...(ranking.limited?.sixStar || []), ...(ranking.standard?.sixStar || [])].sort((a, b) => b.count - a.count).slice(0, 5),
       fiveStar: [...(ranking.limited?.fiveStar || []), ...(ranking.standard?.fiveStar || [])].sort((a, b) => b.count - a.count).slice(0, 3)
     };
   };
 
   const rankData = getRankingData();
+  const hasSixStarUp = rankData.sixStarUp?.length > 0;
+  const hasSixStarOff = rankData.sixStarOff?.length > 0;
   const hasSixStar = rankData.sixStar?.length > 0;
   const hasFiveStar = rankData.fiveStar?.length > 0;
+
+  // 辅助函数：判断分段是否可见
+  const isSectionVisible = (sectionKey) => {
+    if (!visibleSections) return true;
+    return visibleSections.includes(sectionKey);
+  };
 
   if (loading) {
     return (
@@ -33,7 +65,22 @@ const RankingCard = ({ ranking, loading, poolType, title }) => {
     );
   }
 
-  if (!ranking || (!hasSixStar && !hasFiveStar)) {
+  // 如果没有数据，或者所有可见的部分都没有数据
+  const hasVisibleData = () => {
+    if (!ranking) return false;
+    if (!visibleSections) return hasSixStarUp || hasSixStarOff || hasSixStar || hasFiveStar;
+    
+    if (visibleSections.includes('limitedUp') && hasSixStarUp) return true;
+    if (visibleSections.includes('limitedOff') && hasSixStarOff) return true;
+    if (visibleSections.includes('standard') && hasSixStar) return true;
+    if (visibleSections.includes('fiveStar') && hasFiveStar) return true; // 'fiveStar' covers both limited/standard 5*
+    if (visibleSections.includes('limitedFive') && ranking.limited?.fiveStar?.length > 0) return true;
+    if (visibleSections.includes('standardFive') && ranking.standard?.fiveStar?.length > 0) return true;
+    
+    return false;
+  };
+
+  if (!hasVisibleData()) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-400 text-xs italic">
         暂无排名数据
@@ -41,22 +88,65 @@ const RankingCard = ({ ranking, loading, poolType, title }) => {
     );
   }
 
-  const renderRankingRow = (items, rarity, label, pTypeForColor) => {
+  const renderRankingRow = (items, rarity, label, pTypeForColor, maxItems = 3) => {
     if (!items || items.length === 0) return null;
 
-    const top3 = items.slice(0, 3);
-    // 领奖台排序: 2nd, 1st, 3rd
+    const top = items.slice(0, maxItems);
+
+    // 平铺布局：按顺序横向排列
+    if (flatLayout) {
+      return (
+        <div className="h-full">
+          <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1 border-l-2 border-zinc-300 dark:border-zinc-700 mb-3">{label}</div>
+          <div className="flex flex-wrap gap-3 justify-start">
+            {top.map((char, idx) => {
+              const rank = idx + 1;
+              const charData = characterCache.searchByName(char.name, false);
+              const avatarUrl = charData?.avatar_url;
+              const isFirst = rank === 1;
+              const isSecond = rank === 2;
+              const isThird = rank === 3;
+
+              const badgeBg = isFirst ? 'bg-amber-500' : isSecond ? 'bg-zinc-400' : isThird ? 'bg-orange-700' : 'bg-zinc-500';
+              const borderColor = isFirst ? 'border-amber-400' : isSecond ? 'border-zinc-400' : isThird ? 'border-orange-700' : 'border-zinc-300';
+
+              return (
+                <div key={char.name} className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 px-2 py-1.5 rounded-sm">
+                  <span className={`${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm`}>#{rank}</span>
+                  <div className={`w-7 h-7 rounded-sm bg-zinc-100 dark:bg-zinc-800 border ${borderColor} overflow-hidden flex-shrink-0`}>
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User size={14} className="text-zinc-400" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-slate-700 dark:text-zinc-300 truncate max-w-[4rem]">{char.name}</span>
+                  <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // 领奖台排序: 2nd, 1st, 3rd (仅前3名)
     let podium = [];
-    if (top3.length === 1) podium = [top3[0]];
-    else if (top3.length === 2) podium = [top3[1], top3[0]];
-    else podium = [top3[1], top3[0], top3[2]];
+    if (top.length === 1) podium = [top[0]];
+    else if (top.length === 2) podium = [top[1], top[0]];
+    else podium = [top[1], top[0], top[2]];
+
+    const remaining = top.slice(3); // 第4、5名
 
     return (
       <div className="h-full">
         <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1 border-l-2 border-zinc-300 dark:border-zinc-700 mb-3">{label}</div>
+        {/* 领奖台 TOP3 */}
         <div className="flex items-end justify-center gap-3">
           {podium.map((char) => {
-            const rank = top3.indexOf(char); // 0=1st, 1=2nd, 2=3rd
+            const rank = top.indexOf(char); // 0=1st, 1=2nd, 2=3rd
             const isFirst = rank === 0;
             const isSecond = rank === 1;
             const charData = characterCache.searchByName(char.name, false);
@@ -103,6 +193,34 @@ const RankingCard = ({ ranking, loading, poolType, title }) => {
             );
           })}
         </div>
+
+        {/* 第4、5名（如果有）*/}
+        {remaining.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex justify-center gap-4">
+            {remaining.map((char, idx) => {
+              const actualRank = idx + 4; // 第4、5名
+              const charData = characterCache.searchByName(char.name, false);
+              const avatarUrl = charData?.avatar_url;
+
+              return (
+                <div key={char.name} className="flex items-center gap-2 text-xs">
+                  <span className="text-zinc-400 font-mono">#{actualRank}</span>
+                  <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User size={12} className="text-zinc-400" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[3rem]">{char.name}</span>
+                  <span className="text-zinc-400 font-mono">×{char.count}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -111,23 +229,41 @@ const RankingCard = ({ ranking, loading, poolType, title }) => {
     <div className="space-y-2 h-full flex flex-col">
       <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-2 shrink-0">
         <Trophy size={12} />
-        <span>{title || '出货排名 TOP3'}</span>
+        <span>{title || '出货排名'}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-8 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 content-start">
         {poolType === 'all' ? (
           <>
-            {renderRankingRow(ranking.limited?.sixStar, 6, '限定池 6★', 'limited')}
-            {renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited')}
-            {renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard')}
-            {renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard')}
+            {/* 限定池：UP六星 */}
+            {isSectionVisible('limitedUp') && renderRankingRow(ranking.limited?.sixStarUp || ranking.limited?.sixStar, 6, '限定池 UP 6★', 'limited', 5)}
+            {/* 限定池：歪出六星 */}
+            {isSectionVisible('limitedOff') && renderRankingRow(ranking.limited?.sixStarOff, 6, '限定池 歪出 6★', 'limited', 5)}
+            {/* 常驻池六星 - TOP5 */}
+            {isSectionVisible('standard') && renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard', 5)}
+            {/* 限定池5星 */}
+            {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited')}
+            {/* 常驻池5星 */}
+            {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard')}
           </>
-        ) : (
+        ) : poolType === 'limited' ? (
           <>
-            {renderRankingRow(rankData.sixStar, 6, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 6★`, poolType)}
-            {renderRankingRow(rankData.fiveStar, 5, `${poolType === 'limited' ? '限定池' : poolType === 'standard' ? '常驻池' : '武器池'} 5★`, poolType)}
+            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, '限定池 UP 6★', poolType, 5)}
+            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, '限定池 歪出 6★', poolType, 5)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '限定池 5★', poolType)}
           </>
-        )}
+        ) : poolType === 'standard' ? (
+          <>
+            {isSectionVisible('standard') && renderRankingRow(rankData.sixStar, 6, '常驻池 6★', poolType, 5)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '常驻池 5★', poolType)}
+          </>
+        ) : poolType === 'weapon' ? (
+          <>
+            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, '武器池 UP 6★', poolType)}
+            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, '武器池 歪出 6★', poolType)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '武器池 5★', poolType)}
+          </>
+        ) : null}
       </div>
     </div>
   );
