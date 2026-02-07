@@ -93,7 +93,9 @@ const PoolEditDialog = ({
 }) => {
   if (!show) return null;
 
-  const poolType = poolForm.type === 'limited_character' ? 'limited' : poolForm.type;
+  const poolType = (poolForm.type === 'limited_character' || poolForm.type === 'limited') ? 'limited'
+    : (poolForm.type === 'weapon' || poolForm.type === 'limited_weapon') ? 'weapon'
+    : poolForm.type;
   const allChars = characters.filter(c => c.type === (poolType === 'weapon' ? 'weapon' : 'character'));
   const sixStars = allChars.filter(c => c.rarity === 6);
   const fiveStars = allChars.filter(c => c.rarity === 5);
@@ -182,7 +184,7 @@ const PoolEditDialog = ({
                 </div>
 
                 {/* 武器池特殊选项 */}
-                {poolForm.type === 'weapon' && (
+                {(poolForm.type === 'weapon' || poolForm.type === 'limited_weapon') && (
                   <div>
                     <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300">
                       <input

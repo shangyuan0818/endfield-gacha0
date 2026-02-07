@@ -10,10 +10,23 @@ import { RARITY_CONFIG, DEFAULT_POOL_ID } from '../../constants';
  */
 export function useAppInitialization({ loadCloudData }) {
   const setUser = useAuthStore(state => state.setUser);
-  const currentPoolId = usePoolStore(state => state.currentPoolId);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
   const setHistory = useHistoryStore(state => state.setHistory);
+
+  // 使用 ref 存储 currentPoolId，避免将其作为 useEffect 依赖项导致循环
+  const currentPoolIdRef = useRef(usePoolStore.getState().currentPoolId);
+
+  // 订阅 currentPoolId 变化，更新 ref（不触发重渲染）
+  useEffect(() => {
+    const unsubscribe = usePoolStore.subscribe(
+      state => state.currentPoolId,
+      (newPoolId) => {
+        currentPoolIdRef.current = newPoolId;
+      }
+    );
+    return unsubscribe;
+  }, []);
 
   // 加载全局统计数据 (P2: 汇总页统计全局数据)
   // 使用 RPC 函数绕过 RLS 获取全服统计
@@ -236,10 +249,12 @@ export function useAppInitialization({ loadCloudData }) {
           if (cloudData && cloudData.pools.length > 0) {
             setPools(cloudData.pools);
 
-            const hasCurrent = cloudData.pools.some(p => p.id === currentPoolId);
+            // 使用 ref 中的值，避免依赖项循环
+            const savedPoolId = currentPoolIdRef.current;
+            const hasCurrent = cloudData.pools.some(p => p.id === savedPoolId);
             const defaultPool = cloudData.pools.find(p => p.id === DEFAULT_POOL_ID);
             const fallbackId = hasCurrent
-              ? currentPoolId
+              ? savedPoolId
               : defaultPool
                 ? defaultPool.id
                 : cloudData.pools[0].id;
@@ -272,7 +287,7 @@ export function useAppInitialization({ loadCloudData }) {
 
       return () => subscription.unsubscribe();
     }
-  }, [fetchGlobalStats, loadCloudData, updateLastSeen, setUser, setPools, switchPool, setHistory, currentPoolId]);
+  }, [fetchGlobalStats, loadCloudData, updateLastSeen, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
 
   return {
     fetchGlobalStats,

@@ -4,10 +4,10 @@
  * 解决并发请求冲突和网络不稳定问题
  * - 请求队列：确保同一时间只有一个请求在执行
  * - 指数退避重试：网络错误时自动重试（最多3次）
- * - 超时处理：防止请求无限等待
+ * - 超时处理：使用 AbortController 真正取消超时请求
  *
- * @version 1.0.0
- * @date 2026-02-01
+ * @version 1.1.0 - 修复超时后请求仍在执行的问题
+ * @date 2026-02-08
  */
 
 /**
@@ -22,6 +22,7 @@ class RequestQueue {
     this.maxDelay = 10000; // 最大延迟（毫秒）
     this.timeout = 30000; // 请求超时时间（30秒）
     this.listeners = []; // 🆕 事件监听器
+    this.activeAbortControllers = new Set(); // 🆕 跟踪活动的 AbortController
   }
 
   /**
@@ -121,6 +122,10 @@ class RequestQueue {
   async executeTask(task) {
     const { requestFn, resolve, reject, maxRetries, timeout, retryCount } = task;
 
+    // 🆕 创建 AbortController 用于超时取消
+    const abortController = new AbortController();
+    this.activeAbortControllers.add(abortController);
+
     try {
       // 🆕 触发请求开始事件
       this.emit('request:start', {
@@ -129,8 +134,8 @@ class RequestQueue {
         maxRetries
       });
 
-      // 添加超时控制
-      const result = await this.withTimeout(requestFn(), timeout);
+      // 🆕 使用 AbortController 的超时控制
+      const result = await this.withTimeout(requestFn, timeout, abortController);
 
       // 🆕 触发请求成功事件
       this.emit('request:success', {
@@ -175,6 +180,9 @@ class RequestQueue {
 
         reject(error);
       }
+    } finally {
+      // 🆕 清理 AbortController
+      this.activeAbortControllers.delete(abortController);
     }
   }
 
@@ -240,20 +248,31 @@ class RequestQueue {
   }
 
   /**
-   * 为 Promise 添加超时控制
-   * @param {Promise} promise - 原始 Promise
+   * 为请求函数添加超时控制（使用 AbortController）
+   * @param {Function} requestFn - 请求函数（接受 signal 参数）
    * @param {number} timeoutMs - 超时时间（毫秒）
+   * @param {AbortController} abortController - AbortController 实例
    * @returns {Promise}
    */
-  withTimeout(promise, timeoutMs) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error(`Request timeout after ${timeoutMs}ms`));
-        }, timeoutMs);
-      })
-    ]);
+  async withTimeout(requestFn, timeoutMs, abortController) {
+    // 设置超时定时器
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, timeoutMs);
+
+    try {
+      // 执行请求，传入 signal
+      const result = await requestFn(abortController.signal);
+      clearTimeout(timeoutId);
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      // 将 AbortError 转换为更友好的超时错误
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -266,9 +285,20 @@ class RequestQueue {
   }
 
   /**
-   * 清空队列
+   * 清空队列并取消所有活动请求
    */
   clear() {
+    // 🆕 取消所有活动的请求
+    this.activeAbortControllers.forEach(controller => {
+      try {
+        controller.abort();
+      } catch (e) {
+        // 忽略取消错误
+      }
+    });
+    this.activeAbortControllers.clear();
+
+    // 拒绝所有待处理任务
     this.queue.forEach(task => {
       task.reject(new Error('Queue cleared'));
     });
@@ -302,7 +332,8 @@ const globalRequestQueue = new RequestQueue();
  */
 export async function queuedFetch(url, options = {}, queueOptions = {}) {
   return globalRequestQueue.enqueue(
-    () => fetch(url, options),
+    // 🆕 请求函数接受 signal 参数，用于取消请求
+    (signal) => fetch(url, { ...options, signal }),
     queueOptions
   );
 }

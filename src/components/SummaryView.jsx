@@ -313,19 +313,143 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">6★ 数量</div>
-                          <div className="text-xl font-bold font-mono text-amber-500">{(currentStats.byType?.limited?.six || 0) + (currentStats.byType?.standard?.six || 0)}</div>
+                          <div className="text-xl font-bold font-mono text-amber-500">
+                            {(() => {
+                              // 优先显示不含免费的6★数量
+                              const limitedSixTotal = currentStats.byType?.limited?.six || 0;
+                              const standardSixTotal = currentStats.byType?.standard?.six || 0;
+                              const totalSix = limitedSixTotal + standardSixTotal;
+
+                              // 从characterRanking获取不含免费的数量（仅全服数据时使用）
+                              const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
+                              const hasExclData = limitedSixExcl !== undefined && limitedSixExcl !== null;
+
+                              if (hasExclData) {
+                                // 显示不含免费的数量（限定池不含免费 + 常驻池全部）
+                                return limitedSixExcl + standardSixTotal;
+                              }
+                              return totalSix;
+                            })()}
+                            {currentStats.charGift > 0 && (
+                              <span className="text-xs text-purple-500 ml-1">+{currentStats.charGift}</span>
+                            )}
+                          </div>
+                          {/* 含免费的6★数量（如果与不含免费不同则显示） */}
+                          {(() => {
+                            const limitedSixTotal = currentStats.byType?.limited?.six || 0;
+                            const standardSixTotal = currentStats.byType?.standard?.six || 0;
+                            const totalSix = limitedSixTotal + standardSixTotal;
+                            const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
+
+                            if (limitedSixExcl === undefined || limitedSixExcl === null) return null;
+
+                            const totalExcl = limitedSixExcl + standardSixTotal;
+                            if (totalExcl === totalSix) return null;
+
+                            return (
+                              <div className="text-[10px] text-zinc-500 font-mono">
+                                含免费: <span className="text-zinc-400">{totalSix}</span>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">平均出货</div>
-                          <div className="text-xl font-bold font-mono text-indigo-500">{currentStats.byType?.limited?.avgPityExcludingFree || currentStats.byType?.limited?.avgPity || '-'}</div>
+                          <div className="text-xl font-bold font-mono text-indigo-500">
+                            {(() => {
+                              // 优先显示不含免费的平均出货
+                              const limitedAvgExcl = currentStats.byType?.limited?.avgPityExcludingFree;
+                              const standardAvgExcl = currentStats.byType?.standard?.avgPityExcludingFree || currentStats.byType?.standard?.avgPity;
+                              const limitedSix = currentStats.byType?.limited?.six || 0;
+                              const standardSix = currentStats.byType?.standard?.six || 0;
+
+                              if (limitedSix + standardSix === 0) return '-';
+
+                              // 如果有不含免费的数据，优先使用
+                              if (limitedAvgExcl) {
+                                const weighted = ((parseFloat(limitedAvgExcl) || 0) * limitedSix + (parseFloat(standardAvgExcl) || 0) * standardSix) / (limitedSix + standardSix);
+                                return weighted.toFixed(1);
+                              }
+
+                              // 否则回退到含免费的
+                              const limitedAvg = currentStats.byType?.limited?.avgPity;
+                              const standardAvg = currentStats.byType?.standard?.avgPity;
+                              const weighted = ((parseFloat(limitedAvg) || 0) * limitedSix + (parseFloat(standardAvg) || 0) * standardSix) / (limitedSix + standardSix);
+                              return weighted.toFixed(1);
+                            })()}
+                          </div>
+                          {/* 含免费十连的平均出货（如果与不含免费不同则显示） */}
+                          {(() => {
+                            const limitedAvgExcl = currentStats.byType?.limited?.avgPityExcludingFree;
+                            const limitedAvg = currentStats.byType?.limited?.avgPity;
+                            const standardAvg = currentStats.byType?.standard?.avgPity;
+                            const limitedSix = currentStats.byType?.limited?.six || 0;
+                            const standardSix = currentStats.byType?.standard?.six || 0;
+
+                            if (limitedSix + standardSix === 0 || !limitedAvgExcl) return null;
+
+                            const weightedWithFree = ((parseFloat(limitedAvg) || 0) * limitedSix + (parseFloat(standardAvg) || 0) * standardSix) / (limitedSix + standardSix);
+                            const standardAvgExcl = currentStats.byType?.standard?.avgPityExcludingFree || standardAvg;
+                            const weightedExclFree = ((parseFloat(limitedAvgExcl) || 0) * limitedSix + (parseFloat(standardAvgExcl) || 0) * standardSix) / (limitedSix + standardSix);
+
+                            // 如果差异小于0.1，不显示
+                            if (Math.abs(weightedWithFree - weightedExclFree) < 0.1) return null;
+
+                            return (
+                              <div className="text-[10px] text-zinc-500 font-mono">
+                                含免费: <span className="text-zinc-400">{weightedWithFree.toFixed(1)}</span>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">比率 (不歪/歪)</div>
                           <div className="text-lg font-bold font-mono">
-                            <span className="text-emerald-500">{currentStats.byType?.limited?.limitedSix || 0}</span>
-                            <span className="text-zinc-400 mx-1">/</span>
-                            <span className="text-rose-500">{(currentStats.byType?.limited?.six || 0) - (currentStats.byType?.limited?.limitedSix || 0)}</span>
+                            {(() => {
+                              const limitedPool = currentStats.byType?.limited || {};
+                              const standardPool = currentStats.byType?.standard || {};
+                              const limitedUp = (limitedPool.sixStarLimited ?? limitedPool.limitedSix ?? 0);
+                              const standardUp = (standardPool.sixStarLimited ?? standardPool.limitedSix ?? 0);
+                              const totalLimited = limitedUp + standardUp;
+                              const limitedStd = (limitedPool.six || 0) - limitedUp;
+                              const standardStd = (standardPool.six || 0) - standardUp;
+                              const totalStd = limitedStd + standardStd;
+                              const totalSix = (limitedPool.six || 0) + (standardPool.six || 0);
+                              const rate = totalSix > 0 ? ((totalLimited / totalSix) * 100).toFixed(1) : 0;
+                              return (
+                                <>
+                                  <span className="text-emerald-500">{totalLimited}</span>
+                                  <span className="text-zinc-400 mx-1">/</span>
+                                  <span className="text-rose-500">{totalStd}</span>
+                                  <span className="text-zinc-400 text-xs ml-1">({rate}%)</span>
+                                </>
+                              );
+                            })()}
                           </div>
+                        </div>
+                      </div>
+                      {/* 限定池 vs 常驻池细分 */}
+                      <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 grid grid-cols-2 gap-4 text-xs font-mono">
+                        <div className="flex items-center gap-2 text-zinc-500 flex-wrap">
+                          <span className="w-2 h-2 bg-emerald-500/50 rounded-sm flex-shrink-0"></span>
+                          <span>限定池: {(currentStats.byType?.limited?.total || 0).toLocaleString()} 抽</span>
+                          <span className="ml-auto flex items-center gap-1">
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              {currentStats.byType?.limited?.avgPityExcludingFree || currentStats.byType?.limited?.avgPity || '-'} 平均
+                            </span>
+                            {currentStats.byType?.limited?.avgPityExcludingFree &&
+                             currentStats.byType?.limited?.avgPity &&
+                             currentStats.byType?.limited?.avgPityExcludingFree !== currentStats.byType?.limited?.avgPity && (
+                              <span className="text-zinc-400">
+                                (含免费: {currentStats.byType?.limited?.avgPity})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-zinc-500">
+                          <span className="w-2 h-2 bg-indigo-500/50 rounded-sm flex-shrink-0"></span>
+                          <span>常驻池: {(currentStats.byType?.standard?.total || 0).toLocaleString()} 抽</span>
+                          <span className="ml-auto text-indigo-600 dark:text-indigo-400">{currentStats.byType?.standard?.avgPity || '-'} 平均</span>
                         </div>
                       </div>
                     </div>
@@ -343,7 +467,14 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">6★ 数量</div>
-                          <div className="text-xl font-bold font-mono text-amber-500">{currentStats.byType?.weapon?.six || 0}</div>
+                          <div className="text-xl font-bold font-mono text-amber-500">
+                            {currentStats.byType?.weapon?.six || 0}
+                            {(currentStats.weaponGiftLimited > 0 || currentStats.weaponGiftStandard > 0) && (
+                              <span className="text-xs text-purple-500 ml-1">
+                                +{(currentStats.weaponGiftLimited || 0) + (currentStats.weaponGiftStandard || 0)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">平均出货</div>
@@ -352,9 +483,21 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">比率 (不歪/歪)</div>
                           <div className="text-lg font-bold font-mono">
-                            <span className="text-emerald-500">{currentStats.byType?.weapon?.limitedSix || 0}</span>
-                            <span className="text-zinc-400 mx-1">/</span>
-                            <span className="text-rose-500">{(currentStats.byType?.weapon?.six || 0) - (currentStats.byType?.weapon?.limitedSix || 0)}</span>
+                            {(() => {
+                              const weaponPool = currentStats.byType?.weapon || {};
+                              const weaponUp = (weaponPool.sixStarLimited ?? weaponPool.limitedSix ?? 0);
+                              const weaponStd = (weaponPool.six || 0) - weaponUp;
+                              const totalSix = weaponPool.six || 0;
+                              const rate = totalSix > 0 ? ((weaponUp / totalSix) * 100).toFixed(1) : 0;
+                              return (
+                                <>
+                                  <span className="text-emerald-500">{weaponUp}</span>
+                                  <span className="text-zinc-400 mx-1">/</span>
+                                  <span className="text-rose-500">{weaponStd}</span>
+                                  <span className="text-zinc-400 text-xs ml-1">({rate}%)</span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
