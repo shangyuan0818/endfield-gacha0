@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   MessageSquare,
   Plus,
@@ -18,9 +18,150 @@ import {
   HelpCircle,
   Database,
   MoreHorizontal,
-  X
+  X,
+  Smile
 } from 'lucide-react';
+
+// 常用颜表情列表
+const EMOJI_LIST = [
+  // 表情
+  '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂',
+  '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
+  '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
+  '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔',
+  '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵',
+  '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐', '😕',
+  '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧',
+  '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓',
+  '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀',
+  // 手势
+  '👍', '👎', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙',
+  '👈', '👉', '👆', '👇', '☝️', '👋', '🤚', '🖐️', '✋', '🖖',
+  '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿',
+  // 心形和符号
+  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
+  '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
+  '✨', '⭐', '🌟', '💫', '🔥', '💥', '💢', '💦', '💨', '🎉',
+  '🎊', '🎈', '🎁', '🏆', '🥇', '🥈', '🥉', '⚡', '☀️', '🌈'
+];
+
+/**
+ * 表情选择器组件
+ */
+const EmojiPicker = ({ onSelect, onClose }) => {
+  const pickerRef = useRef(null);
+
+  // 点击外部关闭
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={pickerRef}
+      className="absolute bottom-full left-0 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-sm shadow-lg z-50 p-2 w-72"
+    >
+      <div className="grid grid-cols-10 gap-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700">
+        {EMOJI_LIST.map((emoji, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => {
+              onSelect(emoji);
+              onClose();
+            }}
+            className="w-6 h-6 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-sm transition-colors text-base"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 import { supabase } from '../supabaseClient';
+
+/**
+ * 回复输入组件（支持多行和表情）
+ */
+const ReplyInput = ({ value, onChange, onSubmit, submitting }) => {
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const textareaRef = useRef(null);
+
+  const handleEmojiSelect = (emoji) => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newValue = value.slice(0, start) + emoji + value.slice(end);
+      onChange(newValue);
+      // 恢复光标位置
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+        textarea.focus();
+      }, 0);
+    } else {
+      onChange(value + emoji);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    // Ctrl+Enter 或 Cmd+Enter 发送
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      onSubmit();
+    }
+  };
+
+  return (
+    <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
+      <div className="flex flex-col gap-2">
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="输入回复内容... (Ctrl+Enter 发送)"
+          className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px] max-h-[120px] resize-y"
+          onKeyDown={handleKeyDown}
+          rows={2}
+        />
+        <div className="flex justify-between items-center">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+              className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-sm transition-colors"
+              title="插入表情"
+            >
+              <Smile size={18} />
+            </button>
+            {showEmojiPicker && (
+              <EmojiPicker
+                onSelect={handleEmojiSelect}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            )}
+          </div>
+          <button
+            onClick={onSubmit}
+            disabled={!value.trim() || submitting}
+            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+          >
+            <Send size={14} />
+            {submitting ? '发送中...' : '发送'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // 工单类型配置
 const TICKET_TYPES = {
@@ -410,25 +551,12 @@ const TicketCard = ({ ticket, userRole, currentUserId, onStatusChange, onReply, 
 
           {/* 回复输入框 */}
           {ticket.status !== 'closed' && (isOwner || canManage) && (
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={replyContent}
-                  onChange={(e) => setReplyContent(e.target.value)}
-                  placeholder="输入回复内容..."
-                  className="flex-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmitReply()}
-                />
-                <button
-                  onClick={handleSubmitReply}
-                  disabled={!replyContent.trim() || submittingReply}
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50"
-                >
-                  <Send size={16} />
-                </button>
-              </div>
-            </div>
+            <ReplyInput
+              value={replyContent}
+              onChange={setReplyContent}
+              onSubmit={handleSubmitReply}
+              submitting={submittingReply}
+            />
           )}
         </div>
       )}
