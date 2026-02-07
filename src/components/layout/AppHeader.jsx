@@ -89,7 +89,7 @@ export default function AppHeader({
                 : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/5'
             }`}
           >
-            卡池详情
+            卡池分析
           </button>
           <button
             onClick={() => setActiveTab('simulator')}
