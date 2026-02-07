@@ -628,4 +628,15 @@
   .animate-shake {
     animation: shake 0.5s ease-in-out;
   }
+
+  /* Lantern Swing Animation */
+  @keyframes lantern-swing {
+    0% { transform: rotate(-5deg); }
+    50% { transform: rotate(5deg); }
+    100% { transform: rotate(-5deg); }
+  }
+
+  .animate-lantern-swing {
+    animation: lantern-swing 3s ease-in-out infinite;
+  }
 }

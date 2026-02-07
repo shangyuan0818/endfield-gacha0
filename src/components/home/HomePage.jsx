@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket,
   Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot,
-  Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User
+  Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User, ArrowUpRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
@@ -351,6 +351,35 @@ const CopyCode = ({ code }) => {
   );
 };
 
+// 灯笼组件 - SVG
+const Lantern = ({ className, style, onClick }) => (
+  <div 
+    className={`absolute z-50 cursor-pointer hover:brightness-110 transition-all origin-top animate-lantern-swing ${className}`} 
+    style={style} 
+    onClick={onClick}
+  >
+    <svg width="60" height="100" viewBox="0 0 60 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_4px_6px_rgba(220,38,38,0.4)]">
+      {/* 挂绳 */}
+      <line x1="30" y1="0" x2="30" y2="15" stroke="#FCD34D" strokeWidth="2" />
+      {/* 灯笼主体 */}
+      <path d="M10 20 C5 35, 5 65, 10 80 H50 C55 65, 55 35, 50 20 Z" fill="#DC2626" stroke="#B91C1C" strokeWidth="1" />
+      {/* 顶部和底部装饰 */}
+      <rect x="15" y="15" width="30" height="5" fill="#FCD34D" rx="1" />
+      <rect x="15" y="80" width="30" height="5" fill="#FCD34D" rx="1" />
+      {/* 竖线纹理 */}
+      <path d="M20 20 Q15 50 20 80" stroke="#B91C1C" strokeWidth="1" opacity="0.5" />
+      <path d="M30 20 V80" stroke="#B91C1C" strokeWidth="1" opacity="0.5" />
+      <path d="M40 20 Q45 50 40 80" stroke="#B91C1C" strokeWidth="1" opacity="0.5" />
+      {/* 穗子 */}
+      <path d="M30 85 V95" stroke="#FCD34D" strokeWidth="2" />
+      <circle cx="30" cy="85" r="2" fill="#FCD34D" />
+      <path d="M25 95 Q30 90 35 95" stroke="#FCD34D" strokeWidth="1" />
+      {/* "福"字 (简化) */}
+      <rect x="24" y="40" width="12" height="12" fill="#FCD34D" transform="rotate(45 30 46)" />
+    </svg>
+  </div>
+);
+
 /**
  * 首页组件
  * 包含使用指南和卡池机制速览
@@ -361,6 +390,9 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   // 确保 pools 始终是数组
   const poolsArray = Array.isArray(pools) ? pools : [];
+  
+  // 新年模式状态
+  const [isNewYearMode, setIsNewYearMode] = useState(true);
 
   // 时间状态，用于驱动倒计时轮换（每分钟更新）
   const [now, setNow] = useState(new Date());
@@ -506,6 +538,37 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
       spread: 80,
       origin: { x, y }
     });
+  }, []);
+  
+  // 新年烟花逻辑
+  const fireFireworks = useCallback((e) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    (function frame() {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#ef4444', '#eab308']
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#ef4444', '#eab308']
+      });
+
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    }());
   }, []);
 
   // 公告内容组件 - 带滚动检测
@@ -1032,7 +1095,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     // ... (reused items) ...
     const roadmapItems = [
       { id: 'gacha-simulator', icon: Gamepad2, title: '抽卡模拟器', description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉', status: 'completed', priority: 'high', tag: '娱乐功能' },
-      { id: 'game-import', icon: Import, title: '游戏数据一键导入', description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）', status: 'in_progress', priority: 'high', tag: '公测更新' },
+      { id: 'game-import', icon: Import, title: '游戏数据一键导入', description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）', status: 'completed', priority: 'high', tag: '公测更新' },
       { id: 'share', icon: Share2, title: '分享功能', description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气', status: 'planned', priority: 'medium', tag: '社交传播' },
       { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'medium', tag: '用户扩展' },
       { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low', tag: '体验优化' },
@@ -1176,40 +1239,99 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* 欢迎横幅 */}
-      <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black p-6 text-white relative overflow-hidden border-l-4 border-endfield-yellow">
+    <div className="space-y-6 animate-fade-in relative">
+      {/* 欢迎横幅 - 新年模式下变为红色主题 */}
+      <div className={`
+        relative overflow-hidden border-l-4 transition-all duration-500
+        ${isNewYearMode 
+          ? 'bg-gradient-to-r from-red-900 to-red-950 border-yellow-400 shadow-[0_0_20px_rgba(220,38,38,0.3)]' 
+          : 'bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black border-endfield-yellow'}
+        p-6 text-white
+      `}>
+        {/* 新年装饰：灯笼 (挂在 Banner 内部，移至中间避免遮挡文字和按钮) */}
+        {isNewYearMode && (
+          <>
+            {/* 左侧靠中 */}
+            <Lantern className="left-[35%] -top-2 hidden sm:block" style={{ transformOrigin: 'top center' }} onClick={fireFireworks} />
+            <Lantern className="left-[45%] -top-4 scale-75 hidden sm:block" style={{ animationDelay: '1s', transformOrigin: 'top center' }} onClick={fireFireworks} />
+            
+            {/* 右侧靠中 */}
+            <Lantern className="right-[35%] -top-2 hidden sm:block" style={{ animationDelay: '0.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
+            <Lantern className="right-[45%] -top-4 scale-75 hidden sm:block" style={{ animationDelay: '1.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
+            
+            {/* 移动端仅显示两个，挂在两侧稍微靠内，避免完全遮挡 */}
+            <Lantern className="left-4 -top-2 sm:hidden" style={{ transformOrigin: 'top center' }} onClick={fireFireworks} />
+            <Lantern className="right-4 -top-2 sm:hidden" style={{ animationDelay: '0.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
+            
+            {/* 背景装饰：旋转的福字水印 */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none">
+               <div className="w-64 h-64 border-8 border-yellow-500/20 rounded-full flex items-center justify-center rotate-12">
+                  <span className="font-serif text-9xl text-yellow-500/20 font-bold">福</span>
+               </div>
+            </div>
+            {/* 飘落金粉效果 (CSS 动画) */}
+            <div className="absolute inset-0 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 animate-pulse"></div>
+          </>
+        )}
+
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-3">
-                <BarChart3 size={28} />
-                终末地抽卡分析器
+                <BarChart3 size={28} className={isNewYearMode ? "text-yellow-400" : ""} />
+                <span className={isNewYearMode ? "text-yellow-100" : ""}>终末地抽卡分析器</span>
               </div>
+              {isNewYearMode && <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 rounded-full">新春特别版</span>}
             </h2>
-            <p className="text-indigo-100 text-sm">
-              记录您的抽卡历程，分析出货规律，为后续规划提供参考
+            <p className={`text-sm ${isNewYearMode ? "text-red-100/80" : "text-indigo-100"}`}>
+              {isNewYearMode ? "新春快乐！记录您的欧气时刻，祝您在新的一年里十连双黄！" : "记录您的抽卡历程，分析出货规律，为后续规划提供参考"}
             </p>
             {!user && (
-              <p className="text-xs text-indigo-200 mt-2 flex items-center gap-1">
+              <p className={`text-xs mt-2 flex items-center gap-1 ${isNewYearMode ? "text-red-200" : "text-indigo-200"}`}>
                 <ArrowRight size={12} />
                 登录后可录入数据并同步到云端
               </p>
             )}
           </div>
           
-          {/* 庆祝按钮 - 可点击区域扩大，动画优化 */}
-          <button 
-             onClick={handleCelebrationClick}
-             className="group flex items-center gap-3 px-4 py-2 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/50 rounded-full animate-fade-in-up self-end md:self-center transition-all cursor-pointer"
-          >
-             <span className="text-sm font-bold text-endfield-yellow font-mono tracking-wide">恭喜终末地公测！</span>
-             <div className="p-1.5 bg-yellow-500/20 rounded-full group-hover:bg-yellow-500 group-hover:text-black transition-colors text-yellow-500">
-               <Sparkles size={16} className="animate-pulse" />
-             </div>
-          </button>
+          {/* 庆祝按钮 & 新年模式开关 */}
+          <div className="flex items-center gap-3 self-end md:self-center animate-fade-in-up">
+             {/* 新年模式开关 */}
+             <button
+               onClick={() => setIsNewYearMode(!isNewYearMode)}
+               className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 backdrop-blur-md cursor-pointer active:scale-95 select-none shadow-sm group/toggle ${
+                 isNewYearMode 
+                   ? 'bg-black/30 border-yellow-400/60 text-yellow-100 hover:bg-black/50 hover:border-yellow-400 hover:shadow-[0_0_15px_rgba(250,204,21,0.4)] ring-1 ring-yellow-500/20' 
+                   : 'bg-zinc-800/60 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-400 hover:text-white hover:shadow-md'
+               }`}
+             >
+                <div className={`w-2 h-2 rounded-full transition-all duration-300 shadow-[0_0_5px_currentColor] ${isNewYearMode ? 'bg-yellow-400 animate-pulse scale-110' : 'bg-zinc-500 group-hover/toggle:bg-zinc-300'}`}></div>
+                <span className="text-xs font-mono font-bold tracking-wide">
+                  {isNewYearMode ? '春节模式: ON' : '春节模式: OFF'}
+                </span>
+             </button>
+
+             {/* 庆祝按钮 */}
+             <button 
+                onClick={handleCelebrationClick}
+                className={`group flex items-center gap-3 px-4 py-2 rounded-full transition-all cursor-pointer border ${
+                  isNewYearMode
+                    ? 'bg-yellow-500 text-red-900 border-yellow-400 hover:bg-yellow-400 shadow-lg shadow-yellow-500/20'
+                    : 'bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/50 text-endfield-yellow'
+                }`}
+             >
+                <span className="text-sm font-bold font-mono tracking-wide">恭喜终末地公测！</span>
+                <div className={`p-1.5 rounded-full transition-colors ${
+                  isNewYearMode ? 'bg-red-900/10 text-red-900' : 'bg-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-black text-yellow-500'
+                }`}>
+                  <Sparkles size={16} className="animate-pulse" />
+                </div>
+             </button>
+          </div>
         </div>
-        <div className="absolute -right-10 -bottom-10 text-white/10">
+        
+        {/* 背景星星装饰 - 仅在非新年模式或作为底层装饰 */}
+        <div className={`absolute -right-10 -bottom-10 pointer-events-none ${isNewYearMode ? 'text-yellow-500/10' : 'text-white/10'}`}>
           <Star size={200} />
         </div>
       </div>
@@ -1279,31 +1401,53 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
         {/* 公测兑换码汇总 & 下版本倒计时 - 分离的两个卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Redemption Code Summary */}
-          <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group">
-             {/* Background Gradient */}
-             <div className="absolute inset-0 bg-gradient-to-br from-zinc-50 via-zinc-50 to-indigo-50/30 dark:from-zinc-900 dark:via-zinc-900 dark:to-indigo-950/30 pointer-events-none"></div>
+          {/* Friendly Links - Enhanced Design */}
+          <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group h-full flex flex-col">
+             {/* Background Pattern */}
+             <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
              
-             <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-4">
-                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                   <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-widest uppercase">Redemption Codes // 公测兑换码汇总</h3>
+             <div className="relative z-10 flex flex-col h-full">
+                <div className="flex items-center gap-2 mb-6">
+                   <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                   <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-[0.2em] uppercase">Friendly Links // 友情链接</h3>
                 </div>
                 
-                <div className="bg-zinc-100/50 dark:bg-black/20 border border-zinc-200 dark:border-zinc-800 p-4 rounded-sm">
-                   <h4 className="text-amber-600 dark:text-endfield-yellow font-bold text-sm mb-3 flex flex-wrap items-center gap-2">
-                      <Gift size={14} />
-                      <span>通用兑换码</span>
-                      <span className="text-[10px] bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-500 dark:text-zinc-400 font-normal">有效期至 01/29 23:59</span>
-                   </h4>
-                   <div className="flex flex-col gap-2">
-                      <CopyCode code="RETURNOFALL" />
-                      <CopyCode code="ALLFIELD" />
-                      <CopyCode code="BILIBILI0122" />
-                   </div>
-                   <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
-                      包含: <span className="text-zinc-700 dark:text-zinc-300">嵌金玉、折金票、存续的痕迹、养成材料等</span>
-                   </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
+                   {[
+                     { title: "攒抽计算器", url: "https://ef.yituliu.cn/tools/gacha-calculator", icon: BarChart3, label: "RESOURCE PLANNER" },
+                     { title: "终末地地图1", url: "https://opendfieldmap.cn/", icon: Map, label: "OPEN WORLD MAP" },
+                     { title: "终末地地图2", url: "https://www.zmdmap.com/", icon: Map, label: "GAME MAP WIKI" },
+                     { title: "抽卡记录分析", url: "https://endgacha.kwer.top/", icon: BarChart3, label: "GACHA HISTORY" },
+                   ].map((link) => (
+                     <a 
+                       key={link.url}
+                       href={link.url}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="group/card relative flex flex-col justify-between p-4 bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-zinc-800 hover:border-amber-400 dark:hover:border-endfield-yellow hover:bg-white dark:hover:bg-zinc-900 transition-all duration-300 overflow-hidden"
+                     >
+                        {/* Hover Accent Bar */}
+                        <div className="absolute top-0 left-0 w-0 h-0.5 bg-amber-500 dark:bg-endfield-yellow group-hover/card:w-full transition-all duration-500 ease-out"></div>
+                        
+                        <div className="flex items-start justify-between mb-3">
+                           <div className="flex flex-col gap-1">
+                              <span className="text-[10px] font-mono text-zinc-400 group-hover/card:text-amber-600 dark:group-hover/card:text-endfield-yellow/90 transition-colors uppercase tracking-wider">{link.label}</span>
+                              <span className="font-bold text-zinc-800 dark:text-zinc-200 group-hover/card:text-black dark:group-hover/card:text-white transition-colors">{link.title}</span>
+                           </div>
+                           <div className="p-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 group-hover/card:border-amber-200 dark:group-hover/card:border-endfield-yellow/50 group-hover/card:bg-amber-50 dark:group-hover/card:bg-endfield-yellow/10 transition-colors rounded-sm text-zinc-400 group-hover/card:text-amber-600 dark:group-hover/card:text-endfield-yellow">
+                              <link.icon size={16} />
+                           </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800 group-hover/card:border-zinc-100 dark:group-hover/card:border-zinc-800/50 transition-colors">
+                           <div className="w-1.5 h-1.5 bg-zinc-300 dark:bg-zinc-700 group-hover/card:bg-amber-500 dark:group-hover/card:bg-endfield-yellow rounded-full transition-colors"></div>
+                           <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[120px]">
+                              {new URL(link.url).hostname}
+                           </span>
+                           <ArrowUpRight size={12} className="ml-auto text-zinc-300 group-hover/card:text-amber-600 dark:group-hover/card:text-endfield-yellow group-hover/card:-translate-y-0.5 group-hover/card:translate-x-0.5 transition-all" />
+                        </div>
+                     </a>
+                   ))}
                 </div>
              </div>
           </div>
