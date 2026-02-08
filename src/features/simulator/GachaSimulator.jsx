@@ -36,7 +36,41 @@ const POOL_NAMES = {
 
 const GachaSimulator = () => {
   // 从 store 获取真实卡池列表
-  const realPools = usePoolStore(state => state.pools);
+  const storePools = usePoolStore(state => state.pools);
+
+  // 本地加载的公开卡池（用于未登录用户）
+  const [publicPools, setPublicPools] = useState([]);
+
+  // 合并卡池：优先使用 store 中的数据，否则使用公开卡池
+  const realPools = storePools.length > 0 ? storePools : publicPools;
+
+  // 未登录时直接从数据库加载公开卡池
+  useEffect(() => {
+    // 如果 store 中已有数据，不需要加载
+    if (storePools.length > 0) return;
+
+    const loadPublicPools = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('pools')
+          .select('*')
+          .order('start_time', { ascending: false });
+
+        if (error) {
+          console.error('加载公开卡池失败:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          setPublicPools(data);
+        }
+      } catch (err) {
+        console.error('加载公开卡池异常:', err);
+      }
+    };
+
+    loadPublicPools();
+  }, [storePools.length]);
 
   // 存储当前卡池的角色列表（从 pool_characters 表加载）
   const [poolCharactersList, setPoolCharactersList] = useState(null);
