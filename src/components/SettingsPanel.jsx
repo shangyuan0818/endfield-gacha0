@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Mail } from 'lucide-react';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Mail, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import PlatformSwitcher from './common/PlatformSwitcher';
 
 const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, pools, history, onDeleteAllData, onManualSync, syncing }) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -191,6 +192,28 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
               <Monitor size={24} className={`mx-auto mb-2 ${themeMode === 'system' ? 'text-black dark:text-white' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
               <span className="text-xs font-bold font-mono uppercase">跟随系统</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 平台切换 */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden relative">
+        {/* 背景装饰网格 */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
+          <Smartphone size={20} className="text-zinc-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">平台切换</h3>
+        </div>
+        <div className="p-6 relative z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">移动端视图</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
+                切换到移动端界面，适合手机和平板使用。
+              </p>
+            </div>
+            <PlatformSwitcher className="rounded-sm" />
           </div>
         </div>
       </div>
