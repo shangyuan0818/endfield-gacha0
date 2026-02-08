@@ -300,7 +300,7 @@ function MobileSettingsView({ themeMode, setThemeMode }) {
       <div className="text-center py-6">
         <div className="w-8 h-1 bg-zinc-200 dark:bg-zinc-800 mx-auto mb-3" />
         <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">Endfield Gacha Analyzer</p>
-        <p className="text-[10px] text-zinc-500 mt-1 font-mono">v3.2.0-beta.mobile</p>
+        <p className="text-[10px] text-zinc-500 mt-1 font-mono">v3.3.0</p>
       </div>
 
       {/* 底部留白 */}

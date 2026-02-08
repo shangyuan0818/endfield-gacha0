@@ -49,7 +49,7 @@ function MobileAboutView() {
           </h1>
           <p className="text-zinc-500 text-[10px] tracking-[0.2em] uppercase font-mono">/ 终末地项目分析工具</p>
           <div className="mt-4 flex items-center gap-3">
-            <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">v3.2.0</span>
+            <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">v3.3.0</span>
             <span className="text-zinc-600 text-[10px] font-mono uppercase">Build 2026.02</span>
           </div>
         </div>
