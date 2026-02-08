@@ -140,7 +140,7 @@ const GachaSimulator = () => {
   const currentSimPool = simulatorPools.find(p => p.id === currentSimPoolId);
   const currentPoolType = currentSimPool?.type || 'limited';
 
-  // 加载当前卡池的角色列表（从 pool_characters 表）
+  // 加载当前卡池的角色列表（从 pool_characters 表，失败时从 characters 表获取）
   useEffect(() => {
     if (!currentSimPool?.id) {
       setPoolCharactersList(null);
@@ -152,6 +152,9 @@ const GachaSimulator = () => {
 
     const loadPoolCharacters = async () => {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
+      const upCharName = currentSimPool.up_character;
+
+      // 尝试从 pool_characters 表加载
       const { data, error } = await supabase
         .from('pool_characters')
         .select(`
@@ -167,12 +170,6 @@ const GachaSimulator = () => {
         `)
         .eq('pool_id', realPoolId);
 
-      if (error) {
-        console.error('加载卡池角色列表失败:', error);
-        setPoolCharactersList(null);
-        return;
-      }
-
       // 按稀有度和是否UP分组
       const lists = {
         up: [],      // UP角色/武器
@@ -181,13 +178,54 @@ const GachaSimulator = () => {
         fourStar: []   // 4星
       };
 
-      // 根据 pools.up_character 动态判断 UP（不依赖 pool_characters.is_up）
-      const upCharName = currentSimPool.up_character;
-      
-      data.forEach((item) => {
-        const char = item.characters;
-        if (!char) return;
-        if (char.type !== expectedType) {
+      // 如果 pool_characters 查询成功且有数据
+      if (!error && data && data.length > 0) {
+        data.forEach((item) => {
+          const char = item.characters;
+          if (!char) return;
+          if (char.type !== expectedType) {
+            return;
+          }
+
+          // 根据角色/武器名称与 up_character 匹配来判断是否为 UP
+          const isActuallyUp = upCharName && char.name === upCharName;
+
+          if (isActuallyUp) {
+            lists.up.push(char);
+          } else if (char.rarity === 6) {
+            lists.offBanner.push(char);
+          } else if (char.rarity === 5) {
+            lists.fiveStar.push(char);
+          } else if (char.rarity === 4) {
+            lists.fourStar.push(char);
+          }
+        });
+
+        setPoolCharactersList(lists);
+        return;
+      }
+
+      // 后备方案：从 characters 表直接加载所有角色
+      console.log('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
+
+      const { data: allChars, error: charError } = await supabase
+        .from('characters')
+        .select('*')
+        .eq('type', expectedType);
+
+      if (charError || !allChars) {
+        console.error('加载角色列表失败:', charError);
+        setPoolCharactersList(null);
+        return;
+      }
+
+      // 根据 pool_config.pools 过滤角色
+      const poolTypeKey = currentPoolType === 'weapon' ? 'weapon' : 'limited';
+
+      allChars.forEach((char) => {
+        // 检查角色是否属于当前卡池类型
+        const pools = char.pool_config?.pools || [];
+        if (!pools.includes(poolTypeKey) && !pools.includes('standard')) {
           return;
         }
 
@@ -209,7 +247,7 @@ const GachaSimulator = () => {
     };
 
     loadPoolCharacters();
-  }, [currentSimPool?.id]);
+  }, [currentSimPool?.id, currentPoolType]);
 
   // 保存当前选择的卡池ID到 localStorage
   useEffect(() => {
