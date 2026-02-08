@@ -46,8 +46,8 @@ function MobileLayout({ themeMode, setThemeMode }) {
       {/* 顶部导航 */}
       <MobileHeader onMenuClick={() => setIsDrawerOpen(true)} />
 
-      {/* 主内容区域 */}
-      <main className="pt-14 pb-20">
+      {/* 主内容区域 - pt-14 (56px) + safe-area-inset-top */}
+      <main className="pb-20" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         {renderView()}
       </main>
 

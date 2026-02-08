@@ -243,35 +243,6 @@ const SettingsPanel = React.memo(({ user, userRole, themeMode, setThemeMode, poo
               </div>
             </div>
 
-            {/* 手动同步到云端 */}
-            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">云端同步</p>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    将您的卡池和记录同步到云端。
-                  </p>
-                </div>
-                <button
-                  onClick={handleManualSync}
-                  disabled={syncing || (userPoolCount === 0 && userHistoryCount === 0)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-white text-xs font-bold tracking-wider transition-colors disabled:cursor-not-allowed rounded-sm uppercase"
-                >
-                  {syncing ? (
-                    <>
-                      <RefreshCw size={14} className="animate-spin" />
-                      同步中...
-                    </>
-                  ) : (
-                    <>
-                      <Cloud size={14} />
-                      立即同步
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
             {/* 删除所有数据 */}
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
               <div className="flex items-center justify-between">

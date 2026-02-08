@@ -1284,7 +1284,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
               {isNewYearMode && <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 rounded-full">新春特别版</span>}
             </h2>
             <p className={`text-sm ${isNewYearMode ? "text-red-100/80" : "text-indigo-100"}`}>
-              {isNewYearMode ? "新春快乐！记录您的欧气时刻，祝您在新的一年里十连双黄！" : "记录您的抽卡历程，分析出货规律，为后续规划提供参考"}
+              {isNewYearMode ? "新春快乐！记录您的欧气时刻，祝您在新的一年里十连三彩！" : "记录您的抽卡历程，分析出货规律，为后续规划提供参考"}
             </p>
             {!user && (
               <p className={`text-xs mt-2 flex items-center gap-1 ${isNewYearMode ? "text-red-200" : "text-indigo-200"}`}>
