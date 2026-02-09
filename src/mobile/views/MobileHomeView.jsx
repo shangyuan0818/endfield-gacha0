@@ -196,7 +196,7 @@ function MobileHomeView() {
           
           <div className="flex items-end justify-between">
             <p className="text-sm text-zinc-400 font-mono max-w-[70%]">
-              {user ? `欢迎回来，干员 ${user.user_metadata?.full_name || 'Admin'}。` : '请登录以访问数据库。'}
+              {user ? `欢迎回来，干员 ${user.user_metadata?.full_name || '管理员'}。` : '请登录以访问数据库。'}
             </p>
             <button
               onClick={handleCelebration}
