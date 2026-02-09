@@ -646,26 +646,28 @@ function MobileDashboardView() {
         defaultExpanded={characterStats.length > 0}
         className="rounded-none"
         headerRight={characterStats.length > 0 ? (
-          <div className="flex border border-zinc-200 dark:border-zinc-700">
+          <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
             <button
               onClick={() => setCharViewMode('card')}
-              className={`p-1 transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
                 charViewMode === 'card'
                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
                   : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
               <LayoutGrid size={12} />
+              卡片
             </button>
             <button
               onClick={() => setCharViewMode('waterfall')}
-              className={`p-1 transition-colors ${
+              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
                 charViewMode === 'waterfall'
                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
                   : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
               <BarChart3 size={12} />
+              时间线
             </button>
           </div>
         ) : null}

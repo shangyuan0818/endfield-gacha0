@@ -1414,10 +1414,10 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
                    {[
-                     { title: "攒抽计算器", url: "https://ef.yituliu.cn/tools/gacha-calculator", icon: BarChart3, label: "RESOURCE PLANNER" },
-                     { title: "终末地地图1", url: "https://opendfieldmap.cn/", icon: Map, label: "OPEN WORLD MAP" },
-                     { title: "终末地地图2", url: "https://www.zmdmap.com/", icon: Map, label: "GAME MAP WIKI" },
-                     { title: "抽卡记录分析", url: "https://endgacha.kwer.top/", icon: BarChart3, label: "GACHA HISTORY" },
+                     { title: "一图流攒抽计算器", url: "https://ef.yituliu.cn/tools/gacha-calculator", icon: BarChart3, label: "RESOURCE PLANNER" },
+                     { title: "终末地地图（1）", url: "https://opendfieldmap.cn/", icon: Map, label: "OPEN WORLD MAP" },
+                     { title: "终末地地图（笋干）", url: "https://www.zmdmap.com/", icon: Map, label: "GAME MAP WIKI" },
+                     { title: "同样优秀的抽卡记录分析（还有舟本体的）", url: "https://endgacha.kwer.top/", icon: BarChart3, label: "GACHA ANALYZER" },
                    ].map((link) => (
                      <a 
                        key={link.url}
