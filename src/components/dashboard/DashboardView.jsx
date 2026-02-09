@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload } from 'lucide-react';
+import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload, BarChart3, LayoutGrid } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
@@ -7,6 +7,7 @@ import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import PoolSelector from '../pool/PoolSelector';
 import PoolAnalysisCard from './PoolAnalysisCard';
 import { characterCache } from '../../utils/characterUtils';
+import CharacterWaterfallChart from './CharacterWaterfallChart';
 
 /**
  * 仪表盘小统计卡片 (Updated Style)
@@ -44,6 +45,9 @@ const DashboardView = ({
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const user = useAuthStore(state => state.user);
+
+  // 角色出货视图模式: 'card' | 'waterfall'
+  const [charViewMode, setCharViewMode] = useState('card');
 
   // 检查是否有卡池数据
   const hasPoolData = pools && pools.length > 0;
@@ -431,17 +435,48 @@ const DashboardView = ({
             <div className="flex items-center gap-2 mb-4 border-b border-zinc-100 dark:border-zinc-800 pb-2">
               <User size={18} className="text-slate-400 dark:text-zinc-500" />
               <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">角色出货统计</h3>
-              {totalCharacterCount > 0 && (
-                <span className="ml-auto text-xs text-slate-400 dark:text-zinc-500 font-mono">
-                  Total: {totalCharacterCount}
-                </span>
-              )}
+              <div className="ml-auto flex items-center gap-2">
+                {/* 视图切换按钮组 */}
+                {characterStats.length > 0 && (
+                  <div className="flex border border-zinc-200 dark:border-zinc-700">
+                    <button
+                      onClick={() => setCharViewMode('card')}
+                      className={`p-1 transition-colors ${
+                        charViewMode === 'card'
+                          ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                          : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                      }`}
+                      title="卡片视图"
+                    >
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button
+                      onClick={() => setCharViewMode('waterfall')}
+                      className={`p-1 transition-colors ${
+                        charViewMode === 'waterfall'
+                          ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                          : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300'
+                      }`}
+                      title="瀑布图视图"
+                    >
+                      <BarChart3 size={14} />
+                    </button>
+                  </div>
+                )}
+                {totalCharacterCount > 0 && (
+                  <span className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
+                    Total: {totalCharacterCount}
+                  </span>
+                )}
+              </div>
             </div>
 
             {characterStats.length === 0 ? (
               <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">
                 暂无5星及以上记录
               </div>
+            ) : charViewMode === 'waterfall' ? (
+              <CharacterWaterfallChart characterStats={characterStats} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {characterStats.map((char) => {

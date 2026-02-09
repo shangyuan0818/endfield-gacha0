@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
   Star, TrendingUp, Calculator, Clock, Sparkles, FileText,
-  ChevronDown, ChevronUp, Layers, Swords, User, PieChart as PieChartIcon
+  ChevronDown, ChevronUp, Layers, Swords, User, PieChart as PieChartIcon,
+  BarChart3, LayoutGrid
 } from 'lucide-react';
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
 import { getCurrentUpPool, LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
@@ -9,6 +10,7 @@ import { calculateCurrentProbability } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
+import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfallChart';
 
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
@@ -19,6 +21,9 @@ function MobileDashboardView() {
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const history = useHistoryStore(state => state.history);
+
+  // 角色出货视图模式: 'card' | 'waterfall'
+  const [charViewMode, setCharViewMode] = useState('card');
 
   const poolsArray = Array.isArray(pools) ? pools : [];
   const historyArray = Array.isArray(history) ? history : [];
@@ -636,8 +641,39 @@ function MobileDashboardView() {
       </MobileChartContainer>
 
       {/* 角色出货统计 */}
-      <MobileChartContainer title={`出货记录 (${characterStats.length})`} defaultExpanded={characterStats.length > 0} className="rounded-none">
+      <MobileChartContainer
+        title={`出货记录 (${characterStats.length})`}
+        defaultExpanded={characterStats.length > 0}
+        className="rounded-none"
+        headerRight={characterStats.length > 0 ? (
+          <div className="flex border border-zinc-200 dark:border-zinc-700">
+            <button
+              onClick={() => setCharViewMode('card')}
+              className={`p-1 transition-colors ${
+                charViewMode === 'card'
+                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                  : 'text-zinc-400 dark:text-zinc-500'
+              }`}
+            >
+              <LayoutGrid size={12} />
+            </button>
+            <button
+              onClick={() => setCharViewMode('waterfall')}
+              className={`p-1 transition-colors ${
+                charViewMode === 'waterfall'
+                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                  : 'text-zinc-400 dark:text-zinc-500'
+              }`}
+            >
+              <BarChart3 size={12} />
+            </button>
+          </div>
+        ) : null}
+      >
         {characterStats.length > 0 ? (
+          charViewMode === 'waterfall' ? (
+            <MobileCharacterWaterfallChart characterStats={characterStats} />
+          ) : (
           <div className="space-y-2 pt-2">
             {characterStats.map((char, index) => {
               const isSixStar = char.rarity === 6;
@@ -724,6 +760,7 @@ function MobileDashboardView() {
               );
             })}
           </div>
+          )
         ) : (
           <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">暂无记录</p>
         )}
