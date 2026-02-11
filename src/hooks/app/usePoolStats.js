@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useHistoryStore, usePoolStore } from '../../stores';
 import { RARITY_CONFIG, LIMITED_POOL_RULES } from '../../constants';
 import { calculateCurrentProbability, calculateInheritedPity } from '../../utils';
+import { characterCache } from '../../utils/characterUtils';
 
 /**
  * 卡池统计 Hook
@@ -126,12 +127,24 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     const totalSixStar = counts[6] + counts['6_std'];
     const validSixStar = totalSixStar - giftCounts[6];
 
-    // 修正不歪率计算
+    // 修正不歪率计算 + 歪出分类（FEAT-013）
     let realLimited = 0;
     let realStandard = 0;
+    let offStandardCount = 0;  // 歪到常驻角色
+    let offLimitedCount = 0;   // 歪到非当期限定角色
     normalizedCurrentPoolHistory.forEach(pull => {
        if (pull.rarity === 6 && pull.specialType !== 'gift' && pull.isFree !== true) {
-          if (pull.isStandard) realStandard++;
+          if (pull.isStandard) {
+            realStandard++;
+            // 区分歪常驻 vs 歪限定
+            const charName = pull.character_name || pull.item_name || pull.name || '';
+            const charInfo = characterCache.searchByName(charName);
+            if (charInfo && charInfo.is_limited) {
+              offLimitedCount++;  // 歪到非当期限定角色
+            } else {
+              offStandardCount++; // 歪到常驻角色
+            }
+          }
           else realLimited++;
        }
     });
@@ -168,17 +181,32 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     const sixStarPulls = [];
     const upSixStarPulls = [];
     let tempCounter = 0;
+    let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
+    let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
 
     validPullsList.forEach(pull => {
       tempCounter++;
+      cumulativePullCount++;
       if (pull.rarity === 6) {
+        // 判断是否为120抽Spark触发（FEAT-014）
+        // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
+        const isUp = !pull.isStandard;
+        let isSpark = false;
+        if (currentPool.type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+          isSpark = true;
+        }
+        if (isUp && cumulativePullCount < 120) {
+          hasGotUpBefore120 = true;
+        }
+
         const pullRecord = {
           count: tempCounter,
           isStandard: pull.isStandard,
-          isGuaranteed: pull.specialType === 'guaranteed'
+          isGuaranteed: pull.specialType === 'guaranteed',
+          isSpark
         };
         sixStarPulls.push(pullRecord);
-        if (!pull.isStandard) {
+        if (isUp) {
           upSixStarPulls.push(pullRecord);
         }
         tempCounter = 0;
@@ -197,8 +225,16 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       ? (upSixStarPulls.reduce((sum, p) => sum + p.count, 0) / upSixStarPulls.length).toFixed(2)
       : '0';
 
+    // FEAT-014: 排除Spark的平均出货
+    const upSixStarPullsExcludingSpark = upSixStarPulls.filter(p => !p.isSpark);
+    const avgUpSixStarExcludingSpark = upSixStarPullsExcludingSpark.length > 0
+      ? (upSixStarPullsExcludingSpark.reduce((sum, p) => sum + p.count, 0) / upSixStarPullsExcludingSpark.length).toFixed(2)
+      : '0';
+    const sparkCount = upSixStarPulls.filter(p => p.isSpark).length;
+
     const avgPullCost = {
-      6: avgUpSixStar,
+      6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
+      '6_with_spark': avgUpSixStar,
       '6_all': avgAllSixStar,
       5: counts[5] > 0 ? (total / counts[5]).toFixed(2) : '0',
     };
@@ -259,6 +295,9 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       sixStarCount: realTotalSix,
       upSixStarCount: realLimited,
       stdSixStarCount: realStandard,
+      offStandardCount,
+      offLimitedCount,
+      sparkCount,
       currentPity,
       currentPity5,
       avgPullCost,

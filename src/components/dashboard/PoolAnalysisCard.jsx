@@ -29,7 +29,7 @@ const PoolTimeInfo = () => {
   const isNotStarted = !currentUpPool.isActive && !isExpired && (currentUpPool.startsIn !== undefined || currentUpPool.startsInHours !== undefined);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-zinc-500 font-mono mt-1">
+    <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-zinc-400 font-mono mt-1">
       <Clock size={10} />
       <span className="flex items-center gap-1">
         {isNotStarted ? (
@@ -62,12 +62,12 @@ const PoolTimeInfo = () => {
 const StatCard = ({ label, value, subValue, footer, progress, progressColor, extraLabel, warning }) => (
   <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 relative group hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
     <div className="flex justify-between items-start mb-2">
-      <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500 font-bold flex items-center gap-2">
+      <div className="text-[11px] uppercase tracking-wider text-slate-600 dark:text-zinc-400 font-bold flex items-center gap-2">
         {label}
-        {extraLabel && <span className="bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 px-1 py-0.5 text-[9px] rounded-sm">{extraLabel}</span>}
+        {extraLabel && <span className="bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 px-1 py-0.5 text-[10px] rounded-sm">{extraLabel}</span>}
       </div>
       {warning && (
-        <div className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 text-[9px] font-mono animate-pulse rounded-sm">
+        <div className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 text-[10px] font-mono animate-pulse rounded-sm">
           {warning}
         </div>
       )}
@@ -85,7 +85,7 @@ const StatCard = ({ label, value, subValue, footer, progress, progressColor, ext
       ></div>
     </div>
 
-    {footer && <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500 font-mono flex justify-between items-center">{footer}</div>}
+    {footer && <div className="mt-2 text-[11px] text-slate-600 dark:text-zinc-400 font-mono flex justify-between items-center">{footer}</div>}
   </div>
 );
 
@@ -122,13 +122,13 @@ const WeaponGifts = ({ stats }) => {
                     {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}
                   </span>
               </span>
-              <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total} / {nextWeaponGift}</span>
+              <span className="text-xs font-mono text-slate-600 dark:text-zinc-400">{stats.total} / {nextWeaponGift}</span>
           </div>
           <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
              <div className={`h-full ${nextWeaponGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-500'}`}
                   style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}></div>
           </div>
-          <div className="flex gap-3 text-[10px] text-slate-500 dark:text-zinc-500 font-mono">
+          <div className="flex gap-3 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">
               <span>已获得:</span>
               <span className="text-red-600 dark:text-red-400 font-medium">{stats.gifts?.standardCount || 0} 常驻</span>
               <span className="text-blue-600 dark:text-cyan-400 font-medium">{stats.gifts?.limitedCount || 0} 限定</span>
@@ -177,7 +177,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            {/* UP角色显示 */}
            {currentPool.up_character && (
              <div className="text-right">
-                <div className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-medium">UP 角色</div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">UP 角色</div>
                 <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{currentPool.up_character}</div>
              </div>
            )}
@@ -185,7 +185,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         
         <div className="mt-2">
            <div className="flex items-center gap-2">
-             <span className="text-xs text-slate-400 dark:text-zinc-500 uppercase font-medium">当前卡池:</span>
+             <span className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-medium">当前卡池:</span>
              <span className={`text-xs font-bold ${accentColor} uppercase`}>{currentPool.name}</span>
            </div>
            
@@ -242,8 +242,8 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
              progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
              footer={
-               stats.sixStarCount > 0 
-                 ? <span className="truncate">UP: {stats.upSixStarCount} / 歪: {stats.sixStarCount - stats.upSixStarCount}</span>
+               stats.sixStarCount > 0
+                 ? <span className="truncate">UP: {stats.upSixStarCount} / 歪常驻: {stats.offStandardCount ?? (stats.sixStarCount - stats.upSixStarCount)} / 歪限定: {stats.offLimitedCount ?? 0}</span>
                  : '暂无6星数据'
              }
            />
@@ -252,22 +252,27 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              // 理论期望值：角色池约62.5抽，武器池约31.25抽
              const expectedPulls = isWeapon ? 31.25 : 62.5;
              const avgValue = parseFloat(stats.avgPullCost?.[6]) || 0;
+             const avgWithSpark = parseFloat(stats.avgPullCost?.['6_with_spark']) || 0;
              // 进度条显示：期望值=50%，越低越好（绿色），越高越差（红色）
              const progressPercent = avgValue > 0 ? Math.min((expectedPulls / avgValue) * 50, 100) : 0;
              const isLucky = avgValue > 0 && avgValue < expectedPulls;
-             
+             const hasSpark = isLimited && stats.sparkCount > 0;
+
              return (
-               <StatCard 
+               <StatCard
                  label="平均出货"
-                 extraLabel={isLimited ? "仅UP·免十不计" : isWeapon ? "仅UP" : null}
+                 extraLabel={isLimited ? "仅UP·免十/必出不计" : isWeapon ? "仅UP" : null}
                  value={stats.upSixStarCount > 0 ? stats.avgPullCost?.[6] : '-'}
                  subValue={stats.upSixStarCount > 0 ? "抽" : null}
                  progress={progressPercent}
                  progressColor={isLucky ? 'bg-green-500' : 'bg-amber-500'}
                  footer={
-                   stats.upSixStarCount > 0 
-                     ? <span className="flex justify-between">
+                   stats.upSixStarCount > 0
+                     ? <span className="flex justify-between flex-wrap gap-1">
                          <span>期望: ~{expectedPulls}抽</span>
+                         {hasSpark && avgWithSpark !== stats.avgPullCost?.[6] && (
+                           <span className="text-zinc-400">含必出: {avgWithSpark}</span>
+                         )}
                          {isLucky && <span className="text-green-600 dark:text-green-400">运气不错!</span>}
                        </span>
                      : '暂无UP数据'
@@ -280,7 +285,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
 
       {/* 特殊进度列表 (Technical List Style) */}
       <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
-         <div className="text-[10px] uppercase text-slate-500 dark:text-zinc-500 font-bold tracking-wider mb-2">特殊机制进度</div>
+         <div className="text-[11px] uppercase text-slate-600 dark:text-zinc-400 font-bold tracking-wider mb-2">特殊机制进度</div>
          
          {/* 限定池特殊进度 */}
          {isLimited && (
@@ -298,9 +303,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                       style={{width: `${hasReceivedFreeTen ? 100 : 0}%`}}></div>
                </div>
                <div className="flex justify-between items-center">
-                 <span className="text-[10px] text-slate-500 dark:text-zinc-500">不计入保底次数</span>
+                 <span className="text-[11px] text-slate-600 dark:text-zinc-400">不计入保底次数</span>
                  {hasReceivedFreeTen && (
-                   <span className="text-[10px] text-green-600 dark:text-green-400 font-bold">已完成</span>
+                   <span className="text-[11px] text-green-600 dark:text-green-400 font-bold">已完成</span>
                  )}
                </div>
              </div>
@@ -328,7 +333,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
                   <div className="h-full bg-purple-500" style={{width: `${((stats.total % 240) / 240) * 100}%`}}></div>
                 </div>
-                {Math.floor(stats.total / 240) > 0 && <div className="text-right text-[10px] text-purple-600 dark:text-purple-400 font-bold">已获得: {Math.floor(stats.total / 240)}</div>}
+                {Math.floor(stats.total / 240) > 0 && <div className="text-right text-[11px] text-purple-600 dark:text-purple-400 font-bold">已获得: {Math.floor(stats.total / 240)}</div>}
              </div>
 
              {/* 60 Info Book */}

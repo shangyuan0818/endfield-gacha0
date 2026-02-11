@@ -114,24 +114,41 @@ export function useSummaryStats(history, pools, user) {
 
       let tempCounter = 0;
       let tempCounterExcludingFree = 0;
+      // FEAT-014: 追踪累计抽数用于判断120抽必出(Spark)
+      let cumulativePullCount = 0;
+      let hasGotUpBefore120 = false;
+
       validPulls.forEach(pull => {
         const isFree = pull.isFree || pull.is_free;
         tempCounter++;
         if (!isFree) tempCounterExcludingFree++;
+        cumulativePullCount++;
 
         if (pull.rarity === 6) {
+          // FEAT-014: 判断是否为120抽Spark
+          const isUp = !pull.isStandard;
+          let isSpark = false;
+          if (type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+            isSpark = true;
+          }
+          if (isUp && cumulativePullCount < 120) {
+            hasGotUpBefore120 = true;
+          }
+
           allSixStarPulls.push({
             count: tempCounter,
             isStandard: pull.isStandard,
             isGuaranteed: pull.specialType === 'guaranteed',
-            isFree: isFree
+            isFree: isFree,
+            isSpark
           });
 
           if (!isFree) {
             allSixStarPullsExcludingFree.push({
               count: tempCounterExcludingFree,
               isStandard: pull.isStandard,
-              isGuaranteed: pull.specialType === 'guaranteed'
+              isGuaranteed: pull.specialType === 'guaranteed',
+              isSpark
             });
             tempCounterExcludingFree = 0;
           }
@@ -139,7 +156,8 @@ export function useSummaryStats(history, pools, user) {
           data.byType[type].pityList.push({
             count: tempCounter,
             isStandard: pull.isStandard,
-            isFree: isFree
+            isFree: isFree,
+            isSpark
           });
           tempCounter = 0;
         }
@@ -239,9 +257,14 @@ export function useSummaryStats(history, pools, user) {
         data.byType[t].avgPity = (data.byType[t].pityList.reduce((sum, p) => sum + p.count, 0) / data.byType[t].pityList.length).toFixed(1);
       }
       if (t === 'limited') {
+        const nonFreeNonSparkList = data.byType[t].pityList.filter(p => !p.isFree && !p.isSpark);
+        if (nonFreeNonSparkList.length > 0) {
+          data.byType[t].avgPityExcludingFree = (nonFreeNonSparkList.reduce((sum, p) => sum + p.count, 0) / nonFreeNonSparkList.length).toFixed(1);
+        }
+        // 含Spark的平均出货（供参考）
         const nonFreeList = data.byType[t].pityList.filter(p => !p.isFree);
         if (nonFreeList.length > 0) {
-          data.byType[t].avgPityExcludingFree = (nonFreeList.reduce((sum, p) => sum + p.count, 0) / nonFreeList.length).toFixed(1);
+          data.byType[t].avgPityWithSpark = (nonFreeList.reduce((sum, p) => sum + p.count, 0) / nonFreeList.length).toFixed(1);
         }
       }
     });
@@ -273,7 +296,7 @@ export function useSummaryStats(history, pools, user) {
     };
     const characterPityList = [...data.byType.limited.pityList, ...data.byType.standard.pityList];
     const limitedPityListExcludingFree = data.byType.limited.pityList.filter(p => !p.isFree);
-    const characterPityListExcludingFree = characterPityList.filter(p => !p.isFree);
+    const characterPityListExcludingFree = characterPityList.filter(p => !p.isFree && !p.isSpark);
 
     data.byType.character = {
       total: data.byType.limited.total + data.byType.standard.total,

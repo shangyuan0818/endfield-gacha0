@@ -315,7 +315,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           </div>
 
                           {/* 右侧：六星出货分类统计 */}
-                          <div className="grid grid-cols-2 gap-4 content-start pt-2">
+                          <div className="grid grid-cols-3 gap-4 content-start pt-2">
                             {/* UP六星 */}
                             <div className="space-y-1">
                               <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
@@ -332,20 +332,36 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                                 限定池抽中UP角色
                               </div>
                             </div>
-                            {/* 歪出六星 */}
+                            {/* 歪出六星 - 歪常驻 */}
                             <div className="space-y-1">
                               <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
                                 <span className="w-2 h-2 bg-rose-500 rounded-full"></span>
-                                歪出 6★
+                                歪常驻 6★
                               </div>
                               <div className="text-xl font-bold font-mono text-rose-500">
                                 {(() => {
                                   const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
+                                  return ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
                                 })()}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
-                                限定池歪到常驻
+                                歪到常驻角色
+                              </div>
+                            </div>
+                            {/* 歪出六星 - 歪限定 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                                歪限定 6★
+                              </div>
+                              <div className="text-xl font-bold font-mono text-orange-500">
+                                {(() => {
+                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
+                                  return ranking?.limited?.sixStarOffLimitedCount ?? 0;
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                歪到非当期限定
                               </div>
                             </div>
                             {/* 不歪率 */}
@@ -376,6 +392,26 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
                                 常驻池出货
+                              </div>
+                            </div>
+                            {/* 限定率 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
+                                限定率
+                              </div>
+                              <div className="text-xl font-bold font-mono text-amber-500">
+                                {(() => {
+                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
+                                  const offStd = ranking?.limited?.sixStarOffStandardCount ?? 0;
+                                  const offLtd = ranking?.limited?.sixStarOffLimitedCount ?? 0;
+                                  const totalOff = offStd + offLtd;
+                                  if (totalOff === 0) return '-';
+                                  return ((offLtd / totalOff) * 100).toFixed(1) + '%';
+                                })()}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                歪中限定占比
                               </div>
                             </div>
                           </div>

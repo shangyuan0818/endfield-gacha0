@@ -156,12 +156,12 @@ function MobileSummaryView() {
                   </div>
                   <div>
                     <h2 className="font-bold text-zinc-800 dark:text-white text-sm uppercase tracking-tight">{currentStats.title}</h2>
-                    <span className="text-zinc-400 text-[10px] font-mono uppercase tracking-widest">{currentStats.subtitle}</span>
+                    <span className="text-zinc-500 dark:text-zinc-400 text-[11px] font-mono uppercase tracking-widest">{currentStats.subtitle}</span>
                   </div>
                 </div>
                 {currentStats.totalUsers && (
                   <div className="text-right">
-                    <span className="block text-[9px] text-zinc-400 uppercase font-mono mb-0.5">贡献者</span>
+                    <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-mono mb-0.5">贡献者</span>
                     <span className="text-lg font-bold text-zinc-700 dark:text-zinc-300 font-mono leading-none">{currentStats.totalUsers.toLocaleString()}</span>
                   </div>
                 )}
@@ -171,7 +171,7 @@ function MobileSummaryView() {
               <div className="grid grid-cols-2 gap-3">
                 {/* 总抽数 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
-                  <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-1">总抽数</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">总抽数</div>
                   <div className="text-2xl font-black text-zinc-800 dark:text-white font-mono">
                     {(currentStats.total || 0).toLocaleString()}
                   </div>
@@ -180,7 +180,7 @@ function MobileSummaryView() {
 
                 {/* 6星数量 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-amber-300 dark:hover:border-amber-900 transition-colors">
-                  <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-1">6★ 总数</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">6★ 总数</div>
                   <div className="text-2xl font-black text-amber-500 font-mono">
                     {currentStats.sixStar || 0}
                   </div>
@@ -191,7 +191,7 @@ function MobileSummaryView() {
 
                 {/* 平均出货 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-indigo-300 dark:hover:border-indigo-900 transition-colors">
-                  <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-1">平均出货</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">平均出货</div>
                   <div className="text-2xl font-black text-indigo-500 font-mono">
                     {currentStats.avgPity || '-'}
                   </div>
@@ -200,7 +200,7 @@ function MobileSummaryView() {
 
                 {/* 不歪/歪 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
-                  <div className="text-zinc-400 text-[9px] uppercase font-bold tracking-wider mb-1">不歪 / 歪</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">不歪 / 歪</div>
                   <div className="text-xl font-black font-mono">
                     <span className="text-emerald-500">{currentStats.sixStarLimited || 0}</span>
                     <span className="text-zinc-300 mx-1">/</span>
@@ -221,7 +221,7 @@ function MobileSummaryView() {
               <MobileChartContainer title="角色池数据" defaultExpanded={true} className="rounded-none">
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">限定池</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">限定池</div>
                     <div className="text-lg font-bold font-mono text-zinc-700 dark:text-zinc-200">
                       {(currentStats.byType?.limited?.total || 0).toLocaleString()} <span className="text-xs font-normal text-zinc-400">抽</span>
                     </div>
@@ -230,7 +230,7 @@ function MobileSummaryView() {
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">常驻池</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">常驻池</div>
                     <div className="text-lg font-bold font-mono text-zinc-700 dark:text-zinc-200">
                       {(currentStats.byType?.standard?.total || 0).toLocaleString()} <span className="text-xs font-normal text-zinc-400">抽</span>
                     </div>
@@ -257,13 +257,13 @@ function MobileSummaryView() {
               <MobileChartContainer title="武器池数据" defaultExpanded={true} className="rounded-none">
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">总抽数</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">总抽数</div>
                     <div className="text-lg font-bold font-mono text-zinc-700 dark:text-zinc-200">
                       {(currentStats.byType?.weapon?.total || 0).toLocaleString()}
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">6★ 数量</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">6★ 数量</div>
                     <div className="text-lg font-bold font-mono text-amber-500">
                       {currentStats.byType?.weapon?.six || 0}
                     </div>
@@ -275,11 +275,23 @@ function MobileSummaryView() {
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">不歪 / 歪</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">不歪 / 歪</div>
                     <div className="text-lg font-bold font-mono">
-                      <span className="text-emerald-500">{currentStats.byType?.weapon?.limitedSix || 0}</span>
-                      <span className="text-zinc-300 mx-1">/</span>
-                      <span className="text-rose-500">{(currentStats.byType?.weapon?.six || 0) - (currentStats.byType?.weapon?.limitedSix || 0)}</span>
+                      {(() => {
+                        const weaponPool = currentStats.byType?.weapon || {};
+                        const weaponUp = (weaponPool.sixStarLimited ?? weaponPool.limitedSix ?? 0);
+                        const weaponStd = (weaponPool.six || 0) - weaponUp;
+                        const totalSix = weaponPool.six || 0;
+                        const rate = totalSix > 0 ? ((weaponUp / totalSix) * 100).toFixed(1) : 0;
+                        return (
+                          <>
+                            <span className="text-emerald-500">{weaponUp}</span>
+                            <span className="text-zinc-300 mx-1">/</span>
+                            <span className="text-rose-500">{weaponStd}</span>
+                            <span className="text-zinc-400 text-xs ml-1">({rate}%)</span>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -327,19 +339,27 @@ function MobileSummaryView() {
                   <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
                     <div className="grid grid-cols-3 gap-3 text-center">
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-[9px] text-zinc-400 uppercase font-bold mb-1">UP 6★</div>
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">UP 6★</div>
                         <div className="text-lg font-bold font-mono text-emerald-500">
                           {ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? '-'}
                         </div>
                       </div>
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-[9px] text-zinc-400 uppercase font-bold mb-1">歪 6★</div>
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">歪常驻</div>
                         <div className="text-lg font-bold font-mono text-rose-500">
-                          {ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-'}
+                          {ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-'}
                         </div>
                       </div>
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-[9px] text-zinc-400 uppercase font-bold mb-1">不歪率</div>
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">歪限定</div>
+                        <div className="text-lg font-bold font-mono text-orange-500">
+                          {ranking?.limited?.sixStarOffLimitedCount ?? 0}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-center mt-3">
+                      <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">不歪率</div>
                         <div className="text-lg font-bold font-mono text-indigo-500">
                           {(() => {
                             const upCount = ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? 0;
@@ -347,6 +367,18 @@ function MobileSummaryView() {
                             const total = upCount + offCount;
                             if (total === 0) return '-';
                             return ((upCount / total) * 100).toFixed(1) + '%';
+                          })()}
+                        </div>
+                      </div>
+                      <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">限定率</div>
+                        <div className="text-lg font-bold font-mono text-amber-500">
+                          {(() => {
+                            const offStd = ranking?.limited?.sixStarOffStandardCount ?? 0;
+                            const offLtd = ranking?.limited?.sixStarOffLimitedCount ?? 0;
+                            const totalOff = offStd + offLtd;
+                            if (totalOff === 0) return '-';
+                            return ((offLtd / totalOff) * 100).toFixed(1) + '%';
                           })()}
                         </div>
                       </div>

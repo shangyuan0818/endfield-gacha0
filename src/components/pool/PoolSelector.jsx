@@ -145,14 +145,14 @@ const PoolSelector = () => {
 
         {/* UP角色 */}
         {pool.up_character && (
-          <div className="text-xs text-slate-400 dark:text-zinc-500 truncate mb-1 font-mono">
+          <div className="text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
             UP: {pool.up_character}
           </div>
         )}
 
         {/* 抽数 */}
-        <div className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
-          {pullCount} <span className="text-[10px]">抽</span>
+        <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
+          {pullCount} <span className="text-[11px]">抽</span>
         </div>
       </div>
     );
@@ -173,7 +173,7 @@ const PoolSelector = () => {
               导入数据
             </button>
           ) : (
-            <div className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
+            <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
               [ 请登录以导入数据 ]
             </div>
           )}
@@ -217,7 +217,7 @@ const PoolSelector = () => {
                       }`}
                     >
                       <div className="font-bold">{account.nickName}</div>
-                      <div className="text-[10px] text-slate-400 dark:text-zinc-500">UID: {account.gameUid}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
                     </button>
                   ))}
                 </div>
@@ -251,7 +251,7 @@ const PoolSelector = () => {
           )}
 
           {/* 统计 */}
-          <div className="text-xs font-mono text-slate-400 dark:text-zinc-500">
+          <div className="text-xs font-mono text-slate-500 dark:text-zinc-400">
             <span className="text-slate-700 dark:text-zinc-300 font-bold">{totalPools}</span> POOLS /
             <span className="text-slate-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> PULLS
           </div>
@@ -266,15 +266,30 @@ const PoolSelector = () => {
               <div key={group.type} className="flex flex-nowrap items-end gap-2">
                 {/* 分组竖排标签 */}
                 <div className="flex-shrink-0 flex flex-col items-center justify-end h-full pb-3">
-                  <span className={`
-                    writing-vertical text-[10px] font-bold tracking-widest uppercase opacity-40
-                    ${group.type === 'limited' ? 'text-orange-500' :
-                      group.type === 'standard' ? 'text-yellow-500' :
-                      'text-slate-500'
-                    }
+                  <div className={`
+                    flex flex-col items-center gap-1.5
                   `} style={{ writingMode: 'vertical-rl' }}>
-                    {group.label}
-                  </span>
+                    <span className={`
+                      w-1 h-6 flex-shrink-0
+                      ${group.type === 'limited' ? 'bg-orange-500' :
+                        group.type === 'weapon_limited' ? 'bg-slate-500' :
+                        group.type === 'standard' ? 'bg-yellow-500' :
+                        group.type === 'weapon_standard' ? 'bg-zinc-400' :
+                        'bg-green-500'
+                      }
+                    `} style={{ writingMode: 'horizontal-tb' }} />
+                    <span className={`
+                      text-xs font-bold tracking-widest uppercase
+                      ${group.type === 'limited' ? 'text-orange-600 dark:text-orange-400' :
+                        group.type === 'weapon_limited' ? 'text-slate-600 dark:text-slate-300' :
+                        group.type === 'standard' ? 'text-yellow-600 dark:text-yellow-400' :
+                        group.type === 'weapon_standard' ? 'text-zinc-500 dark:text-zinc-400' :
+                        'text-green-600 dark:text-green-400'
+                      }
+                    `}>
+                      {group.label}
+                    </span>
+                  </div>
                 </div>
                 {group.pools.map(pool => renderPoolCard(pool))}
                 {/* 分隔符 */}

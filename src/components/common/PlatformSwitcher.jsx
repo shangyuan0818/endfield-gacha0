@@ -1,22 +1,20 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Monitor, Smartphone } from 'lucide-react';
-import { useDeviceDetection } from '../../hooks/useDeviceDetection';
+
+const PLATFORM_PREFERENCE_KEY = 'platform-preference';
 
 /**
  * 平台切换器组件
- * 允许用户在桌面端和移动端之间切换
+ * 使用 window.location.href 强制刷新，避免 SPA 路由状态不同步
  */
 function PlatformSwitcher({ variant = 'button', className = '' }) {
-  const navigate = useNavigate();
-  const { platformPreference, setPreference, isMobile } = useDeviceDetection();
-
   const handleSwitch = (targetPlatform) => {
-    setPreference(targetPlatform);
+    localStorage.setItem(PLATFORM_PREFERENCE_KEY, targetPlatform);
+    const basePath = window.location.origin;
     if (targetPlatform === 'mobile') {
-      navigate('/m');
+      window.location.href = basePath + '/m';
     } else {
-      navigate('/');
+      window.location.href = basePath + '/';
     }
   };
 
