@@ -18,6 +18,11 @@ export default defineConfig({
             console.log('[Vite Proxy] 运行: node dev-proxy.js');
           });
         }
+      },
+      // 开发环境代理 - 将 /api/wiki-proxy 请求转发到本地代理
+      '/api/wiki-proxy': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
       }
     }
   }

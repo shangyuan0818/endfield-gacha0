@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, CloudUpload, User, Swords, Package } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, User, Swords, Package } from 'lucide-react';
 import { useCharacters } from '../../hooks/admin/useCharacters';
 import { CharacterTable, CharacterEditDialog, BatchEditDialog } from './characters';
 
@@ -154,22 +154,13 @@ const CharacterManagement = ({ showToast }) => {
           新增{activeTab === 'character' ? '角色' : '武器'}
         </button>
         <button
-          onClick={() => handleSyncFromAPI(false)}
+          onClick={() => handleSyncFromAPI()}
           disabled={isSyncing}
-          className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white text-sm font-medium rounded-none transition-colors"
-          title="从 EndfieldTools.dev 同步数据（使用原始图片链接）"
+          className="flex items-center gap-1 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white text-sm font-medium rounded-none transition-colors"
+          title="从 warfarin.wiki 同步数据并上传头像到服务器"
         >
           <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
           {isSyncing ? syncProgress || '同步中...' : '同步数据'}
-        </button>
-        <button
-          onClick={() => handleSyncFromAPI(true)}
-          disabled={isSyncing}
-          className="flex items-center gap-1 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white text-sm font-medium rounded-none transition-colors"
-          title="同步数据并将头像上传到您的服务器（推荐）"
-        >
-          <CloudUpload size={16} className={isSyncing ? 'animate-pulse' : ''} />
-          {isSyncing ? syncProgress || '同步中...' : '同步+上传头像'}
         </button>
       </div>
 

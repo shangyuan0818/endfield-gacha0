@@ -1,185 +1,105 @@
 /**
- * EndfieldTools 数据同步工具
- * 从 endfieldtools.dev 获取角色和武器数据
+ * Warfarin Wiki 数据同步工具
+ * 从 warfarin.wiki 获取角色和武器数据（经 /api/wiki-proxy 代理）
  *
- * 数据源:
- * - 角色列表: /localdb/optimized/characters/characters-list.json
- * - 武器列表: /localdb/optimized/weapons/weapons-list.json
- * - 中文翻译: /localdb/optimized/i18n/I18nTextTable_CN.json
+ * 数据源: warfarin.wiki（原生中文，无需 i18n 翻译）
  */
 
-const API_BASE = 'https://endfieldtools.dev';
-
-// API 端点
-const ENDPOINTS = {
-  characters: '/localdb/optimized/characters/characters-list.json',
-  weapons: '/localdb/optimized/weapons/weapons-list.json',
-  i18n_cn: '/localdb/optimized/i18n/I18nTextTable_CN.json',
-};
-
-// 图片 URL 模板
+// 图片 URL 模板（warfarin.wiki 静态资源）
 const IMAGE_URLS = {
-  character: (charId) => `${API_BASE}/assets/images/endfield/charicon/icon_${charId}.png`,
-  weapon: (weaponId) => `${API_BASE}/assets/images/endfield/itemicon/${weaponId}.png`,
+  character: (charId) => `https://static.warfarin.wiki/v3/charicon/icon_${charId}.webp`,
+  weapon: (iconId) => `https://static.warfarin.wiki/v3/itemicon/${iconId}.webp`,
 };
 
-// 缓存
-let i18nCache = null;
-
 /**
- * 获取中文翻译表
- * @returns {Promise<Object>} - i18n 翻译映射表
+ * 从代理获取干员数据
+ * @returns {Promise<Array>} 干员原始数据数组
  */
-export async function fetchI18nTable() {
-  if (i18nCache) return i18nCache;
-
-  try {
-    const response = await fetch(`${API_BASE}${ENDPOINTS.i18n_cn}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    i18nCache = await response.json();
-    return i18nCache;
-  } catch (error) {
-    console.error('获取中文翻译表失败:', error);
-    throw error;
+export async function fetchOperators() {
+  const response = await fetch('/api/wiki-proxy?type=operators');
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || '获取干员数据失败');
+  }
+  return result.data;
 }
 
 /**
- * 获取角色列表原始数据
- * @returns {Promise<Object>} - 角色原始数据对象
+ * 从代理获取武器数据
+ * @returns {Promise<Array>} 武器原始数据数组
  */
-export async function fetchCharacterList() {
-  try {
-    const response = await fetch(`${API_BASE}${ENDPOINTS.characters}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('获取角色列表失败:', error);
-    throw error;
+export async function fetchWeapons() {
+  const response = await fetch('/api/wiki-proxy?type=weapons');
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
-}
-
-/**
- * 获取武器列表原始数据
- * @returns {Promise<Object>} - 武器原始数据对象
- */
-export async function fetchWeaponList() {
-  try {
-    const response = await fetch(`${API_BASE}${ENDPOINTS.weapons}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('获取武器列表失败:', error);
-    throw error;
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || '获取武器数据失败');
   }
-}
-
-// 需要排除的角色（管理员/玩家角色，不是可抽取的）
-const EXCLUDED_CHARACTERS = [
-  'chr_9001_admin',      // 管理员（男）
-  'chr_9002_admin',      // 管理员（女）
-];
-
-// 排除的角色名称关键词
-const EXCLUDED_NAME_KEYWORDS = ['管理员', 'Admin', 'admin'];
-
-/**
- * 从 i18n 表中获取中文名称
- * @param {string} i18nId - 翻译 ID
- * @param {Object} i18nTable - 翻译表
- * @returns {string|null} - 中文名称
- */
-function getChineseName(i18nId, i18nTable) {
-  if (!i18nId || !i18nTable) return null;
-  return i18nTable[i18nId] || null;
+  return result.data;
 }
 
 /**
  * 构建标准化角色数据
- * @param {Object} rawCharacters - 原始角色数据
- * @param {Object} i18nTable - 翻译表
- * @returns {Array} - 标准化角色数据数组
+ * warfarin.wiki 已返回中文名，无需 i18n
+ * @param {Array} rawOperators - 原始干员数据数组
+ * @returns {Array} 标准化角色数据数组
  */
-export function buildCharacterData(rawCharacters, i18nTable) {
+export function buildCharacterData(rawOperators) {
   const characters = [];
 
-  for (const [charId, data] of Object.entries(rawCharacters)) {
-    // 跳过管理员角色（玩家角色，不是可抽取的）
-    if (EXCLUDED_CHARACTERS.includes(charId)) {
-      console.log(`跳过管理员角色: ${charId}`);
-      continue;
-    }
-
-    const chineseName = getChineseName(data.nameI18nId, i18nTable);
-
-    // 跳过没有中文名的角色（可能是未发布的）
-    if (!chineseName) {
-      console.warn(`角色 ${charId} (${data.engName}) 没有中文名，跳过`);
-      continue;
-    }
-
-    // 跳过名称包含管理员关键词的角色
-    if (EXCLUDED_NAME_KEYWORDS.some(keyword => chineseName.includes(keyword) || (data.engName && data.engName.toLowerCase().includes(keyword.toLowerCase())))) {
-      console.log(`跳过管理员角色（按名称）: ${chineseName}`);
-      continue;
-    }
+  for (const op of rawOperators) {
+    // 跳过无效数据
+    if (!op.id || !op.name) continue;
 
     characters.push({
-      id: charId,
-      name: chineseName,
-      name_en: data.engName || null,
-      rarity: data.rarity,
-      avatar_url: IMAGE_URLS.character(charId),
-      // 额外信息（可选存储）
-      profession: data.profession || null,
-      weapon_type: data.weaponType || null,
-      char_type: data.charTypeId || null,
+      id: op.id,
+      name: op.name,
+      name_en: op.slug || null,
+      rarity: op.rarity,
+      avatar_url: IMAGE_URLS.character(op.id),
+      profession: op.class || null,
+      weapon_type: null,
+      char_type: null,
     });
   }
 
   // 按稀有度降序排序
   characters.sort((a, b) => b.rarity - a.rarity);
-
   return characters;
 }
 
 /**
  * 构建标准化武器数据
- * @param {Object} rawWeapons - 原始武器数据
- * @param {Object} i18nTable - 翻译表
- * @returns {Array} - 标准化武器数据数组
+ * 武器的 iconId 可能与 id 不同，需要使用 iconId 构建图片 URL
+ * @param {Array} rawWeapons - 原始武器数据数组
+ * @returns {Array} 标准化武器数据数组
  */
-export function buildWeaponData(rawWeapons, i18nTable) {
+export function buildWeaponData(rawWeapons) {
   const weapons = [];
 
-  for (const [weaponId, data] of Object.entries(rawWeapons)) {
-    const chineseName = getChineseName(data.nameI18nId, i18nTable);
+  for (const wp of rawWeapons) {
+    if (!wp.id || !wp.name) continue;
 
-    // 跳过没有中文名的武器
-    if (!chineseName) {
-      console.warn(`武器 ${weaponId} 没有中文名，跳过`);
-      continue;
-    }
+    const iconId = wp.iconId || wp.id;
 
     weapons.push({
-      id: weaponId,
-      name: chineseName,
-      name_en: data.engName?.text || data.engName || null,
-      rarity: data.rarity,
-      weapon_type: data.weaponType || null,
-      avatar_url: IMAGE_URLS.weapon(weaponId),
+      id: wp.id,
+      name: wp.name,
+      name_en: wp.slug || null,
+      rarity: wp.rarity,
+      weapon_type: wp.type || null,
+      avatar_url: IMAGE_URLS.weapon(iconId),
+      _iconId: iconId,
     });
   }
 
   // 按稀有度降序排序
   weapons.sort((a, b) => b.rarity - a.rarity);
-
   return weapons;
 }
 
@@ -190,24 +110,14 @@ export function buildWeaponData(rawWeapons, i18nTable) {
  */
 export async function syncAllCharacters(onProgress = null) {
   try {
-    // 1. 获取翻译表
-    if (onProgress) onProgress(0, 3, '获取翻译表...');
-    const i18nTable = await fetchI18nTable();
+    if (onProgress) onProgress(0, 2, '获取干员数据...');
+    const rawOperators = await fetchOperators();
 
-    // 2. 获取角色列表
-    if (onProgress) onProgress(1, 3, '获取角色列表...');
-    const rawCharacters = await fetchCharacterList();
+    if (onProgress) onProgress(1, 2, '处理数据...');
+    const characters = buildCharacterData(rawOperators);
 
-    // 3. 构建标准化数据
-    if (onProgress) onProgress(2, 3, '处理数据...');
-    const characters = buildCharacterData(rawCharacters, i18nTable);
-
-    if (onProgress) onProgress(3, 3, '完成');
-
-    return {
-      characters,
-      total: characters.length,
-    };
+    if (onProgress) onProgress(2, 2, '完成');
+    return { characters, total: characters.length };
   } catch (error) {
     console.error('同步角色数据失败:', error);
     throw error;
@@ -221,24 +131,14 @@ export async function syncAllCharacters(onProgress = null) {
  */
 export async function syncAllWeapons(onProgress = null) {
   try {
-    // 1. 获取翻译表
-    if (onProgress) onProgress(0, 3, '获取翻译表...');
-    const i18nTable = await fetchI18nTable();
+    if (onProgress) onProgress(0, 2, '获取武器数据...');
+    const rawWeapons = await fetchWeapons();
 
-    // 2. 获取武器列表
-    if (onProgress) onProgress(1, 3, '获取武器列表...');
-    const rawWeapons = await fetchWeaponList();
+    if (onProgress) onProgress(1, 2, '处理数据...');
+    const weapons = buildWeaponData(rawWeapons);
 
-    // 3. 构建标准化数据
-    if (onProgress) onProgress(2, 3, '处理数据...');
-    const weapons = buildWeaponData(rawWeapons, i18nTable);
-
-    if (onProgress) onProgress(3, 3, '完成');
-
-    return {
-      weapons,
-      total: weapons.length,
-    };
+    if (onProgress) onProgress(2, 2, '完成');
+    return { weapons, total: weapons.length };
   } catch (error) {
     console.error('同步武器数据失败:', error);
     throw error;
@@ -252,26 +152,19 @@ export async function syncAllWeapons(onProgress = null) {
  */
 export async function syncAll(onProgress = null) {
   try {
-    // 1. 获取翻译表（共用）
-    if (onProgress) onProgress(0, 5, '获取翻译表...');
-    const i18nTable = await fetchI18nTable();
-
-    // 2. 并行获取角色和武器列表
-    if (onProgress) onProgress(1, 5, '获取数据...');
-    const [rawCharacters, rawWeapons] = await Promise.all([
-      fetchCharacterList(),
-      fetchWeaponList(),
+    if (onProgress) onProgress(0, 4, '获取数据...');
+    const [rawOperators, rawWeapons] = await Promise.all([
+      fetchOperators(),
+      fetchWeapons(),
     ]);
 
-    // 3. 构建角色数据
-    if (onProgress) onProgress(2, 5, '处理角色数据...');
-    const characters = buildCharacterData(rawCharacters, i18nTable);
+    if (onProgress) onProgress(1, 4, '处理角色数据...');
+    const characters = buildCharacterData(rawOperators);
 
-    // 4. 构建武器数据
-    if (onProgress) onProgress(3, 5, '处理武器数据...');
-    const weapons = buildWeaponData(rawWeapons, i18nTable);
+    if (onProgress) onProgress(2, 4, '处理武器数据...');
+    const weapons = buildWeaponData(rawWeapons);
 
-    if (onProgress) onProgress(5, 5, '完成');
+    if (onProgress) onProgress(4, 4, '完成');
 
     return {
       characters,
@@ -286,20 +179,12 @@ export async function syncAll(onProgress = null) {
 }
 
 /**
- * 清除缓存
- */
-export function clearCache() {
-  i18nCache = null;
-}
-
-/**
  * 验证图片 URL 是否可访问
  * @param {string} url - 图片 URL
  * @returns {Promise<boolean>}
  */
 export async function validateImageUrl(url) {
   if (!url) return false;
-
   try {
     const response = await fetch(url, { method: 'HEAD' });
     return response.ok;
@@ -309,16 +194,13 @@ export async function validateImageUrl(url) {
 }
 
 export default {
-  fetchI18nTable,
-  fetchCharacterList,
-  fetchWeaponList,
+  fetchOperators,
+  fetchWeapons,
   buildCharacterData,
   buildWeaponData,
   syncAllCharacters,
   syncAllWeapons,
   syncAll,
-  clearCache,
   validateImageUrl,
   IMAGE_URLS,
-  API_BASE,
 };

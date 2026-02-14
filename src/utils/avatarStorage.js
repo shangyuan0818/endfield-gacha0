@@ -9,10 +9,10 @@ import { supabase } from '../supabaseClient';
 // Storage bucket 名称
 const BUCKET_NAME = 'avatars';
 
-// 远程图片 URL 模板（endfieldtools.dev）
+// 远程图片 URL 模板（warfarin.wiki 静态资源）
 const REMOTE_IMAGE_URLS = {
-  character: (charId) => `https://endfieldtools.dev/assets/images/endfield/charicon/icon_${charId}.png`,
-  weapon: (weaponId) => `https://endfieldtools.dev/assets/images/endfield/itemicon/${weaponId}.png`,
+  character: (charId) => `https://static.warfarin.wiki/v3/charicon/icon_${charId}.webp`,
+  weapon: (iconId) => `https://static.warfarin.wiki/v3/itemicon/${iconId}.webp`,
 };
 
 /**
@@ -119,10 +119,10 @@ export async function syncItemAvatar(item) {
 
   const type = item.type || 'character';
   const remoteUrl = type === 'weapon'
-    ? REMOTE_IMAGE_URLS.weapon(item.id)
+    ? REMOTE_IMAGE_URLS.weapon(item._iconId || item.id)
     : REMOTE_IMAGE_URLS.character(item.id);
 
-  const storagePath = `${type}s/${item.id}.png`;
+  const storagePath = `${type}s/${item.id}.webp`;
 
   return await uploadImageFromUrl(remoteUrl, storagePath);
 }
@@ -184,14 +184,14 @@ export async function batchSyncAvatars(items, onProgress = null) {
 export async function getStoredAvatarUrl(itemId, type = 'character') {
   if (!supabase) return null;
 
-  const storagePath = `${type}s/${itemId}.png`;
+  const storagePath = `${type}s/${itemId}.webp`;
 
   try {
     // 检查文件是否存在
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .list(type + 's', {
-        search: `${itemId}.png`,
+        search: `${itemId}.webp`,
       });
 
     if (error || !data || data.length === 0) {
@@ -216,8 +216,6 @@ export async function getStoredAvatarUrl(itemId, type = 'character') {
  * @returns {string} 头像 URL
  */
 export function getAvatarUrl(itemId, type = 'character') {
-  // 首先返回远程 URL 作为备用
-  // 实际显示时会优先使用数据库中存储的 avatar_url（已上传到 Storage 的）
   return type === 'weapon'
     ? REMOTE_IMAGE_URLS.weapon(itemId)
     : REMOTE_IMAGE_URLS.character(itemId);

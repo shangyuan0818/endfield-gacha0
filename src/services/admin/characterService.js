@@ -195,27 +195,24 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
 }
 
 /**
- * 从 EndfieldTools API 同步角色和武器数据
+ * 从 Warfarin Wiki 同步角色和武器数据（始终包含头像上传）
  * @param {Object} options - 选项
- * @param {boolean} options.uploadAvatars - 是否上传头像到 Storage
  * @param {Function} options.onProgress - 进度回调
  * @param {string[]} options.existingIds - 已存在的角色ID列表
  * @returns {Promise<{success: boolean, newCount: number, skippedCount: number, errorCount: number, avatarCount: number, error: Error|null}>}
  */
-export async function syncFromAPI({ uploadAvatars = false, onProgress, existingIds = [] }) {
+export async function syncFromAPI({ onProgress, existingIds = [] }) {
   if (!supabase) {
     return { success: false, error: new Error('数据库未连接') };
   }
 
-  // 如果需要上传头像，先检查 bucket
-  if (uploadAvatars) {
-    const bucketReady = await ensureBucketExists();
-    if (!bucketReady) {
-      return {
-        success: false,
-        error: new Error('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶，并配置上传策略')
-      };
-    }
+  // 检查 bucket
+  const bucketReady = await ensureBucketExists();
+  if (!bucketReady) {
+    return {
+      success: false,
+      error: new Error('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶，并配置上传策略')
+    };
   }
 
   try {
@@ -237,20 +234,18 @@ export async function syncFromAPI({ uploadAvatars = false, onProgress, existingI
       ...weaponResult.weapons.map(w => ({ ...w, type: 'weapon' })),
     ];
 
-    // 4. 如果需要上传头像，先上传到 Storage
+    // 4. 上传头像到 Storage
     let avatarUrlMap = new Map();
-    if (uploadAvatars) {
-      onProgress?.(`正在上传头像 (0/${allItems.length})...`);
+    onProgress?.(`正在上传头像 (0/${allItems.length})...`);
 
-      const { success, failed, results } = await batchSyncAvatars(
-        allItems,
-        (current, total, name) => {
-          onProgress?.(`上传头像: ${current}/${total} - ${name}`);
-        }
-      );
+    const { success, failed, results } = await batchSyncAvatars(
+      allItems,
+      (current, total, name) => {
+        onProgress?.(`上传头像: ${current}/${total} - ${name}`);
+      }
+    );
 
-      avatarUrlMap = results;
-    }
+    avatarUrlMap = results;
 
     // 5. 更新数据库
     onProgress?.(`正在更新数据库 (${allItems.length} 项)...`);
@@ -310,76 +305,6 @@ export async function syncFromAPI({ uploadAvatars = false, onProgress, existingI
       errorCount,
       avatarCount: avatarUrlMap.size,
       error: null
-    };
-  } catch (error) {
-    return { success: false, error };
-  }
-}
-
-/**
- * 上传头像到 Supabase Storage
- * @param {Array} items - 要上传的项目列表
- * @param {Function} onProgress - 进度回调
- * @returns {Promise<{success: boolean, results: Map, successCount: number, failedCount: number, error: Error|null}>}
- */
-export async function uploadAvatars(items, onProgress) {
-  if (!supabase) {
-    return { success: false, error: new Error('数据库未连接') };
-  }
-
-  // 检查 bucket 是否存在
-  const bucketReady = await ensureBucketExists();
-  if (!bucketReady) {
-    return {
-      success: false,
-      error: new Error('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶')
-    };
-  }
-
-  try {
-    onProgress?.('准备上传...');
-
-    const { success, failed, results } = await batchSyncAvatars(
-      items,
-      (current, total, name) => {
-        onProgress?.(`上传中: ${current}/${total} - ${name}`);
-      }
-    );
-
-    // 更新数据库中的 avatar_url
-    if (results.size > 0) {
-      onProgress?.('正在更新数据库...');
-
-      let updateSuccess = 0;
-      for (const [id, newUrl] of results) {
-        try {
-          const { error } = await supabase
-            .from('characters')
-            .update({ avatar_url: newUrl })
-            .eq('id', id);
-
-          if (!error) updateSuccess++;
-        } catch (err) {
-          console.error(`更新 ${id} 的 avatar_url 失败:`, err);
-        }
-      }
-
-      return {
-        success: true,
-        results,
-        successCount: success,
-        failedCount: failed,
-        updateCount: updateSuccess,
-        error: null
-      };
-    }
-
-    return {
-      success: false,
-      results: new Map(),
-      successCount: 0,
-      failedCount: items.length,
-      error: new Error('头像上传失败，请检查网络连接')
     };
   } catch (error) {
     return { success: false, error };

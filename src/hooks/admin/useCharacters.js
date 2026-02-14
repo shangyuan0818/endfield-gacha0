@@ -56,10 +56,6 @@ export function useCharacters({ showToast }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState('');
 
-  // 头像上传状态
-  const [isUploadingAvatars, setIsUploadingAvatars] = useState(false);
-  const [avatarUploadProgress, setAvatarUploadProgress] = useState('');
-
   // Tab 切换状态
   const [activeTab, setActiveTab] = useState('character');
 
@@ -375,12 +371,11 @@ export function useCharacters({ showToast }) {
   }, [selectedIds, batchEditForm, showToast, loadCharacters, closeBatchEditDialog]);
 
   // 从 API 同步
-  const handleSyncFromAPI = useCallback(async (uploadAvatars = false) => {
+  const handleSyncFromAPI = useCallback(async () => {
     setIsSyncing(true);
     setSyncProgress('正在获取数据...');
 
     const result = await characterService.syncFromAPI({
-      uploadAvatars,
       onProgress: setSyncProgress,
       existingIds: characters.map(c => c.id)
     });
@@ -392,7 +387,7 @@ export function useCharacters({ showToast }) {
       if (result.skippedCount > 0) {
         message += `，跳过 ${result.skippedCount} 个已存在的项目`;
       }
-      if (uploadAvatars && result.avatarCount > 0) {
+      if (result.avatarCount > 0) {
         message += `，头像已上传 ${result.avatarCount} 个`;
       }
       if (result.errorCount > 0) {
@@ -407,37 +402,6 @@ export function useCharacters({ showToast }) {
     setSyncProgress('');
   }, [characters, loadCharacters, showToast]);
 
-  // 上传头像
-  const handleUploadAvatars = useCallback(async () => {
-    const itemsToUpload = characters.filter(c => c.type === activeTab);
-
-    if (itemsToUpload.length === 0) {
-      showToast('没有可上传的项目', 'warning');
-      return;
-    }
-
-    const confirmMsg = `确定要将 ${itemsToUpload.length} 个${activeTab === 'character' ? '角色' : '武器'}的头像上传到服务器吗？\n\n这将从 endfieldtools.dev 下载图片并保存到您的 Supabase Storage。`;
-    if (!window.confirm(confirmMsg)) return;
-
-    setIsUploadingAvatars(true);
-    setAvatarUploadProgress('准备上传...');
-
-    const result = await characterService.uploadAvatars(itemsToUpload, setAvatarUploadProgress);
-
-    if (result.success) {
-      await loadCharacters();
-      showToast(
-        `头像上传完成！成功 ${result.successCount} 个，失败 ${result.failedCount} 个，已更新 ${result.updateCount} 条记录`,
-        result.failedCount > 0 ? 'warning' : 'success'
-      );
-    } else {
-      showToast('上传头像失败: ' + result.error.message, 'error');
-    }
-
-    setIsUploadingAvatars(false);
-    setAvatarUploadProgress('');
-  }, [characters, activeTab, loadCharacters, showToast]);
-
   return {
     // 数据状态
     characters,
@@ -448,8 +412,6 @@ export function useCharacters({ showToast }) {
     // 同步状态
     isSyncing,
     syncProgress,
-    isUploadingAvatars,
-    avatarUploadProgress,
 
     // Tab
     activeTab,
@@ -501,7 +463,6 @@ export function useCharacters({ showToast }) {
 
     // 同步操作
     handleSyncFromAPI,
-    handleUploadAvatars,
     loadCharacters
   };
 }
