@@ -189,7 +189,7 @@ function MobileHomeView() {
               </h1>
             </div>
             <div className="text-right">
-              <div className="text-[10px] text-zinc-500 font-mono">VERSION 3.3.0</div>
+              <div className="text-[10px] text-zinc-500 font-mono">VERSION 3.3.1</div>
               <div className="text-[10px] text-zinc-500 font-mono">{now.toLocaleTimeString('en-US', { hour12: false })}</div>
             </div>
           </div>
