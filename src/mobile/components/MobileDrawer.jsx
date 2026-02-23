@@ -62,8 +62,7 @@ function MobileDrawer({ isOpen, onClose, themeMode, setThemeMode }) {
   };
 
   const handleFeedbackClick = () => {
-    // 打开 GitHub Issues 页面作为工单反馈
-    window.open('https://github.com/MoguJunn/endfield-gacha/issues', '_blank');
+    setActiveTab('ticket');
     onClose();
   };
 

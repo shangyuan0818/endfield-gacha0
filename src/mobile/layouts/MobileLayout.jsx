@@ -12,6 +12,8 @@ import MobileDashboardView from '../views/MobileDashboardView';
 import MobileSimulatorView from '../views/MobileSimulatorView';
 import MobileSettingsView from '../views/MobileSettingsView';
 import MobileAboutView from '../views/MobileAboutView';
+import MobileAdminView from '../views/MobileAdminView';
+import MobileTicketView from '../views/MobileTicketView';
 
 /**
  * 移动端主布局
@@ -36,6 +38,10 @@ function MobileLayout({ themeMode, setThemeMode }) {
         return <MobileSettingsView themeMode={themeMode} setThemeMode={setThemeMode} />;
       case 'about':
         return <MobileAboutView />;
+      case 'admin':
+        return <MobileAdminView />;
+      case 'ticket':
+        return <MobileTicketView />;
       default:
         return <MobileHomeView />;
     }
