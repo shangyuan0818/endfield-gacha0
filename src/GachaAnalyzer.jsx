@@ -312,11 +312,9 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 注意：公告加载、待审批申请数量、未读工单数量已移至 useNotificationBadges hook
 
   // 登出处理
+  const signOut = useAuthStore(state => state.signOut);
   const handleLogout = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setUser(null);
-    setUserRole(null);
+    await signOut();
     setApplicationStatus(null);
   };
 

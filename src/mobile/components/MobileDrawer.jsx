@@ -11,7 +11,7 @@ import AuthModal from '../../AuthModal';
  */
 function MobileDrawer({ isOpen, onClose, themeMode, setThemeMode }) {
   const navigate = useNavigate();
-  const { user, logout, userRole, setUser } = useAuthStore();
+  const { user, signOut, userRole, setUser } = useAuthStore();
   const { setActiveTab } = useUIStore();
   const isSuperAdmin = userRole === 'super_admin';
   const drawerRef = useRef(null);
@@ -47,7 +47,7 @@ function MobileDrawer({ isOpen, onClose, themeMode, setThemeMode }) {
   }, [isOpen]);
 
   const handleSignOut = async () => {
-    await logout();
+    await signOut();
     onClose();
   };
 

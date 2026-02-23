@@ -11,7 +11,7 @@ import { useToast } from '../hooks';
  */
 function MobileApp() {
   const [isLoading, setIsLoading] = useState(true);
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('mobile-theme') || 'system');
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme') || 'system');
 
   // 初始化 Toast（用于 useCloudSync）
   const { showToast } = useToast();
@@ -45,7 +45,7 @@ function MobileApp() {
     };
 
     applyTheme(themeMode);
-    localStorage.setItem('mobile-theme', themeMode);
+    localStorage.setItem('theme', themeMode);
 
     // Listen for system changes if mode is system
     if (themeMode === 'system') {

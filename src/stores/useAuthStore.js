@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { supabase } from '../supabaseClient';
 
 /**
  * 认证状态管理
@@ -14,6 +15,14 @@ const useAuthStore = create((set) => ({
 
   login: (user, role) => set({ user, userRole: role }),
   logout: () => set({ user: null, userRole: null }),
+
+  /** 完整登出：清除 Supabase 会话 + Zustand 状态 */
+  signOut: async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+    set({ user: null, userRole: null });
+  },
 
   // ========== 权限判断 ==========
   canEdit: () => {
