@@ -169,6 +169,10 @@ function MobileDashboardView() {
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
     let upSixStarCount = 0;
     let upSixStarTotalPity = 0;
+    let limitedSixStarTotalPity = 0;
+    let limitedSixStarCount = 0;
+    let offStandardCount = 0;
+    let offLimitedCount = 0;
     let fiveStarTotalPity = 0;
     let fiveStarCount = 0;
     let sixStarPityCounter = 0;
@@ -186,10 +190,22 @@ function MobileDashboardView() {
       if (item.rarity === 6 && !isFree) {
         if (item.isStandard) {
           counts['6_std']++;
+          // 区分歪常驻 vs 歪限定
+          const charName = item.character_name || item.item_name || item.name || '';
+          const charInfo = characterCache.searchByName(charName);
+          if (charInfo && charInfo.is_limited) {
+            offLimitedCount++;
+            limitedSixStarCount++;
+            limitedSixStarTotalPity += sixStarPityCounter;
+          } else {
+            offStandardCount++;
+          }
         } else {
           counts[6]++;
           upSixStarCount++;
           upSixStarTotalPity += sixStarPityCounter;
+          limitedSixStarCount++;
+          limitedSixStarTotalPity += sixStarPityCounter;
         }
         sixStarPityCounter = 0;
       }
@@ -207,6 +223,7 @@ function MobileDashboardView() {
 
     const avgPullCost = {
       6: upSixStarCount > 0 ? (upSixStarTotalPity / upSixStarCount).toFixed(1) : '-',
+      '6_limited': limitedSixStarCount > 0 ? (limitedSixStarTotalPity / limitedSixStarCount).toFixed(1) : '-',
       5: fiveStarCount > 0 ? (fiveStarTotalPity / fiveStarCount).toFixed(1) : '-'
     };
 
@@ -215,7 +232,8 @@ function MobileDashboardView() {
 
     return {
       total, currentPity, currentPity5, counts,
-      sixStarCount, upSixStarCount, winRate, avgPullCost,
+      sixStarCount, upSixStarCount, offStandardCount, offLimitedCount,
+      winRate, avgPullCost,
       probabilityInfo, hasInfoBook
     };
   }, [normalizedPoolHistory, currentPool]);
@@ -480,11 +498,11 @@ function MobileDashboardView() {
             </div>
           </div>
 
-          {/* 平均出货 */}
+          {/* UP六星平均出货 */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
             <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
-              <span>平均造价</span>
-              <span className="text-[9px] text-zinc-300">(仅UP)</span>
+              <span>UP六星造价</span>
+              <span className="text-[9px] text-zinc-300">(免十/必出不计)</span>
             </div>
             <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
               {stats.avgPullCost[6]}
@@ -496,6 +514,23 @@ function MobileDashboardView() {
              <div className="mt-2 text-[9px] text-zinc-500 font-mono uppercase">
               期望: ~{isWeapon ? '31' : '62'}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 限定六星平均出货（仅限定池且有歪限定数据时显示） */}
+      {isLimited && stats.offLimitedCount > 0 && (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
+          <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
+            <span>限定六星造价</span>
+            <span className="text-[9px] text-zinc-300">(UP+歪限定)</span>
+          </div>
+          <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
+            {stats.avgPullCost['6_limited']}
+            {stats.avgPullCost['6_limited'] !== '-' && <span className="text-xs ml-1 font-normal text-zinc-400">抽</span>}
+          </div>
+          <div className="mt-1 text-[9px] text-zinc-500 font-mono uppercase">
+            限定六星: {stats.upSixStarCount + stats.offLimitedCount}次 (UP {stats.upSixStarCount} + 歪限定 {stats.offLimitedCount})
           </div>
         </div>
       )}

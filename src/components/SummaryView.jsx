@@ -44,6 +44,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
         counts: baseStats.counts,
         byType: baseStats.byType,
         totalUsers: baseStats.totalUsers,
+        totalContributors: baseStats.totalContributors,
         charGift: baseStats.charGift || 0,
         weaponGiftLimited: baseStats.weaponGiftLimited || 0,
         weaponGiftStandard: baseStats.weaponGiftStandard || 0,
@@ -86,6 +87,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
       sixStarStandard: typeData.counts?.['6_std'] ?? typeData.sixStarStandard,
       avgPity,
       avgPityExcludingFree,
+      avgPityUp: typeData.avgPityUp || null,
       counts: typeData.counts,
       distribution: typeData.distribution,
       chartData: typeData.chartData,
@@ -274,7 +276,10 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   {currentStats.totalUsers && (
                     <div className="text-right">
                       <span className="block text-[10px] text-zinc-400 uppercase font-mono tracking-widest">贡献人数</span>
-                      <span className="text-xl font-bold text-slate-700 dark:text-zinc-300 font-mono">{currentStats.totalUsers.toLocaleString()}</span>
+                      <span className="text-xl font-bold text-slate-700 dark:text-zinc-300 font-mono">{(currentStats.totalContributors || currentStats.totalUsers).toLocaleString()}</span>
+                      {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
+                        <span className="block text-[10px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -301,9 +306,9 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           <span className="text-[10px] text-zinc-400 ml-auto font-mono">排名 & 分布</span>
                         </div>
                         
-                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 xl:grid-cols-10 gap-6">
                           {/* 左侧：UP 六星排名 */}
-                          <div className="h-full border-r-0 xl:border-r border-zinc-100 dark:border-zinc-800 xl:pr-6 border-b xl:border-b-0 pb-6 xl:pb-0">
+                          <div className="h-full xl:col-span-4 border-r-0 xl:border-r border-zinc-100 dark:border-zinc-800 xl:pr-6 border-b xl:border-b-0 pb-6 xl:pb-0">
                              <RankingCard
                                 ranking={dataSource === 'global' ? characterRanking : userRanking}
                                 loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
@@ -315,7 +320,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           </div>
 
                           {/* 右侧：六星出货分类统计 */}
-                          <div className="grid grid-cols-3 gap-4 content-start pt-2">
+                          <div className="xl:col-span-6 grid grid-cols-3 xl:grid-cols-4 gap-4 content-start pt-2">
                             {/* UP六星 */}
                             <div className="space-y-1">
                               <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
@@ -325,7 +330,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               <div className="text-xl font-bold font-mono text-emerald-500">
                                 {(() => {
                                   const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? '-';
+                                  return ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? '-';
                                 })()}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
@@ -341,7 +346,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               <div className="text-xl font-bold font-mono text-rose-500">
                                 {(() => {
                                   const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
+                                  return ranking?.limited?.sixStarOffStandardExcludingFree ?? ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
                                 })()}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
@@ -357,11 +362,24 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               <div className="text-xl font-bold font-mono text-orange-500">
                                 {(() => {
                                   const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarOffLimitedCount ?? 0;
+                                  return ranking?.limited?.sixStarOffLimitedExcludingFree ?? ranking?.limited?.sixStarOffLimitedCount ?? 0;
                                 })()}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
                                 歪到非当期限定
+                              </div>
+                            </div>
+                            {/* 吃井人数 */}
+                            <div className="space-y-1">
+                              <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
+                                <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                吃井人数
+                              </div>
+                              <div className="text-xl font-bold font-mono text-red-500">
+                                {currentStats.byType?.limited?.sparkCount || 0}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono leading-tight">
+                                120抽触发保底
                               </div>
                             </div>
                             {/* 不歪率 */}
@@ -370,8 +388,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               <div className="text-xl font-bold font-mono text-indigo-500">
                                 {(() => {
                                   const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  const upCount = ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? 0;
-                                  const offCount = ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? 0;
+                                  const upCount = ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? 0;
+                                  const offCount = ranking?.limited?.sixStarOffExcludingFree ?? ranking?.limited?.sixStarOffCount ?? 0;
                                   const total = upCount + offCount;
                                   if (total === 0) return '-';
                                   return ((upCount / total) * 100).toFixed(1) + '%';
@@ -438,7 +456,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300 uppercase tracking-wide">角色池数据</h4>
                         <span className="text-[10px] text-zinc-400 ml-auto font-mono">限定 + 常驻</span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className={`grid grid-cols-2 ${currentStats.byType?.limited?.avgPityUp ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-6`}>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">总抽数</div>
                           <div className="text-xl font-bold font-mono text-slate-700 dark:text-zinc-200">{((currentStats.byType?.limited?.total || 0) + (currentStats.byType?.standard?.total || 0)).toLocaleString()}</div>
@@ -486,7 +504,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           })()}
                         </div>
                         <div className="space-y-1">
-                          <div className="text-zinc-400 text-[10px] uppercase font-bold">平均出货</div>
+                          <div className="text-zinc-400 text-[10px] uppercase font-bold">六星平均出货</div>
                           <div className="text-xl font-bold font-mono text-indigo-500">
                             {(() => {
                               // 优先显示不含免费的平均出货
@@ -534,6 +552,18 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                             );
                           })()}
                         </div>
+                        {/* UP六星平均出货 - 角色池 */}
+                        {currentStats.byType?.limited?.avgPityUp && (
+                          <div className="space-y-1">
+                            <div className="text-zinc-400 text-[10px] uppercase font-bold">UP六星平均出货</div>
+                            <div className="text-xl font-bold font-mono text-emerald-500">
+                              {currentStats.byType.limited.avgPityUp}
+                            </div>
+                            <div className="text-[10px] text-zinc-500 font-mono">
+                              仅UP6★ 抽/个
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">比率 (不歪/歪)</div>
                           <div className="text-lg font-bold font-mono">
@@ -592,7 +622,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <Swords size={16} className="text-slate-500" />
                         <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300 uppercase tracking-wide">武器池数据</h4>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      <div className={`grid grid-cols-2 ${currentStats.byType?.weapon?.avgPityUp ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-6`}>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">总抽数</div>
                           <div className="text-xl font-bold font-mono text-slate-700 dark:text-zinc-200">{(currentStats.byType?.weapon?.total || 0).toLocaleString()}</div>
@@ -609,9 +639,17 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                           </div>
                         </div>
                         <div className="space-y-1">
-                          <div className="text-zinc-400 text-[10px] uppercase font-bold">平均出货</div>
+                          <div className="text-zinc-400 text-[10px] uppercase font-bold">六星平均出货</div>
                           <div className="text-xl font-bold font-mono text-indigo-500">{currentStats.byType?.weapon?.avgPity || '-'}</div>
+                          <div className="text-[10px] text-zinc-500 font-mono">全部6★ 抽/个</div>
                         </div>
+                        {currentStats.byType?.weapon?.avgPityUp && (
+                          <div className="space-y-1">
+                            <div className="text-zinc-400 text-[10px] uppercase font-bold">UP六星平均出货</div>
+                            <div className="text-xl font-bold font-mono text-emerald-500">{currentStats.byType.weapon.avgPityUp}</div>
+                            <div className="text-[10px] text-zinc-500 font-mono">仅UP6★ 抽/个</div>
+                          </div>
+                        )}
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">比率 (不歪/歪)</div>
                           <div className="text-lg font-bold font-mono">
@@ -637,7 +675,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                   </div>
                 ) : (
                   /* 特定卡池类型时 */
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className={`grid grid-cols-2 ${currentStats.avgPityUp ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-4`}>
                     <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
                       <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">总抽数</div>
                       <div className="text-3xl font-black font-mono text-slate-800 dark:text-white">{(currentStats.total || 0).toLocaleString()}</div>
@@ -648,10 +686,17 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                       <div className="text-xs text-zinc-500 mt-1 font-mono">概率: {currentStats.total > 0 ? ((currentStats.sixStar / currentStats.total) * 100).toFixed(2) : 0}%</div>
                     </div>
                     <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
-                      <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">平均出货</div>
+                      <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">六星平均出货</div>
                       <div className="text-3xl font-black font-mono text-indigo-500">{currentStats.avgPityExcludingFree || currentStats.avgPity || '-'}</div>
-                      <div className="text-xs text-zinc-500 mt-1 font-mono">抽/6★</div>
+                      <div className="text-xs text-zinc-500 mt-1 font-mono">全部6★ 抽/个</div>
                     </div>
+                    {currentStats.avgPityUp && (
+                      <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
+                        <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">UP六星平均出货</div>
+                        <div className="text-3xl font-black font-mono text-emerald-500">{currentStats.avgPityUp}</div>
+                        <div className="text-xs text-zinc-500 mt-1 font-mono">仅UP6★ 抽/个</div>
+                      </div>
+                    )}
                     <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
                       <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">不歪/歪</div>
                       <div className="text-xl font-black font-mono mt-1">

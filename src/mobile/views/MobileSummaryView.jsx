@@ -42,6 +42,7 @@ function MobileSummaryView() {
         counts: baseStats.counts,
         byType: baseStats.byType,
         totalUsers: baseStats.totalUsers,
+        totalContributors: baseStats.totalContributors,
       };
     }
 
@@ -70,6 +71,7 @@ function MobileSummaryView() {
       sixStarLimited: typeData.limitedSix ?? typeData.sixStarLimited,
       sixStarStandard: typeData.counts?.['6_std'] ?? typeData.sixStarStandard,
       avgPity,
+      avgPityUp: typeData.avgPityUp || null,
       counts: typeData.counts,
       distribution: typeData.distribution,
       totalUsers: baseStats.totalUsers
@@ -162,7 +164,10 @@ function MobileSummaryView() {
                 {currentStats.totalUsers && (
                   <div className="text-right">
                     <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-mono mb-0.5">贡献者</span>
-                    <span className="text-lg font-bold text-zinc-700 dark:text-zinc-300 font-mono leading-none">{currentStats.totalUsers.toLocaleString()}</span>
+                    <span className="text-lg font-bold text-zinc-700 dark:text-zinc-300 font-mono leading-none">{(currentStats.totalContributors || currentStats.totalUsers).toLocaleString()}</span>
+                    {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
+                      <span className="block text-[9px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -191,25 +196,35 @@ function MobileSummaryView() {
 
                 {/* 平均出货 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-indigo-300 dark:hover:border-indigo-900 transition-colors">
-                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">平均出货</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">六星平均出货</div>
                   <div className="text-2xl font-black text-indigo-500 font-mono">
                     {currentStats.avgPity || '-'}
                   </div>
-                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">抽 / 6★</div>
+                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">全部6★ 抽/个</div>
                 </div>
 
-                {/* 不歪/歪 */}
-                <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
-                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">不歪 / 歪</div>
-                  <div className="text-xl font-black font-mono">
-                    <span className="text-emerald-500">{currentStats.sixStarLimited || 0}</span>
-                    <span className="text-zinc-300 mx-1">/</span>
-                    <span className="text-rose-500">{currentStats.sixStarStandard || 0}</span>
+                {/* UP六星平均出货 */}
+                {currentStats.avgPityUp ? (
+                  <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">UP六星平均出货</div>
+                    <div className="text-2xl font-black text-emerald-500 font-mono">
+                      {currentStats.avgPityUp}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">仅UP6★ 抽/个</div>
                   </div>
-                  <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">
-                    不歪率: {currentStats.sixStar > 0 ? (((currentStats.sixStarLimited || 0) / currentStats.sixStar) * 100).toFixed(1) : 0}%
+                ) : (
+                  <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">不歪 / 歪</div>
+                    <div className="text-xl font-black font-mono">
+                      <span className="text-emerald-500">{currentStats.sixStarLimited || 0}</span>
+                      <span className="text-zinc-300 mx-1">/</span>
+                      <span className="text-rose-500">{currentStats.sixStarStandard || 0}</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">
+                      不歪率: {currentStats.sixStar > 0 ? (((currentStats.sixStarLimited || 0) / currentStats.sixStar) * 100).toFixed(1) : 0}%
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -341,29 +356,29 @@ function MobileSummaryView() {
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
                         <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">UP 6★</div>
                         <div className="text-lg font-bold font-mono text-emerald-500">
-                          {ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? '-'}
+                          {ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? '-'}
                         </div>
                       </div>
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
                         <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">歪常驻</div>
                         <div className="text-lg font-bold font-mono text-rose-500">
-                          {ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-'}
+                          {ranking?.limited?.sixStarOffStandardExcludingFree ?? ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-'}
                         </div>
                       </div>
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
                         <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">歪限定</div>
                         <div className="text-lg font-bold font-mono text-orange-500">
-                          {ranking?.limited?.sixStarOffLimitedCount ?? 0}
+                          {ranking?.limited?.sixStarOffLimitedExcludingFree ?? ranking?.limited?.sixStarOffLimitedCount ?? 0}
                         </div>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 text-center mt-3">
+                    <div className="grid grid-cols-3 gap-3 text-center mt-3">
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
                         <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">不歪率</div>
                         <div className="text-lg font-bold font-mono text-indigo-500">
                           {(() => {
-                            const upCount = ranking?.limited?.sixStarUpCount ?? ranking?.limited?.sixStarUpExcludingFree ?? 0;
-                            const offCount = ranking?.limited?.sixStarOffCount ?? ranking?.limited?.sixStarOffExcludingFree ?? 0;
+                            const upCount = ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? 0;
+                            const offCount = ranking?.limited?.sixStarOffExcludingFree ?? ranking?.limited?.sixStarOffCount ?? 0;
                             const total = upCount + offCount;
                             if (total === 0) return '-';
                             return ((upCount / total) * 100).toFixed(1) + '%';
@@ -380,6 +395,12 @@ function MobileSummaryView() {
                             if (totalOff === 0) return '-';
                             return ((offLtd / totalOff) * 100).toFixed(1) + '%';
                           })()}
+                        </div>
+                      </div>
+                      <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">吃井人数</div>
+                        <div className="text-lg font-bold font-mono text-red-500">
+                          {currentStats.byType?.limited?.sparkCount || 0}
                         </div>
                       </div>
                     </div>

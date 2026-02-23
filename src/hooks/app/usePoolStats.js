@@ -180,6 +180,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     // 统计历史6星出货分布
     const sixStarPulls = [];
     const upSixStarPulls = [];
+    const limitedSixStarPulls = []; // UI-007: 限定六星(UP+歪限定)
     let tempCounter = 0;
     let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
     let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
@@ -199,6 +200,14 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
           hasGotUpBefore120 = true;
         }
 
+        // UI-007: 判断歪出的6星是否为限定角色
+        let isActuallyLimited = false;
+        if (pull.isStandard) {
+          const charName = pull.character_name || pull.item_name || pull.name || '';
+          const charInfo = characterCache.searchByName(charName);
+          isActuallyLimited = !!(charInfo && charInfo.is_limited);
+        }
+
         const pullRecord = {
           count: tempCounter,
           isStandard: pull.isStandard,
@@ -208,6 +217,9 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
         sixStarPulls.push(pullRecord);
         if (isUp) {
           upSixStarPulls.push(pullRecord);
+          limitedSixStarPulls.push(pullRecord);
+        } else if (isActuallyLimited) {
+          limitedSixStarPulls.push(pullRecord);
         }
         tempCounter = 0;
       }
@@ -232,10 +244,17 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       : '0';
     const sparkCount = upSixStarPulls.filter(p => p.isSpark).length;
 
+    // UI-007: 限定六星(UP+歪限定)平均出货
+    const limitedSixStarPullsExcludingSpark = limitedSixStarPulls.filter(p => !p.isSpark);
+    const avgLimitedSixStar = limitedSixStarPullsExcludingSpark.length > 0
+      ? (limitedSixStarPullsExcludingSpark.reduce((sum, p) => sum + p.count, 0) / limitedSixStarPullsExcludingSpark.length).toFixed(2)
+      : '0';
+
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
       '6_with_spark': avgUpSixStar,
       '6_all': avgAllSixStar,
+      '6_limited': avgLimitedSixStar, // UI-007: 限定六星平均
       5: counts[5] > 0 ? (total / counts[5]).toFixed(2) : '0',
     };
 

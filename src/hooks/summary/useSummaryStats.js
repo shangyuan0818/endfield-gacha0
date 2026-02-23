@@ -221,7 +221,10 @@ export function useSummaryStats(history, pools, user) {
       }
 
       let r = item.rarity;
-      if (r === 6 && item.specialType !== 'gift' && !isFree) {
+      // 所有稀有度计数统一排除 gift 和 free
+      if (item.specialType === 'gift' || isFree) {
+        // gift 和免费十连不计入任何稀有度统计
+      } else if (r === 6) {
         if (item.isStandard) {
           data.counts['6_std']++;
           typeData.counts['6_std']++;
@@ -234,16 +237,14 @@ export function useSummaryStats(history, pools, user) {
         if (!item.isStandard && typeData.limitedSix !== undefined) {
           typeData.limitedSix++;
         }
-      } else if (r !== 6) {
-        if (r === 5) {
-          data.fiveStar++;
-          data.counts[5]++;
-          typeData.counts[5]++;
-        } else {
-          if (r < 4) r = 4;
-          data.counts[r]++;
-          typeData.counts[r]++;
-        }
+      } else if (r === 5) {
+        data.fiveStar++;
+        data.counts[5]++;
+        typeData.counts[5]++;
+      } else {
+        if (r < 4) r = 4;
+        data.counts[r]++;
+        typeData.counts[r]++;
       }
     });
 

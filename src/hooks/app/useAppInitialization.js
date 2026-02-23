@@ -90,6 +90,8 @@ export function useAppInitialization({ loadCloudData }) {
             sixStarLimited: typeData.sixStarLimited || 0,
             sixStarStandard: typeData.sixStarStandard || 0,
             avgPity: typeData.avgPity || null,
+            avgPityUp: typeData.avgPityUp || null,
+            sparkCount: typeData.sparkCount || 0,
             avgPityExcludingFree: typeData.avgPityExcludingFree || null,
             counts: typeData.counts || {},
             distribution: processDistribution(typeData.distribution),
@@ -100,7 +102,10 @@ export function useAppInitialization({ loadCloudData }) {
         // RPC 返回的数据格式
         const stats = {
           totalPulls: rpcData.totalPulls || 0,
+          totalPullsWithFree: rpcData.totalPullsWithFree || rpcData.totalPulls || 0,
+          freePullCount: rpcData.freePullCount || 0,
           totalUsers: rpcData.totalUsers || 0,
+          totalContributors: rpcData.totalContributors || 0,
           sixStarTotal: rpcData.sixStarTotal || 0,
           sixStarLimited: rpcData.sixStarLimited || 0,
           sixStarStandard: rpcData.sixStarStandard || 0,
