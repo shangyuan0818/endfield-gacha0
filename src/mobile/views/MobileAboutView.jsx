@@ -14,12 +14,25 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import useUIStore from '../../stores/useUIStore';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 
 /**
  * 移动端关于页面 - 工业风重构版 (中文)
+ * 站点配置从 useSiteConfigStore 读取（管理面板可编辑）
  */
 function MobileAboutView() {
   const { setActiveTab } = useUIStore();
+  const getConfig = useSiteConfigStore(state => state.getConfig);
+
+  const siteVersion = getConfig('site_version', 'v3.3.0');
+  const buildInfo = getConfig('build_info', 'Build 2026.02');
+  const authorName = getConfig('author_name', '');
+  const authorBilibili = getConfig('author_bilibili', '');
+  const githubUrl = getConfig('github_url', '');
+  const icpNumber = getConfig('icp_number', '');
+  const icpUrl = getConfig('icp_url', 'https://beian.miit.gov.cn/');
+  const policeNumber = getConfig('police_number', '');
+  const policeUrl = getConfig('police_url', 'https://www.beian.gov.cn/');
 
   const SectionHeader = ({ title, icon: Icon }) => (
     <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
@@ -49,8 +62,8 @@ function MobileAboutView() {
           </h1>
           <p className="text-zinc-500 text-[10px] tracking-[0.2em] uppercase font-mono">/ 终末地项目分析工具</p>
           <div className="mt-4 flex items-center gap-3">
-            <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">v3.3.0</span>
-            <span className="text-zinc-600 text-[10px] font-mono uppercase">Build 2026.02</span>
+            <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">{siteVersion}</span>
+            <span className="text-zinc-600 text-[10px] font-mono uppercase">{buildInfo}</span>
           </div>
         </div>
       </div>
@@ -60,33 +73,38 @@ function MobileAboutView() {
         <SectionHeader title="项目团队" icon={Heart} />
         <div className="p-4">
           {/* 主要作者 */}
-          <div className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700 mb-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600">
-            <div className="relative">
-              <div className="w-14 h-14 bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden border border-zinc-300 dark:border-zinc-600 rounded-none">
-                <img
-                  src="/avatar.png"
-                  alt="蘑菇菌__"
-                  className="w-full h-full object-cover"
-                />
+          {authorName && (
+            <div className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700 mb-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600">
+              <div className="relative">
+                <div className="w-14 h-14 bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden border border-zinc-300 dark:border-zinc-600 rounded-none">
+                  <img
+                    src="/avatar.png"
+                    alt={authorName}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border border-white dark:border-zinc-900"></div>
               </div>
-              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border border-white dark:border-zinc-900"></div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <h4 className="font-bold text-zinc-800 dark:text-zinc-100 uppercase text-sm">蘑菇菌__</h4>
-                <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-[9px] text-zinc-600 dark:text-zinc-300 uppercase tracking-wider font-bold">负责人</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <h4 className="font-bold text-zinc-800 dark:text-zinc-100 uppercase text-sm">{authorName}</h4>
+                  <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-[9px] text-zinc-600 dark:text-zinc-300 uppercase tracking-wider font-bold">负责人</span>
+                </div>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2 font-mono uppercase">产品设计与开发</p>
+                {authorBilibili && (
+                  <a
+                    href={authorBilibili}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-50 dark:bg-pink-900/10 border border-pink-100 dark:border-pink-900/30 text-pink-600 dark:text-pink-400 text-[10px] font-bold touch-feedback uppercase tracking-wider hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors"
+                  >
+                    Bilibili
+                  </a>
+                )}
               </div>
-              <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2 font-mono uppercase">产品设计与开发</p>
-              <a
-                href="https://space.bilibili.com/14932613"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-50 dark:bg-pink-900/10 border border-pink-100 dark:border-pink-900/30 text-pink-600 dark:text-pink-400 text-[10px] font-bold touch-feedback uppercase tracking-wider hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors"
-              >
-                Bilibili
-              </a>
             </div>
-          </div>
+          )}
 
           {/* AI 助手 */}
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
@@ -155,38 +173,56 @@ function MobileAboutView() {
       </div>
 
       {/* 开源项目 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <SectionHeader title="开源项目" icon={Code} />
-        <div className="p-4">
-          <div className="flex items-center justify-between p-4 bg-zinc-900 text-white border border-zinc-700">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-white flex items-center justify-center text-black shrink-0 rounded-none">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                </svg>
+      {githubUrl && (
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+          <SectionHeader title="开源项目" icon={Code} />
+          <div className="p-4">
+            <div className="flex items-center justify-between p-4 bg-zinc-900 text-white border border-zinc-700">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-white flex items-center justify-center text-black shrink-0 rounded-none">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-bold text-xs tracking-tight uppercase">{githubUrl.replace('https://github.com/', '')}</h4>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h4 className="font-bold text-xs tracking-tight uppercase">MoguJunn/endfield-gacha</h4>
-              </div>
+              <a
+                href={githubUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-3 py-1.5 bg-white text-black text-[10px] font-bold uppercase tracking-wider touch-feedback shrink-0 hover:bg-zinc-200 transition-colors"
+              >
+                查看
+                <ExternalLink size={10} />
+              </a>
             </div>
-            <a
-              href="https://github.com/MoguJunn/endfield-gacha"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 px-3 py-1.5 bg-white text-black text-[10px] font-bold uppercase tracking-wider touch-feedback shrink-0 hover:bg-zinc-200 transition-colors"
-            >
-              查看
-              <ExternalLink size={10} />
-            </a>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 免责声明 */}
       <div className="text-center py-4 border-t border-zinc-200 dark:border-zinc-800">
         <p className="text-[9px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest font-mono">
           非官方工具。与 GRYPHLINE 无关。
         </p>
+        <div className="mt-2 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
+          <a href="/privacy" className="underline">隐私政策</a>
+          <span>|</span>
+          <a href="/terms" className="underline">用户协议</a>
+        </div>
+        {(icpNumber || policeNumber) && (
+          <div className="mt-1 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
+            {icpNumber && (
+              <a href={icpUrl} target="_blank" rel="noopener noreferrer">{icpNumber}</a>
+            )}
+            {icpNumber && policeNumber && <span>|</span>}
+            {policeNumber && (
+              <a href={policeUrl} target="_blank" rel="noopener noreferrer">{policeNumber}</a>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 底部留白 */}

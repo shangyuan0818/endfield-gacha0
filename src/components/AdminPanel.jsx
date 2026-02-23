@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, RefreshCw, ChevronRight, Clock, Users, Database, Ban, Layers, Star, Bell, Home, History } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Clock, Users, Database, Ban, Layers, Star, Bell, Home, History, Settings } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 import CharacterManagement from './admin/CharacterManagement';
 import PoolManagement from './admin/PoolManagement';
@@ -9,6 +9,7 @@ import {
   BlacklistPanel,
   AnnouncementsPanel,
   PageContentPanel,
+  SiteConfigPanel,
   UserDataPanel,
   HistoryPanel
 } from './admin/panels';
@@ -23,6 +24,7 @@ const MENU_ITEMS = [
   { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
   { id: 'pageContent', label: '页面管理', icon: Home },
+  { id: 'siteConfig', label: '站点配置', icon: Settings },
   { id: 'history', label: '申请历史', icon: History },
 ];
 
@@ -170,6 +172,9 @@ const AdminPanel = React.memo(({ showToast }) => {
             onDeletePageContent={deletePageContent}
           />
         );
+
+      case 'siteConfig':
+        return <SiteConfigPanel showToast={showToast} />;
 
       case 'history':
         return <HistoryPanel applications={applications} users={users} />;

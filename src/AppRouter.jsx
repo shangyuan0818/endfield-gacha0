@@ -5,11 +5,16 @@ import App from './App';
 
 // 懒加载移动端入口
 const MobileApp = lazy(() => import('./mobile/MobileApp'));
+// 懒加载法律页面
+const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
 
 /**
  * 应用路由配置
  * - / : 桌面端入口
  * - /m/* : 移动端入口
+ * - /privacy : 隐私政策
+ * - /terms : 用户协议
  */
 function AppRouter() {
   return (
@@ -24,6 +29,24 @@ function AppRouter() {
           element={
             <Suspense fallback={<MobileLoadingFallback />}>
               <MobileApp />
+            </Suspense>
+          }
+        />
+
+        {/* 法律页面 */}
+        <Route
+          path="/privacy"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <PrivacyPolicy />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/terms"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <TermsOfService />
             </Suspense>
           }
         />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAppStore, useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
 import { RARITY_CONFIG, DEFAULT_POOL_ID } from '../../constants';
 
@@ -245,8 +246,11 @@ export function useAppInitialization({ loadCloudData }) {
           updateLastSeen();
         }
 
-        // 获取全局统计（使用 RPC 函数，无需等待认证同步）
-        await fetchGlobalStats();
+        // 获取全局统计 + 站点配置（并行）
+        await Promise.all([
+          fetchGlobalStats(),
+          useSiteConfigStore.getState().loadConfig()
+        ]);
 
         // 只有登录用户才加载数据
         if (session?.user) {

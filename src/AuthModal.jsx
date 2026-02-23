@@ -96,6 +96,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [emailDomainError, setEmailDomainError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0); // 重发验证邮件倒计时
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState(''); // 待验证的邮箱
+  const [agreedToTerms, setAgreedToTerms] = useState(false); // 用户协议确认
 
   // 管理重发验证邮件倒计时（修复内存泄漏 PERF-NEW-001）
   useEffect(() => {
@@ -297,17 +298,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       if (error) throw error;
 
       setMessage('密码重置邮件已发送！请查收邮箱并点击链接重置密码。');
-      // 设置60秒倒计时
+      // 设置60秒倒计时（由 useEffect 统一管理定时器）
       setResendCooldown(60);
-      const timer = setInterval(() => {
-        setResendCooldown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     } catch (err) {
       setError(getSimpleFriendlyError(err));
     } finally {
@@ -339,6 +331,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     // 密码确认验证
     if (password !== confirmPassword) {
       setError('两次输入的密码不一致');
+      setLoading(false);
+      return;
+    }
+
+    // 用户协议确认
+    if (!agreedToTerms) {
+      setError('请阅读并同意隐私政策和用户协议');
       setLoading(false);
       return;
     }
@@ -710,10 +709,28 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </div>
           )}
 
+          {/* 用户协议确认 (注册模式) */}
+          {mode === 'register' && (
+            <label className="flex items-start gap-2 cursor-pointer mt-2">
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5 accent-endfield-yellow"
+              />
+              <span className="text-xs text-slate-500 dark:text-zinc-500">
+                我已阅读并同意
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">隐私政策</a>
+                和
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">用户协议</a>
+              </span>
+            </label>
+          )}
+
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || (mode === 'register' && (hasEmailError || !!emailDomainError)) || (mode === 'forgotPassword' && resendCooldown > 0)}
+            disabled={loading || (mode === 'register' && (hasEmailError || !!emailDomainError || !agreedToTerms)) || (mode === 'forgotPassword' && resendCooldown > 0)}
             className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6"
           >
             {loading ? (
