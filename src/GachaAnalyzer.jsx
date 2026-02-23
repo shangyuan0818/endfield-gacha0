@@ -8,7 +8,7 @@ import { useToast, useConfirm, useCloudSync, useNotificationBadges, useAppInitia
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { DEFAULT_POOL_ID } from './constants';
 import AppHeader from './components/layout/AppHeader';
-import { extractDrawerFromPoolName } from './utils';
+import { extractDrawerFromPoolName, normalizeIsStandard } from './utils';
 
 export default function GachaAnalyzer({ themeMode, setThemeMode }) {
   // 检测暗色模式
@@ -231,33 +231,10 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
     const poolType = currentPool?.type;
     const upCharacter = currentPool?.up_character;
 
-    return currentPoolHistory.map(h => {
-      const characterName = h.character_name || h.item_name || h.name || '';
-      let isStd;
-
-      // 根据卡池类型和 UP 角色判断
-      if (poolType === 'standard' || poolType === 'beginner') {
-        // 常驻池/新手池的6星都算常驻
-        isStd = true;
-      } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
-        // 限定池/武器池：检查是否匹配UP角色
-        if (upCharacter && h.rarity === 6) {
-          // 如果角色名不匹配UP角色，则为常驻（被歪了）
-          isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
-        } else if (h.rarity === 6) {
-          // 没有UP角色信息的6星，默认为限定
-          isStd = false;
-        } else {
-          // 非6星保持原值或默认 false
-          isStd = h.isStandard ?? false;
-        }
-      } else {
-        // 其他类型，保持原值
-        isStd = h.isStandard ?? false;
-      }
-
-      return { ...h, isStandard: isStd };
-    });
+    return currentPoolHistory.map(h => ({
+      ...h,
+      isStandard: normalizeIsStandard(h, poolType, upCharacter)
+    }));
   }, [currentPoolHistory, currentPool?.type, currentPool?.up_character]);
 
   // 卡池统计 Hook - 统计计算、分组历史、保底计算

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuthStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
+import { normalizeIsStandard } from '../../utils/poolUtils';
 import OfficialAPIImport from './OfficialAPIImport';
 
 /**
@@ -248,13 +249,16 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       // 2. 保存卡池到服务器（不再传递 userInfo）
       await savePoolsToServer(poolInfos);
 
-      // 2.1 构建 poolId -> UP角色 的映射
+      // 2.1 构建 poolId -> UP角色 和 poolId -> 类型 的映射
       const poolUpCharacterMap = new Map();
+      const poolTypeMap = new Map();
       pools.forEach(pool => {
         if (pool.up_character) {
           if (pool.pool_id) poolUpCharacterMap.set(pool.pool_id, pool.up_character);
           poolUpCharacterMap.set(pool.id, pool.up_character);
         }
+        if (pool.pool_id) poolTypeMap.set(pool.pool_id, pool.type);
+        poolTypeMap.set(pool.id, pool.type);
       });
 
       // 3. 转换记录格式
@@ -265,20 +269,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
         const numericId = poolHash * 10000000 + seqNum;
 
-        let isStandard = false;
-        if (record.rarity === 6) {
-          if (!record.isLimited) {
-            isStandard = true;
-          } else {
-            const upCharacter = poolUpCharacterMap.get(record.pool_id);
-            const characterName = record.name || '';
-            if (upCharacter) {
-              isStandard = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
-            } else {
-              isStandard = false;
-            }
-          }
-        }
+        const poolType = poolTypeMap.get(record.pool_id) || 'unknown';
+        const upCharacter = poolUpCharacterMap.get(record.pool_id);
+        const isStandard = normalizeIsStandard(record, poolType, upCharacter);
 
         return {
           id: numericId,

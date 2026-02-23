@@ -30,7 +30,7 @@ export function usePoolOperations({
   const setNewPoolNameInput = useUIStore(state => state.setNewPoolNameInput);
   const setNewPoolTypeInput = useUIStore(state => state.setNewPoolTypeInput);
   const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
-  const setSyncing = useUIStore(state => state.setSyncing);
+  const setSyncing = useAuthStore(state => state.setSyncing);
 
   const { savePoolToCloud, deletePoolFromCloud, deletePoolHistoryFromCloud } = cloudSync;
 

@@ -64,7 +64,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
       <div className="flex items-center gap-2 h-6">
         <div className={`w-6 h-6 rounded-full flex items-center justify-center overflow-hidden shrink-0 ${avatarBgClass}`}>
           {avatarUrl ? (
-            <img src={avatarUrl} alt={pull.name} className="w-full h-full object-cover" />
+            <img src={avatarUrl} alt={pull.name} loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <User size={12} />
           )}
@@ -86,7 +86,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
     <div className="flex items-center gap-2 h-6">
       <div className={`w-6 h-6 rounded-full flex items-center justify-center overflow-hidden shrink-0 ${avatarBgClass}`}>
         {avatarUrl ? (
-          <img src={avatarUrl} alt={pull.name} className="w-full h-full object-cover" />
+          <img src={avatarUrl} alt={pull.name} loading="lazy" className="w-full h-full object-cover" />
         ) : (
           <User size={12} />
         )}

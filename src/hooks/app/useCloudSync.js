@@ -19,6 +19,9 @@ export function useCloudSync({ showToast }) {
   const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
 
+  // DR-B05: 防止并发调用 loadCloudData 导致请求加倍
+  const loadingPromiseRef = useRef(null);
+
   // 从云端加载数据（只加载当前用户的数据）
   const loadCloudData = useCallback(async (targetUser = null) => {
     if (!supabase) return null;
@@ -28,12 +31,18 @@ export function useCloudSync({ showToast }) {
       return { pools: [], history: [] };
     }
 
-    setSyncing(true);
-    setSyncError(null);
+    // DR-B05: 如果已有正在执行的请求，复用同一个 Promise
+    if (loadingPromiseRef.current) {
+      return loadingPromiseRef.current;
+    }
 
-    try {
-      // 加载所有卡池（公共池由超管维护，不再按 user 过滤）
-      let poolQuery = supabase
+    const doLoad = async () => {
+      setSyncing(true);
+      setSyncError(null);
+
+      try {
+        // 加载所有卡池（公共池由超管维护，不再按 user 过滤）
+        let poolQuery = supabase
         .from('pools')
         .select('*');
 
@@ -226,11 +235,20 @@ export function useCloudSync({ showToast }) {
       });
 
       return { pools: dedupedPools, history: normalizedHistory };
-    } catch (error) {
-      setSyncError(error.message);
-      return null;
+      } catch (error) {
+        setSyncError(error.message);
+        return null;
+      } finally {
+        setSyncing(false);
+      }
+    };
+
+    // DR-B05: 缓存 Promise，并发调用共享同一个请求
+    loadingPromiseRef.current = doLoad();
+    try {
+      return await loadingPromiseRef.current;
     } finally {
-      setSyncing(false);
+      loadingPromiseRef.current = null;
     }
   }, []);
 

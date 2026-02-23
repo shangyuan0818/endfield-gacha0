@@ -115,7 +115,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                   <span className={`${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm`}>#{rank}</span>
                   <div className={`w-7 h-7 rounded-sm bg-zinc-100 dark:bg-zinc-800 border ${borderColor} overflow-hidden flex-shrink-0`}>
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User size={14} className="text-zinc-400" />
@@ -164,7 +164,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                   {/* 头像框 */}
                   <div className={`relative ${sizeClass} bg-zinc-100 dark:bg-zinc-800 border-2 ${rankBorder} transition-transform duration-300 group-hover:-translate-y-1`}>
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User size={isFirst ? 20 : 16} className="text-zinc-300" />
@@ -207,7 +207,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                   <span className="text-zinc-400 font-mono">#{actualRank}</span>
                   <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User size={12} className="text-zinc-400" />

@@ -751,7 +751,7 @@ function MobileDashboardView() {
                         : 'border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300'
                   }`}>
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <User size={18} />
                     )}

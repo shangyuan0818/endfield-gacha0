@@ -228,7 +228,7 @@ function MobileHomeView() {
                 return (
                   <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-700 shrink-0 border border-zinc-300 dark:border-zinc-600 relative group overflow-hidden">
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={countdown.characterName} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                      <img src={avatarUrl} alt={countdown.characterName} loading="lazy" className="w-full h-full object-cover transition-transform group-hover:scale-110" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <User size={24} className="text-zinc-400" />

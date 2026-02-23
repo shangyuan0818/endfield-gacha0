@@ -143,7 +143,7 @@ function MobileSettingsView({ themeMode, setThemeMode }) {
             <div className="p-4 flex items-center gap-4">
               <div className="w-14 h-14 rounded-none bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow shadow-sm">
                 {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url} alt="头像" className="w-full h-full object-cover" />
+                  <img src={user.user_metadata.avatar_url} alt="头像" loading="lazy" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl font-bold text-black font-mono">
                     {(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}

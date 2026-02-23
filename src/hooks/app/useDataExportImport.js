@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useHistoryStore, usePoolStore, useUIStore, useAuthStore } from '../../stores';
+import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 
 /**
@@ -16,7 +16,7 @@ export function useDataExportImport({
   const setPools = usePoolStore(state => state.setPools);
   const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
-  const setSyncing = useUIStore(state => state.setSyncing);
+  const setSyncing = useAuthStore(state => state.setSyncing);
 
   const { savePoolToCloud, saveHistoryToCloud } = cloudSync;
 

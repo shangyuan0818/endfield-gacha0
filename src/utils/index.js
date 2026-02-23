@@ -13,7 +13,8 @@ export {
   extractDrawerFromPoolName,
   extractCharNameFromPoolName,
   extractTypeFromPoolName,
-  groupPoolsByDrawer
+  groupPoolsByDrawer,
+  normalizeIsStandard
 } from './poolUtils';
 export {
   STORAGE_KEYS,

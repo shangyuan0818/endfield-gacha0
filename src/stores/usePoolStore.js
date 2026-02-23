@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { DEFAULT_POOL_ID } from '../constants';
 import { syncManager } from '../services/syncService';
-import { supabase } from '../supabaseClient';
+import useAuthStore from './useAuthStore';
 
 /**
  * 卡池类型映射：官方 poolId 前缀 -> 本地类型
@@ -49,16 +49,13 @@ function getDefaultPoolName(poolId, type) {
 }
 
 /**
- * 获取当前用户ID（用于同步）
+ * 同步获取当前用户ID（从 AuthStore 读取，避免异步问题 DR-B01）
  * @returns {string|null}
  */
 const getCurrentUserId = () => {
   try {
-    if (supabase) {
-      const session = supabase.auth.getSession();
-      return session?.data?.session?.user?.id || null;
-    }
-    return null;
+    const user = useAuthStore.getState().user;
+    return user?.id || null;
   } catch (error) {
     return null;
   }
@@ -81,7 +78,11 @@ const usePoolStore = create((set, get) => ({
   // ========== 当前选中卡池（UI 状态，保留 localStorage）==========
   currentPoolId: (() => {
     const saved = localStorage.getItem('gacha_current_pool_id');
-    return saved || null;
+    // ⚠️ 修复 DR-A09：localStorage 会将 null 保存为字符串 "null"
+    if (!saved || saved === 'null' || saved === 'undefined') {
+      return null;
+    }
+    return saved;
   })(),
 
   // ========== 当前游戏账号（UI 状态，保留 localStorage）==========
