@@ -308,7 +308,10 @@ export function calculatePity(records, poolType) {
   const sortedRecords = [...records].sort((a, b) => a.timestamp - b.timestamp);
 
   return sortedRecords.map(record => {
-    pityCount++;
+    // 免费十连不计入保底进度
+    if (record.isFree !== true) {
+      pityCount++;
+    }
 
     const recordWithPity = {
       ...record,
