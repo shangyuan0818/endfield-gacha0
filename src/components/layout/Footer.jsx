@@ -9,16 +9,16 @@ import useSiteConfigStore from '../../stores/useSiteConfigStore';
  */
 const Footer = React.memo(() => {
   const currentYear = new Date().getFullYear();
-  const getConfig = useSiteConfigStore(state => state.getConfig);
+  const config = useSiteConfigStore(state => state.config);
 
-  const siteVersion = getConfig('site_version', 'v3.3.0');
-  const authorName = getConfig('author_name', '');
-  const authorBilibili = getConfig('author_bilibili', '');
-  const githubUrl = getConfig('github_url', '');
-  const icpNumber = getConfig('icp_number', '');
-  const icpUrl = getConfig('icp_url', 'https://beian.miit.gov.cn/');
-  const policeNumber = getConfig('police_number', '');
-  const policeUrl = getConfig('police_url', 'https://www.beian.gov.cn/');
+  const siteVersion = config.site_version || 'v3.3.0';
+  const authorName = config.author_name || '';
+  const authorBilibili = config.author_bilibili || '';
+  const githubUrl = config.github_url || '';
+  const icpNumber = config.icp_number || '';
+  const icpUrl = config.icp_url || 'https://beian.miit.gov.cn/';
+  const policeNumber = config.police_number || '';
+  const policeUrl = config.police_url || 'https://www.beian.gov.cn/';
 
   return (
     <footer className="mt-8 py-6 border-t border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
