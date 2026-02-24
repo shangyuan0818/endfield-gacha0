@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
+import { getLimitedPoolSchedule, getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import SimpleMarkdown from '../SimpleMarkdown';
 import {
@@ -401,8 +402,11 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // 使用官方轮换计划
-  const poolSchedule = LIMITED_POOL_SCHEDULE;
+  // 使用数据库卡池数据，fallback 到硬编码
+  const poolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
+
+  // 获取当前 UP 池信息（用于卡池机制速览）
+  const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray, now]);
 
   // 计算倒计时目标（返回3个：主卡池 + 2个后续）
   const countdowns = useMemo(() => {
@@ -648,8 +652,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   // 卡池机制说明卡片
   const PoolMechanicsCard = () => {
-    const currentUpPool = getCurrentUpPool();
-    const { isActive, isExpired, remainingDays, remainingHours, startsIn, startsInHours } = currentUpPool;
+    const { isActive, isExpired, remainingDays = 0, remainingHours = 0, startsIn, startsInHours } = currentUpInfo;
     const isEndingSoon = remainingDays <= 3 && isActive;
     const isUpcoming = !isActive && !isExpired;
 
@@ -657,7 +660,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     const allLimitedSixStar = ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'];
 
     // 动态计算当前UP角色排在第一位
-    const currentUpName = currentUpPool.name;
+    const currentUpName = currentUpInfo.name;
     const limitedSixStarSorted = [
       currentUpName,
       ...allLimitedSixStar.filter(name => name !== currentUpName)

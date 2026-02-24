@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { getCurrentUpPool } from '../../constants';
+import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
+import usePoolStore from '../../stores/usePoolStore';
 
 /**
  * 顶栏卡池时间信息组件 - 实时更新
- * 使用与 constants/index.js 相同的计算方式，每分钟更新一次
+ * 优先从数据库读取卡池时间，fallback 到硬编码
  */
 const HeaderPoolTimeInfo = React.memo(() => {
-  const [timeInfo, setTimeInfo] = useState(() => getCurrentUpPool());
+  const pools = usePoolStore(state => state.pools);
+  const [timeInfo, setTimeInfo] = useState(() => getCurrentUpPoolInfo(pools));
 
   useEffect(() => {
     // 每分钟更新一次时间（与首页保持一致的更新频率）
     const timer = setInterval(() => {
-      setTimeInfo(getCurrentUpPool());
+      setTimeInfo(getCurrentUpPoolInfo(pools));
     }, 60000); // 60秒更新一次
 
     return () => clearInterval(timer);
-  }, []);
+  }, [pools]);
 
   const { name, nextPool, isExpired, remainingDays = 0, remainingHours = 0, startsIn, startsInHours, isActive } = timeInfo;
   const isEndingSoon = remainingDays <= 3 && isActive && !isExpired;
