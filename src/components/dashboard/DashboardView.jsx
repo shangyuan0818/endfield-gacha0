@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload, BarChart3, LayoutGrid } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { RARITY_CONFIG, getCurrentUpPool } from '../../constants';
+import { RARITY_CONFIG } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import PoolSelector from '../pool/PoolSelector';

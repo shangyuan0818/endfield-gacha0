@@ -5,7 +5,8 @@ import {
   BarChart3, LayoutGrid
 } from 'lucide-react';
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
-import { getCurrentUpPool, LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
+import { LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
+import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { calculateCurrentProbability } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
 import MobileChartContainer from '../components/MobileChartContainer';
@@ -299,7 +300,25 @@ function MobileDashboardView() {
   const isStandard = currentPool?.type === 'standard';
   const maxPity = isWeapon ? 40 : 80;
 
-  const currentUpPool = getCurrentUpPool();
+  const currentUpPool = useMemo(() => {
+    // 如果当前查看的是限定池且有自身时间数据，优先使用
+    if (isLimited && currentPool?.start_time && currentPool?.end_time) {
+      const now = new Date();
+      const start = new Date(currentPool.start_time);
+      const end = new Date(currentPool.end_time);
+      const isActive = now >= start && now < end;
+      const isExpired = now >= end;
+      const remainingMs = end - now;
+      return {
+        name: currentPool.up_character || currentPool.name,
+        isActive,
+        isExpired,
+        remainingDays: isActive ? Math.floor(remainingMs / (1000 * 60 * 60 * 24)) : 0,
+        remainingHours: isActive ? Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)) : 0,
+      };
+    }
+    return getCurrentUpPoolInfo(poolsArray);
+  }, [poolsArray, currentPool, isLimited]);
 
   const getProgressClass = () => {
     if (isLimited) return 'rainbow-progress';

@@ -1,32 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { Calculator, Sparkles, FileText, Clock } from 'lucide-react';
-import { getCurrentUpPool } from '../../constants';
+import { usePoolStore } from '../../stores';
+import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 
 /**
  * 卡池时间信息组件 - 实时更新 (内部组件)
+ * @param {Object} props.currentPool - 当前查看的卡池对象
  */
-const PoolTimeInfo = () => {
-  const [currentUpPool, setCurrentUpPool] = useState(() => getCurrentUpPool());
+const PoolTimeInfo = ({ currentPool }) => {
+  const pools = usePoolStore(state => state.pools);
+  const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
+
+  const [upPoolInfo, setUpPoolInfo] = useState(() => getCurrentUpPoolInfo(poolsArray));
 
   useEffect(() => {
+    setUpPoolInfo(getCurrentUpPoolInfo(poolsArray));
     const timer = setInterval(() => {
-      setCurrentUpPool(getCurrentUpPool());
+      setUpPoolInfo(getCurrentUpPoolInfo(poolsArray));
     }, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [poolsArray]);
 
-  const startDate = new Date(currentUpPool.startDate);
-  const endDate = currentUpPool.endDate instanceof Date ? currentUpPool.endDate : new Date(currentUpPool.endDate);
+  // 判断当前查看的卡池是否就是当前 UP 池
+  const isCurrentUpPool = currentPool && upPoolInfo && (
+    currentPool.up_character === upPoolInfo.name ||
+    currentPool.name === upPoolInfo.name ||
+    (upPoolInfo.poolData && currentPool.id === upPoolInfo.poolData.id)
+  );
+
+  // 如果当前查看的卡池不是 UP 池，则使用该卡池自身的时间数据
+  const poolInfo = isCurrentUpPool ? upPoolInfo : (() => {
+    if (!currentPool?.start_time || !currentPool?.end_time) return upPoolInfo;
+    const now = new Date();
+    const start = new Date(currentPool.start_time);
+    const end = new Date(currentPool.end_time);
+    const isActive = now >= start && now < end;
+    const isExpired = now >= end;
+    const remainingMs = end - now;
+    const startsInMs = start - now;
+    return {
+      name: currentPool.up_character || currentPool.name,
+      startDate: currentPool.start_time,
+      endDate: currentPool.end_time,
+      isActive,
+      isExpired,
+      remainingDays: isActive ? Math.floor(remainingMs / (1000 * 60 * 60 * 24)) : 0,
+      remainingHours: isActive ? Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)) : 0,
+      startsIn: !isActive && !isExpired ? Math.floor(startsInMs / (1000 * 60 * 60 * 24)) : undefined,
+      startsInHours: !isActive && !isExpired ? Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)) : undefined,
+    };
+  })();
+
+  const startDate = new Date(poolInfo.startDate);
+  const endDate = poolInfo.endDate instanceof Date ? poolInfo.endDate : new Date(poolInfo.endDate);
 
   const formatDate = (date) => {
     return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:00`;
   };
 
-  const isExpired = currentUpPool.isExpired;
-  const remainingDays = currentUpPool.remainingDays ?? 0;
-  const remainingHours = currentUpPool.remainingHours ?? 0;
-  const isEndingSoon = remainingDays <= 3 && currentUpPool.isActive && !isExpired;
-  const isNotStarted = !currentUpPool.isActive && !isExpired && (currentUpPool.startsIn !== undefined || currentUpPool.startsInHours !== undefined);
+  const isExpired = poolInfo.isExpired;
+  const remainingDays = poolInfo.remainingDays ?? 0;
+  const remainingHours = poolInfo.remainingHours ?? 0;
+  const isEndingSoon = remainingDays <= 3 && poolInfo.isActive && !isExpired;
+  const isNotStarted = !poolInfo.isActive && !isExpired && (poolInfo.startsIn !== undefined || poolInfo.startsInHours !== undefined);
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 dark:text-zinc-400 font-mono mt-1">
@@ -44,7 +80,7 @@ const PoolTimeInfo = () => {
       <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
       <span className="text-slate-300 dark:text-zinc-700">|</span>
       {isNotStarted ? (
-        <span className="text-blue-500">{currentUpPool.startsIn}天{currentUpPool.startsInHours}小时后开始</span>
+        <span className="text-blue-500">{poolInfo.startsIn}天{poolInfo.startsInHours}小时后开始</span>
       ) : isExpired ? (
         <span className="text-red-500 font-medium">已结束</span>
       ) : isEndingSoon ? (
@@ -190,7 +226,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            </div>
            
            {/* 时间信息只在限定池显示 */}
-           {isLimited && <PoolTimeInfo />}
+           {isLimited && <PoolTimeInfo currentPool={currentPool} />}
         </div>
       </div>
 

@@ -10,7 +10,8 @@ import useAppStore from '../../stores/useAppStore';
 import useUIStore from '../../stores/useUIStore';
 import useAuthStore from '../../stores/useAuthStore';
 import SimpleMarkdown from '../../components/SimpleMarkdown';
-import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
+import { LIMITED_POOL_SCHEDULE } from '../../constants';
+import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import { characterCache } from '../../utils/characterUtils';
 import {
   STORAGE_KEYS,
@@ -69,8 +70,9 @@ function MobileHomeView() {
   }, [showAnnouncement, isAnnouncementNew]);
 
   // 当前UP池信息
-  const currentUpPool = getCurrentUpPool();
-  const poolSchedule = LIMITED_POOL_SCHEDULE;
+  const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
+  const currentUpPool = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray]);
+  const poolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
 
   // 计算倒计时
   const countdown = useMemo(() => {
