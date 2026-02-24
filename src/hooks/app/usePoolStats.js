@@ -334,7 +334,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     };
   }, [normalizedCurrentPoolHistory, manualPityLimit, currentPool.type]);
 
-  // 跨池保底继承计算
+  // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {
     if (!currentPool || currentPool.type !== 'limited') {
       return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
@@ -342,11 +342,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
 
     const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
 
-    if (normalizedCurrentPoolHistory.length > 0) {
-      return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
-    }
-
-    const { inheritedPity, inheritedPity5 } = calculateInheritedPity(
+    const { inheritedPity, inheritedPity5, isInherited } = calculateInheritedPity(
       allLimitedPools,
       history,
       currentPoolId
@@ -355,25 +351,27 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     return {
       inheritedPity,
       inheritedPity5,
-      hasInheritedPity: inheritedPity > 0 || inheritedPity5 > 0
+      hasInheritedPity: isInherited
     };
-  }, [currentPool?.type, poolsArray, normalizedCurrentPoolHistory.length, history, currentPoolId]);
+  }, [currentPool?.type, poolsArray, history, currentPoolId]);
 
-  // 计算实际有效的保底数
+  // 计算实际有效的保底数（跨池合并后的真实垫刀数）
   const effectivePity = useMemo(() => {
-    if (normalizedCurrentPoolHistory.length > 0) {
+    if (currentPool?.type !== 'limited') {
       return {
         pity6: stats.currentPity,
         pity5: stats.currentPity5,
         isInherited: false
       };
     }
+
+    // 限定池：使用跨池合并计算的保底数
     return {
       pity6: inheritedPityInfo.inheritedPity,
       pity5: inheritedPityInfo.inheritedPity5,
       isInherited: inheritedPityInfo.hasInheritedPity
     };
-  }, [normalizedCurrentPoolHistory.length, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
+  }, [currentPool?.type, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
 
   return {
     currentPoolHistoryWithIndex,

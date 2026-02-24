@@ -233,38 +233,48 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
       {/* 保底信息网格 */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         {/* 6星保底 */}
-        <StatCard 
-           label={`6星保底 (${maxPity})`}
-           value={Math.max(maxPity - stats.currentPity, 0)}
-           subValue="抽"
-           progress={(stats.currentPity / maxPity) * 100}
-           progressColor={progressClass}
-           warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `概率UP ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
-           footer={
-             <>
-                <span>当前垫刀: {stats.currentPity}</span>
-                {effectivePity?.isInherited && isLimited && (
-                  <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 继承: {effectivePity.pity6}</span>
-                )}
-             </>
-           }
-        />
+        {(() => {
+          const displayPity = isLimited ? (effectivePity?.pity6 ?? stats.currentPity) : stats.currentPity;
+          return (
+            <StatCard
+               label={`6星保底 (${maxPity})`}
+               value={Math.max(maxPity - displayPity, 0)}
+               subValue="抽"
+               progress={(displayPity / maxPity) * 100}
+               progressColor={progressClass}
+               warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `概率UP ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
+               footer={
+                 <>
+                    <span>当前垫刀: {displayPity}</span>
+                    {effectivePity?.isInherited && isLimited && (
+                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
+                    )}
+                 </>
+               }
+            />
+          );
+        })()}
         {/* 5星保底 */}
-        <StatCard 
-           label="5星保底 (10)"
-           value={Math.max(10 - stats.currentPity5, 0)}
-           subValue="抽"
-           progress={(stats.currentPity5 / 10) * 100}
-           progressColor="bg-amber-500"
-           footer={
-             <>
-                <span>当前垫刀: {stats.currentPity5}</span>
-                {effectivePity?.isInherited && isLimited && effectivePity.pity5 > 0 && (
-                  <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 继承: {effectivePity.pity5}</span>
-                )}
-             </>
-           }
-        />
+        {(() => {
+          const displayPity5 = isLimited ? (effectivePity?.pity5 ?? stats.currentPity5) : stats.currentPity5;
+          return (
+            <StatCard
+               label="5星保底 (10)"
+               value={Math.max(10 - displayPity5, 0)}
+               subValue="抽"
+               progress={(displayPity5 / 10) * 100}
+               progressColor="bg-amber-500"
+               footer={
+                 <>
+                    <span>当前垫刀: {displayPity5}</span>
+                    {effectivePity?.isInherited && isLimited && effectivePity.pity5 > 0 && (
+                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
+                    )}
+                 </>
+               }
+            />
+          );
+        })()}
       </div>
 
       {/* 数据概览网格 (限定/武器池显示) */}

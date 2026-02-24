@@ -7,7 +7,7 @@ import {
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
 import { LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
-import { calculateCurrentProbability } from '../../utils';
+import { calculateCurrentProbability, calculateInheritedPity } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
@@ -239,6 +239,18 @@ function MobileDashboardView() {
     };
   }, [normalizedPoolHistory, currentPool]);
 
+  // 跨池保底继承（限定池）
+  const crossPoolPity = useMemo(() => {
+    if (!isLimited) return null;
+    const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
+    const { inheritedPity, inheritedPity5, isInherited } = calculateInheritedPity(
+      allLimitedPools,
+      history,
+      currentPoolId
+    );
+    return { pity6: inheritedPity, pity5: inheritedPity5, isInherited };
+  }, [isLimited, poolsArray, history, currentPoolId]);
+
   const checkLimitedInFirstN = useMemo(() => {
     let pullCount = 0;
     let firstLimitedIndex120 = 0;
@@ -420,53 +432,63 @@ function MobileDashboardView() {
       {/* 保底进度 */}
       <div className="grid grid-cols-2 gap-3">
         {/* 6星保底 */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide">6★ 保底 ({maxPity})</span>
-            {stats.probabilityInfo?.isInSoftPity && (
-              <span className="text-[9px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
-                概率提升 {(stats.probabilityInfo.probability * 100).toFixed(0)}%
-              </span>
-            )}
-          </div>
-          <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
-              {Math.max(maxPity - stats.currentPity, 0)}
-            </span>
-            <span className="text-[10px] text-zinc-400 uppercase">剩余</span>
-          </div>
-          <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
-            <div
-              className={`h-full transition-all ${getProgressClass()}`}
-              style={{ width: `${(stats.currentPity / maxPity) * 100}%` }}
-            />
-          </div>
-          <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-             <span>当前: {stats.currentPity}</span>
-             <span>上限: {maxPity}</span>
-          </div>
-        </div>
+        {(() => {
+          const displayPity = isLimited && crossPoolPity ? crossPoolPity.pity6 : stats.currentPity;
+          return (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide">6★ 保底 ({maxPity})</span>
+                {stats.probabilityInfo?.isInSoftPity && (
+                  <span className="text-[9px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
+                    概率提升 {(stats.probabilityInfo.probability * 100).toFixed(0)}%
+                  </span>
+                )}
+              </div>
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
+                  {Math.max(maxPity - displayPity, 0)}
+                </span>
+                <span className="text-[10px] text-zinc-400 uppercase">剩余</span>
+              </div>
+              <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
+                <div
+                  className={`h-full transition-all ${getProgressClass()}`}
+                  style={{ width: `${(displayPity / maxPity) * 100}%` }}
+                />
+              </div>
+              <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
+                 <span>当前: {displayPity}{crossPoolPity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+                 <span>上限: {maxPity}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 5星保底 */}
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
-          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide mb-2">5★ 保底 (10)</div>
-          <div className="flex items-baseline gap-1 mb-2">
-            <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
-              {Math.max(10 - stats.currentPity5, 0)}
-            </span>
-            <span className="text-[10px] text-zinc-400 uppercase">剩余</span>
-          </div>
-          <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
-            <div
-              className="h-full bg-amber-500 transition-all"
-              style={{ width: `${(stats.currentPity5 / 10) * 100}%` }}
-            />
-          </div>
-           <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-             <span>当前: {stats.currentPity5}</span>
-             <span>上限: 10</span>
-          </div>
-        </div>
+        {(() => {
+          const displayPity5 = isLimited && crossPoolPity ? crossPoolPity.pity5 : stats.currentPity5;
+          return (
+            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
+              <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide mb-2">5★ 保底 (10)</div>
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
+                  {Math.max(10 - displayPity5, 0)}
+                </span>
+                <span className="text-[10px] text-zinc-400 uppercase">剩余</span>
+              </div>
+              <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
+                <div
+                  className="h-full bg-amber-500 transition-all"
+                  style={{ width: `${(displayPity5 / 10) * 100}%` }}
+                />
+              </div>
+               <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
+                 <span>当前: {displayPity5}{crossPoolPity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+                 <span>上限: 10</span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 核心数据网格 */}

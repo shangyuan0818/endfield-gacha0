@@ -287,30 +287,46 @@ export const calculatePity5FromHistory = (pulls) => {
 
 /**
  * 计算跨池继承的保底数
+ * 将所有限定池的抽卡记录按时间合并为一条时间线，从末尾往前计算垫刀数
+ * 这样保底自然跨池继承
  * @param {Array} allLimitedPools - 所有限定池
  * @param {Array} allHistory - 所有抽卡记录
- * @param {string} currentPoolId - 当前卡池ID（排除）
- * @returns {{inheritedPity: number, inheritedPity5: number}}
+ * @param {string} currentPoolId - 当前卡池ID
+ * @returns {{inheritedPity: number, inheritedPity5: number, isInherited: boolean}}
  */
 export const calculateInheritedPity = (allLimitedPools, allHistory, currentPoolId) => {
-  // 获取所有限定池的记录（排除当前池）
-  const otherLimitedPoolIds = allLimitedPools
-    .filter(p => p.type === 'limited' && p.id !== currentPoolId)
+  // 获取所有限定池ID
+  const allLimitedPoolIds = allLimitedPools
+    .filter(p => p.type === 'limited')
     .map(p => p.id);
 
-  const otherPoolPulls = allHistory
-    .filter(p => otherLimitedPoolIds.includes(p.poolId) && p.specialType !== 'gift')
+  // 合并所有限定池的记录，按 id（时间顺序）排序
+  const allLimitedPulls = allHistory
+    .filter(p => allLimitedPoolIds.includes(p.poolId) && p.specialType !== 'gift' && p.isFree !== true)
     .sort((a, b) => a.id - b.id);
 
-  if (otherPoolPulls.length === 0) {
-    return { inheritedPity: 0, inheritedPity5: 0 };
+  if (allLimitedPulls.length === 0) {
+    return { inheritedPity: 0, inheritedPity5: 0, isInherited: false };
   }
 
-  // 计算最后一个限定池的垫刀数
-  const inheritedPity = calculatePityFromHistory(otherPoolPulls);
-  const inheritedPity5 = calculatePity5FromHistory(otherPoolPulls);
+  // 从末尾往前计算6星垫刀数（跨池）
+  const inheritedPity = calculatePityFromHistory(allLimitedPulls);
+  // 从末尾往前计算5星垫刀数（跨池）
+  const inheritedPity5 = calculatePity5FromHistory(allLimitedPulls);
 
-  return { inheritedPity, inheritedPity5 };
+  // 判断是否有来自其他池的继承（最后一抽不在当前池中）
+  // 找到最后一个6星的位置
+  let lastSixStarPoolId = null;
+  for (let i = allLimitedPulls.length - 1; i >= 0; i--) {
+    if (allLimitedPulls[i].rarity === 6) {
+      lastSixStarPoolId = allLimitedPulls[i].poolId;
+      break;
+    }
+  }
+  // 如果从未出过6星，或最后一个6星不在当前池，则存在继承
+  const isInherited = inheritedPity > 0 && lastSixStarPoolId !== currentPoolId;
+
+  return { inheritedPity, inheritedPity5, isInherited };
 };
 
 /**
