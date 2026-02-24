@@ -551,7 +551,11 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
 
   // 检查是否被放入队列（需要轮询等待）
   if (result.queued) {
-    if (onProgress) onProgress(`导入请求已加入队列，前面还有 ${result.position - 1} 个任务...`);
+    if (result.position > 1) {
+      if (onProgress) onProgress(`导入请求已加入队列，前面还有 ${result.position - 1} 个任务...`);
+    } else {
+      if (onProgress) onProgress('正在获取抽卡记录...');
+    }
 
     // 轮询等待任务完成
     const taskResult = await pollTaskUntilComplete(result.taskId, onProgress);
