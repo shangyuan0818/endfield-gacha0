@@ -120,7 +120,8 @@ const DashboardView = ({
       .filter(p => p.type === 'limited' || p.type === 'limited_character')
       .map(p => p.id);
 
-    // 合并所有限定池记录（当前用户+账号），按 id 排序（时间顺序）
+    // 合并所有限定池记录（当前用户+账号），按时间顺序排序
+    // 注意：不能用 record_id(id) 排序，因为不同池的 record_id 前缀不同，跨池时大小不代表时间顺序
     let allLimitedPulls = history.filter(h =>
       allLimitedPoolIds.includes(h.poolId) &&
       h.user_id === user?.id &&
@@ -129,7 +130,12 @@ const DashboardView = ({
     if (currentGameUid) {
       allLimitedPulls = allLimitedPulls.filter(h => h.game_uid === currentGameUid);
     }
-    allLimitedPulls.sort((a, b) => a.id - b.id);
+    allLimitedPulls.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return (parseInt(a.seqId || a.seq_id || '0', 10)) - (parseInt(b.seqId || b.seq_id || '0', 10));
+    });
 
     const map = new Map();
     let sixPity = 0;

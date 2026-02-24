@@ -100,7 +100,13 @@ function MobileDashboardView() {
         h.game_uid === currentGameUid || h.gameUid === currentGameUid
       );
     }
-    allLimitedPulls.sort((a, b) => a.id - b.id);
+    // 注意：不能用 record_id(id) 排序，因为不同池的 record_id 前缀不同，跨池时大小不代表时间顺序
+    allLimitedPulls.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      return (parseInt(a.seqId || a.seq_id || '0', 10)) - (parseInt(b.seqId || b.seq_id || '0', 10));
+    });
 
     const map = new Map();
     let sixPity = 0;

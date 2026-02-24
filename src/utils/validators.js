@@ -300,10 +300,17 @@ export const calculateInheritedPity = (allLimitedPools, allHistory, currentPoolI
     .filter(p => p.type === 'limited')
     .map(p => p.id);
 
-  // 合并所有限定池的记录，按 id（时间顺序）排序
+  // 合并所有限定池的记录，按时间顺序排序
+  // 注意：不能用 record_id 排序，因为不同池的 record_id 前缀不同（如 192xxx vs 194xxx），跨池时大小不代表时间顺序
   const allLimitedPulls = allHistory
     .filter(p => allLimitedPoolIds.includes(p.poolId) && p.specialType !== 'gift' && p.isFree !== true)
-    .sort((a, b) => a.id - b.id);
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      // 同一时间戳内（十连），按 seqId 排序
+      return (parseInt(a.seqId || a.seq_id || '0', 10)) - (parseInt(b.seqId || b.seq_id || '0', 10));
+    });
 
   if (allLimitedPulls.length === 0) {
     return { inheritedPity: 0, inheritedPity5: 0, isInherited: false };
