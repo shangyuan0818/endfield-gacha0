@@ -1,402 +1,387 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Calendar, Clock, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { Calendar, Clock, ChevronLeft, ChevronRight, X, Timer } from 'lucide-react';
+
+const MONTH_NAMES = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+const WEEK_DAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+const QUICK_TIMES = [
+  { label: '10:00', h: 10, m: 0 },
+  { label: '11:00', h: 11, m: 0 },
+  { label: '16:00', h: 16, m: 0 },
+  { label: '18:00', h: 18, m: 0 },
+  { label: '23:59', h: 23, m: 59 },
+];
 
 /**
- * 专用日期时间选择器组件
- * 提供更好的用户体验来选择日期和时间
+ * 日期时间选择器 - 日历与时间同屏显示
  */
-const DateTimePicker = ({ 
-  value, 
-  onChange, 
-  label, 
+const DateTimePicker = ({
+  value,
+  onChange,
+  label,
   placeholder = '选择日期时间',
   showClearButton = true,
   minDate = null,
-  maxDate = null
+  maxDate = null,
+  durationPresets = null,
+  durationBaseTime = null,
+  onDurationApply = null,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewMode, setViewMode] = useState('date'); // 'date' | 'time'
-  const [viewDate, setViewDate] = useState(() => {
-    if (value) return new Date(value);
-    return new Date();
-  });
-  
+  const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
+  const [hourInput, setHourInput] = useState('');
+  const [minuteInput, setMinuteInput] = useState('');
   const containerRef = useRef(null);
-  
-  // 解析当前值
+  const panelRef = useRef(null);
+
   const currentDate = value ? new Date(value) : null;
-  const selectedYear = currentDate?.getFullYear();
-  const selectedMonth = currentDate?.getMonth();
-  const selectedDay = currentDate?.getDate();
-  const selectedHour = currentDate?.getHours() ?? 10;
-  const selectedMinute = currentDate?.getMinutes() ?? 0;
-  
-  // 点击外部关闭
+  const selYear = currentDate?.getFullYear();
+  const selMonth = currentDate?.getMonth();
+  const selDay = currentDate?.getDate();
+  const selHour = currentDate?.getHours() ?? 10;
+  const selMinute = currentDate?.getMinutes() ?? 0;
+
+  // 同步输入框
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+    setHourInput(String(selHour).padStart(2, '0'));
+    setMinuteInput(String(selMinute).padStart(2, '0'));
+  }, [selHour, selMinute]);
+
+  // 点击外部关闭（portal 元素不在 containerRef 内，需同时检测）
+  useEffect(() => {
+    const handler = (e) => {
+      if (
+        containerRef.current && !containerRef.current.contains(e.target) &&
+        panelRef.current && !panelRef.current.contains(e.target)
+      ) {
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
-  
-  // 获取月份的天数
-  const getDaysInMonth = (year, month) => {
-    return new Date(year, month + 1, 0).getDate();
-  };
-  
-  // 获取月份第一天是星期几
-  const getFirstDayOfMonth = (year, month) => {
-    return new Date(year, month, 1).getDay();
-  };
-  
-  // 生成日历网格
-  const generateCalendarDays = () => {
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDay = getFirstDayOfMonth(year, month);
-    
-    const days = [];
-    
-    // 上个月的日期（填充）
-    const prevMonthDays = getDaysInMonth(year, month - 1);
-    for (let i = firstDay - 1; i >= 0; i--) {
-      days.push({ day: prevMonthDays - i, isCurrentMonth: false, isPrev: true });
-    }
-    
-    // 当前月的日期
-    for (let i = 1; i <= daysInMonth; i++) {
-      const date = new Date(year, month, i);
-      let isDisabled = false;
-      if (minDate && date < new Date(minDate)) isDisabled = true;
-      if (maxDate && date > new Date(maxDate)) isDisabled = true;
-      
-      days.push({ 
-        day: i, 
-        isCurrentMonth: true, 
-        isSelected: selectedYear === year && selectedMonth === month && selectedDay === i,
-        isToday: new Date().toDateString() === date.toDateString(),
-        isDisabled
+
+  // 面板定位：基于触发元素的 getBoundingClientRect 计算 fixed 位置
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0, dropUp: false });
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropUp = spaceBelow < 420;
+      setPanelPos({
+        top: dropUp ? rect.top : rect.bottom + 4,
+        left: rect.left,
+        dropUp,
       });
     }
-    
-    // 下个月的日期（填充）
-    const remainingDays = 42 - days.length; // 6行 x 7天
-    for (let i = 1; i <= remainingDays; i++) {
-      days.push({ day: i, isCurrentMonth: false, isNext: true });
+  }, [isOpen]);
+
+  const fmt = (d) => {
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${mo}-${da}T${h}:${mi}`;
+  };
+
+  const emitDate = useCallback((year, month, day, hour, minute) => {
+    onChange(fmt(new Date(year, month, day, hour, minute)));
+  }, [onChange]);
+
+  const handleSelectDate = (day) => {
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth();
+    emitDate(y, m, day, selHour, selMinute);
+  };
+
+  const handleTimeCommit = (h, m) => {
+    if (!currentDate) {
+      const today = new Date();
+      emitDate(today.getFullYear(), today.getMonth(), today.getDate(), h, m);
+    } else {
+      emitDate(selYear, selMonth, selDay, h, m);
     }
-    
+  };
+
+  const handleHourBlur = () => {
+    let h = parseInt(hourInput, 10);
+    if (isNaN(h) || h < 0) h = 0;
+    if (h > 23) h = 23;
+    setHourInput(String(h).padStart(2, '0'));
+    handleTimeCommit(h, selMinute);
+  };
+
+  const handleMinuteBlur = () => {
+    let m = parseInt(minuteInput, 10);
+    if (isNaN(m) || m < 0) m = 0;
+    if (m > 59) m = 59;
+    setMinuteInput(String(m).padStart(2, '0'));
+    handleTimeCommit(selHour, m);
+  };
+
+  const handleDurationClick = (days) => {
+    if (!durationBaseTime || !onDurationApply) return;
+    const base = new Date(durationBaseTime);
+    if (isNaN(base.getTime())) return;
+    const end = new Date(base);
+    end.setDate(end.getDate() + days);
+    onDurationApply(end);
+  };
+
+  // 日历生成
+  const generateDays = () => {
+    const y = viewDate.getFullYear();
+    const m = viewDate.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const firstDay = new Date(y, m, 1).getDay();
+    const prevDays = new Date(y, m, 0).getDate();
+    const days = [];
+
+    for (let i = firstDay - 1; i >= 0; i--) {
+      days.push({ day: prevDays - i, current: false });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(y, m, i);
+      let disabled = false;
+      if (minDate && date < new Date(new Date(minDate).setHours(0, 0, 0, 0))) disabled = true;
+      if (maxDate && date > new Date(new Date(maxDate).setHours(23, 59, 59, 999))) disabled = true;
+      days.push({
+        day: i,
+        current: true,
+        selected: selYear === y && selMonth === m && selDay === i,
+        today: new Date().toDateString() === date.toDateString(),
+        disabled,
+      });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push({ day: i, current: false });
+    }
     return days;
   };
-  
-  // 选择日期
-  const handleSelectDate = (day, isCurrentMonth) => {
-    if (!isCurrentMonth) return;
-    
-    const year = viewDate.getFullYear();
-    const month = viewDate.getMonth();
-    const hour = selectedHour;
-    const minute = selectedMinute;
-    
-    const newDate = new Date(year, month, day, hour, minute);
-    onChange(formatDateTimeLocal(newDate));
-    setViewMode('time');
-  };
-  
-  // 选择时间
-  const handleSelectTime = (hour, minute) => {
-    if (!currentDate) {
-      // 如果还没选日期，使用今天
-      const today = new Date();
-      const newDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), hour, minute);
-      onChange(formatDateTimeLocal(newDate));
-    } else {
-      const newDate = new Date(
-        selectedYear, 
-        selectedMonth, 
-        selectedDay, 
-        hour, 
-        minute
-      );
-      onChange(formatDateTimeLocal(newDate));
-    }
-  };
-  
-  // 格式化为 datetime-local 格式
-  const formatDateTimeLocal = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-  
-  // 格式化显示值
-  const formatDisplayValue = () => {
-    if (!currentDate) return '';
-    return currentDate.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-  
-  // 月份名称
-  const monthNames = ['一月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '十一月', '十二月'];
-  const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
-  
-  // 快捷时间选项
-  const quickTimes = [
-    { label: '10:00', hour: 10, minute: 0 },
-    { label: '11:00', hour: 11, minute: 0 },
-    { label: '12:00', hour: 12, minute: 0 },
-    { label: '16:00', hour: 16, minute: 0 },
-    { label: '18:00', hour: 18, minute: 0 },
-    { label: '20:00', hour: 20, minute: 0 },
-    { label: '23:59', hour: 23, minute: 59 },
-  ];
-  
+
+  const displayValue = currentDate
+    ? currentDate.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '';
+
   return (
     <div ref={containerRef} className="relative">
       {label && (
-        <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+        <label className="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1 uppercase tracking-wider">
           {label}
         </label>
       )}
-      
+
       {/* 输入框 */}
-      <div className="relative">
+      <div
+        className={`relative group cursor-pointer border transition-colors ${
+          isOpen
+            ? 'border-red-400 dark:border-red-500 ring-1 ring-red-400/30'
+            : 'border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600'
+        } bg-white dark:bg-zinc-900`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
         <input
           type="text"
           readOnly
-          value={formatDisplayValue()}
+          value={displayValue}
           placeholder={placeholder}
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full pl-10 pr-8 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 cursor-pointer text-sm"
+          className="w-full pl-9 pr-8 py-2 bg-transparent text-slate-700 dark:text-zinc-200 cursor-pointer text-sm outline-none"
         />
-        <Calendar 
-          size={16} 
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" 
-        />
+        <Calendar size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
         {showClearButton && value && (
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onChange('');
-            }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            onClick={(e) => { e.stopPropagation(); onChange(''); }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-500 dark:text-zinc-600 dark:hover:text-red-400 transition-colors"
           >
             <X size={14} />
           </button>
         )}
       </div>
-      
-      {/* 下拉选择器 */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg rounded-sm w-72">
-          {/* 模式切换标签 */}
-          <div className="flex border-b border-zinc-200 dark:border-zinc-700">
+
+      {/* 快捷时长按钮 */}
+      {durationPresets && durationPresets.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {durationPresets.map((preset) => (
             <button
+              key={preset.label}
               type="button"
-              onClick={() => setViewMode('date')}
-              className={`flex-1 flex items-center justify-center gap-1 py-2 text-sm font-medium transition-colors ${
-                viewMode === 'date' 
-                  ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
-                  : 'text-slate-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-              }`}
+              disabled={!durationBaseTime}
+              onClick={() => handleDurationClick(preset.days)}
+              className="px-2 py-0.5 text-[11px] bg-zinc-100 dark:bg-zinc-800 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-slate-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              title={durationBaseTime ? `从开始时间 +${preset.days} 天` : '请先设置开始时间'}
             >
-              <Calendar size={14} />
-              日期
+              <Timer size={10} className="inline mr-0.5 -mt-px" />+{preset.days}天
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('time')}
-              className={`flex-1 flex items-center justify-center gap-1 py-2 text-sm font-medium transition-colors ${
-                viewMode === 'time' 
-                  ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' 
-                  : 'text-slate-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
-              }`}
-            >
-              <Clock size={14} />
-              时间
-            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 弹出面板 - Portal 到 body 避免被父容器 overflow 裁剪 */}
+      {isOpen && createPortal(
+        <div
+          ref={panelRef}
+          style={{
+            position: 'fixed',
+            top: panelPos.dropUp ? undefined : panelPos.top,
+            bottom: panelPos.dropUp ? (window.innerHeight - panelPos.top + 4) : undefined,
+            left: panelPos.left,
+          }}
+          className="z-[9999] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl shadow-black/10 dark:shadow-black/30 w-[340px]"
+        >
+          {/* 日历区域 */}
+          <div className="p-3 pb-2">
+            {/* 月份导航 */}
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))}
+                className="w-7 h-7 flex items-center justify-center text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className="text-sm font-semibold text-slate-700 dark:text-zinc-200">
+                {viewDate.getFullYear()} · {MONTH_NAMES[viewDate.getMonth()]}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))}
+                className="w-7 h-7 flex items-center justify-center text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            {/* 星期标题 */}
+            <div className="grid grid-cols-7 mb-0.5">
+              {WEEK_DAYS.map(d => (
+                <div key={d} className="text-center text-[10px] font-bold text-slate-400 dark:text-zinc-600 py-1 uppercase">{d}</div>
+              ))}
+            </div>
+
+            {/* 日期网格 */}
+            <div className="grid grid-cols-7 gap-px">
+              {generateDays().map((d, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  disabled={!d.current || d.disabled}
+                  onClick={() => d.current && !d.disabled && handleSelectDate(d.day)}
+                  className={`
+                    w-full aspect-square text-xs font-medium transition-all relative
+                    ${!d.current ? 'text-zinc-200 dark:text-zinc-800' : ''}
+                    ${d.current && !d.selected && !d.disabled ? 'text-slate-600 dark:text-zinc-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400' : ''}
+                    ${d.selected ? 'bg-red-500 text-white font-bold shadow-sm shadow-red-500/30' : ''}
+                    ${d.today && !d.selected ? 'ring-1 ring-inset ring-red-300 dark:ring-red-700' : ''}
+                    ${d.disabled ? 'text-zinc-200 dark:text-zinc-800 cursor-not-allowed' : ''}
+                  `}
+                >
+                  {d.day}
+                </button>
+              ))}
+            </div>
+
+            {/* 快捷日期 */}
+            <div className="flex gap-1.5 mt-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              {[
+                { label: '今天', offset: 0 },
+                { label: '明天', offset: 1 },
+                { label: '后天', offset: 2 },
+              ].map(({ label: lbl, offset }) => (
+                <button
+                  key={lbl}
+                  type="button"
+                  onClick={() => {
+                    const d = new Date();
+                    d.setDate(d.getDate() + offset);
+                    setViewDate(d);
+                    emitDate(d.getFullYear(), d.getMonth(), d.getDate(), selHour, selMinute);
+                  }}
+                  className="flex-1 py-1 text-[11px] font-medium text-slate-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
           </div>
-          
-          {viewMode === 'date' ? (
-            <div className="p-3">
-              {/* 月份导航 */}
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  type="button"
-                  onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1))}
-                  className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="font-medium text-slate-700 dark:text-zinc-300">
-                  {viewDate.getFullYear()}年 {monthNames[viewDate.getMonth()]}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1))}
-                  className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded"
-                >
-                  <ChevronRight size={16} />
-                </button>
+
+          {/* 分隔线 */}
+          <div className="border-t border-zinc-100 dark:border-zinc-800" />
+
+          {/* 时间区域 */}
+          <div className="p-3 pt-2">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock size={13} className="text-slate-400 dark:text-zinc-500" />
+              <span className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider">时间</span>
+            </div>
+
+            {/* 时分输入 */}
+            <div className="flex items-center gap-2 mb-2.5">
+              <div className="flex items-center bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={hourInput}
+                  onChange={(e) => setHourInput(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  onBlur={handleHourBlur}
+                  onKeyDown={(e) => e.key === 'Enter' && handleHourBlur()}
+                  className="w-10 text-center py-1.5 text-lg font-bold font-mono bg-transparent text-slate-700 dark:text-zinc-200 outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span className="text-lg font-bold text-slate-300 dark:text-zinc-600 select-none">:</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={minuteInput}
+                  onChange={(e) => setMinuteInput(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  onBlur={handleMinuteBlur}
+                  onKeyDown={(e) => e.key === 'Enter' && handleMinuteBlur()}
+                  className="w-10 text-center py-1.5 text-lg font-bold font-mono bg-transparent text-slate-700 dark:text-zinc-200 outline-none"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </div>
-              
-              {/* 星期标题 */}
-              <div className="grid grid-cols-7 gap-1 mb-1">
-                {weekDays.map(day => (
-                  <div key={day} className="text-center text-xs font-medium text-slate-400 dark:text-zinc-500 py-1">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              
-              {/* 日期网格 */}
-              <div className="grid grid-cols-7 gap-1">
-                {generateCalendarDays().map((day, index) => (
+              {/* 快捷时间 */}
+              <div className="flex flex-wrap gap-1 flex-1">
+                {QUICK_TIMES.map(qt => (
                   <button
-                    key={index}
+                    key={qt.label}
                     type="button"
-                    disabled={!day.isCurrentMonth || day.isDisabled}
-                    onClick={() => handleSelectDate(day.day, day.isCurrentMonth)}
-                    className={`
-                      w-8 h-8 text-sm rounded transition-colors
-                      ${!day.isCurrentMonth ? 'text-zinc-300 dark:text-zinc-700 cursor-default' : ''}
-                      ${day.isCurrentMonth && !day.isSelected && !day.isDisabled ? 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300' : ''}
-                      ${day.isSelected ? 'bg-red-500 text-white font-medium' : ''}
-                      ${day.isToday && !day.isSelected ? 'ring-1 ring-red-400' : ''}
-                      ${day.isDisabled ? 'text-zinc-300 dark:text-zinc-700 cursor-not-allowed' : ''}
-                    `}
+                    onClick={() => {
+                      handleTimeCommit(qt.h, qt.m);
+                      setHourInput(String(qt.h).padStart(2, '0'));
+                      setMinuteInput(String(qt.m).padStart(2, '0'));
+                    }}
+                    className={`px-1.5 py-0.5 text-[11px] font-mono transition-colors ${
+                      selHour === qt.h && selMinute === qt.m
+                        ? 'bg-red-500 text-white'
+                        : 'bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400'
+                    }`}
                   >
-                    {day.day}
+                    {qt.label}
                   </button>
                 ))}
               </div>
-              
-              {/* 快捷按钮 */}
-              <div className="flex gap-2 mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const today = new Date();
-                    setViewDate(today);
-                    handleSelectDate(today.getDate(), true);
-                  }}
-                  className="flex-1 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 rounded transition-colors"
-                >
-                  今天
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    setViewDate(tomorrow);
-                    handleSelectDate(tomorrow.getDate(), true);
-                  }}
-                  className="flex-1 py-1.5 text-xs bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300 rounded transition-colors"
-                >
-                  明天
-                </button>
-              </div>
             </div>
-          ) : (
-            <div className="p-3">
-              {/* 当前选择的时间 */}
-              <div className="text-center mb-3">
-                <span className="text-2xl font-bold text-slate-700 dark:text-zinc-300">
-                  {String(selectedHour).padStart(2, '0')}:{String(selectedMinute).padStart(2, '0')}
-                </span>
-              </div>
-              
-              {/* 快捷时间 */}
-              <div className="mb-3">
-                <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2">常用时间</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {quickTimes.map(qt => (
-                    <button
-                      key={qt.label}
-                      type="button"
-                      onClick={() => handleSelectTime(qt.hour, qt.minute)}
-                      className={`px-2.5 py-1 text-xs rounded transition-colors ${
-                        selectedHour === qt.hour && selectedMinute === qt.minute
-                          ? 'bg-red-500 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
-                    >
-                      {qt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* 小时选择 */}
-              <div className="mb-3">
-                <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2">小时</p>
-                <div className="grid grid-cols-6 gap-1">
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => handleSelectTime(i, selectedMinute)}
-                      className={`py-1 text-xs rounded transition-colors ${
-                        selectedHour === i
-                          ? 'bg-red-500 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
-                    >
-                      {String(i).padStart(2, '0')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* 分钟选择 */}
-              <div>
-                <p className="text-xs text-slate-500 dark:text-zinc-500 mb-2">分钟</p>
-                <div className="grid grid-cols-6 gap-1">
-                  {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(m => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => handleSelectTime(selectedHour, m)}
-                      className={`py-1 text-xs rounded transition-colors ${
-                        selectedMinute === m
-                          ? 'bg-red-500 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-slate-600 dark:text-zinc-300'
-                      }`}
-                    >
-                      {String(m).padStart(2, '0')}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* 确认按钮 */}
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-full mt-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded transition-colors"
-              >
-                确定
-              </button>
-            </div>
-          )}
-        </div>
+
+            {/* 确认按钮 */}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="w-full py-1.5 text-xs font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors tracking-wide"
+            >
+              确定
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 };
 
 export default DateTimePicker;
-

@@ -247,6 +247,20 @@ const PoolEditDialog = ({
                     onChange={(val) => setPoolForm(prev => ({ ...prev, end_time: val }))}
                     placeholder="选择结束时间"
                     minDate={poolForm.start_time}
+                    durationPresets={[
+                      { label: '17天', days: 17 },
+                      { label: '21天', days: 21 },
+                      { label: '51天', days: 51 },
+                    ]}
+                    durationBaseTime={poolForm.start_time}
+                    onDurationApply={(endDate) => {
+                      const y = endDate.getFullYear();
+                      const m = String(endDate.getMonth() + 1).padStart(2, '0');
+                      const d = String(endDate.getDate()).padStart(2, '0');
+                      const h = String(endDate.getHours()).padStart(2, '0');
+                      const min = String(endDate.getMinutes()).padStart(2, '0');
+                      setPoolForm(prev => ({ ...prev, end_time: `${y}-${m}-${d}T${h}:${min}` }));
+                    }}
                   />
                 </div>
 
