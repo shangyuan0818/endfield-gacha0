@@ -1,25 +1,43 @@
 # Endfield Gacha Analyzer (终末地抽卡分析器)
 
+A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*, with cloud sync, multi-user collaboration, and server-wide statistics.
+
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![Version](https://img.shields.io/badge/version-3.3.1-blue.svg)](https://github.com/MoguJunn/endfield-gacha/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
 ![Supabase](https://img.shields.io/badge/Supabase-Cloud-3ECF8E.svg)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC.svg)
 
-## 核心功能
+<p align="center">
+  <a href="https://ef-gacha.mogujun.icu/">在线体验 / Live Demo</a>
+</p>
 
-- **多卡池支持**：限定角色池（80 保底 / 120 硬保 / 240 赠送）、武器池（40 保底 / 80 硬保）、常驻池（80 保底 / 300 自选）
-- **官方 API 导入**：通过 Token 一键导入完整抽卡记录，智能去重、实时进度
-- **数据可视化**：全服 / 个人数据对比、稀有度饼图、6 星出货分布图、保底进度条
-- **用户系统**：邮箱认证、4 级权限体系（游客→用户→管理员→超管）、人机验证
-- **云端同步**：登录后数据自动同步，支持 JSON / CSV 导入导出
-- **移动端适配**：完整的移动端界面，响应式设计 + 暗色模式
-- **管理后台**：角色/武器数据同步、卡池管理、公告管理、用户管理
+## 预览 / Preview
 
-## 技术栈
+| 桌面端首页 | 全服统计 |
+|:---:|:---:|
+| ![Homepage](docs/screenshots/homepage.png) | ![Statistics](docs/screenshots/statistics.png) |
+
+| 抽卡模拟器 | 移动端 |
+|:---:|:---:|
+| ![Simulator](docs/screenshots/simulator.png) | ![Mobile](docs/screenshots/mobile-home.png) |
+
+## 核心功能 / Features
+
+- **多卡池支持** — 限定角色池（80 保底 / 120 硬保 / 240 赠送）、武器池（40 保底 / 80 硬保）、常驻池（80 保底 / 300 自选）
+- **官方 API 导入** — 通过 Token 一键导入完整抽卡记录，智能去重、实时进度
+- **数据可视化** — 全服 / 个人数据对比、稀有度饼图、6 星出货分布图、保底进度条
+- **抽卡模拟器** — 真实还原游戏内概率模型（含软保底机制），支持无限十连
+- **用户系统** — 邮箱认证、4 级权限体系（游客→用户→管理员→超管）、人机验证
+- **云端同步** — 登录后数据自动同步，支持 JSON / CSV 导入导出
+- **移动端适配** — 独立的移动端 UI，工业风格设计语言 + 暗色模式
+- **工单系统** — 应用内反馈、Bug 报告与建议提交
+- **管理后台** — 角色/武器数据同步、卡池管理、公告管理、用户管理、站点配置
+
+## 技术栈 / Tech Stack
 
 | 类别 | 技术 |
 |------|------|
@@ -30,11 +48,11 @@
 | 后端服务 | Supabase (Auth + PostgreSQL + Realtime + Edge Functions) |
 | 部署 | Vercel (前端 + Serverless) / Railway / Render (后端代理) |
 
-## 快速开始
+## 快速开始 / Getting Started
 
 ### 在线使用
 
-访问部署地址即可直接使用（无需安装）。
+访问 **[ef-gacha.mogujun.icu](https://ef-gacha.mogujun.icu/)** 即可直接使用（无需安装）。
 
 ### 本地开发
 
@@ -57,7 +75,7 @@ VITE_APP_URL=https://your-domain.vercel.app  # 用于邮件回调和实时功能
 
 **SMTP 配置**：Supabase 免费版仅 2 封/小时，建议配置自定义 SMTP（推荐 Resend，3000 封/月免费）。
 
-## 部署
+## 部署 / Deployment
 
 ### Vercel 部署
 
@@ -81,7 +99,7 @@ npm start  # 默认 :3001
 
 ### 数据库
 
-需要的表：`profiles`、`pools`、`history`、`characters`、`admin_applications`、`announcements`、`blacklist`、`page_content`、`global_stats`、`rate_limits`
+需要的表：`profiles`、`pools`、`history`、`characters`、`admin_applications`、`announcements`、`blacklist`、`page_content`、`global_stats`、`rate_limits`、`tickets`、`ticket_replies`、`site_config`
 
 迁移文件位于 `supabase/migrations/`，新部署时按顺序执行。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）。
 
@@ -91,25 +109,43 @@ npm start  # 默认 :3001
 gacha-analyzer/
 ├── api/                    # Vercel Serverless Functions
 ├── backend/                # 独立后端代理服务
-├── supabase/migrations/    # 数据库迁移文件
+├── supabase/
+│   ├── migrations/         # 数据库迁移文件 (062+)
+│   └── functions/          # Supabase Edge Functions
 ├── src/
-│   ├── components/         # UI 组件 (admin/ dashboard/ home/ layout/ mobile/ ...)
+│   ├── components/         # UI 组件
+│   │   ├── admin/          # 管理面板 (panels/)
+│   │   ├── common/         # 通用组件
+│   │   ├── dashboard/      # 卡池分析
+│   │   ├── home/           # 首页模块
+│   │   └── layout/         # 布局 (Header, Footer, Sidebar)
 │   ├── hooks/              # 自定义 Hooks (admin/ app/ summary/)
 │   ├── services/           # 业务逻辑层 (admin/ cache/ sync/ stats)
 │   ├── stores/             # Zustand 状态管理
 │   ├── utils/              # 工具函数
 │   ├── features/           # 功能模块 (simulator/ import/)
-│   ├── mobile/             # 移动端组件
+│   ├── mobile/             # 移动端 (components/ layouts/ views/)
 │   └── constants/          # 常量配置
+├── docs/                   # 文档与截图
 ├── vite.config.js
 ├── vercel.json
 └── .env.example
 ```
 
-## 更新日志
+## 更新日志 / Changelog
+
+### v3.3.1 (2026-02-24)
+- 修复移动端登出不完整（未清除 Supabase 会话）
+- 统一桌面端/移动端主题持久化
+- 新增移动端工单系统
+- 移动端管理面板路由接入
+- 站点配置可编辑化（数据库驱动）
 
 ### v3.3.0 (2026-02-05)
-- 移动端适配完成
+- 移动端 UI 全面重构（Endfield 工业设计语言）
+- XSS 防护升级（rehype-sanitize）
+- 全服统计精度校准（歪率判定重构）
+- SummaryView 模块化拆分
 
 ### v3.2.0 (2026-02-05)
 - 武器池数据导入修复（seqId 去重增加 pool_id 维度）
@@ -124,21 +160,14 @@ gacha-analyzer/
 ### v3.0.0 (2026-02-01)
 - 官方 API 数据导入功能
 - 移除手动录入，统一使用 API 导入
-- 并发请求日志优化
 
 ### v2.8.0 (2025-12-29)
 - "急"按钮全局点击统计（Realtime 同步）
 
-### v2.7.0 - v2.7.3 (2025-12)
-- 首页折叠状态记忆 + 公告更新检测
-- 页面更新提示气泡
+### v2.5.0 - v2.7.3 (2025-12)
+- 首页重构、页面内容管理、公告更新检测
+- Markdown 编辑器升级、限定 6 星彩虹渐变主题
 - 大量 UI 优化和 Bug 修复
-- 卡池轮换时间表更新
-
-### v2.5.0 - v2.6.1 (2025-12)
-- 首页重构、页面内容管理
-- Markdown 编辑器升级
-- 限定 6 星彩虹渐变主题
 
 ### v2.0.0 - v2.4.x (2024-12 ~ 2025-12)
 - 初始版本发布、架构重构、安全加固
@@ -148,7 +177,7 @@ gacha-analyzer/
 - Supabase Auth + 邮箱域名白名单
 - RLS 行级安全策略
 - API 频率限制 + 前后端参数验证
-- DOMPurify XSS 防护
+- DOMPurify + rehype-sanitize XSS 防护
 
 ## 制作团队
 
