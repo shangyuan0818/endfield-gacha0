@@ -81,7 +81,56 @@ function MobileDashboardView() {
     });
   }, [currentPoolHistory, currentPool]);
 
+  // 限定池跨池 pity 映射：recordId → { sixStarPity, fiveStarPity }
+  const crossPoolPityMap = useMemo(() => {
+    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
+    if (!isLimitedPool) return null;
+
+    const allLimitedPoolIds = poolsArray
+      .filter(p => p.type === 'limited' || p.type === 'limited_character')
+      .map(p => p.id);
+
+    let allLimitedPulls = historyArray.filter(h =>
+      allLimitedPoolIds.includes(h.poolId || h.pool_id) &&
+      h.user_id === user?.id &&
+      h.specialType !== 'gift'
+    );
+    if (currentGameUid) {
+      allLimitedPulls = allLimitedPulls.filter(h =>
+        h.game_uid === currentGameUid || h.gameUid === currentGameUid
+      );
+    }
+    allLimitedPulls.sort((a, b) => a.id - b.id);
+
+    const map = new Map();
+    let sixPity = 0;
+    let fivePity = 0;
+
+    allLimitedPulls.forEach(item => {
+      const isFree = item.isFree || item.is_free;
+      if (!isFree) {
+        sixPity++;
+        fivePity++;
+      }
+
+      if (item.rarity >= 5) {
+        map.set(item.id, {
+          sixStarPity: isFree ? 'free' : (item.rarity === 6 ? sixPity : null),
+          fiveStarPity: isFree ? 'free' : (item.rarity >= 5 ? fivePity : null),
+        });
+      }
+
+      if (!isFree) {
+        if (item.rarity === 6) sixPity = 0;
+        if (item.rarity >= 5) fivePity = 0;
+      }
+    });
+
+    return map;
+  }, [currentPool?.type, poolsArray, historyArray, user, currentGameUid]);
+
   const characterStats = useMemo(() => {
+    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
     const characters = new Map();
     let pullIndex = 0;
     let sixStarPityCounter = 0;
@@ -98,7 +147,18 @@ function MobileDashboardView() {
 
       if (item.rarity >= 5) {
         const name = item.character_name || item.item_name || item.name || '未知';
-        const pityValue = isFree ? 'free' : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
+
+        let pityValue;
+        if (isFree) {
+          pityValue = 'free';
+        } else if (isLimitedPool && crossPoolPityMap) {
+          const crossPity = crossPoolPityMap.get(item.id);
+          pityValue = crossPity
+            ? (item.rarity === 6 ? crossPity.sixStarPity : crossPity.fiveStarPity)
+            : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
+        } else {
+          pityValue = item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter;
+        }
 
         const existing = characters.get(name);
         if (existing) {
@@ -134,7 +194,7 @@ function MobileDashboardView() {
       if (a.rarity === b.rarity && a.isStandard === b.isStandard) return b.count - a.count;
       return b.rarity - a.rarity;
     });
-  }, [normalizedPoolHistory]);
+  }, [normalizedPoolHistory, currentPool?.type, crossPoolPityMap]);
 
   const stats = useMemo(() => {
     if (!currentPool || normalizedPoolHistory.length === 0) {

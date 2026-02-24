@@ -11,10 +11,13 @@ const HeaderPoolTimeInfo = React.memo(() => {
   const [timeInfo, setTimeInfo] = useState(() => getCurrentUpPoolInfo(pools));
 
   useEffect(() => {
-    // 每分钟更新一次时间（与首页保持一致的更新频率）
+    // pools 变化时立即更新
+    setTimeInfo(getCurrentUpPoolInfo(pools));
+
+    // 每分钟更新一次倒计时
     const timer = setInterval(() => {
       setTimeInfo(getCurrentUpPoolInfo(pools));
-    }, 60000); // 60秒更新一次
+    }, 60000);
 
     return () => clearInterval(timer);
   }, [pools]);

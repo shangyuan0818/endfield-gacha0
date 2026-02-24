@@ -110,15 +110,64 @@ const DashboardView = ({
     });
   }, [currentPoolHistory, currentPool?.type, currentPool?.up_character]);
 
+  // 限定池跨池 pity 映射：recordId → { sixStarPity, fiveStarPity }
+  const crossPoolPityMap = useMemo(() => {
+    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
+    if (!isLimitedPool) return null;
+
+    // 获取所有限定池ID
+    const allLimitedPoolIds = pools
+      .filter(p => p.type === 'limited' || p.type === 'limited_character')
+      .map(p => p.id);
+
+    // 合并所有限定池记录（当前用户+账号），按 id 排序（时间顺序）
+    let allLimitedPulls = history.filter(h =>
+      allLimitedPoolIds.includes(h.poolId) &&
+      h.user_id === user?.id &&
+      h.specialType !== 'gift'
+    );
+    if (currentGameUid) {
+      allLimitedPulls = allLimitedPulls.filter(h => h.game_uid === currentGameUid);
+    }
+    allLimitedPulls.sort((a, b) => a.id - b.id);
+
+    const map = new Map();
+    let sixPity = 0;
+    let fivePity = 0;
+
+    allLimitedPulls.forEach(item => {
+      const isFree = item.isFree || item.is_free;
+      if (!isFree) {
+        sixPity++;
+        fivePity++;
+      }
+
+      if (item.rarity >= 5) {
+        map.set(item.id, {
+          sixStarPity: isFree ? 'free' : (item.rarity === 6 ? sixPity : null),
+          fiveStarPity: isFree ? 'free' : (item.rarity >= 5 ? fivePity : null),
+        });
+      }
+
+      if (!isFree) {
+        if (item.rarity === 6) sixPity = 0;
+        if (item.rarity >= 5) fivePity = 0;
+      }
+    });
+
+    return map;
+  }, [currentPool?.type, pools, history, user, currentGameUid]);
+
   // 计算角色出货统计（按游戏账号筛选）
   const characterStats = useMemo(() => {
     const currentPoolHistory = normalizedPoolHistory;
+    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
 
     const characters = new Map();
 
     let pullIndex = 0;
-    let sixStarPityCounter = 0;  // 6星保底计数
-    let fiveStarPityCounter = 0; // 5星保底计数
+    let sixStarPityCounter = 0;  // 6星保底计数（当前池内，非限定池使用）
+    let fiveStarPityCounter = 0; // 5星保底计数（当前池内，非限定池使用）
 
     // 按时间排序
     const sortedHistory = [...currentPoolHistory].sort((a, b) => {
@@ -138,7 +187,19 @@ const DashboardView = ({
 
       if (item.rarity >= 5) {
         const name = item.character_name || item.item_name || item.name || '未知';
-        const pityValue = isFree ? 'free' : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
+
+        // 限定池使用跨池 pity，其他池使用当前池内 pity
+        let pityValue;
+        if (isFree) {
+          pityValue = 'free';
+        } else if (isLimitedPool && crossPoolPityMap) {
+          const crossPity = crossPoolPityMap.get(item.id);
+          pityValue = crossPity
+            ? (item.rarity === 6 ? crossPity.sixStarPity : crossPity.fiveStarPity)
+            : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
+        } else {
+          pityValue = item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter;
+        }
 
         const existing = characters.get(name);
         if (existing) {
@@ -181,7 +242,7 @@ const DashboardView = ({
     });
 
     return result;
-  }, [normalizedPoolHistory, currentPool?.up_character]);
+  }, [normalizedPoolHistory, currentPool?.up_character, currentPool?.type, crossPoolPityMap]);
 
   const totalCharacterCount = useMemo(() => characterStats.reduce((sum, char) => sum + char.count, 0), [characterStats]);
 

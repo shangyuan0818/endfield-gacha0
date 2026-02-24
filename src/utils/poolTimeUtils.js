@@ -127,14 +127,23 @@ export const getLimitedPoolScheduleFromDB = (pools) => {
     return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
   });
 
+  // 从硬编码中查找 removesAfter 的映射
+  const removesAfterMap = {};
+  for (const s of LIMITED_POOL_SCHEDULE) {
+    if (s.removesAfter) removesAfterMap[s.name] = s.removesAfter;
+  }
+
   // 转换为与 LIMITED_POOL_SCHEDULE 兼容的格式
-  return sortedPools.map(pool => ({
-    name: pool.up_character || pool.name,
-    startDate: pool.start_time,
-    endDate: pool.end_time,
-    removesAfter: pool.removesAfter || null, // 如果数据库有这个字段
-    poolData: pool, // 保留完整的 pool 对象
-  }));
+  return sortedPools.map(pool => {
+    const charName = pool.up_character || pool.name;
+    return {
+      name: charName,
+      startDate: pool.start_time,
+      endDate: pool.end_time,
+      removesAfter: pool.removesAfter || removesAfterMap[charName] || null,
+      poolData: pool,
+    };
+  });
 };
 
 /**

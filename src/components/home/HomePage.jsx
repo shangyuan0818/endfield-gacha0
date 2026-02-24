@@ -21,9 +21,8 @@ import {
 import { characterCache } from '../../utils/characterUtils';
 
 // 倒计时组件 - 终末地风格（支持 small 模式）
-const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, secondaryLink, secondaryLinkText, customEndedContent, size = 'normal', upcomingPools = [], characterName = null }) => {
+const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText, secondaryLink, secondaryLinkText, customEndedContent, size = 'normal', characterName = null }) => {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, ended: false });
-  const [upcomingTimeLeft, setUpcomingTimeLeft] = useState(null); // 用于下下个卡池的倒计时
   const hasAutoConfettiFired = useRef(false);
 
   // 辅助函数：计算并格式化时间差
@@ -45,30 +44,19 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
   useEffect(() => {
     const updateTimers = () => {
       const newMainTime = calculateAndFormat(targetDate);
-      
+
       // 避免不必要的重渲染：只有当秒数变化时才更新状态
       setTimeLeft(prev => {
         if (prev.seconds === newMainTime.seconds && prev.ended === newMainTime.ended) return prev;
         return newMainTime;
       });
-
-      // 下下个卡池倒计时 (index 1)
-      if (upcomingPools && upcomingPools.length >= 2) {
-        const nextNextPool = upcomingPools[1];
-        const newUpcomingTime = calculateAndFormat(nextNextPool.startDate);
-        
-        setUpcomingTimeLeft(prev => {
-          if (prev && prev.seconds === newUpcomingTime.seconds && prev.ended === newUpcomingTime.ended) return prev;
-          return newUpcomingTime;
-        });
-      }
     };
 
     updateTimers(); // 立即执行一次
     const timer = setInterval(updateTimers, 1000);
 
     return () => clearInterval(timer);
-  }, [targetDate, upcomingPools, calculateAndFormat]); // 依赖项保持，但内部状态更新已优化
+  }, [targetDate, calculateAndFormat]);
 
   // 自动撒花
   useEffect(() => {
@@ -212,57 +200,6 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
               )}
             </div>
           </div>
-
-          {/* 后续卡池简化展示 (仅大屏且有数据时显示) */}
-          {!isSmall && upcomingPools.length > 0 && (
-            <div className="mt-8 pt-4 border-t border-zinc-200/50 dark:border-zinc-700/50">
-              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 uppercase tracking-widest font-mono mb-2">后续卡池预告</div>
-              <div className="space-y-3">
-                {upcomingPools.slice(0, 2).map((pool, idx) => {
-                  const isNextNext = idx === 1;
-                  const charData = characterCache.searchByName(pool.name, false);
-                  const avatarUrl = charData?.avatar_url;
-                  return (
-                    <div key={pool.name} className="flex items-center gap-3 text-xs">
-                      <div className={`w-1 h-3 ${isNextNext ? 'bg-zinc-300 dark:bg-zinc-700' : 'bg-endfield-yellow'}`}></div>
-                      {/* 角色头像 */}
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
-                        isNextNext ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-gradient-to-br from-orange-400 to-pink-500'
-                      }`}>
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={pool.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              e.target.nextSibling.style.display = 'flex';
-                            }}
-                          />
-                        ) : null}
-                        <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
-                          <User size={14} />
-                        </div>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-2">
-                          {pool.name}
-                          {isNextNext && upcomingTimeLeft && !upcomingTimeLeft.ended && (
-                             <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 font-normal">
-                               (倒计时: {upcomingTimeLeft.days}天{upcomingTimeLeft.hours}时)
-                             </span>
-                          )}
-                        </span>
-                        <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">
-                          开启时间: {formatDate(pool.startDate)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* 右侧：数字区 */}
@@ -408,23 +345,19 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   // 获取当前 UP 池信息（用于卡池机制速览）
   const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray, now]);
 
-  // 计算倒计时目标（返回3个：主卡池 + 2个后续）
+  // 计算倒计时目标（主卡池）
   const countdowns = useMemo(() => {
     // 确保按开始时间排序
     const sortedPools = [...poolSchedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
-    
+
     // 找到当前正在进行的池子
     let activeIndex = sortedPools.findIndex(p => now >= new Date(p.startDate) && now < new Date(p.endDate));
-    
+
     // 如果没有正在进行的，找到下一个开始的池子
     if (activeIndex === -1) {
        activeIndex = sortedPools.findIndex(p => now < new Date(p.startDate));
     }
-    
-    // 如果所有池子都已结束（activeIndex = -1 且 now > last.endDate）
-    // 或者没有数据
-    // 此时显示公测倒计时作为Main
-    
+
     // 辅助函数：格式化池子数据
     const getPoolData = (index) => {
         if (index < 0 || index >= sortedPools.length) return null;
@@ -442,15 +375,12 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     };
 
     let main = null;
-    let others = [];
 
     if (activeIndex !== -1) {
        main = getPoolData(activeIndex);
-       if (activeIndex + 1 < sortedPools.length) others.push(getPoolData(activeIndex + 1));
-       if (activeIndex + 2 < sortedPools.length) others.push(getPoolData(activeIndex + 2));
     }
 
-    // 如果没有找到有效的主池子（比如activeIndex为-1且不是未来），使用默认值（公测/下个版本）
+    // 如果没有找到有效的主池子，使用默认值
     if (!main) {
        main = {
           targetDate: "2026-03-12T11:00:00+08:00",
@@ -459,7 +389,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
        };
     }
 
-    return { main, others };
+    return { main };
   }, [poolSchedule, now]);
 
   // 从 localStorage 读取初始折叠状态
@@ -812,131 +742,6 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* UP池轮换时间线 */}
-            <div className="border-t border-zinc-200 dark:border-zinc-800 pt-6">
-              <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-4 flex items-center gap-2 uppercase tracking-widest">
-                <RefreshCw size={12} />
-                Rotation Schedule // 轮换计划
-              </h4>
-              <div className="flex flex-wrap items-center gap-2">
-                {(() => {
-                  // Determine the index of the currently active pool
-                  let currentActiveIndex = -1;
-                  for (let i = 0; i < poolSchedule.length; i++) {
-                    const pool = poolSchedule[i];
-                    const start = new Date(pool.startDate);
-                    const end = new Date(pool.endDate);
-                    if (now >= start && now < end) {
-                      currentActiveIndex = i;
-                      break;
-                    }
-                  }
-
-                  // If no pool is currently active, check if we are past the last one or before first
-                  // But the requirement says "Wait until pool starts", so if not started, no special highlights
-
-                  return poolSchedule.map((pool, index) => {
-                    const poolStart = new Date(pool.startDate);
-                    const poolEnd = new Date(pool.endDate);
-                    const isCurrent = now >= poolStart && now < poolEnd;
-                    const isPast = now >= poolEnd;
-                    
-                    // Check if this character is currently obtainable in the limited pool
-                    // Logic: The character was introduced at `index`. 
-                    // It stays for `removesAfter` rotations.
-                    
-                    // Special Logic for Launch Trio: They are all available starting from Index 0 (Levante's Pool)
-                    const launchCharacters = ['莱万汀', '洁尔佩塔', '伊冯'];
-                    const isLaunchChar = launchCharacters.includes(pool.name);
-                    
-                    // Has the character entered the pool system?
-                    // Standard: When current index reaches their banner index.
-                    // Launch: When current index is >= 0 (Game Launched).
-                    const hasEntered = isLaunchChar ? currentActiveIndex >= 0 : index <= currentActiveIndex;
-                    
-                    // Has the character been removed?
-                    const hasNotExpired = currentActiveIndex < (index + (pool.removesAfter || 1));
-
-                    const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
-
-                    // 获取角色头像
-                    const charData = characterCache.searchByName(pool.name, false);
-                    const avatarUrl = charData?.avatar_url;
-
-                    // 格式化时间显示
-                    const formatDateTime = (date) => {
-                      const month = date.getMonth() + 1;
-                      const day = date.getDate();
-                      const hours = date.getHours().toString().padStart(2, '0');
-                      const minutes = date.getMinutes().toString().padStart(2, '0');
-                      return `${month}/${day} ${hours}:${minutes}`;
-                    };
-
-                    let containerClass = "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400"; // Default (Future/Unknown)
-                    
-                    if (isCurrent) {
-                       // Current UP
-                       containerClass = "bg-endfield-yellow/10 border-endfield-yellow text-amber-600 dark:text-endfield-yellow ring-1 ring-endfield-yellow/50 animate-pulse";
-                    } else if (isInPool) {
-                       // Not UP, but still in pool
-                       containerClass = "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400";
-                    } else if (isPast) {
-                       // Past and removed
-                       containerClass = "bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 line-through opacity-70";
-                    }
-
-                    return (
-                      <React.Fragment key={pool.name}>
-                        <div className={`px-3 py-2 rounded-sm text-xs font-mono transition-all border ${containerClass}`}>
-                          <div className="font-bold flex items-center gap-2">
-                             {/* 角色头像 */}
-                             <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
-                               isCurrent
-                                 ? 'bg-gradient-to-br from-orange-400 to-pink-500 ring-1 ring-endfield-yellow'
-                                 : isInPool
-                                   ? 'bg-blue-200 dark:bg-blue-800'
-                                   : 'bg-zinc-200 dark:bg-zinc-700'
-                             }`}>
-                               {avatarUrl ? (
-                                 <img
-                                   src={avatarUrl}
-                                   alt={pool.name}
-                                   className="w-full h-full object-cover"
-                                   onError={(e) => {
-                                     e.target.style.display = 'none';
-                                     e.target.nextSibling.style.display = 'flex';
-                                   }}
-                                 />
-                               ) : null}
-                               <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
-                                 <User size={12} />
-                               </div>
-                             </div>
-                             <span>{pool.name}</span>
-                             {isInPool && !isCurrent && <span className="text-[10px] opacity-80">(在卡池中)</span>}
-                             {isCurrent && <span className="text-[10px] font-bold">UP</span>}
-                          </div>
-                          <div className="text-[10px] opacity-70 mt-1 ml-8">
-                            {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
-                          </div>
-                        </div>
-                        {index < poolSchedule.length - 1 && (
-                          <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
-                        )}
-                      </React.Fragment>
-                    );
-                  });
-                })()}
-                <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
-                <div className="px-3 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 rounded-sm text-xs font-mono">
-                  待公布...
-                </div>
-              </div>
-              <p className="text-[10px] text-zinc-400 dark:text-zinc-600 mt-2 font-mono pl-1">
-                * 莱万汀(3次后移出) / 伊冯(4次后移出) / 洁尔佩塔(5次后移出)
-              </p>
             </div>
 
             {/* 可获取角色列表 */}
@@ -1394,13 +1199,135 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
               title={countdowns.main.title}
               subTitle={countdowns.main.subTitle}
               link={null}
-              upcomingPools={countdowns.others} // 传入后续卡池列表
-              characterName={countdowns.main.name} // 传入当前UP角色名称
+              characterName={countdowns.main.name}
             />
           )}
         </div>
 
         {/* 移除原来的 Small 倒计时 Grid */}
+
+        {/* UP池轮换计划 - 独立卡片 */}
+        {poolSchedule.length > 0 && (
+          <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+            <div className="relative z-10 px-6 py-4">
+              <h4 className="font-bold text-zinc-500 dark:text-zinc-400 text-xs mb-4 flex items-center gap-2 uppercase tracking-widest">
+                <RefreshCw size={12} />
+                Rotation Schedule // 轮换计划
+              </h4>
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  let currentActiveIndex = -1;
+                  for (let i = 0; i < poolSchedule.length; i++) {
+                    const pool = poolSchedule[i];
+                    const start = new Date(pool.startDate);
+                    const end = new Date(pool.endDate);
+                    if (now >= start && now < end) {
+                      currentActiveIndex = i;
+                      break;
+                    }
+                  }
+
+                  return poolSchedule.map((pool, index) => {
+                    const poolStart = new Date(pool.startDate);
+                    const poolEnd = new Date(pool.endDate);
+                    const isCurrent = now >= poolStart && now < poolEnd;
+                    const isPast = now >= poolEnd;
+
+                    const launchCharacters = ['莱万汀', '洁尔佩塔', '伊冯'];
+                    const isLaunchChar = launchCharacters.includes(pool.name);
+                    const hasEntered = isLaunchChar ? currentActiveIndex >= 0 : index <= currentActiveIndex;
+                    const hasNotExpired = currentActiveIndex < (index + (pool.removesAfter || 1));
+                    const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
+
+                    // 计算状态描述
+                    let statusLabel = null;
+                    if (isCurrent) {
+                      statusLabel = '当前UP角色';
+                    } else if (isInPool && pool.removesAfter) {
+                      const remainingRotations = (index + pool.removesAfter) - currentActiveIndex - 1;
+                      if (remainingRotations <= 1) {
+                        statusLabel = '下一次卡池轮换后移出';
+                      } else {
+                        statusLabel = `第2次卡池轮换后移出`;
+                      }
+                    } else if (!isPast && currentActiveIndex !== -1 && index > currentActiveIndex) {
+                      const diff = index - currentActiveIndex;
+                      if (diff === 1) statusLabel = '下一卡池UP';
+                      else if (diff === 2) statusLabel = '下下次卡池UP';
+                    }
+
+                    const charData = characterCache.searchByName(pool.name, false);
+                    const avatarUrl = charData?.avatar_url;
+
+                    const formatDateTime = (date) => {
+                      const month = date.getMonth() + 1;
+                      const day = date.getDate();
+                      const hours = date.getHours().toString().padStart(2, '0');
+                      const minutes = date.getMinutes().toString().padStart(2, '0');
+                      return `${month}/${day} ${hours}:${minutes}`;
+                    };
+
+                    let containerClass = "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400";
+                    if (isCurrent) {
+                      containerClass = "bg-endfield-yellow/10 border-endfield-yellow text-amber-600 dark:text-endfield-yellow ring-1 ring-endfield-yellow/50 animate-pulse";
+                    } else if (isInPool) {
+                      containerClass = "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400";
+                    } else if (isPast) {
+                      containerClass = "bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 line-through opacity-70";
+                    }
+
+                    return (
+                      <React.Fragment key={pool.name}>
+                        <div className={`px-3 py-2 rounded-sm text-xs font-mono transition-all border ${containerClass}`}>
+                          <div className="font-bold flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                              isCurrent
+                                ? 'bg-gradient-to-br from-orange-400 to-pink-500 ring-1 ring-endfield-yellow'
+                                : isInPool
+                                  ? 'bg-blue-200 dark:bg-blue-800'
+                                  : 'bg-zinc-200 dark:bg-zinc-700'
+                            }`}>
+                              {avatarUrl ? (
+                                <img src={avatarUrl} alt={pool.name} className="w-full h-full object-cover"
+                                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                              ) : null}
+                              <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                                <User size={12} />
+                              </div>
+                            </div>
+                            <span>{pool.name}</span>
+                            {isCurrent && <span className="text-[10px] font-bold">UP</span>}
+                            {isInPool && !isCurrent && <span className="text-[10px] opacity-80">(在卡池中)</span>}
+                          </div>
+                          <div className="text-[10px] opacity-70 mt-1 ml-8">
+                            {formatDateTime(poolStart)} - {formatDateTime(poolEnd)}
+                          </div>
+                          {statusLabel && (
+                            <div className={`text-[10px] mt-1 ml-8 font-bold ${
+                              isCurrent ? 'text-amber-600 dark:text-endfield-yellow' :
+                              isInPool ? 'text-blue-500 dark:text-blue-400' :
+                              'text-zinc-400 dark:text-zinc-500'
+                            }`}>
+                              {statusLabel}
+                            </div>
+                          )}
+                        </div>
+                        {index < poolSchedule.length - 1 && (
+                          <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+                        )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
+                <div className="w-4 h-px bg-zinc-200 dark:bg-zinc-800"></div>
+                <div className="px-3 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-400 dark:text-zinc-600 rounded-sm text-xs font-mono">
+                  待公布...
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 公测兑换码汇总 & 下版本倒计时 - 分离的两个卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
