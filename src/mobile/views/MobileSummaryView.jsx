@@ -98,24 +98,24 @@ function MobileSummaryView() {
         <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1">
           <button
             onClick={() => setDataSource('global')}
-            className={`px-3 py-1.5 text-[10px] font-bold uppercase transition-colors rounded-none ${
+            className={`px-4 py-2 text-[10px] font-bold uppercase transition-colors rounded-none ${
               dataSource === 'global'
                 ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
             }`}
           >
-            <Cloud size={10} className="inline mr-1" />
+            <Cloud size={12} className="inline mr-1" />
             全服
           </button>
           <button
             onClick={() => setDataSource('local')}
-            className={`px-3 py-1.5 text-[10px] font-bold uppercase transition-colors rounded-none ${
+            className={`px-4 py-2 text-[10px] font-bold uppercase transition-colors rounded-none ${
               dataSource === 'local'
                 ? 'bg-endfield-yellow text-black'
                 : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'
             }`}
           >
-            <User size={10} className="inline mr-1" />
+            <User size={12} className="inline mr-1" />
             本地
           </button>
         </div>
@@ -166,7 +166,7 @@ function MobileSummaryView() {
                     <span className="block text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-mono mb-0.5">贡献者</span>
                     <span className="text-lg font-bold text-zinc-700 dark:text-zinc-300 font-mono leading-none">{(currentStats.totalContributors || currentStats.totalUsers).toLocaleString()}</span>
                     {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
-                      <span className="block text-[9px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
+                      <span className="block text-[11px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
                     )}
                   </div>
                 )}
@@ -241,7 +241,7 @@ function MobileSummaryView() {
                       {(currentStats.byType?.limited?.total || 0).toLocaleString()} <span className="text-xs font-normal text-zinc-400">抽</span>
                     </div>
                     <div className="text-xs text-emerald-500 font-mono font-bold mt-1">
-                      {currentStats.byType?.limited?.six || 0} <span className="text-[9px] font-normal text-zinc-400">个 6★</span>
+                      {currentStats.byType?.limited?.six || 0} <span className="text-[11px] font-normal text-zinc-400">个 6★</span>
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
@@ -250,7 +250,7 @@ function MobileSummaryView() {
                       {(currentStats.byType?.standard?.total || 0).toLocaleString()} <span className="text-xs font-normal text-zinc-400">抽</span>
                     </div>
                     <div className="text-xs text-indigo-500 font-mono font-bold mt-1">
-                      {currentStats.byType?.standard?.six || 0} <span className="text-[9px] font-normal text-zinc-400">个 6★</span>
+                      {currentStats.byType?.standard?.six || 0} <span className="text-[11px] font-normal text-zinc-400">个 6★</span>
                     </div>
                   </div>
                 </div>
@@ -284,7 +284,7 @@ function MobileSummaryView() {
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-400 text-[9px] uppercase font-bold mb-1">平均出货</div>
+                    <div className="text-zinc-400 text-[11px] uppercase font-bold mb-1">平均出货</div>
                     <div className="text-lg font-bold font-mono text-indigo-500">
                       {currentStats.byType?.weapon?.avgPity || '-'}
                     </div>

@@ -3,58 +3,36 @@ import { useState, useEffect, useCallback } from 'react';
 const PLATFORM_PREFERENCE_KEY = 'platform-preference';
 
 /**
- * 同步检测是否为移动设备
+ * 使用 matchMedia 检测是否为移动设备（比 innerWidth 更可靠）
  */
 function detectMobileSync() {
   if (typeof window === 'undefined') return false;
-  const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-  const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-  const isMobileDevice = mobileRegex.test(userAgent);
-  const isSmallScreen = window.innerWidth <= 768;
-  return isMobileDevice || isSmallScreen;
+  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const mobileQuery = window.matchMedia('(max-width: 768px)');
+  return mobileUA || mobileQuery.matches;
 }
 
 /**
  * 设备检测 Hook
- * 检测用户设备类型并管理平台偏好
+ * 使用 matchMedia 替代 innerWidth + resize 事件
  */
 export function useDeviceDetection() {
-  // 使用同步检测作为初始值，避免闪烁
-  const [isMobile, setIsMobile] = useState(() => detectMobileSync());
+  const [isMobile, setIsMobile] = useState(detectMobileSync);
   const [platformPreference, setPlatformPreference] = useState(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(PLATFORM_PREFERENCE_KEY);
   });
-  const [isReady, setIsReady] = useState(false);
 
-  // 检测是否为移动设备
-  const detectMobile = useCallback(() => {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    const mobileRegex = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
-    const isMobileDevice = mobileRegex.test(userAgent);
-
-    // 也检查屏幕宽度（平板横屏等情况）
-    const isSmallScreen = window.innerWidth <= 768;
-
-    return isMobileDevice || isSmallScreen;
-  }, []);
-
-  // 加载保存的平台偏好
+  // 监听 matchMedia 变化（替代 resize 事件，更可靠）
   useEffect(() => {
-    const savedPreference = localStorage.getItem(PLATFORM_PREFERENCE_KEY);
-    if (savedPreference) {
-      setPlatformPreference(savedPreference);
-    }
-    setIsMobile(detectMobile());
-
-    // 监听窗口大小变化
-    const handleResize = () => {
-      setIsMobile(detectMobile());
+    const mq = window.matchMedia('(max-width: 768px)');
+    const handler = (e) => {
+      const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(e.matches || mobileUA);
     };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [detectMobile]);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // 设置平台偏好
   const setPreference = useCallback((preference) => {

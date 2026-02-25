@@ -104,13 +104,16 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       currentPity5++;
     }
 
-    // 统计各稀有度数量
+    // 统计各稀有度数量（仅统计有效抽数，排除免费十连和赠送）
     normalizedCurrentPoolHistory.forEach(pull => {
       let r = pull.rarity;
 
       if (pull.specialType === 'gift') {
         if (r === 6) giftCounts[6]++;
+        return; // 赠送不计入稀有度统计
       }
+
+      if (pull.isFree === true) return; // 免费十连不计入稀有度统计
 
       if (r === 6) {
         if (pull.isStandard) {
@@ -125,7 +128,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     });
 
     const totalSixStar = counts[6] + counts['6_std'];
-    const validSixStar = totalSixStar - giftCounts[6];
+    const validSixStar = totalSixStar; // counts 已排除 gift 和 isFree，无需再减
 
     // 修正不歪率计算 + 歪出分类（FEAT-013）
     let realLimited = 0;
@@ -151,24 +154,26 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     const realTotalSix = realLimited + realStandard;
     const winRate = realTotalSix > 0 ? (realLimited / realTotalSix * 100).toFixed(1) : 0;
 
-    // 计算额外赠送机制
+    // 计算额外赠送机制（池组聚合模式下跳过，因为赠送按单池计算）
     let bonusGiftsLimited = 0;
     let bonusGiftsStandard = 0;
 
-    if (currentPool.type === 'limited') {
-      bonusGiftsLimited = Math.floor(total / 240);
-    } else if (currentPool.type === 'weapon') {
-      if (total >= 100) bonusGiftsStandard++;
-      if (total >= 180) {
-        bonusGiftsLimited++;
-        const extraPulls = total - 180;
-        const extraCycles = Math.floor(extraPulls / 80);
-        bonusGiftsStandard += Math.ceil(extraCycles / 2);
-        bonusGiftsLimited += Math.floor(extraCycles / 2);
-      }
-    } else if (currentPool.type === 'standard') {
-      if (total >= 300) {
-        bonusGiftsStandard++;
+    if (!currentPool.isGroupMode) {
+      if (currentPool.type === 'limited') {
+        bonusGiftsLimited = Math.floor(total / 240);
+      } else if (currentPool.type === 'weapon') {
+        if (total >= 100) bonusGiftsStandard++;
+        if (total >= 180) {
+          bonusGiftsLimited++;
+          const extraPulls = total - 180;
+          const extraCycles = Math.floor(extraPulls / 80);
+          bonusGiftsStandard += Math.ceil(extraCycles / 2);
+          bonusGiftsLimited += Math.floor(extraCycles / 2);
+        }
+      } else if (currentPool.type === 'standard') {
+        if (total >= 300) {
+          bonusGiftsStandard++;
+        }
       }
     }
 
@@ -191,9 +196,10 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       if (pull.rarity === 6) {
         // 判断是否为120抽Spark触发（FEAT-014）
         // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
+        // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = !pull.isStandard;
         let isSpark = false;
-        if (currentPool.type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+        if (!currentPool.isGroupMode && currentPool.type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
           isSpark = true;
         }
         if (isUp && cumulativePullCount < 120) {
@@ -297,11 +303,11 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       }
     }
 
-    const probabilityInfo = calculateCurrentProbability(currentPity, currentPool.type);
+    const probabilityInfo = currentPool.isGroupMode ? null : calculateCurrentProbability(currentPity, currentPool.type);
 
     const infoBookThreshold = LIMITED_POOL_RULES.infoBookThreshold;
-    const hasInfoBook = currentPool.type === 'limited' && total >= infoBookThreshold;
-    const pullsUntilInfoBook = currentPool.type === 'limited' && !hasInfoBook
+    const hasInfoBook = !currentPool.isGroupMode && currentPool.type === 'limited' && total >= infoBookThreshold;
+    const pullsUntilInfoBook = !currentPool.isGroupMode && currentPool.type === 'limited' && !hasInfoBook
       ? infoBookThreshold - total
       : 0;
 

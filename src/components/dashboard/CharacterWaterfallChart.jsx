@@ -99,12 +99,12 @@ const PullRow = ({ pull, maxPity }) => {
       {/* 条形图 */}
       <div className="flex-1 flex items-center gap-2 min-w-0">
         <div
-          className={`h-5 rounded-sm ${barClass} relative`}
+          className={`h-6 rounded-sm ${barClass} relative`}
           style={{ width: `${widthPercent}%`, minWidth: '8px' }}
           title={`${pityNum}抽 (#${pull.pullIndex})`}
         >
-          {pityNum >= 15 && (
-            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-mono font-bold text-white/90">
+          {pityNum >= 12 && (
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-mono font-bold waterfall-text">
               {pityNum}
             </span>
           )}

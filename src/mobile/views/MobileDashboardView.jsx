@@ -4,11 +4,15 @@ import {
   ChevronDown, ChevronUp, Layers, Swords, User, PieChart as PieChartIcon,
   BarChart3, LayoutGrid
 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
+import { isPoolGroupId, getPoolGroupType, getPoolsForGroupType, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import { LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { calculateCurrentProbability, calculateInheritedPity } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
+import { useTheme } from '../../contexts/ThemeContext';
+import RainbowGradientDefs from '../../components/charts/RainbowGradientDefs';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
 import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfallChart';
@@ -22,6 +26,7 @@ function MobileDashboardView() {
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const history = useHistoryStore(state => state.history);
+  const { isDark } = useTheme();
 
   // 角色出货视图模式: 'card' | 'waterfall'
   const [charViewMode, setCharViewMode] = useState('card');
@@ -29,12 +34,48 @@ function MobileDashboardView() {
   const poolsArray = Array.isArray(pools) ? pools : [];
   const historyArray = Array.isArray(history) ? history : [];
 
+  // 检测聚合模式（FEAT-018）
+  const isGroupMode = isPoolGroupId(currentPoolId);
+  const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
+
   const currentPool = useMemo(() => {
-    if (!poolsArray.length) return null;
+    if (!poolsArray.length && !isGroupMode) return null;
+    // FEAT-018: 池组聚合模式 — 返回虚拟池对象
+    if (isGroupMode) {
+      const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard' ? 'weapon'
+        : groupType === 'limited' ? 'limited' : groupType;
+      return {
+        id: currentPoolId,
+        name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
+        type: baseType,
+        isGroupMode: true,
+        up_character: null,
+      };
+    }
     return poolsArray.find(p => p.id === currentPoolId) || poolsArray[0];
-  }, [poolsArray, currentPoolId]);
+  }, [poolsArray, currentPoolId, isGroupMode, groupType]);
 
   const currentPoolHistory = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 合并该类型所有池的记录
+    if (isGroupMode) {
+      const groupPools = getPoolsForGroupType(poolsArray, groupType);
+      const groupPoolIds = new Set(groupPools.map(p => p.id));
+      let poolHistory = historyArray.filter(h => {
+        const hPoolId = h.poolId || h.pool_id;
+        return groupPoolIds.has(hPoolId) && h.user_id === user?.id;
+      });
+      if (currentGameUid) {
+        poolHistory = poolHistory.filter(h =>
+          h.game_uid === currentGameUid || h.gameUid === currentGameUid
+        );
+      }
+      return poolHistory.sort((a, b) => {
+        const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
+        const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
+        return timeA - timeB;
+      });
+    }
+
     if (!currentPool) return [];
 
     let poolHistory = historyArray.filter(h => {
@@ -56,6 +97,32 @@ function MobileDashboardView() {
   }, [historyArray, currentPool, currentGameUid, user]);
 
   const normalizedPoolHistory = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 按每条记录所属池的 UP 角色单独判断
+    if (isGroupMode) {
+      const poolMap = new Map(poolsArray.map(p => [p.id, p]));
+      return currentPoolHistory.map(h => {
+        const pool = poolMap.get(h.poolId || h.pool_id);
+        const poolType = pool?.type;
+        const upCharacter = pool?.up_character;
+        const characterName = h.character_name || h.item_name || h.name || '';
+        let isStd;
+        if (poolType === 'standard' || poolType === 'beginner') {
+          isStd = true;
+        } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+          if (upCharacter && h.rarity === 6) {
+            isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+          } else if (h.rarity === 6) {
+            isStd = false;
+          } else {
+            isStd = h.isStandard ?? false;
+          }
+        } else {
+          isStd = h.isStandard ?? false;
+        }
+        return { ...h, isStandard: isStd };
+      });
+    }
+
     const poolType = currentPool?.type;
     const upCharacter = currentPool?.up_character;
 
@@ -81,8 +148,16 @@ function MobileDashboardView() {
     });
   }, [currentPoolHistory, currentPool]);
 
+  // 池类型派生常量（必须在所有使用它们的 useMemo 之前声明）
+  const isLimited = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
+  const isWeapon = currentPool?.type === 'weapon' || currentPool?.type === 'limited_weapon';
+  const isStandard = currentPool?.type === 'standard';
+  const maxPity = isWeapon ? 40 : 80;
+
   // 限定池跨池 pity 映射：recordId → { sixStarPity, fiveStarPity }
   const crossPoolPityMap = useMemo(() => {
+    // 聚合模式下不计算跨池保底
+    if (isGroupMode) return null;
     const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
     if (!isLimitedPool) return null;
 
@@ -294,20 +369,71 @@ function MobileDashboardView() {
       5: fiveStarCount > 0 ? (fiveStarTotalPity / fiveStarCount).toFixed(1) : '-'
     };
 
-    const probabilityInfo = calculateCurrentProbability(currentPity, currentPool?.type);
-    const hasInfoBook = currentPool?.type === 'limited' && total >= LIMITED_POOL_RULES.infoBookThreshold;
+    const probabilityInfo = isGroupMode ? null : calculateCurrentProbability(currentPity, currentPool?.type);
+    const hasInfoBook = !isGroupMode && currentPool?.type === 'limited' && total >= LIMITED_POOL_RULES.infoBookThreshold;
+
+    // 饼图数据
+    const rawChartData = [
+      ...(currentPool.type !== 'standard' ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color }] : []),
+      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
+      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
+      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
+    ].filter(item => item.value > 0);
+
+    const chartData = rawChartData.map(item => {
+      const totalValue = rawChartData.reduce((sum, d) => sum + d.value, 0);
+      const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+      let minPercent = 0;
+      if (item.name.includes('6星')) minPercent = 15;
+      else if (item.name.includes('5星')) minPercent = 20;
+      if (currentPercent < minPercent && totalValue > 0) {
+        return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+      }
+      return { ...item, displayValue: item.value };
+    });
+
+    // 6星出货分布直方图
+    const sixStarPulls = [];
+    let pityCounter = 0;
+    normalizedPoolHistory.forEach(item => {
+      if (item.specialType === 'gift') return;
+      const isFree = item.isFree || item.is_free;
+      if (!isFree) pityCounter++;
+      if (item.rarity === 6 && !isFree) {
+        sixStarPulls.push({ count: pityCounter, isStandard: item.isStandard });
+        pityCounter = 0;
+      }
+    });
+
+    const distributionData = [];
+    if (sixStarPulls.length > 0) {
+      const maxPityRecorded = Math.max(...sixStarPulls.map(p => p.count));
+      const maxRange = Math.ceil(Math.max(maxPity, maxPityRecorded) / 10) * 10;
+      for (let i = 0; i < maxRange; i += 10) {
+        const rangeStart = i + 1;
+        const rangeEnd = i + 10;
+        const items = sixStarPulls.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
+        distributionData.push({
+          range: `${rangeStart}-${rangeEnd}`,
+          limited: items.filter(p => !p.isStandard).length,
+          standard: items.filter(p => p.isStandard).length,
+        });
+      }
+    }
 
     return {
       total, currentPity, currentPity5, counts,
       sixStarCount, upSixStarCount, offStandardCount, offLimitedCount,
       winRate, avgPullCost,
-      probabilityInfo, hasInfoBook
+      probabilityInfo, hasInfoBook,
+      chartData,
+      pityStats: { history: sixStarPulls, distribution: distributionData }
     };
   }, [normalizedPoolHistory, currentPool]);
 
-  // 跨池保底继承（限定池）
+  // 跨池保底继承（限定池，聚合模式下跳过）
   const crossPoolPity = useMemo(() => {
-    if (!isLimited) return null;
+    if (!isLimited || isGroupMode) return null;
     const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
     const { inheritedPity, inheritedPity5, isInherited } = calculateInheritedPity(
       allLimitedPools,
@@ -372,11 +498,6 @@ function MobileDashboardView() {
 
     return { nextGift, nextGiftType, standardCount, limitedCount };
   }, [currentPool?.type, stats.total]);
-
-  const isLimited = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
-  const isWeapon = currentPool?.type === 'weapon' || currentPool?.type === 'limited_weapon';
-  const isStandard = currentPool?.type === 'standard';
-  const maxPity = isWeapon ? 40 : 80;
 
   const currentUpPool = useMemo(() => {
     // 如果当前查看的是限定池且有自身时间数据，优先使用
@@ -456,7 +577,7 @@ function MobileDashboardView() {
 
             {currentPool.up_character && (
               <div className="text-right bg-zinc-50 dark:bg-zinc-800/50 p-1.5 border border-zinc-100 dark:border-zinc-700">
-                <div className="text-[9px] text-zinc-400 uppercase font-mono mb-0.5">当前UP</div>
+                <div className="text-[11px] text-zinc-400 uppercase font-mono mb-0.5">当前UP</div>
                 <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase">
                   {currentPool.up_character}
                 </div>
@@ -495,7 +616,8 @@ function MobileDashboardView() {
         </div>
       </div>
 
-      {/* 保底进度 */}
+      {/* 保底进度（聚合模式下隐藏） */}
+      {!isGroupMode && (
       <div className="grid grid-cols-2 gap-3">
         {/* 6星保底 */}
         {(() => {
@@ -505,7 +627,7 @@ function MobileDashboardView() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide">6★ 保底 ({maxPity})</span>
                 {stats.probabilityInfo?.isInSoftPity && (
-                  <span className="text-[9px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
+                  <span className="text-[11px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
                     概率提升 {(stats.probabilityInfo.probability * 100).toFixed(0)}%
                   </span>
                 )}
@@ -556,30 +678,106 @@ function MobileDashboardView() {
           );
         })()}
       </div>
+      )}
 
       {/* 核心数据网格 */}
       <div className={`grid ${currentPool.type !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
         {currentPool.type !== 'standard' && (
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-            <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight mb-1">限定 6★</div>
+            <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">限定 6★</div>
             <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-zinc-300'}`}>
               {stats.counts[6]}
             </div>
           </div>
         )}
         <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight mb-1">常驻 6★</div>
+          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">常驻 6★</div>
           <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">{stats.counts['6_std']}</div>
         </div>
         <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight mb-1">5★</div>
+          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">5★</div>
           <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">{stats.counts[5]}</div>
         </div>
         <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-tight mb-1">4★</div>
+          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">4★</div>
           <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">{stats.counts[4]}</div>
         </div>
       </div>
+
+      {/* 图表：分布概览 + 出货分布 */}
+      {stats.total > 0 && (
+        <div className="space-y-3">
+          {/* 饼图 - 分布概览 */}
+          <MobileChartContainer title="分布概览" defaultExpanded={true} className="rounded-none">
+            <div className="h-52 w-full pt-2">
+              {stats.chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <RainbowGradientDefs />
+                    <Pie
+                      data={stats.chartData}
+                      cx="50%"
+                      cy="45%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={2}
+                      dataKey="displayValue"
+                    >
+                      {stats.chartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip
+                      formatter={(value, name, props) => [`${props.payload.value} (${(props.payload.value / stats.total * 100).toFixed(1)}%)`, name]}
+                      contentStyle={{
+                        backgroundColor: isDark ? '#18181b' : '#fff',
+                        border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
+                        borderRadius: 0,
+                        fontSize: 12,
+                      }}
+                      itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      iconSize={8}
+                      formatter={(value) => <span className="text-[11px] text-zinc-500 dark:text-zinc-400 ml-1">{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700 text-sm">暂无数据</div>
+              )}
+            </div>
+          </MobileChartContainer>
+
+          {/* 柱状图 - 6星出货分布 */}
+          {stats.pityStats.history.length > 0 && (
+            <MobileChartContainer title="出货分布" defaultExpanded={true} className="rounded-none">
+              <div className="h-48 w-full pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.pityStats.distribution} stackOffset="sign" margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
+                    <RainbowGradientDefs />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
+                    <XAxis dataKey="range" tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} interval={0} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? '#18181b' : '#fff',
+                        border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
+                        borderRadius: 0,
+                        fontSize: 12,
+                      }}
+                      cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}
+                    />
+                    <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定" radius={[0, 0, 2, 2]} />
+                    <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻" radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </MobileChartContainer>
+          )}
+        </div>
+      )}
 
       {/* 不歪率和平均出货（限定/武器池） */}
       {(isLimited || isWeapon) && (
@@ -588,7 +786,7 @@ function MobileDashboardView() {
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
             <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
               <span>不歪率</span>
-              {isLimited && <span className="text-[9px] text-zinc-300">(免十不计)</span>}
+              {isLimited && <span className="text-[11px] text-zinc-300">(免十不计)</span>}
             </div>
             <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
               {stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
@@ -599,7 +797,7 @@ function MobileDashboardView() {
                 style={{ width: `${parseFloat(stats.winRate) || 0}%` }}
               />
             </div>
-            <div className="flex justify-between text-[9px] text-zinc-500 font-mono uppercase">
+            <div className="flex justify-between text-[11px] text-zinc-500 font-mono uppercase">
               <span>UP: {stats.counts[6]}</span>
               <span>歪: {stats.counts['6_std']}</span>
             </div>
@@ -609,7 +807,7 @@ function MobileDashboardView() {
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
             <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
               <span>UP六星造价</span>
-              <span className="text-[9px] text-zinc-300">(免十/必出不计)</span>
+              <span className="text-[11px] text-zinc-300">(免十/必出不计)</span>
             </div>
             <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
               {stats.avgPullCost[6]}
@@ -618,7 +816,7 @@ function MobileDashboardView() {
             <div className="h-1 w-full bg-zinc-100 dark:bg-zinc-800 relative">
                <div className="absolute left-0 top-0 bottom-0 bg-zinc-300 dark:bg-zinc-600 w-1/2"></div>
             </div>
-             <div className="mt-2 text-[9px] text-zinc-500 font-mono uppercase">
+             <div className="mt-2 text-[11px] text-zinc-500 font-mono uppercase">
               期望: ~{isWeapon ? '31' : '62'}
             </div>
           </div>
@@ -630,19 +828,20 @@ function MobileDashboardView() {
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
           <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
             <span>限定六星造价</span>
-            <span className="text-[9px] text-zinc-300">(UP+歪限定)</span>
+            <span className="text-[11px] text-zinc-300">(UP+歪限定)</span>
           </div>
           <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
             {stats.avgPullCost['6_limited']}
             {stats.avgPullCost['6_limited'] !== '-' && <span className="text-xs ml-1 font-normal text-zinc-400">抽</span>}
           </div>
-          <div className="mt-1 text-[9px] text-zinc-500 font-mono uppercase">
+          <div className="mt-1 text-[11px] text-zinc-500 font-mono uppercase">
             限定六星: {stats.upSixStarCount + stats.offLimitedCount}次 (UP {stats.upSixStarCount} + 歪限定 {stats.offLimitedCount})
           </div>
         </div>
       )}
 
-      {/* 特殊机制进度 */}
+      {/* 特殊机制进度（聚合模式下隐藏） */}
+      {!isGroupMode && (
       <MobileChartContainer title="特殊机制进度" defaultExpanded={true} className="rounded-none">
         <div className="space-y-3 pt-2">
           {/* 限定池特殊进度 */}
@@ -662,7 +861,7 @@ function MobileDashboardView() {
                     style={{ width: hasReceivedFreeTen ? '100%' : '0%' }}
                   />
                 </div>
-                <div className="mt-1 text-[9px] text-zinc-400 font-mono">30抽后赠送，不计入保底</div>
+                <div className="mt-1 text-[11px] text-zinc-400 font-mono">30抽后赠送，不计入保底</div>
               </div>
 
               {/* 120必出限定 */}
@@ -742,7 +941,7 @@ function MobileDashboardView() {
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase">
                       下个奖励
-                      <span className={`px-1 py-0.5 text-[9px] font-bold text-white ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
+                      <span className={`px-1 py-0.5 text-[11px] font-bold text-white ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
                         {weaponGifts.nextGiftType === 'limited' ? '限定' : '常驻'}
                       </span>
                     </span>
@@ -754,7 +953,7 @@ function MobileDashboardView() {
                       style={{ width: `${Math.min((stats.total / weaponGifts.nextGift) * 100, 100)}%` }}
                     />
                   </div>
-                  <div className="mt-1 flex gap-3 text-[9px] text-zinc-500 font-mono uppercase">
+                  <div className="mt-1 flex gap-3 text-[11px] text-zinc-500 font-mono uppercase">
                     <span>已获得:</span>
                     <span className="text-red-600 dark:text-red-400 font-medium">{weaponGifts.standardCount} 常驻</span>
                     <span className="text-cyan-600 dark:text-cyan-400 font-medium">{weaponGifts.limitedCount} 限定</span>
@@ -781,6 +980,7 @@ function MobileDashboardView() {
           )}
         </div>
       </MobileChartContainer>
+      )}
 
       {/* 角色出货统计 */}
       <MobileChartContainer
@@ -791,24 +991,24 @@ function MobileDashboardView() {
           <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
             <button
               onClick={() => setCharViewMode('card')}
-              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+              className={`flex items-center gap-1 px-3 py-2 text-[11px] font-medium transition-colors ${
                 charViewMode === 'card'
                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
                   : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
-              <LayoutGrid size={12} />
+              <LayoutGrid size={14} />
               卡片
             </button>
             <button
               onClick={() => setCharViewMode('waterfall')}
-              className={`flex items-center gap-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+              className={`flex items-center gap-1 px-3 py-2 text-[11px] font-medium transition-colors ${
                 charViewMode === 'waterfall'
                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
                   : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
-              <BarChart3 size={12} />
+              <BarChart3 size={14} />
               时间线
             </button>
           </div>

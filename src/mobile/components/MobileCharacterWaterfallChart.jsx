@@ -14,7 +14,7 @@ const MobilePullGroup = ({ title, titleColor, pulls, maxPity, defaultExpanded = 
     <div className="border border-zinc-100 dark:border-zinc-800">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-between w-full px-2.5 py-1.5 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        className="flex items-center justify-between w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
       >
         <span className={`text-[10px] font-bold uppercase tracking-wider ${titleColor}`}>
           {title}
@@ -72,7 +72,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
         <span className={`text-[11px] font-bold truncate w-16 shrink-0 ${isLimited ? 'text-zinc-800 dark:text-zinc-200' : 'text-zinc-600 dark:text-zinc-400'}`}>
           {pull.name}
         </span>
-        <span className="text-[9px] font-mono font-bold text-blue-500 px-1 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+        <span className="text-[11px] font-mono font-bold text-blue-500 px-1 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
           赠送
         </span>
       </div>
@@ -96,16 +96,16 @@ const MobilePullRow = ({ pull, maxPity }) => {
       </span>
       <div className="flex-1 flex items-center gap-1.5 min-w-0">
         <div
-          className={`h-4 rounded-sm ${barClass} relative`}
+          className={`h-5 rounded-sm ${barClass} relative`}
           style={{ width: `${widthPercent}%`, minWidth: '6px' }}
         >
-          {pityNum >= 20 && (
-            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-mono font-bold text-white/90">
+          {pityNum >= 12 && (
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-mono font-bold waterfall-text">
               {pityNum}
             </span>
           )}
         </div>
-        <span className="text-[9px] font-mono text-zinc-500 dark:text-zinc-500 shrink-0">
+        <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-500 shrink-0">
           #{pull.pullIndex}
         </span>
       </div>

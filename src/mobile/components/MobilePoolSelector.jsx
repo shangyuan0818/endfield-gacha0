@@ -3,6 +3,7 @@ import {
   ChevronDown, Star, Layers, Swords, User, Lock, Check, Upload, Search, X
 } from 'lucide-react';
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
+import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 
 /**
@@ -53,9 +54,13 @@ function MobilePoolSelector() {
     return counts;
   }, [filteredHistory]);
 
-  // 当前选中的卡池
+  // 当前选中的卡池（或池组）
   const selectedPool = useMemo(() => {
     if (!pools || pools.length === 0) return null;
+    if (isPoolGroupId(currentPoolId)) {
+      const groupType = currentPoolId.slice(POOL_GROUP_PREFIX.length);
+      return { id: currentPoolId, name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`, isGroupMode: true, type: groupType };
+    }
     return pools.find((p) => p.id === currentPoolId) || pools[0];
   }, [pools, currentPoolId]);
 
@@ -122,6 +127,14 @@ function MobilePoolSelector() {
 
   const handleSelectPool = (poolId) => {
     switchPool(poolId);
+    setIsPoolOpen(false);
+    setSearchQuery('');
+  };
+
+  const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
+
+  const handleSelectGroup = (groupType) => {
+    switchToPoolGroup(groupType);
     setIsPoolOpen(false);
     setSearchQuery('');
   };
@@ -319,6 +332,36 @@ function MobilePoolSelector() {
                           {group.label}
                         </span>
                       </div>
+
+                      {/* 池组聚合按钮（仅该分组 > 1 个池时显示） */}
+                      {group.pools.length > 1 && (() => {
+                        const groupId = POOL_GROUP_PREFIX + group.type;
+                        const isGroupSelected = currentPoolId === groupId;
+                        const totalGroupPulls = group.pools.reduce((sum, p) => sum + (poolPullCounts[p.id] || 0), 0);
+                        return (
+                          <button
+                            onClick={() => handleSelectGroup(group.type)}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors touch-feedback border-b border-dashed border-zinc-100 dark:border-zinc-800 ${
+                              isGroupSelected
+                                ? 'bg-endfield-yellow/10 border-l-2 border-l-endfield-yellow'
+                                : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 border-l-2 border-l-transparent'
+                            }`}
+                          >
+                            <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800">
+                              <Layers size={14} className="text-zinc-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm font-medium ${isGroupSelected ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                                全部{group.label}池
+                              </div>
+                              <div className="text-[10px] text-zinc-400 font-mono">
+                                {group.pools.length} 池 · {totalGroupPulls} 抽
+                              </div>
+                            </div>
+                            {isGroupSelected && <Check size={16} className="text-endfield-yellow flex-shrink-0" />}
+                          </button>
+                        );
+                      })()}
 
                       {/* 卡池列表 */}
                       {group.pools.map((pool) => {

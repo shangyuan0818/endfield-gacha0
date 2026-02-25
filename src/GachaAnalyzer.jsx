@@ -9,10 +9,12 @@ import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } 
 import { DEFAULT_POOL_ID } from './constants';
 import AppHeader from './components/layout/AppHeader';
 import { extractDrawerFromPoolName, normalizeIsStandard } from './utils';
+import { isPoolGroupId, getPoolGroupType, getPoolsForGroupType, GROUP_TYPE_LABELS } from './stores/usePoolStore';
+import { useTheme } from './contexts/ThemeContext';
 
-export default function GachaAnalyzer({ themeMode, setThemeMode }) {
-  // 检测暗色模式
-  const isDark = themeMode === 'dark' || (themeMode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+export default function GachaAnalyzer() {
+  // 主题状态（从 ThemeContext 获取）
+  const { themeMode, setThemeMode, isDark } = useTheme();
 
   // --- 从 Zustand Stores 获取状态 ---
 
@@ -122,6 +124,22 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 当前卡池对象（从 stores 计算）
   const currentPool = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 返回虚拟池对象
+    if (isPoolGroupId(currentPoolId)) {
+      const groupType = getPoolGroupType(currentPoolId);
+      // 将分组类型映射到 pool.type 值（供 usePoolStats 使用）
+      const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard' ? 'weapon'
+        : groupType === 'limited' ? 'limited'
+        : groupType;
+      return {
+        id: currentPoolId,
+        name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
+        type: baseType,
+        isGroupMode: true,
+        up_character: null,
+        locked: true // 虚拟池不可编辑
+      };
+    }
     const byId = poolsArray.find(p => p.id === currentPoolId);
     if (byId) return byId;
     const defaultPool = poolsArray.find(p => p.id === DEFAULT_POOL_ID);
@@ -144,7 +162,8 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
     // 当前选中的卡池存在，无需回退
     const exists = poolsArray.some(p => p.id === currentPoolId);
-    if (exists) {
+    // FEAT-018: 池组虚拟ID也视为有效，不回退
+    if (exists || isPoolGroupId(currentPoolId)) {
       // 清除任何待处理的切换
       if (pendingSwitchRef.current) {
         clearTimeout(pendingSwitchRef.current);
@@ -214,20 +233,43 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
 
   // 当前卡池的历史记录（只显示当前用户的数据，按游戏账号过滤）
   const currentPoolHistory = useMemo(() => {
-    if (!currentPool) return [];
-    // 只显示当前用户的数据
-    // 游客无法看到任何数据，登录用户只能看到自己的数据
     if (!user) return [];
+
+    // FEAT-018: 池组聚合模式 — 合并该类型所有池的记录
+    if (isPoolGroupId(currentPoolId)) {
+      const groupType = getPoolGroupType(currentPoolId);
+      const groupPools = getPoolsForGroupType(poolsArray, groupType);
+      const groupPoolIds = new Set(groupPools.map(p => p.id));
+      let filtered = (history || []).filter(h => groupPoolIds.has(h.poolId) && h.user_id === user.id);
+      if (currentGameUid) {
+        filtered = filtered.filter(h => h.game_uid === currentGameUid || h.gameUid === currentGameUid);
+      }
+      return filtered;
+    }
+
+    if (!currentPool) return [];
     let filtered = (history || []).filter(h => h.poolId === currentPoolId && h.user_id === user.id);
     // 按游戏账号过滤（支持多账号：官服/B服）
     if (currentGameUid) {
       filtered = filtered.filter(h => h.game_uid === currentGameUid || h.gameUid === currentGameUid);
     }
     return filtered;
-  }, [history, currentPoolId, currentPool, user, currentGameUid]);
+  }, [history, currentPoolId, currentPool, user, currentGameUid, poolsArray]);
 
   // 归一化当前卡池历史的 isStandard（基于 UP 角色匹配重新计算，不信任数据库原值）
   const normalizedCurrentPoolHistory = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 每条记录按其所属池的 UP 角色单独判断
+    if (isPoolGroupId(currentPoolId)) {
+      const poolMap = new Map(poolsArray.map(p => [p.id, p]));
+      return currentPoolHistory.map(h => {
+        const pool = poolMap.get(h.poolId);
+        return {
+          ...h,
+          isStandard: normalizeIsStandard(h, pool?.type, pool?.up_character)
+        };
+      });
+    }
+
     const poolType = currentPool?.type;
     const upCharacter = currentPool?.up_character;
 
@@ -235,7 +277,7 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
       ...h,
       isStandard: normalizeIsStandard(h, poolType, upCharacter)
     }));
-  }, [currentPoolHistory, currentPool?.type, currentPool?.up_character]);
+  }, [currentPoolHistory, currentPool?.type, currentPool?.up_character, currentPoolId, poolsArray]);
 
   // 卡池统计 Hook - 统计计算、分组历史、保底计算
   const {
@@ -386,8 +428,6 @@ export default function GachaAnalyzer({ themeMode, setThemeMode }) {
           <SettingsPanel
             user={user}
             userRole={userRole}
-            themeMode={themeMode}
-            setThemeMode={setThemeMode}
             pools={pools}
             history={history}
             onDeleteAllData={deleteAllUserData}

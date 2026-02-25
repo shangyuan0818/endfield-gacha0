@@ -1,33 +1,29 @@
-import React, { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 
 /**
  * 设备重定向守卫组件
- * 根据设备类型和用户偏好自动重定向到对应平台
+ * 核心首次重定向已在 main.jsx 同步完成。
+ * 此组件仅处理运行时 matchMedia 变化（如旋转设备、调整窗口等）。
+ * 使用 window.location.replace 替代 navigate，避免 bfcache 和路由状态问题。
  */
 function DeviceRedirectGuard({ children }) {
-  const navigate = useNavigate();
   const location = useLocation();
   const { shouldUseMobile, platformPreference } = useDeviceDetection();
 
   useEffect(() => {
+    // 有明确偏好时不自动重定向
+    if (platformPreference !== null) return;
+
     const isMobilePath = location.pathname.startsWith('/m');
 
-    // 如果用户有明确偏好，不自动重定向
-    if (platformPreference !== null) {
-      return;
-    }
-
-    // 自动重定向逻辑
     if (shouldUseMobile && !isMobilePath) {
-      // 移动设备访问桌面端，重定向到移动端
-      navigate('/m', { replace: true });
+      window.location.replace(window.location.origin + '/m');
     } else if (!shouldUseMobile && isMobilePath) {
-      // 桌面设备访问移动端，重定向到桌面端
-      navigate('/', { replace: true });
+      window.location.replace(window.location.origin + '/');
     }
-  }, [shouldUseMobile, platformPreference, location.pathname, navigate]);
+  }, [shouldUseMobile, platformPreference, location.pathname]);
 
   return children;
 }

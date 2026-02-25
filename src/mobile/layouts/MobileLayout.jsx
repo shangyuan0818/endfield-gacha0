@@ -18,7 +18,7 @@ import MobileTicketView from '../views/MobileTicketView';
 /**
  * 移动端主布局
  */
-function MobileLayout({ themeMode, setThemeMode }) {
+function MobileLayout() {
   const { activeTab } = useUIStore();
   const { user } = useAuthStore();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -35,7 +35,7 @@ function MobileLayout({ themeMode, setThemeMode }) {
       case 'simulator':
         return <MobileSimulatorView />;
       case 'settings':
-        return <MobileSettingsView themeMode={themeMode} setThemeMode={setThemeMode} />;
+        return <MobileSettingsView />;
       case 'about':
         return <MobileAboutView />;
       case 'admin':
@@ -64,8 +64,6 @@ function MobileLayout({ themeMode, setThemeMode }) {
       <MobileDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        themeMode={themeMode}
-        setThemeMode={setThemeMode}
       />
     </div>
   );

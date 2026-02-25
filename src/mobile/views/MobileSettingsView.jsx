@@ -9,11 +9,13 @@ import useHistoryStore from '../../stores/useHistoryStore';
 import { useCloudSync } from '../../hooks/app';
 import { supabase } from '../../supabaseClient';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
+import { useTheme } from '../../contexts/ThemeContext';
 
 /**
  * 移动端设置视图 - 工业风重构版 (中文)
  */
-function MobileSettingsView({ themeMode, setThemeMode }) {
+function MobileSettingsView() {
+  const { themeMode, setThemeMode } = useTheme();
   const { user, signOut, userRole } = useAuthStore();
   const { pools } = usePoolStore();
   const { history } = useHistoryStore();

@@ -11,10 +11,11 @@ function PlatformSwitcher({ variant = 'button', className = '' }) {
   const handleSwitch = (targetPlatform) => {
     localStorage.setItem(PLATFORM_PREFERENCE_KEY, targetPlatform);
     const basePath = window.location.origin;
+    // 使用 replace 避免 bfcache 导致的导航问题
     if (targetPlatform === 'mobile') {
-      window.location.href = basePath + '/m';
+      window.location.replace(basePath + '/m');
     } else {
-      window.location.href = basePath + '/';
+      window.location.replace(basePath + '/');
     }
   };
 

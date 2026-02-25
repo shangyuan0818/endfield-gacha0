@@ -3,6 +3,47 @@ import { DEFAULT_POOL_ID } from '../constants';
 import { syncManager } from '../services/syncService';
 import useAuthStore from './useAuthStore';
 
+// ========== 池组聚合模式 (FEAT-018) ==========
+
+export const POOL_GROUP_PREFIX = '__group_';
+
+export const GROUP_TYPE_LABELS = {
+  limited: '限定角色',
+  standard: '常驻',
+  weapon_limited: '限定武器',
+  weapon_standard: '常驻武器',
+  beginner: '新手'
+};
+
+export function isPoolGroupId(poolId) {
+  return typeof poolId === 'string' && poolId.startsWith(POOL_GROUP_PREFIX);
+}
+
+export function getPoolGroupType(poolId) {
+  if (!isPoolGroupId(poolId)) return null;
+  return poolId.slice(POOL_GROUP_PREFIX.length);
+}
+
+/**
+ * 获取指定分组类型对应的所有卡池
+ * groupType 与 PoolSelector 的分组 key 一致: limited, standard, weapon_limited, weapon_standard, beginner
+ */
+export function getPoolsForGroupType(pools, groupType) {
+  return (pools || []).filter(p => {
+    let type = p.type || 'standard';
+    if (type === 'limited_character') type = 'limited';
+
+    switch (groupType) {
+      case 'limited': return type === 'limited';
+      case 'standard': return type === 'standard';
+      case 'weapon_limited': return (type === 'limited_weapon' || type === 'weapon') && p.isLimitedWeapon !== false;
+      case 'weapon_standard': return (type === 'limited_weapon' || type === 'weapon') && p.isLimitedWeapon === false;
+      case 'beginner': return type === 'beginner';
+      default: return false;
+    }
+  });
+}
+
 /**
  * 卡池类型映射：官方 poolId 前缀 -> 本地类型
  */
@@ -135,6 +176,15 @@ const usePoolStore = create((set, get) => ({
   switchPool: (poolId) => {
     set({ currentPoolId: poolId });
     localStorage.setItem('gacha_current_pool_id', poolId);
+  },
+
+  /**
+   * 切换到池组聚合模式 (FEAT-018)
+   */
+  switchToPoolGroup: (groupType) => {
+    const id = POOL_GROUP_PREFIX + groupType;
+    set({ currentPoolId: id });
+    localStorage.setItem('gacha_current_pool_id', id);
   },
 
   /**

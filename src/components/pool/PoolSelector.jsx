@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Layers, Lock, Upload, Star, Swords, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
+import { isPoolGroupId, getPoolGroupType, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 
 /**
@@ -95,6 +96,50 @@ const PoolSelector = () => {
 
   const totalPools = pools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
+
+  const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
+
+  // 渲染池组聚合卡片（FEAT-018）
+  const renderGroupCard = (group) => {
+    const groupId = POOL_GROUP_PREFIX + group.type;
+    const isSelected = currentPoolId === groupId;
+    const totalGroupPulls = group.pools.reduce((sum, p) => sum + (poolPullCounts[p.id] || 0), 0);
+
+    const typeConfig = {
+      limited: { icon: Star, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/20' },
+      standard: { icon: Layers, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/20' },
+      beginner: { icon: User, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/20' },
+      weapon_limited: { icon: Swords, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-zinc-800' },
+      weapon_standard: { icon: Swords, color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' }
+    };
+    const config = typeConfig[group.type] || typeConfig.standard;
+    const TypeIcon = config.icon;
+
+    return (
+      <div
+        key={groupId}
+        onClick={() => switchToPoolGroup(group.type)}
+        className={`
+          relative flex-shrink-0 w-44 p-3 cursor-pointer transition-all border-2 border-dashed
+          group hover:border-zinc-400 dark:hover:border-zinc-500
+          ${isSelected
+            ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
+            : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700'
+          }
+        `}
+      >
+        <div className={`absolute top-2 left-2 p-1 ${config.bg}`}>
+          <TypeIcon size={12} className={config.color} />
+        </div>
+        <div className={`text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
+          全部{group.label}池
+        </div>
+        <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
+          {group.pools.length} 池 · {totalGroupPulls} <span className="text-[11px]">抽</span>
+        </div>
+      </div>
+    );
+  };
 
   const renderPoolCard = (pool) => {
     const pullCount = poolPullCounts[pool.id] || 0;
@@ -291,6 +336,8 @@ const PoolSelector = () => {
                     </span>
                   </div>
                 </div>
+                {/* 池组聚合卡片（仅该分组 > 1 个池时显示） */}
+                {group.pools.length > 1 && renderGroupCard(group)}
                 {group.pools.map(pool => renderPoolCard(pool))}
                 {/* 分隔符 */}
                 {groupIndex < sortedPoolsWithGroups.length - 1 && (

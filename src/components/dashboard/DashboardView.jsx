@@ -4,6 +4,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { RARITY_CONFIG } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
+import { isPoolGroupId, getPoolGroupType, getPoolsForGroupType, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
+import { useTheme } from '../../contexts/ThemeContext';
 import PoolSelector from '../pool/PoolSelector';
 import PoolAnalysisCard from './PoolAnalysisCard';
 import { characterCache } from '../../utils/characterUtils';
@@ -53,31 +55,61 @@ const DashboardView = ({
   const hasPoolData = pools && pools.length > 0;
 
   // 检测暗色模式
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+  const { isDark } = useTheme();
 
-  useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          setIsDark(document.documentElement.classList.contains('dark'));
-        }
-      });
-    });
-    observer.observe(document.documentElement, { attributes: true });
-    return () => observer.disconnect();
-  }, []);
+  // 检测聚合模式（FEAT-018）
+  const isGroupMode = isPoolGroupId(currentPoolId);
+  const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
 
   // 当前卡池历史（按用户与账号筛选）
   const currentPoolHistory = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 合并该类型所有池的记录
+    if (isGroupMode) {
+      const poolsArr = Array.isArray(pools) ? pools : [];
+      const groupPools = getPoolsForGroupType(poolsArr, groupType);
+      const groupPoolIds = new Set(groupPools.map(p => p.id));
+      let poolHistory = history.filter(h => groupPoolIds.has(h.poolId) && h.user_id === user?.id);
+      if (currentGameUid) {
+        poolHistory = poolHistory.filter(h => h.game_uid === currentGameUid || h.gameUid === currentGameUid);
+      }
+      return poolHistory;
+    }
     let poolHistory = history.filter(h => h.poolId === currentPoolId && h.user_id === user?.id);
     if (currentGameUid) {
       poolHistory = poolHistory.filter(h => h.game_uid === currentGameUid);
     }
     return poolHistory;
-  }, [history, currentPoolId, currentGameUid, user]);
+  }, [history, currentPoolId, currentGameUid, user, isGroupMode, groupType, pools]);
 
   // 归一化 isStandard，基于 UP 角色匹配重新计算（不信任数据库原值）
   const normalizedPoolHistory = useMemo(() => {
+    // FEAT-018: 池组聚合模式 — 按每条记录所属池的 UP 角色单独判断
+    if (isGroupMode) {
+      const poolsArr = Array.isArray(pools) ? pools : [];
+      const poolMap = new Map(poolsArr.map(p => [p.id, p]));
+      return currentPoolHistory.map(h => {
+        const pool = poolMap.get(h.poolId);
+        const poolType = pool?.type;
+        const upCharacter = pool?.up_character;
+        const characterName = h.character_name || h.item_name || h.name || '';
+        let isStd;
+        if (poolType === 'standard' || poolType === 'beginner') {
+          isStd = true;
+        } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+          if (upCharacter && h.rarity === 6) {
+            isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
+          } else if (h.rarity === 6) {
+            isStd = false;
+          } else {
+            isStd = h.isStandard ?? false;
+          }
+        } else {
+          isStd = h.isStandard ?? false;
+        }
+        return { ...h, isStandard: isStd };
+      });
+    }
+
     const poolType = currentPool?.type;
     const upCharacter = currentPool?.up_character;
 
@@ -112,6 +144,8 @@ const DashboardView = ({
 
   // 限定池跨池 pity 映射：recordId → { sixStarPity, fiveStarPity }
   const crossPoolPityMap = useMemo(() => {
+    // 聚合模式下不计算跨池保底（数据已合并，pity 在 characterStats 中直接计算）
+    if (isGroupMode) return null;
     const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
     if (!isLimitedPool) return null;
 
@@ -328,17 +362,18 @@ const DashboardView = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* 左列：保底机制分析 (New Component) */}
+
+        {/* 左列：保底机制分析 (聚合模式下隐藏) */}
+        {!isGroupMode && (
         <div className="md:col-span-1 space-y-6">
-          <PoolAnalysisCard 
+          <PoolAnalysisCard
             currentPool={currentPool}
             stats={stats}
             effectivePity={effectivePity}
             checkLimitedInFirstN={checkLimitedInFirstN}
             hasReceivedFreeTen={hasReceivedFreeTen}
           />
-          
+
           {/* 平均出货消耗 (Mini Card) */}
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4">
             <h3 className="text-xs uppercase font-bold text-slate-500 dark:text-zinc-500 mb-3 tracking-wider">平均出货成本</h3>
@@ -350,7 +385,7 @@ const DashboardView = ({
               <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
                 <div className="h-full bg-slate-600 dark:bg-slate-400" style={{width: `${Math.min((stats.avgPullCost[6] / 80) * 100, 100)}%`}}></div>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">5星</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">{stats.avgPullCost[5]} <span className="text-xs font-normal text-slate-400">抽</span></span>
@@ -361,15 +396,18 @@ const DashboardView = ({
             </div>
           </div>
         </div>
+        )}
 
-        {/* 右列：详细数据与图表 */}
-        <div className="md:col-span-2 space-y-6">
+        {/* 右列：详细数据与图表（聚合模式下全宽） */}
+        <div className={`${isGroupMode ? 'md:col-span-3' : 'md:col-span-2'} space-y-6`}>
           
           {/* 总投入 Banner */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
             <div className="absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent"></div>
             <div className="relative z-10">
-              <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">当前卡池总投入</h3>
+              <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                {isGroupMode ? `${currentPool.name}总投入` : '当前卡池总投入'}
+              </h3>
               <div className="text-4xl font-black font-mono text-slate-800 dark:text-zinc-100 flex items-baseline gap-2">
                 {stats.total}
                 <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
@@ -387,6 +425,7 @@ const DashboardView = ({
                 title="限定6星"
                 value={stats.counts[6]}
                 subValue={(() => {
+                  if (isGroupMode) return `不歪率 ${stats.winRate}%`;
                   let bonusCount = 0;
                   if (currentPool.type === 'limited') {
                     bonusCount = Math.floor(stats.total/240);
@@ -423,6 +462,40 @@ const DashboardView = ({
               icon={Star} 
             />
           </div>
+
+          {/* 聚合模式下的平均出货成本（因为左侧栏被隐藏） */}
+          {isGroupMode && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <StatBox
+                title="不歪率"
+                value={`${stats.winRate}%`}
+                subValue={`${stats.upSixStarCount || 0}/${stats.sixStarCount || 0}`}
+                colorClass="text-green-600 dark:text-green-400"
+                icon={TrendingUp}
+              />
+              <StatBox
+                title="综合6星均价"
+                value={`${stats.avgPullCost['6_all']}`}
+                subValue="抽/个"
+                colorClass="text-slate-700 dark:text-zinc-300"
+                icon={Calculator}
+              />
+              <StatBox
+                title="UP6星均价"
+                value={`${stats.avgPullCost[6]}`}
+                subValue="抽/个"
+                colorClass="text-orange-600 dark:text-orange-400"
+                icon={Star}
+              />
+              <StatBox
+                title="5星均价"
+                value={`${stats.avgPullCost[5]}`}
+                subValue="抽/个"
+                colorClass="text-amber-600 dark:text-amber-400"
+                icon={Star}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              {/* 概率分布 (Pie) */}

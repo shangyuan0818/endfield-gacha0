@@ -5,11 +5,13 @@ import useAuthStore from '../../stores/useAuthStore';
 import useUIStore from '../../stores/useUIStore';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import AuthModal from '../../AuthModal';
+import { useTheme } from '../../contexts/ThemeContext';
 
 /**
  * 移动端侧边抽屉菜单
  */
-function MobileDrawer({ isOpen, onClose, themeMode, setThemeMode }) {
+function MobileDrawer({ isOpen, onClose }) {
+  const { themeMode, setThemeMode } = useTheme();
   const navigate = useNavigate();
   const { user, signOut, userRole, setUser } = useAuthStore();
   const { setActiveTab } = useUIStore();

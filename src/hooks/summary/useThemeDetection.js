@@ -1,29 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 /**
- * 主题检测 Hook
- * 响应式监听 document.documentElement 的 class 变化来检测暗色模式
+ * 主题检测 Hook（兼容层）
+ * 内部使用 ThemeContext，不再使用 MutationObserver
  *
  * @returns {boolean} isDark - 是否为暗色模式
  */
 export function useThemeDetection() {
-  const [isDark, setIsDark] = useState(() =>
-    document.documentElement.classList.contains('dark')
-  );
-
-  useEffect(() => {
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          setIsDark(document.documentElement.classList.contains('dark'));
-        }
-      });
-    });
-
-    observer.observe(document.documentElement, { attributes: true });
-    return () => observer.disconnect();
-  }, []);
-
+  const { isDark } = useTheme();
   return isDark;
 }
 
