@@ -9,7 +9,7 @@ import { RARITY_CONFIG, DEFAULT_POOL_ID } from '../../constants';
  * 应用初始化 Hook
  * 处理会话获取、全局统计、last_seen 更新、characterCache 预加载
  */
-export function useAppInitialization({ loadCloudData }) {
+export function useAppInitialization({ loadCloudData, loadPublicPools }) {
   const setUser = useAuthStore(state => state.setUser);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
@@ -252,7 +252,7 @@ export function useAppInitialization({ loadCloudData }) {
           useSiteConfigStore.getState().loadConfig()
         ]);
 
-        // 只有登录用户才加载数据
+        // 只有登录用户才加载历史记录和个人卡池数据
         if (session?.user) {
           const cloudData = await loadCloudData(session.user);
           if (cloudData && cloudData.pools.length > 0) {
@@ -274,6 +274,9 @@ export function useAppInitialization({ loadCloudData }) {
               setHistory(cloudData.history);
             }
           }
+        } else {
+          // 未登录时也加载公共卡池数据，供首页轮换计划和倒计时使用
+          await loadPublicPools();
         }
       } catch (error) {
         console.error('[useAppInitialization] 初始化失败:', error);
@@ -296,7 +299,7 @@ export function useAppInitialization({ loadCloudData }) {
 
       return () => subscription.unsubscribe();
     }
-  }, [fetchGlobalStats, loadCloudData, updateLastSeen, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
+  }, [fetchGlobalStats, loadCloudData, loadPublicPools, updateLastSeen, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
 
   return {
     fetchGlobalStats,

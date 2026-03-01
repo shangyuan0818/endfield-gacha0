@@ -4,6 +4,14 @@ import { syncManager } from '../../services/syncService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 
+// 卡池类型归一化（模块级，供 loadCloudData 和 loadPublicPools 共用）
+const normalizePoolType = (type, isLimitedWeaponFlag) => {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'limited_weapon') return 'weapon';
+  if (type === 'weapon' && isLimitedWeaponFlag === false) return 'weapon';
+  return type || 'standard';
+};
+
 /**
  * 云同步 Hook
  * 处理 loadCloudData/savePoolToCloud/saveHistoryToCloud 等云端数据操作
@@ -94,17 +102,10 @@ export function useCloudSync({ showToast }) {
         }
       }
 
-      const normalizeType = (type, isLimitedWeaponFlag) => {
-        if (type === 'limited_character') return 'limited';
-        if (type === 'limited_weapon') return 'weapon';
-        if (type === 'weapon' && isLimitedWeaponFlag === false) return 'weapon';
-        return type || 'standard';
-      };
-
       const formattedPools = cloudPools.map(p => ({
         id: p.pool_id,
         name: p.name,
-        type: normalizeType(p.type, p.is_limited_weapon),
+        type: normalizePoolType(p.type, p.is_limited_weapon),
         locked: p.locked || false,
         isLimitedWeapon: p.is_limited_weapon !== false,
         created_at: p.created_at || null,
@@ -153,7 +154,7 @@ export function useCloudSync({ showToast }) {
       const placeholderPools = historyPoolIds
         .filter(pid => !knownPoolIds.has(pid))
         .map(pid => {
-          const inferredType = normalizeType(getPoolTypeFromId(pid));
+          const inferredType = normalizePoolType(getPoolTypeFromId(pid));
           const defaultName = (() => {
             switch (inferredType) {
               case 'limited_character':
@@ -252,7 +253,66 @@ export function useCloudSync({ showToast }) {
     }
   }, []);
 
-  // 保存卡池到云端
+  // 加载公共卡池数据（无需登录，用于首页轮换计划/倒计时）
+  const loadPublicPools = useCallback(async () => {
+    if (!supabase) return null;
+
+    try {
+      const { data: cloudPools, error: poolsError } = await supabase
+        .from('pools')
+        .select('*');
+
+      if (poolsError) throw poolsError;
+      if (!cloudPools || cloudPools.length === 0) return [];
+
+      const formattedPools = cloudPools.map(p => ({
+        id: p.pool_id,
+        name: p.name,
+        type: normalizePoolType(p.type, p.is_limited_weapon),
+        locked: p.locked || false,
+        isLimitedWeapon: p.is_limited_weapon !== false,
+        created_at: p.created_at || null,
+        updated_at: p.updated_at || null,
+        user_id: p.user_id,
+        creator_username: null,
+        creator_role: null,
+        up_character: p.up_character || null,
+        description: p.description || null,
+        banner_url: p.banner_url || null,
+        start_time: p.start_time || null,
+        end_time: p.end_time || null,
+        featured_characters: p.featured_characters || null,
+      }));
+
+      // Dedupe：同一 pool_id 保留信息最完整的版本
+      const score = (p) =>
+        (p.up_character ? 3 : 0) +
+        (p.banner_url ? 1 : 0) +
+        (p.description ? 1 : 0) +
+        (p.locked ? 1 : 0);
+      const chooseBetter = (a, b) => {
+        const diff = score(a) - score(b);
+        if (diff !== 0) return diff > 0 ? a : b;
+        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return timeA >= timeB ? a : b;
+      };
+
+      const dedupedMap = new Map();
+      formattedPools.forEach(p => {
+        const existing = dedupedMap.get(p.id);
+        dedupedMap.set(p.id, existing ? chooseBetter(existing, p) : p);
+      });
+
+      const dedupedPools = Array.from(dedupedMap.values());
+      setPools(dedupedPools);
+      return dedupedPools;
+    } catch (error) {
+      return null;
+    }
+  }, [setPools]);
+
+
   const savePoolToCloud = useCallback(async (pool, showNotification = false) => {
     if (!supabase || !user) {
       return false;
@@ -544,6 +604,7 @@ export function useCloudSync({ showToast }) {
 
   return {
     loadCloudData,
+    loadPublicPools,
     savePoolToCloud,
     saveHistoryToCloud,
     deleteHistoryFromCloud,

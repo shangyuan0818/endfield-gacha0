@@ -105,6 +105,7 @@ export default function GachaAnalyzer() {
   // 云同步 Hook - 提供所有云端数据操作函数
   const {
     loadCloudData,
+    loadPublicPools,
     savePoolToCloud,
     saveHistoryToCloud,
     deleteHistoryFromCloud,
@@ -116,7 +117,7 @@ export default function GachaAnalyzer() {
   } = useCloudSync({ showToast });
 
   // 应用初始化 Hook - 处理会话、全局统计、last_seen 更新
-  const { fetchGlobalStats, updateLastSeen } = useAppInitialization({ loadCloudData });
+  const { fetchGlobalStats, updateLastSeen } = useAppInitialization({ loadCloudData, loadPublicPools });
 
   // 权限判断
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
