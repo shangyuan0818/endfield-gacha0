@@ -53,6 +53,12 @@ const PullRow = ({ pull, maxPity }) => {
 
   const barClass = isLimited ? 'rainbow-bg' : isStandard ? 'bg-red-500' : 'bg-amber-400';
 
+  const badgeClass = isLimited
+    ? 'text-orange-500 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700'
+    : isStandard
+      ? 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700'
+      : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700';
+
   const avatarBgClass = isLimited
     ? 'bg-gradient-to-br from-orange-400 to-pink-500 text-white'
     : isStandard
@@ -110,7 +116,7 @@ const PullRow = ({ pull, maxPity }) => {
           )}
         </div>
         {pityNum > 0 && pityNum < 12 && (
-          <span className="text-[10px] font-mono font-bold text-slate-600 dark:text-zinc-300 shrink-0">
+          <span className={`text-[10px] font-mono font-bold px-1 py-0.5 rounded shrink-0 ${badgeClass}`}>
             {pityNum}
           </span>
         )}
