@@ -105,6 +105,11 @@ const MobilePullRow = ({ pull, maxPity }) => {
             </span>
           )}
         </div>
+        {pityNum > 0 && pityNum < 12 && (
+          <span className="text-[10px] font-mono font-bold text-zinc-600 dark:text-zinc-300 shrink-0">
+            {pityNum}
+          </span>
+        )}
         <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-500 shrink-0">
           #{pull.pullIndex}
         </span>
