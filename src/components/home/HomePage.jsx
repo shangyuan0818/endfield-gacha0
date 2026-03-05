@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronUp, Users, BookOpen, HelpCircle, ArrowRight,
   BarChart3, Database, Shield, Cloud, Bell, Clock, Rocket,
   Lightbulb, Gamepad2, Import, Globe, Languages, Share2, Accessibility, TestTube, CircleDot,
-  Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User, ArrowUpRight
+  Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User, ArrowUpRight, Calculator
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
@@ -329,8 +329,7 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   // 确保 pools 始终是数组
   const poolsArray = Array.isArray(pools) ? pools : [];
   
-  // 新年模式状态
-  const [isNewYearMode, setIsNewYearMode] = useState(true);
+  // 新年模式状态已移除
 
   // 时间状态，用于驱动倒计时轮换（每分钟更新）
   const [now, setNow] = useState(new Date());
@@ -902,10 +901,13 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
   const RoadmapCard = () => {
     // ... (reused items) ...
     const roadmapItems = [
-      { id: 'gacha-simulator', icon: Gamepad2, title: '抽卡模拟器', description: '在不消耗资源的情况下模拟抽卡，提前体验出货的感觉', status: 'completed', priority: 'high', tag: '娱乐功能' },
-      { id: 'game-import', icon: Import, title: '游戏数据一键导入', description: '公测更新后，支持一键导入历史抽卡记录（前提是yj还能从网页查询记录）', status: 'completed', priority: 'high', tag: '公测更新' },
+      { id: 'sim-inherit', icon: RefreshCw, title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'planned', priority: 'high', tag: '功能增强' },
+      { id: 'puzzle-captcha', icon: Shield, title: '拼图验证码', description: '主站验证码更换为简单拼图玩法，同时保留现有方式', status: 'planned', priority: 'high', tag: '安全验证' },
+      { id: 'global-support', icon: Globe, title: '国际服支持', description: '支持国际服抽卡记录的解析与导入', status: 'planned', priority: 'high', tag: '数据扩展' },
+      { id: 'currency-calc', icon: Calculator, title: '资源消耗换算', description: '支持换算已消耗合成玉、源石数量及已获得武库配额数量', status: 'planned', priority: 'medium', tag: '统计分析' },
+      { id: 'sim-currency', icon: Database, title: '模拟器资源机制', description: '模拟器添加合成玉和源石的使用和获取机制', status: 'planned', priority: 'medium', tag: '玩法扩展' },
       { id: 'share', icon: Share2, title: '分享功能', description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气', status: 'planned', priority: 'medium', tag: '社交传播' },
-      { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'medium', tag: '用户扩展' },
+      { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'low', tag: '用户扩展' },
       { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low', tag: '体验优化' },
       { id: 'virtual-scroll', icon: Database, title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low', tag: '性能优化' }
     ];
@@ -1048,90 +1050,36 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
 
   return (
     <div className="space-y-6 animate-fade-in relative">
-      {/* 欢迎横幅 - 新年模式下变为红色主题 */}
-      <div className={`
-        relative overflow-hidden border-l-4 transition-all duration-500
-        ${isNewYearMode 
-          ? 'bg-gradient-to-r from-red-900 to-red-950 border-yellow-400 shadow-[0_0_20px_rgba(220,38,38,0.3)]' 
-          : 'bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black border-endfield-yellow'}
-        p-6 text-white
-      `}>
-        {/* 新年装饰：灯笼 (挂在 Banner 内部，移至中间避免遮挡文字和按钮) */}
-        {isNewYearMode && (
-          <>
-            {/* 左侧靠中 */}
-            <Lantern className="left-[35%] -top-2 hidden sm:block" style={{ transformOrigin: 'top center' }} onClick={fireFireworks} />
-            <Lantern className="left-[45%] -top-4 scale-75 hidden sm:block" style={{ animationDelay: '1s', transformOrigin: 'top center' }} onClick={fireFireworks} />
-            
-            {/* 右侧靠中 */}
-            <Lantern className="right-[35%] -top-2 hidden sm:block" style={{ animationDelay: '0.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
-            <Lantern className="right-[45%] -top-4 scale-75 hidden sm:block" style={{ animationDelay: '1.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
-            
-            {/* 移动端仅显示两个，挂在两侧稍微靠内，避免完全遮挡 */}
-            <Lantern className="left-4 -top-2 sm:hidden" style={{ transformOrigin: 'top center' }} onClick={fireFireworks} />
-            <Lantern className="right-4 -top-2 sm:hidden" style={{ animationDelay: '0.5s', transformOrigin: 'top center' }} onClick={fireFireworks} />
-            
-            {/* 背景装饰：旋转的福字水印 */}
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-10 pointer-events-none select-none">
-               <div className="w-64 h-64 border-8 border-yellow-500/20 rounded-full flex items-center justify-center rotate-12">
-                  <span className="font-serif text-9xl text-yellow-500/20 font-bold">福</span>
-               </div>
-            </div>
-            {/* 飘落金粉效果 (CSS 动画) */}
-            <div className="absolute inset-0 pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-30 animate-pulse"></div>
-          </>
-        )}
+      {/* 欢迎横幅 - 默认模式 */}
+      <div className="relative overflow-hidden border-l-4 transition-all duration-500 bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black border-endfield-yellow p-6 text-white">
 
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-3">
-                <BarChart3 size={28} className={isNewYearMode ? "text-yellow-400" : ""} />
-                <span className={isNewYearMode ? "text-yellow-100" : ""}>终末地抽卡分析器</span>
+                <BarChart3 size={28} />
+                <span>终末地抽卡分析器</span>
               </div>
-              {isNewYearMode && <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 rounded-full">新春特别版</span>}
             </h2>
-            <p className={`text-sm ${isNewYearMode ? "text-red-100/80" : "text-indigo-100"}`}>
-              {isNewYearMode ? "新春快乐！记录您的欧气时刻，祝您在新的一年里十连三彩！" : "记录您的抽卡历程，分析出货规律，为后续规划提供参考"}
+            <p className="text-sm text-indigo-100">
+              记录您的抽卡历程，分析出货规律，为后续规划提供参考
             </p>
             {!user && (
-              <p className={`text-xs mt-2 flex items-center gap-1 ${isNewYearMode ? "text-red-200" : "text-indigo-200"}`}>
+              <p className="text-xs mt-2 flex items-center gap-1 text-indigo-200">
                 <ArrowRight size={12} />
                 登录后可录入数据并同步到云端
               </p>
             )}
           </div>
           
-          {/* 庆祝按钮 & 新年模式开关 */}
+          {/* 庆祝按钮 */}
           <div className="flex items-center gap-3 self-end md:self-center animate-fade-in-up">
-             {/* 新年模式开关 */}
-             <button
-               onClick={() => setIsNewYearMode(!isNewYearMode)}
-               className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all duration-300 backdrop-blur-md cursor-pointer active:scale-95 select-none shadow-sm group/toggle ${
-                 isNewYearMode 
-                   ? 'bg-black/30 border-yellow-400/60 text-yellow-100 hover:bg-black/50 hover:border-yellow-400 hover:shadow-[0_0_15px_rgba(250,204,21,0.4)] ring-1 ring-yellow-500/20' 
-                   : 'bg-zinc-800/60 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:border-zinc-400 hover:text-white hover:shadow-md'
-               }`}
-             >
-                <div className={`w-2 h-2 rounded-full transition-all duration-300 shadow-[0_0_5px_currentColor] ${isNewYearMode ? 'bg-yellow-400 animate-pulse scale-110' : 'bg-zinc-500 group-hover/toggle:bg-zinc-300'}`}></div>
-                <span className="text-xs font-mono font-bold tracking-wide">
-                  {isNewYearMode ? '春节模式: ON' : '春节模式: OFF'}
-                </span>
-             </button>
-
-             {/* 庆祝按钮 */}
              <button 
                 onClick={handleCelebrationClick}
-                className={`group flex items-center gap-3 px-4 py-2 rounded-full transition-all cursor-pointer border ${
-                  isNewYearMode
-                    ? 'bg-yellow-500 text-red-900 border-yellow-400 hover:bg-yellow-400 shadow-lg shadow-yellow-500/20'
-                    : 'bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/50 text-endfield-yellow'
-                }`}
+                className="group flex items-center gap-3 px-4 py-2 rounded-full transition-all cursor-pointer border bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/50 text-endfield-yellow"
              >
                 <span className="text-sm font-bold font-mono tracking-wide">恭喜终末地公测！</span>
-                <div className={`p-1.5 rounded-full transition-colors ${
-                  isNewYearMode ? 'bg-red-900/10 text-red-900' : 'bg-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-black text-yellow-500'
-                }`}>
+                <div className="p-1.5 rounded-full transition-colors bg-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-black text-yellow-500">
                   <Sparkles size={16} className="animate-pulse" />
                 </div>
              </button>
@@ -1139,8 +1087,26 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
         </div>
         
         {/* 背景星星装饰 - 仅在非新年模式或作为底层装饰 */}
-        <div className={`absolute -right-10 -bottom-10 pointer-events-none ${isNewYearMode ? 'text-yellow-500/10' : 'text-white/10'}`}>
+        <div className="absolute -right-10 -bottom-10 pointer-events-none text-white/10">
           <Star size={200} />
+        </div>
+      </div>
+
+      {/* 安全声明卡片 */}
+      <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50 rounded-none overflow-hidden shadow-sm">
+        <div className="px-4 py-3 flex items-start gap-3">
+          <div className="p-2 bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-500 shrink-0">
+            <Shield size={20} />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-green-800 dark:text-green-400 mb-1">
+              安全与隐私声明
+            </h3>
+            <div className="text-xs text-green-700 dark:text-green-500/80 leading-relaxed space-y-1">
+              <p>本站<strong>绝对不会</strong>存在窃取玩家电脑数据的恶意脚本。核心代码均已开源接受严格监督，一切纯净运行于浏览器沙盒内，无任何系统后门或越权操作。</p>
+              <p>如果各位对本站不放心，请在获取数据之后<strong>退出游戏网页登录</strong>。反复登录获取到的凭证是不同的，退出登录可使之前获取的 Token 失效，确保您的账号安全。</p>
+            </div>
+          </div>
         </div>
       </div>
 
