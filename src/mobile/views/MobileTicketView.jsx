@@ -8,6 +8,7 @@ import {
 import useAuthStore from '../../stores/useAuthStore';
 import useUIStore from '../../stores/useUIStore';
 import { supabase } from '../../supabaseClient';
+import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
 
 // 工单类型
 const TICKET_TYPES = {
@@ -56,7 +57,7 @@ function MobileTicketView() {
     try {
       const { data, error } = await supabase
         .from('tickets')
-        .select('*, profiles:user_id (username, role)')
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -66,7 +67,8 @@ function MobileTicketView() {
         }
       } else {
         setTableExists(true);
-        setTickets(data || []);
+        const profilesMap = await loadPublicProfilesMap((data || []).map(ticket => ticket.user_id));
+        setTickets(attachPublicProfiles(data || [], profilesMap));
       }
     } finally {
       setLoading(false);
@@ -463,23 +465,26 @@ function ReplySection({ ticketId, currentUserId, onReply }) {
   const [showEmoji, setShowEmoji] = useState(false);
   const textareaRef = useRef(null);
 
-  useEffect(() => {
-    loadReplies();
-  }, [ticketId]);
-
-  const loadReplies = async () => {
+  const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
       const { data } = await supabase
         .from('ticket_replies')
-        .select('*, profiles:user_id (username, role)')
+        .select('*')
         .eq('ticket_id', ticketId)
         .order('created_at', { ascending: true });
-      if (data) setReplies(data);
+      if (data) {
+        const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
+        setReplies(attachPublicProfiles(data, profilesMap));
+      }
     } finally {
       setLoadingReplies(false);
     }
-  };
+  }, [ticketId]);
+
+  useEffect(() => {
+    loadReplies();
+  }, [loadReplies]);
 
   const handleSubmit = async () => {
     if (!replyText.trim()) return;

@@ -531,6 +531,32 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 </div>
               </div>
 
+              {((importResult.summary?.partialPools?.length || 0) > 0 || (importResult.summary?.failedPools?.length || 0) > 0) && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 space-y-2 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">部分卡池未完整获取</p>
+                      <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">
+                        已导入能获取到的记录，但仍建议稍后重试一次官方导入以补齐遗漏数据。
+                      </p>
+                    </div>
+                  </div>
+
+                  {(importResult.summary?.partialPools || []).map(pool => (
+                    <div key={`partial-${pool.poolType || pool.type}`} className="text-xs font-mono text-slate-600 dark:text-zinc-400">
+                      部分成功: {pool.poolType || pool.type} · {pool.records || 0} 条 · {pool.error || 'partial'}
+                    </div>
+                  ))}
+
+                  {(importResult.summary?.failedPools || []).map(pool => (
+                    <div key={`failed-${pool.poolType || pool.type}`} className="text-xs font-mono text-red-600 dark:text-red-400">
+                      获取失败: {pool.poolType || pool.type} · {pool.error || 'failed'}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* 刷新提示 */}
               {importResult.summary?.newRecords > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 flex items-start gap-3 transition-colors">

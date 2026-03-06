@@ -51,19 +51,23 @@ export function useCloudSync({ showToast }) {
 
       try {
         // 加载所有卡池（公共池由超管维护，不再按 user 过滤）
-        let poolQuery = supabase
-        .from('pools')
-        .select('*');
+        const poolQuery = supabase
+          .from('pools')
+          .select('*');
 
       const { data: cloudPools, error: poolsError } = await poolQuery;
       if (poolsError) throw poolsError;
 
-      // 收集所有 user_id 并查询对应的 profiles 获取用户名
-      const userIds = [...new Set(cloudPools.map(p => p.user_id))];
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, username, role')
-        .in('id', userIds);
+      // 收集所有 user_id 并查询对应的公开 profile 信息
+      const userIds = [...new Set(cloudPools.map(p => p.user_id).filter(Boolean))];
+      const profileResult = userIds.length > 0
+        ? await supabase
+            .from('public_profiles')
+            .select('id, username, role')
+            .in('id', userIds)
+        : { data: [], error: null };
+      const { data: profiles, error: profilesError } = profileResult;
+      if (profilesError) throw profilesError;
 
       const usernameMap = new Map();
       const roleMap = new Map();
@@ -84,7 +88,7 @@ export function useCloudSync({ showToast }) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        let historyQuery = supabase
+        const historyQuery = supabase
           .from('history')
           .select('*')
           .eq('user_id', currentUser.id)
@@ -308,13 +312,12 @@ export function useCloudSync({ showToast }) {
       const dedupedPools = Array.from(dedupedMap.values());
       setPools(dedupedPools);
       return dedupedPools;
-    } catch (error) {
+    } catch {
       return null;
     }
   }, [setPools]);
 
-
-  const savePoolToCloud = useCallback(async (pool, showNotification = false) => {
+  const savePoolToCloud = useCallback(async (pool, _showNotification = false) => {
     if (!supabase || !user) {
       return false;
     }
@@ -597,7 +600,7 @@ export function useCloudSync({ showToast }) {
     console.log('[useCloudSync] 启动数据同步服务...');
     syncManager.startAutoSync((syncState) => {
       // 只在状态实际变化时打印日志（减少日志量）
-      if (process.env.NODE_ENV === 'development' && syncState.error) {
+      if (import.meta.env.DEV && syncState.error) {
         console.log('[SyncManager] 同步错误:', syncState.error);
       }
     });

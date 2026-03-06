@@ -87,6 +87,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
 };
 
 import { supabase } from '../supabaseClient';
+import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicProfileService';
 
 /**
  * 回复输入组件（支持多行和表情）
@@ -342,31 +343,29 @@ const TicketCard = ({ ticket, userRole, currentUserId, onStatusChange, onReply, 
   const canManage = userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin');
 
   // 加载回复
-  useEffect(() => {
-    if (expanded && replies.length === 0) {
-      loadReplies();
-    }
-  }, [expanded]);
-
-  const loadReplies = async () => {
+  const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
       const { data, error } = await supabase
         .from('ticket_replies')
-        .select(`
-          *,
-          profiles:user_id (username, role)
-        `)
+        .select('*')
         .eq('ticket_id', ticket.id)
         .order('created_at', { ascending: true });
 
       if (!error && data) {
-        setReplies(data);
+        const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
+        setReplies(attachPublicProfiles(data, profilesMap));
       }
     } finally {
       setLoadingReplies(false);
     }
-  };
+  }, [ticket.id]);
+
+  useEffect(() => {
+    if (expanded && replies.length === 0) {
+      loadReplies();
+    }
+  }, [expanded, loadReplies, replies.length]);
 
   const handleSubmitReply = async () => {
     if (!replyContent.trim()) return;
@@ -583,12 +582,9 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
 
     setLoading(true);
     try {
-      let query = supabase
+      const query = supabase
         .from('tickets')
-        .select(`
-          *,
-          profiles:user_id (username, role)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       const { data, error } = await query;
@@ -596,10 +592,6 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
       if (error) {
         // 检查是否是表不存在的错误
         if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
-          // 仅在开发环境输出迁移提示
-          if (import.meta.env.DEV) {
-            console.warn('Tickets table not found, migration may be needed');
-          }
           setTableExists(false);
           setTickets([]);
         } else {
@@ -608,7 +600,8 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         }
       } else {
         setTableExists(true);
-        setTickets(data || []);
+        const profilesMap = await loadPublicProfilesMap((data || []).map(ticket => ticket.user_id));
+        setTickets(attachPublicProfiles(data || [], profilesMap));
       }
     } finally {
       setLoading(false);

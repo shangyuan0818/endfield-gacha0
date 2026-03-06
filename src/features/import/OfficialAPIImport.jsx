@@ -406,7 +406,9 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
             summary: {
               total: backendResult?.totalRecords || 0,
               newRecords: backendResult?.newRecords || 0,
-              duplicates: backendResult?.duplicates || 0
+              duplicates: backendResult?.duplicates || 0,
+              partialPools: backendResult?.partialPools || [],
+              failedPools: backendResult?.failedPools || []
             },
             userInfo: finalUserInfo,
             result: backendResult
@@ -420,7 +422,9 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
           byPool: {},
           byPoolType: {},
           sixStars: [],
-          fiveStars: []
+          fiveStars: [],
+          partialPools: backendResult?.partialPools || [],
+          failedPools: backendResult?.failedPools || []
         });
         setProgress(100);
         setStatus(ImportStatus.SUCCESS);

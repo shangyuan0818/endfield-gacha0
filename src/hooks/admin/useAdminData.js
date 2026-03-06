@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { validateUserData } from '../../utils/validators';
 
+const ADMIN_PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at, last_seen_at';
+
 /**
  * 管理后台数据统一管理 Hook
  * 负责：用户、申请、黑名单、公告、页面内容的数据获取与 CRUD 操作
@@ -35,7 +37,7 @@ export function useAdminData(showToast) {
       setLoading(true);
       try {
         const [profilesRes, appsRes, announcementsRes, blacklistRes, pageContentRes] = await Promise.all([
-          supabase.from('profiles').select('*'),
+          supabase.from('profiles').select(ADMIN_PROFILE_FIELDS),
           supabase.from('admin_applications').select('*'),
           supabase.from('announcements').select('*').order('priority', { ascending: false }),
           supabase.from('blacklist').select('*').order('created_at', { ascending: false }),
@@ -47,7 +49,7 @@ export function useAdminData(showToast) {
         setAnnouncements(announcementsRes.data || []);
         setBlacklist(blacklistRes.data || []);
         setPageContents(pageContentRes.data || []);
-      } catch (error) {
+      } catch {
         // 静默处理
       } finally {
         setLoading(false);
@@ -70,10 +72,11 @@ export function useAdminData(showToast) {
 
       if (appError) throw appError;
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ role: 'admin' })
-        .eq('id', userId);
+      const { error: profileError, data: updatedProfile } = await supabase
+        .rpc('admin_update_profile', {
+          p_target_user_id: userId,
+          p_role: 'admin',
+        });
 
       if (profileError) throw profileError;
 
@@ -81,7 +84,7 @@ export function useAdminData(showToast) {
         a.id === appId ? { ...a, status: 'approved' } : a
       ));
       setUsers(prev => prev.map(u =>
-        u.id === userId ? { ...u, role: 'admin' } : u
+        u.id === userId ? { ...u, ...(updatedProfile || {}), role: 'admin' } : u
       ));
 
       showToast('审批通过！该用户现已成为管理员', 'success');
@@ -128,7 +131,7 @@ export function useAdminData(showToast) {
         await handleApprove(app.id, app.user_id);
       }
       showToast(`已批量通过 ${pending.length} 个申请`, 'success');
-    } catch (error) {
+    } catch {
       showToast('批量操作失败', 'error');
     } finally {
       setActionLoading(null);
@@ -147,7 +150,7 @@ export function useAdminData(showToast) {
         await handleReject(app.id);
       }
       showToast(`已批量拒绝 ${pending.length} 个申请`, 'success');
-    } catch (error) {
+    } catch {
       showToast('批量操作失败', 'error');
     } finally {
       setActionLoading(null);
@@ -182,15 +185,19 @@ export function useAdminData(showToast) {
 
     try {
       if (editingUser) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ username: userForm.username, role: userForm.role })
-          .eq('id', editingUser.id);
+        const { error, data: updatedProfile } = await supabase
+          .rpc('admin_update_profile', {
+            p_target_user_id: editingUser.id,
+            p_username: userForm.username,
+            p_role: userForm.role,
+          });
 
         if (error) throw error;
 
         setUsers(prev => prev.map(u =>
-          u.id === editingUser.id ? { ...u, username: userForm.username, role: userForm.role } : u
+          u.id === editingUser.id
+            ? { ...u, ...(updatedProfile || {}), username: userForm.username, role: userForm.role }
+            : u
         ));
         showToast('用户已更新', 'success');
       } else {
@@ -216,7 +223,7 @@ export function useAdminData(showToast) {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || '创建用户失败');
 
-        const { data: profilesData } = await supabase.from('profiles').select('*');
+        const { data: profilesData } = await supabase.from('profiles').select(ADMIN_PROFILE_FIELDS);
         setUsers(profilesData || []);
         showToast('用户已创建', 'success');
       }
