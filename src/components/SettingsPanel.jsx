@@ -4,7 +4,7 @@ import { supabase } from '../supabaseClient';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import { useTheme } from '../contexts/ThemeContext';
 
-const SettingsPanel = React.memo(({ user, userRole, pools, history, onDeleteAllData, onManualSync, syncing }) => {
+const SettingsPanel = React.memo(({ user, userRole, pools, history, onDeleteAllData }) => {
   const { themeMode, setThemeMode } = useTheme();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
@@ -27,12 +27,6 @@ const SettingsPanel = React.memo(({ user, userRole, pools, history, onDeleteAllD
 
   const userPoolCount = myPools.length;
   const userHistoryCount = myHistory.length;
-
-  const handleManualSync = async () => {
-    if (onManualSync) {
-      await onManualSync();
-    }
-  };
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== '确认删除') return;
@@ -80,11 +74,11 @@ const SettingsPanel = React.memo(({ user, userRole, pools, history, onDeleteAllD
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
-        return { label: '超级管理员', color: 'bg-red-100 text-red-600 border-red-200', desc: '拥有所有权限，可管理用户和审批申请' };
+        return { label: '超级管理员', color: 'bg-red-100 text-red-600 border-red-200', desc: '拥有所有权限，可管理用户与站点内容' };
       case 'admin':
         return { label: '管理员', color: 'bg-green-100 text-green-600 border-green-200', desc: '可录入和编辑抽卡数据' };
       default:
-        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', desc: '可查看数据，需申请成为管理员才能录入' };
+        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', desc: '可查看与同步个人数据，录入共享内容需管理员权限' };
     }
   };
 

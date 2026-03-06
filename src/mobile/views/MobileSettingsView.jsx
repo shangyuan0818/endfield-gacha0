@@ -10,6 +10,21 @@ import { useCloudSync } from '../../hooks/app';
 import { supabase } from '../../supabaseClient';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import { useTheme } from '../../contexts/ThemeContext';
+import { APP_VERSION_LABEL } from '../../constants/appMeta';
+
+function MobileSettingsSection({ title, icon, children }) {
+  const IconComponent = icon;
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden shadow-sm">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
+        <IconComponent size={14} className="text-zinc-400" />
+        <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
 
 /**
  * 移动端设置视图 - 工业风重构版 (中文)
@@ -20,9 +35,7 @@ function MobileSettingsView() {
   const { pools } = usePoolStore();
   const { history } = useHistoryStore();
 
-  const showToast = useCallback((message, type = 'info') => {
-    console.log(`[${type}] ${message}`);
-  }, []);
+  const showToast = useCallback((_message, _type = 'info') => {}, []);
 
   const { syncToCloud, syncing } = useCloudSync({ showToast });
 
@@ -116,16 +129,6 @@ function MobileSettingsView() {
     { value: 'system', label: '跟随系统', icon: Monitor },
   ];
 
-  const Section = ({ title, icon: Icon, children }) => (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
-        <Icon size={14} className="text-zinc-400" />
-        <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
-      </div>
-      {children}
-    </div>
-  );
-
   return (
     <div className="px-4 py-4 space-y-4">
       {/* 页面标题 */}
@@ -138,7 +141,7 @@ function MobileSettingsView() {
       </div>
 
       {/* 账户信息 */}
-      <Section title="账户状态" icon={User}>
+      <MobileSettingsSection title="账户状态" icon={User}>
         {user ? (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {/* 用户头像和邮箱 */}
@@ -183,10 +186,10 @@ function MobileSettingsView() {
             <p className="text-xs text-zinc-500 uppercase tracking-widest">需要身份验证</p>
           </div>
         )}
-      </Section>
+      </MobileSettingsSection>
 
       {/* 外观设置 */}
-      <Section title="显示界面" icon={Monitor}>
+      <MobileSettingsSection title="显示界面" icon={Monitor}>
         <div className="p-4">
           <div className="grid grid-cols-3 gap-3">
             {themeOptions.map((option) => {
@@ -211,21 +214,21 @@ function MobileSettingsView() {
             })}
           </div>
         </div>
-      </Section>
+      </MobileSettingsSection>
 
       {/* 平台切换 */}
-      <Section title="系统平台" icon={Monitor}>
+      <MobileSettingsSection title="系统平台" icon={Monitor}>
         <div className="p-4">
           <PlatformSwitcher className="w-full justify-center py-2.5 rounded-none" />
           <p className="text-[10px] text-zinc-400 text-center mt-2 font-mono uppercase">
             切换到桌面端以获得完整功能
           </p>
         </div>
-      </Section>
+      </MobileSettingsSection>
 
       {/* 数据管理 */}
       {user && (
-        <Section title="数据管理" icon={Database}>
+        <MobileSettingsSection title="数据管理" icon={Database}>
           <div className="p-4 space-y-4">
             {/* 数据统计 */}
             <div className="grid grid-cols-2 gap-3">
@@ -284,7 +287,7 @@ function MobileSettingsView() {
               </div>
             </div>
           </div>
-        </Section>
+        </MobileSettingsSection>
       )}
 
       {/* 退出登录 */}
@@ -302,7 +305,7 @@ function MobileSettingsView() {
       <div className="text-center py-6">
         <div className="w-8 h-1 bg-zinc-200 dark:bg-zinc-800 mx-auto mb-3" />
         <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">Endfield Gacha Analyzer</p>
-        <p className="text-[10px] text-zinc-500 mt-1 font-mono">v3.3.1</p>
+        <p className="text-[10px] text-zinc-500 mt-1 font-mono">{APP_VERSION_LABEL}</p>
       </div>
 
       {/* 底部留白 */}

@@ -7,7 +7,6 @@ import {
   Map, Github, Radio, Sparkles, Copy, Check, ExternalLink, User, ArrowUpRight, Calculator
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { LIMITED_POOL_SCHEDULE, getCurrentUpPool } from '../../constants';
 import { getLimitedPoolSchedule, getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import SimpleMarkdown from '../SimpleMarkdown';
@@ -82,16 +81,6 @@ const CountdownTimer = React.memo(({ targetDate, title, subTitle, link, linkText
 
   const formatNum = (num) => String(num).padStart(2, '0');
   const isSmall = size === 'small';
-
-  // 格式化日期显示 (MM/DD HH:mm)
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr);
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${month}/${day} ${hours}:${minutes}`;
-  };
 
   if (timeLeft.ended) {
     if (customEndedContent) return customEndedContent;
@@ -322,7 +311,7 @@ const Lantern = ({ className, style, onClick }) => (
  * 首页组件
  * 包含使用指南和卡池机制速览
  */
-const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
+const HomePage = React.memo(({ user, canEdit: _canEdit, announcements = [] }) => {
   // 从 store 获取卡池列表
   const pools = usePoolStore(state => state.pools);
 
@@ -473,37 +462,6 @@ const HomePage = React.memo(({ user, canEdit, announcements = [] }) => {
     });
   }, []);
   
-  // 新年烟花逻辑
-  const fireFireworks = useCallback((e) => {
-    if (e) {
-      e.stopPropagation();
-      e.preventDefault();
-    }
-    const duration = 3000;
-    const end = Date.now() + duration;
-
-    (function frame() {
-      confetti({
-        particleCount: 3,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
-        colors: ['#ef4444', '#eab308']
-      });
-      confetti({
-        particleCount: 3,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors: ['#ef4444', '#eab308']
-      });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-    }());
-  }, []);
-
   // 公告内容组件 - 带滚动检测
   const AnnouncementContent = ({ content }) => {
     const scrollRef = useRef(null);

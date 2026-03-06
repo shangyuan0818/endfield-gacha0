@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Bell, ChevronDown, Star, BarChart3, Gamepad2,
-  ArrowRight, Sparkles, Map, BookOpen, Info, Layers, Swords,
-  RefreshCw, ArrowUpRight, Lightbulb, Github, User, Terminal
+  ArrowRight, Sparkles, Map, Info, Layers, Swords,
+  ArrowUpRight, Lightbulb, Github, User, Terminal
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import usePoolStore from '../../stores/usePoolStore';
@@ -10,16 +10,37 @@ import useAppStore from '../../stores/useAppStore';
 import useUIStore from '../../stores/useUIStore';
 import useAuthStore from '../../stores/useAuthStore';
 import SimpleMarkdown from '../../components/SimpleMarkdown';
-import { LIMITED_POOL_SCHEDULE } from '../../constants';
-import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import { APP_VERSION } from '../../constants/appMeta';
+import { getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import { characterCache } from '../../utils/characterUtils';
 import {
   STORAGE_KEYS,
   getHomeCollapseState,
+  getStorageItem,
   setHomeCollapseState,
-  hasNewContent,
   markAsViewed
 } from '../../utils';
+
+function MobileHomeCard({ children, className = '' }) {
+  return (
+    <div className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-none ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function MobileHomeSectionHeader({ title, icon }) {
+  const IconComponent = icon;
+
+  return (
+    <div className="flex items-center gap-2 mb-3 px-1 border-l-2 border-endfield-yellow pl-2">
+      {IconComponent && <IconComponent size={14} className="text-zinc-400" />}
+      <h2 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest font-mono">
+        {title}
+      </h2>
+    </div>
+  );
+}
 
 /**
  * 移动端首页视图 - 工业风重构版 (中文)
@@ -41,37 +62,28 @@ function MobileHomeView() {
   const initialCollapseState = getHomeCollapseState();
   const [showAnnouncement, setShowAnnouncement] = useState(!initialCollapseState.announcement);
   const [showPoolMechanics, setShowPoolMechanics] = useState(false);
-  const [showGuide, setShowGuide] = useState(false);
   const [showRoadmap, setShowRoadmap] = useState(false);
 
   // 公告更新检测
   const latestAnnouncement = announcements?.[0];
-  const hasAnnouncementUpdate = latestAnnouncement
-    ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at)
-    : false;
-  const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
-
-  // 监听公告数据变化，更新 NEW 状态
-  useEffect(() => {
-    if (latestAnnouncement) {
-      const isNew = hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at);
-      setIsAnnouncementNew(isNew);
-    }
-  }, [latestAnnouncement]);
+  const latestAnnouncementUpdatedAt = latestAnnouncement?.updated_at || null;
+  const [announcementLastViewed, setAnnouncementLastViewed] = useState(() =>
+    getStorageItem(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, 0)
+  );
+  const isAnnouncementNew = Boolean(latestAnnouncementUpdatedAt)
+    && new Date(latestAnnouncementUpdatedAt).getTime() > new Date(announcementLastViewed || 0).getTime();
 
   useEffect(() => {
     if (showAnnouncement && isAnnouncementNew) {
       const timer = setTimeout(() => {
         markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
-        setIsAnnouncementNew(false);
+        setAnnouncementLastViewed(latestAnnouncementUpdatedAt);
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [showAnnouncement, isAnnouncementNew]);
+  }, [showAnnouncement, isAnnouncementNew, latestAnnouncementUpdatedAt]);
 
-  // 当前UP池信息
   const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
-  const currentUpPool = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray]);
   const poolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
 
   // 计算倒计时
@@ -155,23 +167,6 @@ function MobileHomeView() {
 
   const formatNum = (num) => String(num).padStart(2, '0');
 
-  // 通用卡片容器
-  const Card = ({ children, className = "" }) => (
-    <div className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-none ${className}`}>
-      {children}
-    </div>
-  );
-
-  // 章节标题
-  const SectionHeader = ({ title, icon: Icon }) => (
-    <div className="flex items-center gap-2 mb-3 px-1 border-l-2 border-endfield-yellow pl-2">
-      {Icon && <Icon size={14} className="text-zinc-400" />}
-      <h2 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest font-mono">
-        {title}
-      </h2>
-    </div>
-  );
-
   return (
     <div className="px-4 py-4 space-y-6">
       {/* 欢迎横幅 / 状态面板 */}
@@ -191,7 +186,7 @@ function MobileHomeView() {
               </h1>
             </div>
             <div className="text-right">
-              <div className="text-[10px] text-zinc-500 font-mono">VERSION 3.3.1</div>
+              <div className="text-[10px] text-zinc-500 font-mono">VERSION {APP_VERSION}</div>
               <div className="text-[10px] text-zinc-500 font-mono">{now.toLocaleTimeString('en-US', { hour12: false })}</div>
             </div>
           </div>
@@ -212,7 +207,7 @@ function MobileHomeView() {
 
       {/* 倒计时面板 */}
       {countdown && (
-        <Card className="overflow-hidden">
+        <MobileHomeCard className="overflow-hidden">
           {/* 顶部标题条 */}
           <div className="bg-zinc-100 dark:bg-zinc-800/50 px-4 py-2 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center">
             <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-wider flex items-center gap-2">
@@ -276,7 +271,7 @@ function MobileHomeView() {
                 <div className="text-[10px] text-zinc-400 uppercase tracking-widest font-mono mb-2 flex items-center gap-2">
                   <ArrowRight size={10} /> 后续日程
                 </div>
-                {upcomingPools.map((pool, idx) => (
+                {upcomingPools.map((pool) => (
                   <div key={pool.name} className="flex items-center justify-between bg-zinc-50 dark:bg-zinc-800/30 p-2 border border-zinc-100 dark:border-zinc-800/50">
                     <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300">{pool.name}</span>
                     <span className="text-[10px] font-mono text-zinc-400">{formatDate(pool.startDate)}</span>
@@ -285,7 +280,7 @@ function MobileHomeView() {
               </div>
             )}
           </div>
-        </Card>
+        </MobileHomeCard>
       )}
 
       {/* 公告区域 */}
@@ -335,7 +330,7 @@ function MobileHomeView() {
 
       {/* 快速入口 - 网格布局 */}
       <div>
-        <SectionHeader title="快速入口" icon={Layers} />
+        <MobileHomeSectionHeader title="快速入口" icon={Layers} />
         <div className="grid grid-cols-3 gap-3">
           {quickActions.map((action) => {
             const Icon = action.icon;
@@ -364,7 +359,7 @@ function MobileHomeView() {
       </div>
 
       {/* 卡池机制折叠面板 */}
-      <Card>
+      <MobileHomeCard>
         <button
           onClick={() => {
             setShowPoolMechanics(!showPoolMechanics);
@@ -410,11 +405,11 @@ function MobileHomeView() {
              </div>
           </div>
         )}
-      </Card>
+      </MobileHomeCard>
 
       {/* 友情链接 */}
       <div>
-        <SectionHeader title="外部链接" icon={ArrowUpRight} />
+        <MobileHomeSectionHeader title="外部链接" icon={ArrowUpRight} />
         <div className="grid grid-cols-2 gap-3">
           {friendlyLinks.map((link) => {
             const Icon = link.icon;
@@ -441,7 +436,7 @@ function MobileHomeView() {
       </div>
 
       {/* 路线图 */}
-      <Card>
+      <MobileHomeCard>
         <button
           onClick={() => {
             setShowRoadmap(!showRoadmap);
@@ -495,7 +490,7 @@ function MobileHomeView() {
             </a>
           </div>
         )}
-      </Card>
+      </MobileHomeCard>
 
       {/* 底部留白 */}
       <div className="h-4" />

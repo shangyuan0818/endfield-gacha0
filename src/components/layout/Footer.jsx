@@ -1,6 +1,7 @@
 import React from 'react';
 import { Heart, Code, ExternalLink } from 'lucide-react';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
+import { APP_VERSION_LABEL } from '../../constants/appMeta';
 
 /**
  * 全局页脚组件
@@ -11,7 +12,7 @@ const Footer = React.memo(() => {
   const currentYear = new Date().getFullYear();
   const config = useSiteConfigStore(state => state.config);
 
-  const siteVersion = config.site_version || 'v3.3.1';
+  const siteVersion = config.site_version || APP_VERSION_LABEL;
   const authorName = config.author_name || '';
   const authorBilibili = config.author_bilibili || '';
   const githubUrl = config.github_url || '';

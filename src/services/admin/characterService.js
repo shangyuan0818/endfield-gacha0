@@ -238,7 +238,7 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
     let avatarUrlMap = new Map();
     onProgress?.(`正在上传头像 (0/${allItems.length})...`);
 
-    const { success, failed, results } = await batchSyncAvatars(
+    const { results } = await batchSyncAvatars(
       allItems,
       (current, total, name) => {
         onProgress?.(`上传头像: ${current}/${total} - ${name}`);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { validateUserData } from '../../utils/validators';
 
@@ -6,28 +6,16 @@ const ADMIN_PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at,
 
 /**
  * 管理后台数据统一管理 Hook
- * 负责：用户、申请、黑名单、公告、页面内容的数据获取与 CRUD 操作
+ * 负责：用户、黑名单、公告、页面内容的数据获取与 CRUD 操作
  */
 export function useAdminData(showToast) {
   // 数据状态
   const [users, setUsers] = useState([]);
-  const [applications, setApplications] = useState([]);
   const [blacklist, setBlacklist] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [pageContents, setPageContents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
-
-  // 计算待审批数量
-  const pendingCount = useMemo(() =>
-    applications.filter(a => a.status === 'pending').length,
-    [applications]
-  );
-
-  const pendingApps = useMemo(() =>
-    applications.filter(a => a.status === 'pending'),
-    [applications]
-  );
 
   // 加载所有数据
   useEffect(() => {
@@ -36,16 +24,14 @@ export function useAdminData(showToast) {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [profilesRes, appsRes, announcementsRes, blacklistRes, pageContentRes] = await Promise.all([
+        const [profilesRes, announcementsRes, blacklistRes, pageContentRes] = await Promise.all([
           supabase.from('profiles').select(ADMIN_PROFILE_FIELDS),
-          supabase.from('admin_applications').select('*'),
           supabase.from('announcements').select('*').order('priority', { ascending: false }),
           supabase.from('blacklist').select('*').order('created_at', { ascending: false }),
           supabase.from('page_content').select('*').order('id', { ascending: true })
         ]);
 
         setUsers(profilesRes.data || []);
-        setApplications(appsRes.data || []);
         setAnnouncements(announcementsRes.data || []);
         setBlacklist(blacklistRes.data || []);
         setPageContents(pageContentRes.data || []);
@@ -58,104 +44,6 @@ export function useAdminData(showToast) {
 
     fetchData();
   }, []);
-
-  // ========== 申请审批函数 ==========
-  const handleApprove = useCallback(async (appId, userId) => {
-    if (!supabase) return;
-    setActionLoading(appId);
-
-    try {
-      const { error: appError } = await supabase
-        .from('admin_applications')
-        .update({ status: 'approved', reviewed_at: new Date().toISOString() })
-        .eq('id', appId);
-
-      if (appError) throw appError;
-
-      const { error: profileError, data: updatedProfile } = await supabase
-        .rpc('admin_update_profile', {
-          p_target_user_id: userId,
-          p_role: 'admin',
-        });
-
-      if (profileError) throw profileError;
-
-      setApplications(prev => prev.map(a =>
-        a.id === appId ? { ...a, status: 'approved' } : a
-      ));
-      setUsers(prev => prev.map(u =>
-        u.id === userId ? { ...u, ...(updatedProfile || {}), role: 'admin' } : u
-      ));
-
-      showToast('审批通过！该用户现已成为管理员', 'success');
-    } catch (error) {
-      showToast('审批失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [showToast]);
-
-  const handleReject = useCallback(async (appId) => {
-    if (!supabase) return;
-    setActionLoading(appId);
-
-    try {
-      const { error } = await supabase
-        .from('admin_applications')
-        .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-        .eq('id', appId);
-
-      if (error) throw error;
-
-      setApplications(prev => prev.map(a =>
-        a.id === appId ? { ...a, status: 'rejected' } : a
-      ));
-
-      showToast('已拒绝该申请', 'info');
-    } catch (error) {
-      showToast('拒绝失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [showToast]);
-
-  const handleBatchApprove = useCallback(async () => {
-    const pending = applications.filter(a => a.status === 'pending');
-    if (pending.length === 0) return;
-
-    if (!window.confirm(`确定要批量通过 ${pending.length} 个申请吗？`)) return;
-
-    setActionLoading('batch');
-    try {
-      for (const app of pending) {
-        await handleApprove(app.id, app.user_id);
-      }
-      showToast(`已批量通过 ${pending.length} 个申请`, 'success');
-    } catch {
-      showToast('批量操作失败', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [applications, handleApprove, showToast]);
-
-  const handleBatchReject = useCallback(async () => {
-    const pending = applications.filter(a => a.status === 'pending');
-    if (pending.length === 0) return;
-
-    if (!window.confirm(`确定要批量拒绝 ${pending.length} 个申请吗？`)) return;
-
-    setActionLoading('batch');
-    try {
-      for (const app of pending) {
-        await handleReject(app.id);
-      }
-      showToast(`已批量拒绝 ${pending.length} 个申请`, 'success');
-    } catch {
-      showToast('批量操作失败', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [applications, handleReject, showToast]);
 
   // ========== 用户管理函数 ==========
   const saveUser = useCallback(async (userForm, editingUser, onSuccess) => {
@@ -251,10 +139,8 @@ export function useAdminData(showToast) {
     setActionLoading(user.id);
 
     const backupUsers = [...users];
-    const backupApplications = [...applications];
 
     setUsers(prev => prev.filter(u => u.id !== user.id));
-    setApplications(prev => prev.filter(a => a.user_id !== user.id));
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -277,12 +163,11 @@ export function useAdminData(showToast) {
       showToast('用户已删除', 'success');
     } catch (error) {
       setUsers(backupUsers);
-      setApplications(backupApplications);
       showToast('删除用户失败: ' + error.message, 'error');
     } finally {
       setActionLoading(null);
     }
-  }, [users, applications, showToast]);
+  }, [users, showToast]);
 
   const addToBlacklist = useCallback(async (user) => {
     if (!supabase) return;
@@ -589,20 +474,11 @@ export function useAdminData(showToast) {
   return {
     // 数据状态
     users,
-    applications,
     blacklist,
     announcements,
     pageContents,
     loading,
     actionLoading,
-    pendingCount,
-    pendingApps,
-
-    // 申请审批
-    handleApprove,
-    handleReject,
-    handleBatchApprove,
-    handleBatchReject,
 
     // 用户管理
     saveUser,

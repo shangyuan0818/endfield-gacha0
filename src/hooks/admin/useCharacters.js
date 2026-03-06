@@ -57,7 +57,7 @@ export function useCharacters({ showToast }) {
   const [syncProgress, setSyncProgress] = useState('');
 
   // Tab 切换状态
-  const [activeTab, setActiveTab] = useState('character');
+  const [activeTab, setActiveTabState] = useState('character');
 
   // 批量选择状态
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -95,13 +95,15 @@ export function useCharacters({ showToast }) {
 
   // 初始化加载
   useEffect(() => {
-    loadCharacters();
+    queueMicrotask(() => {
+      loadCharacters();
+    });
   }, [loadCharacters]);
 
-  // 切换 Tab 时清空选择
-  useEffect(() => {
+  const setActiveTab = useCallback((nextTab) => {
+    setActiveTabState(nextTab);
     setSelectedIds(new Set());
-  }, [activeTab]);
+  }, []);
 
   // 过滤和排序后的角色列表
   const filteredCharacters = useMemo(() => {

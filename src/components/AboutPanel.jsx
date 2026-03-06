@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Bot
 } from 'lucide-react';
+import { APP_VERSION } from '../constants/appMeta';
 
 /**
  * 关于面板组件
@@ -31,7 +32,7 @@ const AboutPanel = React.memo(() => {
           </h2>
           <p className="text-zinc-400 text-sm tracking-widest uppercase">/ 记录你的每一次命运邂逅</p>
           <div className="mt-6 flex items-center gap-4">
-            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">版本 3.3.1</span>
+            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">版本 {APP_VERSION}</span>
             <span className="text-zinc-500 text-xs font-mono">构建于 2026</span>
           </div>
         </div>

@@ -15,6 +15,18 @@ import {
 } from 'lucide-react';
 import useUIStore from '../../stores/useUIStore';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
+import { APP_VERSION_LABEL } from '../../constants/appMeta';
+
+function MobileAboutSectionHeader({ title, icon }) {
+  const IconComponent = icon;
+
+  return (
+    <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
+      <IconComponent size={14} className="text-zinc-500" />
+      <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
+    </div>
+  );
+}
 
 /**
  * 移动端关于页面 - 工业风重构版 (中文)
@@ -24,7 +36,7 @@ function MobileAboutView() {
   const { setActiveTab } = useUIStore();
   const config = useSiteConfigStore(state => state.config);
 
-  const siteVersion = config.site_version || 'v3.3.1';
+  const siteVersion = config.site_version || APP_VERSION_LABEL;
   const buildInfo = config.build_info || 'Build 2026.02';
   const authorName = config.author_name || '';
   const authorBilibili = config.author_bilibili || '';
@@ -33,13 +45,6 @@ function MobileAboutView() {
   const icpUrl = config.icp_url || 'https://beian.miit.gov.cn/';
   const policeNumber = config.police_number || '';
   const policeUrl = config.police_url || 'https://www.beian.gov.cn/';
-
-  const SectionHeader = ({ title, icon: Icon }) => (
-    <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
-      <Icon size={14} className="text-zinc-500" />
-      <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
-    </div>
-  );
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -70,7 +75,7 @@ function MobileAboutView() {
 
       {/* 作者信息 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <SectionHeader title="项目团队" icon={Heart} />
+        <MobileAboutSectionHeader title="项目团队" icon={Heart} />
         <div className="p-4">
           {/* 主要作者 */}
           {authorName && (
@@ -151,7 +156,7 @@ function MobileAboutView() {
 
       {/* 功能特性 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <SectionHeader title="核心功能" icon={Sparkles} />
+        <MobileAboutSectionHeader title="核心功能" icon={Sparkles} />
         <div className="p-4">
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -175,7 +180,7 @@ function MobileAboutView() {
       {/* 开源项目 */}
       {githubUrl && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-          <SectionHeader title="开源项目" icon={Code} />
+          <MobileAboutSectionHeader title="开源项目" icon={Code} />
           <div className="p-4">
             <div className="flex items-center justify-between p-4 bg-zinc-900 text-white border border-zinc-700">
               <div className="flex items-center gap-3">

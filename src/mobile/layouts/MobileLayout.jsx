@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import useUIStore from '../../stores/useUIStore';
-import useAuthStore from '../../stores/useAuthStore';
 import MobileHeader from '../components/MobileHeader';
 import MobileTabBar from '../components/MobileTabBar';
 import MobileDrawer from '../components/MobileDrawer';
@@ -20,7 +19,6 @@ import MobileTicketView from '../views/MobileTicketView';
  */
 function MobileLayout() {
   const { activeTab } = useUIStore();
-  const { user } = useAuthStore();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // 根据 activeTab 渲染对应视图

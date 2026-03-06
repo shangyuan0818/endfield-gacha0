@@ -1,22 +1,18 @@
-import React from 'react';
-import { Shield, RefreshCw, ChevronRight, Clock, Users, Database, Ban, Layers, Star, Bell, Home, History, Settings } from 'lucide-react';
+import React, { Suspense, lazy } from 'react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Ban, Layers, Star, Bell, Home, Settings } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
-import CharacterManagement from './admin/CharacterManagement';
-import PoolManagement from './admin/PoolManagement';
-import {
-  ApplicationsPanel,
-  UsersPanel,
-  BlacklistPanel,
-  AnnouncementsPanel,
-  PageContentPanel,
-  SiteConfigPanel,
-  UserDataPanel,
-  HistoryPanel
-} from './admin/panels';
+
+const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
+const PoolManagement = lazy(() => import('./admin/PoolManagement'));
+const UsersPanel = lazy(() => import('./admin/panels/UsersPanel'));
+const UserDataPanel = lazy(() => import('./admin/panels/UserDataPanel'));
+const BlacklistPanel = lazy(() => import('./admin/panels/BlacklistPanel'));
+const AnnouncementsPanel = lazy(() => import('./admin/panels/AnnouncementsPanel'));
+const PageContentPanel = lazy(() => import('./admin/panels/PageContentPanel'));
+const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
-  { id: 'applications', label: '申请审批', icon: Clock, badge: 'pending' },
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'userData', label: '用户数据', icon: Database },
   { id: 'blacklist', label: '黑名单', icon: Ban },
@@ -25,11 +21,16 @@ const MENU_ITEMS = [
   { id: 'announcements', label: '公告管理', icon: Bell },
   { id: 'pageContent', label: '页面管理', icon: Home },
   { id: 'siteConfig', label: '站点配置', icon: Settings },
-  { id: 'history', label: '申请历史', icon: History },
 ];
 
+const AdminPanelFallback = () => (
+  <div className="flex items-center justify-center py-16">
+    <RefreshCw size={20} className="animate-spin text-slate-400 dark:text-zinc-500" />
+  </div>
+);
+
 const AdminPanel = React.memo(({ showToast }) => {
-  const [activeMenu, setActiveMenu] = React.useState('applications');
+  const [activeMenu, setActiveMenu] = React.useState('users');
 
   // 使用拆分后的 hooks
   const adminData = useAdminData(showToast);
@@ -37,18 +38,11 @@ const AdminPanel = React.memo(({ showToast }) => {
 
   const {
     users,
-    applications,
     blacklist,
     announcements,
     pageContents,
     loading,
     actionLoading,
-    pendingCount,
-    pendingApps,
-    handleApprove,
-    handleReject,
-    handleBatchApprove,
-    handleBatchReject,
     saveUser,
     deleteUser,
     addToBlacklist,
@@ -90,19 +84,6 @@ const AdminPanel = React.memo(({ showToast }) => {
   // 渲染当前面板内容
   const renderContent = () => {
     switch (activeMenu) {
-      case 'applications':
-        return (
-          <ApplicationsPanel
-            pendingApps={pendingApps}
-            users={users}
-            actionLoading={actionLoading}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onBatchApprove={handleBatchApprove}
-            onBatchReject={handleBatchReject}
-          />
-        );
-
       case 'users':
         return (
           <UsersPanel
@@ -176,9 +157,6 @@ const AdminPanel = React.memo(({ showToast }) => {
       case 'siteConfig':
         return <SiteConfigPanel showToast={showToast} />;
 
-      case 'history':
-        return <HistoryPanel applications={applications} users={users} />;
-
       default:
         return null;
     }
@@ -192,7 +170,7 @@ const AdminPanel = React.memo(({ showToast }) => {
           <Shield size={28} />
           超级管理员控制台
         </h2>
-        <p className="text-red-100 mt-1">管理用户、审批申请、维护黑名单</p>
+        <p className="text-red-100 mt-1">管理用户、维护共享内容与站点配置</p>
       </div>
 
       {/* 侧边栏 + 内容布局 */}
@@ -202,7 +180,6 @@ const AdminPanel = React.memo(({ showToast }) => {
           <nav className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             {MENU_ITEMS.map(item => {
               const Icon = item.icon;
-              const badgeCount = item.badge === 'pending' ? pendingCount : 0;
               const isActive = activeMenu === item.id;
 
               return (
@@ -219,14 +196,7 @@ const AdminPanel = React.memo(({ showToast }) => {
                     <Icon size={18} />
                     <span className="font-medium">{item.label}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {badgeCount > 0 && (
-                      <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                        {badgeCount}
-                      </span>
-                    )}
-                    <ChevronRight size={16} className={`transition-transform ${isActive ? 'rotate-90' : ''}`} />
-                  </div>
+                  <ChevronRight size={16} className={`transition-transform ${isActive ? 'rotate-90' : ''}`} />
                 </button>
               );
             })}
@@ -239,7 +209,9 @@ const AdminPanel = React.memo(({ showToast }) => {
             <h3 className="text-lg font-bold text-slate-700 dark:text-zinc-300 mb-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
               {MENU_ITEMS.find(m => m.id === activeMenu)?.label}
             </h3>
-            {renderContent()}
+            <Suspense fallback={<AdminPanelFallback />}>
+              {renderContent()}
+            </Suspense>
           </div>
         </div>
       </div>

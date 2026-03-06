@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Sun, Moon, Monitor, MessageSquare, Shield, Info, LogOut, User, LogIn } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../stores/useAuthStore';
 import useUIStore from '../../stores/useUIStore';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
@@ -12,7 +11,6 @@ import { useTheme } from '../../contexts/ThemeContext';
  */
 function MobileDrawer({ isOpen, onClose }) {
   const { themeMode, setThemeMode } = useTheme();
-  const navigate = useNavigate();
   const { user, signOut, userRole, setUser } = useAuthStore();
   const { setActiveTab } = useUIStore();
   const isSuperAdmin = userRole === 'super_admin';

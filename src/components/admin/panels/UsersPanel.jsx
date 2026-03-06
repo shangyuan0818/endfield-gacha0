@@ -24,6 +24,16 @@ const formatLastSeen = (timestamp) => {
   return `${Math.floor(diffDays / 365)}年前`;
 };
 
+const SortIcon = ({ field, userSortField, userSortDirection }) => {
+  if (userSortField !== field) {
+    return <ChevronsUpDown size={14} className="text-slate-300 dark:text-zinc-600" />;
+  }
+
+  return userSortDirection === 'asc'
+    ? <ChevronUp size={14} className="text-blue-500" />
+    : <ChevronDown size={14} className="text-blue-500" />;
+};
+
 /**
  * 用户管理面板
  */
@@ -88,11 +98,12 @@ const UsersPanel = ({
           aVal = a.email || '';
           bVal = b.email || '';
           break;
-        case 'role':
+        case 'role': {
           const roleOrder = { super_admin: 3, admin: 2, user: 1 };
           aVal = roleOrder[a.role] || 0;
           bVal = roleOrder[b.role] || 0;
           break;
+        }
         case 'last_seen_at':
           aVal = a.last_seen_at ? new Date(a.last_seen_at).getTime() : 0;
           bVal = b.last_seen_at ? new Date(b.last_seen_at).getTime() : 0;
@@ -124,15 +135,6 @@ const UsersPanel = ({
       setUserSortField(field);
       setUserSortDirection(field === 'username' || field === 'email' ? 'asc' : 'desc');
     }
-  };
-
-  const SortIcon = ({ field }) => {
-    if (userSortField !== field) {
-      return <ChevronsUpDown size={14} className="text-slate-300 dark:text-zinc-600" />;
-    }
-    return userSortDirection === 'asc'
-      ? <ChevronUp size={14} className="text-blue-500" />
-      : <ChevronDown size={14} className="text-blue-500" />;
   };
 
   return (
@@ -267,7 +269,7 @@ const UsersPanel = ({
                     onClick={() => handleUserSort('username')}
                     className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    用户名 <SortIcon field="username" />
+                    用户名 <SortIcon field="username" userSortField={userSortField} userSortDirection={userSortDirection} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left">
@@ -275,7 +277,7 @@ const UsersPanel = ({
                     onClick={() => handleUserSort('email')}
                     className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    邮箱 <SortIcon field="email" />
+                    邮箱 <SortIcon field="email" userSortField={userSortField} userSortDirection={userSortDirection} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left">
@@ -283,7 +285,7 @@ const UsersPanel = ({
                     onClick={() => handleUserSort('role')}
                     className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    角色 <SortIcon field="role" />
+                    角色 <SortIcon field="role" userSortField={userSortField} userSortDirection={userSortDirection} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left">
@@ -291,7 +293,7 @@ const UsersPanel = ({
                     onClick={() => handleUserSort('last_seen_at')}
                     className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    最后在线 <SortIcon field="last_seen_at" />
+                    最后在线 <SortIcon field="last_seen_at" userSortField={userSortField} userSortDirection={userSortDirection} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left">
@@ -299,7 +301,7 @@ const UsersPanel = ({
                     onClick={() => handleUserSort('created_at')}
                     className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    注册时间 <SortIcon field="created_at" />
+                    注册时间 <SortIcon field="created_at" userSortField={userSortField} userSortDirection={userSortDirection} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-right">操作</th>
