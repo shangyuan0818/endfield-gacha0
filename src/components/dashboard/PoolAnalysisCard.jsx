@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Calculator, Sparkles, FileText, Clock } from 'lucide-react';
 import { usePoolStore } from '../../stores';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
@@ -10,13 +10,13 @@ import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 const PoolTimeInfo = ({ currentPool }) => {
   const pools = usePoolStore(state => state.pools);
   const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
+  const [tick, setTick] = useState(0);
 
-  const [upPoolInfo, setUpPoolInfo] = useState(() => getCurrentUpPoolInfo(poolsArray));
+  const upPoolInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray, tick]);
 
   useEffect(() => {
-    setUpPoolInfo(getCurrentUpPoolInfo(poolsArray));
     const timer = setInterval(() => {
-      setUpPoolInfo(getCurrentUpPoolInfo(poolsArray));
+      setTick(prev => prev + 1);
     }, 60000);
     return () => clearInterval(timer);
   }, [poolsArray]);

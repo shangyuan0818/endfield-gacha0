@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 
@@ -8,15 +8,13 @@ import usePoolStore from '../../stores/usePoolStore';
  */
 const HeaderPoolTimeInfo = React.memo(() => {
   const pools = usePoolStore(state => state.pools);
-  const [timeInfo, setTimeInfo] = useState(() => getCurrentUpPoolInfo(pools));
+  const [tick, setTick] = useState(0);
+  const timeInfo = useMemo(() => getCurrentUpPoolInfo(pools), [pools, tick]);
 
   useEffect(() => {
-    // pools 变化时立即更新
-    setTimeInfo(getCurrentUpPoolInfo(pools));
-
     // 每分钟更新一次倒计时
     const timer = setInterval(() => {
-      setTimeInfo(getCurrentUpPoolInfo(pools));
+      setTick(prev => prev + 1);
     }, 60000);
 
     return () => clearInterval(timer);

@@ -15,48 +15,44 @@ const LoadingBar = React.memo(({ isLoading, progress = null, color = 'bg-endfiel
   const timeoutRef = useRef(null);
 
   useEffect(() => {
+    let rafId = null;
+
     if (isLoading) {
-      // 开始加载
-      setVisible(true);
-      setInternalProgress(0);
+      rafId = requestAnimationFrame(() => {
+        setVisible(true);
+        setInternalProgress(progress === null ? 30 : 0);
+      });
 
-      // 如果没有传入确定性进度，使用模拟进度
       if (progress === null) {
-        // 快速增长到 30%
-        setInternalProgress(30);
-
-        // 然后缓慢增长
         intervalRef.current = setInterval(() => {
           setInternalProgress(prev => {
             if (prev >= 90) {
               clearInterval(intervalRef.current);
               return prev;
             }
-            // 越接近 90% 增长越慢
             const increment = Math.max(0.5, (90 - prev) / 10);
             return Math.min(90, prev + increment);
           });
         }, 200);
       }
     } else {
-      // 停止加载
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
 
       if (visible) {
-        // 快速完成到 100%
-        setInternalProgress(100);
-
-        // 延迟隐藏
-        timeoutRef.current = setTimeout(() => {
-          setVisible(false);
-          setInternalProgress(0);
-        }, 400);
+        rafId = requestAnimationFrame(() => {
+          setInternalProgress(100);
+          timeoutRef.current = setTimeout(() => {
+            setVisible(false);
+            setInternalProgress(0);
+          }, 400);
+        });
       }
     }
 
     return () => {
+      if (rafId) cancelAnimationFrame(rafId);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };

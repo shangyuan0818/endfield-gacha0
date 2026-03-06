@@ -7,8 +7,6 @@
 import {
   simulateSinglePull,
   simulateTenPull,
-  checkGuaranteedLimitedTrigger,
-  checkGiftAvailable,
   checkInfoBookAvailable,
   calculateExpectedPulls
 } from './probabilityEngine.js';
@@ -598,8 +596,6 @@ export class GachaSimulator {
       upSixStarCount,
       pullHistory,
       sixStarPity,
-      giftsReceived,
-      freeTenPullsReceived,
       hasReceivedInfoBook,
       hasReceivedSelectGift
     } = this.state;
@@ -741,4 +737,3 @@ export default {
   createSimulator,
   createInitialState
 };
-

@@ -112,9 +112,6 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   // ========== 120抽硬保底检查（限定池）/ 80抽硬保底（武器池首轮） ==========
   // 限定池：如果已经119抽没出限定，第120抽必定是限定6星
   // 武器池：如果已经79抽没出限定，第80抽必定是限定6星
-  const isLimitedPool = poolType === 'limited' || poolType === 'limited_character';
-  const isWeaponPool = poolType === 'weapon' || poolType === 'limited_weapon';
-
   const shouldTriggerGuaranteedLimited =
     !state.hasReceivedGuaranteedLimited &&
     guaranteedLimitedPity >= rules.guaranteedLimitedPity;

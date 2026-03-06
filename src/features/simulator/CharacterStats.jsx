@@ -6,7 +6,7 @@ import { characterCache } from '../../utils/characterUtils';
  * 角色出货统计组件
  * 显示5星及以上角色的出货情况
  */
-const CharacterStats = ({ pullHistory, poolType }) => {
+const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
   // 计算角色出货统计
   const characterStats = useMemo(() => {
     const characters = new Map();

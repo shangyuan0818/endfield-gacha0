@@ -57,8 +57,6 @@ class CharacterCache {
     this.loading = true;
 
     try {
-      const startTime = performance.now();
-
       // 从 Supabase 加载所有角色
       const { data, error } = await supabase
         .from('characters')
@@ -90,8 +88,6 @@ class CharacterCache {
         // 名称也作为别名
         this.aliasMap.set(char.name.toLowerCase(), char.id);
       });
-
-      const loadTime = (performance.now() - startTime).toFixed(2);
 
       this.loaded = true;
       this.loading = false;
@@ -314,7 +310,7 @@ class CharacterCache {
 export const characterCache = new CharacterCache();
 
 // 开发环境下暴露到 window（方便调试）
-if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.__characterCache = characterCache;
 }
 

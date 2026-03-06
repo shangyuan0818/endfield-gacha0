@@ -292,7 +292,7 @@ class RequestQueue {
     this.activeAbortControllers.forEach(controller => {
       try {
         controller.abort();
-      } catch (e) {
+      } catch {
         // 忽略取消错误
       }
     });

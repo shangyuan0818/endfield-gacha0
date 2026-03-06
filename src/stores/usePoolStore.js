@@ -97,7 +97,7 @@ const getCurrentUserId = () => {
   try {
     const user = useAuthStore.getState().user;
     return user?.id || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

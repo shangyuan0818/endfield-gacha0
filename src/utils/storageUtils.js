@@ -33,7 +33,7 @@ export const getStorageItem = (key, defaultValue = null) => {
     const item = localStorage.getItem(fullKey);
     if (item === null) return defaultValue;
     return JSON.parse(item);
-  } catch (error) {
+  } catch {
     return defaultValue;
   }
 };
@@ -47,7 +47,7 @@ export const setStorageItem = (key, value) => {
   try {
     const fullKey = STORAGE_PREFIX + key;
     localStorage.setItem(fullKey, JSON.stringify(value));
-  } catch (error) {
+  } catch {
     // 静默失败
   }
 };
@@ -60,7 +60,7 @@ export const removeStorageItem = (key) => {
   try {
     const fullKey = STORAGE_PREFIX + key;
     localStorage.removeItem(fullKey);
-  } catch (error) {
+  } catch {
     // 静默失败
   }
 };

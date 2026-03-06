@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Layers, Lock, Upload, Star, Swords, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
-import { isPoolGroupId, getPoolGroupType, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
+import { POOL_GROUP_PREFIX } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 
 /**

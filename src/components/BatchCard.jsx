@@ -73,9 +73,8 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
         {!isExpanded && (
           <div className="flex-1">
             <div className="flex flex-wrap gap-2">
-              {group.map((item, idx) => {
+              {group.map((item) => {
                 const isLimitedUp = item.rarity === 6 && !item.isStandard;
-                const isStandardSpook = item.rarity === 6 && item.isStandard;
                 const isGift = item.specialType === 'gift';
                 const isFree = item.isFree || item.is_free;
 
@@ -173,9 +172,8 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
       {isExpanded && (
         <div className="bg-slate-50 dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800">
           <div className="p-4 grid grid-cols-5 sm:grid-cols-10 gap-3">
-            {group.map((item, idx) => {
+            {group.map((item) => {
               const isLimitedUp = item.rarity === 6 && !item.isStandard;
-              const isStandardSpook = item.rarity === 6 && item.isStandard;
               const isGift = item.specialType === 'gift';
               const isFree = item.isFree || item.is_free;
               const name = item.character_name || item.item_name || item.name || '未知';

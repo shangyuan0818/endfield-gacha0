@@ -1,7 +1,7 @@
 import React from 'react';
 import { Star, Hexagon, Gift, BookOpen } from 'lucide-react';
 
-const SimulatorControls = ({ onPullOne, onPullTen, disabled, jadeCost, availableFreePulls = 0, infoBookTenPullAvailable = false }) => {
+const SimulatorControls = ({ onPullOne, onPullTen, disabled, jadeCost: _jadeCost, availableFreePulls = 0, infoBookTenPullAvailable = false }) => {
   const hasFree = availableFreePulls > 0;
   const hasInfoBook = infoBookTenPullAvailable;
 

@@ -29,15 +29,15 @@ export const useConfirm = () => {
     });
   }, []);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = () => {
     confirmState.resolve?.(true);
     setConfirmState(prev => ({ ...prev, isOpen: false }));
-  }, [confirmState.resolve]);
+  };
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = () => {
     confirmState.resolve?.(false);
     setConfirmState(prev => ({ ...prev, isOpen: false }));
-  }, [confirmState.resolve]);
+  };
 
   return { confirmState, confirm, handleConfirm, handleCancel };
 };

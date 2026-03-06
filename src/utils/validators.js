@@ -103,7 +103,7 @@ export const validatePullData = (data) => {
  * @param {Object} params.pool - 当前卡池信息 {type: 'limited'|'standard'|'weapon'}
  * @returns {{isValid: boolean, errors: string[], warnings: string[]}}
  */
-export const validatePullAgainstRules = ({ newPull, existingPulls, allLimitedPoolPulls = [], pool }) => {
+export const validatePullAgainstRules = ({ newPull, existingPulls, allLimitedPoolPulls: _allLimitedPoolPulls = [], pool }) => {
   const errors = [];
   const warnings = [];
   const rules = getPoolRules(pool.type);

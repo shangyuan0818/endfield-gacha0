@@ -11,9 +11,9 @@ export default defineConfig({
       '/api/hg-proxy': {
         target: 'http://localhost:3001',
         changeOrigin: true,
-        configure: (proxy, options) => {
+        configure: (proxy) => {
           // 如果本地代理服务器不可用，会报错
-          proxy.on('error', (err, req, res) => {
+          proxy.on('error', () => {
             console.log('[Vite Proxy] 代理错误，请确保运行了本地代理服务器');
             console.log('[Vite Proxy] 运行: node dev-proxy.js');
           });

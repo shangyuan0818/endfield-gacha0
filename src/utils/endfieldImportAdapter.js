@@ -303,7 +303,7 @@ export function deduplicateByTimestampName(newRecords, existingRecords) {
  * @param {string} poolType - 卡池类型
  * @returns {Array} 带有pity字段的记录数组
  */
-export function calculatePity(records, poolType) {
+export function calculatePity(records, _poolType) {
   let pityCount = 0;
 
   // 按时间升序排序

@@ -30,8 +30,8 @@ const DateTimePicker = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => (value ? new Date(value) : new Date()));
-  const [hourInput, setHourInput] = useState('');
-  const [minuteInput, setMinuteInput] = useState('');
+  const [hourInput, setHourInput] = useState(() => String(value ? new Date(value).getHours() : 10).padStart(2, '0'));
+  const [minuteInput, setMinuteInput] = useState(() => String(value ? new Date(value).getMinutes() : 0).padStart(2, '0'));
   const containerRef = useRef(null);
   const panelRef = useRef(null);
 
@@ -41,12 +41,6 @@ const DateTimePicker = ({
   const selDay = currentDate?.getDate();
   const selHour = currentDate?.getHours() ?? 10;
   const selMinute = currentDate?.getMinutes() ?? 0;
-
-  // 同步输入框
-  useEffect(() => {
-    setHourInput(String(selHour).padStart(2, '0'));
-    setMinuteInput(String(selMinute).padStart(2, '0'));
-  }, [selHour, selMinute]);
 
   // 点击外部关闭（portal 元素不在 containerRef 内，需同时检测）
   useEffect(() => {
@@ -181,7 +175,13 @@ const DateTimePicker = ({
             ? 'border-red-400 dark:border-red-500 ring-1 ring-red-400/30'
             : 'border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-600'
         } bg-white dark:bg-zinc-900`}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!isOpen) {
+            setHourInput(String(selHour).padStart(2, '0'));
+            setMinuteInput(String(selMinute).padStart(2, '0'));
+          }
+          setIsOpen(!isOpen);
+        }}
       >
         <input
           type="text"

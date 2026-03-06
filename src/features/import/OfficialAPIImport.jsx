@@ -148,7 +148,7 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
   );
 };
 
-export default function OfficialAPIImport({ onImportComplete, onBack, onFetchStatusChange, userId }) {
+export default function OfficialAPIImport({ onImportComplete, onBack: _onBack, onFetchStatusChange, userId }) {
   const [tokenInput, setTokenInput] = useState('');
   const [status, setStatus] = useState(ImportStatus.IDLE);
   const [progress, setProgress] = useState(0);
@@ -157,12 +157,10 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
   const [importSummary, setImportSummary] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [error, setError] = useState(null);
-  const [showGuide, setShowGuide] = useState(true);
   const [autoDetected, setAutoDetected] = useState(false); // 是否自动识别了JSON
 
   // 多账号支持
   const [availableAccounts, setAvailableAccounts] = useState([]);
-  const [selectedAccount, setSelectedAccount] = useState(null);
   const [appToken, setAppToken] = useState(null);  // 保存 appToken 用于后续请求
 
   // 🆕 请求队列状态
@@ -219,8 +217,10 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
         queue.removeListener(handleQueueEvent);
       };
     } else {
-      setQueueStatus(null);
-      setRetryInfo(null);
+      queueMicrotask(() => {
+        setQueueStatus(null);
+        setRetryInfo(null);
+      });
     }
   }, [status]);
 
@@ -242,7 +242,7 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
         if (json?.data?.content) {
           return { token: json.data.content, fromJson: true };
         }
-      } catch (e) {
+      } catch {
         // 不是有效JSON，继续当作普通文本处理
       }
     }
@@ -282,80 +282,7 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     return { valid: true, token: trimmed };
   }, []);
 
-  const handleImport = useCallback(async () => {
-    const validation = validateToken(tokenInput);
-    if (!validation.valid) {
-      setError(validation.error);
-      setStatus(ImportStatus.ERROR);
-      return;
-    }
-
-    setStatus(ImportStatus.AUTHENTICATING);
-    setProgress(0);
-    setError(null);
-    setFetchedRecords([]);
-    setImportSummary(null);
-    setUserInfo(null);
-    setAvailableAccounts([]);
-    setSelectedAccount(null);
-    setAppToken(null);
-    cancelRef.current = false;
-
-    try {
-      // 阶段1：获取账号列表
-      setStatusMessage('正在验证token...');
-      setProgress(10);
-
-      const accountsResult = await fetchAccountsList(validation.token, (msg) => {
-        if (cancelRef.current) return;
-        setStatusMessage(msg);
-        if (msg.includes('验证')) setProgress(10);
-        else if (msg.includes('账号')) setProgress(20);
-      });
-
-      if (cancelRef.current) return;
-
-      const { appToken: token, accounts } = accountsResult;
-      setAppToken(token);
-      setAvailableAccounts(accounts);
-
-      // 如果有多个账号，显示选择界面
-      if (accounts.length > 1) {
-        setStatus(ImportStatus.ACCOUNT_SELECTION);
-        setProgress(25);
-        setStatusMessage('请选择要导入的账号');
-        return;
-      }
-
-      // 只有一个账号，自动选择并继续
-      setSelectedAccount(accounts[0]);
-      await continueImportWithAccount(token, accounts[0]);
-
-    } catch (err) {
-      console.error('[OfficialAPIImport] 导入失败:', err);
-      if (cancelRef.current) return;
-      let errorMessage = err.message || 'Unknown Error';
-      if (err instanceof ServerConnectionError) errorMessage = `服务器连接异常: ${err.message}`;
-      else if (err instanceof RiskControlError) errorMessage = '触发频率限制，请稍候再试。';
-      else if (err instanceof AuthChainError) errorMessage = `认证失败: ${err.message}`;
-
-      setError(errorMessage);
-      setStatus(ImportStatus.ERROR);
-    }
-  }, [tokenInput, validateToken]);
-
-  /**
-   * 选择账号后继续导入
-   */
-  const handleAccountSelect = useCallback(async (account) => {
-    setSelectedAccount(account);
-    await continueImportWithAccount(appToken, account);
-  }, [appToken]);
-
-  /**
-   * 使用选定账号继续导入流程
-   */
-  const continueImportWithAccount = useCallback(async (token, account) => {
+  async function continueImportWithAccount(token, account) {
     try {
       setStatus(ImportStatus.FETCHING);
       setProgress(30);
@@ -463,7 +390,7 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
           gameUid: account.gameUid,
           nickName: account.nickName
         });
-      } catch (error) {
+      } catch {
         setStatusMessage('并发获取失败，切换到串行模式...');
         records = await fetchAllGachaRecords(u8Token, (msg) => {
           if (cancelRef.current) return;
@@ -531,7 +458,70 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       setError(errorMessage);
       setStatus(ImportStatus.ERROR);
     }
-  }, [availableAccounts, onImportComplete, tokenInput, userId]);
+  }
+
+  const handleImport = async () => {
+    const validation = validateToken(tokenInput);
+    if (!validation.valid) {
+      setError(validation.error);
+      setStatus(ImportStatus.ERROR);
+      return;
+    }
+
+    setStatus(ImportStatus.AUTHENTICATING);
+    setProgress(0);
+    setError(null);
+    setFetchedRecords([]);
+    setImportSummary(null);
+    setUserInfo(null);
+    setAvailableAccounts([]);
+    setAppToken(null);
+    cancelRef.current = false;
+
+    try {
+      setStatusMessage('正在验证token...');
+      setProgress(10);
+
+      const accountsResult = await fetchAccountsList(validation.token, (msg) => {
+        if (cancelRef.current) return;
+        setStatusMessage(msg);
+        if (msg.includes('验证')) setProgress(10);
+        else if (msg.includes('账号')) setProgress(20);
+      });
+
+      if (cancelRef.current) return;
+
+      const { appToken: token, accounts } = accountsResult;
+      setAppToken(token);
+      setAvailableAccounts(accounts);
+
+      if (accounts.length > 1) {
+        setStatus(ImportStatus.ACCOUNT_SELECTION);
+        setProgress(25);
+        setStatusMessage('请选择要导入的账号');
+        return;
+      }
+
+      await continueImportWithAccount(token, accounts[0]);
+    } catch (err) {
+      console.error('[OfficialAPIImport] 导入失败:', err);
+      if (cancelRef.current) return;
+      let errorMessage = err.message || 'Unknown Error';
+      if (err instanceof ServerConnectionError) errorMessage = `服务器连接异常: ${err.message}`;
+      else if (err instanceof RiskControlError) errorMessage = '触发频率限制，请稍候再试。';
+      else if (err instanceof AuthChainError) errorMessage = `认证失败: ${err.message}`;
+
+      setError(errorMessage);
+      setStatus(ImportStatus.ERROR);
+    }
+  };
+
+  /**
+   * 选择账号后继续导入
+   */
+  const handleAccountSelect = async (account) => {
+    await continueImportWithAccount(appToken, account);
+  };
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;
@@ -563,7 +553,6 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
     setError(null);
     setAutoDetected(false);
     setAvailableAccounts([]);
-    setSelectedAccount(null);
     setAppToken(null);
   }, []);
 
@@ -669,7 +658,7 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
             </p>
 
             <div className="space-y-2">
-              {availableAccounts.map((account, index) => (
+              {availableAccounts.map((account) => (
                 <button
                   key={account.uid}
                   onClick={() => handleAccountSelect(account)}

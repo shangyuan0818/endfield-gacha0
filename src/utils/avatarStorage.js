@@ -25,7 +25,7 @@ export async function ensureBucketExists() {
   try {
     // 尝试直接访问 bucket（listBuckets 需要管理员权限，普通用户无法使用）
     // 改为尝试列出 bucket 中的文件来验证是否可访问
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
       .list('', { limit: 1 });
 
@@ -83,7 +83,7 @@ export async function uploadImageFromUrl(remoteUrl, storagePath) {
     }
 
     // 2. 上传到 Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(storagePath, blob, {
         contentType: blob.type,
@@ -204,7 +204,7 @@ export async function getStoredAvatarUrl(itemId, type = 'character') {
       .getPublicUrl(storagePath);
 
     return publicUrlData?.publicUrl || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

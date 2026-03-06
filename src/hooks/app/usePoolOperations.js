@@ -19,7 +19,6 @@ export function usePoolOperations({
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
 
-  const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
 
   const modalState = useUIStore(state => state.modalState);

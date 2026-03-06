@@ -153,7 +153,7 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     ),
 
     // 行内代码
-    code: ({ inline, className, children }) => {
+    code: ({ inline, children }) => {
       if (inline) {
         return (
           <code className="bg-zinc-100 dark:bg-[#1a1a1a] border border-zinc-200 dark:border-zinc-700 px-1.5 py-0.5 rounded-none text-xs font-mono text-zinc-800 dark:text-zinc-200">

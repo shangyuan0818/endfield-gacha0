@@ -311,7 +311,7 @@ export function useDataExportImport({
           stats: validation.stats
         });
 
-      } catch (error) {
+      } catch {
         showToast("导入失败：文件解析错误。请确保是合法的JSON文件。", 'error');
       }
       event.target.value = '';
