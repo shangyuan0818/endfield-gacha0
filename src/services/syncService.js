@@ -6,6 +6,7 @@
  */
 
 import { supabase } from '../supabaseClient';
+import { clampHistoryPity, splitHistoryUpsertGroups } from '../utils/historyRecordUtils';
 
 /**
  * 同步管理器（单例模式）
@@ -254,51 +255,61 @@ class SyncManager {
 
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-
-      const { error } = await supabase.from('history').upsert(
-        batch.map((r) => {
-          // record_id 必须是数字（数据库 double precision 类型）
-          let recordId = r.id || r.record_id;
-          if (typeof recordId === 'string') {
-            // 如果是字符串，尝试解析为数字
-            recordId = parseInt(recordId, 10);
-            // 如果解析失败（NaN），使用 seqId 或时间戳
-            if (isNaN(recordId)) {
-              recordId = parseInt(r.seqId || r.seq_id, 10) || Date.now();
-            }
+      const rows = batch.map((r) => {
+        // record_id 必须是数字（数据库 double precision 类型）
+        let recordId = r.id || r.record_id;
+        if (typeof recordId === 'string') {
+          // 如果是字符串，尝试解析为数字
+          recordId = parseInt(recordId, 10);
+          // 如果解析失败（NaN），使用 seqId 或时间戳
+          if (isNaN(recordId)) {
+            recordId = parseInt(r.seqId || r.seq_id, 10) || Date.now();
           }
+        }
 
-          return {
-            user_id: r.user_id,
-            record_id: recordId,
-            pool_id: String(r.poolId || r.pool_id),
-            rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
-            is_standard: Boolean(r.isStandard || r.is_standard),
-            special_type: r.specialType || r.special_type || null,
-            // 名称字段：优先使用 character_name，备选 name
-            character_name: r.character_name || r.name || null,
-            item_name: r.item_name || r.name || r.character_name || null,
-            // V2 新增字段（严格类型检查）
-            batch_id: r.batchId || r.batch_id || null,
-            seq_id: r.seqId || r.seq_id || null,
-            pity: typeof r.pity === 'number' ? r.pity : (parseInt(r.pity, 10) || 0),
-            is_new: Boolean(r.isNew || r.is_new),
-            is_free: Boolean(r.isFree || r.is_free),
-            game_uid: r.gameUid || r.game_uid || null,
-            // 时间戳（处理数字或字符串格式）
-            timestamp: r.timestamp
-              ? (typeof r.timestamp === 'number'
-                ? new Date(r.timestamp).toISOString()
-                : new Date(r.timestamp).toISOString())
-              : new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-        }),
-        { onConflict: 'user_id,record_id' }
-      );
+        return {
+          user_id: r.user_id,
+          record_id: recordId,
+          pool_id: String(r.poolId || r.pool_id),
+          rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
+          is_standard: Boolean(r.isStandard || r.is_standard),
+          special_type: r.specialType || r.special_type || null,
+          // 名称字段：优先使用 character_name，备选 name
+          character_name: r.character_name || r.name || null,
+          item_name: r.item_name || r.name || r.character_name || null,
+          // V2 新增字段（严格类型检查）
+          batch_id: r.batchId || r.batch_id || null,
+          seq_id: r.seqId || r.seq_id || null,
+          pity: clampHistoryPity(r.pity),
+          is_new: Boolean(r.isNew || r.is_new),
+          is_free: Boolean(r.isFree || r.is_free),
+          game_uid: r.gameUid || r.game_uid || null,
+          // 时间戳（处理数字或字符串格式）
+          timestamp: r.timestamp
+            ? (typeof r.timestamp === 'number'
+              ? new Date(r.timestamp).toISOString()
+              : new Date(r.timestamp).toISOString())
+            : new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      });
 
-      if (error) {
-        throw new Error(`历史记录同步失败（批次 ${i / batchSize + 1}）: ${error.message}`);
+      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(rows);
+      const upsertGroups = [
+        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
+        { rows: legacyRecords, onConflict: 'user_id,record_id' }
+      ];
+
+      for (const group of upsertGroups) {
+        if (group.rows.length === 0) continue;
+
+        const { error } = await supabase
+          .from('history')
+          .upsert(group.rows, { onConflict: group.onConflict });
+
+        if (error) {
+          throw new Error(`历史记录同步失败（批次 ${i / batchSize + 1}）: ${error.message}`);
+        }
       }
 
       syncedCount += batch.length;

@@ -23,18 +23,17 @@ import {
   Loader2
 } from 'lucide-react';
 import {
-  importAllRecords,
   fetchAccountsList,
   executeAuthChainForAccount,
   fetchAllGachaRecordsConcurrent,
   fetchAllGachaRecords,
+  importAllRecordsFullyOnBackend,
   fetchImportQueueStatus,
   AuthChainError,
   RiskControlError,
   ServerConnectionError
 } from '../../utils/endfieldAuthChain';
 import {
-  convertRecords,
   generateImportSummary,
   assignBatchIds,
   calculatePity
@@ -149,7 +148,7 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
   );
 };
 
-export default function OfficialAPIImport({ onImportComplete, onBack, onFetchStatusChange }) {
+export default function OfficialAPIImport({ onImportComplete, onBack, onFetchStatusChange, userId }) {
   const [tokenInput, setTokenInput] = useState('');
   const [status, setStatus] = useState(ImportStatus.IDLE);
   const [progress, setProgress] = useState(0);
@@ -362,6 +361,73 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       setProgress(30);
       cancelRef.current = false;
 
+      const resolvedUserInfo = {
+        hgUid: account.uid,
+        gameUid: account.gameUid,
+        nickName: account.nickName,
+        channelName: account.channelName,
+        channelMasterId: account.channelMasterId,
+        isOfficial: account.isOfficial
+      };
+
+      setUserInfo(resolvedUserInfo);
+
+      if (userId) {
+        const accountIndex = availableAccounts.findIndex(candidate =>
+          candidate.uid === account.uid &&
+          candidate.gameUid === account.gameUid &&
+          candidate.channelMasterId === account.channelMasterId
+        );
+
+        const backendResult = await importAllRecordsFullyOnBackend(
+          tokenInput.trim(),
+          accountIndex >= 0 ? accountIndex : 0,
+          userId,
+          (update) => {
+            if (cancelRef.current) return;
+            setStatus(update.progress >= 80 ? ImportStatus.PROCESSING : ImportStatus.FETCHING);
+            setProgress(update.progress || 0);
+            setStatusMessage(update.message || '正在导入数据...');
+          }
+        );
+
+        if (cancelRef.current) return;
+
+        const finalUserInfo = {
+          ...resolvedUserInfo,
+          gameUid: backendResult?.account?.gameUid || resolvedUserInfo.gameUid,
+          nickName: backendResult?.account?.nickName || resolvedUserInfo.nickName
+        };
+
+        if (onImportComplete) {
+          onImportComplete({
+            success: true,
+            backendImported: true,
+            summary: {
+              total: backendResult?.totalRecords || 0,
+              newRecords: backendResult?.newRecords || 0,
+              duplicates: backendResult?.duplicates || 0
+            },
+            userInfo: finalUserInfo,
+            result: backendResult
+          });
+          return;
+        }
+
+        setImportSummary({
+          total: backendResult?.totalRecords || 0,
+          byRarity: { 4: 0, 5: 0, 6: 0 },
+          byPool: {},
+          byPoolType: {},
+          sixStars: [],
+          fiveStars: []
+        });
+        setProgress(100);
+        setStatus(ImportStatus.SUCCESS);
+        setStatusMessage('后端导入完成');
+        return;
+      }
+
       // 阶段2：获取 u8_token
       setStatusMessage(`正在获取 ${account.channelName} 访问凭证...`);
       const authResult = await executeAuthChainForAccount(token, account, (msg) => {
@@ -402,16 +468,6 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       }
 
       if (cancelRef.current) return;
-
-      // 设置用户信息
-      setUserInfo({
-        hgUid: account.uid,
-        gameUid: account.gameUid,
-        nickName: account.nickName,
-        channelName: account.channelName,
-        channelMasterId: account.channelMasterId,
-        isOfficial: account.isOfficial
-      });
 
       setStatus(ImportStatus.PROCESSING);
       setProgress(95);
@@ -471,7 +527,7 @@ export default function OfficialAPIImport({ onImportComplete, onBack, onFetchSta
       setError(errorMessage);
       setStatus(ImportStatus.ERROR);
     }
-  }, []);
+  }, [availableAccounts, onImportComplete, tokenInput, userId]);
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;

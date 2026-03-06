@@ -3,6 +3,7 @@ import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide
 import { useAuthStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import { normalizeIsStandard } from '../../utils/poolUtils';
+import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
 import OfficialAPIImport from './OfficialAPIImport';
 
 /**
@@ -147,7 +148,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         item_name: r.name || r.character_name || null,
         batch_id: r.batchId || null,
         seq_id: r.seqId || null,
-        pity: typeof r.pity === 'number' ? r.pity : (parseInt(r.pity, 10) || 0),
+        pity: clampHistoryPity(r.pity),
         is_new: Boolean(r.isNew),
         is_free: Boolean(r.isFree),
         game_uid: r.gameUid || null,
@@ -158,15 +159,23 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         updated_at: new Date().toISOString()
       }));
 
-      // 使用 user_id + game_uid + pool_id + seq_id 作为唯一约束
-      // 注意：seqId 是每个卡池独立的序列号，不同卡池可能有相同的 seqId
-      const { error } = await supabase
-        .from('history')
-        .upsert(recordsToSave, { onConflict: 'user_id,game_uid,pool_id,seq_id' });
+      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(recordsToSave);
+      const upsertGroups = [
+        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
+        { rows: legacyRecords, onConflict: 'user_id,record_id' }
+      ];
 
-      if (error) {
-        console.error('[ImportManager] 保存历史记录失败:', error);
-        throw error;
+      for (const group of upsertGroups) {
+        if (group.rows.length === 0) continue;
+
+        const { error } = await supabase
+          .from('history')
+          .upsert(group.rows, { onConflict: group.onConflict });
+
+        if (error) {
+          console.error('[ImportManager] 保存历史记录失败:', error);
+          throw error;
+        }
       }
 
       savedCount += uniqueBatch.length;
@@ -214,7 +223,23 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       recordsCount: result?.records?.length
     });
 
-    if (!result.success || !result.records || result.records.length === 0) {
+    if (!result?.success) {
+      setImportStatus(ImportStatus.ERROR);
+      setErrorMessage(result?.error || '导入失败');
+      return;
+    }
+
+    if (result.backendImported) {
+      setImportResult(result);
+      setImportStatus(ImportStatus.SUCCESS);
+      setSaveProgress({
+        current: result.summary?.newRecords || 0,
+        total: result.summary?.total || 0
+      });
+      return;
+    }
+
+    if (!result.records || result.records.length === 0) {
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage('没有获取到任何记录');
       return;
@@ -283,7 +308,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           isLimited: record.isLimited,
           batchId: record.batchId,
           seqId: record.seqId,
-          pity: typeof record.pity === 'number' ? record.pity : 0,
+          pity: clampHistoryPity(record.pity),
           isNew: record.isNew || false,
           isFree: record.isFree || false,
           gameUid: result.userInfo?.gameUid || result.userInfo?.hgUid || null,
@@ -570,6 +595,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               onImportComplete={handleAPIImportComplete}
               onBack={handleClose}
               onFetchStatusChange={handleFetchStatusChange}
+              userId={user.id}
             />
           )}
         </div>

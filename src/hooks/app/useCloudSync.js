@@ -3,6 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { syncManager } from '../../services/syncService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
+import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
 
 // 卡池类型归一化（模块级，供 loadCloudData 和 loadPublicPools 共用）
 const normalizePoolType = (type, isLimitedWeaponFlag) => {
@@ -137,7 +138,7 @@ export function useCloudSync({ showToast }) {
         batch_id: h.batch_id,
         seqId: h.seq_id,
         seq_id: h.seq_id,
-        pity: h.pity || 0,
+        pity: clampHistoryPity(h.pity),
         isNew: h.is_new || false,
         is_new: h.is_new,
         isFree: h.is_free || false,
@@ -362,7 +363,7 @@ export function useCloudSync({ showToast }) {
         item_name: r.item_name || r.name || r.character_name || null,
         batch_id: r.batchId || r.batch_id || null,
         seq_id: r.seqId || r.seq_id || null,
-        pity: r.pity || 0,
+        pity: clampHistoryPity(r.pity),
         is_new: r.isNew || r.is_new || false,
         is_free: r.isFree || r.is_free || false,
         game_uid: r.gameUid || r.game_uid || null,
@@ -372,11 +373,21 @@ export function useCloudSync({ showToast }) {
         updated_at: new Date().toISOString()
       }));
 
-      const { error } = await supabase
-        .from('history')
-        .upsert(cloudRecords, { onConflict: 'user_id,record_id' });
+      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(cloudRecords);
+      const upsertGroups = [
+        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
+        { rows: legacyRecords, onConflict: 'user_id,record_id' }
+      ];
 
-      if (error) throw error;
+      for (const group of upsertGroups) {
+        if (group.rows.length === 0) continue;
+
+        const { error } = await supabase
+          .from('history')
+          .upsert(group.rows, { onConflict: group.onConflict });
+
+        if (error) throw error;
+      }
     } catch (error) {
       const errorMessage = error.message || '';
       if (errorMessage.includes('policy') || errorMessage.includes('violates row-level security')) {
@@ -396,7 +407,7 @@ export function useCloudSync({ showToast }) {
       setSyncError(error.message);
       throw error;
     }
-  }, [user]);
+  }, [showToast, user]);
 
   // 从云端删除历史记录
   const deleteHistoryFromCloud = useCallback(async (recordIds) => {

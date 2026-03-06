@@ -501,6 +501,97 @@ export async function fetchImportQueueStatus() {
   }
 }
 
+export async function fetchFullImportStatus(taskId) {
+  const response = await fetch(`${PROXY_BASE}?action=import-status&taskId=${encodeURIComponent(taskId)}`);
+  const result = await safeParseJSON(response, 'Import Status API');
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Import status failed', 'import-status', result);
+  }
+
+  return result.data;
+}
+
+async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300000) {
+  const startTime = Date.now();
+  const pollInterval = 2000;
+
+  while (Date.now() - startTime < maxWaitTime) {
+    try {
+      const task = await fetchFullImportStatus(taskId);
+
+      if (onProgress) {
+        onProgress({
+          status: task.status,
+          progress: task.progress || 0,
+          message: task.message || '正在导入...'
+        });
+      }
+
+      if (task.status === 'completed') {
+        return task.result;
+      }
+
+      if (task.status === 'failed') {
+        throw new AuthChainError(task.error || 'Import failed', 'import-full', task);
+      }
+
+      await delay(pollInterval);
+    } catch (error) {
+      if (error instanceof AuthChainError) {
+        throw error;
+      }
+
+      console.warn('[pollFullImportUntilComplete] 轮询失败，重试中...', error.message);
+      await delay(pollInterval);
+    }
+  }
+
+  throw new AuthChainError('等待导入超时，请稍后重试', 'import-timeout');
+}
+
+export async function importAllRecordsFullyOnBackend(initialToken, accountIndex, userId, onProgress) {
+  if (!userId) {
+    throw new AuthChainError('请先登录后再导入数据', 'import-full');
+  }
+
+  if (onProgress) {
+    onProgress({
+      status: 'pending',
+      progress: 5,
+      message: '正在提交导入任务...'
+    });
+  }
+
+  const response = await queuedFetch(`${PROXY_BASE}?action=import-full`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      token: initialToken,
+      accountIndex,
+      userId
+    })
+  }, {
+    priority: 4,
+    maxRetries: 1,
+    timeout: 30000
+  });
+
+  const result = await safeParseJSON(response, 'Full Import API');
+
+  if (result.riskControl) {
+    throw new RiskControlError(result.error);
+  }
+
+  if (!result.success) {
+    throw new AuthChainError(result.error || 'Full import failed', 'import-full', result);
+  }
+
+  return pollFullImportUntilComplete(result.taskId, onProgress);
+}
+
 /**
  * 获取全部抽卡记录（所有卡池）- 并发版本
  * 同时请求角色池和武器池，减少总耗时
@@ -728,6 +819,8 @@ export default {
   executeAuthChain,
   fetchAllGachaRecords,
   fetchAllGachaRecordsConcurrent,
+  fetchFullImportStatus,
   fetchImportQueueStatus,
+  importAllRecordsFullyOnBackend,
   importAllRecords
 };

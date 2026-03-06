@@ -1,3 +1,5 @@
+import { clampHistoryPity } from './historyRecordUtils';
+
 /**
  * 终末地抽卡记录导入适配器
  *
@@ -315,7 +317,7 @@ export function calculatePity(records, poolType) {
 
     const recordWithPity = {
       ...record,
-      pity: pityCount
+      pity: clampHistoryPity(pityCount)
     };
 
     // 如果抽到6星，重置保底计数
@@ -385,7 +387,7 @@ export function toDbFormat(records, userId) {
     rarity: record.rarity,
     timestamp: record.timestamp,
     batch_id: record.batchId,
-    pity: record.pity || 0,
+    pity: clampHistoryPity(record.pity),
     is_new: record.isNew,
     is_free: record.isFree,
     is_limited: record.isLimited,
