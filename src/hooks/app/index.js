@@ -1,5 +1,8 @@
 export { useAppInitialization } from './useAppInitialization';
 export { useCloudSync } from './useCloudSync';
+export { useCurrentPoolData } from './useCurrentPoolData';
+export { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';
+export { useDashboardViewState } from './useDashboardViewState';
 export { useNotificationBadges } from './useNotificationBadges';
 export { usePoolStats } from './usePoolStats';
 export { usePoolOperations } from './usePoolOperations';

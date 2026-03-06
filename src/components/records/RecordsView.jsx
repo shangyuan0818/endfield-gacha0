@@ -1,16 +1,14 @@
 import React, { useRef } from 'react';
 import { History, Upload, Download, FileJson } from 'lucide-react';
-import { useHistoryStore, usePoolStore, useAuthStore, useUIStore } from '../../stores';
-import { BatchCard } from '../';
+import { useHistoryStore, useAuthStore, useUIStore } from '../../stores';
+import { useCurrentPoolData, useCurrentPoolGroupedHistory } from '../../hooks';
+import BatchCard from '../BatchCard';
 
 /**
  * 记录列表组件
  * 显示历史抽卡记录，支持筛选、导入、导出、分页
  */
 const RecordsView = ({
-  filteredGroupedHistory,
-  currentPool,
-  canEditCurrentPool,
   onEdit,
   onDeleteGroup,
   onImportFile,
@@ -24,16 +22,23 @@ const RecordsView = ({
   const loadMoreHistory = useHistoryStore(state => state.loadMoreHistory);
   const setVisibleHistoryCount = useHistoryStore(state => state.setVisibleHistoryCount);
 
-  const pools = usePoolStore(state => state.pools);
-  const currentPoolId = usePoolStore(state => state.currentPoolId);
-
   const userRole = useAuthStore(state => state.userRole);
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
+
+  const {
+    currentPool,
+    normalizedCurrentPoolHistory
+  } = useCurrentPoolData();
+
+  const canEditCurrentPool = canEdit && !(currentPool?.locked && userRole !== 'super_admin');
+
+  const {
+    filteredGroupedHistory
+  } = useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory);
 
   // UI 状态（导出菜单）从 store 获取
   const showExportMenu = useUIStore(state => state.showExportMenu);
   const toggleExportMenu = useUIStore(state => state.toggleExportMenu);
-  const closeAllMenus = useUIStore(state => state.closeAllMenus);
 
   // 文件输入 ref
   const fileInputRef = useRef(null);
@@ -52,7 +57,7 @@ const RecordsView = ({
   };
 
   // 当前卡池名称
-  const currentPoolName = pools.find(p => p.id === currentPoolId)?.name || '未知卡池';
+  const currentPoolName = currentPool?.name || '未知卡池';
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-fade-in relative">
@@ -204,7 +209,7 @@ const RecordsView = ({
                 group={group}
                 onEdit={onEdit}
                 onDeleteGroup={onDeleteGroup}
-                poolType={currentPool.type}
+                poolType={currentPool?.type}
                 canEdit={canEditCurrentPool}
               />
             ))}

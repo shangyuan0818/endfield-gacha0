@@ -1,73 +1,41 @@
 import { useMemo } from 'react';
-import { useHistoryStore, usePoolStore } from '../../stores';
+import { useHistoryStore } from '../../stores';
 import { RARITY_CONFIG, LIMITED_POOL_RULES } from '../../constants';
-import { calculateCurrentProbability, calculateInheritedPity } from '../../utils';
+import {
+  calculateCurrentProbability,
+  calculatePity5FromHistory,
+  calculatePityFromHistory
+} from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
+import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';
 
 /**
  * 卡池统计 Hook
  * 处理统计计算逻辑：stats、groupedHistory、filteredGroupedHistory、effectivePity 等
  */
-export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
+export function usePoolStats({
+  normalizedCurrentPoolHistory,
+  currentPool,
+  allLimitedHistory = [],
+  currentPoolId = currentPool?.id
+}) {
   const manualPityLimit = useHistoryStore(state => state.manualPityLimit);
-  const historyFilter = useHistoryStore(state => state.historyFilter);
-  const pools = usePoolStore(state => state.pools);
-  const currentPoolId = usePoolStore(state => state.currentPoolId);
-  const history = useHistoryStore(state => state.history);
 
-  const poolsArray = Array.isArray(pools) ? pools : [];
+  const {
+    groupedHistory,
+    filteredGroupedHistory
+  } = useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory);
 
-  // 为当前卡池历史记录添加全局序号
-  const currentPoolHistoryWithIndex = useMemo(() => {
-    return [...normalizedCurrentPoolHistory]
-      .sort((a, b) => a.id - b.id)
-      .map((item, index) => ({ ...item, globalIndex: index + 1 }));
-  }, [normalizedCurrentPoolHistory]);
-
-  // 将历史记录按时间戳聚合，用于展示十连
-  const groupedHistory = useMemo(() => {
-    const groups = [];
-    const sorted = [...currentPoolHistoryWithIndex].reverse();
-
-    if (sorted.length === 0) return [];
-
-    let currentGroup = [sorted[0]];
-
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i-1];
-      const curr = sorted[i];
-      const prevTime = new Date(prev.timestamp).getTime();
-      const currTime = new Date(curr.timestamp).getTime();
-      const timeDiff = Math.abs(currTime - prevTime);
-
-      if (timeDiff <= 2000) {
-        currentGroup.push(curr);
-      } else {
-        groups.push(currentGroup);
-        currentGroup = [curr];
-      }
-    }
-    groups.push(currentGroup);
-
-    return groups.map(g => g.reverse());
-  }, [currentPoolHistoryWithIndex]);
-
-  // 筛选后的历史记录
-  const filteredGroupedHistory = useMemo(() => {
-    if (historyFilter === 'all') return groupedHistory;
-
-    const result = [];
-    groupedHistory.forEach(group => {
-      group.forEach(item => {
-        const match =
-          (historyFilter === '6star' && item.rarity === 6) ||
-          (historyFilter === '5star' && item.rarity === 5) ||
-          (historyFilter === 'gift' && item.specialType === 'gift');
-        if (match) result.push([item]);
-      });
-    });
-    return result;
-  }, [groupedHistory, historyFilter]);
+  const normalizedPoolType = currentPool?.type === 'limited_character'
+    ? 'limited'
+    : currentPool?.type === 'limited_weapon'
+      ? 'weapon'
+      : currentPool?.type === 'beginner'
+        ? 'standard'
+      : currentPool?.type;
+  const isLimitedPool = normalizedPoolType === 'limited';
+  const isWeaponPool = normalizedPoolType === 'weapon';
+  const isStandardPool = normalizedPoolType === 'standard' || normalizedPoolType === 'beginner';
 
   // 主统计计算
   const stats = useMemo(() => {
@@ -159,9 +127,9 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
     let bonusGiftsStandard = 0;
 
     if (!currentPool.isGroupMode) {
-      if (currentPool.type === 'limited') {
+      if (isLimitedPool) {
         bonusGiftsLimited = Math.floor(total / 240);
-      } else if (currentPool.type === 'weapon') {
+      } else if (isWeaponPool) {
         if (total >= 100) bonusGiftsStandard++;
         if (total >= 180) {
           bonusGiftsLimited++;
@@ -170,7 +138,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
           bonusGiftsStandard += Math.ceil(extraCycles / 2);
           bonusGiftsLimited += Math.floor(extraCycles / 2);
         }
-      } else if (currentPool.type === 'standard') {
+      } else if (isStandardPool) {
         if (total >= 300) {
           bonusGiftsStandard++;
         }
@@ -179,8 +147,6 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
 
     counts[6] += bonusGiftsLimited;
     counts['6_std'] += bonusGiftsStandard;
-
-    const displayTotalSixStar = totalSixStar + bonusGiftsLimited + bonusGiftsStandard;
 
     // 统计历史6星出货分布
     const sixStarPulls = [];
@@ -199,7 +165,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
         // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = !pull.isStandard;
         let isSpark = false;
-        if (!currentPool.isGroupMode && currentPool.type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+        if (!currentPool.isGroupMode && isLimitedPool && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
           isSpark = true;
         }
         if (isUp && cumulativePullCount < 120) {
@@ -266,7 +232,7 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
 
     // 饼图数据
     const rawChartData = [
-      ...(currentPool.type !== 'standard' ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color, originalValue: counts[6] }] : []),
+      ...(!isStandardPool ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color, originalValue: counts[6] }] : []),
       { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color, originalValue: counts['6_std'] },
       { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color, originalValue: counts[5] },
       { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color, originalValue: counts[4] },
@@ -303,11 +269,11 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       }
     }
 
-    const probabilityInfo = currentPool.isGroupMode ? null : calculateCurrentProbability(currentPity, currentPool.type);
+    const probabilityInfo = currentPool.isGroupMode ? null : calculateCurrentProbability(currentPity, normalizedPoolType);
 
     const infoBookThreshold = LIMITED_POOL_RULES.infoBookThreshold;
-    const hasInfoBook = !currentPool.isGroupMode && currentPool.type === 'limited' && total >= infoBookThreshold;
-    const pullsUntilInfoBook = !currentPool.isGroupMode && currentPool.type === 'limited' && !hasInfoBook
+    const hasInfoBook = !currentPool.isGroupMode && isLimitedPool && total >= infoBookThreshold;
+    const pullsUntilInfoBook = !currentPool.isGroupMode && isLimitedPool && !hasInfoBook
       ? infoBookThreshold - total
       : 0;
 
@@ -338,32 +304,46 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       hasInfoBook,
       pullsUntilInfoBook
     };
-  }, [normalizedCurrentPoolHistory, manualPityLimit, currentPool.type]);
+  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, manualPityLimit, normalizedCurrentPoolHistory, normalizedPoolType]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {
-    if (!currentPool || currentPool.type !== 'limited') {
+    if (!currentPool || !isLimitedPool) {
       return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
     }
 
-    const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
-
-    const { inheritedPity, inheritedPity5, isInherited } = calculateInheritedPity(
-      allLimitedPools,
-      history,
-      currentPoolId
+    const validLimitedPulls = allLimitedHistory.filter(item =>
+      item.specialType !== 'gift' &&
+      item.special_type !== 'gift' &&
+      item.isFree !== true &&
+      item.is_free !== true
     );
+
+    if (validLimitedPulls.length === 0) {
+      return { inheritedPity: 0, inheritedPity5: 0, hasInheritedPity: false };
+    }
+
+    const inheritedPity = calculatePityFromHistory(validLimitedPulls);
+    const inheritedPity5 = calculatePity5FromHistory(validLimitedPulls);
+
+    let lastSixStarPoolId = null;
+    for (let i = validLimitedPulls.length - 1; i >= 0; i--) {
+      if (validLimitedPulls[i].rarity === 6) {
+        lastSixStarPoolId = validLimitedPulls[i].poolId || validLimitedPulls[i].pool_id || null;
+        break;
+      }
+    }
 
     return {
       inheritedPity,
       inheritedPity5,
-      hasInheritedPity: isInherited
+      hasInheritedPity: inheritedPity > 0 && lastSixStarPoolId !== currentPoolId
     };
-  }, [currentPool?.type, poolsArray, history, currentPoolId]);
+  }, [allLimitedHistory, currentPool, currentPoolId, isLimitedPool]);
 
   // 计算实际有效的保底数（跨池合并后的真实垫刀数）
   const effectivePity = useMemo(() => {
-    if (currentPool?.type !== 'limited') {
+    if (!isLimitedPool) {
       return {
         pity6: stats.currentPity,
         pity5: stats.currentPity5,
@@ -377,10 +357,9 @@ export function usePoolStats({ normalizedCurrentPoolHistory, currentPool }) {
       pity5: inheritedPityInfo.inheritedPity5,
       isInherited: inheritedPityInfo.hasInheritedPity
     };
-  }, [currentPool?.type, stats.currentPity, stats.currentPity5, inheritedPityInfo]);
+  }, [inheritedPityInfo, isLimitedPool, stats.currentPity, stats.currentPity5]);
 
   return {
-    currentPoolHistoryWithIndex,
     groupedHistory,
     filteredGroupedHistory,
     stats,

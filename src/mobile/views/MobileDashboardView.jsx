@@ -1,16 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import {
   Star, TrendingUp, Calculator, Clock, Sparkles, FileText,
   ChevronDown, ChevronUp, Layers, Swords, User, PieChart as PieChartIcon,
   BarChart3, LayoutGrid
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
-import { isPoolGroupId, getPoolGroupType, getPoolsForGroupType, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
-import { LIMITED_POOL_RULES, RARITY_CONFIG } from '../../constants';
-import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
-import { calculateCurrentProbability, calculateInheritedPity } from '../../utils';
-import { characterCache } from '../../utils/characterUtils';
+import { useDashboardViewState } from '../../hooks';
+import { RARITY_CONFIG } from '../../constants';
 import { useTheme } from '../../contexts/ThemeContext';
 import RainbowGradientDefs from '../../components/charts/RainbowGradientDefs';
 import MobileChartContainer from '../components/MobileChartContainer';
@@ -21,514 +17,47 @@ import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfal
  * 移动端卡池分析视图 - 工业风重构版 (中文)
  */
 function MobileDashboardView() {
-  const user = useAuthStore(state => state.user);
-  const pools = usePoolStore(state => state.pools);
-  const currentPoolId = usePoolStore(state => state.currentPoolId);
-  const currentGameUid = usePoolStore(state => state.currentGameUid);
-  const history = useHistoryStore(state => state.history);
   const { isDark } = useTheme();
+  const {
+    user,
+    charViewMode,
+    setCharViewMode,
+    currentPool,
+    normalizedPoolType,
+    isLimited,
+    isWeapon,
+    isStandard,
+    maxPity,
+    hasPoolData,
+    isGroupMode,
+    stats,
+    effectivePity,
+    characterStats,
+    checkLimitedInFirstN,
+    hasReceivedFreeTen,
+    weaponGifts,
+    currentUpPool,
+    getProgressClass,
+    getCharacterAvatar
+  } = useDashboardViewState();
 
-  // 角色出货视图模式: 'card' | 'waterfall'
-  const [charViewMode, setCharViewMode] = useState('card');
+  if (!hasPoolData) {
+    return (
+      <div className="px-4 py-4 space-y-4">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 flex items-center justify-between rounded-none shadow-sm">
+          <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">目标卡池</span>
+          <MobilePoolSelector />
+        </div>
 
-  const poolsArray = Array.isArray(pools) ? pools : [];
-  const historyArray = Array.isArray(history) ? history : [];
-
-  // 检测聚合模式（FEAT-018）
-  const isGroupMode = isPoolGroupId(currentPoolId);
-  const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
-
-  const currentPool = useMemo(() => {
-    if (!poolsArray.length && !isGroupMode) return null;
-    // FEAT-018: 池组聚合模式 — 返回虚拟池对象
-    if (isGroupMode) {
-      const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard' ? 'weapon'
-        : groupType === 'limited' ? 'limited' : groupType;
-      return {
-        id: currentPoolId,
-        name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
-        type: baseType,
-        isGroupMode: true,
-        up_character: null,
-      };
-    }
-    return poolsArray.find(p => p.id === currentPoolId) || poolsArray[0];
-  }, [poolsArray, currentPoolId, isGroupMode, groupType]);
-
-  const currentPoolHistory = useMemo(() => {
-    // FEAT-018: 池组聚合模式 — 合并该类型所有池的记录
-    if (isGroupMode) {
-      const groupPools = getPoolsForGroupType(poolsArray, groupType);
-      const groupPoolIds = new Set(groupPools.map(p => p.id));
-      let poolHistory = historyArray.filter(h => {
-        const hPoolId = h.poolId || h.pool_id;
-        return groupPoolIds.has(hPoolId) && h.user_id === user?.id;
-      });
-      if (currentGameUid) {
-        poolHistory = poolHistory.filter(h =>
-          h.game_uid === currentGameUid || h.gameUid === currentGameUid
-        );
-      }
-      return poolHistory.sort((a, b) => {
-        const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
-        const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
-        return timeA - timeB;
-      });
-    }
-
-    if (!currentPool) return [];
-
-    let poolHistory = historyArray.filter(h => {
-      const hPoolId = h.poolId || h.pool_id;
-      return hPoolId === currentPool.id && h.user_id === user?.id;
-    });
-
-    if (currentGameUid) {
-      poolHistory = poolHistory.filter(h =>
-        h.game_uid === currentGameUid || h.gameUid === currentGameUid
-      );
-    }
-
-    return poolHistory.sort((a, b) => {
-      const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
-      const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
-      return timeA - timeB;
-    });
-  }, [historyArray, currentPool, currentGameUid, user]);
-
-  const normalizedPoolHistory = useMemo(() => {
-    // FEAT-018: 池组聚合模式 — 按每条记录所属池的 UP 角色单独判断
-    if (isGroupMode) {
-      const poolMap = new Map(poolsArray.map(p => [p.id, p]));
-      return currentPoolHistory.map(h => {
-        const pool = poolMap.get(h.poolId || h.pool_id);
-        const poolType = pool?.type;
-        const upCharacter = pool?.up_character;
-        const characterName = h.character_name || h.item_name || h.name || '';
-        let isStd;
-        if (poolType === 'standard' || poolType === 'beginner') {
-          isStd = true;
-        } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
-          if (upCharacter && h.rarity === 6) {
-            isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
-          } else if (h.rarity === 6) {
-            isStd = false;
-          } else {
-            isStd = h.isStandard ?? false;
-          }
-        } else {
-          isStd = h.isStandard ?? false;
-        }
-        return { ...h, isStandard: isStd };
-      });
-    }
-
-    const poolType = currentPool?.type;
-    const upCharacter = currentPool?.up_character;
-
-    return currentPoolHistory.map(h => {
-      const characterName = h.character_name || h.item_name || h.name || '';
-      let isStd;
-
-      if (poolType === 'standard' || poolType === 'beginner') {
-        isStd = true;
-      } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
-        if (upCharacter && h.rarity === 6) {
-          isStd = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
-        } else if (h.rarity === 6) {
-          isStd = false;
-        } else {
-          isStd = h.isStandard ?? false;
-        }
-      } else {
-        isStd = h.isStandard ?? false;
-      }
-
-      return { ...h, isStandard: isStd };
-    });
-  }, [currentPoolHistory, currentPool]);
-
-  // 池类型派生常量（必须在所有使用它们的 useMemo 之前声明）
-  const isLimited = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
-  const isWeapon = currentPool?.type === 'weapon' || currentPool?.type === 'limited_weapon';
-  const isStandard = currentPool?.type === 'standard';
-  const maxPity = isWeapon ? 40 : 80;
-
-  // 限定池跨池 pity 映射：recordId → { sixStarPity, fiveStarPity }
-  const crossPoolPityMap = useMemo(() => {
-    // 聚合模式下不计算跨池保底
-    if (isGroupMode) return null;
-    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
-    if (!isLimitedPool) return null;
-
-    const allLimitedPoolIds = poolsArray
-      .filter(p => p.type === 'limited' || p.type === 'limited_character')
-      .map(p => p.id);
-
-    let allLimitedPulls = historyArray.filter(h =>
-      allLimitedPoolIds.includes(h.poolId || h.pool_id) &&
-      h.user_id === user?.id &&
-      h.specialType !== 'gift'
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-8 text-center rounded-none shadow-sm">
+          <Calculator size={48} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
+          <p className="text-zinc-500 dark:text-zinc-400">
+            {user ? '请先导入或创建一个卡池' : '登录后导入抽卡数据即可开始分析'}
+          </p>
+        </div>
+      </div>
     );
-    if (currentGameUid) {
-      allLimitedPulls = allLimitedPulls.filter(h =>
-        h.game_uid === currentGameUid || h.gameUid === currentGameUid
-      );
-    }
-    // 注意：不能用 record_id(id) 排序，因为不同池的 record_id 前缀不同，跨池时大小不代表时间顺序
-    allLimitedPulls.sort((a, b) => {
-      const timeA = new Date(a.timestamp).getTime();
-      const timeB = new Date(b.timestamp).getTime();
-      if (timeA !== timeB) return timeA - timeB;
-      return (parseInt(a.seqId || a.seq_id || '0', 10)) - (parseInt(b.seqId || b.seq_id || '0', 10));
-    });
-
-    const map = new Map();
-    let sixPity = 0;
-    let fivePity = 0;
-
-    allLimitedPulls.forEach(item => {
-      const isFree = item.isFree || item.is_free;
-      if (!isFree) {
-        sixPity++;
-        fivePity++;
-      }
-
-      if (item.rarity >= 5) {
-        map.set(item.id, {
-          sixStarPity: isFree ? 'free' : (item.rarity === 6 ? sixPity : null),
-          fiveStarPity: isFree ? 'free' : (item.rarity >= 5 ? fivePity : null),
-        });
-      }
-
-      if (!isFree) {
-        if (item.rarity === 6) sixPity = 0;
-        if (item.rarity >= 5) fivePity = 0;
-      }
-    });
-
-    return map;
-  }, [currentPool?.type, poolsArray, historyArray, user, currentGameUid]);
-
-  const characterStats = useMemo(() => {
-    const isLimitedPool = currentPool?.type === 'limited' || currentPool?.type === 'limited_character';
-    const characters = new Map();
-    let pullIndex = 0;
-    let sixStarPityCounter = 0;
-    let fiveStarPityCounter = 0;
-
-    normalizedPoolHistory.forEach(item => {
-      if (item.specialType === 'gift') return;
-      const isFree = item.isFree || item.is_free;
-      if (!isFree) {
-        pullIndex++;
-        sixStarPityCounter++;
-        fiveStarPityCounter++;
-      }
-
-      if (item.rarity >= 5) {
-        const name = item.character_name || item.item_name || item.name || '未知';
-
-        let pityValue;
-        if (isFree) {
-          pityValue = 'free';
-        } else if (isLimitedPool && crossPoolPityMap) {
-          const crossPity = crossPoolPityMap.get(item.id);
-          pityValue = crossPity
-            ? (item.rarity === 6 ? crossPity.sixStarPity : crossPity.fiveStarPity)
-            : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
-        } else {
-          pityValue = item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter;
-        }
-
-        const existing = characters.get(name);
-        if (existing) {
-          existing.count++;
-          existing.pullIndices.push(isFree ? 'free' : pullIndex);
-          existing.pities.push(pityValue);
-          existing.freeCount = (existing.freeCount || 0) + (isFree ? 1 : 0);
-        } else {
-          characters.set(name, {
-            name,
-            count: 1,
-            rarity: item.rarity,
-            isStandard: item.isStandard,
-            isLimited: !item.isStandard && item.rarity === 6,
-            pullIndices: [isFree ? 'free' : pullIndex],
-            pities: [pityValue],
-            freeCount: isFree ? 1 : 0
-          });
-        }
-
-        if (!isFree) {
-          if (item.rarity === 6) sixStarPityCounter = 0;
-          if (item.rarity >= 5) fiveStarPityCounter = 0;
-        }
-      }
-    });
-
-    return Array.from(characters.values()).sort((a, b) => {
-      if (a.rarity === 6 && !a.isStandard && (b.rarity !== 6 || b.isStandard)) return -1;
-      if (b.rarity === 6 && !b.isStandard && (a.rarity !== 6 || a.isStandard)) return 1;
-      if (a.rarity === 6 && a.isStandard && b.rarity !== 6) return -1;
-      if (b.rarity === 6 && b.isStandard && a.rarity !== 6) return 1;
-      if (a.rarity === b.rarity && a.isStandard === b.isStandard) return b.count - a.count;
-      return b.rarity - a.rarity;
-    });
-  }, [normalizedPoolHistory, currentPool?.type, crossPoolPityMap]);
-
-  const stats = useMemo(() => {
-    if (!currentPool || normalizedPoolHistory.length === 0) {
-      return {
-        total: 0, currentPity: 0, currentPity5: 0,
-        counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
-        sixStarCount: 0, upSixStarCount: 0, winRate: '0',
-        avgPullCost: { 6: '-', 5: '-' },
-        probabilityInfo: null, hasInfoBook: false
-      };
-    }
-
-    const validPulls = normalizedPoolHistory.filter(
-      item => item.specialType !== 'gift' && !item.isFree && !item.is_free
-    );
-    const total = validPulls.length;
-
-    let currentPity = 0;
-    let currentPity5 = 0;
-    for (let i = normalizedPoolHistory.length - 1; i >= 0; i--) {
-      const item = normalizedPoolHistory[i];
-      if (item.specialType === 'gift' || item.isFree || item.is_free) continue;
-      if (item.rarity === 6) break;
-      currentPity++;
-    }
-    for (let i = normalizedPoolHistory.length - 1; i >= 0; i--) {
-      const item = normalizedPoolHistory[i];
-      if (item.specialType === 'gift' || item.isFree || item.is_free) continue;
-      if (item.rarity >= 5) break;
-      currentPity5++;
-    }
-
-    const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
-    let upSixStarCount = 0;
-    let upSixStarTotalPity = 0;
-    let limitedSixStarTotalPity = 0;
-    let limitedSixStarCount = 0;
-    let offStandardCount = 0;
-    let offLimitedCount = 0;
-    let fiveStarTotalPity = 0;
-    let fiveStarCount = 0;
-    let sixStarPityCounter = 0;
-    let fiveStarPityCounter = 0;
-
-    normalizedPoolHistory.forEach(item => {
-      if (item.specialType === 'gift') return;
-      const isFree = item.isFree || item.is_free;
-
-      if (!isFree) {
-        sixStarPityCounter++;
-        fiveStarPityCounter++;
-      }
-
-      if (item.rarity === 6 && !isFree) {
-        if (item.isStandard) {
-          counts['6_std']++;
-          // 区分歪常驻 vs 歪限定
-          const charName = item.character_name || item.item_name || item.name || '';
-          const charInfo = characterCache.searchByName(charName);
-          if (charInfo && charInfo.is_limited) {
-            offLimitedCount++;
-            limitedSixStarCount++;
-            limitedSixStarTotalPity += sixStarPityCounter;
-          } else {
-            offStandardCount++;
-          }
-        } else {
-          counts[6]++;
-          upSixStarCount++;
-          upSixStarTotalPity += sixStarPityCounter;
-          limitedSixStarCount++;
-          limitedSixStarTotalPity += sixStarPityCounter;
-        }
-        sixStarPityCounter = 0;
-      }
-      if (item.rarity === 5 && !isFree) {
-        counts[5]++;
-        fiveStarCount++;
-        fiveStarTotalPity += fiveStarPityCounter;
-        fiveStarPityCounter = 0;
-      }
-      if (item.rarity === 4 && !isFree) counts[4]++;
-    });
-
-    const sixStarCount = counts[6] + counts['6_std'];
-    const winRate = sixStarCount > 0 ? ((counts[6] / sixStarCount) * 100).toFixed(1) : '0';
-
-    const avgPullCost = {
-      6: upSixStarCount > 0 ? (upSixStarTotalPity / upSixStarCount).toFixed(1) : '-',
-      '6_limited': limitedSixStarCount > 0 ? (limitedSixStarTotalPity / limitedSixStarCount).toFixed(1) : '-',
-      5: fiveStarCount > 0 ? (fiveStarTotalPity / fiveStarCount).toFixed(1) : '-'
-    };
-
-    const probabilityInfo = isGroupMode ? null : calculateCurrentProbability(currentPity, currentPool?.type);
-    const hasInfoBook = !isGroupMode && currentPool?.type === 'limited' && total >= LIMITED_POOL_RULES.infoBookThreshold;
-
-    // 饼图数据
-    const rawChartData = [
-      ...(currentPool.type !== 'standard' ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color }] : []),
-      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
-      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
-      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
-    ].filter(item => item.value > 0);
-
-    const chartData = rawChartData.map(item => {
-      const totalValue = rawChartData.reduce((sum, d) => sum + d.value, 0);
-      const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-      let minPercent = 0;
-      if (item.name.includes('6星')) minPercent = 15;
-      else if (item.name.includes('5星')) minPercent = 20;
-      if (currentPercent < minPercent && totalValue > 0) {
-        return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
-      }
-      return { ...item, displayValue: item.value };
-    });
-
-    // 6星出货分布直方图
-    const sixStarPulls = [];
-    let pityCounter = 0;
-    normalizedPoolHistory.forEach(item => {
-      if (item.specialType === 'gift') return;
-      const isFree = item.isFree || item.is_free;
-      if (!isFree) pityCounter++;
-      if (item.rarity === 6 && !isFree) {
-        sixStarPulls.push({ count: pityCounter, isStandard: item.isStandard });
-        pityCounter = 0;
-      }
-    });
-
-    const distributionData = [];
-    if (sixStarPulls.length > 0) {
-      const maxPityRecorded = Math.max(...sixStarPulls.map(p => p.count));
-      const maxRange = Math.ceil(Math.max(maxPity, maxPityRecorded) / 10) * 10;
-      for (let i = 0; i < maxRange; i += 10) {
-        const rangeStart = i + 1;
-        const rangeEnd = i + 10;
-        const items = sixStarPulls.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
-        distributionData.push({
-          range: `${rangeStart}-${rangeEnd}`,
-          limited: items.filter(p => !p.isStandard).length,
-          standard: items.filter(p => p.isStandard).length,
-        });
-      }
-    }
-
-    return {
-      total, currentPity, currentPity5, counts,
-      sixStarCount, upSixStarCount, offStandardCount, offLimitedCount,
-      winRate, avgPullCost,
-      probabilityInfo, hasInfoBook,
-      chartData,
-      pityStats: { history: sixStarPulls, distribution: distributionData }
-    };
-  }, [normalizedPoolHistory, currentPool]);
-
-  // 跨池保底继承（限定池，聚合模式下跳过）
-  const crossPoolPity = useMemo(() => {
-    if (!isLimited || isGroupMode) return null;
-    const allLimitedPools = poolsArray.filter(p => p.type === 'limited');
-    const { inheritedPity, inheritedPity5, isInherited } = calculateInheritedPity(
-      allLimitedPools,
-      history,
-      currentPoolId
-    );
-    return { pity6: inheritedPity, pity5: inheritedPity5, isInherited };
-  }, [isLimited, poolsArray, history, currentPoolId]);
-
-  const checkLimitedInFirstN = useMemo(() => {
-    let pullCount = 0;
-    let firstLimitedIndex120 = 0;
-    let firstLimitedIndex80 = 0;
-
-    for (const item of normalizedPoolHistory) {
-      if (item.specialType === 'gift' || item.isFree || item.is_free) continue;
-      pullCount++;
-      if (item.rarity === 6 && !item.isStandard) {
-        if (firstLimitedIndex120 === 0 && pullCount <= 120) firstLimitedIndex120 = pullCount;
-        if (firstLimitedIndex80 === 0 && pullCount <= 80) firstLimitedIndex80 = pullCount;
-      }
-    }
-    return { firstLimitedIndex120, firstLimitedIndex80, validPullCount: pullCount };
-  }, [normalizedPoolHistory]);
-
-  const hasReceivedFreeTen = useMemo(() => {
-    return normalizedPoolHistory.some(h => h.isFree || h.is_free);
-  }, [normalizedPoolHistory]);
-
-  const weaponGifts = useMemo(() => {
-    if (currentPool?.type !== 'weapon') return null;
-
-    const giftThresholds = [100, 180, 260, 340, 420, 500];
-    let nextGift = 0;
-    let nextGiftType = 'standard';
-    let standardCount = 0;
-    let limitedCount = 0;
-
-    for (const threshold of giftThresholds) {
-      if (stats.total >= threshold) {
-        if (threshold === 180 || threshold === 340 || threshold === 500) {
-          limitedCount++;
-        } else {
-          standardCount++;
-        }
-      }
-    }
-
-    for (const threshold of giftThresholds) {
-      if (stats.total < threshold) {
-        nextGift = threshold;
-        nextGiftType = (threshold === 180 || threshold === 340 || threshold === 500) ? 'limited' : 'standard';
-        break;
-      }
-    }
-
-    if (nextGift === 0 && stats.total >= 500) {
-      const cycle = Math.floor((stats.total - 180) / 160);
-      nextGift = 180 + (cycle + 1) * 160;
-      nextGiftType = nextGift % 160 === 20 ? 'limited' : 'standard';
-    }
-
-    return { nextGift, nextGiftType, standardCount, limitedCount };
-  }, [currentPool?.type, stats.total]);
-
-  const currentUpPool = useMemo(() => {
-    // 如果当前查看的是限定池且有自身时间数据，优先使用
-    if (isLimited && currentPool?.start_time && currentPool?.end_time) {
-      const now = new Date();
-      const start = new Date(currentPool.start_time);
-      const end = new Date(currentPool.end_time);
-      const isActive = now >= start && now < end;
-      const isExpired = now >= end;
-      const remainingMs = end - now;
-      return {
-        name: currentPool.up_character || currentPool.name,
-        isActive,
-        isExpired,
-        remainingDays: isActive ? Math.floor(remainingMs / (1000 * 60 * 60 * 24)) : 0,
-        remainingHours: isActive ? Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)) : 0,
-      };
-    }
-    return getCurrentUpPoolInfo(poolsArray);
-  }, [poolsArray, currentPool, isLimited]);
-
-  const getProgressClass = () => {
-    if (isLimited) return 'rainbow-progress';
-    if (isWeapon) return 'bg-slate-500';
-    return 'bg-amber-500';
-  };
-
-  const getCharacterAvatar = (name) => {
-    const charData = characterCache.searchByName(name, false);
-    return charData?.avatar_url;
-  };
+  }
 
   if (!currentPool) {
     return (
@@ -621,7 +150,7 @@ function MobileDashboardView() {
       <div className="grid grid-cols-2 gap-3">
         {/* 6星保底 */}
         {(() => {
-          const displayPity = isLimited && crossPoolPity ? crossPoolPity.pity6 : stats.currentPity;
+          const displayPity = isLimited ? effectivePity.pity6 : stats.currentPity;
           return (
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative">
               <div className="flex items-center justify-between mb-2">
@@ -644,17 +173,17 @@ function MobileDashboardView() {
                   style={{ width: `${(displayPity / maxPity) * 100}%` }}
                 />
               </div>
-              <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-                 <span>当前: {displayPity}{crossPoolPity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+               <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
+                 <span>当前: {displayPity}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
                  <span>上限: {maxPity}</span>
-              </div>
+               </div>
             </div>
           );
         })()}
 
         {/* 5星保底 */}
         {(() => {
-          const displayPity5 = isLimited && crossPoolPity ? crossPoolPity.pity5 : stats.currentPity5;
+          const displayPity5 = isLimited ? effectivePity.pity5 : stats.currentPity5;
           return (
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
               <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide mb-2">5★ 保底 (10)</div>
@@ -671,9 +200,9 @@ function MobileDashboardView() {
                 />
               </div>
                <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-                 <span>当前: {displayPity5}{crossPoolPity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+                 <span>当前: {displayPity5}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
                  <span>上限: 10</span>
-              </div>
+               </div>
             </div>
           );
         })()}
@@ -681,8 +210,8 @@ function MobileDashboardView() {
       )}
 
       {/* 核心数据网格 */}
-      <div className={`grid ${currentPool.type !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
-        {currentPool.type !== 'standard' && (
+      <div className={`grid ${normalizedPoolType !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+        {normalizedPoolType !== 'standard' && (
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
             <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">限定 6★</div>
             <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-zinc-300'}`}>
@@ -1019,7 +548,7 @@ function MobileDashboardView() {
             <MobileCharacterWaterfallChart characterStats={characterStats} />
           ) : (
           <div className="space-y-2 pt-2">
-            {characterStats.map((char, index) => {
+            {characterStats.map((char) => {
               const isSixStar = char.rarity === 6;
               const isLimitedChar = isSixStar && !char.isStandard;
               const isStandardChar = isSixStar && char.isStandard;

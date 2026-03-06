@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getCharacterRankingStats, getUserRankingStats } from '../../services/statsService';
 
 /**
@@ -17,59 +17,96 @@ export function useRankingData(dataSource, user) {
   // 用户个人排名统计
   const [userRanking, setUserRanking] = useState(null);
   const [userRankingLoading, setUserRankingLoading] = useState(false);
+  const hasAttemptedGlobalRankingRef = useRef(false);
+  const attemptedUserRankingRef = useRef(null);
+  const resolvedUserRankingRef = useRef(null);
+  const globalRequestTokenRef = useRef(0);
+  const userRequestTokenRef = useRef(0);
 
   // 加载全服角色排名统计（仅全服数据时加载，只加载一次）
   useEffect(() => {
-    // 使用 ref 标记是否已经开始加载，避免重复加载
-    let isMounted = true;
-
-    if (dataSource === 'global' && !characterRanking && !rankingLoading) {
-      setRankingLoading(true);
-      getCharacterRankingStats()
-        .then(data => {
-          if (isMounted) {
-            setCharacterRanking(data);
-          }
-        })
-        .finally(() => {
-          if (isMounted) {
-            setRankingLoading(false);
-          }
-        });
+    if (dataSource !== 'global') {
+      globalRequestTokenRef.current += 1;
+      hasAttemptedGlobalRankingRef.current = false;
+      queueMicrotask(() => setRankingLoading(false));
+      return;
     }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [dataSource]); // 只依赖 dataSource，避免循环
+    if (!characterRanking && !hasAttemptedGlobalRankingRef.current) {
+      const requestToken = globalRequestTokenRef.current + 1;
+      globalRequestTokenRef.current = requestToken;
+      hasAttemptedGlobalRankingRef.current = true;
+      queueMicrotask(() => {
+        setRankingLoading(true);
+
+        getCharacterRankingStats()
+          .then(data => {
+            if (globalRequestTokenRef.current !== requestToken) return;
+            setCharacterRanking(data);
+          })
+          .finally(() => {
+            if (globalRequestTokenRef.current !== requestToken) return;
+            setRankingLoading(false);
+          });
+      });
+    }
+  }, [dataSource, characterRanking]);
 
   // 加载用户个人排名统计（只加载一次）
   useEffect(() => {
-    let isMounted = true;
+    const currentUserId = user?.id ?? null;
 
-    if (dataSource === 'local' && user?.id && !userRanking && !userRankingLoading) {
-      setUserRankingLoading(true);
-      getUserRankingStats(user.id)
-        .then(data => {
-          if (isMounted) {
-            setUserRanking(data);
-          }
-        })
-        .finally(() => {
-          if (isMounted) {
-            setUserRankingLoading(false);
-          }
-        });
+    if (dataSource !== 'local') {
+      userRequestTokenRef.current += 1;
+      attemptedUserRankingRef.current = null;
+      queueMicrotask(() => setUserRankingLoading(false));
+      return;
     }
 
-    return () => {
-      isMounted = false;
-    };
-  }, [dataSource, user?.id]); // 只依赖 dataSource 和 user.id
+    if (!currentUserId) {
+      userRequestTokenRef.current += 1;
+      attemptedUserRankingRef.current = null;
+      resolvedUserRankingRef.current = null;
+      queueMicrotask(() => {
+        setUserRanking(null);
+        setUserRankingLoading(false);
+      });
+      return;
+    }
+
+    const alreadyRequestedCurrentUser = attemptedUserRankingRef.current === currentUserId;
+    const alreadyResolvedCurrentUser = resolvedUserRankingRef.current === currentUserId;
+
+    if (!alreadyRequestedCurrentUser && !(alreadyResolvedCurrentUser && userRanking)) {
+      const requestToken = userRequestTokenRef.current + 1;
+      userRequestTokenRef.current = requestToken;
+      attemptedUserRankingRef.current = currentUserId;
+      queueMicrotask(() => {
+        setUserRankingLoading(true);
+
+        getUserRankingStats(currentUserId)
+          .then(data => {
+            if (userRequestTokenRef.current !== requestToken) return;
+            resolvedUserRankingRef.current = currentUserId;
+            setUserRanking(data);
+          })
+          .finally(() => {
+            if (userRequestTokenRef.current !== requestToken) return;
+            setUserRankingLoading(false);
+          });
+      });
+    }
+  }, [dataSource, user?.id, userRanking]);
 
   // 当用户变更时重置个人排名
   useEffect(() => {
-    setUserRanking(null);
+    userRequestTokenRef.current += 1;
+    attemptedUserRankingRef.current = null;
+    resolvedUserRankingRef.current = null;
+    queueMicrotask(() => {
+      setUserRanking(null);
+      setUserRankingLoading(false);
+    });
   }, [user?.id]);
 
   return {

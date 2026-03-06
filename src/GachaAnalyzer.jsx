@@ -1,97 +1,74 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useMemo, useEffect, useRef } from 'react';
 import { History, ChevronDown, LogIn, Lock } from 'lucide-react';
-import { supabase } from './supabaseClient';
-import { TicketPanel, AboutPanel, SummaryView, AdminPanel, SettingsPanel, RecordsView, DashboardView, EditItemModal, HomePage, Footer, GachaModals } from './components';
-import GachaSimulator from './features/simulator/GachaSimulator';
+import Footer from './components/layout/Footer';
+import EditItemModal from './components/modals/EditItemModal';
+import GachaModals from './components/modals/GachaModals';
 import { LoadingBar } from './components/ui';
-import { useToast, useConfirm, useCloudSync, useNotificationBadges, useAppInitialization, usePoolStats, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole } from './hooks';
+import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole } from './hooks';
 import { useUIStore, useAuthStore, useAppStore, usePoolStore, useHistoryStore } from './stores';
 import { DEFAULT_POOL_ID } from './constants';
 import AppHeader from './components/layout/AppHeader';
-import { extractDrawerFromPoolName, normalizeIsStandard } from './utils';
-import { isPoolGroupId, getPoolGroupType, getPoolsForGroupType, GROUP_TYPE_LABELS } from './stores/usePoolStore';
-import { useTheme } from './contexts/ThemeContext';
+import { extractDrawerFromPoolName } from './utils';
+import { isPoolGroupId } from './stores/usePoolStore';
+
+const HomePage = lazy(() => import('./components/home/HomePage'));
+const GachaSimulator = lazy(() => import('./features/simulator/GachaSimulator'));
+const SummaryView = lazy(() => import('./components/SummaryView'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
+const AboutPanel = lazy(() => import('./components/AboutPanel'));
+const TicketPanel = lazy(() => import('./components/TicketPanel'));
+const DashboardView = lazy(() => import('./components/dashboard/DashboardView'));
+const RecordsView = lazy(() => import('./components/records/RecordsView'));
+
+function TabPanelFallback({ label = '正在加载模块...' }) {
+  return (
+    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none p-10 text-center animate-fade-in">
+      <div className="inline-flex items-center gap-3 text-sm font-medium text-slate-500 dark:text-zinc-400">
+        <div className="w-4 h-4 border-2 border-slate-300 dark:border-zinc-600 border-t-transparent rounded-full animate-spin"></div>
+        <span>{label}</span>
+      </div>
+    </div>
+  );
+}
 
 export default function GachaAnalyzer() {
-  // 主题状态（从 ThemeContext 获取）
-  const { themeMode, setThemeMode, isDark } = useTheme();
-
   // --- 从 Zustand Stores 获取状态 ---
 
   // 认证状态
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
-  const showAuthModal = useAuthStore(state => state.showAuthModal);
   const syncing = useAuthStore(state => state.syncing);
-  const syncError = useAuthStore(state => state.syncError);
-  const setUser = useAuthStore(state => state.setUser);
-  const setUserRole = useAuthStore(state => state.setUserRole);
-  const toggleAuthModal = useAuthStore(state => state.toggleAuthModal);
   const openAuthModal = useAuthStore(state => state.openAuthModal);
-  const closeAuthModal = useAuthStore(state => state.closeAuthModal);
-  const setSyncing = useAuthStore(state => state.setSyncing);
-  const setSyncError = useAuthStore(state => state.setSyncError);
 
   // 应用全局状态
-  const globalStats = useAppStore(state => state.globalStats);
   const globalStatsLoading = useAppStore(state => state.globalStatsLoading);
   const announcements = useAppStore(state => state.announcements);
-  const showApplyModal = useAppStore(state => state.showApplyModal);
-  const applicationStatus = useAppStore(state => state.applicationStatus);
-  const setAnnouncements = useAppStore(state => state.setAnnouncements);
-  const toggleApplyModal = useAppStore(state => state.toggleApplyModal);
-  const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
   // 卡池状态
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
-
-  // 确保 pools 始终是数组
-  const poolsArray = Array.isArray(pools) ? pools : [];
-  const poolSearchQuery = usePoolStore(state => state.poolSearchQuery);
-  const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
-  const setPoolSearchQuery = usePoolStore(state => state.setPoolSearchQuery);
-  const createPool = usePoolStore(state => state.createPool);
-  const deletePool = usePoolStore(state => state.deletePool);
-  const updatePool = usePoolStore(state => state.updatePool);
 
   // 历史记录状态
   const history = useHistoryStore(state => state.history);
-  const manualPityLimit = useHistoryStore(state => state.manualPityLimit);
-  const visibleHistoryCount = useHistoryStore(state => state.visibleHistoryCount);
-  const historyFilter = useHistoryStore(state => state.historyFilter);
-  const setHistory = useHistoryStore(state => state.setHistory);
-  const setManualPityLimit = useHistoryStore(state => state.setManualPityLimit);
-  const setVisibleHistoryCount = useHistoryStore(state => state.setVisibleHistoryCount);
-  const setHistoryFilter = useHistoryStore(state => state.setHistoryFilter);
+
+  const {
+    poolsArray,
+    currentPool,
+    normalizedCurrentPoolHistory
+  } = useCurrentPoolData();
 
   // UI 状态
   const activeTab = useUIStore(state => state.activeTab);
-  const modalState = useUIStore(state => state.modalState);
-  const setModalState = useUIStore(state => state.setModalState);
-  const newPoolNameInput = useUIStore(state => state.newPoolNameInput);
-  const newPoolTypeInput = useUIStore(state => state.newPoolTypeInput);
-  const isLimitedWeaponPool = useUIStore(state => state.isLimitedWeaponPool);
-  const drawerName = useUIStore(state => state.drawerName);
-  const selectedCharName = useUIStore(state => state.selectedCharName);
   const editItemState = useUIStore(state => state.editItemState);
   const setActiveTab = useUIStore(state => state.setActiveTab);
-  const openModal = useUIStore(state => state.openModal);
-  const closeModal = useUIStore(state => state.closeModal);
-  const setNewPoolNameInput = useUIStore(state => state.setNewPoolNameInput);
-  const setNewPoolTypeInput = useUIStore(state => state.setNewPoolTypeInput);
-  const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
-  const setDrawerName = useUIStore(state => state.setDrawerName);
-  const setSelectedCharName = useUIStore(state => state.setSelectedCharName);
   const setEditItemState = useUIStore(state => state.setEditItemState);
 
   // 本地 UI 状态（仍然使用 useState）
 
   // UX-006: 通知气泡状态 - 使用 Hook
   const {
-    pendingApplicationsCount,
-    setPendingApplicationsCount,
     hasNewAnnouncement,
     setHasNewAnnouncement,
     unreadTicketsCount,
@@ -100,7 +77,7 @@ export default function GachaAnalyzer() {
 
   // 0.2 通用弹窗
   const { toasts, showToast, removeToast } = useToast();
-  const { confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+  const { confirmState, handleConfirm, handleCancel } = useConfirm();
 
   // 云同步 Hook - 提供所有云端数据操作函数
   const {
@@ -111,44 +88,15 @@ export default function GachaAnalyzer() {
     deleteHistoryFromCloud,
     deletePoolHistoryFromCloud,
     deletePoolFromCloud,
-    migrateLocalToCloud,
-    handlePostLogin,
-    handleManualSync
+    migrateLocalToCloud
   } = useCloudSync({ showToast });
 
   // 应用初始化 Hook - 处理会话、全局统计、last_seen 更新
-  const { fetchGlobalStats, updateLastSeen } = useAppInitialization({ loadCloudData, loadPublicPools });
+  useAppInitialization({ loadCloudData, loadPublicPools });
 
   // 权限判断
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
   const isSuperAdmin = userRole === 'super_admin';
-
-  // 当前卡池对象（从 stores 计算）
-  const currentPool = useMemo(() => {
-    // FEAT-018: 池组聚合模式 — 返回虚拟池对象
-    if (isPoolGroupId(currentPoolId)) {
-      const groupType = getPoolGroupType(currentPoolId);
-      // 将分组类型映射到 pool.type 值（供 usePoolStats 使用）
-      const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard' ? 'weapon'
-        : groupType === 'limited' ? 'limited'
-        : groupType;
-      return {
-        id: currentPoolId,
-        name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
-        type: baseType,
-        isGroupMode: true,
-        up_character: null,
-        locked: true // 虚拟池不可编辑
-      };
-    }
-    const byId = poolsArray.find(p => p.id === currentPoolId);
-    if (byId) return byId;
-    const defaultPool = poolsArray.find(p => p.id === DEFAULT_POOL_ID);
-    if (defaultPool) return defaultPool;
-    if (poolsArray[0]) return poolsArray[0];
-    // 如果没有任何卡池，返回一个默认对象
-    return { id: DEFAULT_POOL_ID, name: '默认卡池', type: 'limited', locked: false };
-  }, [poolsArray, currentPoolId]);
 
   // 如果当前选中卡池ID无效，则回退到默认池
   // 使用 ref 和防抖防止快速切换时的竞态条件
@@ -229,67 +177,6 @@ export default function GachaAnalyzer() {
     return Array.from(drawers).sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }, [poolsArray]);
 
-  // 当前选中的游戏账号
-  const currentGameUid = usePoolStore(state => state.currentGameUid);
-
-  // 当前卡池的历史记录（只显示当前用户的数据，按游戏账号过滤）
-  const currentPoolHistory = useMemo(() => {
-    if (!user) return [];
-
-    // FEAT-018: 池组聚合模式 — 合并该类型所有池的记录
-    if (isPoolGroupId(currentPoolId)) {
-      const groupType = getPoolGroupType(currentPoolId);
-      const groupPools = getPoolsForGroupType(poolsArray, groupType);
-      const groupPoolIds = new Set(groupPools.map(p => p.id));
-      let filtered = (history || []).filter(h => groupPoolIds.has(h.poolId) && h.user_id === user.id);
-      if (currentGameUid) {
-        filtered = filtered.filter(h => h.game_uid === currentGameUid || h.gameUid === currentGameUid);
-      }
-      return filtered;
-    }
-
-    if (!currentPool) return [];
-    let filtered = (history || []).filter(h => h.poolId === currentPoolId && h.user_id === user.id);
-    // 按游戏账号过滤（支持多账号：官服/B服）
-    if (currentGameUid) {
-      filtered = filtered.filter(h => h.game_uid === currentGameUid || h.gameUid === currentGameUid);
-    }
-    return filtered;
-  }, [history, currentPoolId, currentPool, user, currentGameUid, poolsArray]);
-
-  // 归一化当前卡池历史的 isStandard（基于 UP 角色匹配重新计算，不信任数据库原值）
-  const normalizedCurrentPoolHistory = useMemo(() => {
-    // FEAT-018: 池组聚合模式 — 每条记录按其所属池的 UP 角色单独判断
-    if (isPoolGroupId(currentPoolId)) {
-      const poolMap = new Map(poolsArray.map(p => [p.id, p]));
-      return currentPoolHistory.map(h => {
-        const pool = poolMap.get(h.poolId);
-        return {
-          ...h,
-          isStandard: normalizeIsStandard(h, pool?.type, pool?.up_character)
-        };
-      });
-    }
-
-    const poolType = currentPool?.type;
-    const upCharacter = currentPool?.up_character;
-
-    return currentPoolHistory.map(h => ({
-      ...h,
-      isStandard: normalizeIsStandard(h, poolType, upCharacter)
-    }));
-  }, [currentPoolHistory, currentPool?.type, currentPool?.up_character, currentPoolId, poolsArray]);
-
-  // 卡池统计 Hook - 统计计算、分组历史、保底计算
-  const {
-    currentPoolHistoryWithIndex,
-    groupedHistory,
-    filteredGroupedHistory,
-    stats,
-    inheritedPityInfo,
-    effectivePity
-  } = usePoolStats({ normalizedCurrentPoolHistory, currentPool });
-
   // 组合 cloudSync 函数为对象，供其他 hooks 使用
   const cloudSync = {
     savePoolToCloud, saveHistoryToCloud,
@@ -299,12 +186,8 @@ export default function GachaAnalyzer() {
   // 卡池操作 Hook
   const {
     confirmCreatePool,
-    openEditPoolModal,
     confirmEditPool,
-    togglePoolLock,
-    openDeletePoolModal,
     confirmDeletePool,
-    openDeleteConfirmModal,
     confirmDeleteData,
     deleteAllUserData
   } = usePoolOperations({ showToast, cloudSync });
@@ -317,7 +200,7 @@ export default function GachaAnalyzer() {
     confirmRealDeleteItem,
     handleDeleteGroup,
     confirmRealDeleteGroup
-  } = useHistoryOperations({ showToast, cloudSync });
+  } = useHistoryOperations({ showToast, cloudSync, currentPool });
 
   // 数据导入导出 Hook
   const {
@@ -328,9 +211,6 @@ export default function GachaAnalyzer() {
     handleImportFile,
     confirmImport
   } = useDataExportImport({ showToast, cloudSync, normalizedCurrentPoolHistory });
-
-  // 文件上传 Ref
-  const fileInputRef = useRef(null);
 
   // --- Effects ---
 
@@ -349,37 +229,15 @@ export default function GachaAnalyzer() {
   // 实时监听卡池变化
   usePoolRealtimeSubscription({ showToast });
 
-  // 获取用户角色和申请状态
+  // 获取用户角色
   useUserRole();
 
-  // 注意：公告加载、待审批申请数量、未读工单数量已移至 useNotificationBadges hook
+  // 注意：公告加载和未读工单数量已移至 useNotificationBadges hook
 
   // 登出处理
   const signOut = useAuthStore(state => state.signOut);
   const handleLogout = async () => {
     await signOut();
-    setApplicationStatus(null);
-  };
-
-  // 提交管理员申请
-  const handleApplyAdmin = async (reason) => {
-    if (!supabase || !user) return false;
-
-    try {
-      const { error } = await supabase
-        .from('admin_applications')
-        .insert({
-          user_id: user.id,
-          reason: reason
-        });
-
-      if (error) throw error;
-      setApplicationStatus('pending');
-      setShowApplyModal(false);
-      return true;
-    } catch (error) {
-      return false;
-    }
   };
 
   // 迁移弹窗状态
@@ -403,11 +261,9 @@ export default function GachaAnalyzer() {
       <AppHeader
         user={user}
         userRole={userRole}
-        applicationStatus={applicationStatus}
         activeTab={activeTab}
         hasNewAnnouncement={hasNewAnnouncement}
         setHasNewAnnouncement={setHasNewAnnouncement}
-        pendingApplicationsCount={pendingApplicationsCount}
         unreadTicketsCount={unreadTicketsCount}
         setUnreadTicketsCount={setUnreadTicketsCount}
         setActiveTab={setActiveTab}
@@ -418,27 +274,39 @@ export default function GachaAnalyzer() {
       <main className="w-full max-w-[1440px] mx-auto px-4 py-8">
 
         {activeTab === 'home' ? (
-          <HomePage user={user} canEdit={canEdit} announcements={announcements} />
+          <Suspense fallback={<TabPanelFallback label="正在加载首页..." />}>
+            <HomePage user={user} canEdit={canEdit} announcements={announcements} />
+          </Suspense>
         ) : activeTab === 'simulator' ? (
-          <GachaSimulator />
+          <Suspense fallback={<TabPanelFallback label="正在加载模拟器..." />}>
+            <GachaSimulator />
+          </Suspense>
         ) : activeTab === 'summary' ? (
-          <SummaryView history={history} pools={pools} globalStats={globalStats} globalStatsLoading={globalStatsLoading} user={user} />
+          <Suspense fallback={<TabPanelFallback label="正在加载统计..." />}>
+            <SummaryView />
+          </Suspense>
         ) : activeTab === 'admin' && isSuperAdmin ? (
-          <AdminPanel showToast={showToast} />
+          <Suspense fallback={<TabPanelFallback label="正在加载管理后台..." />}>
+            <AdminPanel showToast={showToast} />
+          </Suspense>
         ) : activeTab === 'settings' ? (
-          <SettingsPanel
-            user={user}
+          <Suspense fallback={<TabPanelFallback label="正在加载设置..." />}>
+            <SettingsPanel
+              user={user}
             userRole={userRole}
             pools={pools}
             history={history}
             onDeleteAllData={deleteAllUserData}
-            onManualSync={handleManualSync}
-            syncing={syncing}
           />
+          </Suspense>
         ) : activeTab === 'about' ? (
-          <AboutPanel />
+          <Suspense fallback={<TabPanelFallback label="正在加载关于页..." />}>
+            <AboutPanel />
+          </Suspense>
         ) : activeTab === 'tickets' ? (
-          <TicketPanel user={user} userRole={userRole} showToast={showToast} />
+          <Suspense fallback={<TabPanelFallback label="正在加载工单..." />}>
+            <TicketPanel user={user} userRole={userRole} showToast={showToast} />
+          </Suspense>
         ) : (
           <>
             {/* 游客提示 - 未登录时显示 */}
@@ -480,11 +348,9 @@ export default function GachaAnalyzer() {
 
             {activeTab === 'dashboard' && user && (
               <div className="animate-fade-in">
-                <DashboardView
-                  currentPool={currentPool}
-                  stats={stats}
-                  effectivePity={effectivePity}
-                />
+                <Suspense fallback={<TabPanelFallback label="正在加载卡池分析..." />}>
+                  <DashboardView />
+                </Suspense>
 
                 {/* 详细日志 - 默认折叠 */}
                 <div className="mt-6">
@@ -496,16 +362,15 @@ export default function GachaAnalyzer() {
                       <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
                     </summary>
                     <div className="mt-2">
-                      <RecordsView
-                        filteredGroupedHistory={filteredGroupedHistory}
-                        currentPool={currentPool}
-                        canEditCurrentPool={canEditCurrentPool}
-                        onEdit={setEditItemState}
-                        onDeleteGroup={handleDeleteGroup}
-                        onImportFile={handleImportFile}
-                        onExportJSON={handleExportJSON}
-                        onExportCSV={handleExportCSV}
-                      />
+                      <Suspense fallback={<TabPanelFallback label="正在加载详细日志..." />}>
+                        <RecordsView
+                          onEdit={setEditItemState}
+                          onDeleteGroup={handleDeleteGroup}
+                          onImportFile={handleImportFile}
+                          onExportJSON={handleExportJSON}
+                          onExportCSV={handleExportCSV}
+                        />
+                      </Suspense>
                     </div>
                   </details>
                 </div>
@@ -552,7 +417,6 @@ export default function GachaAnalyzer() {
         setShowMigrateModal={setShowMigrateModal}
         migrateLocalToCloud={migrateLocalToCloud}
         canEdit={canEdit}
-        handleApplyAdmin={handleApplyAdmin}
       />
 
       <style>{`

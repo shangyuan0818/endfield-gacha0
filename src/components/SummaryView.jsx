@@ -1,202 +1,46 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { Star, User, Cloud, Layers, Search, RefreshCw, Swords } from 'lucide-react';
-import { RARITY_CONFIG } from '../constants';
+import { useAppStore, useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 
 // 拆分后的组件
 import { SidebarItem, RankingCard, ChartSection } from './summary';
 
 // 拆分后的 Hooks
-import { useThemeDetection, getTooltipStyle, useRankingData, useSummaryStats } from '../hooks/summary';
+import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hooks/summary';
 
 /**
  * 统计视图组件 (重构后)
  * REFACTOR-002: 从 1,390 行拆分为多个子组件和 hooks
  * 2026-02-07 重构完成
  */
-const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoading, user }) => {
-  // 状态管理：数据源和卡池类型筛选
-  const [dataSource, setDataSource] = useState('global');
-  const [poolTypeFilter, setPoolTypeFilter] = useState('all');
+const SummaryView = React.memo(() => {
+  const user = useAuthStore(state => state.user);
+  const pools = usePoolStore(state => state.pools);
+  const history = useHistoryStore(state => state.history);
+  const globalStats = useAppStore(state => state.globalStats);
+  const globalStatsLoading = useAppStore(state => state.globalStatsLoading);
+  const fetchGlobalStats = useAppStore(state => state.fetchGlobalStats);
 
-  // 使用拆分后的 hooks
   const isDark = useThemeDetection();
   const tooltipStyle = getTooltipStyle(isDark);
-  const { characterRanking, rankingLoading, userRanking, userRankingLoading } = useRankingData(dataSource, user);
-  const localStats = useSummaryStats(history, pools, user);
-
-  // 根据数据源和筛选条件获取当前显示的统计数据
-  const currentStats = useMemo(() => {
-    const isGlobal = dataSource === 'global';
-    const baseStats = isGlobal ? globalStats : localStats;
-
-    if (isGlobal && !globalStats) return null;
-    if (!baseStats) return null;
-
-    if (poolTypeFilter === 'all') {
-      return {
-        title: isGlobal ? '全服数据' : '我的数据',
-        subtitle: '全部卡池',
-        total: baseStats.totalPulls ?? baseStats.total,
-        sixStar: baseStats.sixStarTotal ?? baseStats.sixStar,
-        sixStarLimited: baseStats.sixStarLimited ?? baseStats.counts?.[6],
-        sixStarStandard: baseStats.sixStarStandard ?? baseStats.counts?.['6_std'],
-        avgPity: baseStats.avgPity,
-        counts: baseStats.counts,
-        byType: baseStats.byType,
-        totalUsers: baseStats.totalUsers,
-        totalContributors: baseStats.totalContributors,
-        charGift: baseStats.charGift || 0,
-        weaponGiftLimited: baseStats.weaponGiftLimited || 0,
-        weaponGiftStandard: baseStats.weaponGiftStandard || 0,
-        giftTotal: baseStats.giftTotal || 0
-      };
-    }
-
-    const typeData = baseStats.byType?.[poolTypeFilter];
-    if (!typeData) return null;
-
-    const typeNames = {
-      character: '角色池（限定+常驻）',
-      limited: '限定角色池',
-      weapon: '武器池',
-      standard: '常驻池'
-    };
-
-    let avgPity = '-';
-    if (typeData.avgPity) {
-      avgPity = typeData.avgPity;
-    } else if (typeData.pityList?.length > 0) {
-      avgPity = (typeData.pityList.reduce((sum, p) => sum + p.count, 0) / typeData.pityList.length).toFixed(1);
-    }
-
-    let avgPityExcludingFree = null;
-    if (poolTypeFilter === 'limited' || poolTypeFilter === 'character') {
-      if (typeData.avgPityExcludingFree) {
-        avgPityExcludingFree = typeData.avgPityExcludingFree;
-      } else if (typeData.pityListExcludingFree?.length > 0) {
-        avgPityExcludingFree = (typeData.pityListExcludingFree.reduce((sum, p) => sum + p.count, 0) / typeData.pityListExcludingFree.length).toFixed(1);
-      }
-    }
-
-    return {
-      title: isGlobal ? '全服数据' : '我的数据',
-      subtitle: typeNames[poolTypeFilter],
-      total: typeData.total,
-      sixStar: typeData.six ?? typeData.sixStar,
-      sixStarLimited: typeData.limitedSix ?? typeData.sixStarLimited ?? typeData.counts?.[6],
-      sixStarStandard: typeData.counts?.['6_std'] ?? typeData.sixStarStandard,
-      avgPity,
-      avgPityExcludingFree,
-      avgPityUp: typeData.avgPityUp || null,
-      counts: typeData.counts,
-      distribution: typeData.distribution,
-      chartData: typeData.chartData,
-      totalUsers: baseStats.totalUsers
-    };
-  }, [dataSource, poolTypeFilter, globalStats, localStats]);
-
-  // 辅助函数：为全服数据生成 chartData
-  const generateChartDataFromCounts = (counts) => {
-    if (!counts) return [];
-    const rawData = [
-      { name: '6星(限定)', value: counts[6] || counts['6'] || 0, color: RARITY_CONFIG[6].color },
-      { name: '6星(常驻)', value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
-      { name: '5星', value: counts[5] || counts['5'] || 0, color: RARITY_CONFIG[5].color },
-      { name: '4星', value: counts[4] || counts['4'] || 0, color: RARITY_CONFIG[4].color },
-    ].filter(item => item.value > 0);
-
-    const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
-    return rawData.map(item => {
-      const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-      let minPercent = 0;
-      if (item.name.includes('6星')) minPercent = 15;
-      else if (item.name.includes('5星')) minPercent = 20;
-
-      if (currentPercent < minPercent && totalValue > 0) {
-        return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
-      }
-      return { ...item, displayValue: item.value };
-    });
-  };
-
-  // 获取图表显示数据
-  const chartDisplayData = useMemo(() => {
-    const isGlobal = dataSource === 'global';
-    const baseStats = isGlobal ? globalStats : localStats;
-
-    if (!baseStats) return { charts: [], isGlobal };
-
-    if (poolTypeFilter !== 'all') {
-      const typeData = baseStats.byType?.[poolTypeFilter];
-      if (!typeData) return { charts: [], isGlobal };
-
-      const typeNames = { character: '角色池', limited: '限定池', weapon: '武器池', standard: '常驻池' };
-      const typeColors = { character: 'rainbow-text', limited: 'rainbow-text', weapon: 'text-slate-500', standard: 'text-indigo-500' };
-      const chartData = typeData.chartData || generateChartDataFromCounts(typeData.counts);
-
-      return {
-        isGlobal,
-        charts: [{
-          title: typeNames[poolTypeFilter],
-          color: typeColors[poolTypeFilter],
-          data: { ...typeData, chartData }
-        }]
-      };
-    }
-
-    // 全部数据时：角色池（合并）+ 武器池
-    const limitedCounts = baseStats.byType?.limited?.counts || {};
-    const standardCounts = baseStats.byType?.standard?.counts || {};
-    const characterCounts = {
-      6: (limitedCounts[6] || 0) + (standardCounts[6] || 0),
-      '6_std': (limitedCounts['6_std'] || 0) + (standardCounts['6_std'] || 0),
-      5: (limitedCounts[5] || 0) + (standardCounts[5] || 0),
-      4: (limitedCounts[4] || 0) + (standardCounts[4] || 0)
-    };
-
-    const mergeDistributions = (limited, standard) => {
-      if (!limited?.length && !standard?.length) return [];
-      const merged = {};
-      (limited || []).forEach(item => {
-        merged[item.range] = { range: item.range, limited: item.limited || 0, standard: item.standard || 0 };
-      });
-      (standard || []).forEach(item => {
-        if (merged[item.range]) {
-          merged[item.range].limited += item.limited || 0;
-          merged[item.range].standard += item.standard || 0;
-        } else {
-          merged[item.range] = { range: item.range, limited: item.limited || 0, standard: item.standard || 0 };
-        }
-      });
-      return Object.values(merged).sort((a, b) => parseInt(a.range) - parseInt(b.range));
-    };
-
-    return {
-      isGlobal,
-      charts: [
-        {
-          title: '角色池',
-          subtitle: '限定 + 常驻',
-          color: 'text-violet-500',
-          data: baseStats.byType?.character || {
-            total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
-            six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
-            counts: characterCounts,
-            distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
-            chartData: generateChartDataFromCounts(characterCounts)
-          }
-        },
-        {
-          title: '武器池',
-          color: 'text-slate-500',
-          data: {
-            ...(baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [] }),
-            chartData: baseStats.byType?.weapon?.chartData || generateChartDataFromCounts(baseStats.byType?.weapon?.counts)
-          }
-        }
-      ]
-    };
-  }, [dataSource, poolTypeFilter, globalStats, localStats]);
+  const {
+    dataSource,
+    setDataSource,
+    poolTypeFilter,
+    setPoolTypeFilter,
+    localStats,
+    currentStats,
+    chartDisplayData,
+    ranking,
+    isRankingLoading
+  } = useSummaryViewState({
+    history,
+    pools,
+    user,
+    globalStats,
+    fetchGlobalStats,
+    variant: 'desktop'
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -309,9 +153,9 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                         <div className="grid grid-cols-1 xl:grid-cols-10 gap-6">
                           {/* 左侧：UP 六星排名 */}
                           <div className="h-full xl:col-span-4 border-r-0 xl:border-r border-zinc-100 dark:border-zinc-800 xl:pr-6 border-b xl:border-b-0 pb-6 xl:pb-0">
-                             <RankingCard
-                                ranking={dataSource === 'global' ? characterRanking : userRanking}
-                                loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
+                              <RankingCard
+                                ranking={ranking}
+                                loading={isRankingLoading}
                                 poolType="limited"
                                 title="限定池 UP 6★ 数量"
                                 visibleSections={['limitedUp']}
@@ -328,10 +172,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                                 UP 6★ (不歪)
                               </div>
                               <div className="text-xl font-bold font-mono text-emerald-500">
-                                {(() => {
-                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? '-';
-                                })()}
+                                {ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? '-'}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
                                 限定池抽中UP角色
@@ -344,10 +185,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                                 歪常驻 6★
                               </div>
                               <div className="text-xl font-bold font-mono text-rose-500">
-                                {(() => {
-                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarOffStandardExcludingFree ?? ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-';
-                                })()}
+                                {ranking?.limited?.sixStarOffStandardExcludingFree ?? ranking?.limited?.sixStarOffStandardCount ?? ranking?.limited?.sixStarOffExcludingFree ?? '-'}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
                                 歪到常驻角色
@@ -360,10 +198,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                                 歪限定 6★
                               </div>
                               <div className="text-xl font-bold font-mono text-orange-500">
-                                {(() => {
-                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
-                                  return ranking?.limited?.sixStarOffLimitedExcludingFree ?? ranking?.limited?.sixStarOffLimitedCount ?? 0;
-                                })()}
+                                {ranking?.limited?.sixStarOffLimitedExcludingFree ?? ranking?.limited?.sixStarOffLimitedCount ?? 0}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono leading-tight">
                                 歪到非当期限定
@@ -387,7 +222,6 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               <div className="text-zinc-400 text-[10px] uppercase font-bold">不歪率</div>
                               <div className="text-xl font-bold font-mono text-indigo-500">
                                 {(() => {
-                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
                                   const upCount = ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? 0;
                                   const offCount = ranking?.limited?.sixStarOffExcludingFree ?? ranking?.limited?.sixStarOffCount ?? 0;
                                   const total = upCount + offCount;
@@ -420,7 +254,6 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               </div>
                               <div className="text-xl font-bold font-mono text-amber-500">
                                 {(() => {
-                                  const ranking = dataSource === 'global' ? characterRanking : userRanking;
                                   const offStd = ranking?.limited?.sixStarOffStandardCount ?? 0;
                                   const offLtd = ranking?.limited?.sixStarOffLimitedCount ?? 0;
                                   const totalOff = offStd + offLtd;
@@ -440,8 +273,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                     {/* 右侧列：其他排名 */}
                     <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4 h-full">
                       <RankingCard
-                        ranking={dataSource === 'global' ? characterRanking : userRanking}
-                        loading={dataSource === 'global' ? rankingLoading : userRankingLoading}
+                        ranking={ranking}
+                        loading={isRankingLoading}
                         poolType="all"
                         title={dataSource === 'global' ? "全服出货排名 (其他)" : "我的出货排名 (其他)"}
                         visibleSections={['limitedOff', 'standard', 'limitedFive', 'standardFive']}
@@ -470,8 +303,8 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                               const standardSixTotal = currentStats.byType?.standard?.six || 0;
                               const totalSix = limitedSixTotal + standardSixTotal;
 
-                              // 从characterRanking获取不含免费的数量（仅全服数据时使用）
-                              const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
+                              // 全服数据优先显示排除免费十连后的限定池 6★ 数量
+                              const limitedSixExcl = dataSource === 'global' ? ranking?.limited?.sixStarExcludingFree : undefined;
                               const hasExclData = limitedSixExcl !== undefined && limitedSixExcl !== null;
 
                               if (hasExclData) {
@@ -489,7 +322,7 @@ const SummaryView = React.memo(({ history, pools, globalStats, globalStatsLoadin
                             const limitedSixTotal = currentStats.byType?.limited?.six || 0;
                             const standardSixTotal = currentStats.byType?.standard?.six || 0;
                             const totalSix = limitedSixTotal + standardSixTotal;
-                            const limitedSixExcl = dataSource === 'global' ? characterRanking?.limited?.sixStarExcludingFree : undefined;
+                            const limitedSixExcl = dataSource === 'global' ? ranking?.limited?.sixStarExcludingFree : undefined;
 
                             if (limitedSixExcl === undefined || limitedSixExcl === null) return null;
 

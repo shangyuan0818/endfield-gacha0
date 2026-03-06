@@ -1,11 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { Star, User, Cloud, Layers, RefreshCw, Swords, ChevronDown } from 'lucide-react';
+import React from 'react';
+import { User, Cloud, RefreshCw } from 'lucide-react';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
 import useAppStore from '../../stores/useAppStore';
 import useAuthStore from '../../stores/useAuthStore';
-import { useSummaryStats, useRankingData } from '../../hooks/summary';
-import { RARITY_CONFIG } from '../../constants';
+import { useSummaryViewState } from '../../hooks/summary';
 import MobileChartContainer from '../components/MobileChartContainer';
 
 /**
@@ -15,78 +14,27 @@ function MobileSummaryView() {
   const { user } = useAuthStore();
   const { pools } = usePoolStore();
   const { history } = useHistoryStore();
-  const { globalStats, globalStatsLoading } = useAppStore();
+  const { globalStats, globalStatsLoading, fetchGlobalStats } = useAppStore();
 
-  const [dataSource, setDataSource] = useState('global');
-  const [poolTypeFilter, setPoolTypeFilter] = useState('all');
+  const {
+    dataSource,
+    setDataSource,
+    poolTypeFilter,
+    setPoolTypeFilter,
+    currentStats,
+    ranking,
+    isRankingLoading,
+    filterOptions
+  } = useSummaryViewState({
+    history,
+    pools,
+    user,
+    globalStats,
+    fetchGlobalStats,
+    variant: 'mobile'
+  });
 
-  const { characterRanking, rankingLoading, userRanking, userRankingLoading } = useRankingData(dataSource, user);
-  const localStats = useSummaryStats(history, pools, user);
-
-  const currentStats = useMemo(() => {
-    const isGlobal = dataSource === 'global';
-    const baseStats = isGlobal ? globalStats : localStats;
-
-    if (isGlobal && !globalStats) return null;
-    if (!baseStats) return null;
-
-    if (poolTypeFilter === 'all') {
-      return {
-        title: isGlobal ? '全服统计数据' : '个人记录',
-        subtitle: '全卡池汇总',
-        total: baseStats.totalPulls ?? baseStats.total,
-        sixStar: baseStats.sixStarTotal ?? baseStats.sixStar,
-        sixStarLimited: baseStats.sixStarLimited ?? baseStats.counts?.[6],
-        sixStarStandard: baseStats.sixStarStandard ?? baseStats.counts?.['6_std'],
-        avgPity: baseStats.avgPity,
-        counts: baseStats.counts,
-        byType: baseStats.byType,
-        totalUsers: baseStats.totalUsers,
-        totalContributors: baseStats.totalContributors,
-      };
-    }
-
-    const typeData = baseStats.byType?.[poolTypeFilter];
-    if (!typeData) return null;
-
-    const typeNames = {
-      character: '角色池',
-      limited: '限定池',
-      weapon: '武器池',
-      standard: '常驻池'
-    };
-
-    let avgPity = '-';
-    if (typeData.avgPity) {
-      avgPity = typeData.avgPity;
-    } else if (typeData.pityList?.length > 0) {
-      avgPity = (typeData.pityList.reduce((sum, p) => sum + p.count, 0) / typeData.pityList.length).toFixed(1);
-    }
-
-    return {
-      title: isGlobal ? '全服统计数据' : '个人记录',
-      subtitle: typeNames[poolTypeFilter],
-      total: typeData.total,
-      sixStar: typeData.six ?? typeData.sixStar,
-      sixStarLimited: typeData.limitedSix ?? typeData.sixStarLimited,
-      sixStarStandard: typeData.counts?.['6_std'] ?? typeData.sixStarStandard,
-      avgPity,
-      avgPityUp: typeData.avgPityUp || null,
-      counts: typeData.counts,
-      distribution: typeData.distribution,
-      totalUsers: baseStats.totalUsers
-    };
-  }, [dataSource, poolTypeFilter, globalStats, localStats]);
-
-  const ranking = dataSource === 'global' ? characterRanking : userRanking;
-  const isRankingLoading = dataSource === 'global' ? rankingLoading : userRankingLoading;
-
-  const filterOptions = [
-    { value: 'all', label: '全部' },
-    { value: 'limited', label: '限定' },
-    { value: 'standard', label: '常驻' },
-    { value: 'weapon', label: '武器' },
-  ];
+  const limitedSixStarUpRanking = ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || [];
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -198,7 +146,7 @@ function MobileSummaryView() {
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-indigo-300 dark:hover:border-indigo-900 transition-colors">
                   <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">六星平均出货</div>
                   <div className="text-2xl font-black text-indigo-500 font-mono">
-                    {currentStats.avgPity || '-'}
+                    {currentStats.avgPityExcludingFree || currentStats.avgPity || '-'}
                   </div>
                   <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">全部6★ 抽/个</div>
                 </div>
@@ -315,7 +263,7 @@ function MobileSummaryView() {
           )}
 
           {/* UP 6★ 排名 */}
-          {ranking && (
+          {(isRankingLoading || ranking) && (
             <MobileChartContainer title="UP 6★ 排名" defaultExpanded={true} className="rounded-none">
               {isRankingLoading ? (
                 <div className="flex items-center justify-center py-4">
@@ -324,13 +272,13 @@ function MobileSummaryView() {
               ) : (
                 <div className="space-y-4 pt-2">
                   {/* 限定池 UP */}
-                  {ranking.limited?.characters?.length > 0 && (
+                  {limitedSixStarUpRanking.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-2 px-1 border-l-2 border-fuchsia-500">
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">限定池 6★</span>
                       </div>
                       <div className="space-y-1">
-                        {ranking.limited.characters.slice(0, 5).map((char, index) => (
+                        {limitedSixStarUpRanking.slice(0, 5).map((char, index) => (
                           <div key={char.name} className="flex items-center justify-between py-2 border-b border-dashed border-zinc-200 dark:border-zinc-800 last:border-0 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors px-1">
                             <div className="flex items-center gap-3">
                               <span className={`w-5 h-5 flex items-center justify-center text-[10px] font-bold font-mono rounded-none ${
@@ -348,6 +296,9 @@ function MobileSummaryView() {
                         ))}
                       </div>
                     </div>
+                  )}
+                  {limitedSixStarUpRanking.length === 0 && (
+                    <p className="text-xs text-zinc-400 text-center py-2 font-mono uppercase tracking-widest">暂无排名数据</p>
                   )}
 
                   {/* 六星分类统计 */}
