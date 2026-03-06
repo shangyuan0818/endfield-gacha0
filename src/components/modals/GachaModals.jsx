@@ -1,8 +1,8 @@
 import React from 'react';
-import { X, Trash2, AlertCircle, Upload, CheckCircle2, User, Cloud, CloudOff, RefreshCw, UserPlus, Star, Layers, Search, Lock } from 'lucide-react';
+import { X, Trash2, AlertCircle, Upload, CheckCircle2, User, Cloud, CloudOff, RefreshCw, Star, Layers, Search, Lock } from 'lucide-react';
 import AuthModal from '../../AuthModal';
 import { Toast, ConfirmDialog } from '../ui';
-import { useUIStore, useAuthStore, useAppStore, useHistoryStore } from '../../stores';
+import { useUIStore, useAuthStore, useHistoryStore } from '../../stores';
 import { PRESET_POOLS } from '../../constants';
 
 /**
@@ -12,7 +12,6 @@ export default function GachaModals({
   // 已知抽卡人列表
   knownDrawers,
   // Toast
-  showToast,
   toasts,
   removeToast,
   // Confirm
@@ -35,9 +34,7 @@ export default function GachaModals({
   showMigrateModal,
   setShowMigrateModal,
   migrateLocalToCloud,
-  canEdit,
-  // 申请管理员
-  handleApplyAdmin
+  canEdit
 }) {
   // 从 stores 获取状态
   const user = useAuthStore(state => state.user);
@@ -59,9 +56,6 @@ export default function GachaModals({
   const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
   const setDrawerName = useUIStore(state => state.setDrawerName);
   const setSelectedCharName = useUIStore(state => state.setSelectedCharName);
-
-  const showApplyModal = useAppStore(state => state.showApplyModal);
-  const setShowApplyModal = useAppStore(state => state.setShowApplyModal);
 
   const history = useHistoryStore(state => state.history);
 
@@ -336,32 +330,6 @@ export default function GachaModals({
               <button onClick={() => setShowMigrateModal(false)} disabled={syncing} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors disabled:opacity-50">暂不同步</button>
               <button onClick={async () => { const success = await migrateLocalToCloud(); if (success) setShowMigrateModal(false); }} disabled={syncing} className="px-4 py-2 text-sm font-bold bg-endfield-yellow text-black hover:bg-yellow-400 uppercase tracking-wider rounded-none shadow-sm transition-all disabled:opacity-50 flex items-center gap-2">
                 {syncing ? (<><RefreshCw size={16} className="animate-spin" />同步中...</>) : (<><Cloud size={16} />同步到云端</>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 申请管理员弹窗 */}
-      {showApplyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
-            <div className="p-6 text-center">
-              <div className="w-12 h-12 bg-amber-100 text-amber-500 rounded-sm flex items-center justify-center mx-auto mb-4"><UserPlus size={24} /></div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">申请成为管理员</h3>
-              <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">成为管理员后，您可以为本站录入抽卡数据。</p>
-              <textarea id="apply-reason" placeholder="请简单说明申请理由（如：我想帮忙录入数据）" className="w-full p-3 border border-zinc-200 dark:border-zinc-800 rounded-none text-sm resize-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none" rows={3} />
-            </div>
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
-              <button onClick={() => setShowApplyModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors">取消</button>
-              <button onClick={async () => {
-                const reason = document.getElementById('apply-reason').value.trim();
-                if (!reason) { showToast('请填写申请理由', 'warning'); return; }
-                const success = await handleApplyAdmin(reason);
-                if (success) showToast('申请已提交，请等待审核', 'success');
-                else showToast('提交失败，请稍后重试', 'error');
-              }} className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-none shadow-sm transition-all flex items-center gap-2">
-                <UserPlus size={16} />提交申请
               </button>
             </div>
           </div>

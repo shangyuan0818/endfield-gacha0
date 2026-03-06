@@ -5,7 +5,7 @@ import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
 
 /**
  * 通知徽标 Hook
- * 处理待审批申请数量（仅超管）、新公告检测、未读工单数量
+ * 处理新公告检测、未读工单数量
  */
 export function useNotificationBadges() {
   const user = useAuthStore(state => state.user);
@@ -15,7 +15,6 @@ export function useNotificationBadges() {
   const isSuperAdmin = userRole === 'super_admin';
 
   // UX-006: 通知气泡状态
-  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
   const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState(0);
 
@@ -59,39 +58,14 @@ export function useNotificationBadges() {
           setAnnouncements([]);
           setHasNewAnnouncement(false);
         }
-      } catch (error) {
+      } catch {
         setAnnouncements([]);
         setHasNewAnnouncement(false);
       }
     };
 
     fetchAnnouncements();
-  }, []);
-
-  // UX-006: 获取待审批管理员申请数量（仅超管）
-  useEffect(() => {
-    const fetchPendingApplications = async () => {
-      if (!supabase || !isSuperAdmin) {
-        setPendingApplicationsCount(0);
-        return;
-      }
-
-      try {
-        const { count, error } = await supabase
-          .from('admin_applications')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending');
-
-        if (!error) {
-          setPendingApplicationsCount(count || 0);
-        }
-      } catch (error) {
-        // 静默失败
-      }
-    };
-
-    fetchPendingApplications();
-  }, [isSuperAdmin]);
+  }, [setAnnouncements]);
 
   // UX-006: 获取未读工单数量
   useEffect(() => {
@@ -119,7 +93,7 @@ export function useNotificationBadges() {
         if (!error) {
           setUnreadTicketsCount(count || 0);
         }
-      } catch (error) {
+      } catch {
         // 静默失败
       }
     };
@@ -128,8 +102,6 @@ export function useNotificationBadges() {
   }, [user, isSuperAdmin]);
 
   return {
-    pendingApplicationsCount,
-    setPendingApplicationsCount,
     hasNewAnnouncement,
     setHasNewAnnouncement,
     unreadTicketsCount,

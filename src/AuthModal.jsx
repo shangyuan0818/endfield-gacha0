@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Mail, Lock, User, LogIn, UserPlus, Loader2, AlertCircle, CheckCircle2, KeyRound, ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from './supabaseClient';
-import { showFriendlyError, getSimpleFriendlyError } from './utils/errorMessages';
+import { getSimpleFriendlyError } from './utils/errorMessages';
 
 // ========== 邮箱域名白名单配置 ==========
 // 主流邮箱服务商
@@ -95,7 +95,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [emailValid, setEmailValid] = useState(true);
   const [emailDomainError, setEmailDomainError] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0); // 重发验证邮件倒计时
-  const [pendingVerificationEmail, setPendingVerificationEmail] = useState(''); // 待验证的邮箱
   const [agreedToTerms, setAgreedToTerms] = useState(false); // 用户协议确认
 
   // 管理重发验证邮件倒计时（修复内存泄漏 PERF-NEW-001）
@@ -112,47 +111,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   if (!isOpen) return null;
   
-  // 重发验证邮件
-  const handleResendVerification = async () => {
-    if (resendCooldown > 0 || !pendingVerificationEmail) return;
-    
-    setLoading(true);
-    setError('');
-    
-    try {
-      // 检查频率限制
-      const rateLimitResult = await checkRateLimit('register');
-      if (!rateLimitResult.allowed) {
-        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
-        setError(`请求过于频繁，请 ${retryAfter} 分钟后再试`);
-        setLoading(false);
-        return;
-      }
-      
-      // 使用 Supabase 重新发送验证邮件
-      // 使用环境变量配置的域名作为验证后跳转地址
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: pendingVerificationEmail,
-        options: {
-          emailRedirectTo: appUrl,
-        },
-      });
-      
-      if (error) throw error;
-
-      setMessage('验证邮件已重新发送！请查收邮箱。');
-
-      // 设置60秒倒计时（定时器由useEffect管理）
-      setResendCooldown(60);
-    } catch (err) {
-      setError(getSimpleFriendlyError(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // 获取客户端标识符（用于频率限制）
   const getClientIdentifier = () => {
     // 使用 localStorage 中的匿名ID，如果没有则生成一个
@@ -181,33 +139,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       }
 
       return data || { allowed: true };
-    } catch (err) {
+    } catch {
       // 频率限制检查异常，默认允许
       return { allowed: true };
-    }
-  };
-
-  // 后端邮箱域名验证
-  const validateEmailDomainBackend = async (emailToCheck) => {
-    if (!supabase) {
-      // 如果 Supabase 不可用，回退到前端验证
-      return validateEmailDomain(emailToCheck);
-    }
-    
-    try {
-      const { data, error } = await supabase.rpc('validate_email_domain', {
-        check_email: emailToCheck
-      });
-
-      if (error) {
-        // 后端验证失败，回退到前端验证
-        return validateEmailDomain(emailToCheck);
-      }
-
-      return data || { valid: true };
-    } catch (err) {
-      // 后端验证异常，回退到前端验证
-      return validateEmailDomain(emailToCheck);
     }
   };
 
@@ -420,7 +354,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setShowDuplicateEmailPrompt(false);
     setEmailDomainError('');
     setResendCooldown(0);
-    setPendingVerificationEmail('');
   };
 
   const switchMode = (newMode) => {

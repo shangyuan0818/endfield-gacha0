@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import GachaAnalyzer from './GachaAnalyzer'
 import LoadingScreen from './LoadingScreen'
-import { ErrorBoundary } from './components'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ThemeProvider } from './contexts/ThemeContext'
 
 function App() {

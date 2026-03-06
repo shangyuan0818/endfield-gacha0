@@ -12,12 +12,10 @@ export default function AppHeader({
   // 状态
   user,
   userRole,
-  applicationStatus,
   activeTab,
   // 通知
   hasNewAnnouncement,
   setHasNewAnnouncement,
-  pendingApplicationsCount,
   unreadTicketsCount,
   setUnreadTicketsCount,
   // 操作
@@ -104,21 +102,19 @@ export default function AppHeader({
 
           {/* 超管管理页面 */}
           {isSuperAdmin && (
-            <NotificationBadge count={pendingApplicationsCount}>
-              <button
-                onClick={() => {
-                  setActiveTab('admin');
-                  markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
-                }}
-                className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
-                  activeTab === 'admin'
-                    ? 'bg-red-600 text-white'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-white/5'
-                }`}
-              >
-                管理
-              </button>
-            </NotificationBadge>
+            <button
+              onClick={() => {
+                setActiveTab('admin');
+                markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
+              }}
+              className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'admin'
+                  ? 'bg-red-600 text-white'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-white/5'
+              }`}
+            >
+              管理
+            </button>
           )}
 
           {/* 工单、设置和关于按钮 */}
@@ -175,12 +171,6 @@ export default function AppHeader({
                       {(userRole === 'super_admin' || userRole === 'admin') ? 'Super-Endmin' : 'Endmin'}
                     </span>
                   </div>
-
-                  {applicationStatus === 'pending' && (
-                    <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-500 px-2 py-0.5 rounded border border-yellow-200 dark:border-yellow-900/50">
-                      审核中
-                    </span>
-                  )}
 
                   <button
                     onClick={handleLogout}

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useHistoryStore, usePoolStore, useUIStore, useAuthStore } from '../../stores';
+import { useHistoryStore, useUIStore, useAuthStore } from '../../stores';
 
 /**
  * 历史记录操作 Hook
@@ -7,13 +7,12 @@ import { useHistoryStore, usePoolStore, useUIStore, useAuthStore } from '../../s
  */
 export function useHistoryOperations({
   showToast,
-  cloudSync
+  cloudSync,
+  currentPool
 }) {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
   const isSuperAdmin = userRole === 'super_admin';
-
-  const currentPool = usePoolStore(state => state.currentPool);
 
   const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
@@ -21,7 +20,6 @@ export function useHistoryOperations({
   const modalState = useUIStore(state => state.modalState);
   const setModalState = useUIStore(state => state.setModalState);
   const closeModal = useUIStore(state => state.closeModal);
-  const editItemState = useUIStore(state => state.editItemState);
   const setEditItemState = useUIStore(state => state.setEditItemState);
 
   const { saveHistoryToCloud, deleteHistoryFromCloud } = cloudSync;
@@ -53,7 +51,7 @@ export function useHistoryOperations({
         // 云端保存成功，更新本地状态
         setHistory(prev => prev.map(item => item.id === id ? updatedItem : item));
         setEditItemState(null);
-      } catch (error) {
+      } catch {
         // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
       }
     } else {

@@ -112,7 +112,7 @@ async function safeParseJSON(response, context = 'API') {
   // 尝试解析 JSON
   try {
     return JSON.parse(text);
-  } catch (e) {
+  } catch {
     // JSON 解析失败
     if (text.includes('<!DOCTYPE') || text.includes('<html')) {
       throw new ServerConnectionError(
@@ -777,7 +777,7 @@ export async function importAllRecords(initialToken, onProgress, selectedAccount
   try {
     // 优先使用并发版本
     records = await fetchAllGachaRecordsConcurrent(u8Token, '1', onProgress);
-  } catch (error) {
+  } catch {
     // 如果并发失败，回退到串行版本
     if (onProgress) onProgress('并发获取失败，切换到串行模式...');
     records = await fetchAllGachaRecords(u8Token, onProgress);

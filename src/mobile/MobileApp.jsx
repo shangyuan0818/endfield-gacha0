@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import MobileLayout from './layouts/MobileLayout';
-import { ErrorBoundary } from '../components';
+import ErrorBoundary from '../components/ErrorBoundary';
 import MobileLoadingScreen from './components/MobileLoadingScreen';
 import { useCloudSync, useAppInitialization, useNotificationBadges } from '../hooks/app';
 import { useToast } from '../hooks';
@@ -17,12 +17,12 @@ function MobileApp() {
   const { showToast } = useToast();
 
   // 云同步 Hook - 提供 loadCloudData 函数
-  const { loadCloudData } = useCloudSync({ showToast });
+  const { loadCloudData, loadPublicPools } = useCloudSync({ showToast });
 
   // 应用初始化 Hook - 处理会话、加载云端数据到 stores
-  useAppInitialization({ loadCloudData });
+  useAppInitialization({ loadCloudData, loadPublicPools });
 
-  // 通知徽标 Hook - 加载公告、工单、申请等
+  // 通知徽标 Hook - 加载公告与工单等
   useNotificationBadges();
 
   return (

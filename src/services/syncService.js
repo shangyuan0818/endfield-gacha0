@@ -6,7 +6,7 @@
  */
 
 import { supabase } from '../supabaseClient';
-import { clampHistoryPity, splitHistoryUpsertGroups } from '../utils/historyRecordUtils';
+import { upsertHistory, upsertPools } from './cloudWriteService';
 
 /**
  * 同步管理器（单例模式）
@@ -47,6 +47,7 @@ class SyncManager {
     this.stats = {
       totalSyncs: 0,
       lastSyncTime: null,
+      lastSyncDurationMs: null,
       failedSyncs: 0,
       successfulSyncs: 0,
     };
@@ -135,7 +136,7 @@ class SyncManager {
    * @param {boolean} [sync=false] - 是否使用同步模式（页面关闭时）
    * @returns {Promise<void>}
    */
-  async flushQueue(sync = false) {
+  async flushQueue(_sync = false) {
     // 防止并发同步
     if (this.isSyncing) {
       return;
@@ -181,8 +182,8 @@ class SyncManager {
         characters.clear();
       }
 
-      const syncTime = (performance.now() - startTime).toFixed(2);
       this.stats.lastSyncTime = new Date().toISOString();
+      this.stats.lastSyncDurationMs = Number((performance.now() - startTime).toFixed(2));
       this.stats.successfulSyncs++;
 
     } catch (error) {
@@ -212,32 +213,11 @@ class SyncManager {
    */
   async syncPools(pools) {
     if (pools.length === 0) return;
-
-
-    const { error } = await supabase.from('pools').upsert(
-      pools.map((p) => ({
-        user_id: p.user_id,
-        pool_id: p.id,
-        name: p.name,
-        type: p.type,
-        locked: p.locked || false,
-        is_limited_weapon: p.isLimitedWeapon !== undefined ? p.isLimitedWeapon : true,
-        // V2 新增字段
-        game_uid: p.gameUid || p.game_uid || null,
-        nick_name: p.nickName || p.nick_name || null,
-        up_character: p.upCharacter || p.up_character || null,
-        banner_url: p.banner_url || p.bannerUrl || null,
-        start_time: p.start_time || p.startTime || null,
-        end_time: p.end_time || p.endTime || null,
-        updated_at: new Date().toISOString(),
-      })),
-      { onConflict: 'user_id,pool_id' }
-    );
-
-    if (error) {
+    try {
+      await upsertPools(supabase, pools);
+    } catch (error) {
       throw new Error(`卡池同步失败: ${error.message}`);
     }
-
   }
 
   /**
@@ -248,73 +228,15 @@ class SyncManager {
    */
   async syncHistory(records) {
     if (records.length === 0) return;
-
-
     const batchSize = 100;
-    let syncedCount = 0;
-
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-      const rows = batch.map((r) => {
-        // record_id 必须是数字（数据库 double precision 类型）
-        let recordId = r.id || r.record_id;
-        if (typeof recordId === 'string') {
-          // 如果是字符串，尝试解析为数字
-          recordId = parseInt(recordId, 10);
-          // 如果解析失败（NaN），使用 seqId 或时间戳
-          if (isNaN(recordId)) {
-            recordId = parseInt(r.seqId || r.seq_id, 10) || Date.now();
-          }
-        }
-
-        return {
-          user_id: r.user_id,
-          record_id: recordId,
-          pool_id: String(r.poolId || r.pool_id),
-          rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
-          is_standard: Boolean(r.isStandard || r.is_standard),
-          special_type: r.specialType || r.special_type || null,
-          // 名称字段：优先使用 character_name，备选 name
-          character_name: r.character_name || r.name || null,
-          item_name: r.item_name || r.name || r.character_name || null,
-          // V2 新增字段（严格类型检查）
-          batch_id: r.batchId || r.batch_id || null,
-          seq_id: r.seqId || r.seq_id || null,
-          pity: clampHistoryPity(r.pity),
-          is_new: Boolean(r.isNew || r.is_new),
-          is_free: Boolean(r.isFree || r.is_free),
-          game_uid: r.gameUid || r.game_uid || null,
-          // 时间戳（处理数字或字符串格式）
-          timestamp: r.timestamp
-            ? (typeof r.timestamp === 'number'
-              ? new Date(r.timestamp).toISOString()
-              : new Date(r.timestamp).toISOString())
-            : new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-      });
-
-      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(rows);
-      const upsertGroups = [
-        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
-        { rows: legacyRecords, onConflict: 'user_id,record_id' }
-      ];
-
-      for (const group of upsertGroups) {
-        if (group.rows.length === 0) continue;
-
-        const { error } = await supabase
-          .from('history')
-          .upsert(group.rows, { onConflict: group.onConflict });
-
-        if (error) {
-          throw new Error(`历史记录同步失败（批次 ${i / batchSize + 1}）: ${error.message}`);
-        }
+      try {
+        await upsertHistory(supabase, batch);
+      } catch (error) {
+        throw new Error(`历史记录同步失败（批次 ${i / batchSize + 1}）: ${error.message}`);
       }
-
-      syncedCount += batch.length;
     }
-
   }
 
   /**
@@ -349,7 +271,6 @@ class SyncManager {
       } else {
         throw new Error(`角色同步失败: ${error.message}`);
       }
-    } else {
     }
   }
 
@@ -405,6 +326,7 @@ class SyncManager {
     this.stats = {
       totalSyncs: 0,
       lastSyncTime: null,
+      lastSyncDurationMs: null,
       failedSyncs: 0,
       successfulSyncs: 0,
     };
@@ -415,6 +337,6 @@ class SyncManager {
 export const syncManager = new SyncManager();
 
 // 开发环境下暴露到 window（方便调试）
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.DEV) {
   window.__syncManager = syncManager;
 }

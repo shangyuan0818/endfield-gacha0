@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
+import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { syncManager } from '../../services/syncService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
-import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
+import { clampHistoryPity } from '../../utils/historyRecordUtils';
 
 // 卡池类型归一化（模块级，供 loadCloudData 和 loadPublicPools 共用）
 const normalizePoolType = (type, isLimitedWeaponFlag) => {
@@ -323,27 +324,7 @@ export function useCloudSync({ showToast }) {
     }
 
     try {
-      const targetUserId = pool.user_id || user.id;
-
-      const { error } = await supabase
-        .from('pools')
-        .upsert({
-          user_id: targetUserId,
-          pool_id: pool.id,
-          name: pool.name,
-          type: pool.type,
-          locked: pool.locked || false,
-          is_limited_weapon: pool.isLimitedWeapon !== false,
-          up_character: pool.up_character || null,
-          description: pool.description || null,
-          banner_url: pool.banner_url || null,
-          start_time: pool.start_time || null,
-          end_time: pool.end_time || null,
-          featured_characters: pool.featured_characters || null,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'pool_id' });
-
-      if (error) throw error;
+      await upsertPools(supabase, [pool], user.id);
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -356,41 +337,7 @@ export function useCloudSync({ showToast }) {
     if (!supabase || !user || records.length === 0) return;
 
     try {
-      const cloudRecords = records.map(r => ({
-        user_id: user.id,
-        record_id: r.id,
-        pool_id: r.poolId,
-        rarity: r.rarity,
-        is_standard: r.isStandard,
-        character_name: r.character_name || r.name || null,
-        item_name: r.item_name || r.name || r.character_name || null,
-        batch_id: r.batchId || r.batch_id || null,
-        seq_id: r.seqId || r.seq_id || null,
-        pity: clampHistoryPity(r.pity),
-        is_new: r.isNew || r.is_new || false,
-        is_free: r.isFree || r.is_free || false,
-        game_uid: r.gameUid || r.game_uid || null,
-        timestamp: typeof r.timestamp === 'number'
-          ? new Date(r.timestamp).toISOString()
-          : r.timestamp,
-        updated_at: new Date().toISOString()
-      }));
-
-      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(cloudRecords);
-      const upsertGroups = [
-        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
-        { rows: legacyRecords, onConflict: 'user_id,record_id' }
-      ];
-
-      for (const group of upsertGroups) {
-        if (group.rows.length === 0) continue;
-
-        const { error } = await supabase
-          .from('history')
-          .upsert(group.rows, { onConflict: group.onConflict });
-
-        if (error) throw error;
-      }
+      await upsertHistory(supabase, records, user.id);
     } catch (error) {
       const errorMessage = error.message || '';
       if (errorMessage.includes('policy') || errorMessage.includes('violates row-level security')) {

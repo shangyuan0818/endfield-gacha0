@@ -1,6 +1,8 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+const isDev = import.meta.env.DEV;
+
 /**
  * React Error Boundary 组件
  * 捕获子组件中的 JavaScript 错误，防止整个应用崩溃
@@ -18,7 +20,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // 仅在开发环境输出错误日志，生产环境可集成错误追踪服务
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       console.error('ErrorBoundary caught an error:', error, errorInfo);
     }
     this.setState({ errorInfo });
@@ -51,7 +53,7 @@ class ErrorBoundary extends React.Component {
             </p>
 
             {/* 错误详情（开发模式） */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {isDev && this.state.error && (
               <div className="bg-zinc-950 border border-zinc-800 rounded-none p-4 mb-6 text-left overflow-auto max-h-40">
                 <p className="text-red-400 text-xs font-mono break-all">
                   {this.state.error.toString()}

@@ -1,20 +1,18 @@
 import { useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
-import { useAuthStore, useAppStore } from '../../stores';
+import { useAuthStore } from '../../stores';
 
 /**
  * 用户角色 Hook
- * 获取当前用户的角色和申请状态
+ * 获取当前用户的角色
  */
 export function useUserRole() {
   const user = useAuthStore(state => state.user);
   const setUserRole = useAuthStore(state => state.setUserRole);
-  const setApplicationStatus = useAppStore(state => state.setApplicationStatus);
 
   useEffect(() => {
     if (!supabase || !user) {
       setUserRole(null);
-      setApplicationStatus(null);
       return;
     }
 
@@ -31,7 +29,7 @@ export function useUserRole() {
 
         // 如果 profile 不存在，尝试创建一个
         if (!profile) {
-          const { error: insertError } = await supabase
+          await supabase
             .from('profiles')
             .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' });
           // 创建profile失败时，依然设置默认role，不影响用户使用
@@ -40,22 +38,13 @@ export function useUserRole() {
           setUserRole(profile.role || 'user');
         }
 
-        // 获取申请状态（移除排序避免列名问题）
-        const { data: application } = await supabase
-          .from('admin_applications')
-          .select('status')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle();
-
-        setApplicationStatus(application?.status || null);
-      } catch (error) {
+      } catch {
         setUserRole('user');
       }
     };
 
     fetchUserRole();
-  }, [user, setUserRole, setApplicationStatus]);
+  }, [user, setUserRole]);
 }
 
 export default useUserRole;

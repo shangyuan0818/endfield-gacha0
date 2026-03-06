@@ -7,9 +7,17 @@
  * 端点: GET /api/wiki-proxy?type=operators|weapons
  */
 
+import {
+  checkMemoryRateLimit,
+  getRequesterKey,
+  rejectDisallowedBrowserOrigin
+} from './_lib/http.js';
+
 // 内存缓存（5 分钟）
 const cache = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX = 20;
 
 /**
  * 递归解码 turbo-stream 索引引用格式
@@ -119,16 +127,39 @@ function setCache(key, data) {
  * 主处理函数
  */
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800');
+
+  if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
+    return;
+  }
 
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({
+      success: false,
+      error: 'Method not allowed'
+    });
   }
 
   const { type } = req.query;
+  const rateLimit = checkMemoryRateLimit(getRequesterKey(req), {
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: RATE_LIMIT_MAX
+  });
+
+  res.setHeader('X-RateLimit-Limit', RATE_LIMIT_MAX);
+  res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
+
+  if (!rateLimit.allowed) {
+    res.setHeader('Retry-After', rateLimit.retryAfter);
+    return res.status(429).json({
+      success: false,
+      error: '请求过于频繁，请稍后再试'
+    });
+  }
 
   if (!type || !['operators', 'weapons'].includes(type)) {
     return res.status(400).json({

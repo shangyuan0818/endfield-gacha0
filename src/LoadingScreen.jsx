@@ -10,28 +10,19 @@ const LoadingScreen = ({ onComplete }) => {
   const [stage, setStage] = useState('loading'); // loading | captcha | done
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState('INITIALIZING');
-  const [skipCaptcha, setSkipCaptcha] = useState(false);
+  const [skipCaptcha] = useState(() => {
+    const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
+    if (!lastVerifiedTime) return false;
+
+    const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
+    return timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION;
+  });
   
   // 验证码模式: 'minecraft' | 'terminal'
-  const [captchaMode, setCaptchaMode] = useState('minecraft');
-
-  // 检查是否需要显示验证码（Cloudflare风格的智能验证）
-  useEffect(() => {
-    const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
-    // 读取上次使用的验证码模式
+  const [captchaMode, setCaptchaMode] = useState(() => {
     const lastMode = localStorage.getItem('captchaModePreference');
-    if (lastMode) {
-      setCaptchaMode(lastMode);
-    }
-
-    if (lastVerifiedTime) {
-      const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
-      // 如果距离上次验证不到24小时，跳过验证码
-      if (timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION) {
-        setSkipCaptcha(true);
-      }
-    }
-  }, []);
+    return lastMode || 'minecraft';
+  });
 
   // 切换验证码模式
   const toggleCaptchaMode = () => {

@@ -3,19 +3,21 @@ import { RefreshCw, Terminal, ArrowRight } from 'lucide-react';
 
 const TerminalCaptcha = ({ onVerified }) => {
   const [inputValue, setInputValue] = useState('');
-  const [captchaCode, setCaptchaCode] = useState('');
   const [isWrong, setIsWrong] = useState(false);
   const canvasRef = useRef(null);
+  const [terminalId] = useState(() => `ID: ${Math.floor(Math.random() * 9999)}`);
 
   // 生成随机验证码
-  const generateCode = () => {
+  const generateCode = useCallback(() => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 去除易混淆字符
     let code = '';
     for (let i = 0; i < 4; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
-  };
+  }, []);
+
+  const [captchaCode, setCaptchaCode] = useState(() => generateCode());
 
   // 绘制验证码
   const drawCaptcha = useCallback((code) => {
@@ -59,7 +61,7 @@ const TerminalCaptcha = ({ onVerified }) => {
     ctx.font = 'bold 36px "Courier New", monospace';
     ctx.textBaseline = 'middle';
     const totalWidth = ctx.measureText(code).width + (code.length - 1) * 15;
-    let startX = (width - totalWidth) / 2;
+    const startX = (width - totalWidth) / 2;
 
     for (let i = 0; i < code.length; i++) {
       const char = code[i];
@@ -99,18 +101,15 @@ const TerminalCaptcha = ({ onVerified }) => {
 
   }, []);
 
-  // 初始化
-  useEffect(() => {
-    refreshCaptcha();
-  }, [drawCaptcha]);
-
-  const refreshCaptcha = () => {
-    const newCode = generateCode();
-    setCaptchaCode(newCode);
-    drawCaptcha(newCode);
+  const refreshCaptcha = useCallback(() => {
+    setCaptchaCode(generateCode());
     setInputValue('');
     setIsWrong(false);
-  };
+  }, [generateCode]);
+
+  useEffect(() => {
+    drawCaptcha(captchaCode);
+  }, [captchaCode, drawCaptcha]);
 
   const handleVerify = (e) => {
     e?.preventDefault();
@@ -157,7 +156,7 @@ const TerminalCaptcha = ({ onVerified }) => {
         {/* 提示文字 */}
         <div className="mt-3 mb-2 text-[10px] text-zinc-500 flex justify-between">
           <span>&gt; 请输入上方字符</span>
-          <span className="text-zinc-600">ID: {Math.floor(Math.random() * 9999)}</span>
+          <span className="text-zinc-600">{terminalId}</span>
         </div>
 
         {/* 输入区域 */}
