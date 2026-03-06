@@ -4,7 +4,7 @@ A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*,
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-[![Version](https://img.shields.io/badge/version-3.3.1-blue.svg)](https://github.com/MoguJunn/endfield-gacha/releases)
+[![Version](https://img.shields.io/github/package-json/v/MoguJunn/endfield-gacha?filename=gacha-analyzer%2Fpackage.json)](https://github.com/MoguJunn/endfield-gacha/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
@@ -80,7 +80,7 @@ VITE_APP_URL=https://your-domain.vercel.app  # 用于邮件回调和实时功能
 ### Vercel 部署
 
 1. Fork 仓库 → 在 [Supabase](https://supabase.com) 创建项目
-2. 执行 `supabase/migrations/` 中的所有迁移文件
+2. 先执行 `supabase/baseline/000_complete_schema.sql`，再执行 `supabase/migrations/` 中的标准前向迁移
 3. 启用 `global_stats` 表的 Realtime
 4. 配置 SMTP 服务
 5. 在 [Vercel](https://vercel.com) 导入仓库，配置环境变量后部署
@@ -99,9 +99,16 @@ npm start  # 默认 :3001
 
 ### 数据库
 
-需要的表：`profiles`、`pools`、`history`、`characters`、`admin_applications`、`announcements`、`blacklist`、`page_content`、`global_stats`、`rate_limits`、`tickets`、`ticket_replies`、`site_config`
+需要的表：`profiles`、`pools`、`history`、`characters`、`announcements`、`blacklist`、`page_content`、`global_stats`、`rate_limits`、`tickets`、`ticket_replies`、`site_config`
 
-迁移文件位于 `supabase/migrations/`，新部署时按顺序执行。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）。
+数据库脚本现已分层：
+
+- `supabase/baseline/`：新环境基线 schema
+- `supabase/migrations/`：标准前向迁移链
+- `supabase/manual/`：破坏性 / 高风险 / 回滚 / 数据回填脚本，仅手工执行
+- `supabase/docs/`：迁移说明文档
+
+新部署时先执行 `supabase/baseline/000_complete_schema.sql`，再按顺序执行 `supabase/migrations/`。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）。
 
 ## 项目结构
 
@@ -110,7 +117,10 @@ gacha-analyzer/
 ├── api/                    # Vercel Serverless Functions
 ├── backend/                # 独立后端代理服务
 ├── supabase/
-│   ├── migrations/         # 数据库迁移文件 (062+)
+│   ├── baseline/           # 新环境基线 schema
+│   ├── migrations/         # 标准前向迁移链
+│   ├── manual/             # 仅手工执行的危险 / 历史脚本
+│   ├── docs/               # Supabase 迁移说明
 │   └── functions/          # Supabase Edge Functions
 ├── src/
 │   ├── components/         # UI 组件

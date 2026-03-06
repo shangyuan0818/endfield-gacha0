@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { RARITY_CONFIG } from '../constants';
 import { getCachedUrgentClicks } from './cacheService';
 
 /**
@@ -14,6 +15,272 @@ import { getCachedUrgentClicks } from './cacheService';
 const STATS_TABLE = 'global_stats';
 const URGENT_BUTTON_KEY = 'urgent_button_clicks';
 const LAST_FETCH_KEY = 'urgent_button_last_fetch';
+const GLOBAL_STATS_CACHE_TTL = 30 * 1000;
+const CHARACTER_RANKING_CACHE_TTL = 30 * 1000;
+
+const globalStatsRequestState = {
+  data: null,
+  fetchedAt: 0,
+  promise: null
+};
+
+const characterRankingRequestState = {
+  data: null,
+  fetchedAt: 0,
+  promise: null
+};
+
+const userRankingRequestStates = new Map();
+
+function createEmptyTypeStats() {
+  return {
+    total: 0,
+    six: 0,
+    sixStarLimited: 0,
+    sixStarStandard: 0,
+    avgPity: null,
+    avgPityUp: null,
+    sparkCount: 0,
+    avgPityExcludingFree: null,
+    counts: {},
+    distribution: [],
+    chartData: []
+  };
+}
+
+export function createEmptyGlobalSummaryStats() {
+  return {
+    totalPulls: 0,
+    totalPullsWithFree: 0,
+    freePullCount: 0,
+    totalUsers: 0,
+    totalContributors: 0,
+    sixStarTotal: 0,
+    sixStarLimited: 0,
+    sixStarStandard: 0,
+    fiveStar: 0,
+    fourStar: 0,
+    counts: {},
+    distribution: [],
+    chartData: [],
+    byType: {
+      limited: createEmptyTypeStats(),
+      weapon: createEmptyTypeStats(),
+      standard: createEmptyTypeStats(),
+      character: createEmptyTypeStats()
+    },
+    avgPity: null,
+    charGift: 0,
+    weaponGiftLimited: 0,
+    weaponGiftStandard: 0,
+    giftTotal: 0
+  };
+}
+
+function isFreshCache(state, ttl) {
+  return state.data !== null && Date.now() - state.fetchedAt < ttl;
+}
+
+async function runCachedRequest(state, fetcher, { cacheTtl = 0, forceRefresh = false } = {}) {
+  if (!forceRefresh && cacheTtl > 0 && isFreshCache(state, cacheTtl)) {
+    return state.data;
+  }
+
+  if (!forceRefresh && state.promise) {
+    return state.promise;
+  }
+
+  state.promise = (async () => {
+    const result = await fetcher();
+    state.data = result;
+    state.fetchedAt = Date.now();
+    return result;
+  })();
+
+  try {
+    return await state.promise;
+  } finally {
+    state.promise = null;
+  }
+}
+
+function generateChartData(counts) {
+  if (!counts) return [];
+
+  const rawData = [
+    { name: '6星(限定)', value: counts['6'] || 0, color: RARITY_CONFIG[6].color },
+    { name: '6星(常驻)', value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
+    { name: '5星', value: counts['5'] || 0, color: RARITY_CONFIG[5].color },
+    { name: '4星', value: counts['4'] || 0, color: RARITY_CONFIG[4].color },
+  ].filter(item => item.value > 0);
+
+  const totalValue = rawData.reduce((sum, item) => sum + item.value, 0);
+
+  return rawData.map(item => {
+    const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+    let minPercent = 0;
+
+    if (item.name.includes('6星')) minPercent = 15;
+    else if (item.name.includes('5星')) minPercent = 20;
+
+    if (currentPercent < minPercent && totalValue > 0) {
+      return {
+        ...item,
+        displayValue: Math.ceil(totalValue * minPercent / 100)
+      };
+    }
+
+    return {
+      ...item,
+      displayValue: item.value
+    };
+  });
+}
+
+function processDistribution(distribution) {
+  if (!Array.isArray(distribution)) return [];
+
+  return distribution.map(item => ({
+    range: item.range,
+    limited: Number(item.limited) || 0,
+    standard: Number(item.standard) || 0
+  }));
+}
+
+function processTypeStats(typeData) {
+  if (!typeData) {
+    return createEmptyTypeStats();
+  }
+
+  return {
+    total: typeData.total || 0,
+    six: typeData.six || 0,
+    sixStarLimited: typeData.sixStarLimited || 0,
+    sixStarStandard: typeData.sixStarStandard || 0,
+    avgPity: typeData.avgPity || null,
+    avgPityUp: typeData.avgPityUp || null,
+    sparkCount: typeData.sparkCount || 0,
+    avgPityExcludingFree: typeData.avgPityExcludingFree || null,
+    counts: typeData.counts || {},
+    distribution: processDistribution(typeData.distribution),
+    chartData: generateChartData(typeData.counts)
+  };
+}
+
+function mergeDistributions(primary = [], secondary = []) {
+  const grouped = new Map();
+
+  [...primary, ...secondary].forEach(item => {
+    const existing = grouped.get(item.range);
+    if (existing) {
+      existing.limited += item.limited || 0;
+      existing.standard += item.standard || 0;
+      return;
+    }
+
+    grouped.set(item.range, {
+      range: item.range,
+      limited: item.limited || 0,
+      standard: item.standard || 0
+    });
+  });
+
+  return Array.from(grouped.values()).sort((left, right) => {
+    const leftStart = parseInt(left.range.split('-')[0], 10) || 91;
+    const rightStart = parseInt(right.range.split('-')[0], 10) || 91;
+    return leftStart - rightStart;
+  });
+}
+
+function normalizeGlobalStats(rpcData) {
+  if (!rpcData) {
+    return createEmptyGlobalSummaryStats();
+  }
+
+  const stats = {
+    totalPulls: rpcData.totalPulls || 0,
+    totalPullsWithFree: rpcData.totalPullsWithFree || rpcData.totalPulls || 0,
+    freePullCount: rpcData.freePullCount || 0,
+    totalUsers: rpcData.totalUsers || 0,
+    totalContributors: rpcData.totalContributors || 0,
+    sixStarTotal: rpcData.sixStarTotal || 0,
+    sixStarLimited: rpcData.sixStarLimited || 0,
+    sixStarStandard: rpcData.sixStarStandard || 0,
+    fiveStar: rpcData.fiveStar || 0,
+    fourStar: rpcData.fourStar || 0,
+    counts: rpcData.counts || {},
+    distribution: processDistribution(rpcData.distribution),
+    chartData: generateChartData(rpcData.counts),
+    byType: {
+      limited: processTypeStats(rpcData.byType?.limited),
+      weapon: processTypeStats(rpcData.byType?.weapon),
+      standard: processTypeStats(rpcData.byType?.standard)
+    },
+    avgPity: rpcData.avgPity || null,
+    charGift: rpcData.charGift || 0,
+    weaponGiftLimited: rpcData.weaponGiftLimited || 0,
+    weaponGiftStandard: rpcData.weaponGiftStandard || 0,
+    giftTotal: rpcData.giftTotal || 0
+  };
+
+  const limitedStats = stats.byType.limited;
+  const standardStats = stats.byType.standard;
+  const limitedSix = limitedStats.six || 0;
+  const standardSix = standardStats.six || 0;
+  const totalSix = limitedSix + standardSix;
+
+  let characterAvgPity = null;
+  if (totalSix > 0 && (limitedStats.avgPity || standardStats.avgPity)) {
+    const limitedAvg = Number(limitedStats.avgPity) || 0;
+    const standardAvg = Number(standardStats.avgPity) || 0;
+    characterAvgPity = ((limitedAvg * limitedSix + standardAvg * standardSix) / totalSix).toFixed(1);
+  }
+
+  let characterAvgPityExcludingFree = null;
+  if (totalSix > 0 && (limitedStats.avgPityExcludingFree || standardStats.avgPityExcludingFree)) {
+    const limitedAvgExcludingFree = Number(limitedStats.avgPityExcludingFree) || Number(limitedStats.avgPity) || 0;
+    const standardAvgExcludingFree = Number(standardStats.avgPityExcludingFree) || Number(standardStats.avgPity) || 0;
+    characterAvgPityExcludingFree = ((limitedAvgExcludingFree * limitedSix + standardAvgExcludingFree * standardSix) / totalSix).toFixed(1);
+  }
+
+  stats.byType.character = {
+    total: limitedStats.total + standardStats.total,
+    six: limitedStats.six + standardStats.six,
+    sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
+    sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
+    avgPity: characterAvgPity,
+    avgPityUp: null,
+    sparkCount: limitedStats.sparkCount || 0,
+    avgPityExcludingFree: characterAvgPityExcludingFree,
+    counts: {
+      '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+      '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+      '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+      '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+    },
+    distribution: mergeDistributions(limitedStats.distribution, standardStats.distribution),
+    chartData: generateChartData({
+      '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+      '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+      '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+      '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+    })
+  };
+
+  return stats;
+}
+
+function getUserRankingRequestState(userId) {
+  if (!userRankingRequestStates.has(userId)) {
+    userRankingRequestStates.set(userId, {
+      data: null,
+      fetchedAt: 0,
+      promise: null
+    });
+  }
+
+  return userRankingRequestStates.get(userId);
+}
 
 /**
  * 获取"急"按钮的点击次数
@@ -222,27 +489,65 @@ export function subscribeToUrgentButtonClicks(callback) {
 }
 
 /**
+ * 获取全服统计概览
+ * 单飞 + 短 TTL 缓存，避免统计页和初始化阶段重复打重 RPC
+ * @param {boolean} forceRefresh - 是否强制刷新
+ * @returns {Promise<Object|null>} 归一化后的全服统计数据
+ */
+export async function getGlobalSummaryStats(forceRefresh = false) {
+  try {
+    if (!supabase) {
+      console.warn('[statsService] Supabase 未配置，无法获取全服统计');
+      return createEmptyGlobalSummaryStats();
+    }
+
+    return await runCachedRequest(
+      globalStatsRequestState,
+      async () => {
+        const { data, error } = await supabase.rpc('get_global_stats');
+
+        if (error) {
+          throw error;
+        }
+
+        return normalizeGlobalStats(data);
+      },
+      { cacheTtl: GLOBAL_STATS_CACHE_TTL, forceRefresh }
+    );
+  } catch (error) {
+    console.error('[statsService] 获取全服统计失败:', error);
+    return globalStatsRequestState.data || createEmptyGlobalSummaryStats();
+  }
+}
+
+/**
  * 获取角色出货排名统计
+ * 全服排行榜变化慢，复用短 TTL 缓存避免 StrictMode 和切页重复请求
  * @returns {Promise<Object>} 角色排名数据
  */
-export async function getCharacterRankingStats() {
+export async function getCharacterRankingStats(forceRefresh = false) {
   try {
     if (!supabase) {
       console.warn('[statsService] Supabase 未配置，无法获取角色排名');
       return null;
     }
 
-    const { data, error } = await supabase.rpc('get_character_ranking_stats');
+    return await runCachedRequest(
+      characterRankingRequestState,
+      async () => {
+        const { data, error } = await supabase.rpc('get_character_ranking_stats');
 
-    if (error) {
-      console.error('[statsService] 获取角色排名失败:', error);
-      return null;
-    }
+        if (error) {
+          throw error;
+        }
 
-    return data;
+        return data;
+      },
+      { cacheTtl: CHARACTER_RANKING_CACHE_TTL, forceRefresh }
+    );
   } catch (error) {
-    console.error('[statsService] 获取角色排名异常:', error);
-    return null;
+    console.error('[statsService] 获取角色排名失败:', error);
+    return characterRankingRequestState.data || null;
   }
 }
 
@@ -263,17 +568,23 @@ export async function getUserRankingStats(userId) {
       return null;
     }
 
-    const { data, error } = await supabase.rpc('get_user_ranking_stats', { p_user_id: userId });
+    const requestState = getUserRankingRequestState(userId);
 
-    if (error) {
-      console.error('[statsService] 获取用户排名失败:', error);
-      return null;
-    }
+    return await runCachedRequest(
+      requestState,
+      async () => {
+        const { data, error } = await supabase.rpc('get_user_ranking_stats', { p_user_id: userId });
 
-    return data;
+        if (error) {
+          throw error;
+        }
+
+        return data;
+      }
+    );
   } catch (error) {
-    console.error('[statsService] 获取用户排名异常:', error);
-    return null;
+    console.error('[statsService] 获取用户排名失败:', error);
+    return getUserRankingRequestState(userId).data || null;
   }
 }
 

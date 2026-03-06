@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
 
 // 内存缓存
-let cache = {
+const cache = {
   urgentClicks: null,
   lastFetch: 0,
   pools: null,
@@ -25,14 +26,18 @@ function getSupabaseClient() {
 }
 
 export default async function handler(req, res) {
-  // 设置 CORS 头
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
 
+  if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
+    return;
+  }
+
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
+  }
+
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
   const { type } = req.query;
