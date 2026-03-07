@@ -19,8 +19,14 @@ dist-ssr
 
 # Temp files
 nul
+artifacts/
+archive/
+scratch/
+coverage/
+*.tmp
+*.bak
 
-# Backend services (敏感代码，不上传到公开仓库)
+# Backend services / 抓取链路（因合规与版权风险保留私有，不进入公开仓库）
 backend/
 dev-proxy.js
 api/hg-proxy.js

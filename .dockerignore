@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+coverage
+artifacts
+archive
+scratch
+*.log
+*.tmp
+*.bak
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+backend
+dev-proxy.js

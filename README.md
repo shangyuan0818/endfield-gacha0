@@ -46,7 +46,7 @@ A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*,
 | 数据可视化 | Recharts 3 |
 | 状态管理 | Zustand 5 |
 | 后端服务 | Supabase (Auth + PostgreSQL + Realtime + Edge Functions) |
-| 部署 | Vercel (前端 + Serverless) / Railway / Render (后端代理) |
+| 部署 | Vercel (前端 + Serverless) + Supabase |
 
 ## 快速开始 / Getting Started
 
@@ -61,9 +61,12 @@ git clone https://github.com/MoguJunn/endfield-gacha.git
 cd gacha-analyzer
 npm install
 cp .env.example .env  # 编辑 .env 填入 Supabase 配置
-npm run dev            # 启动前端
-npm run dev:proxy      # 另一个终端，启动代理服务器
+npm run dev            # 启动前端（公开仓库默认可运行）
 ```
+
+公开仓库默认包含前端、Serverless API、Supabase migrations 和 Edge Functions。
+
+涉及游戏数据抓取的本地代理 / 独立后端因为合规与版权风险默认不纳入本仓库。如需导入链路，请在私有环境中接入单独维护的代理服务；否则公开仓库仍可用于基础浏览、统计、登录、云同步和管理功能开发。
 
 ## 环境变量
 
@@ -71,6 +74,7 @@ npm run dev:proxy      # 另一个终端，启动代理服务器
 VITE_SUPABASE_URL=你的Supabase项目URL
 VITE_SUPABASE_ANON_KEY=你的Supabase匿名密钥
 VITE_APP_URL=https://your-domain.vercel.app  # 用于邮件回调和实时功能
+VITE_PROXY_URL=https://your-private-proxy.example.com  # 可选，仅私有导入代理使用
 ```
 
 **SMTP 配置**：Supabase 免费版仅 2 封/小时，建议配置自定义 SMTP（推荐 Resend，3000 封/月免费）。
@@ -85,17 +89,9 @@ VITE_APP_URL=https://your-domain.vercel.app  # 用于邮件回调和实时功能
 4. 配置 SMTP 服务
 5. 在 [Vercel](https://vercel.com) 导入仓库，配置环境变量后部署
 
-### 后端代理（可选）
+### 私有代理（可选）
 
-若 Vercel Serverless 超时，可独立部署后端代理：
-
-```bash
-cd backend
-npm install
-npm start  # 默认 :3001
-```
-
-支持 Railway / Render / Docker / 自建 VPS，详见 `backend/DEPLOYMENT.md`。
+涉及游戏数据抓取的代理/后端不属于当前公开仓库的审计与发布范围。若你确实需要导入链路，请在私有仓库或私有部署环境中单独维护，并通过 `VITE_PROXY_URL` 接入；公开仓库本身不再提供 `backend/` 目录或可直接运行的抓取服务实现。
 
 ### 数据库
 
@@ -108,20 +104,25 @@ npm start  # 默认 :3001
 - `supabase/manual/`：破坏性 / 高风险 / 回滚 / 数据回填脚本，仅手工执行
 - `supabase/docs/`：迁移说明文档
 
-新部署时先执行 `supabase/baseline/000_complete_schema.sql`，再按顺序执行 `supabase/migrations/`。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）。
+新部署时先执行 `supabase/baseline/000_complete_schema.sql`，再按顺序执行 `supabase/migrations/`。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）：
+
+```bash
+supabase functions deploy admin-create-user
+supabase functions deploy admin-delete-user
+```
 
 ## 项目结构
 
 ```
 gacha-analyzer/
 ├── api/                    # Vercel Serverless Functions
-├── backend/                # 独立后端代理服务
 ├── supabase/
 │   ├── baseline/           # 新环境基线 schema
 │   ├── migrations/         # 标准前向迁移链
 │   ├── manual/             # 仅手工执行的危险 / 历史脚本
 │   ├── docs/               # Supabase 迁移说明
 │   └── functions/          # Supabase Edge Functions
+├── scripts/                # 公开仓库内的开发辅助脚本
 ├── src/
 │   ├── components/         # UI 组件
 │   │   ├── admin/          # 管理面板 (panels/)
@@ -136,7 +137,7 @@ gacha-analyzer/
 │   ├── features/           # 功能模块 (simulator/ import/)
 │   ├── mobile/             # 移动端 (components/ layouts/ views/)
 │   └── constants/          # 常量配置
-├── docs/                   # 文档与截图
+├── docs/                   # 补充文档（screenshots/、reviews/）
 ├── vite.config.js
 ├── vercel.json
 └── .env.example

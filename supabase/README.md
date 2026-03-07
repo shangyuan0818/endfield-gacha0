@@ -22,6 +22,8 @@
 2. 再按编号执行 `migrations/` 中的标准前向迁移
 3. 仅在明确场景下手工执行 `manual/` 中的脚本
 
+当前标准链已在后段显式移除 `admin_applications` 历史遗留表；不要再把管理员申请流重新写回 baseline 或新迁移。
+
 ## 维护约束
 
 - 不要把说明文档放回 `migrations/`

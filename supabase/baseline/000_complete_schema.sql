@@ -131,45 +131,9 @@ CREATE POLICY "history_delete_policy" ON public.history
 
 COMMENT ON TABLE public.history IS '抽卡历史记录表';
 
--- ==================== 1.4 管理员申请表 ====================
-CREATE TABLE IF NOT EXISTS public.admin_applications (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  reason TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  reviewed_by UUID REFERENCES public.profiles(id),
-  reviewed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_applications_user_id ON public.admin_applications(user_id);
-CREATE INDEX IF NOT EXISTS idx_admin_applications_status ON public.admin_applications(status);
-
-ALTER TABLE public.admin_applications ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "admin_applications_select_own" ON public.admin_applications
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "admin_applications_select_super" ON public.admin_applications
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'super_admin')
-  );
-
-CREATE POLICY "admin_applications_insert_policy" ON public.admin_applications
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "admin_applications_update_super" ON public.admin_applications
-  FOR UPDATE USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'super_admin')
-  );
-
-CREATE POLICY "admin_applications_delete_super" ON public.admin_applications
-  FOR DELETE USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'super_admin')
-  );
-
-COMMENT ON TABLE public.admin_applications IS '管理员申请表';
+-- ==================== 1.4 管理员申请表（已废弃） ====================
+-- `admin_applications` 已从运行时移除，不再纳入新环境 baseline。
+-- 历史链中的旧迁移仍可能创建该表，标准链末尾会在 073 迁移中显式清理。
 
 -- ============================================
 -- 第二部分：功能表

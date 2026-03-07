@@ -561,7 +561,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
       </div>
 
       {/* 样式 */}
-      <style jsx>{`
+      <style>{`
         .minecraft-captcha-container {
           border: 1px solid #d3d3d3;
           box-shadow: 0 1px 3px 1px rgba(0, 0, 0, 0.06);

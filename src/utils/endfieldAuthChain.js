@@ -95,7 +95,7 @@ async function safeParseJSON(response, context = 'API') {
   // 检查响应状态
   if (!response.ok && response.status === 0) {
     throw new ServerConnectionError(
-      `无法连接到代理服务器，请检查后端服务是否已启动（npm run dev:full）`
+      '无法连接到代理服务器，请确认你已经接入单独维护的私有代理服务'
     );
   }
 
@@ -105,7 +105,7 @@ async function safeParseJSON(response, context = 'API') {
   // 检查是否为空响应
   if (!text || text.trim() === '') {
     throw new ServerConnectionError(
-      `${context}返回空响应，请检查后端代理服务器是否正常运行`
+      `${context}返回空响应，请检查私有代理服务是否正常运行`
     );
   }
 
@@ -116,11 +116,11 @@ async function safeParseJSON(response, context = 'API') {
     // JSON 解析失败
     if (text.includes('<!DOCTYPE') || text.includes('<html')) {
       throw new ServerConnectionError(
-        `${context}返回了 HTML 页面而非 JSON，可能是代理服务器未启动或路由配置错误`
+        `${context}返回了 HTML 页面而非 JSON，可能是私有代理未启动或路由配置错误`
       );
     }
     throw new ServerConnectionError(
-      `${context}返回了无效的 JSON 数据，请检查后端服务器状态。原始响应: ${text.substring(0, 100)}...`
+      `${context}返回了无效的 JSON 数据，请检查私有代理服务状态。原始响应: ${text.substring(0, 100)}...`
     );
   }
 }

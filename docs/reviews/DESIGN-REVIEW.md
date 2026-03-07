@@ -107,9 +107,9 @@ const setSyncing = useUIStore(state => state.setSyncing); // useUIStore 中不�
 | 文件 | 层级 | 直接操作的表 |
 |------|------|------------|
 | `useCloudSync.js` | Hook | pools, history, profiles |
-| `useAdminData.js` | Hook | profiles, admin_applications, blacklist, announcements, page_content |
+| `useAdminData.js` | Hook | profiles, blacklist, announcements, page_content |
 | `useUserDataViewer.js` | Hook | pools, history |
-| `useUserRole.js` | Hook | profiles, admin_applications |
+| `useUserRole.js` | Hook | profiles |
 | `ImportManager.jsx` | 组件 | pools, history |
 | `TicketPanel.jsx` | 组件 | tickets |
 | `GachaSimulator.jsx` | 组件 | pools, pool_characters, characters |

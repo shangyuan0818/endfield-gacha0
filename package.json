@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:proxy": "node dev-proxy.js",
-    "dev:full": "concurrently \"npm run dev\" \"npm run dev:proxy\"",
+    "dev:proxy": "node scripts/private-proxy-notice.mjs",
+    "dev:full": "npm run dev:proxy && npm run dev",
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

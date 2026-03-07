@@ -204,7 +204,7 @@ const LoadingScreen = ({ onComplete }) => {
       )}
 
       {/* 动画样式 */}
-      <style jsx>{`
+      <style>{`
         @keyframes scan {
           0% { top: -10%; }
           100% { top: 110%; }
