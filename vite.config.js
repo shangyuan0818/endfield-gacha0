@@ -13,41 +13,8 @@ export default defineConfig({
             return;
           }
 
-          if (
-            id.includes('react-markdown')
-            || id.includes('remark-gfm')
-            || id.includes('rehype-raw')
-            || id.includes('rehype-sanitize')
-            || id.includes('@uiw/react-md-editor')
-            || id.includes('dompurify')
-          ) {
-            return 'markdown-vendor';
-          }
-
-          if (
-            id.includes('recharts')
-            || id.includes('/d3-')
-            || id.includes('/victory-vendor/')
-          ) {
-            return 'charts-vendor';
-          }
-
           if (id.includes('@supabase/')) {
             return 'supabase-vendor';
-          }
-
-          if (id.includes('react-window') || id.includes('react-virtualized-auto-sizer')) {
-            return 'virtual-list-vendor';
-          }
-
-          if (
-            id.includes('react-router')
-            || id.includes('react-dom')
-            || id.includes('/react/')
-            || id.includes('/scheduler/')
-            || id.includes('zustand')
-          ) {
-            return 'react-vendor';
           }
 
           if (id.includes('canvas-confetti')) {
