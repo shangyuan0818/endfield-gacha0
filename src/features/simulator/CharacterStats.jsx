@@ -172,7 +172,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
       )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         .scrollbar-thin::-webkit-scrollbar {
           width: 4px;
         }

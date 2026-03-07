@@ -23,7 +23,7 @@ const PullAnimation = () => {
           </div>
        </div>
 
-       <style jsx>{`
+       <style>{`
          @keyframes scan-fast {
            0% { top: -20%; opacity: 0; }
            50% { opacity: 1; }

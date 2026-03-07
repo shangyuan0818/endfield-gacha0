@@ -1,644 +1,77 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  MessageSquare,
-  Plus,
-  Send,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  XCircle,
-  ChevronDown,
-  ChevronUp,
-  User,
-  Shield,
-  Filter,
-  RefreshCw,
-  Bug,
-  Lightbulb,
-  HelpCircle,
-  Database,
-  MoreHorizontal,
-  X,
-  Smile
-} from 'lucide-react';
-
-// 常用颜表情列表
-const EMOJI_LIST = [
-  // 表情
-  '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂',
-  '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
-  '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨',
-  '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔',
-  '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵',
-  '🥶', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐', '😕',
-  '😟', '🙁', '☹️', '😮', '😯', '😲', '😳', '🥺', '😦', '😧',
-  '😨', '😰', '😥', '😢', '😭', '😱', '😖', '😣', '😞', '😓',
-  '😩', '😫', '🥱', '😤', '😡', '😠', '🤬', '😈', '👿', '💀',
-  // 手势
-  '👍', '👎', '👌', '🤌', '🤏', '✌️', '🤞', '🤟', '🤘', '🤙',
-  '👈', '👉', '👆', '👇', '☝️', '👋', '🤚', '🖐️', '✋', '🖖',
-  '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💪', '🦾', '🦿',
-  // 心形和符号
-  '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔',
-  '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️',
-  '✨', '⭐', '🌟', '💫', '🔥', '💥', '💢', '💦', '💨', '🎉',
-  '🎊', '🎈', '🎁', '🏆', '🥇', '🥈', '🥉', '⚡', '☀️', '🌈'
-];
-
-/**
- * 表情选择器组件
- */
-const EmojiPicker = ({ onSelect, onClose }) => {
-  const pickerRef = useRef(null);
-
-  // 点击外部关闭
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [onClose]);
-
-  return (
-    <div
-      ref={pickerRef}
-      className="absolute bottom-full left-0 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-sm shadow-lg z-50 p-2 w-72"
-    >
-      <div className="grid grid-cols-10 gap-1 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-300 dark:scrollbar-thumb-zinc-700">
-        {EMOJI_LIST.map((emoji, idx) => (
-          <button
-            key={idx}
-            type="button"
-            onClick={() => {
-              onSelect(emoji);
-              onClose();
-            }}
-            className="w-6 h-6 flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-sm transition-colors text-base"
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, MessageSquare, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicProfileService';
+import CreateTicketForm from './tickets/CreateTicketForm';
+import TicketCard from './tickets/TicketCard';
+import { TICKET_STATUS } from './tickets/constants';
 
-/**
- * 回复输入组件（支持多行和表情）
- */
-const ReplyInput = ({ value, onChange, onSubmit, submitting }) => {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const textareaRef = useRef(null);
-
-  const handleEmojiSelect = (emoji) => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const newValue = value.slice(0, start) + emoji + value.slice(end);
-      onChange(newValue);
-      // 恢复光标位置
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
-        textarea.focus();
-      }, 0);
-    } else {
-      onChange(value + emoji);
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    // Ctrl+Enter 或 Cmd+Enter 发送
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      onSubmit();
-    }
-  };
-
-  return (
-    <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
-      <div className="flex flex-col gap-2">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="输入回复内容... (Ctrl+Enter 发送)"
-          className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px] max-h-[120px] resize-y"
-          onKeyDown={handleKeyDown}
-          rows={2}
-        />
-        <div className="flex justify-between items-center">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-sm transition-colors"
-              title="插入表情"
-            >
-              <Smile size={18} />
-            </button>
-            {showEmojiPicker && (
-              <EmojiPicker
-                onSelect={handleEmojiSelect}
-                onClose={() => setShowEmojiPicker(false)}
-              />
-            )}
-          </div>
-          <button
-            onClick={onSubmit}
-            disabled={!value.trim() || submitting}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
-          >
-            <Send size={14} />
-            {submitting ? '发送中...' : '发送'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// 工单类型配置
-const TICKET_TYPES = {
-  bug: { label: 'Bug反馈', icon: Bug, color: 'text-red-500 bg-red-50 border-red-200' },
-  feature: { label: '功能建议', icon: Lightbulb, color: 'text-amber-500 bg-amber-50 border-amber-200' },
-  question: { label: '使用咨询', icon: HelpCircle, color: 'text-blue-500 bg-blue-50 border-blue-200' },
-  data_issue: { label: '数据问题', icon: Database, color: 'text-purple-500 bg-purple-50 border-purple-200' },
-  other: { label: '其他', icon: MoreHorizontal, color: 'text-slate-500 bg-slate-50 border-slate-200' }
-};
-
-// 工单状态配置
-const TICKET_STATUS = {
-  pending: { label: '待处理', icon: Clock, color: 'text-amber-600 bg-amber-50' },
-  processing: { label: '处理中', icon: RefreshCw, color: 'text-blue-600 bg-blue-50' },
-  resolved: { label: '已解决', icon: CheckCircle2, color: 'text-green-600 bg-green-50' },
-  rejected: { label: '已拒绝', icon: XCircle, color: 'text-red-600 bg-red-50' },
-  closed: { label: '已关闭', icon: X, color: 'text-slate-600 bg-slate-50' }
-};
-
-// 优先级配置
-const PRIORITY_CONFIG = {
-  low: { label: '低', color: 'bg-slate-100 text-slate-600' },
-  medium: { label: '中', color: 'bg-blue-100 text-blue-600' },
-  high: { label: '高', color: 'bg-orange-100 text-orange-600' },
-  urgent: { label: '紧急', color: 'bg-red-100 text-red-600' }
-};
-
-/**
- * 创建工单表单
- */
-const CreateTicketForm = ({ userRole, onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState({
-    type: 'question',
-    title: '',
-    content: '',
-    priority: 'medium',
-    target_role: userRole === 'admin' ? 'super_admin' : 'admin'
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.title.trim() || !formData.content.trim()) return;
-
-    setSubmitting(true);
-    try {
-      await onSubmit(formData);
-      setFormData({
-        type: 'question',
-        title: '',
-        content: '',
-        priority: 'medium',
-        target_role: userRole === 'admin' ? 'super_admin' : 'admin'
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* 类型选择 */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
-          工单类型
-        </label>
-        <div className="grid grid-cols-5 gap-2">
-          {Object.entries(TICKET_TYPES).map(([key, config]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFormData(prev => ({ ...prev, type: key }))}
-              className={`p-2 rounded-none border-2 transition-all flex flex-col items-center gap-1 ${
-                formData.type === key
-                  ? config.color + ' border-current'
-                  : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300'
-              }`}
-            >
-              <config.icon size={18} />
-              <span className="text-xs">{config.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* 标题 */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
-          标题
-        </label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-          placeholder="简要描述您的问题..."
-          className="w-full px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          maxLength={100}
-          required
-        />
-      </div>
-
-      {/* 内容 */}
-      <div>
-        <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
-          详细描述
-        </label>
-        <textarea
-          value={formData.content}
-          onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-          placeholder="请详细描述您遇到的问题或建议..."
-          className="w-full px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[120px] resize-none"
-          maxLength={2000}
-          required
-        />
-        <div className="text-xs text-slate-400 mt-1 text-right">
-          {formData.content.length}/2000
-        </div>
-      </div>
-
-      {/* 优先级（仅管理员可设置高优先级） */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">
-            优先级
-          </label>
-          <select
-            value={formData.priority}
-            onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
-            className="w-full px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="low">低</option>
-            <option value="medium">中</option>
-            {(userRole === 'admin' || userRole === 'super_admin') && (
-              <>
-                <option value="high">高</option>
-                <option value="urgent">紧急</option>
-              </>
-            )}
-          </select>
-        </div>
-      </div>
-
-      {/* 按钮 */}
-      <div className="flex justify-end gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-none transition-colors"
-        >
-          取消
-        </button>
-        <button
-          type="submit"
-          disabled={submitting || !formData.title.trim() || !formData.content.trim()}
-          className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-none transition-colors disabled:opacity-50 flex items-center gap-2"
-        >
-          <Send size={16} />
-          {submitting ? '提交中...' : '提交工单'}
-        </button>
-      </div>
-    </form>
-  );
-};
-
-/**
- * 工单详情卡片
- */
-const TicketCard = ({ ticket, userRole, currentUserId, onStatusChange, onReply, expanded, onToggle }) => {
-  const [replyContent, setReplyContent] = useState('');
-  const [replies, setReplies] = useState([]);
-  const [loadingReplies, setLoadingReplies] = useState(false);
-  const [submittingReply, setSubmittingReply] = useState(false);
-
-  const typeConfig = TICKET_TYPES[ticket.type] || TICKET_TYPES.other;
-  const statusConfig = TICKET_STATUS[ticket.status] || TICKET_STATUS.pending;
-  const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.medium;
-  const isOwner = ticket.user_id === currentUserId;
-  const canManage = userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin');
-
-  // 加载回复
-  const loadReplies = useCallback(async () => {
-    setLoadingReplies(true);
-    try {
-      const { data, error } = await supabase
-        .from('ticket_replies')
-        .select('*')
-        .eq('ticket_id', ticket.id)
-        .order('created_at', { ascending: true });
-
-      if (!error && data) {
-        const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
-        setReplies(attachPublicProfiles(data, profilesMap));
-      }
-    } finally {
-      setLoadingReplies(false);
-    }
-  }, [ticket.id]);
-
-  useEffect(() => {
-    if (expanded && replies.length === 0) {
-      loadReplies();
-    }
-  }, [expanded, loadReplies, replies.length]);
-
-  const handleSubmitReply = async () => {
-    if (!replyContent.trim()) return;
-
-    setSubmittingReply(true);
-    try {
-      const { error } = await supabase
-        .from('ticket_replies')
-        .insert({
-          ticket_id: ticket.id,
-          user_id: currentUserId,
-          content: replyContent.trim()
-        });
-
-      if (!error) {
-        setReplyContent('');
-        loadReplies();
-        onReply?.();
-      }
-    } finally {
-      setSubmittingReply(false);
-    }
-  };
-
-  return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden">
-      {/* 头部 */}
-      <div
-        onClick={onToggle}
-        className="p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-950 transition-colors"
-      >
-        <div className="flex items-start gap-3">
-          {/* 类型图标 */}
-          <div className={`p-2 rounded-none ${typeConfig.color}`}>
-            <typeConfig.icon size={18} />
-          </div>
-
-          {/* 主要信息 */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h4 className="font-medium text-slate-800 dark:text-zinc-100 truncate">
-                {ticket.title}
-              </h4>
-              <span className={`text-xs px-2 py-0.5 rounded-sm ${statusConfig.color}`}>
-                {statusConfig.label}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-sm ${priorityConfig.color}`}>
-                {priorityConfig.label}
-              </span>
-            </div>
-
-            {/* 发起人信息 */}
-            <div className="flex items-center gap-2 mb-1">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-5 h-5 rounded-sm flex items-center justify-center text-white text-[10px] ${
-                  ticket.profiles?.role === 'super_admin' ? 'bg-purple-500' :
-                  ticket.profiles?.role === 'admin' ? 'bg-indigo-500' : 'bg-slate-500'
-                }`}>
-                  {ticket.profiles?.role === 'super_admin' ? <Shield size={10} /> :
-                   ticket.profiles?.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
-                </div>
-                <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-                  {ticket.profiles?.username || '未知用户'}
-                </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  ticket.profiles?.role === 'super_admin' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
-                  ticket.profiles?.role === 'admin' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' :
-                  'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
-                }`}>
-                  {ticket.profiles?.role === 'super_admin' ? '超管' :
-                   ticket.profiles?.role === 'admin' ? '管理员' : '用户'}
-                </span>
-              </div>
-            </div>
-
-            {/* 时间和目标信息 */}
-            <div className="text-xs text-slate-500 dark:text-zinc-500 flex items-center gap-3">
-              <span className="flex items-center gap-1">
-                <Clock size={12} />
-                {new Date(ticket.created_at).toLocaleString()}
-              </span>
-              {ticket.target_role === 'super_admin' && (
-                <span className="flex items-center gap-1 text-purple-500">
-                  <Shield size={12} />
-                  发送给超管
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* 展开图标 */}
-          <div className="text-slate-400">
-            {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-          </div>
-        </div>
-      </div>
-
-      {/* 展开内容 */}
-      {expanded && (
-        <div className="border-t border-zinc-100 dark:border-zinc-800">
-          {/* 工单内容 */}
-          <div className="p-4 bg-slate-50 dark:bg-zinc-950">
-            <p className="text-sm text-slate-700 dark:text-zinc-300 whitespace-pre-wrap">
-              {ticket.content}
-            </p>
-          </div>
-
-          {/* 状态操作（仅管理员） */}
-          {canManage && ticket.status !== 'closed' && (
-            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-2">
-              {ticket.status === 'pending' && (
-                <button
-                  onClick={() => onStatusChange(ticket.id, 'processing')}
-                  className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-none transition-colors"
-                >
-                  开始处理
-                </button>
-              )}
-              {(ticket.status === 'pending' || ticket.status === 'processing') && (
-                <>
-                  <button
-                    onClick={() => onStatusChange(ticket.id, 'resolved')}
-                    className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded-none transition-colors"
-                  >
-                    标记解决
-                  </button>
-                  <button
-                    onClick={() => onStatusChange(ticket.id, 'rejected')}
-                    className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-none transition-colors"
-                  >
-                    拒绝
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => onStatusChange(ticket.id, 'closed')}
-                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-none transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          )}
-
-          {/* 回复列表 */}
-          <div className="border-t border-zinc-100 dark:border-zinc-800">
-            {loadingReplies ? (
-              <div className="p-4 text-center text-slate-400">
-                <RefreshCw size={16} className="animate-spin inline mr-2" />
-                加载回复中...
-              </div>
-            ) : replies.length > 0 ? (
-              <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {replies.map(reply => (
-                  <div key={reply.id} className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-6 h-6 rounded-sm flex items-center justify-center text-white text-xs ${
-                        reply.profiles?.role === 'super_admin' ? 'bg-purple-500' :
-                        reply.profiles?.role === 'admin' ? 'bg-indigo-500' : 'bg-slate-500'
-                      }`}>
-                        {reply.profiles?.role === 'super_admin' ? <Shield size={12} /> :
-                         reply.profiles?.role === 'admin' ? <Shield size={12} /> : <User size={12} />}
-                      </div>
-                      <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                        {reply.profiles?.username || '用户'}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {new Date(reply.created_at).toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-slate-600 dark:text-zinc-400 pl-8 whitespace-pre-wrap">
-                      {reply.content}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-4 text-center text-slate-400 text-sm">
-                暂无回复
-              </div>
-            )}
-          </div>
-
-          {/* 回复输入框 */}
-          {ticket.status !== 'closed' && (isOwner || canManage) && (
-            <ReplyInput
-              value={replyContent}
-              onChange={setReplyContent}
-              onSubmit={handleSubmitReply}
-              submitting={submittingReply}
-            />
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/**
- * 工单面板主组件
- */
 const TicketPanel = React.memo(({ user, userRole, showToast }) => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [expandedTicketId, setExpandedTicketId] = useState(null);
-  const [filter, setFilter] = useState('all'); // all, my, pending
-
-  // 工单表是否存在
+  const [filter, setFilter] = useState('all');
   const [tableExists, setTableExists] = useState(true);
 
-  // 加载工单
   const loadTickets = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
     try {
-      const query = supabase
+      const { data, error } = await supabase
         .from('tickets')
         .select('*')
         .order('created_at', { ascending: false });
 
-      const { data, error } = await query;
-
       if (error) {
-        // 检查是否是表不存在的错误
         if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
           setTableExists(false);
           setTickets([]);
         } else {
-          // 加载工单失败，显示错误提示
           showToast?.('加载工单失败', 'error');
         }
-      } else {
-        setTableExists(true);
-        const profilesMap = await loadPublicProfilesMap((data || []).map(ticket => ticket.user_id));
-        setTickets(attachPublicProfiles(data || [], profilesMap));
+        return;
       }
+
+      setTableExists(true);
+      const profilesMap = await loadPublicProfilesMap((data || []).map((ticket) => ticket.user_id));
+      setTickets(attachPublicProfiles(data || [], profilesMap));
+    } catch (error) {
+      showToast?.(`加载工单失败：${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
-  }, [user, showToast]);
+  }, [showToast, user]);
 
   useEffect(() => {
     loadTickets();
   }, [loadTickets]);
 
-  // 创建工单
   const handleCreateTicket = async (formData) => {
     try {
       const { error } = await supabase
         .from('tickets')
         .insert({
           ...formData,
-          user_id: user.id
+          user_id: user.id,
         });
 
       if (error) throw error;
 
       showToast?.('工单提交成功', 'success');
       setShowCreateForm(false);
-      loadTickets();
+      await loadTickets();
     } catch (error) {
-      // 提交工单失败，显示错误提示
-      showToast?.('提交工单失败：' + error.message, 'error');
+      showToast?.(`提交工单失败：${error.message}`, 'error');
     }
   };
 
-  // 更新工单状态
   const handleStatusChange = async (ticketId, newStatus) => {
     try {
       const updateData = {
         status: newStatus,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       if (newStatus === 'resolved') {
@@ -653,27 +86,24 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
       if (error) throw error;
 
       showToast?.(`工单已${TICKET_STATUS[newStatus]?.label || '更新'}`, 'success');
-      loadTickets();
+      await loadTickets();
     } catch (error) {
-      // 更新工单失败，显示错误提示
-      showToast?.('更新失败：' + error.message, 'error');
+      showToast?.(`更新失败：${error.message}`, 'error');
     }
   };
 
-  // 过滤工单
   const filteredTickets = useMemo(() => {
-    return tickets.filter(ticket => {
+    return tickets.filter((ticket) => {
       if (filter === 'my') return ticket.user_id === user?.id;
       if (filter === 'pending') return ticket.status === 'pending';
       return true;
     });
   }, [tickets, filter, user]);
 
-  // 统计
   const stats = useMemo(() => ({
     total: tickets.length,
-    pending: tickets.filter(t => t.status === 'pending').length,
-    my: tickets.filter(t => t.user_id === user?.id).length
+    pending: tickets.filter((ticket) => ticket.status === 'pending').length,
+    my: tickets.filter((ticket) => ticket.user_id === user?.id).length,
   }), [tickets, user]);
 
   if (!user) {
@@ -687,7 +117,6 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* 页面标题 */}
       <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 border-l-4 border-endfield-yellow p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
         <div className="relative z-10">
@@ -696,20 +125,22 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
             工单反馈
           </h2>
           <p className="text-zinc-400 mt-1 text-xs tracking-widest uppercase">
-            {userRole === 'super_admin' ? '系统管理与用户反馈' :
-             userRole === 'admin' ? '用户支持与反馈升级' : '支持与反馈通道'}
+            {userRole === 'super_admin'
+              ? '系统管理与用户反馈'
+              : userRole === 'admin'
+                ? '用户支持与反馈升级'
+                : '支持与反馈通道'}
           </p>
         </div>
       </div>
 
-      {/* 操作栏 */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setFilter('all')}
             className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
-              filter === 'all' 
-                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' 
+              filter === 'all'
+                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
                 : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
             }`}
           >
@@ -718,8 +149,8 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
           <button
             onClick={() => setFilter('my')}
             className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
-              filter === 'my' 
-                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100' 
+              filter === 'my'
+                ? 'bg-zinc-800 text-white border-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:border-zinc-100'
                 : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
             }`}
           >
@@ -729,8 +160,8 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
             <button
               onClick={() => setFilter('pending')}
               className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border ${
-                filter === 'pending' 
-                  ? 'bg-amber-500 text-white border-amber-500' 
+                filter === 'pending'
+                  ? 'bg-amber-500 text-white border-amber-500'
                   : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
               }`}
             >
@@ -757,7 +188,6 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         </div>
       </div>
 
-      {/* 创建工单表单 */}
       {showCreateForm && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-sm p-6 relative overflow-hidden">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
@@ -775,7 +205,6 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         </div>
       )}
 
-      {/* 工单列表 */}
       {!tableExists ? (
         <div className="text-center py-12 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-sm">
           <AlertCircle size={48} className="mx-auto text-amber-500 mb-4" />
@@ -783,9 +212,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
           <p className="text-sm text-amber-600 dark:text-amber-400 mb-4">
             数据库中尚未创建工单表，请联系管理员执行数据库迁移。
           </p>
-          <p className="text-xs text-amber-500 font-mono">
-            Migration: 004_tickets_system.sql
-          </p>
+          <p className="text-xs text-amber-500 font-mono">Migration: 004_tickets_system.sql</p>
         </div>
       ) : loading ? (
         <div className="text-center py-12">
@@ -796,24 +223,22 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
         <div className="text-center py-16 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-sm">
           <MessageSquare size={48} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-4 opacity-50" />
           <p className="text-zinc-500 font-mono text-sm">
-            {filter === 'my' ? '无工单记录' :
-             filter === 'pending' ? '无待处理工单' : '暂无工单'}
+            {filter === 'my' ? '无工单记录' : filter === 'pending' ? '无待处理工单' : '暂无工单'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredTickets.map(ticket => (
+          {filteredTickets.map((ticket) => (
             <TicketCard
               key={ticket.id}
               ticket={ticket}
               userRole={userRole}
               currentUserId={user.id}
+              showToast={showToast}
               onStatusChange={handleStatusChange}
               onReply={loadTickets}
               expanded={expandedTicketId === ticket.id}
-              onToggle={() => setExpandedTicketId(
-                expandedTicketId === ticket.id ? null : ticket.id
-              )}
+              onToggle={() => setExpandedTicketId(expandedTicketId === ticket.id ? null : ticket.id)}
             />
           ))}
         </div>

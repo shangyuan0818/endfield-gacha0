@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bell, ChevronDown, Star, BarChart3, Gamepad2,
   ArrowRight, Sparkles, Map, Info, Layers, Swords,
@@ -7,11 +8,12 @@ import {
 import confetti from 'canvas-confetti';
 import usePoolStore from '../../stores/usePoolStore';
 import useAppStore from '../../stores/useAppStore';
-import useUIStore from '../../stores/useUIStore';
 import useAuthStore from '../../stores/useAuthStore';
 import SimpleMarkdown from '../../components/SimpleMarkdown';
 import { APP_VERSION } from '../../constants/appMeta';
-import { getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import { getMobilePathForTab } from '../../constants/appRoutes';
+import usePoolMechanicsData from '../../hooks/home/usePoolMechanicsData';
+import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import { characterCache } from '../../utils/characterUtils';
 import {
   STORAGE_KEYS,
@@ -42,13 +44,36 @@ function MobileHomeSectionHeader({ title, icon }) {
   );
 }
 
+function MobileCharacterTagRow({ label, labelClassName, characters, highlightFirst = false }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className={`w-7 shrink-0 text-[10px] font-mono font-bold ${labelClassName}`}>{label}</span>
+      <div className="flex flex-wrap gap-1">
+        {characters.map((character, index) => (
+          <span
+            key={`${label}-${character}`}
+            className={`px-1.5 py-0.5 text-[10px] border ${
+              highlightFirst && index === 0
+                ? 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-600 dark:bg-fuchsia-950/20 dark:border-fuchsia-900 dark:text-fuchsia-400'
+                : 'bg-white border-zinc-200 text-zinc-500 dark:bg-zinc-900 dark:border-zinc-700 dark:text-zinc-400'
+            }`}
+          >
+            {character}
+            {highlightFirst && index === 0 ? ' (UP)' : ''}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /**
  * 移动端首页视图 - 工业风重构版 (中文)
  */
 function MobileHomeView() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { announcements } = useAppStore();
-  const { setActiveTab } = useUIStore();
   const pools = usePoolStore(state => state.pools);
 
   // 时间状态
@@ -84,7 +109,9 @@ function MobileHomeView() {
   }, [showAnnouncement, isAnnouncementNew, latestAnnouncementUpdatedAt]);
 
   const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
+  const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray, now), [poolsArray, now]);
   const poolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
+  const { limitedCharacters } = usePoolMechanicsData(currentUpInfo);
 
   // 计算倒计时
   const countdown = useMemo(() => {
@@ -337,7 +364,7 @@ function MobileHomeView() {
             return (
               <button
                 key={action.id}
-                onClick={() => setActiveTab(action.id)}
+                onClick={() => navigate(getMobilePathForTab(action.id))}
                 className="group flex flex-col items-center gap-3 p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-endfield-yellow dark:hover:border-endfield-yellow transition-colors touch-feedback relative overflow-hidden"
               >
                 {/* 悬停时的背景装饰 */}
@@ -365,12 +392,15 @@ function MobileHomeView() {
             setShowPoolMechanics(!showPoolMechanics);
             setHomeCollapseState('poolMechanics', showPoolMechanics);
           }}
-          className="w-full px-4 py-3 flex items-center justify-between touch-feedback hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+            className="w-full px-4 py-3 flex items-center justify-between touch-feedback hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
         >
           <div className="flex items-center gap-3">
             <Info size={18} className="text-blue-500" />
             <div className="text-left">
-              <span className="font-bold text-zinc-800 dark:text-zinc-100 text-sm uppercase">数据库信息</span>
+              <span className="font-bold text-zinc-800 dark:text-zinc-100 text-sm uppercase">公测卡池机制速览</span>
+              <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                CURRENT UP: {currentUpInfo?.name || countdown?.name || '待公布'}
+              </div>
             </div>
           </div>
           <ChevronDown
@@ -381,8 +411,14 @@ function MobileHomeView() {
 
         {showPoolMechanics && (
           <div className="px-4 pb-4 space-y-3 animate-fade-in border-t border-zinc-100 dark:border-zinc-800 pt-4">
-             {/* 机制卡片 */}
-             <div className="grid gap-2">
+            <div className="flex items-center justify-between bg-blue-50/60 border border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/50 px-3 py-2">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-blue-500">Current Pool</span>
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-200">
+                {currentUpInfo?.name || countdown?.name || '待公布'}
+              </span>
+            </div>
+
+            <div className="grid gap-2">
                 {[
                   { title: '限定角色池', icon: Star, color: 'text-fuchsia-500', pity: '80 / 120 / 240', desc: 'Limited Character Pool' },
                   { title: '武器池', icon: Swords, color: 'text-slate-500', pity: '40 / 80 / 180', desc: 'Weapon Supply' },
@@ -399,10 +435,32 @@ function MobileHomeView() {
                           </div>
                        </div>
                        <span className="text-xs font-mono font-bold text-zinc-600 dark:text-zinc-400">{item.pity}</span>
-                    </div>
+                   </div>
                   )
                 })}
-             </div>
+            </div>
+
+            <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/40 p-3 space-y-2">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
+                Limited Pool // 限定池内容
+              </div>
+              <MobileCharacterTagRow
+                label="6★"
+                labelClassName="text-fuchsia-500"
+                characters={limitedCharacters.sixStar}
+                highlightFirst
+              />
+              <MobileCharacterTagRow
+                label="5★"
+                labelClassName="text-amber-500"
+                characters={limitedCharacters.fiveStar}
+              />
+              <MobileCharacterTagRow
+                label="4★"
+                labelClassName="text-purple-500"
+                characters={limitedCharacters.fourStar}
+              />
+            </div>
           </div>
         )}
       </MobileHomeCard>

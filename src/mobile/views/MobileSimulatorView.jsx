@@ -2,6 +2,7 @@ import React from 'react';
 import { Monitor, Gamepad2, ArrowRight, Sparkles, Terminal } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
+import { getDesktopPathForTab } from '../../constants/appRoutes';
 
 /**
  * 移动端模拟器视图 - 引导用户切换到桌面端
@@ -13,7 +14,7 @@ function MobileSimulatorView() {
 
   const handleSwitchToDesktop = () => {
     setPreference('desktop');
-    navigate('/?tab=simulator');
+    navigate(getDesktopPathForTab('simulator'));
   };
 
   return (
