@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
+import { executeSupabaseRead } from '../../services/supabaseRequest';
 
 /**
  * 用户数据查看器 Hook
@@ -23,9 +24,24 @@ export function useUserDataViewer(showToast) {
 
     try {
       const [poolsRes, historyRes] = await Promise.all([
-        supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-        supabase.from('history').select('*').eq('user_id', userId).order('timestamp', { ascending: false }).limit(500)
+        executeSupabaseRead(
+          () => supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+          {
+            label: 'loadUserData pools',
+            retries: 1
+          }
+        ),
+        executeSupabaseRead(
+          () => supabase.from('history').select('*').eq('user_id', userId).order('timestamp', { ascending: false }).limit(500),
+          {
+            label: 'loadUserData history',
+            retries: 1
+          }
+        )
       ]);
+
+      if (poolsRes.error) throw poolsRes.error;
+      if (historyRes.error) throw historyRes.error;
 
       setUserPools(poolsRes.data || []);
       setUserHistory(historyRes.data || []);

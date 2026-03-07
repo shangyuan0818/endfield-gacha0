@@ -8,7 +8,11 @@ const cache = {
   pools: null,
   poolsLastFetch: 0,
   characters: null,
-  charactersLastFetch: 0
+  charactersLastFetch: 0,
+  globalSummary: null,
+  globalSummaryLastFetch: 0,
+  characterRanking: null,
+  characterRankingLastFetch: 0
 };
 
 const CACHE_TTL = 60 * 1000; // 60秒缓存
@@ -23,6 +27,15 @@ function getSupabaseClient() {
   }
   
   return createClient(supabaseUrl, supabaseKey);
+}
+
+async function fetchVisiblePools(supabase) {
+  const { data, error } = await supabase.rpc('get_app_visible_pools');
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
 }
 
 export default async function handler(req, res) {
@@ -63,6 +76,10 @@ export default async function handler(req, res) {
         return await handlePools(supabase, res, now);
       case 'characters':
         return await handleCharacters(supabase, res, now);
+      case 'global_summary':
+        return await handleGlobalSummary(supabase, res, now);
+      case 'character_ranking':
+        return await handleCharacterRanking(supabase, res, now);
       case 'all':
         return await handleAll(supabase, res, now);
       default:
@@ -89,11 +106,17 @@ function getCachedData(type) {
       return { pools: cache.pools ?? [] };
     case 'characters':
       return { characters: cache.characters ?? [] };
+    case 'global_summary':
+      return { globalSummary: cache.globalSummary ?? null };
+    case 'character_ranking':
+      return { characterRanking: cache.characterRanking ?? null };
     case 'all':
       return {
         urgentClicks: cache.urgentClicks ?? 0,
         pools: cache.pools ?? [],
-        characters: cache.characters ?? []
+        characters: cache.characters ?? [],
+        globalSummary: cache.globalSummary ?? null,
+        characterRanking: cache.characterRanking ?? null
       };
     default:
       return {};
@@ -143,14 +166,7 @@ async function handlePools(supabase, res, now) {
     });
   }
 
-  const { data, error } = await supabase
-    .from('pools')
-    .select('*')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    throw error;
-  }
+  const data = await fetchVisiblePools(supabase);
 
   cache.pools = data || [];
   cache.poolsLastFetch = now;
@@ -192,6 +208,54 @@ async function handleCharacters(supabase, res, now) {
   });
 }
 
+async function handleGlobalSummary(supabase, res, now) {
+  if (cache.globalSummary !== null && now - cache.globalSummaryLastFetch < CACHE_TTL) {
+    return res.status(200).json({
+      success: true,
+      cached: true,
+      data: { globalSummary: cache.globalSummary }
+    });
+  }
+
+  const { data, error } = await supabase.rpc('get_global_stats');
+  if (error) {
+    throw error;
+  }
+
+  cache.globalSummary = data ?? null;
+  cache.globalSummaryLastFetch = now;
+
+  return res.status(200).json({
+    success: true,
+    cached: false,
+    data: { globalSummary: data ?? null }
+  });
+}
+
+async function handleCharacterRanking(supabase, res, now) {
+  if (cache.characterRanking !== null && now - cache.characterRankingLastFetch < CACHE_TTL) {
+    return res.status(200).json({
+      success: true,
+      cached: true,
+      data: { characterRanking: cache.characterRanking }
+    });
+  }
+
+  const { data, error } = await supabase.rpc('get_character_ranking_stats');
+  if (error) {
+    throw error;
+  }
+
+  cache.characterRanking = data ?? null;
+  cache.characterRankingLastFetch = now;
+
+  return res.status(200).json({
+    success: true,
+    cached: false,
+    data: { characterRanking: data ?? null }
+  });
+}
+
 // 处理所有数据（一次性获取）
 async function handleAll(supabase, res, now) {
   const result = {
@@ -203,7 +267,7 @@ async function handleAll(supabase, res, now) {
   // 并行获取所有数据
   const [urgentResult, poolsResult, charactersResult] = await Promise.allSettled([
     supabase.from('global_stats').select('value').eq('key', 'urgent_button_clicks').single(),
-    supabase.from('pools').select('*').order('created_at', { ascending: false }),
+    fetchVisiblePools(supabase),
     supabase.from('characters').select('*').order('rarity', { ascending: false })
   ]);
 
@@ -217,8 +281,8 @@ async function handleAll(supabase, res, now) {
   }
 
   // 处理卡池
-  if (poolsResult.status === 'fulfilled' && !poolsResult.value.error) {
-    result.pools = poolsResult.value.data || [];
+  if (poolsResult.status === 'fulfilled') {
+    result.pools = poolsResult.value || [];
     cache.pools = result.pools;
     cache.poolsLastFetch = now;
   } else if (cache.pools !== null) {

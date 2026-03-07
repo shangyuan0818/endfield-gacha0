@@ -4,6 +4,7 @@
  */
 import { supabase } from '../../supabaseClient';
 import { incrementRotationCount, characterCache } from '../../utils/characterUtils';
+import { executeSupabaseRead } from '../supabaseRequest';
 
 /**
  * 加载所有卡池
@@ -12,10 +13,16 @@ export const loadPools = async () => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { data, error } = await supabase
-      .from('pools')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from('pools')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      {
+        label: 'admin loadPools',
+        retries: 1
+      }
+    );
 
     if (error) throw error;
     return { success: true, data: data || [] };
@@ -31,10 +38,16 @@ export const loadCharacters = async () => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, name, rarity, type, is_limited, pool_config')
-      .order('rarity', { ascending: false });
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from('characters')
+        .select('id, name, rarity, type, is_limited, pool_config')
+        .order('rarity', { ascending: false }),
+      {
+        label: 'admin loadPoolCharacters',
+        retries: 1
+      }
+    );
 
     if (error) throw error;
     return { success: true, data: data || [] };
@@ -50,9 +63,15 @@ export const loadAllPoolCharacters = async () => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { data, error } = await supabase
-      .from('pool_characters')
-      .select('pool_id, character_id, is_up');
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from('pool_characters')
+        .select('pool_id, character_id, is_up'),
+      {
+        label: 'admin loadAllPoolCharacters',
+        retries: 1
+      }
+    );
 
     if (error) throw error;
 
@@ -78,10 +97,16 @@ export const loadPoolCharactersForEdit = async (poolId) => {
   if (!supabase || !poolId) return { success: false, data: [] };
 
   try {
-    const { data, error } = await supabase
-      .from('pool_characters')
-      .select('character_id, is_up')
-      .eq('pool_id', poolId);
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from('pool_characters')
+        .select('character_id, is_up')
+        .eq('pool_id', poolId),
+      {
+        label: 'admin loadPoolCharactersForEdit',
+        retries: 1
+      }
+    );
 
     if (error) throw error;
     return { success: true, data: data || [] };

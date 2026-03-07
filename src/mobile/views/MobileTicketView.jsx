@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   MessageSquare, Plus, Send, Clock, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, User, Shield, RefreshCw, Bug,
@@ -6,9 +7,9 @@ import {
   AlertCircle, ChevronLeft
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
-import useUIStore from '../../stores/useUIStore';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
+import { getMobilePathForTab } from '../../constants/appRoutes';
 
 // 工单类型
 const TICKET_TYPES = {
@@ -38,8 +39,8 @@ const EMOJI_LIST = [
  * 移动端工单视图 - 工业风 (中文)
  */
 function MobileTicketView() {
+  const navigate = useNavigate();
   const { user, userRole } = useAuthStore();
-  const { setActiveTab } = useUIStore();
 
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,7 +125,7 @@ function MobileTicketView() {
     <div className="px-4 py-4 space-y-4">
       {/* 返回 */}
       <button
-        onClick={() => setActiveTab('home')}
+        onClick={() => navigate(getMobilePathForTab('home'))}
         className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 touch-feedback -ml-1 hover:text-endfield-yellow transition-colors"
       >
         <ChevronLeft size={16} />

@@ -5,7 +5,43 @@
  * @feat FEAT-007 卡池详情系统重构 - 角色映射系统
  */
 
+import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest';
 import { supabase } from '../supabaseClient';
+
+const CHARACTER_CACHE_SNAPSHOT_KEY = 'character_cache_snapshot_v1';
+
+function readCharacterSnapshot() {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const rawSnapshot = window.localStorage.getItem(CHARACTER_CACHE_SNAPSHOT_KEY);
+    if (!rawSnapshot) {
+      return [];
+    }
+
+    const parsedSnapshot = JSON.parse(rawSnapshot);
+    return Array.isArray(parsedSnapshot?.characters) ? parsedSnapshot.characters : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCharacterSnapshot(characters) {
+  if (typeof window === 'undefined' || !Array.isArray(characters)) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(CHARACTER_CACHE_SNAPSHOT_KEY, JSON.stringify({
+      characters,
+      fetchedAt: Date.now(),
+    }));
+  } catch {
+    // 本地缓存写入失败时静默降级
+  }
+}
 
 /**
  * 角色数据缓存管理器（单例模式）
@@ -37,6 +73,36 @@ class CharacterCache {
     this.subscription = null;
   }
 
+  applyCharacters(characters = []) {
+    this.cache.clear();
+    this.aliasMap.clear();
+
+    characters.forEach((char) => {
+      this.cache.set(char.id, char);
+
+      if (char.aliases && Array.isArray(char.aliases)) {
+        char.aliases.forEach((alias) => {
+          this.aliasMap.set(alias.toLowerCase(), char.id);
+        });
+      }
+
+      if (char.name) {
+        this.aliasMap.set(char.name.toLowerCase(), char.id);
+      }
+    });
+  }
+
+  finishLoading() {
+    this.loaded = true;
+    this.loading = false;
+    this.loadCallbacks.forEach((callback) => callback());
+    this.loadCallbacks = [];
+  }
+
+  persistSnapshot() {
+    writeCharacterSnapshot(this.getAll());
+  }
+
   /**
    * 初始化角色数据（应用启动时调用一次）
    * @returns {Promise<void>}
@@ -55,57 +121,57 @@ class CharacterCache {
     }
 
     this.loading = true;
+    const cachedCharacters = readCharacterSnapshot();
 
     try {
-      // 从 Supabase 加载所有角色
-      const { data, error } = await supabase
-        .from('characters')
-        .select('*')
-        .order('name');
+      if (!supabase) {
+        if (cachedCharacters.length > 0) {
+          this.applyCharacters(cachedCharacters);
+        }
+        this.finishLoading();
+        return;
+      }
+
+      const { data, error } = await executeSupabaseRead(
+        () => supabase
+          .from('characters')
+          .select('*')
+          .order('name'),
+        {
+          label: 'load characters',
+          retries: 2,
+        }
+      );
 
       if (error) {
         throw new Error(`加载角色数据失败: ${error.message}`);
       }
 
-      if (!data || data.length === 0) {
-        console.warn('[CharacterCache] ⚠️ characters 表为空，请先执行数据库迁移');
-        this.loaded = true;
-        this.loading = false;
-        return;
+      if (Array.isArray(data) && data.length > 0) {
+        this.applyCharacters(data);
+        this.persistSnapshot();
+      } else if (cachedCharacters.length > 0) {
+        this.applyCharacters(cachedCharacters);
+      } else {
+        this.cache.clear();
+        this.aliasMap.clear();
       }
 
-      // 构建缓存
-      data.forEach((char) => {
-        this.cache.set(char.id, char);
-
-        // 构建别名映射
-        if (char.aliases && Array.isArray(char.aliases)) {
-          char.aliases.forEach((alias) => {
-            this.aliasMap.set(alias.toLowerCase(), char.id);
-          });
-        }
-
-        // 名称也作为别名
-        this.aliasMap.set(char.name.toLowerCase(), char.id);
-      });
-
-      this.loaded = true;
-      this.loading = false;
-
-      // 触发回调
-      this.loadCallbacks.forEach((callback) => callback());
-      this.loadCallbacks = [];
-
-      // 启动实时订阅（监听新角色添加）
+      this.finishLoading();
       this.subscribeToUpdates();
-    } catch (error) {
-      console.error('[CharacterCache] ❌ 加载失败:', error);
-      this.loading = false;
+    } catch {
+      if (cachedCharacters.length > 0) {
+        this.applyCharacters(cachedCharacters);
+      } else {
+        this.cache.clear();
+        this.aliasMap.clear();
+      }
 
-      // 降级处理：使用空缓存，允许应用继续运行
-      this.loaded = true;
-      this.loadCallbacks.forEach((callback) => callback());
-      this.loadCallbacks = [];
+      this.finishLoading();
+
+      if (supabase) {
+        this.subscribeToUpdates();
+      }
     }
   }
 
@@ -131,8 +197,8 @@ class CharacterCache {
           }
         )
         .subscribe();
-    } catch (error) {
-      console.warn('[CharacterCache] 实时订阅失败（非致命错误）:', error);
+    } catch {
+      // Realtime 失败不影响本地缓存读取
     }
   }
 
@@ -156,6 +222,7 @@ class CharacterCache {
             });
           }
           this.aliasMap.set(newRecord.name.toLowerCase(), newRecord.id);
+          this.persistSnapshot();
         }
         break;
 
@@ -169,6 +236,7 @@ class CharacterCache {
             });
           }
           this.aliasMap.delete(oldRecord.name.toLowerCase());
+          this.persistSnapshot();
         }
         break;
 
@@ -287,6 +355,7 @@ class CharacterCache {
     this.cache.clear();
     this.aliasMap.clear();
     this.loaded = false;
+    this.loading = false;
 
     if (this.subscription) {
       this.subscription.unsubscribe();
@@ -451,15 +520,20 @@ export async function incrementRotationCount(characterId) {
   };
 
   // 更新数据库
-  const { data, error } = await supabase
-    .from('characters')
-    .update({
-      pool_config: updatedPoolConfig,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', characterId)
-    .select()
-    .single();
+  const { data, error } = await executeSupabaseMutation(
+    () => supabase
+      .from('characters')
+      .update({
+        pool_config: updatedPoolConfig,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', characterId)
+      .select()
+      .single(),
+    {
+      label: 'increment character rotation count'
+    }
+  );
 
   if (error) {
     throw new Error(`更新轮换次数失败: ${error.message}`);

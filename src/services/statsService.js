@@ -1,6 +1,15 @@
 import { supabase } from '../supabaseClient';
 import { RARITY_CONFIG } from '../constants';
 import { getCachedUrgentClicks } from './cacheService';
+import {
+  executeSupabaseRead,
+  SUPABASE_MUTATION_TIMEOUT_MS,
+  SUPABASE_RPC_TIMEOUT_MS,
+  executeSupabaseMutation,
+  executeSupabaseRpc,
+  fetchWithTimeout,
+  isRetryableSupabaseError,
+} from './supabaseRequest';
 
 /**
  * 统计服务 - 处理"急"按钮点击统计等全局统计数据
@@ -17,7 +26,13 @@ const URGENT_BUTTON_KEY = 'urgent_button_clicks';
 const LAST_FETCH_KEY = 'urgent_button_last_fetch';
 const GLOBAL_STATS_CACHE_TTL = 30 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 30 * 1000;
-
+const GLOBAL_STATS_SNAPSHOT_KEY = 'global_summary_stats_snapshot';
+const CHARACTER_RANKING_SNAPSHOT_KEY = 'character_ranking_snapshot';
+const USER_RANKING_SNAPSHOT_PREFIX = 'user_ranking_snapshot_';
+const STATS_API_TIMEOUT_MS = 25000;
+const IS_LOCAL_DEV = import.meta.env.DEV
+  || (typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
 const globalStatsRequestState = {
   data: null,
   fetchedAt: 0,
@@ -31,6 +46,61 @@ const characterRankingRequestState = {
 };
 
 const userRankingRequestStates = new Map();
+
+function readPersistedSnapshot(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedSnapshot(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {
+    // 忽略持久化缓存失败
+  }
+}
+
+function withStatsMeta(stats, meta = {}) {
+  return {
+    ...stats,
+    meta: {
+      ...(stats?.meta || {}),
+      ...meta
+    }
+  };
+}
+
+async function fetchStatsApi(type) {
+  if (IS_LOCAL_DEV) {
+    return null;
+  }
+
+  const response = await fetchWithTimeout(`/api/stats?type=${type}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }, {
+    label: `stats api ${type}`,
+    timeoutMs: STATS_API_TIMEOUT_MS,
+    retries: 1
+  });
+
+  if (!response.ok) {
+    throw new Error(`stats api ${type} failed with ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result?.success) {
+    throw new Error(result?.error || `stats api ${type} returned failure`);
+  }
+
+  return result.data || null;
+}
 
 function createEmptyTypeStats() {
   return {
@@ -48,7 +118,7 @@ function createEmptyTypeStats() {
   };
 }
 
-export function createEmptyGlobalSummaryStats() {
+export function createEmptyGlobalSummaryStats(meta = {}) {
   return {
     totalPulls: 0,
     totalPullsWithFree: 0,
@@ -73,7 +143,12 @@ export function createEmptyGlobalSummaryStats() {
     charGift: 0,
     weaponGiftLimited: 0,
     weaponGiftStandard: 0,
-    giftTotal: 0
+    giftTotal: 0,
+    meta: {
+      status: 'empty',
+      source: 'empty',
+      ...meta
+    }
   };
 }
 
@@ -102,6 +177,16 @@ async function runCachedRequest(state, fetcher, { cacheTtl = 0, forceRefresh = f
   } finally {
     state.promise = null;
   }
+}
+
+async function runRpcWithTimeout(rpcName, params = {}, timeoutMs = SUPABASE_RPC_TIMEOUT_MS) {
+  return executeSupabaseRpc(
+    () => supabase.rpc(rpcName, params),
+    {
+      label: rpcName,
+      timeoutMs,
+    }
+  );
 }
 
 function generateChartData(counts) {
@@ -220,7 +305,12 @@ function normalizeGlobalStats(rpcData) {
     charGift: rpcData.charGift || 0,
     weaponGiftLimited: rpcData.weaponGiftLimited || 0,
     weaponGiftStandard: rpcData.weaponGiftStandard || 0,
-    giftTotal: rpcData.giftTotal || 0
+    giftTotal: rpcData.giftTotal || 0,
+    meta: {
+      status: 'ready',
+      source: 'rpc',
+      fetchedAt: Date.now()
+    }
   };
 
   const limitedStats = stats.byType.limited;
@@ -282,6 +372,19 @@ function getUserRankingRequestState(userId) {
   return userRankingRequestStates.get(userId);
 }
 
+function isRecoverableStatsError(error) {
+  return isRetryableSupabaseError(error);
+}
+
+function logStatsFailure(scope, error) {
+  if (isRecoverableStatsError(error)) {
+    console.warn(`[statsService] ${scope}请求超时，已回退到缓存/空态（跨境网络较慢时可重试）`, error);
+    return;
+  }
+
+  console.error(`[statsService] ${scope}失败:`, error);
+}
+
 /**
  * 获取"急"按钮的点击次数
  * 策略：Serverless API 缓存 -> 直连 Supabase -> 本地缓存
@@ -309,11 +412,17 @@ export async function getUrgentButtonClicks(forceRefresh = false) {
       return cached ? parseInt(cached, 10) : 0;
     }
 
-    const { data, error } = await supabase
-      .from(STATS_TABLE)
-      .select('value')
-      .eq('key', URGENT_BUTTON_KEY)
-      .single();
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from(STATS_TABLE)
+        .select('value')
+        .eq('key', URGENT_BUTTON_KEY)
+        .single(),
+      {
+        label: 'getUrgentButtonClicks',
+        retries: 1
+      }
+    );
 
     if (error) {
       if (error.code === 'PGRST116') {
@@ -372,9 +481,15 @@ export async function incrementUrgentButtonClicksBatch(count = 1) {
     }
 
     // 使用 Supabase RPC 函数来原子性地增加计数（批量）
-    const { data, error } = await supabase.rpc('increment_urgent_clicks_batch', {
-      increment_by: count
-    });
+    const { data, error } = await executeSupabaseMutation(
+      () => supabase.rpc('increment_urgent_clicks_batch', {
+        increment_by: count
+      }),
+      {
+        label: 'increment_urgent_clicks_batch',
+        timeoutMs: SUPABASE_MUTATION_TIMEOUT_MS
+      }
+    );
 
     if (error) {
       throw error;
@@ -498,25 +613,62 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
   try {
     if (!supabase) {
       console.warn('[statsService] Supabase 未配置，无法获取全服统计');
-      return createEmptyGlobalSummaryStats();
+      return createEmptyGlobalSummaryStats({
+        status: 'unavailable',
+        source: 'missing-supabase'
+      });
     }
 
     return await runCachedRequest(
       globalStatsRequestState,
       async () => {
-        const { data, error } = await supabase.rpc('get_global_stats');
+        const apiPayload = await fetchStatsApi('global_summary').catch(() => null);
+        if (apiPayload?.globalSummary) {
+          const normalizedFromApi = withStatsMeta(normalizeGlobalStats(apiPayload.globalSummary), {
+            source: 'api',
+            fetchedAt: Date.now()
+          });
+          writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalizedFromApi);
+          return normalizedFromApi;
+        }
+
+        const { data, error } = await runRpcWithTimeout('get_global_stats');
 
         if (error) {
           throw error;
         }
 
-        return normalizeGlobalStats(data);
+        const normalized = normalizeGlobalStats(data);
+        writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalized);
+        return normalized;
       },
       { cacheTtl: GLOBAL_STATS_CACHE_TTL, forceRefresh }
     );
   } catch (error) {
-    console.error('[statsService] 获取全服统计失败:', error);
-    return globalStatsRequestState.data || createEmptyGlobalSummaryStats();
+    logStatsFailure('获取全服统计', error);
+    const persisted = readPersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY);
+
+    if (globalStatsRequestState.data) {
+      return withStatsMeta(globalStatsRequestState.data, {
+        status: 'stale',
+        source: 'memory-cache',
+        lastErrorCode: error?.code || null
+      });
+    }
+
+    if (persisted) {
+      return withStatsMeta(persisted, {
+        status: 'stale',
+        source: 'local-cache',
+        lastErrorCode: error?.code || null
+      });
+    }
+
+    return createEmptyGlobalSummaryStats({
+      status: 'unavailable',
+      source: 'timeout',
+      lastErrorCode: error?.code || null
+    });
   }
 }
 
@@ -529,25 +681,32 @@ export async function getCharacterRankingStats(forceRefresh = false) {
   try {
     if (!supabase) {
       console.warn('[statsService] Supabase 未配置，无法获取角色排名');
-      return null;
+      return readPersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY);
     }
 
     return await runCachedRequest(
       characterRankingRequestState,
       async () => {
-        const { data, error } = await supabase.rpc('get_character_ranking_stats');
+        const apiPayload = await fetchStatsApi('character_ranking').catch(() => null);
+        if (apiPayload?.characterRanking) {
+          writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, apiPayload.characterRanking);
+          return apiPayload.characterRanking;
+        }
+
+        const { data, error } = await runRpcWithTimeout('get_character_ranking_stats');
 
         if (error) {
           throw error;
         }
 
+        writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, data);
         return data;
       },
       { cacheTtl: CHARACTER_RANKING_CACHE_TTL, forceRefresh }
     );
   } catch (error) {
-    console.error('[statsService] 获取角色排名失败:', error);
-    return characterRankingRequestState.data || null;
+    logStatsFailure('获取角色排名', error);
+    return characterRankingRequestState.data || readPersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY) || null;
   }
 }
 
@@ -560,7 +719,7 @@ export async function getUserRankingStats(userId) {
   try {
     if (!supabase) {
       console.warn('[statsService] Supabase 未配置，无法获取用户排名');
-      return null;
+      return readPersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`);
     }
 
     if (!userId) {
@@ -573,18 +732,19 @@ export async function getUserRankingStats(userId) {
     return await runCachedRequest(
       requestState,
       async () => {
-        const { data, error } = await supabase.rpc('get_user_ranking_stats', { p_user_id: userId });
+        const { data, error } = await runRpcWithTimeout('get_user_ranking_stats', { p_user_id: userId });
 
         if (error) {
           throw error;
         }
 
+        writePersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`, data);
         return data;
       }
     );
   } catch (error) {
-    console.error('[statsService] 获取用户排名失败:', error);
-    return getUserRankingRequestState(userId).data || null;
+    logStatsFailure('获取用户排名', error);
+    return getUserRankingRequestState(userId).data || readPersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`) || null;
   }
 }
 

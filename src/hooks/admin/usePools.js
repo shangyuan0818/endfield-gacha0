@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as poolService from '../../services/admin/poolService';
+import { useAuthStore } from '../../stores';
 import { characterCache } from '../../utils/characterUtils';
 
 // 表单初始状态
@@ -23,6 +24,8 @@ export const INITIAL_POOL_FORM = {
  * 卡池管理主 Hook
  */
 export const usePools = (showToast) => {
+  const userRole = useAuthStore(state => state.userRole);
+
   // 数据状态
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,14 @@ export const usePools = (showToast) => {
   // 自动轮换检测状态
   const [pendingRotationPools, setPendingRotationPools] = useState([]);
   const [autoRotationProcessing, setAutoRotationProcessing] = useState(false);
+
+  const ensureSuperAdmin = useCallback(() => {
+    if (userRole !== 'super_admin') {
+      showToast('只有超级管理员可以执行该操作', 'error');
+      return false;
+    }
+    return true;
+  }, [showToast, userRole]);
 
   // 加载数据
   const loadPoolsData = useCallback(async () => {
@@ -110,7 +121,7 @@ export const usePools = (showToast) => {
 
   // 过滤并排序后的卡池列表
   const filteredPools = useMemo(() => {
-    let result = pools.filter(pool => {
+    const result = pools.filter(pool => {
       const matchesSearch = pool.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            pool.up_character?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = typeFilter === 'all' || pool.type === typeFilter;
@@ -191,6 +202,8 @@ export const usePools = (showToast) => {
 
   // 保存卡池
   const handleSavePool = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
     if (!poolForm.name.trim()) {
       showToast('卡池名称不能为空', 'error');
       return;
@@ -259,10 +272,12 @@ export const usePools = (showToast) => {
     } finally {
       setActionLoading(null);
     }
-  }, [poolForm, editingPool, characters, pools, checkUpCharacterExists, showToast, loadPoolsData, loadCharactersData, loadAllPoolCharactersData, resetForm]);
+  }, [poolForm, editingPool, characters, pools, checkUpCharacterExists, ensureSuperAdmin, showToast, loadPoolsData, loadCharactersData, loadAllPoolCharactersData, resetForm]);
 
   // 删除卡池
   const handleDeletePool = useCallback(async (pool) => {
+    if (!ensureSuperAdmin()) return;
+
     if (!window.confirm(`确定要删除卡池「${pool.name}」吗？此操作将删除该卡池的所有相关数据，且无法撤销。`)) {
       return;
     }
@@ -278,10 +293,12 @@ export const usePools = (showToast) => {
     }
 
     setActionLoading(null);
-  }, [showToast, loadPoolsData]);
+  }, [ensureSuperAdmin, showToast, loadPoolsData]);
 
   // 处理轮换
   const handleStartRotation = useCallback(async (pool) => {
+    if (!ensureSuperAdmin()) return;
+
     if (limitedSixStarCharacters.length === 0) {
       showToast('没有找到限定池6星角色', 'error');
       return;
@@ -299,10 +316,11 @@ export const usePools = (showToast) => {
     }
 
     setActionLoading(null);
-  }, [limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
+  }, [ensureSuperAdmin, limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
 
   // 处理所有待轮换卡池
   const handleProcessAllPendingRotations = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
     if (pendingRotationPools.length === 0) return;
 
     if (limitedSixStarCharacters.length === 0) {
@@ -322,10 +340,12 @@ export const usePools = (showToast) => {
     }
 
     setAutoRotationProcessing(false);
-  }, [pendingRotationPools, limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
+  }, [ensureSuperAdmin, pendingRotationPools, limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
 
   // 重新计算限定/常驻
   const handleRecalculateIsStandard = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
     setActionLoading('recalculate');
 
     const result = await poolService.recalculateIsStandard(pools);
@@ -340,10 +360,12 @@ export const usePools = (showToast) => {
     }
 
     setActionLoading(null);
-  }, [pools, showToast]);
+  }, [ensureSuperAdmin, pools, showToast]);
 
   // 角色池子管理操作
   const toggleCharacterInPool = useCallback(async (char, isInPool) => {
+    if (!ensureSuperAdmin()) return;
+
     if (!editingPool?.pool_id) {
       showToast('请先保存卡池后再管理角色', 'info');
       return;
@@ -363,9 +385,11 @@ export const usePools = (showToast) => {
     } catch (error) {
       showToast('更新失败: ' + error.message, 'error');
     }
-  }, [editingPool, poolForm.up_character, showToast, loadAllPoolCharactersData]);
+  }, [ensureSuperAdmin, editingPool, poolForm.up_character, showToast, loadAllPoolCharactersData]);
 
   const addAllCharactersToPool = useCallback(async (charList) => {
+    if (!ensureSuperAdmin()) return;
+
     if (!editingPool?.pool_id) {
       showToast('请先保存卡池后再管理角色', 'info');
       return;
@@ -393,9 +417,10 @@ export const usePools = (showToast) => {
     } catch (error) {
       showToast('批量添加失败: ' + error.message, 'error');
     }
-  }, [editingPool, editingPoolCharacters, poolForm.up_character, showToast, loadAllPoolCharactersData]);
+  }, [ensureSuperAdmin, editingPool, editingPoolCharacters, poolForm.up_character, showToast, loadAllPoolCharactersData]);
 
   const removeAllCharactersFromPool = useCallback(async (charList) => {
+    if (!ensureSuperAdmin()) return;
     if (!editingPool?.pool_id) return;
 
     const currentIds = editingPoolCharacters.map(pc => pc.character_id);
@@ -417,7 +442,7 @@ export const usePools = (showToast) => {
     } catch (error) {
       showToast('批量移除失败: ' + error.message, 'error');
     }
-  }, [editingPool, editingPoolCharacters, showToast, loadAllPoolCharactersData]);
+  }, [ensureSuperAdmin, editingPool, editingPoolCharacters, showToast, loadAllPoolCharactersData]);
 
   return {
     // 数据

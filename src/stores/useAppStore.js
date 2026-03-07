@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createEmptyGlobalSummaryStats, getGlobalSummaryStats } from '../services/statsService';
+import { executeSupabaseRead } from '../services/supabaseRequest';
 
 /**
  * 应用全局状态管理
@@ -41,12 +42,18 @@ const useAppStore = create((set, get) => ({
     if (!supabase) return;
 
     try {
-      const { data, error } = await supabase
-        .from('announcements')
-        .select('*')
-        .eq('is_active', true)
-        .order('priority', { ascending: false })
-        .order('created_at', { ascending: false });
+      const { data, error } = await executeSupabaseRead(
+        () => supabase
+          .from('announcements')
+          .select('*')
+          .eq('is_active', true)
+          .order('priority', { ascending: false })
+          .order('created_at', { ascending: false }),
+        {
+          label: 'load active announcements',
+          retries: 1
+        }
+      );
 
       if (!error && data) {
         set({ announcements: data });

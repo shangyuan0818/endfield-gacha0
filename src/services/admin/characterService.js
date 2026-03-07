@@ -10,6 +10,7 @@ import { supabase } from '../../supabaseClient';
 import { syncAllCharacters, syncAllWeapons } from '../../utils/endfieldDataSync';
 import { batchSyncAvatars, ensureBucketExists } from '../../utils/avatarStorage';
 import { characterCache } from '../../utils/characterUtils';
+import { executeSupabaseRead } from '../supabaseRequest';
 
 /**
  * 加载所有角色/武器列表
@@ -21,11 +22,17 @@ export async function loadCharacters() {
   }
 
   try {
-    const { data, error } = await supabase
-      .from('characters')
-      .select('*')
-      .order('rarity', { ascending: false })
-      .order('name', { ascending: true });
+    const { data, error } = await executeSupabaseRead(
+      () => supabase
+        .from('characters')
+        .select('*')
+        .order('rarity', { ascending: false })
+        .order('name', { ascending: true }),
+      {
+        label: 'admin loadCharacters',
+        retries: 1
+      }
+    );
 
     if (error) throw error;
     return { data: data || [], error: null };
@@ -128,10 +135,16 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
 
   try {
     // 获取当前选中的记录
-    const { data: currentItems, error: fetchError } = await supabase
-      .from('characters')
-      .select('id, is_limited, pool_config')
-      .in('id', characterIds);
+    const { data: currentItems, error: fetchError } = await executeSupabaseRead(
+      () => supabase
+        .from('characters')
+        .select('id, is_limited, pool_config')
+        .in('id', characterIds),
+      {
+        label: 'admin batchUpdateCharacters preload',
+        retries: 1
+      }
+    );
 
     if (fetchError) throw fetchError;
 

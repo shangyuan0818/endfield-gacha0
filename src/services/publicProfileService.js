@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { executeSupabaseRead } from './supabaseRequest';
 
 export async function loadPublicProfilesMap(userIds) {
   if (!supabase) return new Map();
@@ -8,13 +9,19 @@ export async function loadPublicProfilesMap(userIds) {
     return new Map();
   }
 
-  const { data, error } = await supabase
-    .from('public_profiles')
-    .select('id, username, role')
-    .in('id', uniqueIds);
+  const { data, error } = await executeSupabaseRead(
+    () => supabase
+      .from('public_profiles')
+      .select('id, username, role')
+      .in('id', uniqueIds),
+    {
+      label: 'loadPublicProfilesMap',
+      retries: 1
+    }
+  );
 
   if (error) {
-    throw error;
+    return new Map();
   }
 
   return new Map((data || []).map(profile => [profile.id, profile]));

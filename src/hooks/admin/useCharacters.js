@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as characterService from '../../services/admin/characterService';
+import { useAuthStore } from '../../stores';
 
 /**
  * 角色表单初始状态
@@ -47,6 +48,8 @@ export const INITIAL_BATCH_EDIT_FORM = {
  * @returns {Object} 角色管理状态和方法
  */
 export function useCharacters({ showToast }) {
+  const userRole = useAuthStore(state => state.userRole);
+
   // 数据状态
   const [characters, setCharacters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,14 @@ export function useCharacters({ showToast }) {
   const [showBatchEditDialog, setShowBatchEditDialog] = useState(false);
   const [batchEditForm, setBatchEditForm] = useState(INITIAL_BATCH_EDIT_FORM);
 
+  const ensureSuperAdmin = useCallback(() => {
+    if (userRole !== 'super_admin') {
+      showToast('只有超级管理员可以执行该操作', 'error');
+      return false;
+    }
+    return true;
+  }, [showToast, userRole]);
+
   // 加载角色列表
   const loadCharacters = useCallback(async () => {
     setLoading(true);
@@ -107,7 +118,7 @@ export function useCharacters({ showToast }) {
 
   // 过滤和排序后的角色列表
   const filteredCharacters = useMemo(() => {
-    let result = characters.filter(char => {
+    const result = characters.filter(char => {
       const matchesTab = char.type === activeTab;
       const matchesSearch = char.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            char.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -248,6 +259,8 @@ export function useCharacters({ showToast }) {
 
   // 保存角色
   const saveCharacter = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
     // 验证必填字段
     if (!characterForm.id.trim()) {
       showToast('角色ID不能为空', 'error');
@@ -289,10 +302,12 @@ export function useCharacters({ showToast }) {
     }
 
     setActionLoading(null);
-  }, [characterForm, editingCharacter, showToast, loadCharacters, resetForm]);
+  }, [characterForm, editingCharacter, ensureSuperAdmin, showToast, loadCharacters, resetForm]);
 
   // 删除角色
   const deleteCharacter = useCallback(async (character) => {
+    if (!ensureSuperAdmin()) return;
+
     if (!window.confirm(`确定要删除角色「${character.name}」吗？此操作无法撤销。`)) {
       return;
     }
@@ -309,10 +324,11 @@ export function useCharacters({ showToast }) {
     }
 
     setActionLoading(null);
-  }, [showToast, loadCharacters]);
+  }, [ensureSuperAdmin, showToast, loadCharacters]);
 
   // 批量删除
   const handleBatchDelete = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
     if (selectedIds.size === 0) return;
 
     const confirmMsg = `确定要删除选中的 ${selectedIds.size} 个${activeTab === 'character' ? '角色' : '武器'}吗？此操作不可恢复！`;
@@ -331,7 +347,7 @@ export function useCharacters({ showToast }) {
     }
 
     setActionLoading(null);
-  }, [selectedIds, activeTab, showToast, loadCharacters]);
+  }, [ensureSuperAdmin, selectedIds, activeTab, showToast, loadCharacters]);
 
   // 打开批量编辑对话框
   const openBatchEditDialog = useCallback(() => {
@@ -351,6 +367,7 @@ export function useCharacters({ showToast }) {
 
   // 执行批量编辑
   const executeBatchEdit = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
     if (selectedIds.size === 0) return;
 
     setActionLoading('batch-edit');
@@ -370,10 +387,12 @@ export function useCharacters({ showToast }) {
     }
 
     setActionLoading(null);
-  }, [selectedIds, batchEditForm, showToast, loadCharacters, closeBatchEditDialog]);
+  }, [ensureSuperAdmin, selectedIds, batchEditForm, showToast, loadCharacters, closeBatchEditDialog]);
 
   // 从 API 同步
   const handleSyncFromAPI = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
     setIsSyncing(true);
     setSyncProgress('正在获取数据...');
 
@@ -402,7 +421,7 @@ export function useCharacters({ showToast }) {
 
     setIsSyncing(false);
     setSyncProgress('');
-  }, [characters, loadCharacters, showToast]);
+  }, [ensureSuperAdmin, characters, loadCharacters, showToast]);
 
   return {
     // 数据状态

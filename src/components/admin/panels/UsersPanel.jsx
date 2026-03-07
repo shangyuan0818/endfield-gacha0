@@ -79,7 +79,7 @@ const UsersPanel = ({
   };
 
   const filteredUsers = useMemo(() => {
-    let result = users.filter(user => {
+    const result = users.filter(user => {
       const matchesSearch = user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            user.email?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;

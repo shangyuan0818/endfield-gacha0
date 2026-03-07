@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRequest';
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
@@ -26,11 +27,17 @@ export function useNotificationBadges() {
 
         // 优先尝试从 Supabase 加载
         if (supabase) {
-          const { data: dbData, error } = await supabase
-            .from('announcements')
-            .select('*')
-            .eq('is_active', true)
-            .order('priority', { ascending: false });
+          const { data: dbData, error } = await executeSupabaseRead(
+            () => supabase
+              .from('announcements')
+              .select('*')
+              .eq('is_active', true)
+              .order('priority', { ascending: false }),
+            {
+              label: 'load notification announcements',
+              retries: 1,
+            }
+          );
 
           if (!error && dbData && dbData.length > 0) {
             data = dbData;
@@ -39,7 +46,10 @@ export function useNotificationBadges() {
 
         // 回退到本地 JSON
         if (!data) {
-          const response = await fetch('/announcements.json');
+          const response = await fetchWithTimeout('/announcements.json', undefined, {
+            label: 'load announcements fallback',
+            timeoutMs: 15000,
+          });
           if (response.ok) {
             const jsonData = await response.json();
             data = jsonData.filter(a => a.is_active).sort((a, b) => b.priority - a.priority);
@@ -88,7 +98,13 @@ export function useNotificationBadges() {
           query = query.eq('user_id', user.id);
         }
 
-        const { count, error } = await query;
+        const { count, error } = await executeSupabaseRead(
+          () => query,
+          {
+            label: 'load unread ticket count',
+            retries: 1,
+          }
+        );
 
         if (!error) {
           setUnreadTicketsCount(count || 0);

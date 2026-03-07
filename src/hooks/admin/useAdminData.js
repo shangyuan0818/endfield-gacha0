@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../../supabaseClient';
+import { useAuthStore } from '../../stores';
 import { validateUserData } from '../../utils/validators';
-
-const ADMIN_PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at, last_seen_at';
+import * as userService from '../../services/admin/userService';
+import * as blacklistService from '../../services/admin/blacklistService';
+import * as announcementService from '../../services/admin/announcementService';
+import * as pageContentService from '../../services/admin/pageContentService';
 
 /**
  * 管理后台数据统一管理 Hook
  * 负责：用户、黑名单、公告、页面内容的数据获取与 CRUD 操作
  */
 export function useAdminData(showToast) {
+  const user = useAuthStore(state => state.user);
+  const userRole = useAuthStore(state => state.userRole);
+
   // 数据状态
   const [users, setUsers] = useState([]);
   const [blacklist, setBlacklist] = useState([]);
@@ -17,37 +22,79 @@ export function useAdminData(showToast) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
+  const ensureSuperAdmin = useCallback(() => {
+    if (userRole !== 'super_admin') {
+      showToast('需要超级管理员权限', 'error');
+      return false;
+    }
+    return true;
+  }, [userRole, showToast]);
+
+  const loadAdminData = useCallback(async () => {
+    if (!user || userRole !== 'super_admin') {
+      setUsers([]);
+      setBlacklist([]);
+      setAnnouncements([]);
+      setPageContents([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const [
+      usersResult,
+      announcementsResult,
+      blacklistResult,
+      pageContentResult
+    ] = await Promise.allSettled([
+      userService.loadUsers(),
+      announcementService.loadAnnouncements(),
+      blacklistService.loadBlacklist(),
+      pageContentService.loadPageContents()
+    ]);
+
+    const failedSections = [];
+
+    if (usersResult.status === 'fulfilled') {
+      setUsers(usersResult.value);
+    } else {
+      failedSections.push('用户');
+    }
+
+    if (announcementsResult.status === 'fulfilled') {
+      setAnnouncements(announcementsResult.value);
+    } else {
+      failedSections.push('公告');
+    }
+
+    if (blacklistResult.status === 'fulfilled') {
+      setBlacklist(blacklistResult.value);
+    } else {
+      failedSections.push('黑名单');
+    }
+
+    if (pageContentResult.status === 'fulfilled') {
+      setPageContents(pageContentResult.value);
+    } else {
+      failedSections.push('页面内容');
+    }
+
+    if (failedSections.length > 0) {
+      showToast(`后台数据部分加载失败：${failedSections.join('、')}`, 'warning');
+    }
+
+    setLoading(false);
+  }, [showToast, user, userRole]);
+
   // 加载所有数据
   useEffect(() => {
-    if (!supabase) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [profilesRes, announcementsRes, blacklistRes, pageContentRes] = await Promise.all([
-          supabase.from('profiles').select(ADMIN_PROFILE_FIELDS),
-          supabase.from('announcements').select('*').order('priority', { ascending: false }),
-          supabase.from('blacklist').select('*').order('created_at', { ascending: false }),
-          supabase.from('page_content').select('*').order('id', { ascending: true })
-        ]);
-
-        setUsers(profilesRes.data || []);
-        setAnnouncements(announcementsRes.data || []);
-        setBlacklist(blacklistRes.data || []);
-        setPageContents(pageContentRes.data || []);
-      } catch {
-        // 静默处理
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+    loadAdminData();
+  }, [loadAdminData]);
 
   // ========== 用户管理函数 ==========
   const saveUser = useCallback(async (userForm, editingUser, onSuccess) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
 
     const isCreating = !editingUser;
     const validation = validateUserData(userForm, isCreating);
@@ -73,14 +120,7 @@ export function useAdminData(showToast) {
 
     try {
       if (editingUser) {
-        const { error, data: updatedProfile } = await supabase
-          .rpc('admin_update_profile', {
-            p_target_user_id: editingUser.id,
-            p_username: userForm.username,
-            p_role: userForm.role,
-          });
-
-        if (error) throw error;
+        const updatedProfile = await userService.updateUserProfile(editingUser.id, userForm);
 
         setUsers(prev => prev.map(u =>
           u.id === editingUser.id
@@ -89,30 +129,8 @@ export function useAdminData(showToast) {
         ));
         showToast('用户已更新', 'success');
       } else {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        const response = await fetch(
-          `${supabase.supabaseUrl}/functions/v1/admin-create-user`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`
-            },
-            body: JSON.stringify({
-              email: userForm.email.trim(),
-              password: userForm.password,
-              username: userForm.username?.trim() || userForm.email.split('@')[0],
-              role: userForm.role
-            })
-          }
-        );
-
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || '创建用户失败');
-
-        const { data: profilesData } = await supabase.from('profiles').select(ADMIN_PROFILE_FIELDS);
-        setUsers(profilesData || []);
+        await userService.createUser(userForm);
+        await loadAdminData();
         showToast('用户已创建', 'success');
       }
 
@@ -122,10 +140,10 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, loadAdminData, showToast]);
 
   const deleteUser = useCallback(async (user) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
 
     if (user.role === 'super_admin') {
       showToast('无法删除超级管理员账户', 'error');
@@ -143,23 +161,7 @@ export function useAdminData(showToast) {
     setUsers(prev => prev.filter(u => u.id !== user.id));
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${supabase.supabaseUrl}/functions/v1/admin-delete-user`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`
-          },
-          body: JSON.stringify({ userId: user.id })
-        }
-      );
-
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || '删除用户失败');
-
+      await userService.deleteUser(user.id);
       showToast('用户已删除', 'success');
     } catch (error) {
       setUsers(backupUsers);
@@ -167,10 +169,10 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [users, showToast]);
+  }, [users, ensureSuperAdmin, showToast]);
 
   const addToBlacklist = useCallback(async (user) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
 
     const reason = window.prompt(`请输入将用户「${user.username}」加入黑名单的原因：`);
     if (!reason) return;
@@ -178,19 +180,11 @@ export function useAdminData(showToast) {
     setActionLoading(user.id);
 
     try {
-      const { data, error } = await supabase
-        .from('blacklist')
-        .insert({
-          email: user.email,
-          reason: reason,
-          type: 'email',
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+      const data = await blacklistService.createBlacklistEntry({
+        email: user.email,
+        reason,
+        type: 'email'
+      });
       setBlacklist(prev => [data, ...prev]);
       showToast(`已将 ${user.email} 加入黑名单`, 'success');
     } catch (error) {
@@ -198,11 +192,11 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   // ========== 黑名单管理函数 ==========
   const saveBlacklistEntry = useCallback(async (blacklistForm, onSuccess) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
 
     if (!blacklistForm.email.trim() || !blacklistForm.reason.trim()) {
       showToast('邮箱/域名和原因不能为空', 'error');
@@ -212,19 +206,7 @@ export function useAdminData(showToast) {
     setActionLoading('blacklist');
 
     try {
-      const { data, error } = await supabase
-        .from('blacklist')
-        .insert({
-          email: blacklistForm.email,
-          reason: blacklistForm.reason,
-          type: blacklistForm.type,
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
+      const data = await blacklistService.createBlacklistEntry(blacklistForm);
       setBlacklist(prev => [data, ...prev]);
       showToast('已添加到黑名单', 'success');
       onSuccess?.();
@@ -233,23 +215,17 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   const removeFromBlacklist = useCallback(async (entry) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
 
     if (!window.confirm(`确定要将「${entry.email}」从黑名单中移除吗？`)) return;
 
     setActionLoading(entry.id);
 
     try {
-      const { error } = await supabase
-        .from('blacklist')
-        .delete()
-        .eq('id', entry.id);
-
-      if (error) throw error;
-
+      await blacklistService.deleteBlacklistEntry(entry.id);
       setBlacklist(prev => prev.filter(b => b.id !== entry.id));
       showToast('已从黑名单移除', 'success');
     } catch (error) {
@@ -257,11 +233,11 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   // ========== 公告管理函数 ==========
   const saveAnnouncement = useCallback(async (announcementForm, editingAnnouncement, onSuccess) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     if (!announcementForm.title.trim() || !announcementForm.content.trim()) {
       showToast('标题和内容不能为空', 'error');
       return;
@@ -271,39 +247,14 @@ export function useAdminData(showToast) {
 
     try {
       if (editingAnnouncement) {
-        const { error } = await supabase
-          .from('announcements')
-          .update({
-            title: announcementForm.title,
-            content: announcementForm.content,
-            version: announcementForm.version,
-            is_active: announcementForm.is_active,
-            priority: announcementForm.priority,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingAnnouncement.id);
-
-        if (error) throw error;
+        const updatedAt = await announcementService.updateAnnouncement(editingAnnouncement.id, announcementForm);
 
         setAnnouncements(prev => prev.map(a =>
-          a.id === editingAnnouncement.id ? { ...a, ...announcementForm, updated_at: new Date().toISOString() } : a
+          a.id === editingAnnouncement.id ? { ...a, ...announcementForm, updated_at: updatedAt } : a
         ));
         showToast('公告已更新', 'success');
       } else {
-        const { data, error } = await supabase
-          .from('announcements')
-          .insert({
-            title: announcementForm.title,
-            content: announcementForm.content,
-            version: announcementForm.version,
-            is_active: announcementForm.is_active,
-            priority: announcementForm.priority
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
+        const data = await announcementService.createAnnouncement(announcementForm);
         setAnnouncements(prev => [data, ...prev]);
         showToast('公告已创建', 'success');
       }
@@ -314,20 +265,14 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   const toggleAnnouncementActive = useCallback(async (announcement) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     setActionLoading(announcement.id);
 
     try {
-      const { error } = await supabase
-        .from('announcements')
-        .update({ is_active: !announcement.is_active })
-        .eq('id', announcement.id);
-
-      if (error) throw error;
-
+      await announcementService.setAnnouncementActive(announcement.id, !announcement.is_active);
       setAnnouncements(prev => prev.map(a =>
         a.id === announcement.id ? { ...a, is_active: !a.is_active } : a
       ));
@@ -337,22 +282,16 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   const deleteAnnouncement = useCallback(async (announcementId) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     if (!window.confirm('确定要删除这条公告吗？此操作无法撤销。')) return;
 
     setActionLoading(announcementId);
 
     try {
-      const { error } = await supabase
-        .from('announcements')
-        .delete()
-        .eq('id', announcementId);
-
-      if (error) throw error;
-
+      await announcementService.deleteAnnouncement(announcementId);
       setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
       showToast('公告已删除', 'success');
     } catch (error) {
@@ -360,11 +299,11 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   // ========== 页面内容管理函数 ==========
   const savePageContent = useCallback(async (pageContentForm, editingPageContent, onSuccess) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     if (!pageContentForm.id.trim() || !pageContentForm.title.trim() || !pageContentForm.content.trim()) {
       showToast('ID、标题和内容不能为空', 'error');
       return;
@@ -378,41 +317,15 @@ export function useAdminData(showToast) {
     setActionLoading('pageContent');
 
     try {
-      const currentUser = (await supabase.auth.getUser()).data.user;
-
       if (editingPageContent) {
-        const { error } = await supabase
-          .from('page_content')
-          .update({
-            title: pageContentForm.title,
-            content: pageContentForm.content,
-            is_active: pageContentForm.is_active,
-            updated_by: currentUser?.id,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingPageContent.id);
-
-        if (error) throw error;
+        const updatedAt = await pageContentService.updatePageContent(editingPageContent.id, pageContentForm);
 
         setPageContents(prev => prev.map(p =>
-          p.id === editingPageContent.id ? { ...p, ...pageContentForm, updated_at: new Date().toISOString() } : p
+          p.id === editingPageContent.id ? { ...p, ...pageContentForm, updated_at: updatedAt } : p
         ));
         showToast('页面内容已更新', 'success');
       } else {
-        const { data, error } = await supabase
-          .from('page_content')
-          .insert({
-            id: pageContentForm.id,
-            title: pageContentForm.title,
-            content: pageContentForm.content,
-            is_active: pageContentForm.is_active,
-            updated_by: currentUser?.id
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
+        const data = await pageContentService.createPageContent(pageContentForm);
         setPageContents(prev => [...prev, data].sort((a, b) => a.id.localeCompare(b.id)));
         showToast('页面内容已创建', 'success');
       }
@@ -423,20 +336,14 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   const togglePageContentActive = useCallback(async (pageContent) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     setActionLoading(pageContent.id);
 
     try {
-      const { error } = await supabase
-        .from('page_content')
-        .update({ is_active: !pageContent.is_active })
-        .eq('id', pageContent.id);
-
-      if (error) throw error;
-
+      await pageContentService.setPageContentActive(pageContent.id, !pageContent.is_active);
       setPageContents(prev => prev.map(p =>
         p.id === pageContent.id ? { ...p, is_active: !p.is_active } : p
       ));
@@ -446,22 +353,16 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   const deletePageContent = useCallback(async (pageContentId) => {
-    if (!supabase) return;
+    if (!ensureSuperAdmin()) return;
     if (!window.confirm('确定要删除这条页面内容吗？此操作无法撤销。')) return;
 
     setActionLoading(pageContentId);
 
     try {
-      const { error } = await supabase
-        .from('page_content')
-        .delete()
-        .eq('id', pageContentId);
-
-      if (error) throw error;
-
+      await pageContentService.deletePageContent(pageContentId);
       setPageContents(prev => prev.filter(p => p.id !== pageContentId));
       showToast('页面内容已删除', 'success');
     } catch (error) {
@@ -469,7 +370,7 @@ export function useAdminData(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [showToast]);
+  }, [ensureSuperAdmin, showToast]);
 
   return {
     // 数据状态
@@ -479,6 +380,7 @@ export function useAdminData(showToast) {
     pageContents,
     loading,
     actionLoading,
+    reloadAdminData: loadAdminData,
 
     // 用户管理
     saveUser,

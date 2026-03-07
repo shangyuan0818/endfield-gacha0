@@ -1,5 +1,43 @@
 import { create } from 'zustand';
+import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest';
 import { supabase } from '../supabaseClient';
+
+const SITE_CONFIG_SNAPSHOT_KEY = 'site_config_snapshot_v1';
+
+function readSiteConfigSnapshot() {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const rawSnapshot = window.localStorage.getItem(SITE_CONFIG_SNAPSHOT_KEY);
+    if (!rawSnapshot) {
+      return {};
+    }
+
+    const parsedSnapshot = JSON.parse(rawSnapshot);
+    return parsedSnapshot && typeof parsedSnapshot.config === 'object' && parsedSnapshot.config !== null
+      ? parsedSnapshot.config
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSiteConfigSnapshot(config) {
+  if (typeof window === 'undefined' || !config || typeof config !== 'object') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(SITE_CONFIG_SNAPSHOT_KEY, JSON.stringify({
+      config,
+      fetchedAt: Date.now(),
+    }));
+  } catch {
+    // 本地缓存写入失败时静默降级
+  }
+}
 
 /**
  * 站点配置状态管理
@@ -13,21 +51,37 @@ const useSiteConfigStore = create((set, get) => ({
    * 从数据库加载所有站点配置
    */
   loadConfig: async () => {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('site_config')
-        .select('key, value');
+    const snapshot = readSiteConfigSnapshot();
 
-      if (!error && data) {
-        const configMap = {};
-        data.forEach(row => {
-          configMap[row.key] = row.value;
-        });
-        set({ config: configMap, loaded: true });
+    if (!supabase) {
+      set({ config: snapshot, loaded: true });
+      return;
+    }
+
+    try {
+      const { data, error } = await executeSupabaseRead(
+        () => supabase
+          .from('site_config')
+          .select('key, value'),
+        {
+          label: 'load site config',
+          retries: 2,
+        }
+      );
+
+      if (error) {
+        throw error;
       }
+
+      const configMap = {};
+      (data || []).forEach(row => {
+        configMap[row.key] = row.value;
+      });
+
+      writeSiteConfigSnapshot(configMap);
+      set({ config: configMap, loaded: true });
     } catch {
-      // 静默失败，使用 fallback
+      set({ config: snapshot, loaded: true });
     }
   },
 
@@ -45,16 +99,21 @@ const useSiteConfigStore = create((set, get) => ({
   updateConfig: async (key, value) => {
     if (!supabase) return false;
     try {
-      const { error } = await supabase
-        .from('site_config')
-        .update({ value, updated_at: new Date().toISOString() })
-        .eq('key', key);
+      const { error } = await executeSupabaseMutation(
+        () => supabase
+          .from('site_config')
+          .update({ value, updated_at: new Date().toISOString() })
+          .eq('key', key),
+        {
+          label: 'update site config'
+        }
+      );
 
       if (error) throw error;
 
-      set(state => ({
-        config: { ...state.config, [key]: value }
-      }));
+      const nextConfig = { ...get().config, [key]: value };
+      writeSiteConfigSnapshot(nextConfig);
+      set({ config: nextConfig });
       return true;
     } catch {
       return false;
