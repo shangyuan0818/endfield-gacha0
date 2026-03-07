@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Sun, Moon, Monitor, MessageSquare, Shield, Info, LogOut, User, LogIn } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../stores/useAuthStore';
-import useUIStore from '../../stores/useUIStore';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import AuthModal from '../../AuthModal';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getMobilePathForTab } from '../../constants/appRoutes';
 
 /**
  * 移动端侧边抽屉菜单
@@ -12,7 +13,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 function MobileDrawer({ isOpen, onClose }) {
   const { themeMode, setThemeMode } = useTheme();
   const { user, signOut, userRole, setUser } = useAuthStore();
-  const { setActiveTab } = useUIStore();
+  const navigate = useNavigate();
   const isSuperAdmin = userRole === 'super_admin';
   const drawerRef = useRef(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -52,17 +53,17 @@ function MobileDrawer({ isOpen, onClose }) {
   };
 
   const handleAdminClick = () => {
-    setActiveTab('admin');
+    navigate(getMobilePathForTab('admin'));
     onClose();
   };
 
   const handleAboutClick = () => {
-    setActiveTab('about');
+    navigate(getMobilePathForTab('about'));
     onClose();
   };
 
   const handleFeedbackClick = () => {
-    setActiveTab('ticket');
+    navigate(getMobilePathForTab('tickets'));
     onClose();
   };
 

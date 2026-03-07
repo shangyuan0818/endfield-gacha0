@@ -10,10 +10,10 @@ import { LIMITED_POOL_SCHEDULE } from '../constants';
  * @param {Array} pools - 卡池数组（来自 usePoolStore）
  * @returns {Object|null} 当前活跃的限定池信息
  */
-export const getCurrentLimitedPoolFromDB = (pools) => {
+export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) => {
   if (!pools || pools.length === 0) return null;
 
-  const now = new Date();
+  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
 
   // 筛选限定角色池，且有时间范围的
   const limitedPools = pools.filter(pool => {
@@ -151,13 +151,13 @@ export const getLimitedPoolScheduleFromDB = (pools) => {
  * @param {Array} pools - 卡池数组（来自 usePoolStore）
  * @returns {Object} 当前 UP 池信息
  */
-export const getCurrentUpPoolInfo = (pools) => {
+export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
   // 优先从数据库获取
-  const dbPool = getCurrentLimitedPoolFromDB(pools);
+  const dbPool = getCurrentLimitedPoolFromDB(pools, referenceDate);
   if (dbPool) return dbPool;
 
   // Fallback 到硬编码
-  const now = new Date();
+  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   for (const pool of LIMITED_POOL_SCHEDULE) {
     const start = new Date(pool.startDate);
     const end = new Date(pool.endDate);

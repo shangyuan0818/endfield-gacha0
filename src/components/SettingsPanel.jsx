@@ -1,10 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Mail, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import { useTheme } from '../contexts/ThemeContext';
 
-const SettingsPanel = React.memo(({ user, userRole, pools, history, onDeleteAllData }) => {
+const SettingsPanel = React.memo(({ onDeleteAllData }) => {
+  const user = useAuthStore(state => state.user);
+  const userRole = useAuthStore(state => state.userRole);
+  const pools = usePoolStore(state => state.pools);
+  const history = useHistoryStore(state => state.history);
   const { themeMode, setThemeMode } = useTheme();
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);

@@ -1,9 +1,42 @@
-import React from 'react';
-import { X, Trash2, AlertCircle, Upload, CheckCircle2, User, Cloud, CloudOff, RefreshCw, Star, Layers, Search, Lock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Trash2, AlertCircle, Upload, CheckCircle2, User, Cloud, CloudOff, RefreshCw, Star, Layers, Search } from 'lucide-react';
 import AuthModal from '../../AuthModal';
 import { Toast, ConfirmDialog } from '../ui';
 import { useUIStore, useAuthStore, useHistoryStore } from '../../stores';
 import { PRESET_POOLS } from '../../constants';
+
+const DEFAULT_POOL_FORM = {
+  name: '',
+  type: 'limited',
+  isLimitedWeapon: true,
+  drawerName: '',
+  selectedCharName: ''
+};
+
+function normalizeEditablePoolType(type) {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'limited_weapon') return 'weapon';
+  return type || 'standard';
+}
+
+function buildPoolName(type, selectedCharName, drawerName) {
+  const typeLabel = type === 'limited' ? '限定' : (type === 'weapon' ? '武器' : '常驻');
+  return `${typeLabel}${selectedCharName ? '-' + selectedCharName : ''}${drawerName ? '-' + drawerName : ''}`;
+}
+
+function getInitialPoolForm(modalState) {
+  if (modalState.type === 'editPool' && modalState.data) {
+    return {
+      name: modalState.data.name || '',
+      type: normalizeEditablePoolType(modalState.data.type),
+      isLimitedWeapon: modalState.data.isLimitedWeapon !== false,
+      drawerName: '',
+      selectedCharName: ''
+    };
+  }
+
+  return DEFAULT_POOL_FORM;
+}
 
 /**
  * 全局弹窗管理组件
@@ -46,18 +79,36 @@ export default function GachaModals({
 
   const modalState = useUIStore(state => state.modalState);
   const setModalState = useUIStore(state => state.setModalState);
-  const newPoolNameInput = useUIStore(state => state.newPoolNameInput);
-  const newPoolTypeInput = useUIStore(state => state.newPoolTypeInput);
-  const isLimitedWeaponPool = useUIStore(state => state.isLimitedWeaponPool);
-  const drawerName = useUIStore(state => state.drawerName);
-  const selectedCharName = useUIStore(state => state.selectedCharName);
-  const setNewPoolNameInput = useUIStore(state => state.setNewPoolNameInput);
-  const setNewPoolTypeInput = useUIStore(state => state.setNewPoolTypeInput);
-  const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
-  const setDrawerName = useUIStore(state => state.setDrawerName);
-  const setSelectedCharName = useUIStore(state => state.setSelectedCharName);
 
   const history = useHistoryStore(state => state.history);
+  const [poolForm, setPoolForm] = useState(DEFAULT_POOL_FORM);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setPoolForm(getInitialPoolForm(modalState));
+    });
+  }, [modalState]);
+
+  const closePoolFormModal = () => {
+    setPoolForm(DEFAULT_POOL_FORM);
+    closeModalAndClear();
+  };
+
+  const applyAutoPoolName = (updates) => {
+    setPoolForm(prev => {
+      const next = { ...prev, ...updates };
+      return { ...next, name: buildPoolName(next.type, next.selectedCharName, next.drawerName) };
+    });
+  };
+
+  const submitPoolForm = async () => {
+    if (modalState.type === 'createPool') {
+      await confirmCreatePool(poolForm);
+      return;
+    }
+
+    await confirmEditPool(poolForm);
+  };
 
   return (
     <>
@@ -67,7 +118,7 @@ export default function GachaModals({
           <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 dark:text-zinc-300">{modalState.type === 'createPool' ? '创建新卡池' : '编辑卡池'}</h3>
-              <button onClick={closeModalAndClear} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
+              <button onClick={closePoolFormModal} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:text-zinc-400 transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -79,13 +130,7 @@ export default function GachaModals({
                     {PRESET_POOLS.map((preset, idx) => (
                       <button
                         key={idx}
-                        onClick={() => {
-                          const typeStr = preset.type === 'limited' ? '限定' : (preset.type === 'weapon' ? '武器' : '常驻');
-                          const name = `${typeStr}${preset.charName ? '-' + preset.charName : ''}${drawerName ? '-' + drawerName : ''}`;
-                          setNewPoolTypeInput(preset.type);
-                          setSelectedCharName(preset.charName);
-                          setNewPoolNameInput(name);
-                        }}
+                        onClick={() => applyAutoPoolName({ type: preset.type, selectedCharName: preset.charName })}
                         className="text-left text-xs p-2 rounded-none border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-yellow-50 dark:hover:bg-yellow-900/30 hover:border-yellow-300 dark:hover:border-yellow-700 text-slate-600 dark:text-zinc-300 hover:text-yellow-700 dark:hover:text-yellow-300 transition-colors truncate"
                         title={preset.label}
                       >
@@ -119,15 +164,14 @@ export default function GachaModals({
                       <button
                         key={drawer}
                         onClick={() => {
-                          setDrawerName(drawer);
                           if (modalState.type === 'createPool') {
-                            const typeStr = newPoolTypeInput === 'limited' ? '限定' : (newPoolTypeInput === 'weapon' ? '武器' : '常驻');
-                            const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${drawer ? '-' + drawer : ''}`;
-                            setNewPoolNameInput(name);
+                            applyAutoPoolName({ drawerName: drawer });
+                          } else {
+                            setPoolForm(prev => ({ ...prev, drawerName: drawer }));
                           }
                         }}
                         className={`text-xs px-2 py-1 rounded-none border transition-colors ${
-                          drawerName === drawer
+                          poolForm.drawerName === drawer
                             ? 'bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300 font-bold'
                             : 'bg-slate-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:border-yellow-300 dark:hover:border-yellow-700'
                         }`}
@@ -139,14 +183,12 @@ export default function GachaModals({
                 )}
                 <input
                   type="text"
-                  value={drawerName}
+                  value={poolForm.drawerName}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setDrawerName(val);
                     if (modalState.type === 'createPool') {
-                      const typeStr = newPoolTypeInput === 'limited' ? '限定' : (newPoolTypeInput === 'weapon' ? '武器' : '常驻');
-                      const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${val ? '-' + val : ''}`;
-                      setNewPoolNameInput(name);
+                      applyAutoPoolName({ drawerName: e.target.value });
+                    } else {
+                      setPoolForm(prev => ({ ...prev, drawerName: e.target.value }));
                     }
                   }}
                   placeholder={knownDrawers.length > 0 ? "选择上方已有或输入新抽卡人" : "例如：Me, 朋友A"}
@@ -158,11 +200,11 @@ export default function GachaModals({
                 <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池名称</label>
                 <input
                   type="text"
-                  value={newPoolNameInput}
-                  onChange={(e) => setNewPoolNameInput(e.target.value)}
+                  value={poolForm.name}
+                  onChange={(e) => setPoolForm(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="例如：限定-莱万汀-Me"
                   className="w-full px-4 py-2 border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 rounded-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
-                  onKeyDown={(e) => e.key === 'Enter' && (modalState.type === 'createPool' ? confirmCreatePool() : confirmEditPool())}
+                  onKeyDown={(e) => e.key === 'Enter' && submitPoolForm()}
                 />
               </div>
 
@@ -170,18 +212,17 @@ export default function GachaModals({
                 <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池类型</label>
                 <div className="flex gap-3">
                   {['limited', 'standard', 'weapon'].map(type => (
-                    <label key={type} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-none border cursor-pointer transition-all ${newPoolTypeInput === type ? (type === 'weapon' ? 'bg-slate-800 border-slate-600 text-white' : type === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-yellow-50 dark:bg-yellow-900/20 border-indigo-500 text-yellow-700 dark:text-yellow-300') + ' font-bold ring-1' : 'border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:bg-slate-50 dark:bg-zinc-950'}`}>
+                    <label key={type} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-none border cursor-pointer transition-all ${poolForm.type === type ? (type === 'weapon' ? 'bg-slate-800 border-slate-600 text-white' : type === 'limited' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-yellow-50 dark:bg-yellow-900/20 border-indigo-500 text-yellow-700 dark:text-yellow-300') + ' font-bold ring-1' : 'border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:bg-slate-50 dark:bg-zinc-950'}`}>
                       <input
                         type="radio"
                         name="poolType"
                         value={type}
-                        checked={newPoolTypeInput === type}
+                        checked={poolForm.type === type}
                         onChange={() => {
-                          setNewPoolTypeInput(type);
                           if (modalState.type === 'createPool') {
-                            const typeStr = type === 'limited' ? '限定' : (type === 'weapon' ? '武器' : '常驻');
-                            const name = `${typeStr}${selectedCharName ? '-' + selectedCharName : ''}${drawerName ? '-' + drawerName : ''}`;
-                            setNewPoolNameInput(name);
+                            applyAutoPoolName({ type });
+                          } else {
+                            setPoolForm(prev => ({ ...prev, type }));
                           }
                         }}
                         className="hidden"
@@ -194,15 +235,15 @@ export default function GachaModals({
                   ))}
                 </div>
                 <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
-                  {newPoolTypeInput === 'limited' && '包含限定与歪，统计大小保底、硬保底(120)及赠送(240)。'}
-                  {newPoolTypeInput === 'standard' && '仅统计常驻6星，不区分限定/歪，无大小保底统计。'}
-                  {newPoolTypeInput === 'weapon' && (isLimitedWeaponPool
+                  {poolForm.type === 'limited' && '包含限定与歪，统计大小保底、硬保底(120)及赠送(240)。'}
+                  {poolForm.type === 'standard' && '仅统计常驻6星，不区分限定/歪，无大小保底统计。'}
+                  {poolForm.type === 'weapon' && (poolForm.isLimitedWeapon
                     ? '6星40抽保底，首轮80抽必出限定。赠送：100(常)->180(限)->+80交替。'
                     : '6星40抽保底，无额外赠送内容。'
                   )}
                 </p>
 
-                {newPoolTypeInput === 'weapon' && (
+                {poolForm.type === 'weapon' && (
                   <div className="mt-3 p-3 bg-slate-50 dark:bg-zinc-800 rounded-none border border-zinc-200 dark:border-zinc-700">
                     <label className="flex items-center justify-between cursor-pointer">
                       <div>
@@ -210,9 +251,9 @@ export default function GachaModals({
                         <p className="text-xs text-slate-400 dark:text-zinc-500 mt-0.5">限定武器池有额外获取内容（武库箱、限定武器赠送）</p>
                       </div>
                       <div className="relative">
-                        <input type="checkbox" checked={isLimitedWeaponPool} onChange={(e) => setIsLimitedWeaponPool(e.target.checked)} className="sr-only" />
-                        <div className={`w-11 h-6 rounded-full transition-colors ${isLimitedWeaponPool ? 'bg-orange-500' : 'bg-slate-300 dark:bg-zinc-600'}`}>
-                          <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${isLimitedWeaponPool ? 'translate-x-5' : ''}`}></div>
+                        <input type="checkbox" checked={poolForm.isLimitedWeapon} onChange={(e) => setPoolForm(prev => ({ ...prev, isLimitedWeapon: e.target.checked }))} className="sr-only" />
+                        <div className={`w-11 h-6 rounded-full transition-colors ${poolForm.isLimitedWeapon ? 'bg-orange-500' : 'bg-slate-300 dark:bg-zinc-600'}`}>
+                          <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${poolForm.isLimitedWeapon ? 'translate-x-5' : ''}`}></div>
                         </div>
                       </div>
                     </label>
@@ -221,8 +262,8 @@ export default function GachaModals({
               </div>
             </div>
             <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-end">
-              <button onClick={closeModalAndClear} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors">取消</button>
-              <button onClick={modalState.type === 'createPool' ? confirmCreatePool : confirmEditPool} disabled={!newPoolNameInput.trim()} className="px-4 py-2 text-sm font-bold text-white bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed rounded-none shadow-sm transition-all">
+              <button onClick={closePoolFormModal} className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors">取消</button>
+              <button onClick={submitPoolForm} disabled={!poolForm.name.trim()} className="px-4 py-2 text-sm font-bold text-white bg-endfield-yellow text-black hover:bg-yellow-400 font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed rounded-none shadow-sm transition-all">
                 {modalState.type === 'createPool' ? '创建' : '保存'}
               </button>
             </div>

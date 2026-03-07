@@ -35,6 +35,8 @@ function MobileSummaryView() {
   });
 
   const limitedSixStarUpRanking = ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || [];
+  const globalStatsMeta = dataSource === 'global' ? currentStats?.meta : null;
+  const showGlobalStatsFallbackNotice = globalStatsMeta && globalStatsMeta.status && globalStatsMeta.status !== 'ready';
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -95,11 +97,18 @@ function MobileSummaryView() {
       ) : currentStats ? (
         <>
           {/* 统计卡片 */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden rounded-none shadow-sm">
-            <div className={`h-1 w-full ${dataSource === 'global' ? 'bg-indigo-500' : 'bg-endfield-yellow'}`} />
-            <div className="p-4">
-              {/* 标题 */}
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden rounded-none shadow-sm">
+          <div className={`h-1 w-full ${dataSource === 'global' ? 'bg-indigo-500' : 'bg-endfield-yellow'}`} />
+          <div className="p-4">
+            {showGlobalStatsFallbackNotice && (
+              <div className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                {globalStatsMeta.status === 'stale'
+                  ? '当前使用上次成功缓存，全服汇总稍后会自动刷新。'
+                  : '全服汇总暂时不可用，网络或数据库响应较慢，请稍后重试。'}
+              </div>
+            )}
+            {/* 标题 */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-none border border-current ${dataSource === 'global' ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10'}`}>
                     {dataSource === 'global' ? <Cloud size={16} /> : <User size={16} />}

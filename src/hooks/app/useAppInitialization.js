@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
-import { DEFAULT_POOL_ID } from '../../constants';
+import { getPreferredPoolId } from '../../utils/poolSelectionUtils';
 
 /**
  * 应用初始化 Hook
@@ -70,15 +70,14 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
             // 使用 ref 中的值，避免依赖项循环
             const savedPoolId = currentPoolIdRef.current;
-            const hasCurrent = cloudData.pools.some(p => p.id === savedPoolId);
-            const defaultPool = cloudData.pools.find(p => p.id === DEFAULT_POOL_ID);
-            const fallbackId = hasCurrent
-              ? savedPoolId
-              : defaultPool
-                ? defaultPool.id
-                : cloudData.pools[0].id;
-            switchPool(fallbackId);
-            localStorage.setItem('gacha_current_pool_id', fallbackId);
+            const fallbackId = getPreferredPoolId(cloudData.pools, {
+              preferredPoolId: savedPoolId
+            });
+
+            if (fallbackId) {
+              switchPool(fallbackId);
+              localStorage.setItem('gacha_current_pool_id', fallbackId);
+            }
 
             if (cloudData.history.length > 0) {
               setHistory(cloudData.history);

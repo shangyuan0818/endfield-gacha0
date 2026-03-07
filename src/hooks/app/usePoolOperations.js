@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useHistoryStore, usePoolStore, useUIStore, useAuthStore } from '../../stores';
 import { validatePoolData } from '../../utils';
 
@@ -12,49 +12,49 @@ export function usePoolOperations({
 }) {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
-  const isSuperAdmin = userRole === 'super_admin';
+  const setSyncing = useAuthStore(state => state.setSyncing);
 
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const createPool = usePoolStore(state => state.createPool);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
+  const updatePool = usePoolStore(state => state.updatePool);
 
   const setHistory = useHistoryStore(state => state.setHistory);
 
   const modalState = useUIStore(state => state.modalState);
   const setModalState = useUIStore(state => state.setModalState);
-  const newPoolNameInput = useUIStore(state => state.newPoolNameInput);
-  const newPoolTypeInput = useUIStore(state => state.newPoolTypeInput);
-  const isLimitedWeaponPool = useUIStore(state => state.isLimitedWeaponPool);
-  const setNewPoolNameInput = useUIStore(state => state.setNewPoolNameInput);
-  const setNewPoolTypeInput = useUIStore(state => state.setNewPoolTypeInput);
-  const setIsLimitedWeaponPool = useUIStore(state => state.setIsLimitedWeaponPool);
-  const setSyncing = useAuthStore(state => state.setSyncing);
 
   const { savePoolToCloud, deletePoolFromCloud, deletePoolHistoryFromCloud } = cloudSync;
 
-  const poolsArray = Array.isArray(pools) ? pools : [];
+  const isSuperAdmin = userRole === 'super_admin';
+  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
 
   // 创建卡池
-  const confirmCreatePool = useCallback(async () => {
-    if (!newPoolNameInput.trim()) return;
+  const confirmCreatePool = useCallback(async (poolForm) => {
+    const name = poolForm?.name?.trim();
+    if (!name) return;
+
+    const type = poolForm?.type || 'limited';
+    const isLimitedWeapon = type === 'weapon' ? poolForm?.isLimitedWeapon !== false : undefined;
     const newId = 'pool_' + Date.now();
-    const newPool = {
+    const newPoolDraft = {
       id: newId,
-      name: newPoolNameInput.trim(),
-      type: newPoolTypeInput,
+      name,
+      type,
       locked: false,
       user_id: user?.id,
-      isLimitedWeapon: newPoolTypeInput === 'weapon' ? isLimitedWeaponPool : undefined
+      isLimitedWeapon
     };
 
-    const validation = validatePoolData(newPool);
+    const validation = validatePoolData(newPoolDraft);
     if (!validation.isValid) {
       showToast(`卡池创建失败: ${validation.errors.join(', ')}`, 'error');
       return;
     }
 
-    setPools(prev => [...prev, newPool]);
+    const newPool = createPool(newPoolDraft);
     switchPool(newId);
     setModalState({ type: null, data: null });
 
@@ -68,39 +68,34 @@ export function usePoolOperations({
     } else {
       showToast(`卡池「${newPool.name}」已创建（本地）`, 'success');
     }
-  }, [newPoolNameInput, newPoolTypeInput, isLimitedWeaponPool, user, setPools, switchPool, setModalState, savePoolToCloud, showToast]);
-
-  // 打开编辑卡池弹窗
-  const openEditPoolModal = useCallback((e, pool) => {
-    e.stopPropagation();
-    setNewPoolNameInput(pool.name);
-    setNewPoolTypeInput(pool.type || 'standard');
-    setIsLimitedWeaponPool(pool.isLimitedWeapon !== false);
-    setModalState({ type: 'editPool', data: pool });
-  }, [setNewPoolNameInput, setNewPoolTypeInput, setIsLimitedWeaponPool, setModalState]);
+  }, [user, createPool, switchPool, setModalState, savePoolToCloud, showToast]);
 
   // 确认编辑卡池
-  const confirmEditPool = useCallback(async () => {
-    if (!newPoolNameInput.trim() || !modalState.data) return;
+  const confirmEditPool = useCallback(async (poolForm) => {
+    const targetPool = modalState.data;
+    const name = poolForm?.name?.trim();
+    if (!name || !targetPool) return;
 
+    const type = poolForm?.type || targetPool.type || 'standard';
+    const isLimitedWeapon = type === 'weapon' ? poolForm?.isLimitedWeapon !== false : undefined;
     const updatedPool = {
-      id: modalState.data.id,
-      name: newPoolNameInput.trim(),
-      type: newPoolTypeInput,
-      locked: modalState.data.locked || false,
-      created_at: modalState.data.created_at || null,
-      user_id: modalState.data.user_id || null,
-      creator_username: modalState.data.creator_username || null,
-      isLimitedWeapon: newPoolTypeInput === 'weapon' ? isLimitedWeaponPool : undefined
+      ...targetPool,
+      name,
+      type,
+      isLimitedWeapon
     };
 
-    setPools(prev => prev.map(p => p.id === modalState.data.id ? updatedPool : p));
+    updatePool(targetPool.id, {
+      name,
+      type,
+      isLimitedWeapon
+    });
     setModalState({ type: null, data: null });
 
     if (user) {
       await savePoolToCloud(updatedPool);
     }
-  }, [newPoolNameInput, newPoolTypeInput, isLimitedWeaponPool, modalState.data, user, setPools, setModalState, savePoolToCloud]);
+  }, [modalState.data, user, updatePool, setModalState, savePoolToCloud]);
 
   // 切换卡池锁定状态（仅超管可用）
   const togglePoolLock = useCallback(async (poolId) => {
@@ -203,7 +198,6 @@ export function usePoolOperations({
 
   return {
     confirmCreatePool,
-    openEditPoolModal,
     confirmEditPool,
     togglePoolLock,
     openDeletePoolModal,

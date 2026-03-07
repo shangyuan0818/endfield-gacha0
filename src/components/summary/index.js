@@ -2,3 +2,4 @@
 export { default as SidebarItem } from './SidebarItem';
 export { default as RankingCard } from './RankingCard';
 export { default as ChartSection } from './ChartSection';
+export { default as SummarySidebar } from './SummarySidebar';

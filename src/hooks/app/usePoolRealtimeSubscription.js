@@ -1,6 +1,34 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { usePoolStore, useAuthStore } from '../../stores';
+import { formatVisiblePoolRecord } from '../../services/poolReadService';
+
+function mapRealtimePoolRecord(record) {
+  return formatVisiblePoolRecord({
+    ...record,
+    creator_username: record.creator_username || null,
+    creator_role: record.creator_role || null
+  });
+}
+
+function mergePoolRecord(existingPool, incomingPool) {
+  if (!existingPool) {
+    return incomingPool;
+  }
+
+  return {
+    ...existingPool,
+    ...incomingPool,
+    creator_username: incomingPool.creator_username || existingPool.creator_username || null,
+    creator_role: incomingPool.creator_role || existingPool.creator_role || null,
+    up_character: incomingPool.up_character ?? existingPool.up_character ?? null,
+    description: incomingPool.description ?? existingPool.description ?? null,
+    banner_url: incomingPool.banner_url ?? existingPool.banner_url ?? null,
+    start_time: incomingPool.start_time ?? existingPool.start_time ?? null,
+    end_time: incomingPool.end_time ?? existingPool.end_time ?? null,
+    featured_characters: incomingPool.featured_characters ?? existingPool.featured_characters ?? null
+  };
+}
 
 /**
  * 卡池实时订阅 Hook
@@ -36,7 +64,7 @@ export function usePoolRealtimeSubscription({ showToast }) {
 
   // 订阅只在组件挂载时执行一次
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !canEdit) return;
 
     // 订阅 pools 表的所有变化
     const channel = supabase
@@ -52,21 +80,20 @@ export function usePoolRealtimeSubscription({ showToast }) {
           // 卡池数据变化监听
           if (payload.eventType === 'UPDATE') {
             // 更新本地卡池状态
-            const updatedPool = payload.new;
-            setPools(prev => prev.map(p => {
-              if (p.id === updatedPool.pool_id) {
-                return {
-                  ...p,
-                  locked: updatedPool.locked,
-                  name: updatedPool.name,
-                  type: updatedPool.type
-                };
+            const updatedPool = mapRealtimePoolRecord(payload.new);
+            setPools(prev => {
+              const existingIndex = prev.findIndex(p => p.id === updatedPool.id);
+              if (existingIndex < 0) {
+                return [...prev, updatedPool];
               }
-              return p;
-            }));
+
+              return prev.map((pool, index) => (
+                index === existingIndex ? mergePoolRecord(pool, updatedPool) : pool
+              ));
+            });
 
             // 如果更新的是当前卡池，显示通知（使用 ref 获取最新值）
-            if (updatedPool.pool_id === currentPoolIdRef.current) {
+            if (updatedPool.id === currentPoolIdRef.current) {
               if (updatedPool.locked && canEditRef.current && !isSuperAdminRef.current) {
                 showToastRef.current(`卡池「${updatedPool.name}」已被超级管理员锁定`, 'warning', '卡池已锁定');
               } else if (!updatedPool.locked) {
@@ -75,18 +102,16 @@ export function usePoolRealtimeSubscription({ showToast }) {
             }
           } else if (payload.eventType === 'INSERT') {
             // 新增卡池（其他用户创建）
-            const newPool = payload.new;
+            const newPool = mapRealtimePoolRecord(payload.new);
             setPools(prev => {
-              // 避免重复添加
-              if (prev.some(p => p.id === newPool.pool_id)) return prev;
-              return [...prev, {
-                id: newPool.pool_id,
-                name: newPool.name,
-                type: newPool.type,
-                locked: newPool.locked || false,
-                created_at: newPool.created_at,
-                user_id: newPool.user_id
-              }];
+              const existingIndex = prev.findIndex(p => p.id === newPool.id);
+              if (existingIndex >= 0) {
+                return prev.map((pool, index) => (
+                  index === existingIndex ? mergePoolRecord(pool, newPool) : pool
+                ));
+              }
+
+              return [...prev, newPool];
             });
           } else if (payload.eventType === 'DELETE') {
             // 删除卡池
@@ -101,7 +126,7 @@ export function usePoolRealtimeSubscription({ showToast }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setPools]); // 只依赖 setPools（Zustand store 函数是稳定的）
+  }, [canEdit, setPools]); // 编辑态才需要该订阅
 }
 
 export default usePoolRealtimeSubscription;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, PieChart, LayoutDashboard, Sparkles, Settings } from 'lucide-react';
-import useUIStore from '../../stores/useUIStore';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { getMobilePathForTab, getMobileTabFromPath } from '../../constants/appRoutes';
 
 const tabs = [
   { id: 'home', label: '首页', icon: Home },
@@ -14,7 +15,9 @@ const tabs = [
  * 移动端底部 Tab 栏
  */
 function MobileTabBar() {
-  const { activeTab, setActiveTab } = useUIStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = getMobileTabFromPath(location.pathname);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-50/95 dark:bg-zinc-950/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 mobile-tab-bar transition-colors duration-300">
@@ -26,7 +29,7 @@ function MobileTabBar() {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => navigate(getMobilePathForTab(tab.id))}
               className={`relative flex flex-col items-center justify-center flex-1 h-full py-2 touch-feedback no-tap-zoom transition-all duration-200 ${
                 isActive 
                   ? 'text-zinc-900 dark:text-endfield-yellow bg-gradient-to-b from-zinc-100 to-transparent dark:from-zinc-900/50' 

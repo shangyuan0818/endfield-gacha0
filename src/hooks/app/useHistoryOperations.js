@@ -8,7 +8,8 @@ import { useHistoryStore, useUIStore, useAuthStore } from '../../stores';
 export function useHistoryOperations({
   showToast,
   cloudSync,
-  currentPool
+  currentPool,
+  clearEditItemState
 }) {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
@@ -20,15 +21,14 @@ export function useHistoryOperations({
   const modalState = useUIStore(state => state.modalState);
   const setModalState = useUIStore(state => state.setModalState);
   const closeModal = useUIStore(state => state.closeModal);
-  const setEditItemState = useUIStore(state => state.setEditItemState);
 
   const { saveHistoryToCloud, deleteHistoryFromCloud } = cloudSync;
 
   // 关闭弹窗并清理编辑状态的辅助函数
   const closeModalAndClear = useCallback(() => {
     closeModal();
-    setEditItemState(null);
-  }, [closeModal, setEditItemState]);
+    clearEditItemState?.();
+  }, [closeModal, clearEditItemState]);
 
   // 编辑记录
   const handleUpdateItem = useCallback(async (id, newConfig) => {
@@ -50,16 +50,16 @@ export function useHistoryOperations({
         await saveHistoryToCloud([updatedItem]);
         // 云端保存成功，更新本地状态
         setHistory(prev => prev.map(item => item.id === id ? updatedItem : item));
-        setEditItemState(null);
+        clearEditItemState?.();
       } catch {
         // 云端保存失败，已在saveHistoryToCloud中显示错误，不更新本地状态
       }
     } else {
       // 未登录用户，仅更新本地状态
       setHistory(prev => prev.map(item => item.id === id ? updatedItem : item));
-      setEditItemState(null);
+      clearEditItemState?.();
     }
-  }, [currentPool?.locked, isSuperAdmin, history, user, saveHistoryToCloud, setHistory, setEditItemState, showToast]);
+  }, [currentPool?.locked, isSuperAdmin, history, user, saveHistoryToCloud, setHistory, clearEditItemState, showToast]);
 
   // 删除单条记录 (触发弹窗)
   const handleDeleteItem = useCallback((id) => {
@@ -77,7 +77,7 @@ export function useHistoryOperations({
 
     const idToDelete = modalState.data;
     setHistory(prev => prev.filter(item => item.id !== idToDelete));
-    setEditItemState(null);
+    clearEditItemState?.();
     setModalState({ type: null, data: null });
 
     // 同步到云端
@@ -89,7 +89,7 @@ export function useHistoryOperations({
         showToast('记录已删除，但云端同步失败', 'warning');
       }
     }
-  }, [currentPool?.locked, isSuperAdmin, modalState.data, user, setHistory, setEditItemState, setModalState, deleteHistoryFromCloud, showToast]);
+  }, [currentPool?.locked, isSuperAdmin, modalState.data, user, setHistory, clearEditItemState, setModalState, deleteHistoryFromCloud, showToast]);
 
   // 删除整组记录 (触发弹窗)
   const handleDeleteGroup = useCallback((items) => {

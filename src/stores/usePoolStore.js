@@ -1,7 +1,6 @@
 import { create } from 'zustand';
-import { DEFAULT_POOL_ID } from '../constants';
-import { syncManager } from '../services/syncService';
 import useAuthStore from './useAuthStore';
+import { getPreferredPool } from '../utils/poolSelectionUtils';
 
 // ========== 池组聚合模式 (FEAT-018) ==========
 
@@ -224,11 +223,6 @@ const usePoolStore = create((set, get) => ({
     const updatedPools = [...pools, newPool];
     get().setPools(updatedPools);
 
-    // 加入同步队列
-    if (userId) {
-      syncManager.enqueue('pools', newPool.id, newPool);
-    }
-
     return newPool;
   },
 
@@ -298,20 +292,12 @@ const usePoolStore = create((set, get) => ({
    */
   updatePool: (poolId, updates) => {
     const { pools } = get();
-    const userId = getCurrentUserId();
 
     const updatedPools = pools.map(p =>
       p.id === poolId ? { ...p, ...updates, updated_at: new Date().toISOString() } : p
     );
     get().setPools(updatedPools);
 
-    // 加入同步队列
-    if (userId) {
-      const updatedPool = updatedPools.find(p => p.id === poolId);
-      if (updatedPool) {
-        syncManager.enqueue('pools', poolId, { ...updatedPool, user_id: userId });
-      }
-    }
   },
 
   /**
@@ -319,8 +305,10 @@ const usePoolStore = create((set, get) => ({
    */
   getCurrentPool: () => {
     const { pools, currentPoolId } = get();
-    if (!currentPoolId) return pools[0] || null;
-    return pools.find(p => p.id === currentPoolId) || pools[0] || null;
+    return getPreferredPool(pools, {
+      preferredPoolId: currentPoolId,
+      includeDefaultPool: true
+    });
   },
 
   /**

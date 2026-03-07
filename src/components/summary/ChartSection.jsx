@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Cloud } from 'lucide-react';
 import { RARITY_CONFIG } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
@@ -16,7 +16,7 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
 
   if (!data || data.total === 0) {
     return (
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 min-w-0">
         <h3 className={`font-bold text-lg ${color} mb-4`}>{title}</h3>
         <div className="h-48 flex items-center justify-center text-zinc-400">
           暂无数据
@@ -28,7 +28,7 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
   // 全服数据没有详细图表数据时显示提示
   if (isGlobal && !hasDetailedData) {
     return (
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 min-w-0">
         <div className="flex items-center gap-2 mb-4">
           <h3 className={`font-bold text-lg ${color}`}>{title}</h3>
           {subtitle && <span className="text-xs text-zinc-500">({subtitle})</span>}
@@ -46,7 +46,7 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
   }
 
   return (
-    <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 relative group hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+    <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 relative group hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors min-w-0">
       {/* 顶部装饰条 */}
       <div className={`absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-${color.replace('text-', '')}/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity`}></div>
 
@@ -64,13 +64,13 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
         </div>
       </div>
 
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 min-w-0">
         {/* 饼图 */}
-        <div className="h-52 relative">
+        <div className="h-52 relative min-w-0">
           <p className="text-[10px] font-bold text-zinc-500 mb-2">稀有度分布</p>
           {hasChartData ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
+            <div className="flex h-full items-center justify-center overflow-hidden">
+              <PieChart width={320} height={208}>
                 <RainbowGradientDefs />
                 <Pie
                   data={data.chartData}
@@ -111,18 +111,18 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
                   }}
                 />
               </PieChart>
-            </ResponsiveContainer>
+            </div>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-zinc-400">暂无数据</div>
           )}
         </div>
 
         {/* 柱状图 */}
-        <div className="h-52 relative">
+        <div className="h-52 relative min-w-0">
           <p className="text-[10px] font-bold text-zinc-500 mb-2">6星出货分布</p>
           {hasDistribution ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
+            <div className="flex h-full items-center justify-center overflow-hidden">
+              <BarChart width={360} height={208} data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
                 <RainbowGradientDefs />
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
                 <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
@@ -136,7 +136,7 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
                 <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />
                 <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" />
               </BarChart>
-            </ResponsiveContainer>
+            </div>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-zinc-400">暂无数据</div>
           )}

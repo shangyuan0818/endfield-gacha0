@@ -21,7 +21,7 @@ function AppRouter() {
     <DeviceRedirectGuard>
       <Routes>
         {/* 桌面端路由 */}
-        <Route path="/" element={<App />} />
+        <Route path="/*" element={<App />} />
 
         {/* 移动端路由 */}
         <Route

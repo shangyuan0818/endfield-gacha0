@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
-import { syncManager } from '../../services/syncService';
+import { loadVisiblePools, normalizeRemotePoolType } from '../../services/poolReadService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
-
-// 卡池类型归一化（模块级，供 loadCloudData 和 loadPublicPools 共用）
-const normalizePoolType = (type, isLimitedWeaponFlag) => {
-  if (type === 'limited_character') return 'limited';
-  if (type === 'limited_weapon') return 'weapon';
-  if (type === 'weapon' && isLimitedWeaponFlag === false) return 'weapon';
-  return type || 'standard';
-};
 
 /**
  * 云同步 Hook
@@ -25,9 +17,7 @@ export function useCloudSync({ showToast }) {
   const setSyncError = useAuthStore(state => state.setSyncError);
   const pools = usePoolStore(state => state.pools);
   const setPools = usePoolStore(state => state.setPools);
-  const switchPool = usePoolStore(state => state.switchPool);
   const history = useHistoryStore(state => state.history);
-  const setHistory = useHistoryStore(state => state.setHistory);
 
   // DR-B05: 防止并发调用 loadCloudData 导致请求加倍
   const loadingPromiseRef = useRef(null);
@@ -36,7 +26,7 @@ export function useCloudSync({ showToast }) {
   const loadCloudData = useCallback(async (targetUser = null) => {
     if (!supabase) return null;
 
-    const currentUser = targetUser || user;
+    const currentUser = targetUser || useAuthStore.getState().user;
     if (!currentUser) {
       return { pools: [], history: [] };
     }
@@ -51,33 +41,7 @@ export function useCloudSync({ showToast }) {
       setSyncError(null);
 
       try {
-        // 加载所有卡池（公共池由超管维护，不再按 user 过滤）
-        const poolQuery = supabase
-          .from('pools')
-          .select('*');
-
-      const { data: cloudPools, error: poolsError } = await poolQuery;
-      if (poolsError) throw poolsError;
-
-      // 收集所有 user_id 并查询对应的公开 profile 信息
-      const userIds = [...new Set(cloudPools.map(p => p.user_id).filter(Boolean))];
-      const profileResult = userIds.length > 0
-        ? await supabase
-            .from('public_profiles')
-            .select('id, username, role')
-            .in('id', userIds)
-        : { data: [], error: null };
-      const { data: profiles, error: profilesError } = profileResult;
-      if (profilesError) throw profilesError;
-
-      const usernameMap = new Map();
-      const roleMap = new Map();
-      if (profiles) {
-        profiles.forEach(p => {
-          usernameMap.set(p.id, p.username);
-          roleMap.set(p.id, p.role);
-        });
-      }
+        const visiblePools = await loadVisiblePools();
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
       const PAGE_SIZE = 1000;
@@ -108,25 +72,6 @@ export function useCloudSync({ showToast }) {
         }
       }
 
-      const formattedPools = cloudPools.map(p => ({
-        id: p.pool_id,
-        name: p.name,
-        type: normalizePoolType(p.type, p.is_limited_weapon),
-        locked: p.locked || false,
-        isLimitedWeapon: p.is_limited_weapon !== false,
-        created_at: p.created_at || null,
-        updated_at: p.updated_at || null,
-        user_id: p.user_id,
-        creator_username: usernameMap.get(p.user_id) || null,
-        creator_role: roleMap.get(p.user_id) || null,
-        up_character: p.up_character || null,
-        description: p.description || null,
-        banner_url: p.banner_url || null,
-        start_time: p.start_time || null,
-        end_time: p.end_time || null,
-        featured_characters: p.featured_characters || null
-      }));
-
       const formattedHistory = allHistory.map(h => ({
         id: h.record_id,
         rarity: h.rarity,
@@ -155,12 +100,13 @@ export function useCloudSync({ showToast }) {
       }));
 
       // 补占位池
-      const knownPoolIds = new Set(formattedPools.map(p => p.id));
+      const knownPoolIds = new Set(visiblePools.map(p => p.id));
       const historyPoolIds = [...new Set(formattedHistory.map(h => h.poolId))];
       const placeholderPools = historyPoolIds
         .filter(pid => !knownPoolIds.has(pid))
         .map(pid => {
-          const inferredType = normalizePoolType(getPoolTypeFromId(pid));
+          const rawType = getPoolTypeFromId(pid);
+          const inferredType = normalizeRemotePoolType(rawType);
           const defaultName = (() => {
             switch (inferredType) {
               case 'limited_character':
@@ -182,7 +128,7 @@ export function useCloudSync({ showToast }) {
             name: defaultName,
             type: inferredType === 'unknown' ? 'standard' : inferredType,
             locked: false,
-            isLimitedWeapon: inferredType === 'limited_weapon',
+            isLimitedWeapon: rawType === 'limited_weapon' || inferredType === 'weapon',
             created_at: null,
             updated_at: null,
             user_id: null,
@@ -196,42 +142,10 @@ export function useCloudSync({ showToast }) {
           };
         });
 
-      // Dedupe: 同一 pool_id 可能有多个 user 版本
-      const dedupedPoolsMap = new Map();
-      const roleWeight = (p) => {
-        const role = p.creator_role;
-        if (role === 'super_admin') return 3;
-        if (role === 'admin') return 2;
-        return 1;
-      };
-      const score = (p) =>
-        (p.up_character ? 3 : 0) +
-        (p.banner_url ? 1 : 0) +
-        (p.description ? 1 : 0) +
-        (p.locked ? 1 : 0) +
-        roleWeight(p);
-      const chooseBetter = (a, b) => {
-        const scoreA = score(a);
-        const scoreB = score(b);
-        if (scoreA !== scoreB) return scoreA > scoreB ? a : b;
-        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-        return timeA >= timeB ? a : b;
-      };
-
-      [...formattedPools, ...placeholderPools].forEach(p => {
-        const existing = dedupedPoolsMap.get(p.id);
-        if (!existing) {
-          dedupedPoolsMap.set(p.id, p);
-        } else {
-          dedupedPoolsMap.set(p.id, chooseBetter(existing, p));
-        }
-      });
-
-      const dedupedPools = Array.from(dedupedPoolsMap.values());
+      const allPools = [...visiblePools, ...placeholderPools];
 
       // 根据池类型回填历史记录的 isStandard
-      const poolTypeLookup = new Map(dedupedPools.map(p => [p.id, p.type]));
+      const poolTypeLookup = new Map(allPools.map(p => [p.id, p.type]));
       const normalizedHistory = formattedHistory.map(h => {
         const poolType = poolTypeLookup.get(h.poolId);
         const inferredIsStandard = (poolType === 'standard' || poolType === 'beginner') ? true
@@ -241,7 +155,7 @@ export function useCloudSync({ showToast }) {
         return { ...h, isStandard };
       });
 
-      return { pools: dedupedPools, history: normalizedHistory };
+      return { pools: allPools, history: normalizedHistory };
       } catch (error) {
         setSyncError(error.message);
         return null;
@@ -264,55 +178,9 @@ export function useCloudSync({ showToast }) {
     if (!supabase) return null;
 
     try {
-      const { data: cloudPools, error: poolsError } = await supabase
-        .from('pools')
-        .select('*');
-
-      if (poolsError) throw poolsError;
-      if (!cloudPools || cloudPools.length === 0) return [];
-
-      const formattedPools = cloudPools.map(p => ({
-        id: p.pool_id,
-        name: p.name,
-        type: normalizePoolType(p.type, p.is_limited_weapon),
-        locked: p.locked || false,
-        isLimitedWeapon: p.is_limited_weapon !== false,
-        created_at: p.created_at || null,
-        updated_at: p.updated_at || null,
-        user_id: p.user_id,
-        creator_username: null,
-        creator_role: null,
-        up_character: p.up_character || null,
-        description: p.description || null,
-        banner_url: p.banner_url || null,
-        start_time: p.start_time || null,
-        end_time: p.end_time || null,
-        featured_characters: p.featured_characters || null,
-      }));
-
-      // Dedupe：同一 pool_id 保留信息最完整的版本
-      const score = (p) =>
-        (p.up_character ? 3 : 0) +
-        (p.banner_url ? 1 : 0) +
-        (p.description ? 1 : 0) +
-        (p.locked ? 1 : 0);
-      const chooseBetter = (a, b) => {
-        const diff = score(a) - score(b);
-        if (diff !== 0) return diff > 0 ? a : b;
-        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
-        return timeA >= timeB ? a : b;
-      };
-
-      const dedupedMap = new Map();
-      formattedPools.forEach(p => {
-        const existing = dedupedMap.get(p.id);
-        dedupedMap.set(p.id, existing ? chooseBetter(existing, p) : p);
-      });
-
-      const dedupedPools = Array.from(dedupedMap.values());
-      setPools(dedupedPools);
-      return dedupedPools;
+      const visiblePools = await loadVisiblePools();
+      setPools(visiblePools);
+      return visiblePools;
     } catch {
       return null;
     }
@@ -443,29 +311,8 @@ export function useCloudSync({ showToast }) {
     }
   }, [user, pools, history, savePoolToCloud, saveHistoryToCloud]);
 
-  // 登录后处理：加载当前用户的云端数据
-  const handlePostLogin = useCallback(async (loggedInUser) => {
-    if (!loggedInUser) return;
-
-    const cloudData = await loadCloudData(loggedInUser);
-
-    if (cloudData) {
-      const hasCloudData = cloudData.pools.length > 0 || cloudData.history.length > 0;
-
-      if (hasCloudData) {
-        if (cloudData.pools.length > 0) {
-          setPools(cloudData.pools);
-          switchPool(cloudData.pools[0].id);
-        }
-        if (cloudData.history.length > 0) {
-          setHistory(cloudData.history);
-        }
-      }
-    }
-  }, [loadCloudData]);
-
   // 手动同步数据到云端（设置页面使用）
-  const handleManualSync = useCallback(async () => {
+  const syncToCloud = useCallback(async () => {
     if (!user) {
       showToast('请先登录', 'warning');
       return;
@@ -508,61 +355,6 @@ export function useCloudSync({ showToast }) {
     }
   }, [user, pools, history, savePoolToCloud, saveHistoryToCloud, showToast]);
 
-  // 监听用户登录状态变化，登录后加载云端数据
-  const prevUserRef = useRef(null);
-  useEffect(() => {
-    if (user && !prevUserRef.current) {
-      handlePostLogin(user);
-    }
-    prevUserRef.current = user;
-  }, [user, handlePostLogin]);
-
-  // 启动数据同步服务（用户登录后）
-  // 使用 ref 防止重复启动/停止
-  const syncStartedRef = useRef(false);
-  const userIdRef = useRef(null);
-
-  useEffect(() => {
-    if (!user || !supabase) {
-      // 用户登出时停止同步
-      if (syncStartedRef.current) {
-        console.log('[useCloudSync] 停止数据同步服务');
-        syncManager.stopAutoSync();
-        syncStartedRef.current = false;
-        userIdRef.current = null;
-      }
-      return;
-    }
-
-    // 只有用户ID变化时才重新启动（避免重复启动）
-    if (syncStartedRef.current && userIdRef.current === user.id) {
-      return; // 已启动且用户未变化，跳过
-    }
-
-    // 如果之前已启动但用户变了，先停止
-    if (syncStartedRef.current) {
-      syncManager.stopAutoSync();
-    }
-
-    console.log('[useCloudSync] 启动数据同步服务...');
-    syncManager.startAutoSync((syncState) => {
-      // 只在状态实际变化时打印日志（减少日志量）
-      if (import.meta.env.DEV && syncState.error) {
-        console.log('[SyncManager] 同步错误:', syncState.error);
-      }
-    });
-    syncStartedRef.current = true;
-    userIdRef.current = user.id;
-
-    return () => {
-      if (syncStartedRef.current) {
-        console.log('[useCloudSync] 停止数据同步服务');
-        syncManager.stopAutoSync();
-        syncStartedRef.current = false;
-      }
-    };
-  }, [user?.id]); // 只依赖 user.id 而不是整个 user 对象
-
   return {
     loadCloudData,
     loadPublicPools,
@@ -572,8 +364,8 @@ export function useCloudSync({ showToast }) {
     deletePoolHistoryFromCloud,
     deletePoolFromCloud,
     migrateLocalToCloud,
-    handlePostLogin,
-    handleManualSync
+    handleManualSync: syncToCloud,
+    syncToCloud
   };
 }
 

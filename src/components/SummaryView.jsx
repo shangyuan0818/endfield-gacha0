@@ -1,9 +1,9 @@
 import React from 'react';
-import { Star, User, Cloud, Layers, Search, RefreshCw, Swords } from 'lucide-react';
+import { Star, User, Cloud, Layers, RefreshCw, Swords } from 'lucide-react';
 import { useAppStore, useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 
 // 拆分后的组件
-import { SidebarItem, RankingCard, ChartSection } from './summary';
+import { RankingCard, ChartSection, SummarySidebar } from './summary';
 
 // 拆分后的 Hooks
 import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hooks/summary';
@@ -41,53 +41,23 @@ const SummaryView = React.memo(() => {
     fetchGlobalStats,
     variant: 'desktop'
   });
+  const globalStatsMeta = dataSource === 'global' ? currentStats?.meta : null;
+  const showGlobalStatsFallbackNotice = globalStatsMeta && globalStatsMeta.status && globalStatsMeta.status !== 'ready';
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex gap-6">
-        {/* 左侧边栏 */}
-        <div className="w-56 flex-shrink-0">
-          <div className="bg-zinc-900 border border-zinc-800 sticky top-4">
-            {/* 全服数据分组 */}
-            <div className="border-b border-zinc-800">
-              <SidebarItem
-                label="全服数据"
-                icon={Cloud}
-                isActive={dataSource === 'global' && poolTypeFilter === 'all'}
-                onClick={() => { setDataSource('global'); setPoolTypeFilter('all'); }}
-                count={globalStats?.totalPulls}
-              />
-              {dataSource === 'global' && (
-                <div className="bg-zinc-950">
-                  <SidebarItem label="限定池" icon={Star} indent isActive={dataSource === 'global' && poolTypeFilter === 'limited'} onClick={() => { setDataSource('global'); setPoolTypeFilter('limited'); }} count={globalStats?.byType?.limited?.total} />
-                  <SidebarItem label="常驻池" icon={Layers} indent isActive={dataSource === 'global' && poolTypeFilter === 'standard'} onClick={() => { setDataSource('global'); setPoolTypeFilter('standard'); }} count={globalStats?.byType?.standard?.total} />
-                  <SidebarItem label="武器池" icon={Search} indent isActive={dataSource === 'global' && poolTypeFilter === 'weapon'} onClick={() => { setDataSource('global'); setPoolTypeFilter('weapon'); }} count={globalStats?.byType?.weapon?.total} />
-                </div>
-              )}
-            </div>
-
-            {/* 我的数据分组 */}
-            <div>
-              <SidebarItem
-                label="我的数据"
-                icon={User}
-                isActive={dataSource === 'local' && poolTypeFilter === 'all'}
-                onClick={() => { setDataSource('local'); setPoolTypeFilter('all'); }}
-                count={localStats.total}
-              />
-              {dataSource === 'local' && (
-                <div className="bg-zinc-950">
-                  <SidebarItem label="限定池" icon={Star} indent isActive={dataSource === 'local' && poolTypeFilter === 'limited'} onClick={() => { setDataSource('local'); setPoolTypeFilter('limited'); }} count={localStats.byType.limited.total} />
-                  <SidebarItem label="常驻池" icon={Layers} indent isActive={dataSource === 'local' && poolTypeFilter === 'standard'} onClick={() => { setDataSource('local'); setPoolTypeFilter('standard'); }} count={localStats.byType.standard.total} />
-                  <SidebarItem label="武器池" icon={Search} indent isActive={dataSource === 'local' && poolTypeFilter === 'weapon'} onClick={() => { setDataSource('local'); setPoolTypeFilter('weapon'); }} count={localStats.byType.weapon.total} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      <div className="flex gap-6 min-w-0">
+        <SummarySidebar
+          dataSource={dataSource}
+          setDataSource={setDataSource}
+          poolTypeFilter={poolTypeFilter}
+          setPoolTypeFilter={setPoolTypeFilter}
+          globalStats={globalStats}
+          localStats={localStats}
+        />
 
         {/* 右侧内容区 */}
-        <div className="flex-1 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6">
           {/* 统计信息卡片 */}
           {(globalStatsLoading || (dataSource === 'global' && !globalStats)) ? (
             <div className="bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 p-12 text-center flex flex-col items-center justify-center gap-3">
@@ -101,6 +71,13 @@ const SummaryView = React.memo(() => {
               <div className="h-1 w-full bg-endfield-yellow"></div>
 
               <div className="relative z-10 p-6">
+                {showGlobalStatsFallbackNotice && (
+                  <div className="mb-4 border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+                    {globalStatsMeta.status === 'stale'
+                      ? '全服汇总暂时使用上次成功缓存，跨境网络较慢时请稍后重试。'
+                      : '全服汇总暂时不可用，当前网络或数据库响应较慢；排行榜和本地统计仍可继续查看。'}
+                  </div>
+                )}
                 {/* 标题 */}
                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-100 dark:border-zinc-800">
                   <div className="flex items-center gap-3">

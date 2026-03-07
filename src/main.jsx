@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import AppRouter from './AppRouter'
-import { preloadAllData } from './services/cacheService'
+import { preloadHomeStatsCache } from './services/cacheService'
 
 // 同步设备检测 + 重定向（在 React 渲染前执行）
 // 解决 useEffect 异步重定向导致的闪烁和失效问题
@@ -27,14 +27,21 @@ import { preloadAllData } from './services/cacheService'
   }
 })();
 
-// 在应用启动时预加载缓存数据（不阻塞渲染）
-preloadAllData().catch(err => {
-  console.warn('预加载数据失败，将使用实时查询:', err);
+// 在浏览器空闲时仅预热全局统计缓存，避免与角色/卡池真实读取链路重复抢资源
+const schedulePreload = typeof window.requestIdleCallback === 'function'
+  ? window.requestIdleCallback.bind(window)
+  : (callback) => window.setTimeout(callback, 250);
+
+schedulePreload(() => {
+  preloadHomeStatsCache().catch(err => {
+    // eslint-disable-next-line no-console
+    console.warn('预加载数据失败，将使用实时查询:', err);
+  });
 });
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppRouter />
     </BrowserRouter>
   </StrictMode>,

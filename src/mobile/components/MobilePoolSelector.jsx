@@ -5,6 +5,7 @@ import {
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
 import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
+import { getPreferredPool } from '../../utils/poolSelectionUtils';
 
 /**
  * 移动端卡池选择器 - 完整版
@@ -61,7 +62,10 @@ function MobilePoolSelector() {
       const groupType = currentPoolId.slice(POOL_GROUP_PREFIX.length);
       return { id: currentPoolId, name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`, isGroupMode: true, type: groupType };
     }
-    return pools.find((p) => p.id === currentPoolId) || pools[0];
+    return getPreferredPool(pools, {
+      preferredPoolId: currentPoolId,
+      includeDefaultPool: true
+    });
   }, [pools, currentPoolId]);
 
   // 当前选中的账号

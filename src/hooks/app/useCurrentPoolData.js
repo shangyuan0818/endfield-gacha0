@@ -8,6 +8,7 @@ import {
   isPoolGroupId
 } from '../../stores/usePoolStore';
 import { normalizeIsStandard } from '../../utils';
+import { getPreferredPool } from '../../utils/poolSelectionUtils';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
 
@@ -77,18 +78,12 @@ export function useCurrentPoolData() {
       };
     }
 
-    const byId = poolsArray.find(pool => pool.id === currentPoolId);
-    if (byId) {
-      return byId;
-    }
-
-    const defaultPool = poolsArray.find(pool => pool.id === DEFAULT_POOL_ID);
-    if (defaultPool) {
-      return defaultPool;
-    }
-
-    if (poolsArray[0]) {
-      return poolsArray[0];
+    const preferredPool = getPreferredPool(poolsArray, {
+      preferredPoolId: currentPoolId,
+      includeDefaultPool: true
+    });
+    if (preferredPool) {
+      return preferredPool;
     }
 
     return {

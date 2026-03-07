@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Star,
   Calculator,
@@ -13,9 +14,9 @@ import {
   Bot,
   ChevronLeft
 } from 'lucide-react';
-import useUIStore from '../../stores/useUIStore';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import { getMobilePathForTab } from '../../constants/appRoutes';
 
 function MobileAboutSectionHeader({ title, icon }) {
   const IconComponent = icon;
@@ -33,7 +34,7 @@ function MobileAboutSectionHeader({ title, icon }) {
  * 站点配置从 useSiteConfigStore 读取（管理面板可编辑）
  */
 function MobileAboutView() {
-  const { setActiveTab } = useUIStore();
+  const navigate = useNavigate();
   const config = useSiteConfigStore(state => state.config);
 
   const siteVersion = config.site_version || APP_VERSION_LABEL;
@@ -50,7 +51,7 @@ function MobileAboutView() {
     <div className="px-4 py-4 space-y-4">
       {/* 返回按钮 */}
       <button
-        onClick={() => setActiveTab('home')}
+        onClick={() => navigate(getMobilePathForTab('home'))}
         className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 touch-feedback -ml-1 hover:text-endfield-yellow transition-colors"
       >
         <ChevronLeft size={16} />

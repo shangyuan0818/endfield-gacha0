@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { History, Upload, Download, FileJson } from 'lucide-react';
-import { useHistoryStore, useAuthStore, useUIStore } from '../../stores';
+import { useHistoryStore, useAuthStore } from '../../stores';
 import { useCurrentPoolData, useCurrentPoolGroupedHistory } from '../../hooks';
 import BatchCard from '../BatchCard';
 
@@ -36,9 +36,7 @@ const RecordsView = ({
     filteredGroupedHistory
   } = useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory);
 
-  // UI 状态（导出菜单）从 store 获取
-  const showExportMenu = useUIStore(state => state.showExportMenu);
-  const toggleExportMenu = useUIStore(state => state.toggleExportMenu);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // 文件输入 ref
   const fileInputRef = useRef(null);
@@ -52,7 +50,7 @@ const RecordsView = ({
   // 关闭导出菜单
   const closeExportMenu = () => {
     if (showExportMenu) {
-      toggleExportMenu();
+      setShowExportMenu(false);
     }
   };
 
@@ -130,7 +128,7 @@ const RecordsView = ({
           {/* 导出菜单 */}
           <div className="relative">
             <button
-              onClick={toggleExportMenu}
+              onClick={() => setShowExportMenu((prev) => !prev)}
               className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
             >
               <Download size={14} />
