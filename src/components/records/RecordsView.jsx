@@ -1,8 +1,9 @@
-import React, { useRef, useState } from 'react';
-import { History, Upload, Download, FileJson } from 'lucide-react';
-import { useHistoryStore, useAuthStore } from '../../stores';
+import React, { useMemo, useRef, useState } from 'react';
+import { CalendarRange, Download, FileJson, Filter, History, Upload } from 'lucide-react';
+import { useHistoryStore, useAuthStore, usePoolStore } from '../../stores';
 import { useCurrentPoolData, useCurrentPoolGroupedHistory } from '../../hooks';
 import BatchCard from '../BatchCard';
+import { isPoolGroupId } from '../../stores/usePoolStore';
 
 /**
  * 记录列表组件
@@ -21,9 +22,13 @@ const RecordsView = ({
   const setHistoryFilter = useHistoryStore(state => state.setHistoryFilter);
   const loadMoreHistory = useHistoryStore(state => state.loadMoreHistory);
   const setVisibleHistoryCount = useHistoryStore(state => state.setVisibleHistoryCount);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
 
   const userRole = useAuthStore(state => state.userRole);
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
+  const pools = usePoolStore(state => state.pools);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
 
   const {
     currentPool,
@@ -36,7 +41,17 @@ const RecordsView = ({
     filteredGroupedHistory
   } = useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory);
 
+  const buildDefaultExportOptions = () => ({
+    poolFilter: 'current',
+    poolId: !isPoolGroupId(currentPoolId) && currentPoolId ? currentPoolId : '',
+    accountFilter: currentGameUid ? 'current' : 'all',
+    gameUid: currentGameUid || '',
+    dateFrom: '',
+    dateTo: ''
+  });
+
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportOptions, setExportOptions] = useState(buildDefaultExportOptions);
 
   // 文件输入 ref
   const fileInputRef = useRef(null);
@@ -56,6 +71,41 @@ const RecordsView = ({
 
   // 当前卡池名称
   const currentPoolName = currentPool?.name || '未知卡池';
+  const poolOptions = useMemo(
+    () => [...(Array.isArray(pools) ? pools : [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN')),
+    [pools]
+  );
+  const gameAccounts = getGameAccountsFromHistory();
+
+  const updateExportOption = (key, value) => {
+    setExportOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const buildExportOptions = () => ({
+    poolFilter: exportOptions.poolFilter,
+    poolId: exportOptions.poolFilter === 'specific' ? exportOptions.poolId || null : null,
+    accountFilter: exportOptions.accountFilter,
+    gameUid: exportOptions.accountFilter === 'specific' ? exportOptions.gameUid || null : null,
+    dateFrom: exportOptions.dateFrom,
+    dateTo: exportOptions.dateTo
+  });
+
+  const canExportWithSpecificPool = exportOptions.poolFilter !== 'specific' || Boolean(exportOptions.poolId);
+  const canExportWithSpecificAccount = exportOptions.accountFilter !== 'specific' || Boolean(exportOptions.gameUid);
+  const canExport = canExportWithSpecificPool && canExportWithSpecificAccount;
+
+  const handleToggleExportMenu = () => {
+    setShowExportMenu(prev => {
+      const next = !prev;
+      if (next) {
+        setExportOptions(buildDefaultExportOptions());
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-fade-in relative">
@@ -128,7 +178,7 @@ const RecordsView = ({
           {/* 导出菜单 */}
           <div className="relative">
             <button
-              onClick={() => setShowExportMenu((prev) => !prev)}
+              onClick={handleToggleExportMenu}
               className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
             >
               <Download size={14} />
@@ -138,52 +188,138 @@ const RecordsView = ({
             {showExportMenu && (
               <>
                 <div className="fixed inset-0 z-10" onClick={closeExportMenu}></div>
-                <div className="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 py-2 animate-fade-in overflow-hidden">
-                  <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">
-                    JSON 备份
+                <div className="absolute top-full right-0 mt-2 w-[360px] bg-white dark:bg-zinc-900 rounded-none shadow-xl border border-zinc-100 dark:border-zinc-800 z-20 animate-fade-in overflow-hidden">
+                  <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-2">
+                          <Filter size={14} />
+                          导出配置
+                        </div>
+                        <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
+                          支持按时间、卡池和账号筛选，JSON 会附带结构化摘要与 schema 版本。
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setExportOptions(buildDefaultExportOptions())}
+                        className="text-[11px] text-slate-500 dark:text-zinc-400 hover:text-yellow-600 dark:hover:text-endfield-yellow"
+                      >
+                        重置
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      onExportJSON('all');
-                      closeExportMenu();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-endfield-yellow flex items-center justify-between"
-                  >
-                    全部卡池 <FileJson size={14} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      onExportJSON('current');
-                      closeExportMenu();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-endfield-yellow flex items-center justify-between"
-                  >
-                    当前卡池 <FileJson size={14} />
-                  </button>
 
-                  <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+                  <div className="p-4 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
+                        卡池范围
+                      </label>
+                      <select
+                        value={exportOptions.poolFilter}
+                        onChange={(event) => updateExportOption('poolFilter', event.target.value)}
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                      >
+                        <option value="current">当前卡池</option>
+                        <option value="all">全部卡池</option>
+                        <option value="specific">指定卡池</option>
+                      </select>
+                      {exportOptions.poolFilter === 'specific' && (
+                        <select
+                          value={exportOptions.poolId}
+                          onChange={(event) => updateExportOption('poolId', event.target.value)}
+                          className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                        >
+                          <option value="">请选择卡池</option>
+                          {poolOptions.map(pool => (
+                            <option key={pool.id} value={pool.id}>
+                              {pool.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
 
-                  <div className="px-3 py-2 text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-wider bg-slate-50 dark:bg-zinc-950">
-                    CSV 表格
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
+                        账号范围
+                      </label>
+                      <select
+                        value={exportOptions.accountFilter}
+                        onChange={(event) => updateExportOption('accountFilter', event.target.value)}
+                        className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                      >
+                        <option value="all">全部账号</option>
+                        {currentGameUid && <option value="current">当前账号</option>}
+                        <option value="specific">指定账号</option>
+                      </select>
+                      {exportOptions.accountFilter === 'specific' && (
+                        <select
+                          value={exportOptions.gameUid}
+                          onChange={(event) => updateExportOption('gameUid', event.target.value)}
+                          className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                        >
+                          <option value="">请选择账号</option>
+                          {gameAccounts.map(account => (
+                            <option key={account.gameUid} value={account.gameUid}>
+                              {account.nickName} · {account.gameUid}{account.serverTag ? ` · ${account.serverTag}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                        <CalendarRange size={12} />
+                        时间范围
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={exportOptions.dateFrom}
+                          onChange={(event) => updateExportOption('dateFrom', event.target.value)}
+                          className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                        />
+                        <input
+                          type="date"
+                          value={exportOptions.dateTo}
+                          onChange={(event) => updateExportOption('dateTo', event.target.value)}
+                          className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-none border border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-[11px] text-slate-500 dark:text-zinc-500 space-y-1">
+                      <div>当前卡池：{currentPoolName}</div>
+                      <div>当前账号：{currentGameUid || '全部账号'}</div>
+                      <div>CSV 采用 UTF-8 BOM 与平铺字段，便于 Excel 直接打开。</div>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      onExportCSV('all');
-                      closeExportMenu();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between"
-                  >
-                    全部卡池 <FileJson size={14} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      onExportCSV('current');
-                      closeExportMenu();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-600 dark:text-zinc-400 hover:bg-green-50 hover:text-green-600 flex items-center justify-between"
-                  >
-                    当前卡池 <FileJson size={14} />
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-px border-t border-zinc-100 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800">
+                    <button
+                      onClick={() => {
+                        onExportJSON(buildExportOptions());
+                        closeExportMenu();
+                      }}
+                      disabled={!canExport}
+                      className="bg-white dark:bg-zinc-900 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-endfield-yellow disabled:text-slate-300 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <FileJson size={14} />
+                      导出 JSON
+                    </button>
+                    <button
+                      onClick={() => {
+                        onExportCSV(buildExportOptions());
+                        closeExportMenu();
+                      }}
+                      disabled={!canExport}
+                      className="bg-white dark:bg-zinc-900 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-300 hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 disabled:text-slate-300 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Download size={14} />
+                      导出 CSV
+                    </button>
+                  </div>
                 </div>
               </>
             )}

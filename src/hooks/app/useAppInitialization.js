@@ -5,6 +5,36 @@ import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
 import { getPreferredPoolId } from '../../utils/poolSelectionUtils';
 
+const APP_INIT_SYNC_BUDGET_MS = import.meta.env.DEV ? 9000 : 6500;
+
+function wait(ms) {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function applyCloudDataToStores(cloudData, { setPools, switchPool, setHistory, currentPoolIdRef }) {
+  if (!cloudData || !Array.isArray(cloudData.pools) || cloudData.pools.length === 0) {
+    return;
+  }
+
+  setPools(cloudData.pools);
+
+  const savedPoolId = currentPoolIdRef.current;
+  const fallbackId = getPreferredPoolId(cloudData.pools, {
+    preferredPoolId: savedPoolId
+  });
+
+  if (fallbackId) {
+    switchPool(fallbackId);
+    localStorage.setItem('gacha_current_pool_id', fallbackId);
+  }
+
+  if (Array.isArray(cloudData.history) && cloudData.history.length > 0) {
+    setHistory(cloudData.history);
+  }
+}
+
 /**
  * 应用初始化 Hook
  * 处理会话获取、last_seen 更新、characterCache 预加载
@@ -41,6 +71,8 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
   // 主初始化逻辑
   useEffect(() => {
+    let isMounted = true;
+
     const initializeApp = async () => {
       if (!supabase) {
         return;
@@ -52,6 +84,9 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
         // 获取当前会话
         const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) {
+          return;
+        }
         setUser(session?.user ?? null);
 
         // 更新最后在线时间
@@ -59,34 +94,40 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
           updateLastSeen();
         }
 
-        // 站点配置用于首页和公共视图，初始化阶段优先保证它完成
-        await useSiteConfigStore.getState().loadConfig();
+        // 站点配置和云端数据改为“限时等待 + 后台补齐”，避免首屏被慢请求长时间阻塞
+        const startupTasks = [
+          useSiteConfigStore.getState().loadConfig().catch(() => null)
+        ];
 
         // 只有登录用户才加载历史记录和个人卡池数据
         if (session?.user) {
-          const cloudData = await loadCloudData(session.user);
-          if (cloudData && cloudData.pools.length > 0) {
-            setPools(cloudData.pools);
+          const cloudDataPromise = loadCloudData(session.user)
+            .then((cloudData) => {
+              if (!isMounted) {
+                return cloudData;
+              }
 
-            // 使用 ref 中的值，避免依赖项循环
-            const savedPoolId = currentPoolIdRef.current;
-            const fallbackId = getPreferredPoolId(cloudData.pools, {
-              preferredPoolId: savedPoolId
-            });
+              applyCloudDataToStores(cloudData, {
+                setPools,
+                switchPool,
+                setHistory,
+                currentPoolIdRef
+              });
+              return cloudData;
+            })
+            .catch(() => null);
 
-            if (fallbackId) {
-              switchPool(fallbackId);
-              localStorage.setItem('gacha_current_pool_id', fallbackId);
-            }
-
-            if (cloudData.history.length > 0) {
-              setHistory(cloudData.history);
-            }
-          }
+          startupTasks.push(cloudDataPromise);
         } else if (typeof loadPublicPools === 'function') {
           // 未登录时也加载公共卡池数据，供首页轮换计划和倒计时使用
-          await loadPublicPools();
+          startupTasks.push(loadPublicPools().catch(() => null));
         }
+
+        const startupWork = Promise.allSettled(startupTasks);
+        await Promise.race([
+          startupWork.then(() => 'completed'),
+          wait(APP_INIT_SYNC_BUDGET_MS).then(() => 'budget-exhausted')
+        ]);
       } catch (error) {
         console.error('[useAppInitialization] 初始化失败:', error);
       }
@@ -104,8 +145,15 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
         }
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        isMounted = false;
+        subscription.unsubscribe();
+      };
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [loadCloudData, loadPublicPools, updateLastSeen, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
 
   return {

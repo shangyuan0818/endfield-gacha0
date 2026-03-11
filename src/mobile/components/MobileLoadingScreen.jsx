@@ -1,8 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import OracleCaptchaHub from '../../components/captcha/OracleCaptchaHub';
+import { warmupApplication } from '../../services/appWarmupService';
 
 // 验证码有效期：24小时（毫秒）- 与桌面端共享
 const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
+const MIN_LOADING_DURATION_MS = 2200;
+const LONG_LOADING_HINT_DELAY_MS = 2600;
+const WARMUP_STALL_HINT_DELAY_MS = 1200;
+const LOADING_TEXTS = [
+  'INITIALIZING',
+  'CONNECTING TO ORACLE',
+  'SYNCING DATABASE',
+  'LOADING ASSETS',
+  'PRELOADING INTERFACES',
+  'VERIFYING IDENTITY',
+  'CONNECTING TO ENDFIELD'
+];
 
 /**
  * 移动端加载屏幕 - 完整版
@@ -13,6 +26,9 @@ const MobileLoadingScreen = ({ onComplete }) => {
   const [stage, setStage] = useState('loading'); // loading | captcha | done
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState('INITIALIZING');
+  const [showLongLoadingHint, setShowLongLoadingHint] = useState(false);
+  const [showWarmupHint, setShowWarmupHint] = useState(false);
+  const isMountedRef = useRef(true);
   const [skipCaptcha] = useState(() => {
     const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
     if (!lastVerifiedTime) {
@@ -23,46 +39,106 @@ const MobileLoadingScreen = ({ onComplete }) => {
     return timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION;
   });
 
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (stage !== 'loading' || showLongLoadingHint) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (isMountedRef.current) {
+        setShowLongLoadingHint(true);
+      }
+    }, LONG_LOADING_HINT_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [showLongLoadingHint, stage]);
+
+  useEffect(() => {
+    if (stage !== 'loading' || progress < 92 || showWarmupHint) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (isMountedRef.current) {
+        setShowWarmupHint(true);
+      }
+    }, WARMUP_STALL_HINT_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [progress, showWarmupHint, stage]);
+
   // 阶段1: 进度条加载
   useEffect(() => {
     if (stage !== 'loading') return;
 
+    let isLoadingStageActive = true;
+    let warmupReady = false;
+
+    const completeLoadingStage = async () => {
+      await Promise.allSettled([
+        warmupApplication(),
+        new Promise((resolve) => window.setTimeout(resolve, MIN_LOADING_DURATION_MS))
+      ]);
+
+      if (!isLoadingStageActive || !isMountedRef.current) {
+        return;
+      }
+
+      warmupReady = true;
+      setText(skipCaptcha ? 'TRUSTED SESSION READY' : 'SYSTEM READY');
+      setProgress(100);
+
+      window.setTimeout(() => {
+        if (!isLoadingStageActive || !isMountedRef.current) {
+          return;
+        }
+
+        if (skipCaptcha) {
+          setStage('done');
+          window.setTimeout(() => {
+            if (isMountedRef.current) {
+              onComplete();
+            }
+          }, 800);
+        } else {
+          setStage('captcha');
+        }
+      }, 350);
+    };
+
+    completeLoadingStage();
+
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          clearInterval(interval);
-          // 进度完成后，根据 skipCaptcha 决定是否显示验证码
-          setTimeout(() => {
-            if (skipCaptcha) {
-              // 跳过验证码，直接完成
-              setStage('done');
-              setTimeout(() => onComplete(), 800);
-            } else {
-              // 显示验证码
-              setStage('captcha');
-            }
-          }, 500);
           return 100;
         }
-        // 随机增量，模拟加载过程
-        return prev + Math.floor(Math.random() * 15) + 5;
+
+        const cap = warmupReady ? 100 : 92;
+        const increment = Math.floor(Math.random() * 10) + 4;
+        return Math.min(prev + increment, cap);
       });
     }, 150);
 
-    // 随机文本切换
-    const texts = [
-      'INITIALIZING',
-      'CONNECTING TO ORACLE',
-      'SYNCING DATABASE',
-      'LOADING ASSETS',
-      'VERIFYING IDENTITY',
-      'CONNECTING TO ENDFIELD'
-    ];
     const textInterval = setInterval(() => {
-      setText(texts[Math.floor(Math.random() * texts.length)]);
+      if (!warmupReady) {
+        setText(LOADING_TEXTS[Math.floor(Math.random() * LOADING_TEXTS.length)]);
+      }
     }, 450);
 
     return () => {
+      isLoadingStageActive = false;
       clearInterval(interval);
       clearInterval(textInterval);
     };
@@ -131,6 +207,16 @@ const MobileLoadingScreen = ({ onComplete }) => {
             {skipCaptcha && progress > 80 && (
               <div className="text-[10px] text-green-500 mt-2 opacity-60 animate-pulse">
                 TRUSTED SESSION DETECTED
+              </div>
+            )}
+            {stage === 'loading' && (showLongLoadingHint || (showWarmupHint && progress >= 92)) && (
+              <div className="mt-4 max-w-xs rounded-sm border border-endfield-yellow/35 bg-zinc-950/70 px-3 py-3 text-center text-[11px] leading-5 text-zinc-300 shadow-[0_0_20px_rgba(255,204,0,0.08)]">
+                <div>首次加载、强刷新或网络较慢时，系统会先连接数据服务并预载页面资源。</div>
+                {progress >= 92 && (
+                  <div className="mt-1 text-endfield-yellow/90">
+                    当前停留在 92% 附近，通常表示预热仍在进行，属于正常现象。
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -39,13 +39,15 @@ function writeSiteConfigSnapshot(config) {
   }
 }
 
+const INITIAL_SITE_CONFIG_SNAPSHOT = readSiteConfigSnapshot();
+
 /**
  * 站点配置状态管理
  * 从数据库 site_config 表读取可编辑的站点配置（备案号、作者信息等）
  */
 const useSiteConfigStore = create((set, get) => ({
-  config: {},
-  loaded: false,
+  config: INITIAL_SITE_CONFIG_SNAPSHOT,
+  loaded: Object.keys(INITIAL_SITE_CONFIG_SNAPSHOT).length > 0,
 
   /**
    * 从数据库加载所有站点配置

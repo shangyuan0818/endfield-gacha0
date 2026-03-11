@@ -1,18 +1,23 @@
 import { useState, useCallback } from 'react';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
+import {
+  buildExportCsvContent,
+  buildExportJsonContent,
+  buildExportPayload
+} from '../../utils/dataExport';
 
 /**
  * 数据导入导出 Hook
  */
 export function useDataExportImport({
   showToast,
-  cloudSync,
-  normalizedCurrentPoolHistory
+  cloudSync
 }) {
   const user = useAuthStore(state => state.user);
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
   const setPools = usePoolStore(state => state.setPools);
   const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
@@ -20,12 +25,10 @@ export function useDataExportImport({
 
   const { savePoolToCloud, saveHistoryToCloud } = cloudSync;
 
-  const poolsArray = Array.isArray(pools) ? pools : [];
-
   const [pendingImport, setPendingImport] = useState(null);
 
   // 数据导入验证函数
-  const validateImportData = (data) => {
+  const validateImportData = useCallback((data) => {
     const errors = [];
 
     if (!data || typeof data !== 'object') {
@@ -102,183 +105,61 @@ export function useDataExportImport({
         historyCount: data.history.length
       }
     };
-  };
+  }, [pools]);
+
+  const triggerFileDownload = useCallback((content, mimeType, extension) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const now = new Date();
+    const pad = n => n.toString().padStart(2, '0');
+    const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    link.download = `endfield-gacha-export-${timeStr}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const buildPayload = useCallback((options) => buildExportPayload({
+    history,
+    pools: Array.isArray(pools) ? pools : [],
+    currentPoolId,
+    currentGameUid,
+    currentUserId: user?.id || null,
+    options
+  }), [currentGameUid, currentPoolId, history, pools, user?.id]);
 
   // 通用导出函数 - JSON
-  const handleExportJSON = useCallback((scope) => {
-    let exportPools = pools || [];
-    let exportHistory = history;
-
-    if (scope === 'current') {
-      exportPools = (pools || []).filter(p => p.id === currentPoolId);
-      exportHistory = normalizedCurrentPoolHistory;
+  const handleExportJSON = useCallback((scopeOrOptions) => {
+    const payload = buildPayload(scopeOrOptions);
+    if (payload.history.length === 0) {
+      showToast('所选条件下无数据可导出', 'warning');
+      return;
     }
 
-    const calculateStats = (historyData, poolsData) => {
-      const stats = {
-        totalPulls: 0,
-        sixStarTotal: 0,
-        sixStarLimited: 0,
-        sixStarStandard: 0,
-        fiveStar: 0,
-        fourStar: 0,
-        byPool: {}
-      };
-
-      poolsData.forEach(pool => {
-        const poolHistory = historyData.filter(h => h.poolId === pool.id && h.specialType !== 'gift');
-        stats.byPool[pool.name] = {
-          type: pool.type,
-          total: poolHistory.length,
-          sixStar: poolHistory.filter(h => h.rarity === 6).length,
-          sixStarLimited: poolHistory.filter(h => h.rarity === 6 && !h.isStandard).length,
-          sixStarStandard: poolHistory.filter(h => h.rarity === 6 && h.isStandard).length
-        };
-      });
-
-      const validHistory = historyData.filter(h => h.specialType !== 'gift');
-      stats.totalPulls = validHistory.length;
-      stats.sixStarTotal = validHistory.filter(h => h.rarity === 6).length;
-      stats.sixStarLimited = validHistory.filter(h => h.rarity === 6 && !h.isStandard).length;
-      stats.sixStarStandard = validHistory.filter(h => h.rarity === 6 && h.isStandard).length;
-      stats.fiveStar = validHistory.filter(h => h.rarity === 5).length;
-      stats.fourStar = validHistory.filter(h => h.rarity <= 4).length;
-
-      return stats;
-    };
-
-    const exportObj = {
-      version: "2.1",
-      scope: scope,
-      exportTime: new Date().toISOString(),
-      summary: calculateStats(exportHistory, exportPools),
-      pools: exportPools,
-      history: exportHistory
-    };
-
-    const dataStr = JSON.stringify(exportObj, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const now = new Date();
-    const pad = n => n.toString().padStart(2, '0');
-    const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    link.download = `endfield-gacha-${timeStr}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [pools, history, currentPoolId, normalizedCurrentPoolHistory]);
+    triggerFileDownload(
+      buildExportJsonContent(payload),
+      'application/json',
+      'json'
+    );
+  }, [buildPayload, showToast, triggerFileDownload]);
 
   // 通用导出函数 - CSV
-  const handleExportCSV = useCallback((scope) => {
-    let dataToExport = [];
-
-    const processHistoryWithIndex = (historyData, poolId) => {
-      const filtered = historyData.filter(h => h.poolId === poolId);
-      const sorted = [...filtered].sort((a, b) => a.id - b.id);
-
-      let pityCounter = 0;
-      return sorted.map((item, index) => {
-        if (item.specialType !== 'gift') {
-          pityCounter++;
-        }
-
-        const result = {
-          ...item,
-          globalIndex: index + 1,
-          pityAtPull: item.specialType === 'gift' ? '-' : pityCounter
-        };
-
-        if (item.rarity === 6 && item.specialType !== 'gift') {
-          pityCounter = 0;
-        }
-
-        return result;
-      });
-    };
-
-    if (scope === 'current') {
-      if (normalizedCurrentPoolHistory.length === 0) {
-        showToast("当前卡池无数据", 'warning');
-        return;
-      }
-      const sortedHistory = [...normalizedCurrentPoolHistory].sort((a, b) => a.id - b.id);
-      let pityCounter = 0;
-      dataToExport = sortedHistory.map((item, index) => {
-        if (item.specialType !== 'gift') {
-          pityCounter++;
-        }
-        const result = {
-          ...item,
-          globalIndex: index + 1,
-          pityAtPull: item.specialType === 'gift' ? '-' : pityCounter
-        };
-        if (item.rarity === 6 && item.specialType !== 'gift') {
-          pityCounter = 0;
-        }
-        return result;
-      });
-    } else {
-      if ((history || []).length === 0) {
-        showToast("无数据可导出", 'warning');
-        return;
-      }
-      poolsArray.forEach(pool => {
-        const poolData = processHistoryWithIndex(history, pool.id);
-        dataToExport.push(...poolData);
-      });
-      dataToExport.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  const handleExportCSV = useCallback((scopeOrOptions) => {
+    const payload = buildPayload(scopeOrOptions);
+    if (payload.history.length === 0) {
+      showToast('所选条件下无数据可导出', 'warning');
+      return;
     }
 
-    const headers = ["卡池名称(Pool)", "卡池类型(Type)", "序号(No)", "星级(Rarity)", "限定/常驻(Limited/Std)", "特殊标记(Special)", "垫刀数(Pity)", "时间(Time)"];
-
-    const rows = dataToExport.map(item => {
-      const pool = (pools || []).find(p => p.id === item.poolId);
-      const poolName = pool?.name || 'Unknown';
-      const poolType = pool?.type === 'limited' ? '限定池' : pool?.type === 'weapon' ? '武器池' : '常驻池';
-
-      let limitedStr = '-';
-      if (item.rarity === 6) {
-        limitedStr = item.isStandard ? '常驻(Std)' : '限定(Ltd)';
-      }
-
-      let specialStr = '-';
-      if (item.specialType === 'guaranteed') specialStr = '保底(Pity)';
-      else if (item.specialType === 'gift') specialStr = '赠送(Gift)';
-
-      const escapeCsv = (str) => {
-        if (typeof str === 'string' && (str.includes(',') || str.includes('"') || str.includes('\n'))) {
-          return `"${str.replace(/"/g, '""')}"`;
-        }
-        return str;
-      };
-
-      return [
-        escapeCsv(poolName),
-        poolType,
-        item.globalIndex,
-        `${item.rarity}星`,
-        limitedStr,
-        specialStr,
-        item.pityAtPull,
-        new Date(item.timestamp).toLocaleString()
-      ].join(",");
-    });
-
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    const now = new Date();
-    const pad = n => n.toString().padStart(2, '0');
-    const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    link.download = `endfield-gacha-${timeStr}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [pools, poolsArray, history, normalizedCurrentPoolHistory, currentPoolId, showToast]);
+    triggerFileDownload(
+      buildExportCsvContent(payload),
+      'text/csv;charset=utf-8;',
+      'csv'
+    );
+  }, [buildPayload, showToast, triggerFileDownload]);
 
   // 导入文件处理
   const handleImportFile = useCallback((event) => {
@@ -317,7 +198,7 @@ export function useDataExportImport({
       event.target.value = '';
     };
     reader.readAsText(file);
-  }, [user, pools, showToast]);
+  }, [showToast, user, validateImportData]);
 
   // 确认导入
   const confirmImport = useCallback(async () => {

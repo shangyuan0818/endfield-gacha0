@@ -31,8 +31,7 @@ export default function GachaAnalyzer() {
 
   const {
     poolsArray,
-    currentPool,
-    normalizedCurrentPoolHistory
+    currentPool
   } = useCurrentPoolData();
 
   const activeTab = getDesktopTabFromPath(location.pathname);
@@ -192,7 +191,7 @@ export default function GachaAnalyzer() {
     handleExportCSV,
     handleImportFile,
     confirmImport
-  } = useDataExportImport({ showToast, cloudSync, normalizedCurrentPoolHistory });
+  } = useDataExportImport({ showToast, cloudSync });
 
   // --- Effects ---
 
