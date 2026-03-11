@@ -6,6 +6,7 @@ import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
 import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
+import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 
 /**
  * 移动端卡池选择器 - 完整版
@@ -76,40 +77,12 @@ function MobilePoolSelector() {
 
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
-    const searchFiltered = searchQuery.trim()
-      ? pools.filter(pool => pool.name?.toLowerCase().includes(searchQuery.toLowerCase()))
-      : pools;
-
-    const groups = {
-      limited: { label: '限定角色', pools: [] },
-      standard: { label: '常驻', pools: [] },
-      weapon_limited: { label: '限定武器', pools: [] },
-      weapon_standard: { label: '常驻武器', pools: [] },
-      beginner: { label: '新手', pools: [] }
-    };
-
-    searchFiltered.forEach(pool => {
-      let type = pool.type || 'standard';
-      if (type === 'limited_character') type = 'limited';
-      if (type === 'limited_weapon' || type === 'weapon') {
-        if (pool.isLimitedWeapon === false) {
-          groups.weapon_standard.pools.push(pool);
-        } else {
-          groups.weapon_limited.pools.push(pool);
-        }
-        return;
-      }
-
-      if (type === 'limited') groups.limited.pools.push(pool);
-      else if (type === 'beginner') groups.beginner.pools.push(pool);
-      else groups.standard.pools.push(pool);
+    return buildPoolSelectorGroups({
+      pools,
+      poolPullCounts,
+      searchQuery
     });
-
-    const order = ['limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
-    return order
-      .map(type => ({ type, label: groups[type].label, pools: groups[type].pools }))
-      .filter(group => group.pools.length > 0);
-  }, [pools, searchQuery]);
+  }, [poolPullCounts, pools, searchQuery]);
 
   // 统计
   const totalPools = pools?.length || 0;
@@ -198,6 +171,11 @@ function MobilePoolSelector() {
                 <span className="text-zinc-700 dark:text-zinc-300 truncate">
                   {currentAccount?.nickName || '全部账号'}
                 </span>
+                {currentAccount?.serverTag && (
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                    {currentAccount.serverTag}
+                  </span>
+                )}
               </div>
               <ChevronDown size={12} className={`text-zinc-400 transition-transform shrink-0 ${isAccountOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -226,11 +204,18 @@ function MobilePoolSelector() {
                         ? 'bg-endfield-yellow/10'
                         : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
                     }`}
-                  >
-                    <div className={`text-xs font-bold ${
-                      currentGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-700 dark:text-zinc-300'
-                    }`}>
-                      {account.nickName}
+                    >
+                    <div className="flex items-center gap-2">
+                      <div className={`text-xs font-bold ${
+                        currentGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-700 dark:text-zinc-300'
+                      }`}>
+                        {account.nickName}
+                      </div>
+                      {account.serverTag && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                          {account.serverTag}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
                       UID: {account.gameUid} · {account.recordCount} 条记录

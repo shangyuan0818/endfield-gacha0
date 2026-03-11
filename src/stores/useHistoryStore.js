@@ -1,5 +1,40 @@
 import { create } from 'zustand';
-import { DEFAULT_DISPLAY_PITY } from '../constants';
+import { DEFAULT_DISPLAY_PITY } from '../constants/index.js';
+import {
+  buildGameAccountServerTag,
+  loadGameAccountMetadataMap,
+  normalizeGameAccountMetadata
+} from '../utils/gameAccountMetadata.js';
+
+function getHistoryGameUid(record) {
+  return record?.game_uid || record?.gameUid || null;
+}
+
+function getHistoryNickName(record) {
+  return record?.nick_name || record?.nickName || getHistoryGameUid(record) || 'unknown';
+}
+
+function getHistoryAccountMetadata(record, storedMetadata = null) {
+  const normalized = normalizeGameAccountMetadata({
+    ...(storedMetadata || {}),
+    gameUid: getHistoryGameUid(record),
+    nickName: getHistoryNickName(record),
+    channelName: record?.channel_name || record?.channelName || storedMetadata?.channelName,
+    channelMasterId: record?.channel_master_id || record?.channelMasterId || storedMetadata?.channelMasterId,
+    serverId: record?.server_id || record?.serverId || storedMetadata?.serverId,
+    region: record?.region || record?.serverRegion || storedMetadata?.region,
+    isOfficial: record?.is_official ?? record?.isOfficial ?? storedMetadata?.isOfficial
+  });
+
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    ...normalized,
+    serverTag: buildGameAccountServerTag(normalized)
+  };
+}
 
 /**
  * 抽卡历史记录状态管理 V3
@@ -58,7 +93,7 @@ const useHistoryStore = create((set, get) => ({
 
     return history.filter(h => {
       if (h.poolId !== poolId) return false;
-      if (gameUid && h.game_uid !== gameUid) return false;
+      if (gameUid && getHistoryGameUid(h) !== gameUid) return false;
       return true;
     });
   },
@@ -224,17 +259,37 @@ const useHistoryStore = create((set, get) => ({
   getGameAccountsFromHistory: () => {
     const { history } = get();
     const accountMap = new Map();
+    const storedMetadataMap = loadGameAccountMetadataMap();
 
     history.forEach(h => {
-      if (h.game_uid) {
-        if (!accountMap.has(h.game_uid)) {
-          accountMap.set(h.game_uid, {
-            gameUid: h.game_uid,
-            nickName: h.nick_name || h.game_uid, // 优先使用 nick_name，否则使用 UID
+      const gameUid = getHistoryGameUid(h);
+      if (gameUid) {
+        const metadata = getHistoryAccountMetadata(h, storedMetadataMap[gameUid]);
+        if (!accountMap.has(gameUid)) {
+          accountMap.set(gameUid, {
+            gameUid,
+            nickName: metadata?.nickName || getHistoryNickName(h), // 优先使用昵称，否则使用 UID
+            channelName: metadata?.channelName || null,
+            channelMasterId: metadata?.channelMasterId || null,
+            serverId: metadata?.serverId || null,
+            region: metadata?.region || null,
+            isOfficial: metadata?.isOfficial ?? null,
+            serverTag: metadata?.serverTag || null,
             recordCount: 0
           });
+        } else if (metadata) {
+          accountMap.set(gameUid, {
+            ...accountMap.get(gameUid),
+            nickName: metadata.nickName || accountMap.get(gameUid).nickName,
+            channelName: metadata.channelName || accountMap.get(gameUid).channelName,
+            channelMasterId: metadata.channelMasterId || accountMap.get(gameUid).channelMasterId,
+            serverId: metadata.serverId || accountMap.get(gameUid).serverId,
+            region: metadata.region || accountMap.get(gameUid).region,
+            isOfficial: metadata.isOfficial ?? accountMap.get(gameUid).isOfficial,
+            serverTag: metadata.serverTag || accountMap.get(gameUid).serverTag
+          });
         }
-        accountMap.get(h.game_uid).recordCount++;
+        accountMap.get(gameUid).recordCount++;
       }
     });
 
@@ -250,7 +305,7 @@ const useHistoryStore = create((set, get) => ({
   getHistoryByGameAccount: (gameUid) => {
     const { history } = get();
     if (!gameUid) return history;
-    return history.filter(h => h.game_uid === gameUid);
+    return history.filter(h => getHistoryGameUid(h) === gameUid);
   },
 
   /**
@@ -262,7 +317,7 @@ const useHistoryStore = create((set, get) => ({
     const statsMap = new Map();
 
     history.forEach(h => {
-      const uid = h.game_uid || 'unknown';
+      const uid = getHistoryGameUid(h) || 'unknown';
       if (!statsMap.has(uid)) {
         statsMap.set(uid, {
           gameUid: uid,
