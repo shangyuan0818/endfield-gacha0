@@ -277,7 +277,8 @@ function processTypeStats(typeData) {
     resources: buildResourceSummaryFromAggregates({
       characterPulls: normalizedType === 'weapon' ? 0 : total,
       weaponPulls: normalizedType === 'weapon' ? total : 0,
-      counts
+      counts,
+      arsenalGainCounts: normalizedType === 'weapon' ? {} : counts
     })
   };
 }
@@ -392,6 +393,12 @@ function normalizeGlobalStats(rpcData) {
         '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
         '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
         '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+      },
+      arsenalGainCounts: {
+        '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+        '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+        '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+        '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
       }
     })
   };
@@ -399,7 +406,8 @@ function normalizeGlobalStats(rpcData) {
   stats.resources = buildResourceSummaryFromAggregates({
     characterPulls: stats.byType.character.total,
     weaponPulls: stats.byType.weapon.total,
-    counts: stats.counts
+    counts: stats.counts,
+    arsenalGainCounts: stats.byType.character.counts
   });
 
   return stats;

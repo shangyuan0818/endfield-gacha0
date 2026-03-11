@@ -128,20 +128,27 @@ export function getWeaponSingleQuotaCost(settings = DEFAULT_RESOURCE_RULES) {
 export function buildResourceSummaryFromAggregates({
   characterPulls = 0,
   weaponPulls = 0,
+  chargedCharacterPulls = characterPulls,
+  chargedWeaponPulls = weaponPulls,
   counts = {},
+  arsenalGainCounts = counts,
   settings = DEFAULT_RESOURCE_RULES
 } = {}) {
   const normalizedSettings = normalizeResourceSettings(settings);
   const normalizedCharacterPulls = toNonNegativeNumber(characterPulls, 0);
   const normalizedWeaponPulls = toNonNegativeNumber(weaponPulls, 0);
-  const jadeSpent = normalizedCharacterPulls * normalizedSettings.characterPullJadeCost;
+  const normalizedChargedCharacterPulls = toNonNegativeNumber(chargedCharacterPulls, normalizedCharacterPulls);
+  const normalizedChargedWeaponPulls = toNonNegativeNumber(chargedWeaponPulls, normalizedWeaponPulls);
+  const jadeSpent = normalizedChargedCharacterPulls * normalizedSettings.characterPullJadeCost;
   const originiteEquivalent = jadeSpent / normalizedSettings.originiteToJadeRate;
-  const arsenalSpent = normalizedWeaponPulls * getWeaponSingleQuotaCost(normalizedSettings);
-  const arsenalGained = calculateArsenalQuotaGainFromCounts(counts, normalizedSettings);
+  const arsenalSpent = normalizedChargedWeaponPulls * getWeaponSingleQuotaCost(normalizedSettings);
+  const arsenalGained = calculateArsenalQuotaGainFromCounts(arsenalGainCounts, normalizedSettings);
 
   return {
     characterPulls: normalizedCharacterPulls,
     weaponPulls: normalizedWeaponPulls,
+    chargedCharacterPulls: normalizedChargedCharacterPulls,
+    chargedWeaponPulls: normalizedChargedWeaponPulls,
     jadeSpent,
     originiteEquivalent,
     arsenalSpent,
@@ -153,6 +160,7 @@ export function buildResourceSummaryFromAggregates({
 export function buildPoolResourceSummary({
   poolType,
   totalPulls = 0,
+  chargedPulls = totalPulls,
   counts = {},
   settings = DEFAULT_RESOURCE_RULES
 } = {}) {
@@ -161,7 +169,10 @@ export function buildPoolResourceSummary({
   return buildResourceSummaryFromAggregates({
     characterPulls: normalizedPoolType === 'weapon' ? 0 : totalPulls,
     weaponPulls: normalizedPoolType === 'weapon' ? totalPulls : 0,
+    chargedCharacterPulls: normalizedPoolType === 'weapon' ? 0 : chargedPulls,
+    chargedWeaponPulls: normalizedPoolType === 'weapon' ? chargedPulls : 0,
     counts,
+    arsenalGainCounts: normalizedPoolType === 'weapon' ? {} : counts,
     settings
   });
 }
@@ -204,28 +215,40 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
     const pullHistory = Array.isArray(state?.pullHistory) ? state.pullHistory : [];
     const counts = countHistoryRarities(pullHistory);
 
-    accumulator.counts[6] += counts[6];
-    accumulator.counts['6_std'] += counts['6_std'];
-    accumulator.counts[5] += counts[5];
-    accumulator.counts[4] += counts[4];
-
     if (poolType === 'weapon') {
       accumulator.weaponPulls += countPaidHistory(pullHistory);
+      accumulator.weaponCounts[6] += counts[6];
+      accumulator.weaponCounts['6_std'] += counts['6_std'];
+      accumulator.weaponCounts[5] += counts[5];
+      accumulator.weaponCounts[4] += counts[4];
     } else {
       accumulator.characterPulls += countPaidHistory(pullHistory);
+      accumulator.characterCounts[6] += counts[6];
+      accumulator.characterCounts['6_std'] += counts['6_std'];
+      accumulator.characterCounts[5] += counts[5];
+      accumulator.characterCounts[4] += counts[4];
     }
 
     return accumulator;
   }, {
     characterPulls: 0,
     weaponPulls: 0,
-    counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }
+    characterCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
+    weaponCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }
   });
+
+  const totalCounts = {
+    6: aggregate.characterCounts[6] + aggregate.weaponCounts[6],
+    '6_std': aggregate.characterCounts['6_std'] + aggregate.weaponCounts['6_std'],
+    5: aggregate.characterCounts[5] + aggregate.weaponCounts[5],
+    4: aggregate.characterCounts[4] + aggregate.weaponCounts[4]
+  };
 
   const summary = buildResourceSummaryFromAggregates({
     characterPulls: aggregate.characterPulls,
     weaponPulls: aggregate.weaponPulls,
-    counts: aggregate.counts,
+    counts: totalCounts,
+    arsenalGainCounts: aggregate.characterCounts,
     settings: normalizedSettings
   });
 
@@ -250,7 +273,7 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
 
   return {
     ...summary,
-    counts: aggregate.counts,
+    counts: totalCounts,
     baseJade: normalizedSettings.baseJade,
     baseOriginite: normalizedSettings.baseOriginite,
     baseArsenalQuota: normalizedSettings.baseArsenalQuota,

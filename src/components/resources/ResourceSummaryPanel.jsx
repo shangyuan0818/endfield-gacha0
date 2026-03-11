@@ -81,9 +81,7 @@ function getItems(resources, variant) {
 
   if (variant === 'weapon') {
     return [
-      baseItems.arsenalSpent,
-      baseItems.arsenalGained,
-      baseItems.arsenalNet
+      baseItems.arsenalSpent
     ];
   }
 
