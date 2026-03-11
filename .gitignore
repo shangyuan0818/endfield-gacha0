@@ -23,6 +23,7 @@ artifacts/
 archive/
 scratch/
 coverage/
+test-results/
 *.tmp
 *.bak
 

@@ -6,6 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:backend:cn": "npm --prefix backend run dev:cn",
+    "dev:backend:intl": "npm --prefix backend run dev:intl",
     "dev:proxy": "node scripts/private-proxy-notice.mjs",
     "dev:full": "npm run dev:proxy && npm run dev",
     "build": "vite build",
@@ -13,7 +16,10 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx,css,json}\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:harness": "node backend/test-harness/run-suite.js",
+    "test:simulator-inheritance": "node scripts/verify-simulator-inheritance.mjs",
+    "test:resource-ui": "node scripts/verify-resource-ui-playwright.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
@@ -35,6 +41,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -45,6 +52,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "playwright": "^1.58.2",
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.17",
