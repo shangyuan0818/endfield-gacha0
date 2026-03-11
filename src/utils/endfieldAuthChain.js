@@ -16,6 +16,7 @@
  */
 
 import { queuedFetch } from './requestQueue.js';
+import { supabase } from '../supabaseClient';
 
 function normalizeImportSource(source) {
   return source === 'intl' ? 'intl' : 'cn';
@@ -97,6 +98,33 @@ export class NetworkConnectionError extends Error {
     this.name = 'NetworkConnectionError';
     this.originalMessage = originalMessage;
   }
+}
+
+async function getCurrentAccessToken() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data: sessionData, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new AuthChainError(error.message || '获取登录状态失败', 'session');
+  }
+
+  return sessionData?.session?.access_token || null;
+}
+
+async function getAuthHeaders(required = false) {
+  const accessToken = await getCurrentAccessToken();
+  if (!accessToken) {
+    if (required) {
+      throw new AuthChainError('请先登录后再导入数据', 'auth');
+    }
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${accessToken}`
+  };
 }
 
 /**
@@ -457,14 +485,14 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
  * @param {number} [maxWaitTime] - 最大等待时间（毫秒）
  * @returns {Promise<Object>} 任务结果
  */
-async function pollTaskUntilComplete(taskId, onProgress, maxWaitTime = 300000, source = 'cn') {
+async function pollTaskUntilComplete(taskId, taskKey, onProgress, maxWaitTime = 300000, source = 'cn') {
   const startTime = Date.now();
   const pollInterval = 2000; // 每2秒轮询一次
   const proxyBase = getProxyBase(source);
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
-      const response = await fetch(`${proxyBase}?action=task-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
+      const response = await fetch(`${proxyBase}?action=task-status&taskId=${encodeURIComponent(taskId)}&taskKey=${encodeURIComponent(taskKey)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
       const result = await safeParseJSON(response, 'Task Status API');
 
       if (!result.success) {
@@ -524,7 +552,10 @@ export async function fetchImportQueueStatus(source = 'cn') {
 
 export async function fetchFullImportStatus(taskId, source = 'cn') {
   const proxyBase = getProxyBase(source);
-  const response = await fetch(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
+  const authHeaders = await getAuthHeaders(true);
+  const response = await fetch(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`, {
+    headers: authHeaders
+  });
   const result = await safeParseJSON(response, 'Import Status API');
 
   if (!result.success) {
@@ -578,6 +609,8 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     throw new AuthChainError('请先登录后再导入数据', 'import-full');
   }
 
+  const authHeaders = await getAuthHeaders(true);
+
   if (onProgress) {
     onProgress({
       status: 'pending',
@@ -589,7 +622,8 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
   const response = await queuedFetch(`${proxyBase}?action=import-full`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...authHeaders
     },
     body: JSON.stringify({
       token: initialToken,
@@ -668,6 +702,10 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
 
   // 检查是否被放入队列（需要轮询等待）
   if (result.queued) {
+    if (!result.taskKey) {
+      throw new AuthChainError('队列任务缺少访问密钥', 'records-batch', result);
+    }
+
     if (result.position > 1) {
       if (onProgress) onProgress(`导入请求已加入队列，前面还有 ${result.position - 1} 个任务...`);
     } else {
@@ -675,7 +713,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     }
 
     // 轮询等待任务完成
-    const taskResult = await pollTaskUntilComplete(result.taskId, onProgress, 300000, source);
+    const taskResult = await pollTaskUntilComplete(result.taskId, result.taskKey, onProgress, 300000, source);
 
     // 使用任务结果继续处理
     return processRecordsBatchResult({ success: true, data: taskResult }, onProgress);
