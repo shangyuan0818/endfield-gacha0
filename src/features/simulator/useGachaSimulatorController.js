@@ -887,6 +887,7 @@ export function useGachaSimulatorController() {
     history,
     poolCharactersList,
     realPools,
+    resourceSettings,
     simulatorPools,
     showToastMessage,
     switchGameAccount

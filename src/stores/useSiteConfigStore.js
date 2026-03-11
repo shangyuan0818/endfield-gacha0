@@ -2,8 +2,17 @@ import { create } from 'zustand';
 import { executeSupabaseMutation } from '../services/supabaseRequest';
 import { getBootstrapSiteConfig } from '../services/bootstrapService';
 import { supabase } from '../supabaseClient';
+import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta';
 
 const SITE_CONFIG_SNAPSHOT_KEY = 'site_config_snapshot_v1';
+
+function normalizeVersionConfig(config) {
+  return {
+    ...(config && typeof config === 'object' ? config : {}),
+    site_version: APP_VERSION_LABEL,
+    build_info: APP_BUILD_INFO,
+  };
+}
 
 function readSiteConfigSnapshot() {
   if (typeof window === 'undefined') {
@@ -18,7 +27,7 @@ function readSiteConfigSnapshot() {
 
     const parsedSnapshot = JSON.parse(rawSnapshot);
     return parsedSnapshot && typeof parsedSnapshot.config === 'object' && parsedSnapshot.config !== null
-      ? parsedSnapshot.config
+      ? normalizeVersionConfig(parsedSnapshot.config)
       : {};
   } catch {
     return {};
@@ -32,7 +41,7 @@ function writeSiteConfigSnapshot(config) {
 
   try {
     window.localStorage.setItem(SITE_CONFIG_SNAPSHOT_KEY, JSON.stringify({
-      config,
+      config: normalizeVersionConfig(config),
       fetchedAt: Date.now(),
     }));
   } catch {
@@ -59,7 +68,7 @@ const useSiteConfigStore = create((set, get) => ({
 
     if (bootstrapConfig && Object.keys(bootstrapConfig).length > 0) {
       writeSiteConfigSnapshot(bootstrapConfig);
-      set({ config: bootstrapConfig, loaded: true });
+      set({ config: normalizeVersionConfig(bootstrapConfig), loaded: true });
       return;
     }
 
@@ -79,8 +88,9 @@ const useSiteConfigStore = create((set, get) => ({
             config[row.key] = row.value;
             return config;
           }, {});
-          writeSiteConfigSnapshot(nextConfig);
-          set({ config: nextConfig, loaded: true });
+          const normalizedConfig = normalizeVersionConfig(nextConfig);
+          writeSiteConfigSnapshot(normalizedConfig);
+          set({ config: normalizedConfig, loaded: true });
           return;
         }
       } catch {
@@ -88,7 +98,7 @@ const useSiteConfigStore = create((set, get) => ({
       }
     }
 
-    set({ config: snapshot, loaded: true });
+    set({ config: normalizeVersionConfig(snapshot), loaded: true });
   },
 
   /**
@@ -117,7 +127,7 @@ const useSiteConfigStore = create((set, get) => ({
 
       if (error) throw error;
 
-      const nextConfig = { ...get().config, [key]: value };
+      const nextConfig = normalizeVersionConfig({ ...get().config, [key]: value });
       writeSiteConfigSnapshot(nextConfig);
       set({ config: nextConfig });
       return true;
