@@ -11,6 +11,7 @@ import {
   importAllRecordsFullyOnBackend
 } from '../../utils/endfieldAuthChain';
 import { assignBatchIds, calculatePity, generateImportSummary } from '../../utils/endfieldImportAdapter';
+import { buildGameAccountServerTag } from '../../utils/gameAccountMetadata';
 import { getGlobalQueue } from '../../utils/requestQueue';
 import { ImportStatus } from './importShared';
 
@@ -98,7 +99,7 @@ function buildPreviewRecords(records) {
   return processedRecords;
 }
 
-export function useOfficialImportController({ onImportComplete, onFetchStatusChange, userId }) {
+export function useOfficialImportController({ onImportComplete, onFetchStatusChange, userId, source = 'cn' }) {
   const [tokenInput, setTokenInput] = useState('');
   const [status, setStatus] = useState(ImportStatus.IDLE);
   const [progress, setProgress] = useState(0);
@@ -129,7 +130,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
 
     const updateQueueStatus = async () => {
       try {
-        const backendStatus = await fetchImportQueueStatus();
+        const backendStatus = await fetchImportQueueStatus(source);
         setQueueStatus({
           queueLength: backendStatus.queueLength,
           activeRequests: backendStatus.isProcessing ? 1 : 0,
@@ -169,7 +170,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       clearInterval(interval);
       queue.removeListener(handleQueueEvent);
     };
-  }, [status]);
+  }, [source, status]);
 
   const handleInputChange = useCallback((event) => {
     const rawInput = event.target.value;
@@ -229,7 +230,10 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         nickName: account.nickName,
         channelName: account.channelName,
         channelMasterId: account.channelMasterId,
-        isOfficial: account.isOfficial
+        serverId: account.serverId,
+        isOfficial: account.isOfficial,
+        source,
+        serverTag: account.serverTag || buildGameAccountServerTag(account)
       };
 
       setUserInfo(resolvedUserInfo);
@@ -238,7 +242,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         const accountIndex = availableAccounts.findIndex((candidate) =>
           candidate.uid === account.uid &&
           candidate.gameUid === account.gameUid &&
-          candidate.channelMasterId === account.channelMasterId
+          candidate.channelMasterId === account.channelMasterId &&
+          String(candidate.serverId || '') === String(account.serverId || '')
         );
 
         const backendResult = await importAllRecordsFullyOnBackend(
@@ -250,7 +255,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
             setStatus(update.progress >= 80 ? ImportStatus.PROCESSING : ImportStatus.FETCHING);
             setProgress(update.progress || 0);
             setStatusMessage(update.message || '正在导入数据...');
-          }
+          },
+          source
         );
 
         if (cancelRef.current) return;
@@ -258,7 +264,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         const finalUserInfo = {
           ...resolvedUserInfo,
           gameUid: backendResult?.account?.gameUid || resolvedUserInfo.gameUid,
-          nickName: backendResult?.account?.nickName || resolvedUserInfo.nickName
+          nickName: backendResult?.account?.nickName || resolvedUserInfo.nickName,
+          serverId: backendResult?.account?.serverId || resolvedUserInfo.serverId
         };
 
         if (onImportComplete) {
@@ -299,7 +306,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         if (!cancelRef.current) {
           setStatusMessage(message);
         }
-      });
+      }, source);
 
       if (cancelRef.current) return;
 
@@ -326,7 +333,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           {
             gameUid: account.gameUid,
             nickName: account.nickName
-          }
+          },
+          source
         );
       } catch {
         setStatusMessage('并发获取失败，切换到串行模式...');
@@ -334,7 +342,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           if (!cancelRef.current) {
             setStatusMessage(message);
           }
-        });
+        }, source, account.serverId || '1');
       }
 
       if (cancelRef.current) return;
@@ -358,7 +366,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setError(normalizeImportError(err));
       setStatus(ImportStatus.ERROR);
     }
-  }, [availableAccounts, onImportComplete, tokenInput, userId]);
+  }, [availableAccounts, onImportComplete, source, tokenInput, userId]);
 
   const handleImport = useCallback(async () => {
     const validation = validateToken(tokenInput);
@@ -387,22 +395,27 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         setStatusMessage(message);
         if (message.includes('验证')) setProgress(10);
         else if (message.includes('账号')) setProgress(20);
-      });
+      }, source);
 
       if (cancelRef.current) return;
 
       const { appToken: nextAppToken, accounts } = accountsResult;
+      const normalizedAccounts = accounts.map((account) => ({
+        ...account,
+        source,
+        serverTag: buildGameAccountServerTag(account)
+      }));
       setAppToken(nextAppToken);
-      setAvailableAccounts(accounts);
+      setAvailableAccounts(normalizedAccounts);
 
-      if (accounts.length > 1) {
+      if (normalizedAccounts.length > 1) {
         setStatus(ImportStatus.ACCOUNT_SELECTION);
         setProgress(25);
         setStatusMessage('请选择要导入的账号');
         return;
       }
 
-      await continueImportWithAccount(nextAppToken, accounts[0]);
+      await continueImportWithAccount(nextAppToken, normalizedAccounts[0]);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[OfficialAPIImport] 导入失败:', err);
@@ -410,7 +423,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setError(normalizeImportError(err));
       setStatus(ImportStatus.ERROR);
     }
-  }, [continueImportWithAccount, tokenInput]);
+  }, [continueImportWithAccount, source, tokenInput]);
 
   const handleAccountSelect = useCallback(async (account) => {
     await continueImportWithAccount(appToken, account);

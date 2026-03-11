@@ -113,7 +113,65 @@ function getPoolName(poolType) {
   return nameMap[poolType] || poolType;
 }
 
+const IMPORT_SOURCE_OPTIONS = [
+  { key: 'cn', label: '国服', description: '官服 / B服' },
+  { key: 'intl', label: '国际服', description: '亚服 / 欧/美服' }
+];
+
+const IMPORT_SOURCE_GUIDES = {
+  cn: {
+    bindingTitle: '登录官网并绑定',
+    bindingDesc: '官服与B服均需在此绑定终末地角色：',
+    bindingUrl: 'https://user.hypergryph.com/bindCharacters?game=endfield',
+    bindingHost: 'user.hypergryph.com',
+    tokenTitle: '获取数据内容',
+    tokenDesc: '在新标签页打开链接，建议复制页面显示的完整内容，或仅复制 content 字段的值：',
+    tokenUrl: 'https://web-api.hypergryph.com/account/info/hg',
+    tokenHost: 'web-api.hypergryph.com'
+  },
+  intl: {
+    bindingTitle: '登录充值中心',
+    bindingDesc: '请先登录国际服充值中心，确保角色列表可见：',
+    bindingUrl: 'https://topup.gryphline.com/endfield',
+    bindingHost: 'topup.gryphline.com',
+    tokenTitle: '获取认证内容',
+    tokenDesc: '登录后在新标签页打开链接，复制页面显示的完整内容，或仅复制 content 字段的值：',
+    tokenUrl: 'https://web-api.gryphline.com/cookie_store/account_token',
+    tokenHost: 'web-api.gryphline.com'
+  }
+};
+
+function getAccountAccent(account = {}) {
+  const tag = account.serverTag || '';
+
+  if (tag === 'B服') {
+    return {
+      border: 'border-pink-300 dark:border-pink-600 bg-pink-50 dark:bg-pink-900/20 hover:bg-pink-100 dark:hover:bg-pink-900/30',
+      iconBg: 'bg-pink-100 dark:bg-pink-800/50',
+      iconText: 'text-pink-600 dark:text-pink-400',
+      badge: 'bg-pink-500 dark:bg-pink-600 text-white'
+    };
+  }
+
+  if (tag?.includes('国际服')) {
+    return {
+      border: 'border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/30',
+      iconBg: 'bg-sky-100 dark:bg-sky-800/50',
+      iconText: 'text-sky-600 dark:text-sky-400',
+      badge: 'bg-sky-500 dark:bg-sky-600 text-white'
+    };
+  }
+
+  return {
+    border: 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30',
+    iconBg: 'bg-amber-100 dark:bg-amber-800/50',
+    iconText: 'text-amber-600 dark:text-amber-400',
+    badge: 'bg-amber-500 dark:bg-amber-600 text-white'
+  };
+}
+
 export default function OfficialImportContent({
+  source,
   status,
   tokenInput,
   autoDetected,
@@ -125,6 +183,7 @@ export default function OfficialImportContent({
   error,
   importSummary,
   userInfo,
+  onSourceChange,
   onTokenChange,
   onStartImport,
   onSelectAccount,
@@ -132,10 +191,36 @@ export default function OfficialImportContent({
   onReset,
   onConfirmImport
 }) {
+  const guide = IMPORT_SOURCE_GUIDES[source] || IMPORT_SOURCE_GUIDES.cn;
+  const userInfoAccent = userInfo ? getAccountAccent(userInfo) : null;
+
   return (
     <div className="space-y-6">
       {status === ImportStatus.IDLE && (
         <div className="bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 transition-colors">
+          <div className="mb-4">
+            <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-2">
+              区服来源
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {IMPORT_SOURCE_OPTIONS.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => onSourceChange(option.key)}
+                  className={`border p-3 text-left transition-colors ${
+                    source === option.key
+                      ? 'border-amber-500 dark:border-yellow-500 bg-amber-50 dark:bg-yellow-500/10'
+                      : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/40 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
+                  }`}
+                >
+                  <div className="text-sm font-bold text-slate-800 dark:text-white">{option.label}</div>
+                  <div className="text-[10px] font-mono text-slate-500 dark:text-zinc-500 mt-1">{option.description}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           <h3 className="text-slate-800 dark:text-zinc-300 text-sm font-bold flex items-center gap-2 mb-4">
             <HelpCircle size={14} className="text-amber-600 dark:text-yellow-500" />
             快速指南
@@ -145,20 +230,20 @@ export default function OfficialImportContent({
             <div className="flex gap-3">
               <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">1</div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">登录官网并绑定</p>
-                <p className="mb-1 text-slate-500 dark:text-zinc-500">官服与B服均需在此绑定终末地角色：</p>
-                <a href="https://user.hypergryph.com/bindCharacters?game=endfield" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
-                  user.hypergryph.com <ExternalLink size={10} />
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{guide.bindingTitle}</p>
+                <p className="mb-1 text-slate-500 dark:text-zinc-500">{guide.bindingDesc}</p>
+                <a href={guide.bindingUrl} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
+                  {guide.bindingHost} <ExternalLink size={10} />
                 </a>
               </div>
             </div>
             <div className="flex gap-3">
               <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">2</div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">获取数据内容</p>
-                <p className="mb-1 text-slate-500 dark:text-zinc-500">在新标签页打开链接，建议复制页面显示的<span className="text-slate-700 dark:text-zinc-300">完整内容</span>，或仅复制 <span className="text-slate-700 dark:text-zinc-300">content</span> 字段的值：</p>
-                <a href="https://web-api.hypergryph.com/account/info/hg" target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
-                  web-api.hypergryph.com <ExternalLink size={10} />
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{guide.tokenTitle}</p>
+                <p className="mb-1 text-slate-500 dark:text-zinc-500">{guide.tokenDesc}</p>
+                <a href={guide.tokenUrl} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
+                  {guide.tokenHost} <ExternalLink size={10} />
                 </a>
               </div>
             </div>
@@ -193,7 +278,7 @@ export default function OfficialImportContent({
               value={tokenInput}
               onChange={onTokenChange}
               className="w-full bg-white dark:bg-black/30 border border-zinc-300 dark:border-zinc-700 p-4 font-mono text-center text-lg text-slate-800 dark:text-white focus:border-amber-500 dark:focus:border-yellow-500 focus:outline-none transition-colors placeholder:text-slate-400 dark:placeholder:text-zinc-700"
-              placeholder="粘贴24位Token或完整JSON"
+              placeholder={`粘贴${source === 'intl' ? '国际服' : '国服'}24位Token或完整JSON`}
             />
             <div className="absolute right-3 top-[38px] text-[10px] text-slate-400 dark:text-zinc-600 font-mono pointer-events-none">
               {tokenInput.trim().length} 字符
@@ -230,32 +315,22 @@ export default function OfficialImportContent({
             </p>
 
             <div className="space-y-2">
-              {availableAccounts.map((account) => (
+              {availableAccounts.map((account) => {
+                const accent = getAccountAccent(account);
+                return (
                 <button
-                  key={account.uid}
+                  key={`${account.uid}-${account.gameUid || 'unknown'}-${account.serverId || 'unknown'}`}
                   onClick={() => onSelectAccount(account)}
-                  className={`w-full p-3 border transition-all text-left flex items-center gap-3 ${
-                    account.isOfficial
-                      ? 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
-                      : 'border-pink-300 dark:border-pink-600 bg-pink-50 dark:bg-pink-900/20 hover:bg-pink-100 dark:hover:bg-pink-900/30'
-                  }`}
+                  className={`w-full p-3 border transition-all text-left flex items-center gap-3 ${accent.border}`}
                 >
-                  <div className={`w-10 h-10 flex items-center justify-center ${
-                    account.isOfficial
-                      ? 'bg-amber-100 dark:bg-amber-800/50'
-                      : 'bg-pink-100 dark:bg-pink-800/50'
-                  }`}>
-                    <User size={20} className={account.isOfficial ? 'text-amber-600 dark:text-amber-400' : 'text-pink-600 dark:text-pink-400'} />
+                  <div className={`w-10 h-10 flex items-center justify-center ${accent.iconBg}`}>
+                    <User size={20} className={accent.iconText} />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800 dark:text-white">{account.nickName}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${
-                        account.isOfficial
-                          ? 'bg-amber-500 dark:bg-amber-600 text-white'
-                          : 'bg-pink-500 dark:bg-pink-600 text-white'
-                      }`}>
-                        {account.channelName}
+                      <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${accent.badge}`}>
+                        {account.serverTag || account.channelName}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5">
@@ -264,7 +339,8 @@ export default function OfficialImportContent({
                   </div>
                   <ArrowRight size={16} className="text-slate-400 dark:text-zinc-500" />
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -310,25 +386,17 @@ export default function OfficialImportContent({
 
       {status === ImportStatus.SUCCESS && importSummary && (
         <div className="space-y-6">
-          {userInfo && (
+          {userInfo && userInfoAccent && (
             <div className="flex items-center gap-3 p-3 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
-              <div className={`w-10 h-10 flex items-center justify-center ${
-                userInfo.isOfficial !== false
-                  ? 'bg-amber-100 dark:bg-amber-800/50'
-                  : 'bg-pink-100 dark:bg-pink-800/50'
-              }`}>
-                <User size={20} className={userInfo.isOfficial !== false ? 'text-amber-600 dark:text-amber-400' : 'text-pink-600 dark:text-pink-400'} />
+              <div className={`w-10 h-10 flex items-center justify-center ${userInfoAccent.iconBg}`}>
+                <User size={20} className={userInfoAccent.iconText} />
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-slate-800 dark:text-white">{userInfo.nickName || 'Unknown User'}</span>
-                  {userInfo.channelName && (
-                    <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${
-                      userInfo.isOfficial !== false
-                        ? 'bg-amber-500 dark:bg-amber-600 text-white'
-                        : 'bg-pink-500 dark:bg-pink-600 text-white'
-                    }`}>
-                      {userInfo.channelName}
+                  {(userInfo.serverTag || userInfo.channelName) && (
+                    <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${userInfoAccent.badge}`}>
+                      {userInfo.serverTag || userInfo.channelName}
                     </span>
                   )}
                 </div>

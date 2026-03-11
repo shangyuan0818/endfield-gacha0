@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import OfficialImportContent from './components/OfficialImportContent';
 import { useOfficialImportController } from './useOfficialImportController';
 
@@ -8,6 +8,8 @@ export default function OfficialAPIImport({
   onFetchStatusChange,
   userId
 }) {
+  const [source, setSource] = useState('cn');
+
   const {
     tokenInput,
     status,
@@ -29,11 +31,21 @@ export default function OfficialAPIImport({
   } = useOfficialImportController({
     onImportComplete,
     onFetchStatusChange,
-    userId
+    userId,
+    source
   });
+
+  const handleSourceChange = useCallback((nextSource) => {
+    if (nextSource === source) {
+      return;
+    }
+    handleReset();
+    setSource(nextSource);
+  }, [handleReset, source]);
 
   return (
     <OfficialImportContent
+      source={source}
       status={status}
       tokenInput={tokenInput}
       autoDetected={autoDetected}
@@ -45,6 +57,7 @@ export default function OfficialAPIImport({
       error={error}
       importSummary={importSummary}
       userInfo={userInfo}
+      onSourceChange={handleSourceChange}
       onTokenChange={handleInputChange}
       onStartImport={handleImport}
       onSelectAccount={handleAccountSelect}

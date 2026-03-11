@@ -19,7 +19,7 @@ export default function OfficialImportAccountSelectionView({
         <div className="space-y-2">
           {accounts.map((account) => (
             <button
-              key={account.uid}
+              key={`${account.uid}-${account.gameUid || 'unknown'}-${account.serverId || 'unknown'}`}
               onClick={() => onSelect(account)}
               className={`w-full p-3 border transition-all text-left flex items-center gap-3 ${
                 account.isOfficial

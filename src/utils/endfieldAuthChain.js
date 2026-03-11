@@ -17,15 +17,29 @@
 
 import { queuedFetch } from './requestQueue.js';
 
-// API 代理地址
-// 支持通过环境变量配置外部后端服务器
-const PROXY_BASE = import.meta.env.VITE_PROXY_URL 
-  ? `${import.meta.env.VITE_PROXY_URL.replace(/\/+$/, '')}/api/hg-proxy`  // 自动去除末尾斜杠
-  : '/api/hg-proxy';
+function normalizeImportSource(source) {
+  return source === 'intl' ? 'intl' : 'cn';
+}
+
+function resolveProxyRoot(source = 'cn') {
+  const normalizedSource = normalizeImportSource(source);
+
+  if (normalizedSource === 'intl') {
+    return import.meta.env.VITE_PROXY_URL_INTL || import.meta.env.VITE_PROXY_URL || '';
+  }
+
+  return import.meta.env.VITE_PROXY_URL_CN || import.meta.env.VITE_PROXY_URL || '';
+}
+
+function getProxyBase(source = 'cn') {
+  const root = resolveProxyRoot(source);
+  return root ? `${root.replace(/\/+$/, '')}/api/hg-proxy` : '/api/hg-proxy';
+}
 
 // 调试：打印当前使用的代理地址
+console.log('[AuthChain] VITE_PROXY_URL_CN:', import.meta.env.VITE_PROXY_URL_CN);
+console.log('[AuthChain] VITE_PROXY_URL_INTL:', import.meta.env.VITE_PROXY_URL_INTL);
 console.log('[AuthChain] VITE_PROXY_URL:', import.meta.env.VITE_PROXY_URL);
-console.log('[AuthChain] PROXY_BASE:', PROXY_BASE);
 
 // 卡池类型
 export const POOL_TYPES = {
@@ -130,14 +144,15 @@ async function safeParseJSON(response, context = 'API') {
  * @param {string} initialToken - 24位初始token
  * @returns {Promise<{appToken: string, uid: string}>}
  */
-export async function grantAppToken(initialToken) {
+export async function grantAppToken(initialToken, source = 'cn') {
+  const proxyBase = getProxyBase(source);
   // 🔧 修复：使用请求队列和重试机制
-  const response = await queuedFetch(`${PROXY_BASE}?action=grant`, {
+  const response = await queuedFetch(`${proxyBase}?action=grant`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ token: initialToken })
+    body: JSON.stringify({ token: initialToken, source: normalizeImportSource(source) })
   }, {
     priority: 1, // 高优先级（认证链第一步）
     maxRetries: 3,
@@ -162,9 +177,10 @@ export async function grantAppToken(initialToken) {
  * @param {string} appToken - app_token
  * @returns {Promise<{hgUid: string, gameUid: string, nickName: string, bindingList: Array}>}
  */
-export async function fetchBindingList(appToken) {
+export async function fetchBindingList(appToken, source = 'cn') {
+  const proxyBase = getProxyBase(source);
   // 🔧 修复：使用请求队列和重试机制
-  const response = await queuedFetch(`${PROXY_BASE}?action=bindings&appToken=${encodeURIComponent(appToken)}`, {
+  const response = await queuedFetch(`${proxyBase}?action=bindings&appToken=${encodeURIComponent(appToken)}&source=${encodeURIComponent(normalizeImportSource(source))}`, {
     method: 'GET'
   }, {
     priority: 2, // 认证链第二步
@@ -191,14 +207,15 @@ export async function fetchBindingList(appToken) {
  * @param {string} appToken - app_token
  * @returns {Promise<{u8Token: string, uid: string}>}
  */
-export async function fetchU8Token(hgUid, appToken) {
+export async function fetchU8Token(hgUid, appToken, source = 'cn') {
+  const proxyBase = getProxyBase(source);
   // 🔧 修复：使用请求队列和重试机制
-  const response = await queuedFetch(`${PROXY_BASE}?action=u8token`, {
+  const response = await queuedFetch(`${proxyBase}?action=u8token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ uid: hgUid, appToken })
+    body: JSON.stringify({ uid: hgUid, appToken, source: normalizeImportSource(source) })
   }, {
     priority: 3, // 认证链第三步
     maxRetries: 3,
@@ -229,13 +246,15 @@ export async function fetchU8Token(hgUid, appToken) {
  * @returns {Promise<{list: Array, hasMore: boolean}>}
  */
 export async function fetchRecordsPage(u8Token, options = {}) {
-  const { type = 'char', poolType, seqId, serverId = '1' } = options;
+  const { type = 'char', poolType, seqId, serverId = '1', source = 'cn' } = options;
+  const proxyBase = getProxyBase(source);
 
   const params = new URLSearchParams({
     action: 'records',
     u8Token,
     type,
-    serverId
+    serverId,
+    source: normalizeImportSource(source)
   });
 
   if (poolType) {
@@ -246,7 +265,7 @@ export async function fetchRecordsPage(u8Token, options = {}) {
   }
 
   // 🔧 修复：使用请求队列和重试机制
-  const response = await queuedFetch(`${PROXY_BASE}?${params.toString()}`, {
+  const response = await queuedFetch(`${proxyBase}?${params.toString()}`, {
     method: 'GET'
   }, {
     priority: 5, // 数据获取优先级较低
@@ -314,10 +333,10 @@ export async function fetchAllPoolRecords(u8Token, options = {}, onProgress) {
  * @param {Function} [onProgress] - 进度回调
  * @returns {Promise<{appToken: string, accounts: Array}>}
  */
-export async function fetchAccountsList(initialToken, onProgress) {
+export async function fetchAccountsList(initialToken, onProgress, source = 'cn') {
   // 步骤1: Grant - 获取 app_token
   if (onProgress) onProgress('正在验证token...');
-  const grantResult = await grantAppToken(initialToken);
+  const grantResult = await grantAppToken(initialToken, source);
   const { appToken } = grantResult;
 
   if (!appToken) {
@@ -327,7 +346,7 @@ export async function fetchAccountsList(initialToken, onProgress) {
   // 步骤2: Bindings - 获取绑定列表
   if (onProgress) onProgress('正在获取账号信息...');
   await delay(1000 + Math.random() * 500);
-  const bindingResult = await fetchBindingList(appToken);
+  const bindingResult = await fetchBindingList(appToken, source);
   const { accounts } = bindingResult;
 
   if (!accounts || accounts.length === 0) {
@@ -347,7 +366,7 @@ export async function fetchAccountsList(initialToken, onProgress) {
  * @param {Function} [onProgress] - 进度回调
  * @returns {Promise<{u8Token: string, account: object}>}
  */
-export async function executeAuthChainForAccount(appToken, selectedAccount, onProgress) {
+export async function executeAuthChainForAccount(appToken, selectedAccount, onProgress, source = 'cn') {
   if (!selectedAccount?.uid) {
     throw new AuthChainError('未选择账号', 'u8token');
   }
@@ -355,7 +374,7 @@ export async function executeAuthChainForAccount(appToken, selectedAccount, onPr
   // 获取 u8_token
   if (onProgress) onProgress(`正在获取 ${selectedAccount.channelName} 访问凭证...`);
   await delay(1000 + Math.random() * 500);
-  const u8Result = await fetchU8Token(selectedAccount.uid, appToken);
+  const u8Result = await fetchU8Token(selectedAccount.uid, appToken, source);
   const { u8Token } = u8Result;
 
   if (!u8Token) {
@@ -375,10 +394,10 @@ export async function executeAuthChainForAccount(appToken, selectedAccount, onPr
  * @param {object} [selectedAccount] - 可选：指定账号，不传则使用第一个
  * @returns {Promise<{u8Token: string, hgUid: string, gameUid: string, nickName: string}>}
  */
-export async function executeAuthChain(initialToken, onProgress, selectedAccount = null) {
+export async function executeAuthChain(initialToken, onProgress, selectedAccount = null, source = 'cn') {
   // 步骤1: Grant - 获取 app_token
   if (onProgress) onProgress('正在验证token...');
-  const grantResult = await grantAppToken(initialToken);
+  const grantResult = await grantAppToken(initialToken, source);
   const { appToken } = grantResult;
 
   if (!appToken) {
@@ -388,7 +407,7 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
   // 步骤2: Bindings - 获取绑定列表和 hgUid、gameUid
   if (onProgress) onProgress('正在获取账号信息...');
   await delay(1000 + Math.random() * 500);
-  const bindingResult = await fetchBindingList(appToken);
+  const bindingResult = await fetchBindingList(appToken, source);
 
   // 如果指定了账号，使用指定的；否则使用默认的
   const account = selectedAccount || bindingResult.accounts?.[0] || {
@@ -410,7 +429,7 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
   // 步骤3: U8Token - 获取 u8_token
   if (onProgress) onProgress(`正在获取 ${channelName || '账号'} 访问凭证...`);
   await delay(1000 + Math.random() * 500);
-  const u8Result = await fetchU8Token(hgUid, appToken);
+  const u8Result = await fetchU8Token(hgUid, appToken, source);
   const { u8Token } = u8Result;
 
   if (!u8Token) {
@@ -438,13 +457,14 @@ export async function executeAuthChain(initialToken, onProgress, selectedAccount
  * @param {number} [maxWaitTime] - 最大等待时间（毫秒）
  * @returns {Promise<Object>} 任务结果
  */
-async function pollTaskUntilComplete(taskId, onProgress, maxWaitTime = 300000) {
+async function pollTaskUntilComplete(taskId, onProgress, maxWaitTime = 300000, source = 'cn') {
   const startTime = Date.now();
   const pollInterval = 2000; // 每2秒轮询一次
+  const proxyBase = getProxyBase(source);
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
-      const response = await fetch(`${PROXY_BASE}?action=task-status&taskId=${encodeURIComponent(taskId)}`);
+      const response = await fetch(`${proxyBase}?action=task-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
       const result = await safeParseJSON(response, 'Task Status API');
 
       if (!result.success) {
@@ -485,9 +505,10 @@ async function pollTaskUntilComplete(taskId, onProgress, maxWaitTime = 300000) {
  * 获取后端导入队列状态
  * @returns {Promise<Object>} 队列状态
  */
-export async function fetchImportQueueStatus() {
+export async function fetchImportQueueStatus(source = 'cn') {
+  const proxyBase = getProxyBase(source);
   try {
-    const response = await fetch(`${PROXY_BASE}?action=queue-status`);
+    const response = await fetch(`${proxyBase}?action=queue-status&source=${encodeURIComponent(normalizeImportSource(source))}`);
     const result = await safeParseJSON(response, 'Queue Status API');
 
     if (!result.success) {
@@ -501,8 +522,9 @@ export async function fetchImportQueueStatus() {
   }
 }
 
-export async function fetchFullImportStatus(taskId) {
-  const response = await fetch(`${PROXY_BASE}?action=import-status&taskId=${encodeURIComponent(taskId)}`);
+export async function fetchFullImportStatus(taskId, source = 'cn') {
+  const proxyBase = getProxyBase(source);
+  const response = await fetch(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
   const result = await safeParseJSON(response, 'Import Status API');
 
   if (!result.success) {
@@ -512,13 +534,13 @@ export async function fetchFullImportStatus(taskId) {
   return result.data;
 }
 
-async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300000) {
+async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300000, source = 'cn') {
   const startTime = Date.now();
   const pollInterval = 2000;
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
-      const task = await fetchFullImportStatus(taskId);
+      const task = await fetchFullImportStatus(taskId, source);
 
       if (onProgress) {
         onProgress({
@@ -550,7 +572,8 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
   throw new AuthChainError('等待导入超时，请稍后重试', 'import-timeout');
 }
 
-export async function importAllRecordsFullyOnBackend(initialToken, accountIndex, userId, onProgress) {
+export async function importAllRecordsFullyOnBackend(initialToken, accountIndex, userId, onProgress, source = 'cn') {
+  const proxyBase = getProxyBase(source);
   if (!userId) {
     throw new AuthChainError('请先登录后再导入数据', 'import-full');
   }
@@ -563,7 +586,7 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     });
   }
 
-  const response = await queuedFetch(`${PROXY_BASE}?action=import-full`, {
+  const response = await queuedFetch(`${proxyBase}?action=import-full`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -571,7 +594,8 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     body: JSON.stringify({
       token: initialToken,
       accountIndex,
-      userId
+      userId,
+      source: normalizeImportSource(source)
     })
   }, {
     priority: 4,
@@ -589,7 +613,7 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     throw new AuthChainError(result.error || 'Full import failed', 'import-full', result);
   }
 
-  return pollFullImportUntilComplete(result.taskId, onProgress);
+  return pollFullImportUntilComplete(result.taskId, onProgress, 300000, source);
 }
 
 /**
@@ -602,11 +626,12 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
  * @param {Object} [metadata] - 元数据（用于队列显示）
  * @returns {Promise<Array>} 全部记录
  */
-export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress, metadata = {}) {
+export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', onProgress, metadata = {}, source = 'cn') {
+  const proxyBase = getProxyBase(source);
   if (onProgress) onProgress('正在提交导入请求...');
 
   // 🔧 修复：使用批量并发 API + 请求队列和重试机制
-  const response = await queuedFetch(`${PROXY_BASE}?action=records-batch`, {
+  const response = await queuedFetch(`${proxyBase}?action=records-batch`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -614,6 +639,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     body: JSON.stringify({
       u8Token,
       serverId,
+      source: normalizeImportSource(source),
       pools: [
         { type: 'char', poolType: POOL_TYPES.CHARACTER.SPECIAL },   // 限定角色池
         { type: 'char', poolType: POOL_TYPES.CHARACTER.STANDARD },  // 常驻角色池
@@ -649,7 +675,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
     }
 
     // 轮询等待任务完成
-    const taskResult = await pollTaskUntilComplete(result.taskId, onProgress);
+    const taskResult = await pollTaskUntilComplete(result.taskId, onProgress, 300000, source);
 
     // 使用任务结果继续处理
     return processRecordsBatchResult({ success: true, data: taskResult }, onProgress);
@@ -717,14 +743,16 @@ function processRecordsBatchResult(result, onProgress) {
  * @param {Function} [onProgress] - 进度回调
  * @returns {Promise<Array>} 全部记录
  */
-export async function fetchAllGachaRecords(u8Token, onProgress) {
+export async function fetchAllGachaRecords(u8Token, onProgress, source = 'cn', serverId = '1') {
   const allRecords = [];
 
   // 1. 限定角色池（特许寻访）
   if (onProgress) onProgress('正在获取限定角色池记录...');
   const specialRecords = await fetchAllPoolRecords(u8Token, {
     type: 'char',
-    poolType: POOL_TYPES.CHARACTER.SPECIAL
+    poolType: POOL_TYPES.CHARACTER.SPECIAL,
+    source,
+    serverId
   }, onProgress);
   allRecords.push(...specialRecords.map(r => ({ ...r, _poolType: 'limited_character' })));
 
@@ -733,7 +761,9 @@ export async function fetchAllGachaRecords(u8Token, onProgress) {
   await delay(1500 + Math.random() * 1000);
   const standardRecords = await fetchAllPoolRecords(u8Token, {
     type: 'char',
-    poolType: POOL_TYPES.CHARACTER.STANDARD
+    poolType: POOL_TYPES.CHARACTER.STANDARD,
+    source,
+    serverId
   }, onProgress);
   allRecords.push(...standardRecords.map(r => ({ ...r, _poolType: 'standard' })));
 
@@ -742,7 +772,9 @@ export async function fetchAllGachaRecords(u8Token, onProgress) {
   await delay(1500 + Math.random() * 1000);
   const beginnerRecords = await fetchAllPoolRecords(u8Token, {
     type: 'char',
-    poolType: POOL_TYPES.CHARACTER.BEGINNER
+    poolType: POOL_TYPES.CHARACTER.BEGINNER,
+    source,
+    serverId
   }, onProgress);
   allRecords.push(...beginnerRecords.map(r => ({ ...r, _poolType: 'beginner' })));
 
@@ -750,7 +782,9 @@ export async function fetchAllGachaRecords(u8Token, onProgress) {
   if (onProgress) onProgress('正在获取武器池记录...');
   await delay(2000 + Math.random() * 1000);
   const weaponRecords = await fetchAllPoolRecords(u8Token, {
-    type: 'weapon'
+    type: 'weapon',
+    source,
+    serverId
   }, onProgress);
   allRecords.push(...weaponRecords.map(r => ({ ...r, _poolType: 'limited_weapon' })));
 
@@ -764,10 +798,10 @@ export async function fetchAllGachaRecords(u8Token, onProgress) {
  * @param {object} [selectedAccount] - 可选：指定账号，不传则使用第一个
  * @returns {Promise<{records: Array, userInfo: object, accounts: Array}>}
  */
-export async function importAllRecords(initialToken, onProgress, selectedAccount = null) {
+export async function importAllRecords(initialToken, onProgress, selectedAccount = null, source = 'cn') {
   // 执行认证链
-  const authResult = await executeAuthChain(initialToken, onProgress, selectedAccount);
-  const { u8Token, hgUid, gameUid, nickName, channelName, channelMasterId, isOfficial, accounts } = authResult;
+  const authResult = await executeAuthChain(initialToken, onProgress, selectedAccount, source);
+  const { u8Token, hgUid, gameUid, nickName, channelName, channelMasterId, isOfficial, accounts, serverId } = authResult;
 
   // 获取全部记录（使用并发版本）
   if (onProgress) onProgress(`认证成功，开始获取 ${channelName || '账号'} 抽卡记录...`);
@@ -776,11 +810,11 @@ export async function importAllRecords(initialToken, onProgress, selectedAccount
   let records;
   try {
     // 优先使用并发版本
-    records = await fetchAllGachaRecordsConcurrent(u8Token, '1', onProgress);
+    records = await fetchAllGachaRecordsConcurrent(u8Token, serverId || '1', onProgress, {}, source);
   } catch {
     // 如果并发失败，回退到串行版本
     if (onProgress) onProgress('并发获取失败，切换到串行模式...');
-    records = await fetchAllGachaRecords(u8Token, onProgress);
+    records = await fetchAllGachaRecords(u8Token, onProgress, source, serverId || '1');
   }
 
   return {
@@ -791,7 +825,9 @@ export async function importAllRecords(initialToken, onProgress, selectedAccount
       nickName,
       channelName,     // 渠道名称（官服/B服）
       channelMasterId, // 渠道ID：1=官服，2=B服
-      isOfficial       // 是否官服
+      isOfficial,      // 是否官服
+      serverId,
+      source: normalizeImportSource(source)
     },
     accounts  // 返回所有可用账号列表
   };

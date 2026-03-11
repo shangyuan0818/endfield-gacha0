@@ -4,6 +4,7 @@ import { useAuthStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import { normalizeIsStandard } from '../../utils/poolUtils';
 import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
+import { saveGameAccountMetadata } from '../../utils/gameAccountMetadata.js';
 import OfficialAPIImport from './OfficialAPIImport';
 
 /**
@@ -230,6 +231,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     }
 
     if (result.backendImported) {
+      if (result.userInfo) {
+        saveGameAccountMetadata(result.userInfo);
+      }
       setImportResult(result);
       setImportStatus(ImportStatus.SUCCESS);
       setSaveProgress({
@@ -255,6 +259,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       console.log('[ImportManager] 开始保存数据...');
       setImportStatus(ImportStatus.SAVING);
       setSaveProgress({ current: 0, total: result.records.length });
+      if (result.userInfo) {
+        saveGameAccountMetadata(result.userInfo);
+      }
 
       // 1. 收集所有涉及的卡池信息
       const poolInfos = [];
