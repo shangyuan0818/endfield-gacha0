@@ -6,6 +6,7 @@ import useAppStore from '../../stores/useAppStore';
 import useAuthStore from '../../stores/useAuthStore';
 import { useSummaryViewState } from '../../hooks/summary';
 import MobileChartContainer from '../components/MobileChartContainer';
+import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
 
 /**
  * 移动端统计视图 - 工业风重构版 (中文)
@@ -185,6 +186,42 @@ function MobileSummaryView() {
               </div>
             </div>
           </div>
+
+          {currentStats?.resources && (
+            poolTypeFilter === 'all' ? (
+              <>
+                <ResourceSummaryPanel
+                  title="全卡池资源统计"
+                  resources={currentStats.resources}
+                  variant="all"
+                  compact={true}
+                  className="rounded-none"
+                />
+                <ResourceSummaryPanel
+                  title="角色池资源统计"
+                  resources={currentStats.byType?.character?.resources}
+                  variant="character"
+                  compact={true}
+                  className="rounded-none"
+                />
+                <ResourceSummaryPanel
+                  title="武器池资源统计"
+                  resources={currentStats.byType?.weapon?.resources}
+                  variant="weapon"
+                  compact={true}
+                  className="rounded-none"
+                />
+              </>
+            ) : (
+              <ResourceSummaryPanel
+                title={poolTypeFilter === 'weapon' ? '武器池资源统计' : '角色池资源统计'}
+                resources={currentStats.resources}
+                variant={poolTypeFilter === 'weapon' ? 'weapon' : 'character'}
+                compact={true}
+                className="rounded-none"
+              />
+            )
+          )}
 
           {/* 分池统计 - 仅在全部时显示 */}
           {poolTypeFilter === 'all' && currentStats.byType && (

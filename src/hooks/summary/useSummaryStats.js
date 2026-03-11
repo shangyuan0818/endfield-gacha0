@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { RARITY_CONFIG } from '../../constants';
+import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
 
 /**
  * 统计数据计算 Hook
@@ -316,6 +317,23 @@ export function useSummaryStats(history, pools, user) {
         : null
     };
 
+    data.byType.limited.resources = buildResourceSummaryFromAggregates({
+      characterPulls: data.byType.limited.total,
+      counts: data.byType.limited.counts
+    });
+    data.byType.standard.resources = buildResourceSummaryFromAggregates({
+      characterPulls: data.byType.standard.total,
+      counts: data.byType.standard.counts
+    });
+    data.byType.weapon.resources = buildResourceSummaryFromAggregates({
+      weaponPulls: data.byType.weapon.total,
+      counts: data.byType.weapon.counts
+    });
+    data.byType.character.resources = buildResourceSummaryFromAggregates({
+      characterPulls: data.byType.character.total,
+      counts: characterCounts
+    });
+
     data.byType.limited.pityListExcludingFree = limitedPityListExcludingFree;
 
     data.avgPity = allSixStarPulls.length > 0
@@ -330,6 +348,11 @@ export function useSummaryStats(history, pools, user) {
     data.weaponGiftLimited = weaponGiftLimitedCount;
     data.weaponGiftStandard = weaponGiftStandardCount;
     data.giftTotal = charGiftCount + weaponGiftLimitedCount + weaponGiftStandardCount;
+    data.resources = buildResourceSummaryFromAggregates({
+      characterPulls: data.byType.character.total,
+      weaponPulls: data.byType.weapon.total,
+      counts: data.counts
+    });
 
     return data;
   }, [normalizedMyHistory, myPools]);

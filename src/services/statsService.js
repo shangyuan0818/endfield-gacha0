@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { RARITY_CONFIG } from '../constants';
 import { getCachedUrgentClicks } from './cacheService';
+import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy';
 import {
   executeSupabaseRead,
   SUPABASE_MUTATION_TIMEOUT_MS,
@@ -114,7 +115,8 @@ function createEmptyTypeStats() {
     avgPityExcludingFree: null,
     counts: {},
     distribution: [],
-    chartData: []
+    chartData: [],
+    resources: buildResourceSummaryFromAggregates()
   };
 }
 
@@ -144,6 +146,7 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     weaponGiftLimited: 0,
     weaponGiftStandard: 0,
     giftTotal: 0,
+    resources: buildResourceSummaryFromAggregates(),
     meta: {
       status: 'empty',
       source: 'empty',
@@ -237,8 +240,12 @@ function processTypeStats(typeData) {
     return createEmptyTypeStats();
   }
 
+  const total = typeData.total || 0;
+  const counts = typeData.counts || {};
+  const normalizedType = typeData.poolType || null;
+
   return {
-    total: typeData.total || 0,
+    total,
     six: typeData.six || 0,
     sixStarLimited: typeData.sixStarLimited || 0,
     sixStarStandard: typeData.sixStarStandard || 0,
@@ -246,9 +253,14 @@ function processTypeStats(typeData) {
     avgPityUp: typeData.avgPityUp || null,
     sparkCount: typeData.sparkCount || 0,
     avgPityExcludingFree: typeData.avgPityExcludingFree || null,
-    counts: typeData.counts || {},
+    counts,
     distribution: processDistribution(typeData.distribution),
-    chartData: generateChartData(typeData.counts)
+    chartData: generateChartData(counts),
+    resources: buildResourceSummaryFromAggregates({
+      characterPulls: normalizedType === 'weapon' ? 0 : total,
+      weaponPulls: normalizedType === 'weapon' ? total : 0,
+      counts
+    })
   };
 }
 
@@ -297,9 +309,9 @@ function normalizeGlobalStats(rpcData) {
     distribution: processDistribution(rpcData.distribution),
     chartData: generateChartData(rpcData.counts),
     byType: {
-      limited: processTypeStats(rpcData.byType?.limited),
-      weapon: processTypeStats(rpcData.byType?.weapon),
-      standard: processTypeStats(rpcData.byType?.standard)
+      limited: processTypeStats({ ...rpcData.byType?.limited, poolType: 'limited' }),
+      weapon: processTypeStats({ ...rpcData.byType?.weapon, poolType: 'weapon' }),
+      standard: processTypeStats({ ...rpcData.byType?.standard, poolType: 'standard' })
     },
     avgPity: rpcData.avgPity || null,
     charGift: rpcData.charGift || 0,
@@ -354,8 +366,23 @@ function normalizeGlobalStats(rpcData) {
       '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
       '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
       '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+    }),
+    resources: buildResourceSummaryFromAggregates({
+      characterPulls: limitedStats.total + standardStats.total,
+      counts: {
+        '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+        '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+        '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+        '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+      }
     })
   };
+
+  stats.resources = buildResourceSummaryFromAggregates({
+    characterPulls: stats.byType.character.total,
+    weaponPulls: stats.byType.weapon.total,
+    counts: stats.counts
+  });
 
   return stats;
 }

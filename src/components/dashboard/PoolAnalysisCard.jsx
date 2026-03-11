@@ -12,7 +12,10 @@ const PoolTimeInfo = ({ currentPool }) => {
   const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
   const [tick, setTick] = useState(0);
 
-  const upPoolInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray, tick]);
+  const upPoolInfo = useMemo(() => {
+    void tick;
+    return getCurrentUpPoolInfo(poolsArray);
+  }, [poolsArray, tick]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -279,7 +282,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
 
       {/* 数据概览网格 (限定/武器池显示) */}
       {(isLimited || isWeapon) && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6">
            {/* 不歪率 */}
            <StatCard
              label="不歪率"
@@ -293,66 +296,6 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                  : '暂无6星数据'
              }
            />
-           {/* UP六星平均出货 */}
-           {(() => {
-             // 理论期望值：角色池约62.5抽，武器池约31.25抽
-             const expectedPulls = isWeapon ? 31.25 : 62.5;
-             const avgValue = parseFloat(stats.avgPullCost?.[6]) || 0;
-             const avgWithSpark = parseFloat(stats.avgPullCost?.['6_with_spark']) || 0;
-             // 进度条显示：期望值=50%，越低越好（绿色），越高越差（红色）
-             const progressPercent = avgValue > 0 ? Math.min((expectedPulls / avgValue) * 50, 100) : 0;
-             const isLucky = avgValue > 0 && avgValue < expectedPulls;
-             const hasSpark = isLimited && stats.sparkCount > 0;
-
-             return (
-               <StatCard
-                 label="UP六星平均出货"
-                 extraLabel={isLimited ? "免十/必出不计" : isWeapon ? "仅UP" : null}
-                 value={stats.upSixStarCount > 0 ? stats.avgPullCost?.[6] : '-'}
-                 subValue={stats.upSixStarCount > 0 ? "抽" : null}
-                 progress={progressPercent}
-                 progressColor={isLucky ? 'bg-green-500' : 'bg-amber-500'}
-                 footer={
-                   stats.upSixStarCount > 0
-                     ? <span className="flex justify-between flex-wrap gap-1">
-                         <span>期望: ~{expectedPulls}抽</span>
-                         {hasSpark && avgWithSpark !== stats.avgPullCost?.[6] && (
-                           <span className="text-zinc-400">含必出: {avgWithSpark}</span>
-                         )}
-                         {isLucky && <span className="text-green-600 dark:text-green-400">运气不错!</span>}
-                       </span>
-                     : '暂无UP数据'
-                 }
-               />
-             );
-           })()}
-           {/* 限定六星平均出货 (UP+歪限定, 仅限定池显示) */}
-           {isLimited && (stats.offLimitedCount ?? 0) > 0 && (() => {
-             const expectedPulls = 62.5;
-             const avgLimited = parseFloat(stats.avgPullCost?.['6_limited']) || 0;
-             const progressPercent = avgLimited > 0 ? Math.min((expectedPulls / avgLimited) * 50, 100) : 0;
-             const isLucky = avgLimited > 0 && avgLimited < expectedPulls;
-             const limitedCount = stats.upSixStarCount + (stats.offLimitedCount ?? 0);
-
-             return (
-               <StatCard
-                 label="限定六星平均出货"
-                 extraLabel="UP+歪限定·免十/必出不计"
-                 value={limitedCount > 0 ? stats.avgPullCost?.['6_limited'] : '-'}
-                 subValue={limitedCount > 0 ? "抽" : null}
-                 progress={progressPercent}
-                 progressColor={isLucky ? 'bg-green-500' : 'bg-purple-500'}
-                 footer={
-                   limitedCount > 0
-                     ? <span className="flex justify-between flex-wrap gap-1">
-                         <span>限定六星: {limitedCount}次 (UP {stats.upSixStarCount} + 歪限定 {stats.offLimitedCount ?? 0})</span>
-                         {isLucky && <span className="text-green-600 dark:text-green-400">运气不错!</span>}
-                       </span>
-                     : '暂无限定六星数据'
-                 }
-               />
-             );
-           })()}
         </div>
       )}
 

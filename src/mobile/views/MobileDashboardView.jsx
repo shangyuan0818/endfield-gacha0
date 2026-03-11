@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-  Star, TrendingUp, Calculator, Clock, Sparkles, FileText,
-  ChevronDown, ChevronUp, Layers, Swords, User, PieChart as PieChartIcon,
+  Star, Calculator, Clock, FileText,
+  Layers, Swords, User, PieChart as PieChartIcon,
   BarChart3, LayoutGrid
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -12,6 +12,7 @@ import RainbowGradientDefs from '../../components/charts/RainbowGradientDefs';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
 import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfallChart';
+import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
 
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
@@ -144,6 +145,14 @@ function MobileDashboardView() {
           <Layers size={24} />
         </div>
       </div>
+
+      <ResourceSummaryPanel
+        title="资源统计"
+        resources={stats.resourceSummary}
+        variant={isWeapon ? 'weapon' : 'character'}
+        compact={true}
+        className="rounded-none"
+      />
 
       {/* 保底进度（聚合模式下隐藏） */}
       {!isGroupMode && (
@@ -310,7 +319,7 @@ function MobileDashboardView() {
 
       {/* 不歪率和平均出货（限定/武器池） */}
       {(isLimited || isWeapon) && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {/* 不歪率 */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
             <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
@@ -330,41 +339,6 @@ function MobileDashboardView() {
               <span>UP: {stats.counts[6]}</span>
               <span>歪: {stats.counts['6_std']}</span>
             </div>
-          </div>
-
-          {/* UP六星平均出货 */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
-            <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
-              <span>UP六星造价</span>
-              <span className="text-[11px] text-zinc-300">(免十/必出不计)</span>
-            </div>
-            <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
-              {stats.avgPullCost[6]}
-              {stats.upSixStarCount > 0 && <span className="text-xs ml-1 font-normal text-zinc-400">抽</span>}
-            </div>
-            <div className="h-1 w-full bg-zinc-100 dark:bg-zinc-800 relative">
-               <div className="absolute left-0 top-0 bottom-0 bg-zinc-300 dark:bg-zinc-600 w-1/2"></div>
-            </div>
-             <div className="mt-2 text-[11px] text-zinc-500 font-mono uppercase">
-              期望: ~{isWeapon ? '31' : '62'}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 限定六星平均出货（仅限定池且有歪限定数据时显示） */}
-      {isLimited && stats.offLimitedCount > 0 && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
-          <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
-            <span>限定六星造价</span>
-            <span className="text-[11px] text-zinc-300">(UP+歪限定)</span>
-          </div>
-          <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
-            {stats.avgPullCost['6_limited']}
-            {stats.avgPullCost['6_limited'] !== '-' && <span className="text-xs ml-1 font-normal text-zinc-400">抽</span>}
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-500 font-mono uppercase">
-            限定六星: {stats.upSixStarCount + stats.offLimitedCount}次 (UP {stats.upSixStarCount} + 歪限定 {stats.offLimitedCount})
           </div>
         </div>
       )}

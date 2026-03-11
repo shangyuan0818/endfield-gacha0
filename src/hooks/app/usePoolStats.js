@@ -7,6 +7,7 @@ import {
   calculatePityFromHistory
 } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
+import { buildPoolResourceSummary } from '../../utils/resourceEconomy';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';
 
 /**
@@ -93,6 +94,12 @@ export function usePoolStats({
         if (r < 4) r = 4;
         if (counts[r] !== undefined) counts[r]++;
       }
+    });
+
+    const resourceSummary = buildPoolResourceSummary({
+      poolType: normalizedPoolType,
+      totalPulls: total,
+      counts: { ...counts }
     });
 
     const totalSixStar = counts[6] + counts['6_std'];
@@ -302,7 +309,8 @@ export function usePoolStats({
       },
       probabilityInfo,
       hasInfoBook,
-      pullsUntilInfoBook
+      pullsUntilInfoBook,
+      resourceSummary
     };
   }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, manualPityLimit, normalizedCurrentPoolHistory, normalizedPoolType]);
 

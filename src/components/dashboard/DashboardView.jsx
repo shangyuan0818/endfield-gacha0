@@ -9,6 +9,7 @@ import PoolSelector from '../pool/PoolSelector';
 import PoolAnalysisCard from './PoolAnalysisCard';
 import { characterCache } from '../../utils/characterUtils';
 import CharacterWaterfallChart from './CharacterWaterfallChart';
+import ResourceSummaryPanel from '../resources/ResourceSummaryPanel';
 
 /**
  * 仪表盘小统计卡片 (Updated Style)
@@ -110,27 +111,6 @@ const DashboardView = () => {
             hasReceivedFreeTen={hasReceivedFreeTen}
           />
 
-          {/* 平均出货消耗 (Mini Card) */}
-          <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4">
-            <h3 className="text-xs uppercase font-bold text-slate-500 dark:text-zinc-500 mb-3 tracking-wider">平均出货成本</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">综合6星</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">{stats.avgPullCost[6]} <span className="text-xs font-normal text-slate-400">抽</span></span>
-              </div>
-              <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                <div className="h-full bg-slate-600 dark:bg-slate-400" style={{width: `${Math.min((stats.avgPullCost[6] / 80) * 100, 100)}%`}}></div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">5星</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-zinc-100">{stats.avgPullCost[5]} <span className="text-xs font-normal text-slate-400">抽</span></span>
-              </div>
-              <div className="w-full h-1 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
-                <div className="h-full bg-amber-500" style={{width: `${Math.min((stats.avgPullCost[5] / 10) * 100, 100)}%`}}></div>
-              </div>
-            </div>
-          </div>
         </div>
         )}
 
@@ -199,9 +179,9 @@ const DashboardView = () => {
             />
           </div>
 
-          {/* 聚合模式下的平均出货成本（因为左侧栏被隐藏） */}
+          {/* 聚合模式下的额外指标（因为左侧栏被隐藏） */}
           {isGroupMode && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <StatBox
                 title="不歪率"
                 value={`${stats.winRate}%`}
@@ -210,30 +190,24 @@ const DashboardView = () => {
                 icon={TrendingUp}
               />
               <StatBox
-                title="综合6星均价"
-                value={`${stats.avgPullCost['6_all']}`}
-                subValue="抽/个"
-                colorClass="text-slate-700 dark:text-zinc-300"
-                icon={Calculator}
-              />
-              <StatBox
-                title="UP6星均价"
-                value={`${stats.avgPullCost[6]}`}
-                subValue="抽/个"
-                colorClass="text-orange-600 dark:text-orange-400"
+                title="限定6星"
+                value={stats.counts[6] ?? 0}
+                subValue={`常驻6星 ${stats.counts['6_std'] ?? 0}`}
+                colorClass={normalizedPoolType === 'weapon' ? 'text-slate-700 dark:text-zinc-300' : 'rainbow-text'}
                 icon={Star}
-              />
-              <StatBox
-                title="5星均价"
-                value={`${stats.avgPullCost[5]}`}
-                subValue="抽/个"
-                colorClass="text-amber-600 dark:text-amber-400"
-                icon={Star}
+                isAnimated={normalizedPoolType !== 'weapon'}
               />
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+             <ResourceSummaryPanel
+               title={isGroupMode ? `${currentPool.name}资源统计` : '资源统计'}
+               resources={stats.resourceSummary}
+               variant={normalizedPoolType === 'weapon' ? 'weapon' : 'character'}
+               stacked={true}
+               className="bg-white dark:bg-zinc-900 shadow-sm"
+             />
              {/* 概率分布 (Pie) */}
              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-4">

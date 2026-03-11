@@ -173,6 +173,7 @@ export function useSummaryViewState({
         weaponGiftLimited: baseStats.weaponGiftLimited || 0,
         weaponGiftStandard: baseStats.weaponGiftStandard || 0,
         giftTotal: baseStats.giftTotal || 0,
+        resources: baseStats.resources || null,
         meta: baseStats.meta || null
       };
     }
@@ -210,6 +211,7 @@ export function useSummaryViewState({
       totalUsers: baseStats.totalUsers,
       totalContributors: baseStats.totalContributors,
       byType: baseStats.byType,
+      resources: typeData.resources || null,
       meta: baseStats.meta || null
     };
   }, [copy, globalStats, isGlobalSource, localStats, poolTypeFilter]);

@@ -40,7 +40,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
       sixStarUp: ranking.limited?.sixStarUp || ranking.limited?.sixStar || [],
       sixStarOff: ranking.limited?.sixStarOff || [],
       sixStar: [...(ranking.limited?.sixStar || []), ...(ranking.standard?.sixStar || [])].sort((a, b) => b.count - a.count).slice(0, 5),
-      fiveStar: [...(ranking.limited?.fiveStar || []), ...(ranking.standard?.fiveStar || [])].sort((a, b) => b.count - a.count).slice(0, 3)
+      fiveStar: [...(ranking.limited?.fiveStar || []), ...(ranking.standard?.fiveStar || [])].sort((a, b) => b.count - a.count).slice(0, 5)
     };
   };
 
@@ -242,9 +242,9 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
             {/* 常驻池六星 - TOP5 */}
             {isSectionVisible('standard') && renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard', 5)}
             {/* 限定池5星 */}
-            {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited')}
+            {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited', 5)}
             {/* 常驻池5星 */}
-            {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard')}
+            {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard', 5)}
           </>
         ) : poolType === 'limited' ? (
           <>

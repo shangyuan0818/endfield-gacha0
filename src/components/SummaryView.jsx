@@ -4,6 +4,7 @@ import { useAppStore, useAuthStore, useHistoryStore, usePoolStore } from '../sto
 
 // 拆分后的组件
 import { RankingCard, ChartSection, SummarySidebar } from './summary';
+import ResourceSummaryPanel from './resources/ResourceSummaryPanel';
 
 // 拆分后的 Hooks
 import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hooks/summary';
@@ -523,6 +524,36 @@ const SummaryView = React.memo(() => {
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 p-12 text-center text-zinc-500 font-mono">NO DATA AVAILABLE</div>
+          )}
+
+          {currentStats?.resources && (
+            poolTypeFilter === 'all' ? (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <ResourceSummaryPanel
+                  title="全卡池资源统计"
+                  resources={currentStats.resources}
+                  variant="all"
+                />
+                <ResourceSummaryPanel
+                  title="角色池资源统计"
+                  resources={currentStats.byType?.character?.resources}
+                  variant="character"
+                  stacked
+                />
+                <ResourceSummaryPanel
+                  title="武器池资源统计"
+                  resources={currentStats.byType?.weapon?.resources}
+                  variant="weapon"
+                  stacked
+                />
+              </div>
+            ) : (
+              <ResourceSummaryPanel
+                title={poolTypeFilter === 'weapon' ? '武器池资源统计' : '角色池资源统计'}
+                resources={currentStats.resources}
+                variant={poolTypeFilter === 'weapon' ? 'weapon' : 'character'}
+              />
+            )
           )}
 
           {/* 图表区域 */}
