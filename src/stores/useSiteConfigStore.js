@@ -63,6 +63,31 @@ const useSiteConfigStore = create((set, get) => ({
       return;
     }
 
+    if (supabase) {
+      try {
+        const { data, error } = await executeSupabaseMutation(
+          () => supabase
+            .from('site_config')
+            .select('key, value'),
+          {
+            label: 'load site config'
+          }
+        );
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const nextConfig = data.reduce((config, row) => {
+            config[row.key] = row.value;
+            return config;
+          }, {});
+          writeSiteConfigSnapshot(nextConfig);
+          set({ config: nextConfig, loaded: true });
+          return;
+        }
+      } catch {
+        // 本地直连失败时回退到快照
+      }
+    }
+
     set({ config: snapshot, loaded: true });
   },
 

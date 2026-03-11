@@ -39,6 +39,14 @@ function toNonNegativeNumber(value, fallback = 0) {
   return parsed;
 }
 
+function toFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return parsed;
+}
+
 function normalizePoolType(poolType) {
   if (poolType === 'limited' || poolType === 'limited_character') {
     return 'limited';
@@ -62,9 +70,10 @@ export function normalizeResourceSettings(partialSettings = {}) {
   };
 
   return {
-    baseJade: toNonNegativeNumber(merged.baseJade, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseJade),
+    // 允许内部基数为负，以便“设为当前余额”在已有换玉/配额净增时仍能准确成立。
+    baseJade: toFiniteNumber(merged.baseJade, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseJade),
     baseOriginite: toNonNegativeNumber(merged.baseOriginite, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseOriginite),
-    baseArsenalQuota: toNonNegativeNumber(merged.baseArsenalQuota, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseArsenalQuota),
+    baseArsenalQuota: toFiniteNumber(merged.baseArsenalQuota, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseArsenalQuota),
     manualConvertedOriginite: toNonNegativeNumber(merged.manualConvertedOriginite, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.manualConvertedOriginite),
     characterPullJadeCost: toNonNegativeNumber(merged.characterPullJadeCost, DEFAULT_RESOURCE_RULES.characterPullJadeCost),
     weaponPullQuotaCost: toNonNegativeNumber(merged.weaponPullQuotaCost, DEFAULT_RESOURCE_RULES.weaponPullQuotaCost),

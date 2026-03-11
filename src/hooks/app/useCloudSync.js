@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
-import { normalizeRemotePoolType } from '../../services/poolReadService';
+import { loadVisiblePools, normalizeRemotePoolType } from '../../services/poolReadService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
@@ -44,8 +44,13 @@ export function useCloudSync({ showToast }) {
       try {
         const bootstrapPools = await getBootstrapVisiblePools();
         const fallbackPools = usePoolStore.getState().pools;
+        const directPools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
+          ? bootstrapPools
+          : await loadVisiblePools().catch(() => null);
         const visiblePools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
           ? bootstrapPools
+          : (Array.isArray(directPools) && directPools.length > 0)
+            ? directPools
           : (Array.isArray(fallbackPools) ? fallbackPools : []);
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
@@ -185,6 +190,12 @@ export function useCloudSync({ showToast }) {
       if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
         setPools(bootstrapPools);
         return bootstrapPools;
+      }
+
+      const directPools = await loadVisiblePools().catch(() => null);
+      if (Array.isArray(directPools) && directPools.length > 0) {
+        setPools(directPools);
+        return directPools;
       }
     } catch {
       return null;

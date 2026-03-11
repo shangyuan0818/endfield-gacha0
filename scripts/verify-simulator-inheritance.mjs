@@ -6,7 +6,8 @@ import {
 import {
   buildSimulatorResourceLedger,
   DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
-  getSimulatorPullCost
+  getSimulatorPullCost,
+  normalizeResourceSettings
 } from '../src/utils/resourceEconomy.js';
 import {
   buildSimulatorStorageScope,
@@ -168,6 +169,31 @@ assert.deepEqual(getSimulatorPullCost({
   resource: 'arsenalQuota',
   amount: 1980
 }, 'weapon ten-pull should cost 1980 arsenal quota');
+
+const signedResourceSettings = normalizeResourceSettings({
+  baseJade: -75,
+  baseArsenalQuota: -20
+});
+assert.equal(signedResourceSettings.baseJade, -75, 'jade base should preserve signed values for direct balance setting');
+assert.equal(signedResourceSettings.baseArsenalQuota, -20, 'arsenal base should preserve signed values for direct balance setting');
+
+const zeroedArsenalLedger = buildSimulatorResourceLedger([
+  {
+    poolType: 'limited',
+    pullHistory: [
+      {
+        rarity: 4,
+        isFreePull: false,
+        isInfoBookPull: false
+      }
+    ]
+  }
+], {
+  ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
+  baseArsenalQuota: -20
+});
+assert.equal(zeroedArsenalLedger.arsenalGained, 20, 'ledger should still count arsenal gains after a manual reset');
+assert.equal(zeroedArsenalLedger.arsenalBalance, 0, 'signed arsenal base should allow setting displayed arsenal balance to zero after gains');
 
 const noHistory = buildInheritedSimulatorState({
   history: [],

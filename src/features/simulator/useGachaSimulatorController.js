@@ -580,7 +580,7 @@ export function useGachaSimulatorController() {
 
         const nextBaseJade = mode === 'add'
           ? normalized.baseJade + normalizedAmount
-          : Math.max(0, normalizedAmount + Number(resourceLedger?.jadeSpent || 0) - Number(resourceLedger?.convertedJade || 0));
+          : normalizedAmount + Number(resourceLedger?.jadeSpent || 0) - Number(resourceLedger?.convertedJade || 0);
 
         return normalizeResourceSettings({
           ...normalized,
@@ -602,7 +602,7 @@ export function useGachaSimulatorController() {
       if (resourceKey === 'arsenalQuota') {
         const nextBaseArsenalQuota = mode === 'add'
           ? normalized.baseArsenalQuota + normalizedAmount
-          : Math.max(0, normalizedAmount + Number(resourceLedger?.arsenalSpent || 0) - Number(resourceLedger?.arsenalGained || 0));
+          : normalizedAmount + Number(resourceLedger?.arsenalSpent || 0) - Number(resourceLedger?.arsenalGained || 0);
 
         return normalizeResourceSettings({
           ...normalized,

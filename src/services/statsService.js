@@ -95,6 +95,32 @@ async function fetchStatsApi(type) {
   return result.data || null;
 }
 
+async function fetchGlobalSummaryDirect() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_global_stats');
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+async function fetchCharacterRankingDirect() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_character_ranking_stats');
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
 function createEmptyTypeStats() {
   return {
     total: 0,
@@ -435,6 +461,16 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
           return normalizedFromApi;
         }
 
+        const directSummary = await fetchGlobalSummaryDirect().catch(() => null);
+        if (directSummary) {
+          const normalizedFromDirect = withStatsMeta(normalizeGlobalStats(directSummary), {
+            source: 'supabase-direct',
+            fetchedAt: Date.now()
+          });
+          writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalizedFromDirect);
+          return normalizedFromDirect;
+        }
+
         const persistedSnapshot = readPersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY);
         if (persistedSnapshot) {
           return withStatsMeta(persistedSnapshot, {
@@ -498,6 +534,12 @@ export async function getCharacterRankingStats(forceRefresh = false) {
         if (apiPayload?.characterRanking) {
           writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, apiPayload.characterRanking);
           return apiPayload.characterRanking;
+        }
+
+        const directRanking = await fetchCharacterRankingDirect().catch(() => null);
+        if (directRanking) {
+          writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, directRanking);
+          return directRanking;
         }
 
         return readPersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY);

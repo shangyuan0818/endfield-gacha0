@@ -10,6 +10,14 @@ import { characterCache } from '../../utils/characterUtils';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';
 
+function isGiftPull(pull) {
+  return pull?.specialType === 'gift' || pull?.special_type === 'gift';
+}
+
+function isFreePull(pull) {
+  return pull?.isFree === true || pull?.is_free === true;
+}
+
 /**
  * 卡池统计 Hook
  * 处理统计计算逻辑：stats、groupedHistory、filteredGroupedHistory、effectivePity 等
@@ -40,9 +48,7 @@ export function usePoolStats({
 
   // 主统计计算
   const stats = useMemo(() => {
-    const validPullsList = normalizedCurrentPoolHistory.filter(item =>
-      item.specialType !== 'gift' && item.isFree !== true
-    );
+    const validPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
     const total = validPullsList.length;
 
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
@@ -54,7 +60,7 @@ export function usePoolStats({
     // 计算当前6星保底
     for (let i = normalizedCurrentPoolHistory.length - 1; i >= 0; i--) {
       const item = normalizedCurrentPoolHistory[i];
-      if (item.specialType === 'gift' || item.isFree === true) continue;
+      if (isGiftPull(item) || isFreePull(item)) continue;
 
       if (item.rarity === 6) {
         break;
@@ -65,7 +71,7 @@ export function usePoolStats({
     // 计算当前5星保底
     for (let i = normalizedCurrentPoolHistory.length - 1; i >= 0; i--) {
       const item = normalizedCurrentPoolHistory[i];
-      if (item.specialType === 'gift' || item.isFree === true) continue;
+      if (isGiftPull(item) || isFreePull(item)) continue;
 
       if (item.rarity >= 5) {
         break;
@@ -77,12 +83,12 @@ export function usePoolStats({
     normalizedCurrentPoolHistory.forEach(pull => {
       let r = pull.rarity;
 
-      if (pull.specialType === 'gift') {
+      if (isGiftPull(pull)) {
         if (r === 6) giftCounts[6]++;
         return; // 赠送不计入稀有度统计
       }
 
-      if (pull.isFree === true) return; // 免费十连不计入稀有度统计
+      if (isFreePull(pull)) return; // 免费十连不计入稀有度统计
 
       if (r === 6) {
         if (pull.isStandard) {
@@ -111,7 +117,7 @@ export function usePoolStats({
     let offStandardCount = 0;  // 歪到常驻角色
     let offLimitedCount = 0;   // 歪到非当期限定角色
     normalizedCurrentPoolHistory.forEach(pull => {
-       if (pull.rarity === 6 && pull.specialType !== 'gift' && pull.isFree !== true) {
+       if (pull.rarity === 6 && !isGiftPull(pull) && !isFreePull(pull)) {
           if (pull.isStandard) {
             realStandard++;
             // 区分歪常驻 vs 歪限定
