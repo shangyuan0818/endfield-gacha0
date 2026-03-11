@@ -1,7 +1,8 @@
 import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
-import { loadVisiblePools, normalizeRemotePoolType } from '../../services/poolReadService';
+import { getBootstrapVisiblePools } from '../../services/bootstrapService';
+import { normalizeRemotePoolType } from '../../services/poolReadService';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
@@ -41,7 +42,11 @@ export function useCloudSync({ showToast }) {
       setSyncError(null);
 
       try {
-        const visiblePools = await loadVisiblePools();
+        const bootstrapPools = await getBootstrapVisiblePools();
+        const fallbackPools = usePoolStore.getState().pools;
+        const visiblePools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
+          ? bootstrapPools
+          : (Array.isArray(fallbackPools) ? fallbackPools : []);
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
       const PAGE_SIZE = 1000;
@@ -175,15 +180,17 @@ export function useCloudSync({ showToast }) {
 
   // 加载公共卡池数据（无需登录，用于首页轮换计划/倒计时）
   const loadPublicPools = useCallback(async () => {
-    if (!supabase) return null;
-
     try {
-      const visiblePools = await loadVisiblePools();
-      setPools(visiblePools);
-      return visiblePools;
+      const bootstrapPools = await getBootstrapVisiblePools();
+      if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+        setPools(bootstrapPools);
+        return bootstrapPools;
+      }
     } catch {
       return null;
     }
+
+    return null;
   }, [setPools]);
 
   const savePoolToCloud = useCallback(async (pool, _showNotification = false) => {

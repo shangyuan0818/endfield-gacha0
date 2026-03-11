@@ -3,8 +3,6 @@ import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
 
 // 内存缓存
 const cache = {
-  urgentClicks: null,
-  lastFetch: 0,
   pools: null,
   poolsLastFetch: 0,
   characters: null,
@@ -20,7 +18,9 @@ const CACHE_TTL = 60 * 1000; // 60秒缓存
 // 创建 Supabase 客户端
 function getSupabaseClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    || process.env.VITE_SUPABASE_ANON_KEY
+    || process.env.SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
     return null;
@@ -70,8 +70,6 @@ export default async function handler(req, res) {
     }
 
     switch (type) {
-      case 'urgent':
-        return await handleUrgentStats(supabase, res, now);
       case 'pools':
         return await handlePools(supabase, res, now);
       case 'characters':
@@ -100,8 +98,6 @@ export default async function handler(req, res) {
 // 获取缓存数据
 function getCachedData(type) {
   switch (type) {
-    case 'urgent':
-      return { urgentClicks: cache.urgentClicks ?? 0 };
     case 'pools':
       return { pools: cache.pools ?? [] };
     case 'characters':
@@ -112,7 +108,6 @@ function getCachedData(type) {
       return { characterRanking: cache.characterRanking ?? null };
     case 'all':
       return {
-        urgentClicks: cache.urgentClicks ?? 0,
         pools: cache.pools ?? [],
         characters: cache.characters ?? [],
         globalSummary: cache.globalSummary ?? null,
@@ -121,38 +116,6 @@ function getCachedData(type) {
     default:
       return {};
   }
-}
-
-// 处理急按钮统计
-async function handleUrgentStats(supabase, res, now) {
-  // 检查缓存
-  if (cache.urgentClicks !== null && now - cache.lastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
-      cached: true,
-      data: { urgentClicks: cache.urgentClicks }
-    });
-  }
-
-  const { data, error } = await supabase
-    .from('global_stats')
-    .select('value')
-    .eq('key', 'urgent_button_clicks')
-    .single();
-
-  if (error && error.code !== 'PGRST116') {
-    throw error;
-  }
-
-  const clicks = parseInt(data?.value || '0', 10);
-  cache.urgentClicks = clicks;
-  cache.lastFetch = now;
-
-  return res.status(200).json({
-    success: true,
-    cached: false,
-    data: { urgentClicks: clicks }
-  });
 }
 
 // 处理卡池列表
@@ -259,26 +222,19 @@ async function handleCharacterRanking(supabase, res, now) {
 // 处理所有数据（一次性获取）
 async function handleAll(supabase, res, now) {
   const result = {
-    urgentClicks: 0,
     pools: [],
-    characters: []
+    characters: [],
+    globalSummary: null,
+    characterRanking: null
   };
 
   // 并行获取所有数据
-  const [urgentResult, poolsResult, charactersResult] = await Promise.allSettled([
-    supabase.from('global_stats').select('value').eq('key', 'urgent_button_clicks').single(),
+  const [poolsResult, charactersResult, globalSummaryResult, characterRankingResult] = await Promise.allSettled([
     fetchVisiblePools(supabase),
-    supabase.from('characters').select('*').order('rarity', { ascending: false })
+    supabase.from('characters').select('*').order('rarity', { ascending: false }),
+    supabase.rpc('get_global_stats'),
+    supabase.rpc('get_character_ranking_stats')
   ]);
-
-  // 处理急按钮
-  if (urgentResult.status === 'fulfilled' && !urgentResult.value.error) {
-    result.urgentClicks = parseInt(urgentResult.value.data?.value || '0', 10);
-    cache.urgentClicks = result.urgentClicks;
-    cache.lastFetch = now;
-  } else if (cache.urgentClicks !== null) {
-    result.urgentClicks = cache.urgentClicks;
-  }
 
   // 处理卡池
   if (poolsResult.status === 'fulfilled') {
@@ -296,6 +252,22 @@ async function handleAll(supabase, res, now) {
     cache.charactersLastFetch = now;
   } else if (cache.characters !== null) {
     result.characters = cache.characters;
+  }
+
+  if (globalSummaryResult.status === 'fulfilled' && !globalSummaryResult.value.error) {
+    result.globalSummary = globalSummaryResult.value.data ?? null;
+    cache.globalSummary = result.globalSummary;
+    cache.globalSummaryLastFetch = now;
+  } else if (cache.globalSummary !== null) {
+    result.globalSummary = cache.globalSummary;
+  }
+
+  if (characterRankingResult.status === 'fulfilled' && !characterRankingResult.value.error) {
+    result.characterRanking = characterRankingResult.value.data ?? null;
+    cache.characterRanking = result.characterRanking;
+    cache.characterRankingLastFetch = now;
+  } else if (cache.characterRanking !== null) {
+    result.characterRanking = cache.characterRanking;
   }
 
   return res.status(200).json({

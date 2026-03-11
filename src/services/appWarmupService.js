@@ -1,4 +1,4 @@
-import { preloadHomeStatsCache } from './cacheService';
+import { preloadPublicBootstrap } from './bootstrapService';
 
 const modulePreloaders = [
   () => import('../mobile/MobileApp'),
@@ -39,7 +39,7 @@ export async function preloadApplicationModules() {
 export async function warmupApplication() {
   if (!applicationWarmupPromise) {
     applicationWarmupPromise = Promise.allSettled([
-      preloadHomeStatsCache(),
+      preloadPublicBootstrap(),
       preloadApplicationModules()
     ]).then(() => undefined);
   }
@@ -51,4 +51,3 @@ export default {
   preloadApplicationModules,
   warmupApplication
 };
-

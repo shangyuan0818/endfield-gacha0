@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest';
+import { executeSupabaseMutation } from '../services/supabaseRequest';
+import { getBootstrapSiteConfig } from '../services/bootstrapService';
 import { supabase } from '../supabaseClient';
 
 const SITE_CONFIG_SNAPSHOT_KEY = 'site_config_snapshot_v1';
@@ -54,37 +55,15 @@ const useSiteConfigStore = create((set, get) => ({
    */
   loadConfig: async () => {
     const snapshot = readSiteConfigSnapshot();
+    const bootstrapConfig = await getBootstrapSiteConfig().catch(() => null);
 
-    if (!supabase) {
-      set({ config: snapshot, loaded: true });
+    if (bootstrapConfig && Object.keys(bootstrapConfig).length > 0) {
+      writeSiteConfigSnapshot(bootstrapConfig);
+      set({ config: bootstrapConfig, loaded: true });
       return;
     }
 
-    try {
-      const { data, error } = await executeSupabaseRead(
-        () => supabase
-          .from('site_config')
-          .select('key, value'),
-        {
-          label: 'load site config',
-          retries: 2,
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      const configMap = {};
-      (data || []).forEach(row => {
-        configMap[row.key] = row.value;
-      });
-
-      writeSiteConfigSnapshot(configMap);
-      set({ config: configMap, loaded: true });
-    } catch {
-      set({ config: snapshot, loaded: true });
-    }
+    set({ config: snapshot, loaded: true });
   },
 
   /**

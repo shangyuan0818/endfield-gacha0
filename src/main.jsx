@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import AppRouter from './AppRouter'
-import { preloadHomeStatsCache } from './services/cacheService'
+import { preloadPublicBootstrap } from './services/bootstrapService'
 
 // 同步设备检测 + 重定向（在 React 渲染前执行）
 // 解决 useEffect 异步重定向导致的闪烁和失效问题
@@ -27,13 +27,13 @@ import { preloadHomeStatsCache } from './services/cacheService'
   }
 })();
 
-// 在浏览器空闲时仅预热全局统计缓存，避免与角色/卡池真实读取链路重复抢资源
+// 在浏览器空闲时预热公共只读数据，减少首页外页面的二次等待
 const schedulePreload = typeof window.requestIdleCallback === 'function'
   ? window.requestIdleCallback.bind(window)
   : (callback) => window.setTimeout(callback, 250);
 
 schedulePreload(() => {
-  preloadHomeStatsCache().catch(err => {
+  preloadPublicBootstrap().catch(err => {
     // eslint-disable-next-line no-console
     console.warn('预加载数据失败，将使用实时查询:', err);
   });
