@@ -824,6 +824,27 @@ export function useGachaSimulatorController() {
       saveInfoBookState(inheritedSnapshot.infoBooks, targetStorageScope);
     }
 
+    const targetResourceSettings = selectedGameUid === currentGameUid
+      ? resourceSettings
+      : loadSimulatorResourceSettings(targetStorageScope);
+    const inheritedLedger = buildSimulatorResourceLedger(
+      Object.values(inheritedSnapshot.statesByPoolId),
+      targetResourceSettings
+    );
+
+    if (Number(inheritedLedger?.arsenalBalance || 0) < 0) {
+      const nextResourceSettings = normalizeResourceSettings({
+        ...targetResourceSettings,
+        baseArsenalQuota: Number(targetResourceSettings?.baseArsenalQuota || 0) + Math.abs(Number(inheritedLedger.arsenalBalance || 0))
+      });
+
+      saveSimulatorResourceSettings(nextResourceSettings, targetStorageScope);
+
+      if (selectedGameUid === currentGameUid) {
+        setResourceSettings(nextResourceSettings);
+      }
+    }
+
     localStorage.setItem(targetCurrentPoolStorageKey, currentSimPoolId);
 
     if (selectedGameUid !== currentGameUid) {
