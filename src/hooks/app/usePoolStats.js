@@ -7,6 +7,7 @@ import {
   calculatePityFromHistory
 } from '../../utils';
 import { characterCache } from '../../utils/characterUtils';
+import { isInfoBookHistoryPull } from '../../utils/historyInfoBook';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';
 
@@ -49,6 +50,7 @@ export function usePoolStats({
   // 主统计计算
   const stats = useMemo(() => {
     const validPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
+    const chargedPullsList = validPullsList.filter((item) => !isInfoBookHistoryPull(item));
     const total = validPullsList.length;
 
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
@@ -105,6 +107,7 @@ export function usePoolStats({
     const resourceSummary = buildPoolResourceSummary({
       poolType: normalizedPoolType,
       totalPulls: total,
+      chargedPulls: chargedPullsList.length,
       counts: { ...counts }
     });
 

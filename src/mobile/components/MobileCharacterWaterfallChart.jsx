@@ -78,7 +78,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
         <span className={`text-[11px] font-bold truncate w-16 shrink-0 ${isLimited ? 'text-zinc-800 dark:text-zinc-200' : 'text-zinc-600 dark:text-zinc-400'}`}>
           {pull.name}
         </span>
-        <span className="text-[11px] font-mono font-bold text-blue-500 px-1 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+        <span className="text-[11px] font-mono font-bold px-1 py-0.5 border text-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
           赠送
         </span>
       </div>
@@ -116,6 +116,11 @@ const MobilePullRow = ({ pull, maxPity }) => {
             {pityNum}
           </span>
         )}
+        {pull.isInfoBook && (
+          <span className="text-[10px] font-mono font-bold px-1 py-0.5 border text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 shrink-0">
+            情报书
+          </span>
+        )}
         <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-500 shrink-0">
           #{pull.pullIndex}
         </span>
@@ -141,6 +146,7 @@ const MobileCharacterWaterfallChart = ({ characterStats }) => {
       char.pities.forEach((pity, i) => {
         const pullIndex = char.pullIndices[i];
         const isFree = pity === 'free' || pullIndex === 'free';
+        const isInfoBook = char.infoBookFlags?.[i] === true;
         const pityNum = (!isFree && typeof pity === 'number') ? pity : 0;
         if (pityNum > max) max = pityNum;
 
@@ -152,6 +158,7 @@ const MobileCharacterWaterfallChart = ({ characterStats }) => {
           pity,
           pullIndex,
           isFree,
+          isInfoBook,
           sortIndex: isFree ? FREE_SORT_INDEX : pullIndex,
         };
 

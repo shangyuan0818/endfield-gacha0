@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { characterCache } from '../../utils/characterUtils';
+import { isInfoBookHistoryPull } from '../../utils/historyInfoBook';
 import { useCurrentPoolData } from './useCurrentPoolData';
 import { usePoolStats } from './usePoolStats';
 
@@ -52,11 +53,12 @@ export function useDashboardViewState() {
     });
 
     sortedHistory.forEach(item => {
-      if (item.specialType === 'gift') {
+      if (item.specialType === 'gift' || item.special_type === 'gift') {
         return;
       }
 
       const isFree = item.isFree || item.is_free;
+      const isInfoBook = isInfoBookHistoryPull(item);
       if (!isFree) {
         pullIndex++;
         sixStarPityCounter++;
@@ -87,6 +89,8 @@ export function useDashboardViewState() {
         existing.pullIndices.push(isFree ? 'free' : pullIndex);
         existing.pities.push(pityValue);
         existing.freeCount = (existing.freeCount || 0) + (isFree ? 1 : 0);
+        existing.infoBookCount = (existing.infoBookCount || 0) + (isInfoBook ? 1 : 0);
+        existing.infoBookFlags.push(isInfoBook);
       } else {
         characters.set(name, {
           name,
@@ -96,7 +100,9 @@ export function useDashboardViewState() {
           isLimited: !item.isStandard && item.rarity === 6,
           pullIndices: [isFree ? 'free' : pullIndex],
           pities: [pityValue],
-          freeCount: isFree ? 1 : 0
+          freeCount: isFree ? 1 : 0,
+          infoBookCount: isInfoBook ? 1 : 0,
+          infoBookFlags: [isInfoBook]
         });
       }
 
@@ -136,7 +142,7 @@ export function useDashboardViewState() {
     let firstLimitedIndex80 = 0;
 
     for (const item of sortedHistory) {
-      if (item.specialType === 'gift' || item.isFree || item.is_free) {
+      if (item.specialType === 'gift' || item.special_type === 'gift' || item.isFree || item.is_free) {
         continue;
       }
 

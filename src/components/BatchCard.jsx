@@ -18,6 +18,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
 
   // 检查是否是免费十连
   const isFreePull = group.some(item => item.isFree || item.is_free);
+  const isInfoBookPull = group.some(item => item.isInfoBook || item.is_info_book);
 
   return (
     <div className="bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800 last:border-0 transition-colors">
@@ -43,8 +44,14 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
             {new Date(group[0].timestamp).toLocaleString()}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded ${isFreePull ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'}`}>
-              {isBatch ? (isFreePull ? '免费十连' : '十连/多抽') : '单抽'}
+            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+              isFreePull
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : isInfoBookPull
+                  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
+            }`}>
+              {isBatch ? (isFreePull ? '免费十连' : isInfoBookPull ? '情报书十连' : '十连/多抽') : (isInfoBookPull ? '情报书' : '单抽')}
             </span>
             {/* 高星统计 */}
             {hasHighRarity && (
@@ -75,8 +82,9 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
             <div className="flex flex-wrap gap-2">
               {group.map((item) => {
                 const isLimitedUp = item.rarity === 6 && !item.isStandard;
-                const isGift = item.specialType === 'gift';
+                const isGift = item.specialType === 'gift' || item.special_type === 'gift';
                 const isFree = item.isFree || item.is_free;
+                const isInfoBook = item.isInfoBook || item.is_info_book;
 
                 // 确定边框颜色
                 let borderColor = 'border-purple-300 dark:border-purple-700';
@@ -155,6 +163,11 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                     )}
                     
                     {/* 免费标记 */}
+                    {isInfoBook && !isGift && !isFree && (
+                       <div className="absolute -bottom-1 -left-1 px-1 h-2.5 flex items-center justify-center rounded-sm text-[6px] font-bold bg-amber-500 text-white z-10">
+                         书
+                       </div>
+                    )}
                     {isFree && !isGift && (
                        <div className="absolute -bottom-1 -left-1 px-1 h-2.5 flex items-center justify-center rounded-sm text-[6px] font-bold bg-blue-500 text-white z-10">
                          免
@@ -174,8 +187,9 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
           <div className="p-4 grid grid-cols-5 sm:grid-cols-10 gap-3">
             {group.map((item) => {
               const isLimitedUp = item.rarity === 6 && !item.isStandard;
-              const isGift = item.specialType === 'gift';
+              const isGift = item.specialType === 'gift' || item.special_type === 'gift';
               const isFree = item.isFree || item.is_free;
+              const isInfoBook = item.isInfoBook || item.is_info_book;
               const name = item.character_name || item.item_name || item.name || '未知';
 
               // 确定颜色
@@ -274,6 +288,11 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                   {isFree && (
                     <div className="absolute -top-1 -left-1 px-1 h-3 flex items-center justify-center rounded-sm text-[7px] font-bold bg-blue-500 text-white border border-white">
                       免费
+                    </div>
+                  )}
+                  {isInfoBook && !isFree && (
+                    <div className="absolute -top-1 -left-1 px-1 h-3 flex items-center justify-center rounded-sm text-[7px] font-bold bg-amber-500 text-white border border-white">
+                      情报书
                     </div>
                   )}
                 </div>

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { RARITY_CONFIG } from '../../constants';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
+import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook';
 
 /**
  * 统计数据计算 Hook
@@ -24,6 +25,10 @@ export function useSummaryStats(history, pools, user) {
     if (!user) return [];
     return history.filter(h => h.user_id === user.id);
   }, [history, user]);
+  const annotatedMyHistory = useMemo(
+    () => annotateInfoBookPulls(myHistory, myPools),
+    [myHistory, myPools]
+  );
 
   // 归一化 myHistory 的 isStandard（基于 UP 角色匹配重新计算）
   const normalizedMyHistory = useMemo(() => {
@@ -32,8 +37,8 @@ export function useSummaryStats(history, pools, user) {
       poolMap.set(p.id, { type: p.type, upCharacter: p.up_character });
     });
 
-    return myHistory.map(h => {
-      const pool = poolMap.get(h.poolId);
+    return annotatedMyHistory.map(h => {
+      const pool = poolMap.get(h.poolId || h.pool_id);
       if (!pool) return h;
 
       const poolType = pool.type;
@@ -58,7 +63,7 @@ export function useSummaryStats(history, pools, user) {
 
       return { ...h, isStandard: isStd };
     });
-  }, [myHistory, myPools]);
+  }, [annotatedMyHistory, myPools]);
 
   // 计算当前用户统计数据
   const localStats = useMemo(() => {
@@ -88,8 +93,9 @@ export function useSummaryStats(history, pools, user) {
     // 分组
     const pullsByPool = {};
     normalizedMyHistory.forEach(item => {
-      if (!pullsByPool[item.poolId]) pullsByPool[item.poolId] = [];
-      pullsByPool[item.poolId].push(item);
+      const poolId = item.poolId || item.pool_id;
+      if (!pullsByPool[poolId]) pullsByPool[poolId] = [];
+      pullsByPool[poolId].push(item);
     });
 
     const allSixStarPulls = [];
@@ -103,7 +109,7 @@ export function useSummaryStats(history, pools, user) {
       const rawType = poolTypeMap.get(poolId) || 'standard';
       const type = normalizePoolType(rawType);
       const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
-      const validPulls = sortedPulls.filter(i => i.specialType !== 'gift' && i.isFree !== true && i.is_free !== true);
+      const validPulls = sortedPulls.filter(i => i.specialType !== 'gift' && i.special_type !== 'gift' && i.isFree !== true && i.is_free !== true);
       const poolTotal = validPulls.length;
 
       if (type === 'limited') {
@@ -210,20 +216,20 @@ export function useSummaryStats(history, pools, user) {
 
     // 全局统计
     normalizedMyHistory.forEach(item => {
-      const rawType = poolTypeMap.get(item.poolId) || 'standard';
+      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
       const type = normalizePoolType(rawType);
       const typeData = data.byType[type];
       if (!typeData) return;
 
       const isFree = item.isFree || item.is_free;
-      if (item.specialType !== 'gift' && !isFree) {
+      if (item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree) {
         data.total++;
         typeData.total++;
       }
 
       let r = item.rarity;
       // 所有稀有度计数统一排除 gift 和 free
-      if (item.specialType === 'gift' || isFree) {
+      if (item.specialType === 'gift' || item.special_type === 'gift' || isFree) {
         // gift 和免费十连不计入任何稀有度统计
       } else if (r === 6) {
         if (item.isStandard) {
@@ -317,21 +323,50 @@ export function useSummaryStats(history, pools, user) {
         : null
     };
 
+    const limitedChargedPulls = normalizedMyHistory.filter(item => {
+      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
+      const type = normalizePoolType(rawType);
+      const isFree = item.isFree || item.is_free;
+      return type === 'limited' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree && !isInfoBookHistoryPull(item);
+    }).length;
+
+    const standardChargedPulls = normalizedMyHistory.filter(item => {
+      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
+      const type = normalizePoolType(rawType);
+      const isFree = item.isFree || item.is_free;
+      return type === 'standard' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree;
+    }).length;
+
+    const weaponChargedPulls = normalizedMyHistory.filter(item => {
+      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
+      const type = normalizePoolType(rawType);
+      const isFree = item.isFree || item.is_free;
+      return type === 'weapon' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree;
+    }).length;
+
     data.byType.limited.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.limited.total,
-      counts: data.byType.limited.counts
+      chargedCharacterPulls: limitedChargedPulls,
+      counts: data.byType.limited.counts,
+      arsenalGainCounts: data.byType.limited.counts
     });
     data.byType.standard.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.standard.total,
-      counts: data.byType.standard.counts
+      chargedCharacterPulls: standardChargedPulls,
+      counts: data.byType.standard.counts,
+      arsenalGainCounts: data.byType.standard.counts
     });
     data.byType.weapon.resources = buildResourceSummaryFromAggregates({
       weaponPulls: data.byType.weapon.total,
-      counts: data.byType.weapon.counts
+      chargedWeaponPulls: weaponChargedPulls,
+      counts: data.byType.weapon.counts,
+      arsenalGainCounts: {}
     });
     data.byType.character.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.character.total,
-      counts: characterCounts
+      chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
+      counts: characterCounts,
+      arsenalGainCounts: characterCounts
     });
 
     data.byType.limited.pityListExcludingFree = limitedPityListExcludingFree;
@@ -351,7 +386,10 @@ export function useSummaryStats(history, pools, user) {
     data.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.character.total,
       weaponPulls: data.byType.weapon.total,
-      counts: data.counts
+      chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
+      chargedWeaponPulls: weaponChargedPulls,
+      counts: data.counts,
+      arsenalGainCounts: characterCounts
     });
 
     return data;

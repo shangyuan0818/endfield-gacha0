@@ -7,6 +7,11 @@ import {
   getPoolsForGroupType,
   isPoolGroupId
 } from '../../stores/usePoolStore';
+import {
+  annotateInfoBookPulls,
+  isFreeHistoryPull,
+  isGiftHistoryPull
+} from '../../utils/historyInfoBook';
 import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 
@@ -56,6 +61,20 @@ export function useCurrentPoolData() {
 
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
   const historyArray = useMemo(() => (Array.isArray(history) ? history : []), [history]);
+  const accountHistoryArray = useMemo(() => {
+    if (!user?.id) {
+      return [];
+    }
+
+    return historyArray.filter(item =>
+      item.user_id === user.id &&
+      matchesCurrentGameUid(item, currentGameUid)
+    );
+  }, [currentGameUid, historyArray, user?.id]);
+  const annotatedAccountHistoryArray = useMemo(
+    () => annotateInfoBookPulls(accountHistoryArray, poolsArray),
+    [accountHistoryArray, poolsArray]
+  );
 
   const isGroupMode = isPoolGroupId(currentPoolId);
   const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
@@ -103,11 +122,7 @@ export function useCurrentPoolData() {
       const groupPools = getPoolsForGroupType(poolsArray, groupType);
       const groupPoolIds = new Set(groupPools.map(pool => pool.id));
 
-      return historyArray.filter(item =>
-        groupPoolIds.has(getHistoryPoolId(item)) &&
-        item.user_id === user.id &&
-        matchesCurrentGameUid(item, currentGameUid)
-      );
+      return annotatedAccountHistoryArray.filter(item => groupPoolIds.has(getHistoryPoolId(item)));
     }
 
     const activePoolId = currentPool?.id || currentPoolId;
@@ -115,12 +130,8 @@ export function useCurrentPoolData() {
       return [];
     }
 
-    return historyArray.filter(item =>
-      getHistoryPoolId(item) === activePoolId &&
-      item.user_id === user.id &&
-      matchesCurrentGameUid(item, currentGameUid)
-    );
-  }, [currentGameUid, currentPool?.id, currentPoolId, groupType, historyArray, isGroupMode, poolsArray, user?.id]);
+    return annotatedAccountHistoryArray.filter(item => getHistoryPoolId(item) === activePoolId);
+  }, [annotatedAccountHistoryArray, currentPool?.id, currentPoolId, groupType, isGroupMode, poolsArray, user?.id]);
 
   const normalizedCurrentPoolHistory = useMemo(() => {
     if (isGroupMode) {
@@ -152,14 +163,10 @@ export function useCurrentPoolData() {
         .map(pool => pool.id)
     );
 
-    return historyArray
-      .filter(item =>
-        limitedPoolIds.has(getHistoryPoolId(item)) &&
-        item.user_id === user.id &&
-        matchesCurrentGameUid(item, currentGameUid)
-      )
+    return annotatedAccountHistoryArray
+      .filter(item => limitedPoolIds.has(getHistoryPoolId(item)))
       .sort(sortByTimeline);
-  }, [currentGameUid, historyArray, poolsArray, user?.id]);
+  }, [annotatedAccountHistoryArray, poolsArray, user?.id]);
 
   const crossPoolPityMap = useMemo(() => {
     if (isGroupMode || !LIMITED_POOL_TYPES.has(currentPool?.type)) {
@@ -171,9 +178,9 @@ export function useCurrentPoolData() {
     let fivePity = 0;
 
     allLimitedHistory
-      .filter(item => item.specialType !== 'gift' && item.special_type !== 'gift')
+      .filter(item => !isGiftHistoryPull(item))
       .forEach(item => {
-        const isFree = item.isFree || item.is_free;
+        const isFree = isFreeHistoryPull(item);
         const recordKey = getHistoryRecordKey(item);
 
         if (!isFree) {

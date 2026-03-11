@@ -55,7 +55,7 @@ export function useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory = []) 
         const match =
           (historyFilter === '6star' && item.rarity === 6) ||
           (historyFilter === '5star' && item.rarity === 5) ||
-          (historyFilter === 'gift' && item.specialType === 'gift');
+          (historyFilter === 'gift' && (item.specialType === 'gift' || item.special_type === 'gift'));
 
         if (match) {
           result.push([item]);

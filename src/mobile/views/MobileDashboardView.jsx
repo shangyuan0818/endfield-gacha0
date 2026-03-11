@@ -531,9 +531,10 @@ function MobileDashboardView() {
               // 生成出货抽数描述
               const pullInfoParts = char.pullIndices.map((idx, i) => {
                 const pity = char.pities[i];
+                const isInfoBook = char.infoBookFlags?.[i] === true;
                 if (idx === 'free' || pity === 'free') return { type: 'free', text: '免费' };
-                if (pity) return { type: 'normal', text: `${pity}(#${idx})` };
-                return { type: 'normal', text: `#${idx}` };
+                if (pity) return { type: isInfoBook ? 'infoBook' : 'normal', text: `${pity}(#${idx})` };
+                return { type: isInfoBook ? 'infoBook' : 'normal', text: `#${idx}` };
               });
 
               return (
@@ -586,6 +587,8 @@ function MobileDashboardView() {
                         <span key={i}>
                           {part.type === 'free' ? (
                             <span className="text-blue-500 font-bold">{part.text}</span>
+                          ) : part.type === 'infoBook' ? (
+                            <span className="text-amber-600 dark:text-amber-400 font-bold">情报书 {part.text}</span>
                           ) : (
                             <span>{part.text}</span>
                           )}
@@ -596,12 +599,24 @@ function MobileDashboardView() {
                   </div>
 
                   {/* 数量 */}
-                  <div className={`text-xs font-mono font-bold px-1.5 py-0.5 border ${
-                    isLimitedChar ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 text-orange-600 dark:text-orange-400' :
-                    isStandardChar ? 'bg-red-50 dark:bg-red-900/10 border-red-200 text-red-600 dark:text-red-400' :
-                    'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 text-zinc-500'
-                  }`}>
-                    x{char.count}
+                  <div className="flex items-center gap-1">
+                    {char.infoBookCount > 0 && (
+                      <div className="text-[10px] font-mono font-bold px-1.5 py-0.5 border bg-amber-50 dark:bg-amber-900/20 border-amber-200 text-amber-700 dark:text-amber-300">
+                        书×{char.infoBookCount}
+                      </div>
+                    )}
+                    {char.freeCount > 0 && (
+                      <div className="text-[10px] font-mono font-bold px-1.5 py-0.5 border bg-blue-50 dark:bg-blue-900/20 border-blue-200 text-blue-600 dark:text-blue-400">
+                        免×{char.freeCount}
+                      </div>
+                    )}
+                    <div className={`text-xs font-mono font-bold px-1.5 py-0.5 border ${
+                      isLimitedChar ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 text-orange-600 dark:text-orange-400' :
+                      isStandardChar ? 'bg-red-50 dark:bg-red-900/10 border-red-200 text-red-600 dark:text-red-400' :
+                      'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 text-zinc-500'
+                    }`}>
+                      x{char.count}
+                    </div>
                   </div>
                 </div>
               );

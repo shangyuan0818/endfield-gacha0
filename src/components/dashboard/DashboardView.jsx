@@ -339,6 +339,7 @@ const DashboardView = () => {
                   const pullInfoParts = char.pullIndices.map((idx, i) => {
                     const pity = char.pities[i];
                     const isFree = idx === 'free' || pity === 'free';
+                    const isInfoBook = char.infoBookFlags?.[i] === true;
 
                     if (isFree) {
                       return { type: 'free', text: '免费' };
@@ -346,10 +347,10 @@ const DashboardView = () => {
 
                     if (pity) {
                       // 显示 保底计数(#总抽数位置)
-                      return { type: 'normal', text: `${pity}抽(#${idx})` };
+                      return { type: isInfoBook ? 'infoBook' : 'normal', text: `${pity}抽(#${idx})` };
                     } else {
                       // 没有保底数据时只显示总抽数位置
-                      return { type: 'normal', text: `#${idx}` };
+                      return { type: isInfoBook ? 'infoBook' : 'normal', text: `#${idx}` };
                     }
                   });
 
@@ -433,6 +434,8 @@ const DashboardView = () => {
                                <span className="whitespace-nowrap">
                                  {part.type === 'free' ? (
                                    <span className="text-blue-500 font-bold">{part.text}</span>
+                                 ) : part.type === 'infoBook' ? (
+                                   <span className="text-amber-600 dark:text-amber-400 font-bold">情报书 {part.text}</span>
                                  ) : (
                                    <span className="text-slate-400 dark:text-zinc-600">{part.text}</span>
                                  )}
@@ -445,12 +448,24 @@ const DashboardView = () => {
                          </div>
                          {/* 数量标签 - 右下角 */}
                          <div className="flex justify-end">
-                           <div className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded ${
-                               isLimitedChar ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
-                               isStandardChar ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
-                               'bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-500'
-                            }`}>
-                              x{char.count}
+                           <div className="flex items-center gap-1.5">
+                             {char.infoBookCount > 0 && (
+                               <div className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
+                                 情报书×{char.infoBookCount}
+                               </div>
+                             )}
+                             {char.freeCount > 0 && (
+                               <div className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                                 免费×{char.freeCount}
+                               </div>
+                             )}
+                             <div className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded ${
+                                 isLimitedChar ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400' :
+                                 isStandardChar ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
+                                 'bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-500'
+                              }`}>
+                                x{char.count}
+                             </div>
                            </div>
                          </div>
                       </div>
