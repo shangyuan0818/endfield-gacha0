@@ -31,6 +31,7 @@ const SimulatorHistoryPanel = ({
                 const fiveStarCount = group.pulls.filter((pull) => pull.rarity === 5).length;
                 const hasHighRarity = sixStarCount > 0 || fiveStarCount > 0;
                 const isFreePull = group.pulls[0]?.isFreePull;
+                const isInfoBookPull = group.pulls[0]?.isInfoBookPull;
 
                 return (
                   <div key={`group-${group.id}`}>
@@ -42,6 +43,11 @@ const SimulatorHistoryPanel = ({
                       <div className="flex-1 min-w-0 text-left">
                         <div className="text-xs font-bold text-blue-500 flex items-center gap-2">
                           <span>十连</span>
+                          {isInfoBookPull && (
+                            <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded border border-amber-200 dark:border-amber-700">
+                              情报书
+                            </span>
+                          )}
                           {isFreePull && (
                             <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded border border-blue-200 dark:border-blue-700">
                               免费
@@ -57,6 +63,7 @@ const SimulatorHistoryPanel = ({
                         </div>
                         <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono">
                           第 {group.startPullNumber} - {group.startPullNumber + 9} 抽
+                          {isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">（计入保底 · 不消耗玉）</span>}
                           {isFreePull && <span className="ml-2 text-blue-500">（不计入保底）</span>}
                         </div>
                       </div>
@@ -94,6 +101,16 @@ const SimulatorHistoryPanel = ({
                               <div className="flex-1 min-w-0">
                                 <div className={`text-[11px] font-bold ${rarityColor} flex items-center gap-2`}>
                                   <span>{rarityLabel}</span>
+                                  {record.isInfoBookPull && (
+                                    <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-bold rounded border border-amber-200 dark:border-amber-700">
+                                      情报书
+                                    </span>
+                                  )}
+                                  {record.isFreePull && (
+                                    <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[9px] font-bold rounded border border-blue-200 dark:border-blue-700">
+                                      免费
+                                    </span>
+                                  )}
                                   {record.characterName && (
                                     <span className="text-[9px] font-normal text-slate-600 dark:text-zinc-400 truncate">
                                       {record.characterName}
@@ -139,6 +156,16 @@ const SimulatorHistoryPanel = ({
                   <div className="flex-1 min-w-0">
                     <div className={`text-xs font-bold ${rarityColor} flex items-center gap-2`}>
                       <span>{rarityLabel}</span>
+                      {record.isInfoBookPull && (
+                        <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-bold rounded border border-amber-200 dark:border-amber-700">
+                          情报书
+                        </span>
+                      )}
+                      {record.isFreePull && (
+                        <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[9px] font-bold rounded border border-blue-200 dark:border-blue-700">
+                          免费
+                        </span>
+                      )}
                       {record.characterName && (
                         <span className="text-[10px] font-normal text-slate-600 dark:text-zinc-400 truncate">
                           {record.characterName}
@@ -147,6 +174,8 @@ const SimulatorHistoryPanel = ({
                     </div>
                     <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono">
                       第 {record.pullNumber} 抽
+                      {record.isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">（情报书）</span>}
+                      {record.isFreePull && <span className="ml-2 text-blue-500">（免费）</span>}
                     </div>
                   </div>
                 </div>

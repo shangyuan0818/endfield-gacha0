@@ -5,7 +5,7 @@
  * FEAT-007 扩展：改为从数据库动态读取，支持角色轮换移出机制
  */
 
-import { getPoolCharacters } from '../utils/characterUtils';
+import { getPoolCharacters } from '../utils/characterUtils.js';
 
 // ============================================
 // 限定角色池（动态读取）

@@ -133,7 +133,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
       guaranteedLimitedPity: 0,       // 重置120/80抽计数
-      hasReceivedGuaranteedLimited: true  // 标记已触发
+      hasReceivedGuaranteedLimited: false  // 已完成本轮循环，下一轮重新开始累计
     };
   }
   // ========== 硬保底检查结束 ==========
@@ -166,7 +166,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
       guaranteedLimitedPity: shouldResetGuaranteedPity ? 0 : guaranteedLimitedPity,  // 出限定时重置
-      hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited  // 保持状态
+      hasReceivedGuaranteedLimited: shouldResetGuaranteedPity ? false : state.hasReceivedGuaranteedLimited
     };
   }
 

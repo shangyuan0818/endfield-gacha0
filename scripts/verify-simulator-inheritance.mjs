@@ -152,7 +152,7 @@ const resourceLedger = buildSimulatorResourceLedger(
 
 assert.equal(resourceLedger.jadeSpent, (60 + 35) * 500, 'resource ledger should charge paid character pulls in jade');
 assert.equal(resourceLedger.arsenalSpent, (20 + 12) * 198, 'resource ledger should charge paid weapon pulls in single-pull quota equivalents');
-assert.equal(resourceLedger.arsenalGained, 127 * 20, 'resource ledger should reward arsenal quota from recorded pulls');
+assert.equal(resourceLedger.arsenalGained, 95 * 20, 'resource ledger should only reward arsenal quota from recorded character pulls');
 
 assert.deepEqual(getSimulatorPullCost({
   poolType: 'weapon',
@@ -195,6 +195,25 @@ const zeroedArsenalLedger = buildSimulatorResourceLedger([
 assert.equal(zeroedArsenalLedger.arsenalGained, 20, 'ledger should still count arsenal gains after a manual reset');
 assert.equal(zeroedArsenalLedger.arsenalBalance, 0, 'signed arsenal base should allow setting displayed arsenal balance to zero after gains');
 
+const infoBookLedger = buildSimulatorResourceLedger([
+  {
+    poolType: 'limited',
+    pullHistory: Array.from({ length: 10 }, (_, index) => ({
+      pullNumber: index + 1,
+      rarity: index === 0 ? 6 : 4,
+      isInfoBookPull: true,
+      isTenPull: true,
+      batchIndex: index
+    }))
+  }
+], {
+  ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
+  baseJade: 0,
+  baseOriginite: 0,
+  baseArsenalQuota: 0
+});
+assert.equal(infoBookLedger.jadeSpent, 0, 'info-book ten-pull should not consume jade in the simulator resource ledger');
+
 const noHistory = buildInheritedSimulatorState({
   history: [],
   realPools: pools,
@@ -219,7 +238,21 @@ const guaranteedLimitedState = buildInheritedSimulatorState({
 });
 
 assert.equal(guaranteedLimitedState.guaranteedLimitedPity, 0, 'hard pity counter should reset after hitting the guaranteed limited threshold');
-assert.equal(guaranteedLimitedState.hasReceivedGuaranteedLimited, true, 'inherited limited state should remember that the one-time hard pity has been consumed');
+assert.equal(guaranteedLimitedState.hasReceivedGuaranteedLimited, false, 'hard pity should restart a fresh cycle after a limited character is obtained');
+
+const restartedGuaranteedLimitedState = buildInheritedSimulatorState({
+  history: [
+    ...guaranteedLimitedHistory,
+    makePull('limited_b', 801, { rarity: 4 })
+  ],
+  realPools: pools,
+  currentSimPool: { id: 'sim_limited_b', type: 'limited', up_character: 'B' },
+  currentGameUid: 'uid-1',
+  currentUserId: 'user-1'
+});
+
+assert.equal(restartedGuaranteedLimitedState.guaranteedLimitedPity, 1, 'after a forced limited resolves, the next paid pull should start a fresh hard-pity cycle');
+assert.equal(restartedGuaranteedLimitedState.hasReceivedGuaranteedLimited, false, 'the new cycle must keep the hard-pity trigger available');
 
 const scopeA = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-1' });
 const scopeB = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-2' });

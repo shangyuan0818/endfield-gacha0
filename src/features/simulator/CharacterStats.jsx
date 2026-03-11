@@ -19,13 +19,21 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
           const existing = characters.get(name);
           if (existing) {
             existing.count++;
+            if (item.isInfoBookPull) {
+              existing.infoBookCount++;
+            }
+            if (item.isFreePull) {
+              existing.freeCount++;
+            }
           } else {
             characters.set(name, {
               name,
               count: 1,
               rarity: item.rarity,
               isStandard: !item.isUp && item.rarity === 6,
-              isLimited: item.isUp && item.rarity === 6
+              isLimited: item.isUp && item.rarity === 6,
+              infoBookCount: item.isInfoBookPull ? 1 : 0,
+              freeCount: item.isFreePull ? 1 : 0
             });
           }
         }
@@ -151,6 +159,20 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                       />
                     ))}
                   </div>
+                  {(char.infoBookCount > 0 || char.freeCount > 0) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {char.infoBookCount > 0 && (
+                        <span className="px-1 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700">
+                          情报书×{char.infoBookCount}
+                        </span>
+                      )}
+                      {char.freeCount > 0 && (
+                        <span className="px-1 py-0.5 text-[9px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700">
+                          免费×{char.freeCount}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 数量标签 - 缩小 */}

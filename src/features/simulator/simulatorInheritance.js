@@ -162,25 +162,20 @@ function countPaidPullsByPool(records) {
   }, new Map());
 }
 
-function calculateGuaranteedLimitedState(records, rules) {
-  const threshold = Number(rules?.guaranteedLimitedPity) || 0;
+function calculateGuaranteedLimitedState(records, _rules) {
   let pity = 0;
-  let hasReceivedGuaranteedLimited = false;
 
   records.forEach((item) => {
     pity += 1;
 
     if (item.__simulatorIsUp) {
-      if (!hasReceivedGuaranteedLimited && threshold > 0 && pity >= threshold) {
-        hasReceivedGuaranteedLimited = true;
-      }
       pity = 0;
     }
   });
 
   return {
     pity,
-    hasReceivedGuaranteedLimited
+    hasReceivedGuaranteedLimited: false
   };
 }
 
