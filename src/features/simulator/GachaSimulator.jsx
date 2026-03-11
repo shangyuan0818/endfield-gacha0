@@ -1,18 +1,26 @@
 import React from 'react';
 import { Layers, Search, Star } from 'lucide-react';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';
 import PullAnimation from './PullAnimation';
 import LimitedPoolAnalysis from './LimitedPoolAnalysis';
 import SimulatorToolbar from './SimulatorToolbar';
 import SimulatorHistoryPanel from './SimulatorHistoryPanel';
+import { normalizeSimulatorPoolType } from './simulatorInheritance';
 import { useGachaSimulatorController } from './useGachaSimulatorController';
 
 const GachaSimulator = () => {
   const {
+    adjustResourceAmount,
     availableFreePulls,
+    canAffordSinglePull,
+    canAffordTenPull,
+    closeOriginiteConversionPrompt,
     closeResetDialog,
+    confirmOriginiteConversionPrompt,
     confirmReset,
+    currentPullCosts,
     currentPoolObj,
     currentSimPool,
     currentSimPoolId,
@@ -21,6 +29,7 @@ const GachaSimulator = () => {
     expandedTenPulls,
     handleExportData,
     handleExportReport,
+    handleInheritRealState,
     handlePull,
     handleReset,
     handleShare,
@@ -30,26 +39,32 @@ const GachaSimulator = () => {
     lastResults,
     multipleFreeTen,
     pityInfoWithGuarantee,
+    poolPullCounts,
     poolCharactersList,
     pullHistory,
+    resourceLedger,
     resetAllPools,
     resetSettings,
+    setDisableOriginitePromptToday,
     setLastResults,
     setMultipleFreeTen,
     setResetAllPools,
     setResetSettings,
-    setShowPoolMenu,
     setSkipAnimation,
-    showPoolMenu,
     showResetConfirm,
     showToast,
+    showOriginitePrompt,
     simulator,
     simulatorPools,
     skipAnimation,
     switchPool,
     toastMessage,
-    toggleTenPull
+    toggleTenPull,
+    singlePullDisabledReason,
+    tenPullDisabledReason,
+    disableOriginitePromptToday,
   } = useGachaSimulatorController();
+  const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
 
   return (
     <div className="flex flex-col h-full text-slate-800 dark:text-zinc-100 font-sans max-w-7xl mx-auto w-full">
@@ -58,14 +73,17 @@ const GachaSimulator = () => {
         currentSimPoolId={currentSimPoolId}
         onExportData={handleExportData}
         onExportReport={handleExportReport}
+        onInheritRealState={handleInheritRealState}
         onReset={handleReset}
+        poolPullCounts={poolPullCounts}
         onShare={handleShare}
         onSwitchPool={switchPool}
+        resourceLedger={resourceLedger}
+        onAdjustResourceAmount={adjustResourceAmount}
+        originiteToJadeRate={currentPullCosts.settings.originiteToJadeRate}
         onToggleMultipleFreeTen={() => setMultipleFreeTen(!multipleFreeTen)}
-        onTogglePoolMenu={() => setShowPoolMenu(!showPoolMenu)}
         onToggleSkipAnimation={() => setSkipAnimation(!skipAnimation)}
         poolType={simulator.poolType}
-        showPoolMenu={showPoolMenu}
         simulatorPools={simulatorPools}
         multipleFreeTen={multipleFreeTen}
         skipAnimation={skipAnimation}
@@ -96,20 +114,24 @@ const GachaSimulator = () => {
 
             {lastResults ? (
               <div className="relative z-20 w-full h-full animate-fade-in p-4">
-                <SimulatorResults results={lastResults} onClose={() => setLastResults(null)} />
+                <SimulatorResults
+                  poolType={normalizedSimulatorPoolType}
+                  results={lastResults}
+                  onClose={() => setLastResults(null)}
+                />
               </div>
             ) : !isAnimating && (
               <div className="relative z-10 text-center transform transition-all duration-500 animate-fade-in">
                 <div className="w-24 h-24 mx-auto mb-6 border-2 border-endfield-yellow rotate-45 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  {simulator.poolType === 'limited' && <Star size={40} className="text-endfield-yellow -rotate-45" />}
-                  {simulator.poolType === 'weapon' && <Search size={40} className="text-endfield-yellow -rotate-45" />}
-                  {simulator.poolType === 'standard' && <Layers size={40} className="text-endfield-yellow -rotate-45" />}
+                  {normalizedSimulatorPoolType === 'limited' && <Star size={40} className="text-endfield-yellow -rotate-45" />}
+                  {normalizedSimulatorPoolType === 'weapon' && <Search size={40} className="text-endfield-yellow -rotate-45" />}
+                  {normalizedSimulatorPoolType === 'standard' && <Layers size={40} className="text-endfield-yellow -rotate-45" />}
                 </div>
 
                 <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">
-                  {simulator.poolType === 'limited'
+                  {normalizedSimulatorPoolType === 'limited'
                     ? 'LIMITED HEADHUNTING'
-                    : simulator.poolType === 'weapon'
+                    : normalizedSimulatorPoolType === 'weapon'
                       ? 'WEAPON ARSENAL'
                       : 'STANDARD HEADHUNTING'}
                 </h1>
@@ -124,8 +146,12 @@ const GachaSimulator = () => {
             <SimulatorControls
               onPullOne={() => handlePull('single')}
               onPullTen={() => handlePull('ten')}
-              disabled={isAnimating || !poolCharactersList}
-              jadeCost={600}
+              disableSingle={isAnimating || !poolCharactersList || !canAffordSinglePull}
+              disableTen={isAnimating || !poolCharactersList || !canAffordTenPull}
+              singleDisabledReason={singlePullDisabledReason}
+              tenDisabledReason={tenPullDisabledReason}
+              singleCost={currentPullCosts.single}
+              tenCost={currentPullCosts.ten}
               availableFreePulls={availableFreePulls}
               infoBookTenPullAvailable={infoBookTenPullAvailable}
             />
@@ -159,11 +185,11 @@ const GachaSimulator = () => {
             </div>
 
             <div className="px-6 py-6 space-y-4">
-              <p className="text-sm text-slate-600 dark:text-zinc-400">
-                {resetAllPools
-                  ? '确定要重置所有类型的卡池吗？所有数据将被清空。'
-                  : `确定要重置所有${currentSimPool?.type === 'limited' ? '限定角色池' : currentSimPool?.type === 'weapon' ? '武器池' : '常驻池'}吗？该类型的所有卡池数据将被清空。`}
-              </p>
+                <p className="text-sm text-slate-600 dark:text-zinc-400">
+                  {resetAllPools
+                    ? '确定要重置所有类型的卡池吗？所有数据将被清空。'
+                  : `确定要重置所有${normalizeSimulatorPoolType(currentSimPool?.type) === 'limited' ? '限定角色池' : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon' ? '武器池' : '常驻池'}吗？该类型的所有卡池数据将被清空。`}
+                </p>
 
               <div
                 onClick={() => setResetAllPools(!resetAllPools)}
@@ -229,6 +255,27 @@ const GachaSimulator = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={Boolean(showOriginitePrompt)}
+        title="确认源石换玉"
+        message={showOriginitePrompt?.message}
+        confirmText="继续寻访"
+        cancelText="暂不兑换"
+        type="warning"
+        onConfirm={() => confirmOriginiteConversionPrompt()}
+        onCancel={closeOriginiteConversionPrompt}
+      >
+        <label className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
+          <input
+            type="checkbox"
+            checked={disableOriginitePromptToday}
+            onChange={(event) => setDisableOriginitePromptToday(event.target.checked)}
+            className="accent-amber-500"
+          />
+          今日访问不再提示
+        </label>
+      </ConfirmDialog>
 
       <style>{`
         .scrollbar-thin::-webkit-scrollbar {

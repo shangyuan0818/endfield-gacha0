@@ -1,4 +1,5 @@
 import { calculateCurrentProbability } from '../../utils/validators';
+import { normalizeSimulatorPoolType } from './simulatorInheritance';
 
 export function processHistoryGroups(history) {
   const groups = [];
@@ -50,15 +51,17 @@ export function processHistoryGroups(history) {
 }
 
 export function buildDashboardStats(stats, pityInfo, simulator) {
+  const normalizedPoolType = normalizeSimulatorPoolType(simulator.poolType);
+
   return {
     total: stats.totalPulls,
     currentPity: pityInfo.sixStar.current,
     currentPity5: pityInfo.fiveStar.current,
     counts: {
-      6: simulator.poolType === 'weapon' && stats.gifts
+      6: normalizedPoolType === 'weapon' && stats.gifts
         ? stats.sixStarCount + (stats.gifts.limitedCount || 0)
         : stats.sixStarCount,
-      '6_std': simulator.poolType === 'weapon' && stats.gifts
+      '6_std': normalizedPoolType === 'weapon' && stats.gifts
         ? (stats.gifts.standardCount || 0)
         : 0,
       5: stats.fiveStarCount,
@@ -86,7 +89,7 @@ export function buildDashboardStats(stats, pityInfo, simulator) {
         count: item.pityWhenPulled || 1
       })),
       distribution: (() => {
-        const isWeapon = simulator.poolType === 'weapon';
+        const isWeapon = normalizedPoolType === 'weapon';
         const ranges = isWeapon
           ? [
               { range: '1-5', min: 1, max: 5, limited: 0, standard: 0 },
@@ -131,9 +134,9 @@ export function buildDashboardStats(stats, pityInfo, simulator) {
         }));
       })()
     },
-    probabilityInfo: calculateCurrentProbability(pityInfo.sixStar.current, simulator.poolType),
+    probabilityInfo: calculateCurrentProbability(pityInfo.sixStar.current, normalizedPoolType),
     hasInfoBook: stats.hasReceivedInfoBook,
-    pullsUntilInfoBook: simulator.poolType === 'limited' && !stats.hasReceivedInfoBook
+    pullsUntilInfoBook: normalizedPoolType === 'limited' && !stats.hasReceivedInfoBook
       ? Math.max(0, 60 - stats.totalPulls)
       : 0,
     freeTenPulls: {
@@ -145,7 +148,9 @@ export function buildDashboardStats(stats, pityInfo, simulator) {
 }
 
 export function buildPityInfoWithGuarantee(stats, simulator) {
-  if (simulator.poolType === 'limited') {
+  const normalizedPoolType = normalizeSimulatorPoolType(simulator.poolType);
+
+  if (normalizedPoolType === 'limited') {
     let cumulativePulls = 0;
     let hasReceivedLimitedInFirst120 = false;
 
@@ -172,7 +177,7 @@ export function buildPityInfoWithGuarantee(stats, simulator) {
     };
   }
 
-  if (simulator.poolType === 'weapon') {
+  if (normalizedPoolType === 'weapon') {
     let cumulativePulls = 0;
     let hasReceivedLimitedInFirst80 = false;
 

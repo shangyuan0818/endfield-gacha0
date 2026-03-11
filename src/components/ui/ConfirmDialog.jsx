@@ -12,7 +12,8 @@ const ConfirmDialog = React.memo(({
   cancelText,
   onConfirm,
   onCancel,
-  type = 'warning'
+  type = 'warning',
+  children
 }) => {
   if (!isOpen) return null;
 
@@ -42,6 +43,7 @@ const ConfirmDialog = React.memo(({
           </div>
           <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">{title}</h3>
           <p className="text-sm text-slate-500 dark:text-zinc-500 whitespace-pre-wrap">{message}</p>
+          {children}
         </div>
         <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-center">
           <button

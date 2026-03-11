@@ -1,8 +1,9 @@
 import React from 'react';
 import { X, Star, Share2, Download, User } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
+import { calculateArsenalQuotaRewardForRarity, RESOURCE_ICON_URLS } from '../../utils/resourceEconomy';
 
-const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index }) => {
+const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index, poolType }) => {
   // 延迟动画
   const delay = `${index * 100}ms`;
 
@@ -43,6 +44,7 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index 
   // 获取角色头像
   const charData = characterName ? characterCache.searchByName(characterName, false) : null;
   const avatarUrl = charData?.avatar_url;
+  const arsenalReward = poolType !== 'weapon' ? calculateArsenalQuotaRewardForRarity(rarity) : 0;
 
   return (
     <div
@@ -90,11 +92,23 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index 
       <div className="mt-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider bg-black/20 px-1.5 py-0.5 rounded text-white/80">
         {isUp ? 'UP' : isLimited ? 'LIMITED' : isStandard ? 'STANDARD' : 'NORMAL'}
       </div>
+
+      {arsenalReward > 0 && (
+        <div className="mt-2 flex items-center gap-1.5 text-[11px] md:text-xs font-bold text-blue-600 dark:text-cyan-400 font-mono">
+          <img
+            src={RESOURCE_ICON_URLS.arsenalQuota}
+            alt="武库配额"
+            className="w-5 h-5 object-contain"
+            loading="lazy"
+          />
+          <span>+{arsenalReward.toLocaleString()}</span>
+        </div>
+      )}
     </div>
   );
 };
 
-const SimulatorResults = ({ results, onClose }) => {
+const SimulatorResults = ({ results, onClose, poolType }) => {
   // 统计本次结果
   const sixStars = results.filter(r => r.rarity === 6).length;
   const fiveStars = results.filter(r => r.rarity === 5).length;
@@ -131,6 +145,7 @@ const SimulatorResults = ({ results, onClose }) => {
              <RarityCard
                {...result}
                index={index}
+               poolType={poolType}
              />
            </div>
         ))}

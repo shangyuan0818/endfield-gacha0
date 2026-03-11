@@ -4,17 +4,77 @@
  * 管理模拟器状态的浏览器存储和导出
  */
 
+import { DEFAULT_SIMULATOR_RESOURCE_SETTINGS, normalizeResourceSettings } from './resourceEconomy.js';
+
 const STORAGE_KEY = 'gacha_simulator_state';
 const SHARED_PITY_KEY = 'gacha_simulator_shared_pity'; // 限定池共享保底
 const INFO_BOOK_KEY = 'gacha_simulator_info_book'; // 情报书状态（全局）
+const RESOURCE_SETTINGS_KEY = 'gacha_simulator_resource_settings';
+const CURRENT_POOL_KEY = 'simulator_currentPoolId';
+const LEGACY_SCOPE_MIGRATION_KEY = 'gacha_simulator_scope_migrated_v2';
 const STORAGE_VERSION = '1.0';
+
+function normalizeScopePart(value, fallback) {
+  const normalizedValue = value === null || value === undefined || value === '' ? fallback : String(value);
+  return encodeURIComponent(normalizedValue);
+}
+
+function getScopedStorageKey(baseKey, scope) {
+  return scope ? `${baseKey}__${scope}` : baseKey;
+}
+
+export function buildSimulatorStorageScope({ currentUserId = null, currentGameUid = null } = {}) {
+  const userPart = normalizeScopePart(currentUserId, 'guest');
+  const gamePart = normalizeScopePart(currentGameUid, 'all');
+  return `u:${userPart}|g:${gamePart}`;
+}
+
+export function getSimulatorCurrentPoolStorageKey(scope = null) {
+  return getScopedStorageKey(CURRENT_POOL_KEY, scope);
+}
+
+export function migrateLegacySimulatorStorageToScope({
+  scope = null,
+  poolIds = []
+} = {}) {
+  if (!scope || localStorage.getItem(LEGACY_SCOPE_MIGRATION_KEY) === '1') {
+    return false;
+  }
+
+  let migrated = false;
+
+  const migrateKey = (legacyKey, scopedKey) => {
+    const legacyValue = localStorage.getItem(legacyKey);
+    if (!legacyValue || localStorage.getItem(scopedKey)) {
+      return;
+    }
+
+    localStorage.setItem(scopedKey, legacyValue);
+    migrated = true;
+  };
+
+  poolIds.forEach((poolId) => {
+    migrateKey(`${STORAGE_KEY}_${poolId}`, getScopedStorageKey(`${STORAGE_KEY}_${poolId}`, scope));
+  });
+
+  migrateKey(SHARED_PITY_KEY, getScopedStorageKey(SHARED_PITY_KEY, scope));
+  migrateKey(INFO_BOOK_KEY, getScopedStorageKey(INFO_BOOK_KEY, scope));
+  migrateKey(RESOURCE_SETTINGS_KEY, getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope));
+  migrateKey(CURRENT_POOL_KEY, getScopedStorageKey(CURRENT_POOL_KEY, scope));
+
+  if (migrated) {
+    localStorage.setItem(LEGACY_SCOPE_MIGRATION_KEY, '1');
+  }
+
+  return migrated;
+}
 
 /**
  * 保存模拟器状态到 localStorage
  * @param {string} poolType - 卡池类型
  * @param {Object} state - 模拟器状态
  */
-export function saveSimulatorState(poolType, state) {
+export function saveSimulatorState(poolType, state, scope = null) {
   try {
     const storageData = {
       version: STORAGE_VERSION,
@@ -22,7 +82,7 @@ export function saveSimulatorState(poolType, state) {
       poolType,
       state
     };
-    localStorage.setItem(`${STORAGE_KEY}_${poolType}`, JSON.stringify(storageData));
+    localStorage.setItem(getScopedStorageKey(`${STORAGE_KEY}_${poolType}`, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
     console.error('保存模拟器状态失败:', error);
@@ -35,9 +95,9 @@ export function saveSimulatorState(poolType, state) {
  * @param {string} poolType - 卡池类型
  * @returns {Object|null} 模拟器状态或null
  */
-export function loadSimulatorState(poolType) {
+export function loadSimulatorState(poolType, scope = null) {
   try {
-    const data = localStorage.getItem(`${STORAGE_KEY}_${poolType}`);
+    const data = localStorage.getItem(getScopedStorageKey(`${STORAGE_KEY}_${poolType}`, scope));
     if (!data) return null;
 
     const storageData = JSON.parse(data);
@@ -45,7 +105,7 @@ export function loadSimulatorState(poolType) {
     // 版本检查
     if (storageData.version !== STORAGE_VERSION) {
       console.warn('存储版本不匹配，清除旧数据');
-      clearSimulatorState(poolType);
+      clearSimulatorState(poolType, scope);
       return null;
     }
 
@@ -60,9 +120,9 @@ export function loadSimulatorState(poolType) {
  * 清除指定卡池的存储数据
  * @param {string} poolType - 卡池类型
  */
-export function clearSimulatorState(poolType) {
+export function clearSimulatorState(poolType, scope = null) {
   try {
-    localStorage.removeItem(`${STORAGE_KEY}_${poolType}`);
+    localStorage.removeItem(getScopedStorageKey(`${STORAGE_KEY}_${poolType}`, scope));
     return true;
   } catch (error) {
     console.error('清除模拟器状态失败:', error);
@@ -73,9 +133,9 @@ export function clearSimulatorState(poolType) {
 /**
  * 清除所有卡池的存储数据
  */
-export function clearAllSimulatorStates() {
+export function clearAllSimulatorStates(scope = null) {
   const poolTypes = ['limited', 'weapon', 'standard'];
-  poolTypes.forEach(type => clearSimulatorState(type));
+  poolTypes.forEach(type => clearSimulatorState(type, scope));
 }
 
 /**
@@ -337,14 +397,14 @@ export async function copyToClipboard(text) {
  * 保存限定池共享保底状态
  * @param {Object} pityState - 保底状态
  */
-export function saveSharedPityState(pityState) {
+export function saveSharedPityState(pityState, scope = null) {
   try {
     const storageData = {
       version: STORAGE_VERSION,
       timestamp: Date.now(),
       pityState
     };
-    localStorage.setItem(SHARED_PITY_KEY, JSON.stringify(storageData));
+    localStorage.setItem(getScopedStorageKey(SHARED_PITY_KEY, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
     console.error('保存共享保底状态失败:', error);
@@ -356,9 +416,9 @@ export function saveSharedPityState(pityState) {
  * 加载限定池共享保底状态
  * @returns {Object|null} 保底状态或null
  */
-export function loadSharedPityState() {
+export function loadSharedPityState(scope = null) {
   try {
-    const data = localStorage.getItem(SHARED_PITY_KEY);
+    const data = localStorage.getItem(getScopedStorageKey(SHARED_PITY_KEY, scope));
     if (!data) return null;
 
     const storageData = JSON.parse(data);
@@ -366,7 +426,7 @@ export function loadSharedPityState() {
     // 版本检查
     if (storageData.version !== STORAGE_VERSION) {
       console.warn('共享保底版本不匹配，清除旧数据');
-      clearSharedPityState();
+      clearSharedPityState(scope);
       return null;
     }
 
@@ -380,9 +440,9 @@ export function loadSharedPityState() {
 /**
  * 清除限定池共享保底状态
  */
-export function clearSharedPityState() {
+export function clearSharedPityState(scope = null) {
   try {
-    localStorage.removeItem(SHARED_PITY_KEY);
+    localStorage.removeItem(getScopedStorageKey(SHARED_PITY_KEY, scope));
     return true;
   } catch (error) {
     console.error('清除共享保底状态失败:', error);
@@ -394,14 +454,14 @@ export function clearSharedPityState() {
  * 保存情报书状态（全局，使用映射表）
  * @param {Object} infoBooks - 情报书映射表 { [poolId]: { activated, used, targetPoolId, obtainedAt } }
  */
-export function saveInfoBookState(infoBooks) {
+export function saveInfoBookState(infoBooks, scope = null) {
   try {
     const storageData = {
       version: '2.0',
       timestamp: Date.now(),
       infoBooks
     };
-    localStorage.setItem(INFO_BOOK_KEY, JSON.stringify(storageData));
+    localStorage.setItem(getScopedStorageKey(INFO_BOOK_KEY, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
     console.error('保存情报书状态失败:', error);
@@ -413,9 +473,9 @@ export function saveInfoBookState(infoBooks) {
  * 加载情报书状态（全局）
  * @returns {Object} 情报书映射表或空对象
  */
-export function loadInfoBookState() {
+export function loadInfoBookState(scope = null) {
   try {
-    const data = localStorage.getItem(INFO_BOOK_KEY);
+    const data = localStorage.getItem(getScopedStorageKey(INFO_BOOK_KEY, scope));
     if (!data) return {};
 
     const storageData = JSON.parse(data);
@@ -427,7 +487,7 @@ export function loadInfoBookState() {
 
     // 旧版本数据，清除
     console.warn('情报书状态版本不匹配，清除旧数据');
-    clearInfoBookState();
+    clearInfoBookState(scope);
     return {};
   } catch (error) {
     console.error('加载情报书状态失败:', error);
@@ -438,9 +498,9 @@ export function loadInfoBookState() {
 /**
  * 清除情报书状态
  */
-export function clearInfoBookState() {
+export function clearInfoBookState(scope = null) {
   try {
-    localStorage.removeItem(INFO_BOOK_KEY);
+    localStorage.removeItem(getScopedStorageKey(INFO_BOOK_KEY, scope));
     return true;
   } catch (error) {
     console.error('清除情报书状态失败:', error);
@@ -448,7 +508,66 @@ export function clearInfoBookState() {
   }
 }
 
+/**
+ * 保存模拟器资源设置（全局）
+ * @param {Object} settings - 资源设置
+ */
+export function saveSimulatorResourceSettings(settings, scope = null) {
+  try {
+    const storageData = {
+      version: STORAGE_VERSION,
+      timestamp: Date.now(),
+      settings: normalizeResourceSettings(settings)
+    };
+    localStorage.setItem(getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope), JSON.stringify(storageData));
+    return true;
+  } catch (error) {
+    console.error('保存模拟器资源设置失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 加载模拟器资源设置（全局）
+ * @returns {Object} 资源设置
+ */
+export function loadSimulatorResourceSettings(scope = null) {
+  try {
+    const data = localStorage.getItem(getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope));
+    if (!data) {
+      return { ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS };
+    }
+
+    const storageData = JSON.parse(data);
+    if (storageData.version !== STORAGE_VERSION) {
+      clearSimulatorResourceSettings(scope);
+      return { ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS };
+    }
+
+    return normalizeResourceSettings(storageData.settings);
+  } catch (error) {
+    console.error('加载模拟器资源设置失败:', error);
+    return { ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS };
+  }
+}
+
+/**
+ * 清除模拟器资源设置
+ */
+export function clearSimulatorResourceSettings(scope = null) {
+  try {
+    localStorage.removeItem(getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope));
+    return true;
+  } catch (error) {
+    console.error('清除模拟器资源设置失败:', error);
+    return false;
+  }
+}
+
 export default {
+  buildSimulatorStorageScope,
+  getSimulatorCurrentPoolStorageKey,
+  migrateLegacySimulatorStorageToScope,
   saveSimulatorState,
   loadSimulatorState,
   clearSimulatorState,
@@ -459,6 +578,9 @@ export default {
   saveInfoBookState,
   loadInfoBookState,
   clearInfoBookState,
+  saveSimulatorResourceSettings,
+  loadSimulatorResourceSettings,
+  clearSimulatorResourceSettings,
   convertSimulatorHistoryToImportFormat,
   exportSimulatorDataAsJSON,
   exportSimulatorDataAsCSV,
