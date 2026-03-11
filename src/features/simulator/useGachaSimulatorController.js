@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSimulator } from '../../utils/gachaSimulator';
 import { getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
+import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import { loadVisiblePools } from '../../services/poolReadService';
 import { supabase } from '../../supabaseClient';
 import {
   buildSimulatorStorageScope,
   getSimulatorCurrentPoolStorageKey,
   migrateLegacySimulatorStorageToScope,
+  clearSimulatorResourceSettings,
   clearInfoBookState,
   clearSharedPityState,
   clearSimulatorState,
@@ -72,6 +74,7 @@ function normalizeStoredPoolId(value) {
 export function useGachaSimulatorController() {
   const currentUserId = useAuthStore((state) => state.user?.id || null);
   const history = useHistoryStore((state) => state.history);
+  const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const storePools = usePoolStore((state) => state.pools);
   const currentGameUid = usePoolStore((state) => state.currentGameUid);
   const switchGameAccount = usePoolStore((state) => state.switchGameAccount);
@@ -95,9 +98,15 @@ export function useGachaSimulatorController() {
 
     const loadPublicPools = async () => {
       try {
-        const visiblePools = await loadVisiblePools();
-        if (!cancelled && visiblePools.length > 0) {
-          setPublicPools(visiblePools);
+        const bootstrapPools = await getBootstrapVisiblePools();
+        if (!cancelled && Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+          setPublicPools(bootstrapPools);
+          return;
+        }
+
+        const fallbackPools = await loadVisiblePools();
+        if (!cancelled && Array.isArray(fallbackPools) && fallbackPools.length > 0) {
+          setPublicPools(fallbackPools);
         }
       } catch (error) {
         console.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);
@@ -135,6 +144,7 @@ export function useGachaSimulatorController() {
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => getCurrentUpPool().name);
   const [resourceSettings, setResourceSettings] = useState(() => loadSimulatorResourceSettings(simulatorStorageScope));
+  const [currentSimulatorState, setCurrentSimulatorState] = useState(() => simulator.getState());
 
   const simulatorPools = useMemo(() => {
     const poolsArray = Array.isArray(realPools) ? realPools : [];
@@ -182,6 +192,7 @@ export function useGachaSimulatorController() {
       setResourceSettings(nextResourceSettings);
       setCurrentSimPoolId(nextPoolId);
       setSimulator(nextSimulator);
+      setCurrentSimulatorState(nextSimulator.getState());
       setStats(nextSimulator.getStatistics());
       setPityInfo(nextSimulator.getPityInfo());
       setPullHistory([]);
@@ -208,7 +219,7 @@ export function useGachaSimulatorController() {
     if (pool.id === currentSimPoolId && simulator) {
       return {
         poolType: pool.type,
-        ...simulator.exportState()
+        ...(currentSimulatorState || simulator.exportState())
       };
     }
 
@@ -216,7 +227,7 @@ export function useGachaSimulatorController() {
       poolType: pool.type,
       pullHistory: []
     };
-  }), [currentSimPoolId, simulator, simulatorPools, simulatorStorageScope]);
+  }), [currentSimPoolId, currentSimulatorState, simulator, simulatorPools, simulatorStorageScope]);
   const poolPullCounts = useMemo(() => simulatorPools.reduce((accumulator, pool, index) => {
     accumulator[pool.id] = allSimulatorStates[index]?.pullHistory?.length || 0;
     return accumulator;
@@ -449,6 +460,7 @@ export function useGachaSimulatorController() {
       queueMicrotask(() => {
         setCurrentSimPoolId(targetPoolId);
         setSimulator(nextSimulator);
+        setCurrentSimulatorState(nextSimulator.getState());
         setStats(nextSimulator.getStatistics());
         setPityInfo(nextSimulator.getPityInfo());
         if (normalizeSimulatorPoolType(targetPool.type) === 'limited') {
@@ -464,13 +476,14 @@ export function useGachaSimulatorController() {
 
   useEffect(() => {
     const updateUI = () => {
+      const state = simulator.getState();
+      setCurrentSimulatorState(state);
       setStats(simulator.getStatistics());
       setPityInfo(simulator.getPityInfo());
-      setPullHistory(simulator.getState().pullHistory || []);
+      setPullHistory(state.pullHistory || []);
 
       if (normalizeSimulatorPoolType(simulator.poolType) === 'limited') {
         const nextStats = simulator.getStatistics();
-        const state = simulator.getState();
         const earnedFreePulls = nextStats.freeTenPulls?.count || 0;
         const usedFreePulls = state.freeTenPullsReceived || 0;
         const maxFreePulls = multipleFreeTen ? earnedFreePulls : Math.min(earnedFreePulls, 1);
@@ -517,7 +530,9 @@ export function useGachaSimulatorController() {
 
         saveSharedPityState({
           sixStarPity: state.sixStarPity,
-          fiveStarPity: state.fiveStarPity
+          fiveStarPity: state.fiveStarPity,
+          guaranteedLimitedPity: state.guaranteedLimitedPity,
+          hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
         }, simulatorStorageScope);
       } else {
         setAvailableFreePulls(0);
@@ -760,8 +775,12 @@ export function useGachaSimulatorController() {
       return;
     }
 
-    const selectedGameUid = selectedAccount?.gameUid || selectedAccount?.game_uid || null;
-    const selectedAccountName = selectedAccount?.nickName || selectedAccount?.nick_name || selectedGameUid;
+    const availableAccounts = getGameAccountsFromHistory();
+    const resolvedAccount = selectedAccount
+      || (currentGameUid ? availableAccounts.find((account) => account.gameUid === currentGameUid) : null)
+      || (availableAccounts.length === 1 ? availableAccounts[0] : null);
+    const selectedGameUid = resolvedAccount?.gameUid || resolvedAccount?.game_uid || null;
+    const selectedAccountName = resolvedAccount?.nickName || resolvedAccount?.nick_name || selectedGameUid;
 
     if (!selectedGameUid) {
       showToastMessage('请选择一个具体账号后再继承');
@@ -833,6 +852,7 @@ export function useGachaSimulatorController() {
     setExpandedTenPulls(new Set());
     setLastResults(null);
     setSimulator(nextSimulator);
+    setCurrentSimulatorState(nextSimulator.getState());
     setStats(nextSimulator.getStatistics());
     setPityInfo(nextSimulator.getPityInfo());
     setPullHistory(nextSimulator.getState().pullHistory || []);
@@ -842,6 +862,7 @@ export function useGachaSimulatorController() {
     currentSimPool,
     currentSimPoolId,
     currentUserId,
+    getGameAccountsFromHistory,
     history,
     poolCharactersList,
     realPools,
@@ -882,7 +903,12 @@ export function useGachaSimulatorController() {
     }
 
     simulator.reset();
+    setCurrentSimulatorState(simulator.getState());
+    setPullHistory([]);
+    setAvailableFreePulls(0);
+    setInfoBookTenPullAvailable(false);
     setLastResults(null);
+    clearSimulatorResourceSettings(simulatorStorageScope);
     setResourceSettings((current) => normalizeResourceSettings({
       ...current,
       baseJade: 0,
@@ -917,7 +943,9 @@ export function useGachaSimulatorController() {
       const state = simulator.getState();
       saveSharedPityState({
         sixStarPity: state.sixStarPity,
-        fiveStarPity: state.fiveStarPity
+        fiveStarPity: state.fiveStarPity,
+        guaranteedLimitedPity: state.guaranteedLimitedPity,
+        hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
       }, simulatorStorageScope);
     }
 
@@ -980,6 +1008,7 @@ export function useGachaSimulatorController() {
 
     setCurrentSimPoolId(poolId);
     setSimulator(nextSimulator);
+    setCurrentSimulatorState(nextSimulator.getState());
     setLastResults(null);
     setStats(nextSimulator.getStatistics());
     setPityInfo(nextSimulator.getPityInfo());

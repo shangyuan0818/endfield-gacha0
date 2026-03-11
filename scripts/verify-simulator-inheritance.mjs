@@ -84,6 +84,7 @@ assert.equal(inheritedLimited.freeTenPullsReceived, 1, 'limited pool should mark
 assert.equal(inheritedLimited.hasReceivedInfoBook, false, 'current limited pool should not fake info-book ownership from previous pool');
 assert.equal(inheritedLimited.sixStarPity, 95, 'limited pool should inherit cross-pool six-star pity');
 assert.equal(inheritedLimited.guaranteedLimitedPity, 95, 'limited pool should inherit cross-pool hard pity counter');
+assert.equal(inheritedLimited.hasReceivedGuaranteedLimited, false, 'limited pool should preserve whether hard pity has been consumed');
 assert.equal(inheritedLimited.pullHistory.length, 35, 'limited pool history should exclude free pulls and gifts');
 assert.equal(inheritedLimited.infoBookTenPullAvailable, true, 'current target limited pool should activate inherited info book');
 
@@ -105,6 +106,7 @@ assert.ok(inheritedWeapon, 'weapon pool should be inheritable');
 assert.equal(inheritedWeapon.totalPulls, 12, 'weapon pool total pulls should only include current pool paid pulls');
 assert.equal(inheritedWeapon.sixStarPity, 12, 'weapon pool should not inherit cross-pool six-star pity');
 assert.equal(inheritedWeapon.guaranteedLimitedPity, 12, 'weapon pool hard pity counter should stay on current pool');
+assert.equal(inheritedWeapon.hasReceivedGuaranteedLimited, false, 'weapon pool should preserve whether hard pity has been consumed');
 assert.equal(inheritedWeapon.pullHistory.length, 12, 'weapon pool history should exclude free pulls');
 
 const inheritedSnapshot = buildInheritedSimulatorSnapshot({
@@ -121,7 +123,9 @@ assert.ok(inheritedSnapshot.statesByPoolId.sim_limited_b, 'snapshot should inclu
 assert.ok(inheritedSnapshot.statesByPoolId.sim_weapon_a, 'snapshot should include current weapon pool');
 assert.deepEqual(inheritedSnapshot.sharedPityState, {
   sixStarPity: 95,
-  fiveStarPity: 95
+  fiveStarPity: 95,
+  guaranteedLimitedPity: 95,
+  hasReceivedGuaranteedLimited: false
 }, 'snapshot should expose shared limited pity state');
 assert.deepEqual(inheritedSnapshot.infoBooks.sim_limited_a, {
   activated: true,
@@ -174,6 +178,22 @@ const noHistory = buildInheritedSimulatorState({
 });
 
 assert.equal(noHistory, null, 'empty history should not produce inherited state');
+
+const guaranteedLimitedHistory = [
+  ...Array.from({ length: 119 }, (_, index) => makePull('limited_b', 600 + index + 1)),
+  makePull('limited_b', 800, { rarity: 6, isLimited: true, character_name: 'B' })
+];
+
+const guaranteedLimitedState = buildInheritedSimulatorState({
+  history: guaranteedLimitedHistory,
+  realPools: pools,
+  currentSimPool: { id: 'sim_limited_b', type: 'limited', up_character: 'B' },
+  currentGameUid: 'uid-1',
+  currentUserId: 'user-1'
+});
+
+assert.equal(guaranteedLimitedState.guaranteedLimitedPity, 0, 'hard pity counter should reset after hitting the guaranteed limited threshold');
+assert.equal(guaranteedLimitedState.hasReceivedGuaranteedLimited, true, 'inherited limited state should remember that the one-time hard pity has been consumed');
 
 const scopeA = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-1' });
 const scopeB = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-2' });

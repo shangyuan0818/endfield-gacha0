@@ -53,13 +53,23 @@ async function verifySimulatorPage(page, baseUrl) {
   await page.waitForFunction(() => document.body.textContent.includes('累计资源'), null, {
     timeout: 20000,
   });
-  await page.getByRole('button', { name: /继承当前账号/ }).waitFor({
+  await page.getByRole('button', { name: /继承账号/ }).waitFor({
     state: 'visible',
     timeout: 10000,
   });
   await page.getByTitle('增加嵌晶玉').waitFor({
     state: 'visible',
     timeout: 10000,
+  });
+  await page.getByRole('button', { name: /十连寻访/ }).waitFor({
+    state: 'visible',
+    timeout: 20000,
+  });
+  await page.waitForFunction(() => {
+    const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent?.includes('十连寻访'));
+    return Boolean(button) && !button.disabled;
+  }, null, {
+    timeout: 20000,
   });
 
   const bodyText = await page.locator('body').innerText();
@@ -98,6 +108,19 @@ async function verifySimulatorPage(page, baseUrl) {
   await page.waitForFunction(() => document.body.textContent.includes('寻访结果'), null, {
     timeout: 10000,
   });
+
+  const jadeSpentChip = page.getByText('耗玉').locator('..');
+  assert((await jadeSpentChip.innerText()).includes('5,000'), '模拟器十连后累计耗玉未更新为 5,000');
+  await page.getByRole('button', { name: /^重置$/ }).click();
+  await page.getByText('重置模拟器').waitFor({ state: 'visible', timeout: 5000 });
+  await page.getByRole('button', { name: '确认重置' }).click();
+  await page.waitForFunction(() => {
+    const nodes = Array.from(document.querySelectorAll('div'));
+    return nodes.some((node) => node.textContent?.includes('耗玉') && node.textContent?.includes('0'));
+  }, null, {
+    timeout: 10000,
+  });
+  assert((await jadeSpentChip.innerText()).includes('0'), '模拟器重置后累计耗玉未归零');
 
   const appErrors = consoleErrors.filter((entry) => !entry.includes('favicon.ico'));
   assert(appErrors.length === 0, `模拟器页面控制台存在错误: ${appErrors.join(' | ')}`);

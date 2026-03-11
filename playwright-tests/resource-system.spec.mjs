@@ -46,9 +46,8 @@ test('simulator renders current resources, compact ledger, and persisted resourc
   await page.goto(`${baseUrl}/simulator`, { waitUntil: 'domcontentloaded' });
 
   await expect(page.getByText('累计资源')).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText('继承当前账号')).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText('继承账号')).toBeVisible({ timeout: 10000 });
   await expect(page.getByTitle('增加嵌晶玉')).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText('当前UP').first()).toBeVisible({ timeout: 10000 });
   const adjustJadeButton = page.locator('button[title*="修改嵌晶玉"]');
   await expect(adjustJadeButton).toBeVisible({ timeout: 10000 });
 
@@ -97,6 +96,30 @@ test('simulator prompts for originite conversion before a ten-pull when jade is 
   await expect(page.getByText('今日访问不再提示')).toBeVisible({ timeout: 5000 });
   await page.getByRole('button', { name: '继续寻访' }).click();
   await expect(page.getByText('寻访结果')).toBeVisible({ timeout: 10000 });
+});
+
+test('simulator reset clears the cumulative resource ledger for the cleared pools', async ({ page }) => {
+  await bypassCaptcha(page);
+  await page.goto(`${baseUrl}/simulator`, { waitUntil: 'domcontentloaded' });
+
+  const adjustJadeButton = page.locator('button[title*="修改嵌晶玉"]');
+  await expect(adjustJadeButton).toBeVisible({ timeout: 10000 });
+  await adjustJadeButton.click();
+  await page.locator('input[type="number"]').fill('5000');
+  await page.getByRole('button', { name: /^设为$/ }).click();
+
+  const jadeSpentChip = page.getByText('耗玉').locator('..');
+  await expect(jadeSpentChip).toContainText('0', { timeout: 10000 });
+
+  await expect(page.getByRole('button', { name: /十连寻访/ })).toBeEnabled({ timeout: 20000 });
+  await page.getByRole('button', { name: /十连寻访/ }).click();
+  await expect(page.getByText('寻访结果')).toBeVisible({ timeout: 10000 });
+  await expect(jadeSpentChip).toContainText('5,000', { timeout: 10000 });
+
+  await page.getByRole('button', { name: /^重置$/ }).click();
+  await expect(page.getByText('重置模拟器')).toBeVisible({ timeout: 5000 });
+  await page.getByRole('button', { name: '确认重置' }).click();
+  await expect(jadeSpentChip).toContainText('0', { timeout: 10000 });
 });
 
 test('simulator reloads account-scoped resource settings when current game uid changes', async ({ page }) => {
