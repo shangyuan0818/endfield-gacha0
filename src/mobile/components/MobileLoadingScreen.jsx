@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import MinecraftCaptcha from '../../components/MinecraftCaptcha';
-import TerminalCaptcha from '../../components/TerminalCaptcha';
-import { Settings } from 'lucide-react';
+import OracleCaptchaHub from '../../components/captcha/OracleCaptchaHub';
 
 // 验证码有效期：24小时（毫秒）- 与桌面端共享
 const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
@@ -24,17 +22,6 @@ const MobileLoadingScreen = ({ onComplete }) => {
     const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
     return timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION;
   });
-
-  // 验证码模式: 'minecraft' | 'terminal'
-  // 移动端默认使用 terminal 模式（更适合触屏）
-  const [captchaMode, setCaptchaMode] = useState(() => localStorage.getItem('captchaModePreference') || 'terminal');
-
-  // 切换验证码模式
-  const toggleCaptchaMode = () => {
-    const newMode = captchaMode === 'minecraft' ? 'terminal' : 'minecraft';
-    setCaptchaMode(newMode);
-    localStorage.setItem('captchaModePreference', newMode);
-  };
 
   // 阶段1: 进度条加载
   useEffect(() => {
@@ -152,46 +139,9 @@ const MobileLoadingScreen = ({ onComplete }) => {
 
       {/* 阶段2: 验证码 */}
       {stage === 'captcha' && (
-        <div className="relative z-10 flex flex-col items-center animate-fadeIn w-full max-w-md px-4">
-          {/* 标题 */}
-          <div className="text-endfield-yellow text-xl mb-4 tracking-widest font-mono text-center">
-            [ ORACLE 身份验证 ]
-          </div>
-          <div className="text-gray-400 text-xs mb-4 text-center">
-            ENDFIELD SECURITY PROTOCOL v2.2.2
-          </div>
-
-          {/* 验证码容器 - 移动端缩放 */}
-          <div className="transform scale-90 origin-top w-full flex flex-col items-center">
-            {captchaMode === 'minecraft' ? (
-              <MinecraftCaptcha onVerified={handleCaptchaVerified} />
-            ) : (
-              <TerminalCaptcha onVerified={handleCaptchaVerified} />
-            )}
-          </div>
-
-          {/* 切换按钮 */}
-          <button
-            onClick={toggleCaptchaMode}
-            className="mt-4 flex items-center gap-2 text-xs text-zinc-500 hover:text-endfield-yellow transition-colors border border-zinc-800 hover:border-endfield-yellow/50 px-3 py-1.5 bg-black/50 touch-feedback"
-          >
-            <Settings size={12} />
-            <span>切换验证: {captchaMode === 'minecraft' ? '终端指令' : 'MC合成'}</span>
-          </button>
-
-          {/* 提示文本 */}
-          <div className="text-gray-500 text-xs mt-3 text-center max-w-xs px-4">
-            {captchaMode === 'minecraft' ? (
-              <>
-                提示：合成末影之眼需要两步操作<br/>
-                <span className="text-endfield-yellow/70">完成验证后将自动进入系统</span>
-              </>
-            ) : (
-              <>
-                提示：请输入屏幕上显示的终端指令代码<br/>
-                <span className="text-endfield-yellow/70">输入正确后按回车进入系统</span>
-              </>
-            )}
+        <div className="relative z-10 flex w-full animate-fadeIn px-4">
+          <div className="w-full">
+            <OracleCaptchaHub isMobile onVerified={handleCaptchaVerified} />
           </div>
         </div>
       )}
