@@ -24,36 +24,41 @@ async function buildProxyFetchError(response) {
   return new Error(`HTTP ${response.status}: ${response.statusText}`);
 }
 
-/**
- * 从代理获取干员数据
- * @returns {Promise<Array>} 干员原始数据数组
- */
-export async function fetchOperators() {
-  const response = await fetch('/api/wiki-proxy?type=operators');
+async function fetchProxyData(type, label) {
+  const response = await fetch(`/api/wiki-proxy?type=${type}`);
   if (!response.ok) {
     throw await buildProxyFetchError(response);
   }
+
   const result = await response.json();
   if (!result.success) {
-    throw new Error(result.error || '获取干员数据失败');
+    throw new Error(result.error || `获取 ${label} 数据失败`);
   }
-  return result.data;
+
+  return {
+    data: Array.isArray(result.data) ? result.data : [],
+    cached: Boolean(result.cached),
+    stale: Boolean(result.stale),
+    warning: typeof result.warning === 'string' && result.warning.trim()
+      ? result.warning.trim()
+      : null,
+  };
+}
+
+/**
+ * 从代理获取干员数据
+ * @returns {Promise<{data: Array, cached: boolean, stale: boolean, warning: string|null}>}
+ */
+export async function fetchOperators() {
+  return fetchProxyData('operators', '干员');
 }
 
 /**
  * 从代理获取武器数据
- * @returns {Promise<Array>} 武器原始数据数组
+ * @returns {Promise<{data: Array, cached: boolean, stale: boolean, warning: string|null}>}
  */
 export async function fetchWeapons() {
-  const response = await fetch('/api/wiki-proxy?type=weapons');
-  if (!response.ok) {
-    throw await buildProxyFetchError(response);
-  }
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || '获取武器数据失败');
-  }
-  return result.data;
+  return fetchProxyData('weapons', '武器');
 }
 
 /**
@@ -124,13 +129,19 @@ export function buildWeaponData(rawWeapons) {
 export async function syncAllCharacters(onProgress = null) {
   try {
     if (onProgress) onProgress(0, 2, '获取干员数据...');
-    const rawOperators = await fetchOperators();
+    const operatorResult = await fetchOperators();
 
     if (onProgress) onProgress(1, 2, '处理数据...');
-    const characters = buildCharacterData(rawOperators);
+    const characters = buildCharacterData(operatorResult.data);
 
     if (onProgress) onProgress(2, 2, '完成');
-    return { characters, total: characters.length };
+    return {
+      characters,
+      total: characters.length,
+      cached: operatorResult.cached,
+      stale: operatorResult.stale,
+      warning: operatorResult.warning
+    };
   } catch (error) {
     console.error('同步角色数据失败:', error);
     throw error;
@@ -145,13 +156,19 @@ export async function syncAllCharacters(onProgress = null) {
 export async function syncAllWeapons(onProgress = null) {
   try {
     if (onProgress) onProgress(0, 2, '获取武器数据...');
-    const rawWeapons = await fetchWeapons();
+    const weaponResult = await fetchWeapons();
 
     if (onProgress) onProgress(1, 2, '处理数据...');
-    const weapons = buildWeaponData(rawWeapons);
+    const weapons = buildWeaponData(weaponResult.data);
 
     if (onProgress) onProgress(2, 2, '完成');
-    return { weapons, total: weapons.length };
+    return {
+      weapons,
+      total: weapons.length,
+      cached: weaponResult.cached,
+      stale: weaponResult.stale,
+      warning: weaponResult.warning
+    };
   } catch (error) {
     console.error('同步武器数据失败:', error);
     throw error;
@@ -166,16 +183,16 @@ export async function syncAllWeapons(onProgress = null) {
 export async function syncAll(onProgress = null) {
   try {
     if (onProgress) onProgress(0, 4, '获取数据...');
-    const [rawOperators, rawWeapons] = await Promise.all([
+    const [operatorResult, weaponResult] = await Promise.all([
       fetchOperators(),
       fetchWeapons(),
     ]);
 
     if (onProgress) onProgress(1, 4, '处理角色数据...');
-    const characters = buildCharacterData(rawOperators);
+    const characters = buildCharacterData(operatorResult.data);
 
     if (onProgress) onProgress(2, 4, '处理武器数据...');
-    const weapons = buildWeaponData(rawWeapons);
+    const weapons = buildWeaponData(weaponResult.data);
 
     if (onProgress) onProgress(4, 4, '完成');
 
@@ -184,6 +201,7 @@ export async function syncAll(onProgress = null) {
       weapons,
       characterCount: characters.length,
       weaponCount: weapons.length,
+      warnings: [operatorResult.warning, weaponResult.warning].filter(Boolean),
     };
   } catch (error) {
     console.error('同步数据失败:', error);

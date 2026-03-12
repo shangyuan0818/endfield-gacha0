@@ -144,15 +144,17 @@ export async function syncItemAvatar(item) {
  * 批量同步头像到 Storage
  * @param {Array} items - 角色/武器数组
  * @param {Function} onProgress - 进度回调 (current, total, name)
+ * @param {Object} options - 选项
+ * @param {boolean} options.assumeBucketReady - 调用方已确认 bucket 可用时跳过重复检查
  * @returns {Promise<Object>} { success: number, failed: number, results: Map }
  */
-export async function batchSyncAvatars(items, onProgress = null) {
+export async function batchSyncAvatars(items, onProgress = null, options = {}) {
   if (!supabase) {
     return { success: 0, failed: items.length, results: new Map() };
   }
 
   // 检查 bucket
-  const bucketReady = await ensureBucketExists();
+  const bucketReady = options.assumeBucketReady ? true : await ensureBucketExists();
   if (!bucketReady) {
     console.error('[AvatarStorage] Bucket 未就绪，请先在 Supabase 控制台创建');
     return { success: 0, failed: items.length, results: new Map() };

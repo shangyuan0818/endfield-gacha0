@@ -18,6 +18,74 @@ import {
   upsertCharacterAliases,
 } from '../../../shared/idAliasService.js';
 
+function buildSyncedPoolConfig(itemType) {
+  if (itemType === 'weapon') {
+    return {
+      pools: ['weapon'],
+      limited_rotation_count: 0,
+      removes_after: null,
+      is_active_in_limited: false
+    };
+  }
+
+  return {
+    pools: [],
+    limited_rotation_count: 0,
+    removes_after: null,
+    is_active_in_limited: false
+  };
+}
+
+function buildWikiAliasRows(canonicalId, wikiId) {
+  const rows = [...buildCharacterSelfAliasRows(canonicalId)];
+
+  if (wikiId && wikiId !== canonicalId) {
+    rows.push({
+      source: 'wiki',
+      alias_id: wikiId,
+      character_id: canonicalId,
+      is_primary: false,
+      note: 'Resolved wiki id to canonical character id'
+    });
+  }
+
+  return rows;
+}
+
+function pushUniqueWarning(warnings, message) {
+  const normalized = typeof message === 'string' ? message.trim() : '';
+  if (normalized) {
+    warnings.add(normalized);
+  }
+}
+
+function isFatalSyncSetupError(error) {
+  const message = error?.message || '';
+  return /缺少数据库迁移 077|only super_admin|permission denied/i.test(message);
+}
+
+async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
+  const { error } = await supabase.rpc('admin_sync_character_with_aliases', {
+    p_character_id: canonicalId,
+    p_insert_payload: insertPayload,
+    p_update_payload: updatePayload,
+    p_alias_rows: aliasRows
+  });
+
+  if (!error) {
+    return;
+  }
+
+  if (
+    error.code === 'PGRST202'
+    || /admin_sync_character_with_aliases/i.test(error.message || '')
+  ) {
+    throw new Error('缺少数据库迁移 077，请先执行 077_add_admin_sync_character_rpc.sql');
+  }
+
+  throw error;
+}
+
 /**
  * 加载所有角色/武器列表
  * @returns {Promise<{data: Array, error: Error|null}>}
@@ -216,38 +284,33 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
 }
 
 /**
- * 从 Warfarin Wiki 同步角色和武器数据（始终包含头像上传）
+ * 从 Warfarin Wiki 同步角色和武器数据
  * @param {Object} options - 选项
  * @param {Function} options.onProgress - 进度回调
  * @param {string[]} options.existingIds - 已存在的角色ID列表
- * @returns {Promise<{success: boolean, newCount: number, skippedCount: number, errorCount: number, avatarCount: number, error: Error|null}>}
+ * @returns {Promise<{success: boolean, newCount: number, skippedCount: number, errorCount: number, avatarCount: number, avatarFailedCount: number, warnings: string[], error: Error|null}>}
  */
 export async function syncFromAPI({ onProgress, existingIds = [] }) {
   if (!supabase) {
     return { success: false, error: new Error('数据库未连接') };
   }
 
-  // 检查 bucket
-  const bucketReady = await ensureBucketExists();
-  if (!bucketReady) {
-    return {
-      success: false,
-      error: new Error('请先在 Supabase 控制台创建名为 "avatars" 的公开存储桶，并配置上传策略')
-    };
-  }
-
   try {
+    const syncWarnings = new Set();
+
     // 1. 获取角色数据
     onProgress?.('正在获取角色数据...');
     const characterResult = await syncAllCharacters((current, total, msg) => {
       onProgress?.(`角色: ${msg}`);
     });
+    pushUniqueWarning(syncWarnings, characterResult.warning);
 
     // 2. 获取武器数据
     onProgress?.('正在获取武器数据...');
     const weaponResult = await syncAllWeapons((current, total, msg) => {
       onProgress?.(`武器: ${msg}`);
     });
+    pushUniqueWarning(syncWarnings, weaponResult.warning);
 
     // 3. 合并数据
     const allItems = [
@@ -257,16 +320,29 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
 
     // 4. 上传头像到 Storage
     let avatarUrlMap = new Map();
-    onProgress?.(`正在上传头像 (0/${allItems.length})...`);
+    let avatarFailedCount = 0;
+    const bucketReady = await ensureBucketExists();
 
-    const { results } = await batchSyncAvatars(
-      allItems,
-      (current, total, name) => {
-        onProgress?.(`上传头像: ${current}/${total} - ${name}`);
+    if (bucketReady) {
+      onProgress?.(`正在上传头像 (0/${allItems.length})...`);
+
+      const { results, failed } = await batchSyncAvatars(
+        allItems,
+        (current, total, name) => {
+          onProgress?.(`上传头像: ${current}/${total} - ${name}`);
+        },
+        { assumeBucketReady: true }
+      );
+
+      avatarUrlMap = results;
+      avatarFailedCount = failed;
+
+      if (failed > 0) {
+        pushUniqueWarning(syncWarnings, `有 ${failed} 个头像上传失败，已保留 Wiki 原始头像链接`);
       }
-    );
-
-    avatarUrlMap = results;
+    } else {
+      pushUniqueWarning(syncWarnings, '头像存储桶 avatars 不可用，本次未上传头像，已保留 Wiki 原始头像链接');
+    }
 
     // 5. 更新数据库
     onProgress?.(`正在更新数据库 (${allItems.length} 项)...`);
@@ -292,7 +368,6 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       }
     );
     const existingIdSet = new Set([...(existingIds || []), ...((existingRows || []).map(row => row.id))]);
-    const aliasRows = [];
 
     for (const item of allItems) {
       try {
@@ -302,29 +377,28 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
 
         if (existingIdSet.has(canonicalId)) {
           // eslint-disable-next-line no-await-in-loop
-          const { error } = await supabase
-            .from('characters')
-            .update({
+          await syncCharacterWithAliases({
+            canonicalId,
+            insertPayload: {
+              id: canonicalId,
               name: item.name,
               rarity: item.rarity,
               type: item.type,
               avatar_url: finalAvatarUrl,
-            })
-            .eq('id', canonicalId);
-
-          if (error) throw error;
+              aliases: [],
+              is_limited: false,
+              pool_config: buildSyncedPoolConfig(item.type)
+            },
+            updatePayload: {
+              name: item.name,
+              rarity: item.rarity,
+              type: item.type,
+              avatar_url: finalAvatarUrl
+            },
+            aliasRows: buildWikiAliasRows(canonicalId, item.id)
+          });
 
           skippedCount++;
-          aliasRows.push(...buildCharacterSelfAliasRows(canonicalId, 'wiki'));
-          if (item.id !== canonicalId) {
-            aliasRows.push({
-              source: 'wiki',
-              alias_id: item.id,
-              character_id: canonicalId,
-              is_primary: false,
-              note: 'Resolved wiki id to canonical character id'
-            });
-          }
           continue;
         }
 
@@ -337,39 +411,38 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
           avatar_url: finalAvatarUrl,
           aliases: [],
           is_limited: false,
-          pool_config: {
-            pools: item.rarity >= 5 ? ['standard'] : [],
-            limited_rotation_count: 0,
-            removes_after: null,
-            is_active_in_limited: false
-          }
+          pool_config: buildSyncedPoolConfig(item.type)
         };
 
         // eslint-disable-next-line no-await-in-loop
-        const { error } = await supabase
-          .from('characters')
-          .insert(dbData);
-        if (error) throw error;
+        await syncCharacterWithAliases({
+          canonicalId,
+          insertPayload: dbData,
+          updatePayload: {
+            name: item.name,
+            rarity: item.rarity,
+            type: item.type,
+            avatar_url: finalAvatarUrl
+          },
+          aliasRows: buildWikiAliasRows(canonicalId, item.id)
+        });
+
         newCount++;
         existingIdSet.add(canonicalId);
-        aliasRows.push(...buildCharacterSelfAliasRows(canonicalId, 'wiki'));
-        if (item.id !== canonicalId) {
-          aliasRows.push({
-            source: 'wiki',
-            alias_id: item.id,
-            character_id: canonicalId,
-            is_primary: false,
-            note: 'Resolved wiki id to canonical character id'
-          });
-        }
       } catch (err) {
+        if (isFatalSyncSetupError(err)) {
+          throw err;
+        }
         console.error(`同步 ${item.name} 失败:`, err);
         errorCount++;
       }
     }
 
-    if (aliasRows.length > 0) {
-      await upsertCharacterAliases(supabase, aliasRows);
+    if (newCount > 0) {
+      pushUniqueWarning(
+        syncWarnings,
+        '新同步项目不会自动推断限定/常驻归属；角色默认空卡池，武器默认 weapon 池，请在卡池数据同步后复核'
+      );
     }
 
     // 6. 刷新 characterCache
@@ -381,6 +454,8 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       skippedCount,
       errorCount,
       avatarCount: avatarUrlMap.size,
+      avatarFailedCount,
+      warnings: Array.from(syncWarnings),
       error: null
     };
   } catch (error) {

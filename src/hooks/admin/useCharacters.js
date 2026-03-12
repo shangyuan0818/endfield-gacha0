@@ -449,10 +449,24 @@ export function useCharacters({ showToast }) {
       if (result.avatarCount > 0) {
         message += `，头像已上传 ${result.avatarCount} 个`;
       }
+      if (result.avatarFailedCount > 0) {
+        message += `，头像失败 ${result.avatarFailedCount} 个`;
+      }
       if (result.errorCount > 0) {
         message += `，失败 ${result.errorCount} 个`;
       }
-      showToast(message, result.errorCount > 0 ? 'warning' : 'success');
+
+      if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+        message += `。注意：${result.warnings.join('；')}`;
+      }
+
+      const toastType = result.errorCount > 0
+        || result.avatarFailedCount > 0
+        || (Array.isArray(result.warnings) && result.warnings.length > 0)
+        ? 'warning'
+        : 'success';
+
+      showToast(message, toastType);
     } else {
       showToast('同步失败: ' + result.error.message, 'error');
     }
