@@ -35,6 +35,19 @@ function resolveValue(arr, val, visited = new Set()) {
     if (visited.has(val)) return undefined;
     visited.add(val);
     const item = arr[val];
+
+    // turbo-stream 数组项本身可能就是数字字面量（如 rarity: 5）。
+    // 只有复合类型才继续递归展开。
+    if (
+      item === null ||
+      item === undefined ||
+      typeof item === 'string' ||
+      typeof item === 'boolean' ||
+      typeof item === 'number'
+    ) {
+      return item;
+    }
+
     return resolveValue(arr, item, visited);
   }
 

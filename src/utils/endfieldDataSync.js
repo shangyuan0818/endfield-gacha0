@@ -75,9 +75,9 @@ export function buildCharacterData(rawOperators) {
       name_en: op.slug || null,
       rarity: op.rarity,
       avatar_url: IMAGE_URLS.character(op.id),
-      profession: op.class || null,
-      weapon_type: null,
-      char_type: null,
+      profession: op.profession || op.class || null,
+      weapon_type: op.weaponType ?? null,
+      char_type: op.charTypeId || null,
     });
   }
 
@@ -105,7 +105,7 @@ export function buildWeaponData(rawWeapons) {
       name: wp.name,
       name_en: wp.slug || null,
       rarity: wp.rarity,
-      weapon_type: wp.type || null,
+      weapon_type: wp.weaponType ?? wp.type ?? null,
       avatar_url: IMAGE_URLS.weapon(iconId),
       _iconId: iconId,
     });
