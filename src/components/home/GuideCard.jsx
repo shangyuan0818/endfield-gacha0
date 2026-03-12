@@ -36,9 +36,10 @@ const GuideCard = React.memo(function GuideCard({ isOpen, onToggle }) {
                 </div>
                 <div className="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed space-y-2">
                   <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">01.</span>点击右上角 <span className="font-bold text-slate-700 dark:text-zinc-300">登录/注册</span> 账号，确保数据可云端保存。</p>
-                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">02.</span>点击顶部的 <span className="font-bold text-slate-700 dark:text-zinc-300">「导入数据」</span> 按钮，打开导入面板。</p>
-                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">03.</span>按照指引登录鹰角网络通行证（支持官服/B服），复制显示的<span className="font-bold text-slate-700 dark:text-zinc-300">数据内容</span>。</p>
-                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">04.</span>将复制的内容粘贴至输入框，系统将自动获取您的历史抽卡记录。</p>
+                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">02.</span>点击顶部的 <span className="font-bold text-slate-700 dark:text-zinc-300">「导入数据」</span> 按钮，打开导入面板，并先选择 <span className="font-bold text-slate-700 dark:text-zinc-300">国服 / 国际服</span> 区服来源。</p>
+                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">03.</span><span className="font-bold text-slate-700 dark:text-zinc-300">国服（官服 / B服）</span>：登录鹰角网络通行证，打开 `web-api.hypergryph.com/account/info/hg`，复制页面完整内容或 `content` 字段。</p>
+                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">04.</span><span className="font-bold text-slate-700 dark:text-zinc-300">国际服（亚服 / 欧/美服）</span>：先登录 Gryphline 充值中心，确认角色列表可见，再打开 `web-api.gryphline.com/cookie_store/account_token`，复制页面完整内容或 `content` 字段。</p>
+                  <p><span className="text-zinc-400 dark:text-zinc-600 font-bold mr-1">05.</span>将复制的内容粘贴至输入框并开始导入；如果检测到多个游戏账号，再选择需要导入的目标账号。</p>
                 </div>
                 <div className="mt-auto pt-3 border-t border-zinc-200/50 dark:border-zinc-700/50">
                   <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono uppercase">
