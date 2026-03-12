@@ -149,6 +149,36 @@ async function getCurrentSessionUserId() {
   return sessionData?.session?.user?.id || null;
 }
 
+async function loadPoolRowsByIds(poolIds) {
+  const normalizedIds = [...new Set(
+    (Array.isArray(poolIds) ? poolIds : [])
+      .filter(id => typeof id === 'string')
+      .map(id => id.trim())
+      .filter(Boolean)
+  )];
+
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const { data: poolRows, error } = await executeSupabaseRead(
+    () => supabase
+      .from('pools')
+      .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters')
+      .in('pool_id', normalizedIds),
+    {
+      label: 'loadPoolRowsByIds',
+      retries: 1
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return poolRows || [];
+}
+
 async function loadVisiblePoolsFromLegacyQuery(currentUserId = null, options = {}) {
   const { format = true } = options;
   const { data: poolRows, error } = await executeSupabaseRead(
@@ -239,8 +269,31 @@ export async function loadVisiblePools() {
   return mergedRows.map(formatVisiblePoolRecord);
 }
 
+export async function loadPoolsByIds(poolIds) {
+  if (!supabase) {
+    return [];
+  }
+
+  const poolRows = await loadPoolRowsByIds(poolIds);
+  if (poolRows.length === 0) {
+    return [];
+  }
+
+  const profilesMap = await loadPublicProfilesMap((poolRows || []).map((row) => row.user_id));
+
+  return poolRows
+    .map((row) => ({
+      ...row,
+      creator_username: profilesMap.get(row.user_id)?.username || null,
+      creator_role: profilesMap.get(row.user_id)?.role || null
+    }))
+    .sort(sortVisiblePoolRecords)
+    .map(formatVisiblePoolRecord);
+}
+
 export default {
   loadVisiblePools,
+  loadPoolsByIds,
   normalizeRemotePoolType,
   formatVisiblePoolRecord
 };

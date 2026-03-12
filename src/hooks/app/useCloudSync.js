@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
-import { loadVisiblePools, normalizeRemotePoolType } from '../../services/poolReadService';
+import { loadVisiblePools, loadPoolsByIds, normalizeRemotePoolType } from '../../services/poolReadService';
 import {
   resolveAliasValue,
   resolveCharacterAliasMap,
@@ -136,9 +136,22 @@ export function useCloudSync({ showToast }) {
         nick_name: h.nick_name
       }));
 
-      // 补占位池
-      const knownPoolIds = new Set(visiblePools.map(p => p.id));
+      const knownPoolsMap = new Map(visiblePools.map(pool => [pool.id, pool]));
       const historyPoolIds = [...new Set(formattedHistory.map(h => h.poolId))];
+      const missingPoolIds = historyPoolIds.filter(pid => pid && !knownPoolsMap.has(pid));
+      const hydratedHistoryPools = missingPoolIds.length > 0
+        ? await loadPoolsByIds(missingPoolIds).catch(() => [])
+        : [];
+
+      hydratedHistoryPools.forEach((pool) => {
+        if (pool?.id) {
+          knownPoolsMap.set(pool.id, pool);
+        }
+      });
+
+      const knownPoolIds = new Set(knownPoolsMap.keys());
+
+      // 补占位池
       const placeholderPools = historyPoolIds
         .filter(pid => !knownPoolIds.has(pid))
         .map(pid => {
@@ -179,7 +192,7 @@ export function useCloudSync({ showToast }) {
           };
         });
 
-      const allPools = [...visiblePools, ...placeholderPools];
+      const allPools = [...knownPoolsMap.values(), ...placeholderPools];
 
       // 根据池类型回填历史记录的 isStandard
       const poolTypeLookup = new Map(allPools.map(p => [p.id, p.type]));
