@@ -15,7 +15,6 @@ import {
   buildCharacterSelfAliasRows,
   resolveAliasValue,
   resolveCharacterAliasMap,
-  upsertCharacterAliases,
 } from '../../../shared/idAliasService.js';
 
 function buildSyncedPoolConfig(itemType) {
@@ -61,7 +60,7 @@ function pushUniqueWarning(warnings, message) {
 
 function isFatalSyncSetupError(error) {
   const message = error?.message || '';
-  return /缺少数据库迁移 077|only super_admin|permission denied/i.test(message);
+  return /缺少数据库迁移 077|缺少数据库迁移 078|only super_admin|permission denied/i.test(message);
 }
 
 async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
@@ -81,6 +80,28 @@ async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayl
     || /admin_sync_character_with_aliases/i.test(error.message || '')
   ) {
     throw new Error('缺少数据库迁移 077，请先执行 077_add_admin_sync_character_rpc.sql');
+  }
+
+  throw error;
+}
+
+async function saveManagedCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
+  const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
+    p_character_id: canonicalId,
+    p_insert_payload: insertPayload,
+    p_update_payload: updatePayload,
+    p_alias_rows: aliasRows
+  });
+
+  if (!error) {
+    return;
+  }
+
+  if (
+    error.code === 'PGRST202'
+    || /admin_upsert_character_with_aliases/i.test(error.message || '')
+  ) {
+    throw new Error('缺少数据库迁移 078，请先执行 078_harden_admin_entity_upsert_rpcs.sql');
   }
 
   throw error;
@@ -127,24 +148,16 @@ export async function saveCharacter(characterData, existingCharacter = null) {
   }
 
   try {
-    if (existingCharacter) {
-      // 更新现有角色
-      const { error } = await supabase
-        .from('characters')
-        .update(characterData)
-        .eq('id', existingCharacter.id);
-
-      if (error) throw error;
-    } else {
-      // 创建新角色
-      const { error } = await supabase
-        .from('characters')
-        .insert(characterData);
-
-      if (error) throw error;
+    if (existingCharacter && existingCharacter.id !== characterData.id) {
+      throw new Error('暂不支持在编辑时直接修改角色ID，请通过 alias 映射或迁移脚本处理');
     }
 
-    await upsertCharacterAliases(supabase, buildCharacterSelfAliasRows(characterData.id));
+    await saveManagedCharacterWithAliases({
+      canonicalId: characterData.id,
+      insertPayload: characterData,
+      updatePayload: characterData,
+      aliasRows: buildCharacterSelfAliasRows(characterData.id)
+    });
 
     return { success: true, error: null };
   } catch (error) {
@@ -283,6 +296,10 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
   }
 }
 
+function isCompleteSyncFailure({ totalItems, newCount, skippedCount, errorCount }) {
+  return totalItems > 0 && errorCount > 0 && newCount === 0 && skippedCount === 0;
+}
+
 /**
  * 从 Warfarin Wiki 同步角色和武器数据
  * @param {Object} options - 选项
@@ -317,6 +334,13 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       ...characterResult.characters.map(c => ({ ...c, type: 'character' })),
       ...weaponResult.weapons.map(w => ({ ...w, type: 'weapon' })),
     ];
+
+    if (allItems.length === 0) {
+      return {
+        success: false,
+        error: new Error('未从 Wiki 获取到任何可同步的角色或武器数据')
+      };
+    }
 
     // 4. 上传头像到 Storage
     let avatarUrlMap = new Map();
@@ -436,6 +460,18 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
         console.error(`同步 ${item.name} 失败:`, err);
         errorCount++;
       }
+    }
+
+    if (isCompleteSyncFailure({
+      totalItems: allItems.length,
+      newCount,
+      skippedCount,
+      errorCount
+    })) {
+      return {
+        success: false,
+        error: new Error(`所有 ${errorCount} 个项目都写入失败，请检查数据库错误日志或迁移状态`)
+      };
     }
 
     if (newCount > 0) {

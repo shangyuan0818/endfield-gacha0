@@ -253,8 +253,7 @@ export const usePools = (showToast) => {
       const result = await poolService.savePool(
         poolData,
         editingPool,
-        characters,
-        poolService.addCharacterToPool
+        characters
       );
 
       if (result.success) {

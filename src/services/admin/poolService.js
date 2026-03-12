@@ -9,9 +9,63 @@ import { executeSupabaseRead } from '../supabaseRequest';
 import {
   buildCharacterSelfAliasRows,
   buildPoolSelfAliasRows,
-  upsertCharacterAliases,
-  upsertPoolAliases,
 } from '../../../shared/idAliasService.js';
+
+async function saveManagedCharacterWithAliases(characterData) {
+  const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
+    p_character_id: characterData.id,
+    p_insert_payload: characterData,
+    p_update_payload: characterData,
+    p_alias_rows: buildCharacterSelfAliasRows(characterData.id)
+  });
+
+  if (!error) {
+    return;
+  }
+
+  if (
+    error.code === 'PGRST202'
+    || /admin_upsert_character_with_aliases/i.test(error.message || '')
+  ) {
+    throw new Error('缺少数据库迁移 078，请先执行 078_harden_admin_entity_upsert_rpcs.sql');
+  }
+
+  throw error;
+}
+
+async function upsertPoolWithAliases({ poolId, insertPayload, updatePayload, aliasRows, poolCharacterRows = [] }) {
+  const { error } = await supabase.rpc('admin_upsert_pool_with_aliases', {
+    p_pool_id: poolId,
+    p_insert_payload: insertPayload,
+    p_update_payload: updatePayload,
+    p_alias_rows: aliasRows,
+    p_pool_character_rows: poolCharacterRows
+  });
+
+  if (!error) {
+    return;
+  }
+
+  if (
+    error.code === 'PGRST202'
+    || /admin_upsert_pool_with_aliases/i.test(error.message || '')
+  ) {
+    throw new Error('缺少数据库迁移 078，请先执行 078_harden_admin_entity_upsert_rpcs.sql');
+  }
+
+  throw error;
+}
+
+function buildInitialPoolCharacterRows(characters, poolType, upCharacterName) {
+  const expectedType = poolType === 'weapon' ? 'weapon' : 'character';
+
+  return characters
+    .filter(character => character.type === expectedType)
+    .map(character => ({
+      character_id: character.id,
+      is_up: character.name === upCharacterName
+    }));
+}
 
 /**
  * 加载所有卡池
@@ -193,21 +247,14 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
     }
   };
 
-  const { data, error } = await supabase
-    .from('characters')
-    .insert(newCharacter)
-    .select()
-    .single();
-
-  if (error) throw error;
-  await upsertCharacterAliases(supabase, buildCharacterSelfAliasRows(charId));
-  return data;
+  await saveManagedCharacterWithAliases(newCharacter);
+  return newCharacter;
 };
 
 /**
  * 保存卡池（创建或更新）
  */
-export const savePool = async (poolData, editingPool, characters, addCharToPool) => {
+export const savePool = async (poolData, editingPool, characters) => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
@@ -216,13 +263,18 @@ export const savePool = async (poolData, editingPool, characters, addCharToPool)
 
     if (editingPool) {
       // 更新现有卡池
-      const { error } = await supabase
-        .from('pools')
-        .update(poolData)
-        .eq('pool_id', editingPool.pool_id);
+      const targetPoolId = poolData.pool_id || editingPool.pool_id;
 
-      if (error) throw error;
-      await upsertPoolAliases(supabase, buildPoolSelfAliasRows(poolData.pool_id || editingPool.pool_id));
+      await upsertPoolWithAliases({
+        poolId: targetPoolId,
+        insertPayload: {
+          ...poolData,
+          pool_id: targetPoolId
+        },
+        updatePayload: poolData,
+        aliasRows: buildPoolSelfAliasRows(targetPoolId)
+      });
+
       return { success: true, isNew: false };
     } else {
       // 创建新卡池
@@ -237,29 +289,26 @@ export const savePool = async (poolData, editingPool, characters, addCharToPool)
       const newPoolData = {
         ...poolData,
         user_id: user.id,
-        pool_id: pool_id,
+        pool_id,
         locked: false
       };
 
-      const { error } = await supabase
-        .from('pools')
-        .insert(newPoolData);
-
-      if (error) throw error;
-      await upsertPoolAliases(supabase, buildPoolSelfAliasRows(pool_id));
-
-      // 新增卡池时自动添加所有对应类型的角色
       const poolType = poolData.type === 'limited_character' ? 'limited' : poolData.type;
-      const charsToAdd = characters.filter(c =>
-        c.type === (poolType === 'weapon' ? 'weapon' : 'character')
+      const initialPoolCharacterRows = buildInitialPoolCharacterRows(
+        characters,
+        poolType,
+        poolData.up_character
       );
 
-      for (const char of charsToAdd) {
-        const isUp = char.name === poolData.up_character;
-        await addCharToPool(pool_id, char.id, isUp);
-      }
+      await upsertPoolWithAliases({
+        poolId: pool_id,
+        insertPayload: newPoolData,
+        updatePayload: newPoolData,
+        aliasRows: buildPoolSelfAliasRows(pool_id),
+        poolCharacterRows: initialPoolCharacterRows
+      });
 
-      return { success: true, isNew: true, addedCount: charsToAdd.length };
+      return { success: true, isNew: true, addedCount: initialPoolCharacterRows.length };
     }
   } catch (error) {
     return { success: false, error: error.message };
