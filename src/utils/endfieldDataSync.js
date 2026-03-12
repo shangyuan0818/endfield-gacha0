@@ -11,6 +11,19 @@ const IMAGE_URLS = {
   weapon: (iconId) => `https://static.warfarin.wiki/v3/itemicon/${iconId}.webp`,
 };
 
+async function buildProxyFetchError(response) {
+  try {
+    const result = await response.json();
+    if (result?.error) {
+      return new Error(result.error);
+    }
+  } catch {
+    // Ignore JSON parsing failures and fall back to status text.
+  }
+
+  return new Error(`HTTP ${response.status}: ${response.statusText}`);
+}
+
 /**
  * 从代理获取干员数据
  * @returns {Promise<Array>} 干员原始数据数组
@@ -18,7 +31,7 @@ const IMAGE_URLS = {
 export async function fetchOperators() {
   const response = await fetch('/api/wiki-proxy?type=operators');
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    throw await buildProxyFetchError(response);
   }
   const result = await response.json();
   if (!result.success) {
@@ -34,7 +47,7 @@ export async function fetchOperators() {
 export async function fetchWeapons() {
   const response = await fetch('/api/wiki-proxy?type=weapons');
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    throw await buildProxyFetchError(response);
   }
   const result = await response.json();
   if (!result.success) {

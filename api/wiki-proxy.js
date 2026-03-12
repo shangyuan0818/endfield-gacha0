@@ -123,6 +123,14 @@ function setCache(key, data) {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
+function extractRoutePayload(routeData) {
+  if (!routeData || typeof routeData !== 'object') {
+    return null;
+  }
+
+  return routeData.data ?? routeData.response?.data ?? null;
+}
+
 /**
  * 主处理函数
  */
@@ -202,10 +210,10 @@ export default async function handler(req, res) {
 
     if (type === 'operators') {
       const routeData = loaderData['routes/$lang.operators._index'];
-      data = routeData?.data;
+      data = extractRoutePayload(routeData);
     } else {
       const routeData = loaderData['routes/$lang.weapons._index'];
-      data = routeData?.response?.data;
+      data = extractRoutePayload(routeData);
     }
 
     if (!data || (Array.isArray(data) && data.length === 0)) {
