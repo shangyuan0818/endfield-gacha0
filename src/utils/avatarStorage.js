@@ -15,6 +15,17 @@ const REMOTE_IMAGE_URLS = {
   weapon: (iconId) => `https://static.warfarin.wiki/v3/itemicon/${iconId}.webp`,
 };
 
+function getProxyImageUrl(remoteUrl, type, itemId) {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return remoteUrl;
+  }
+
+  const proxyUrl = new URL('/api/wiki-asset-proxy', window.location.origin);
+  proxyUrl.searchParams.set('type', type);
+  proxyUrl.searchParams.set('id', itemId);
+  return proxyUrl.toString();
+}
+
 /**
  * 确保 Storage bucket 存在
  * @returns {Promise<boolean>} 是否成功
@@ -118,13 +129,15 @@ export async function syncItemAvatar(item) {
   if (!supabase || !item.id) return null;
 
   const type = item.type || 'character';
+  const remoteId = type === 'weapon' ? (item._iconId || item.id) : item.id;
   const remoteUrl = type === 'weapon'
-    ? REMOTE_IMAGE_URLS.weapon(item._iconId || item.id)
-    : REMOTE_IMAGE_URLS.character(item.id);
+    ? REMOTE_IMAGE_URLS.weapon(remoteId)
+    : REMOTE_IMAGE_URLS.character(remoteId);
+  const fetchUrl = getProxyImageUrl(remoteUrl, type, remoteId);
 
   const storagePath = `${type}s/${item.id}.webp`;
 
-  return await uploadImageFromUrl(remoteUrl, storagePath);
+  return await uploadImageFromUrl(fetchUrl, storagePath);
 }
 
 /**
