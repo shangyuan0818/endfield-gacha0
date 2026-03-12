@@ -73,7 +73,7 @@ const HomePage = React.memo(() => {
 
     if (!main) {
       main = {
-        targetDate: '2026-03-12T11:00:00+08:00',
+        targetDate: '2026-04-15T12:00:00+08:00',
         title: '下个版本倒计时',
         subTitle: 'Waiting for Next Version'
       };
@@ -274,7 +274,7 @@ const HomePage = React.memo(() => {
 
           <div className="h-full">
             <CountdownTimer
-              targetDate="2026-03-12T11:00:00+08:00"
+              targetDate="2026-04-15T12:00:00+08:00"
               title="下个版本倒计时"
               subTitle="下个版本发布"
               customEndedContent={<span>版本已上线</span>}
