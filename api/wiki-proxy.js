@@ -88,14 +88,16 @@ function parseTurboStream(html) {
     throw new Error('未找到 turbo-stream 数据');
   }
 
-  // 拼接所有 chunk 并解码 JS 字符串转义
-  let raw = chunks.join('');
-  raw = raw.replace(/\\"/g, '"');
-  raw = raw.replace(/\\\\/g, '\\');
-  raw = raw.replace(/\\n/g, '\n');
-  raw = raw.replace(/\\r/g, '\r');
-  raw = raw.replace(/\\t/g, '\t');
-  raw = raw.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  // 让 JSON.parse 负责外层字符串字面量解码，避免把 \\n 提前变成控制字符
+  const raw = chunks
+    .map((chunk, index) => {
+      try {
+        return JSON.parse(`"${chunk}"`);
+      } catch (error) {
+        throw new Error(`turbo-stream chunk ${index} 解码失败: ${error.message}`);
+      }
+    })
+    .join('');
 
   // 提取 JSON 数组（去掉 turbo-stream 前缀）
   const jsonStart = raw.indexOf('[');
