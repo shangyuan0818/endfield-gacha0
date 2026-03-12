@@ -98,15 +98,15 @@ export function useGachaSimulatorController() {
 
     const loadPublicPools = async () => {
       try {
-        const bootstrapPools = await getBootstrapVisiblePools();
-        if (!cancelled && Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
-          setPublicPools(bootstrapPools);
+        const directPools = await loadVisiblePools().catch(() => null);
+        if (!cancelled && Array.isArray(directPools) && directPools.length > 0) {
+          setPublicPools(directPools);
           return;
         }
 
-        const fallbackPools = await loadVisiblePools();
-        if (!cancelled && Array.isArray(fallbackPools) && fallbackPools.length > 0) {
-          setPublicPools(fallbackPools);
+        const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
+        if (!cancelled && Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+          setPublicPools(bootstrapPools);
         }
       } catch (error) {
         console.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);

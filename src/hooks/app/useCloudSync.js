@@ -12,6 +12,20 @@ import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
 
+async function loadLatestVisiblePools() {
+  const directPools = await loadVisiblePools().catch(() => null);
+  if (Array.isArray(directPools) && directPools.length > 0) {
+    return directPools;
+  }
+
+  const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
+  if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+    return bootstrapPools;
+  }
+
+  return null;
+}
+
 /**
  * 云同步 Hook
  * 处理 loadCloudData/savePoolToCloud/saveHistoryToCloud 等云端数据操作
@@ -47,15 +61,10 @@ export function useCloudSync({ showToast }) {
       setSyncError(null);
 
       try {
-        const bootstrapPools = await getBootstrapVisiblePools();
         const fallbackPools = usePoolStore.getState().pools;
-        const directPools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
-          ? bootstrapPools
-          : await loadVisiblePools().catch(() => null);
-        const visiblePools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
-          ? bootstrapPools
-          : (Array.isArray(directPools) && directPools.length > 0)
-            ? directPools
+        const latestVisiblePools = await loadLatestVisiblePools();
+        const visiblePools = Array.isArray(latestVisiblePools) && latestVisiblePools.length > 0
+          ? latestVisiblePools
           : (Array.isArray(fallbackPools) ? fallbackPools : []);
 
       // 分页加载历史记录（Supabase 默认限制 1000 行）
@@ -204,16 +213,10 @@ export function useCloudSync({ showToast }) {
   // 加载公共卡池数据（无需登录，用于首页轮换计划/倒计时）
   const loadPublicPools = useCallback(async () => {
     try {
-      const bootstrapPools = await getBootstrapVisiblePools();
-      if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
-        setPools(bootstrapPools);
-        return bootstrapPools;
-      }
-
-      const directPools = await loadVisiblePools().catch(() => null);
-      if (Array.isArray(directPools) && directPools.length > 0) {
-        setPools(directPools);
-        return directPools;
+      const latestVisiblePools = await loadLatestVisiblePools();
+      if (Array.isArray(latestVisiblePools) && latestVisiblePools.length > 0) {
+        setPools(latestVisiblePools);
+        return latestVisiblePools;
       }
     } catch {
       return null;

@@ -81,6 +81,9 @@ export function usePoolRealtimeSubscription({ showToast }) {
           if (payload.eventType === 'UPDATE') {
             // 更新本地卡池状态
             const updatedPool = mapRealtimePoolRecord(payload.new);
+            const previousLocked = payload.old?.locked;
+            const nextLocked = payload.new?.locked;
+            const lockStateChanged = previousLocked !== nextLocked;
             setPools(prev => {
               const existingIndex = prev.findIndex(p => p.id === updatedPool.id);
               if (existingIndex < 0) {
@@ -93,7 +96,7 @@ export function usePoolRealtimeSubscription({ showToast }) {
             });
 
             // 如果更新的是当前卡池，显示通知（使用 ref 获取最新值）
-            if (updatedPool.id === currentPoolIdRef.current) {
+            if (updatedPool.id === currentPoolIdRef.current && lockStateChanged) {
               if (updatedPool.locked && canEditRef.current && !isSuperAdminRef.current) {
                 showToastRef.current(`卡池「${updatedPool.name}」已被超级管理员锁定`, 'warning', '卡池已锁定');
               } else if (!updatedPool.locked) {
