@@ -4,7 +4,14 @@
  */
 import { supabase } from '../../supabaseClient';
 import { incrementRotationCount, characterCache } from '../../utils/characterUtils';
+import { buildManualCharacterId, buildManualPoolId } from '../../utils/canonicalEntityUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
+import {
+  buildCharacterSelfAliasRows,
+  buildPoolSelfAliasRows,
+  upsertCharacterAliases,
+  upsertPoolAliases,
+} from '../../../shared/idAliasService.js';
 
 /**
  * 加载所有卡池
@@ -166,8 +173,8 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('请先登录');
 
-  const charId = `char_${characterName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
   const characterType = poolType === 'weapon' ? 'weapon' : 'character';
+  const charId = buildManualCharacterId(characterName, characterType);
 
   const newCharacter = {
     id: charId,
@@ -193,6 +200,7 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
     .single();
 
   if (error) throw error;
+  await upsertCharacterAliases(supabase, buildCharacterSelfAliasRows(charId));
   return data;
 };
 
@@ -214,12 +222,17 @@ export const savePool = async (poolData, editingPool, characters, addCharToPool)
         .eq('pool_id', editingPool.pool_id);
 
       if (error) throw error;
+      await upsertPoolAliases(supabase, buildPoolSelfAliasRows(poolData.pool_id || editingPool.pool_id));
       return { success: true, isNew: false };
     } else {
       // 创建新卡池
-      const timestamp = Date.now();
-      const randomStr = Math.random().toString(36).substring(2, 8);
-      const pool_id = `pool_${user.id.substring(0, 8)}_${poolData.type}_${timestamp}_${randomStr}`;
+      const pool_id = buildManualPoolId({
+        type: poolData.type,
+        name: poolData.name,
+        upCharacter: poolData.up_character,
+        startTime: poolData.start_time,
+        endTime: poolData.end_time,
+      });
 
       const newPoolData = {
         ...poolData,
@@ -233,6 +246,7 @@ export const savePool = async (poolData, editingPool, characters, addCharToPool)
         .insert(newPoolData);
 
       if (error) throw error;
+      await upsertPoolAliases(supabase, buildPoolSelfAliasRows(pool_id));
 
       // 新增卡池时自动添加所有对应类型的角色
       const poolType = poolData.type === 'limited_character' ? 'limited' : poolData.type;

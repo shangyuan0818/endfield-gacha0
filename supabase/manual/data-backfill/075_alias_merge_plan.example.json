@@ -1,0 +1,43 @@
+{
+  "characters": [
+    {
+      "fromId": "manual_character_char_ab12cd_123abc",
+      "toId": "char_official_example",
+      "fromSource": "manual_placeholder",
+      "toSource": "wiki",
+      "skipIfMissing": true,
+      "expectedName": "示例角色",
+      "expectedType": "character",
+      "note": "Replace manual placeholder with official wiki id"
+    }
+  ],
+  "pools": [
+    {
+      "fromId": "pool_limited_levantin",
+      "toId": "special_1_0_1",
+      "fromSource": "legacy_manual",
+      "toSource": "official_api",
+      "expectedName": "限定-莱万汀",
+      "expectedType": "limited",
+      "note": "Merge legacy manual pool into official limited pool id"
+    },
+    {
+      "fromId": "pool_limited_jerpeta",
+      "toId": "special_1_0_3",
+      "fromSource": "legacy_manual",
+      "toSource": "official_api",
+      "expectedName": "限定-洁尔佩塔",
+      "expectedType": "limited",
+      "note": "Merge legacy manual pool into official limited pool id"
+    },
+    {
+      "fromId": "pool_limited_yiwen",
+      "toId": "special_1_0_2",
+      "fromSource": "legacy_manual",
+      "toSource": "official_api",
+      "expectedName": "限定-伊冯",
+      "expectedType": "limited",
+      "note": "Merge legacy manual pool into official limited pool id"
+    }
+  ]
+}

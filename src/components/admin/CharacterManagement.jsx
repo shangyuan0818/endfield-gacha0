@@ -56,6 +56,9 @@ const CharacterManagement = ({ showToast }) => {
     editingCharacter,
     characterForm,
     setCharacterForm,
+    handleCharacterIdChange,
+    handleCharacterNameChange,
+    handleCharacterTypeChange,
     aliasInput,
     setAliasInput,
     resetForm,
@@ -230,6 +233,9 @@ const CharacterManagement = ({ showToast }) => {
         editingCharacter={editingCharacter}
         characterForm={characterForm}
         setCharacterForm={setCharacterForm}
+        onCharacterIdChange={handleCharacterIdChange}
+        onCharacterNameChange={handleCharacterNameChange}
+        onCharacterTypeChange={handleCharacterTypeChange}
         aliasInput={aliasInput}
         setAliasInput={setAliasInput}
         actionLoading={actionLoading}

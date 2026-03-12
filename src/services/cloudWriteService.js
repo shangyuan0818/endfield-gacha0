@@ -1,4 +1,9 @@
 import { clampHistoryPity, splitHistoryUpsertGroups } from '../utils/historyRecordUtils';
+import {
+  resolveAliasValue,
+  resolveCharacterAliasMap,
+  resolvePoolAliasMap,
+} from '../../shared/idAliasService.js';
 
 function resolveOwnerId(explicitUserId, currentUserId) {
   return explicitUserId || currentUserId || null;
@@ -29,18 +34,16 @@ function normalizeRecordId(record) {
   return recordId;
 }
 
-export function serializePoolForUpsert(pool, currentUserId) {
+export function serializePoolForUpsert(pool, currentUserId, resolvedPoolId = null) {
   const ownerId = resolveOwnerId(pool.user_id, currentUserId);
 
   return {
     user_id: ownerId,
-    pool_id: pool.id || pool.pool_id,
+    pool_id: resolvedPoolId || pool.id || pool.pool_id,
     name: pool.name,
     type: pool.type,
     locked: pool.locked || false,
     is_limited_weapon: pool.isLimitedWeapon !== undefined ? pool.isLimitedWeapon : (pool.is_limited_weapon !== false),
-    game_uid: pool.gameUid || pool.game_uid || null,
-    nick_name: pool.nickName || pool.nick_name || null,
     up_character: pool.upCharacter || pool.up_character || null,
     description: pool.description || null,
     banner_url: pool.banner_url || pool.bannerUrl || null,
@@ -56,7 +59,17 @@ export async function upsertPools(supabaseClient, pools, currentUserId) {
     return;
   }
 
-  const rows = pools.map(pool => serializePoolForUpsert(pool, currentUserId));
+  const poolAliasMap = await resolvePoolAliasMap(
+    supabaseClient,
+    pools.map(pool => pool?.id || pool?.pool_id),
+    'official_api'
+  );
+
+  const rows = pools.map(pool => serializePoolForUpsert(
+    pool,
+    currentUserId,
+    resolveAliasValue(poolAliasMap, pool?.id || pool?.pool_id)
+  ));
   const { error } = await supabaseClient.from('pools').upsert(rows, {
     onConflict: 'pool_id'
   });
@@ -66,22 +79,29 @@ export async function upsertPools(supabaseClient, pools, currentUserId) {
   }
 }
 
-export function serializeHistoryForUpsert(record, currentUserId) {
+export function serializeHistoryForUpsert(
+  record,
+  currentUserId,
+  resolvedPoolId = null,
+  resolvedCharacterId = null
+) {
   return {
     user_id: resolveOwnerId(record.user_id, currentUserId),
     record_id: normalizeRecordId(record),
-    pool_id: String(record.poolId || record.pool_id),
+    pool_id: String(resolvedPoolId || record.poolId || record.pool_id),
     rarity: typeof record.rarity === 'number' ? record.rarity : parseInt(record.rarity, 10) || 4,
     is_standard: Boolean(record.isStandard || record.is_standard),
     special_type: record.specialType || record.special_type || null,
     character_name: record.character_name || record.characterName || record.name || null,
     item_name: record.item_name || record.name || record.character_name || record.characterName || null,
+    character_id: resolvedCharacterId || record.character_id || record.item_id || null,
     batch_id: record.batchId || record.batch_id || null,
     seq_id: record.seqId || record.seq_id || null,
     pity: clampHistoryPity(record.pity),
     is_new: Boolean(record.isNew || record.is_new),
     is_free: Boolean(record.isFree || record.is_free),
     game_uid: record.gameUid || record.game_uid || null,
+    nick_name: record.nickName || record.nick_name || null,
     timestamp: normalizeTimestamp(record.timestamp),
     updated_at: new Date().toISOString(),
   };
@@ -92,7 +112,25 @@ export async function upsertHistory(supabaseClient, records, currentUserId) {
     return;
   }
 
-  const rows = records.map(record => serializeHistoryForUpsert(record, currentUserId));
+  const [poolAliasMap, characterAliasMap] = await Promise.all([
+    resolvePoolAliasMap(
+      supabaseClient,
+      records.map(record => record?.poolId || record?.pool_id),
+      'official_api'
+    ),
+    resolveCharacterAliasMap(
+      supabaseClient,
+      records.map(record => record?.character_id || record?.item_id),
+      'official_api'
+    ),
+  ]);
+
+  const rows = records.map(record => serializeHistoryForUpsert(
+    record,
+    currentUserId,
+    resolveAliasValue(poolAliasMap, record?.poolId || record?.pool_id),
+    resolveAliasValue(characterAliasMap, record?.character_id || record?.item_id)
+  ));
   const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(rows);
   const upsertGroups = [
     { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },

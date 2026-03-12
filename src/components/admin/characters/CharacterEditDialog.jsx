@@ -16,6 +16,9 @@ const CharacterEditDialog = ({
   editingCharacter,
   characterForm,
   setCharacterForm,
+  onCharacterIdChange,
+  onCharacterNameChange,
+  onCharacterTypeChange,
   aliasInput,
   setAliasInput,
   actionLoading,
@@ -57,14 +60,14 @@ const CharacterEditDialog = ({
               <input
                 type="text"
                 value={characterForm.id}
-                onChange={(e) => setCharacterForm(prev => ({ ...prev, id: e.target.value }))}
+                onChange={(e) => onCharacterIdChange(e.target.value)}
                 placeholder="例如：char_rococo"
                 disabled={!!editingCharacter}
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 disabled:bg-slate-100 disabled:dark:bg-zinc-800"
               />
               {!editingCharacter && (
                 <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
-                  创建后无法修改，建议使用小写英文，格式：char_xxx 或 weapon_xxx
+                  新建时会按名称自动生成稳定占位 ID；如果你要手动覆盖，也请避免再使用时间戳式随机 ID
                 </p>
               )}
             </div>
@@ -77,7 +80,7 @@ const CharacterEditDialog = ({
               <input
                 type="text"
                 value={characterForm.name}
-                onChange={(e) => setCharacterForm(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) => onCharacterNameChange(e.target.value)}
                 placeholder="例如：莱万汀"
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
               />
@@ -106,7 +109,7 @@ const CharacterEditDialog = ({
                 </label>
                 <select
                   value={characterForm.type}
-                  onChange={(e) => setCharacterForm(prev => ({ ...prev, type: e.target.value }))}
+                  onChange={(e) => onCharacterTypeChange(e.target.value)}
                   className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
                 >
                   <option value="character">角色</option>

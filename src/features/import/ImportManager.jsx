@@ -5,6 +5,11 @@ import { supabase } from '../../supabaseClient';
 import { normalizeIsStandard } from '../../utils/poolUtils';
 import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
 import { saveGameAccountMetadata } from '../../utils/gameAccountMetadata.js';
+import {
+  resolveAliasValue,
+  resolveCharacterAliasMap,
+  resolvePoolAliasMap,
+} from '../../../shared/idAliasService.js';
 import OfficialAPIImport from './OfficialAPIImport';
 
 /**
@@ -79,8 +84,18 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   const savePoolsToServer = useCallback(async (poolInfos) => {
     if (!supabase || !user || poolInfos.length === 0) return;
 
+    const poolAliasMap = await resolvePoolAliasMap(
+      supabase,
+      poolInfos.map(info => info?.poolId),
+      'official_api'
+    );
+    const normalizedPoolInfos = poolInfos.map(info => ({
+      ...info,
+      poolId: resolveAliasValue(poolAliasMap, info?.poolId)
+    }));
+
     // 1. 查询已存在的卡池
-    const poolIds = poolInfos.map(info => info.poolId);
+    const poolIds = normalizedPoolInfos.map(info => info.poolId);
     const { data: existingPools } = await supabase
       .from('pools')
       .select('pool_id')
@@ -89,7 +104,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     const existingPoolIds = new Set(existingPools?.map(p => p.pool_id) || []);
 
     // 2. 只创建不存在的卡池
-    const poolsToCreate = poolInfos
+    const poolsToCreate = normalizedPoolInfos
       .filter(info => !existingPoolIds.has(info.poolId))
       .map(info => ({
         pool_id: info.poolId,
@@ -123,6 +138,19 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   const saveHistoryToServer = useCallback(async (records) => {
     if (!supabase || !user || records.length === 0) return;
 
+    const [poolAliasMap, characterAliasMap] = await Promise.all([
+      resolvePoolAliasMap(
+        supabase,
+        records.map(record => record?.poolId || record?.pool_id),
+        'official_api'
+      ),
+      resolveCharacterAliasMap(
+        supabase,
+        records.map(record => record?.character_id || record?.item_id),
+        'official_api'
+      ),
+    ]);
+
     const batchSize = 100;
     let savedCount = 0;
 
@@ -141,12 +169,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       const recordsToSave = uniqueBatch.map(r => ({
         user_id: user.id,
         record_id: typeof r.id === 'number' ? r.id : parseInt(r.id, 10) || Date.now(),
-        pool_id: String(r.poolId),
+        pool_id: String(resolveAliasValue(poolAliasMap, r.poolId || r.pool_id)),
         rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
         is_standard: Boolean(r.isStandard),
         special_type: null,
         character_name: r.character_name || r.name || null,
         item_name: r.name || r.character_name || null,
+        character_id: resolveAliasValue(characterAliasMap, r.character_id || r.item_id),
         batch_id: r.batchId || null,
         seq_id: r.seqId || null,
         pity: clampHistoryPity(r.pity),
@@ -278,8 +307,26 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         }
       });
 
+      const [poolAliasMap, characterAliasMap] = await Promise.all([
+        resolvePoolAliasMap(
+          supabase,
+          result.records.map(record => record?.pool_id),
+          'official_api'
+        ),
+        resolveCharacterAliasMap(
+          supabase,
+          result.records.map(record => record?.character_id || record?.item_id),
+          'official_api'
+        ),
+      ]);
+
+      const canonicalPoolInfos = poolInfos.map(info => ({
+        ...info,
+        poolId: resolveAliasValue(poolAliasMap, info.poolId)
+      }));
+
       // 2. 保存卡池到服务器（不再传递 userInfo）
-      await savePoolsToServer(poolInfos);
+      await savePoolsToServer(canonicalPoolInfos);
 
       // 2.1 构建 poolId -> UP角色 和 poolId -> 类型 的映射
       const poolUpCharacterMap = new Map();
@@ -307,9 +354,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
         return {
           id: numericId,
-          poolId: record.pool_id,
+          poolId: resolveAliasValue(poolAliasMap, record.pool_id),
           name: record.name,
           character_name: record.name,
+          character_id: resolveAliasValue(characterAliasMap, record.character_id || record.item_id),
           rarity: record.rarity,
           isStandard: isStandard,
           isLimited: record.isLimited,

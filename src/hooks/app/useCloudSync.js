@@ -3,6 +3,11 @@ import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import { loadVisiblePools, normalizeRemotePoolType } from '../../services/poolReadService';
+import {
+  resolveAliasValue,
+  resolveCharacterAliasMap,
+  resolvePoolAliasMap,
+} from '../../../shared/idAliasService.js';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
@@ -82,18 +87,31 @@ export function useCloudSync({ showToast }) {
         }
       }
 
+      const [poolAliasMap, characterAliasMap] = await Promise.all([
+        resolvePoolAliasMap(
+          supabase,
+          allHistory.map(h => h?.pool_id),
+          'official_api'
+        ),
+        resolveCharacterAliasMap(
+          supabase,
+          allHistory.map(h => h?.character_id),
+          'official_api'
+        ),
+      ]);
+
       const formattedHistory = allHistory.map(h => ({
         id: h.record_id,
         rarity: h.rarity,
         isStandard: h.is_standard,
         specialType: h.special_type,
         timestamp: h.timestamp,
-        poolId: h.pool_id,
+        poolId: resolveAliasValue(poolAliasMap, h.pool_id),
         user_id: h.user_id,
         name: h.character_name || h.item_name,
         character_name: h.character_name,
         item_name: h.item_name,
-        character_id: h.character_id,
+        character_id: resolveAliasValue(characterAliasMap, h.character_id),
         batchId: h.batch_id,
         batch_id: h.batch_id,
         seqId: h.seq_id,

@@ -11,6 +11,12 @@ import { syncAllCharacters, syncAllWeapons } from '../../utils/endfieldDataSync'
 import { batchSyncAvatars, ensureBucketExists } from '../../utils/avatarStorage';
 import { characterCache } from '../../utils/characterUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
+import {
+  buildCharacterSelfAliasRows,
+  resolveAliasValue,
+  resolveCharacterAliasMap,
+  upsertCharacterAliases,
+} from '../../../shared/idAliasService.js';
 
 /**
  * 加载所有角色/武器列表
@@ -69,6 +75,8 @@ export async function saveCharacter(characterData, existingCharacter = null) {
 
       if (error) throw error;
     }
+
+    await upsertCharacterAliases(supabase, buildCharacterSelfAliasRows(characterData.id));
 
     return { success: true, error: null };
   } catch (error) {
@@ -267,22 +275,62 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
     let skippedCount = 0;
     let errorCount = 0;
 
-    const existingIdSet = new Set(existingIds);
+    const wikiAliasMap = await resolveCharacterAliasMap(
+      supabase,
+      allItems.map(item => item.id),
+      'wiki'
+    );
+    const resolvedIds = allItems.map(item => resolveAliasValue(wikiAliasMap, item.id));
+    const { data: existingRows } = await executeSupabaseRead(
+      () => supabase
+        .from('characters')
+        .select('id')
+        .in('id', Array.from(new Set([...existingIds, ...resolvedIds]))),
+      {
+        label: 'admin syncFromAPI existing rows',
+        retries: 1
+      }
+    );
+    const existingIdSet = new Set([...(existingIds || []), ...((existingRows || []).map(row => row.id))]);
+    const aliasRows = [];
 
     for (const item of allItems) {
       try {
         // 优先使用上传到 Storage 的 URL，否则使用原始 URL
         const finalAvatarUrl = avatarUrlMap.get(item.id) || item.avatar_url;
+        const canonicalId = resolveAliasValue(wikiAliasMap, item.id);
 
-        if (existingIdSet.has(item.id)) {
-          // 跳过已存在的角色
+        if (existingIdSet.has(canonicalId)) {
+          // eslint-disable-next-line no-await-in-loop
+          const { error } = await supabase
+            .from('characters')
+            .update({
+              name: item.name,
+              rarity: item.rarity,
+              type: item.type,
+              avatar_url: finalAvatarUrl,
+            })
+            .eq('id', canonicalId);
+
+          if (error) throw error;
+
           skippedCount++;
+          aliasRows.push(...buildCharacterSelfAliasRows(canonicalId, 'wiki'));
+          if (item.id !== canonicalId) {
+            aliasRows.push({
+              source: 'wiki',
+              alias_id: item.id,
+              character_id: canonicalId,
+              is_primary: false,
+              note: 'Resolved wiki id to canonical character id'
+            });
+          }
           continue;
         }
 
         // 插入新记录
         const dbData = {
-          id: item.id,
+          id: canonicalId,
           name: item.name,
           rarity: item.rarity,
           type: item.type,
@@ -297,15 +345,31 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
           }
         };
 
+        // eslint-disable-next-line no-await-in-loop
         const { error } = await supabase
           .from('characters')
           .insert(dbData);
         if (error) throw error;
         newCount++;
+        existingIdSet.add(canonicalId);
+        aliasRows.push(...buildCharacterSelfAliasRows(canonicalId, 'wiki'));
+        if (item.id !== canonicalId) {
+          aliasRows.push({
+            source: 'wiki',
+            alias_id: item.id,
+            character_id: canonicalId,
+            is_primary: false,
+            note: 'Resolved wiki id to canonical character id'
+          });
+        }
       } catch (err) {
         console.error(`同步 ${item.name} 失败:`, err);
         errorCount++;
       }
+    }
+
+    if (aliasRows.length > 0) {
+      await upsertCharacterAliases(supabase, aliasRows);
     }
 
     // 6. 刷新 characterCache

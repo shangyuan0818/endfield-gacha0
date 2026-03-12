@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as characterService from '../../services/admin/characterService';
+import { buildManualCharacterId, isGeneratedManualCharacterId } from '../../utils/canonicalEntityUtils';
 import { useAuthStore } from '../../stores';
 
 /**
@@ -115,6 +116,43 @@ export function useCharacters({ showToast }) {
     setActiveTabState(nextTab);
     setSelectedIds(new Set());
   }, []);
+
+  const handleCharacterIdChange = useCallback((nextId) => {
+    setCharacterForm(prev => ({
+      ...prev,
+      id: nextId
+    }));
+  }, []);
+
+  const handleCharacterNameChange = useCallback((nextName) => {
+    setCharacterForm(prev => {
+      const nextForm = {
+        ...prev,
+        name: nextName
+      };
+
+      if (!editingCharacter && (!prev.id || isGeneratedManualCharacterId(prev.id))) {
+        nextForm.id = nextName.trim() ? buildManualCharacterId(nextName, prev.type) : '';
+      }
+
+      return nextForm;
+    });
+  }, [editingCharacter]);
+
+  const handleCharacterTypeChange = useCallback((nextType) => {
+    setCharacterForm(prev => {
+      const nextForm = {
+        ...prev,
+        type: nextType
+      };
+
+      if (!editingCharacter && (!prev.id || isGeneratedManualCharacterId(prev.id))) {
+        nextForm.id = prev.name.trim() ? buildManualCharacterId(prev.name, nextType) : '';
+      }
+
+      return nextForm;
+    });
+  }, [editingCharacter]);
 
   // 过滤和排序后的角色列表
   const filteredCharacters = useMemo(() => {
@@ -464,6 +502,9 @@ export function useCharacters({ showToast }) {
     editingCharacter,
     characterForm,
     setCharacterForm,
+    handleCharacterIdChange,
+    handleCharacterNameChange,
+    handleCharacterTypeChange,
     aliasInput,
     setAliasInput,
     resetForm,
