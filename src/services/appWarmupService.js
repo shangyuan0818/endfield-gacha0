@@ -17,9 +17,7 @@ const modulePreloaders = [
   () => import('../components/admin/PoolManagement'),
   () => import('../components/admin/panels/UsersPanel'),
   () => import('../components/admin/panels/UserDataPanel'),
-  () => import('../components/admin/panels/BlacklistPanel'),
   () => import('../components/admin/panels/AnnouncementsPanel'),
-  () => import('../components/admin/panels/PageContentPanel'),
   () => import('../components/admin/panels/SiteConfigPanel')
 ];
 

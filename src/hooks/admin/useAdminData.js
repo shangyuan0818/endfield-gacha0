@@ -2,13 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../stores';
 import { validateUserData } from '../../utils/validators';
 import * as userService from '../../services/admin/userService';
-import * as blacklistService from '../../services/admin/blacklistService';
 import * as announcementService from '../../services/admin/announcementService';
-import * as pageContentService from '../../services/admin/pageContentService';
 
 /**
  * 管理后台数据统一管理 Hook
- * 负责：用户、黑名单、公告、页面内容的数据获取与 CRUD 操作
+ * 负责：用户与公告的数据获取与 CRUD 操作
  */
 export function useAdminData(showToast) {
   const user = useAuthStore(state => state.user);
@@ -16,9 +14,7 @@ export function useAdminData(showToast) {
 
   // 数据状态
   const [users, setUsers] = useState([]);
-  const [blacklist, setBlacklist] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [pageContents, setPageContents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -33,9 +29,7 @@ export function useAdminData(showToast) {
   const loadAdminData = useCallback(async () => {
     if (!user || userRole !== 'super_admin') {
       setUsers([]);
-      setBlacklist([]);
       setAnnouncements([]);
-      setPageContents([]);
       setLoading(false);
       return;
     }
@@ -44,14 +38,10 @@ export function useAdminData(showToast) {
 
     const [
       usersResult,
-      announcementsResult,
-      blacklistResult,
-      pageContentResult
+      announcementsResult
     ] = await Promise.allSettled([
       userService.loadUsers(),
-      announcementService.loadAnnouncements(),
-      blacklistService.loadBlacklist(),
-      pageContentService.loadPageContents()
+      announcementService.loadAnnouncements()
     ]);
 
     const failedSections = [];
@@ -66,18 +56,6 @@ export function useAdminData(showToast) {
       setAnnouncements(announcementsResult.value);
     } else {
       failedSections.push('公告');
-    }
-
-    if (blacklistResult.status === 'fulfilled') {
-      setBlacklist(blacklistResult.value);
-    } else {
-      failedSections.push('黑名单');
-    }
-
-    if (pageContentResult.status === 'fulfilled') {
-      setPageContents(pageContentResult.value);
-    } else {
-      failedSections.push('页面内容');
     }
 
     if (failedSections.length > 0) {
@@ -171,70 +149,6 @@ export function useAdminData(showToast) {
     }
   }, [users, ensureSuperAdmin, showToast]);
 
-  const addToBlacklist = useCallback(async (user) => {
-    if (!ensureSuperAdmin()) return;
-
-    const reason = window.prompt(`请输入将用户「${user.username}」加入黑名单的原因：`);
-    if (!reason) return;
-
-    setActionLoading(user.id);
-
-    try {
-      const data = await blacklistService.createBlacklistEntry({
-        email: user.email,
-        reason,
-        type: 'email'
-      });
-      setBlacklist(prev => [data, ...prev]);
-      showToast(`已将 ${user.email} 加入黑名单`, 'success');
-    } catch (error) {
-      showToast('添加黑名单失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
-  // ========== 黑名单管理函数 ==========
-  const saveBlacklistEntry = useCallback(async (blacklistForm, onSuccess) => {
-    if (!ensureSuperAdmin()) return;
-
-    if (!blacklistForm.email.trim() || !blacklistForm.reason.trim()) {
-      showToast('邮箱/域名和原因不能为空', 'error');
-      return;
-    }
-
-    setActionLoading('blacklist');
-
-    try {
-      const data = await blacklistService.createBlacklistEntry(blacklistForm);
-      setBlacklist(prev => [data, ...prev]);
-      showToast('已添加到黑名单', 'success');
-      onSuccess?.();
-    } catch (error) {
-      showToast('添加黑名单失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
-  const removeFromBlacklist = useCallback(async (entry) => {
-    if (!ensureSuperAdmin()) return;
-
-    if (!window.confirm(`确定要将「${entry.email}」从黑名单中移除吗？`)) return;
-
-    setActionLoading(entry.id);
-
-    try {
-      await blacklistService.deleteBlacklistEntry(entry.id);
-      setBlacklist(prev => prev.filter(b => b.id !== entry.id));
-      showToast('已从黑名单移除', 'success');
-    } catch (error) {
-      showToast('移除失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
   // ========== 公告管理函数 ==========
   const saveAnnouncement = useCallback(async (announcementForm, editingAnnouncement, onSuccess) => {
     if (!ensureSuperAdmin()) return;
@@ -301,83 +215,10 @@ export function useAdminData(showToast) {
     }
   }, [ensureSuperAdmin, showToast]);
 
-  // ========== 页面内容管理函数 ==========
-  const savePageContent = useCallback(async (pageContentForm, editingPageContent, onSuccess) => {
-    if (!ensureSuperAdmin()) return;
-    if (!pageContentForm.id.trim() || !pageContentForm.title.trim() || !pageContentForm.content.trim()) {
-      showToast('ID、标题和内容不能为空', 'error');
-      return;
-    }
-
-    if (!/^[a-z0-9_]+$/.test(pageContentForm.id)) {
-      showToast('ID 只能包含小写字母、数字和下划线', 'error');
-      return;
-    }
-
-    setActionLoading('pageContent');
-
-    try {
-      if (editingPageContent) {
-        const updatedAt = await pageContentService.updatePageContent(editingPageContent.id, pageContentForm);
-
-        setPageContents(prev => prev.map(p =>
-          p.id === editingPageContent.id ? { ...p, ...pageContentForm, updated_at: updatedAt } : p
-        ));
-        showToast('页面内容已更新', 'success');
-      } else {
-        const data = await pageContentService.createPageContent(pageContentForm);
-        setPageContents(prev => [...prev, data].sort((a, b) => a.id.localeCompare(b.id)));
-        showToast('页面内容已创建', 'success');
-      }
-
-      onSuccess?.();
-    } catch (error) {
-      showToast('保存失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
-  const togglePageContentActive = useCallback(async (pageContent) => {
-    if (!ensureSuperAdmin()) return;
-    setActionLoading(pageContent.id);
-
-    try {
-      await pageContentService.setPageContentActive(pageContent.id, !pageContent.is_active);
-      setPageContents(prev => prev.map(p =>
-        p.id === pageContent.id ? { ...p, is_active: !p.is_active } : p
-      ));
-      showToast(pageContent.is_active ? '内容已停用' : '内容已激活', 'success');
-    } catch (error) {
-      showToast('操作失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
-  const deletePageContent = useCallback(async (pageContentId) => {
-    if (!ensureSuperAdmin()) return;
-    if (!window.confirm('确定要删除这条页面内容吗？此操作无法撤销。')) return;
-
-    setActionLoading(pageContentId);
-
-    try {
-      await pageContentService.deletePageContent(pageContentId);
-      setPageContents(prev => prev.filter(p => p.id !== pageContentId));
-      showToast('页面内容已删除', 'success');
-    } catch (error) {
-      showToast('删除失败: ' + error.message, 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [ensureSuperAdmin, showToast]);
-
   return {
     // 数据状态
     users,
-    blacklist,
     announcements,
-    pageContents,
     loading,
     actionLoading,
     reloadAdminData: loadAdminData,
@@ -385,21 +226,11 @@ export function useAdminData(showToast) {
     // 用户管理
     saveUser,
     deleteUser,
-    addToBlacklist,
-
-    // 黑名单管理
-    saveBlacklistEntry,
-    removeFromBlacklist,
 
     // 公告管理
     saveAnnouncement,
     toggleAnnouncementActive,
     deleteAnnouncement,
-
-    // 页面内容管理
-    savePageContent,
-    togglePageContentActive,
-    deletePageContent,
   };
 }
 

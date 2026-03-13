@@ -1,25 +1,21 @@
 import React, { Suspense, lazy } from 'react';
-import { Shield, RefreshCw, ChevronRight, Users, Database, Ban, Layers, Star, Bell, Home, Settings } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 
 const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
 const PoolManagement = lazy(() => import('./admin/PoolManagement'));
 const UsersPanel = lazy(() => import('./admin/panels/UsersPanel'));
 const UserDataPanel = lazy(() => import('./admin/panels/UserDataPanel'));
-const BlacklistPanel = lazy(() => import('./admin/panels/BlacklistPanel'));
 const AnnouncementsPanel = lazy(() => import('./admin/panels/AnnouncementsPanel'));
-const PageContentPanel = lazy(() => import('./admin/panels/PageContentPanel'));
 const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'userData', label: '用户数据', icon: Database },
-  { id: 'blacklist', label: '黑名单', icon: Ban },
   { id: 'pools', label: '卡池管理', icon: Layers },
   { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
-  { id: 'pageContent', label: '页面管理', icon: Home },
   { id: 'siteConfig', label: '站点配置', icon: Settings },
 ];
 
@@ -38,22 +34,14 @@ const AdminPanel = React.memo(({ showToast }) => {
 
   const {
     users,
-    blacklist,
     announcements,
-    pageContents,
     loading,
     actionLoading,
     saveUser,
     deleteUser,
-    addToBlacklist,
-    saveBlacklistEntry,
-    removeFromBlacklist,
     saveAnnouncement,
     toggleAnnouncementActive,
     deleteAnnouncement,
-    savePageContent,
-    togglePageContentActive,
-    deletePageContent,
   } = adminData;
 
   const {
@@ -91,7 +79,6 @@ const AdminPanel = React.memo(({ showToast }) => {
             actionLoading={actionLoading}
             onSaveUser={saveUser}
             onDeleteUser={deleteUser}
-            onAddToBlacklist={addToBlacklist}
           />
         );
 
@@ -116,16 +103,6 @@ const AdminPanel = React.memo(({ showToast }) => {
           />
         );
 
-      case 'blacklist':
-        return (
-          <BlacklistPanel
-            blacklist={blacklist}
-            actionLoading={actionLoading}
-            onSaveEntry={saveBlacklistEntry}
-            onRemoveEntry={removeFromBlacklist}
-          />
-        );
-
       case 'pools':
         return <PoolManagement showToast={showToast} />;
 
@@ -140,17 +117,6 @@ const AdminPanel = React.memo(({ showToast }) => {
             onSaveAnnouncement={saveAnnouncement}
             onToggleActive={toggleAnnouncementActive}
             onDeleteAnnouncement={deleteAnnouncement}
-          />
-        );
-
-      case 'pageContent':
-        return (
-          <PageContentPanel
-            pageContents={pageContents}
-            actionLoading={actionLoading}
-            onSavePageContent={savePageContent}
-            onToggleActive={togglePageContentActive}
-            onDeletePageContent={deletePageContent}
           />
         );
 
@@ -170,7 +136,7 @@ const AdminPanel = React.memo(({ showToast }) => {
           <Shield size={28} />
           超级管理员控制台
         </h2>
-        <p className="text-red-100 mt-1">管理用户、维护共享内容与站点配置</p>
+        <p className="text-red-100 mt-1">管理用户、公告、角色、卡池与站点配置</p>
       </div>
 
       {/* 侧边栏 + 内容布局 */}

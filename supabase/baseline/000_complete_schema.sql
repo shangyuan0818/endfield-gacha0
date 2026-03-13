@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-03-13T08:32:52.358Z
---   5. 覆盖范围: archive\001_init_tables.sql -> archive\079_replace_public_profiles_view_with_security_invoker.sql
+--   4. 生成时间: 2026-03-13T08:48:47.427Z
+--   5. 覆盖范围: archive\001_init_tables.sql -> active\081_remove_blacklist_feature.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive\001_init_tables.sql
@@ -11503,4 +11503,52 @@ BEGIN
   RAISE NOTICE '   public_profile_cache rows: %', profile_cache_count;
 END $$;
 -- <<< END MIGRATION: archive\079_replace_public_profiles_view_with_security_invoker.sql
+
+-- >>> BEGIN MIGRATION: active\080_retire_page_content_management.sql
+-- ============================================
+-- 080: 退役无用的页面管理能力
+--
+-- 背景:
+--   page_content 仅剩超管后台维护链路在读取，
+--   首页、公告、导航、权限判断与 bootstrap 数据链已不再依赖它。
+--
+-- 目标:
+--   1. 移除 page_content 表及其触发器 / 策略残留
+--   2. 为前端后台入口退役提供对应的数据库收口
+-- ============================================
+
+DROP TABLE IF EXISTS public.page_content CASCADE;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Migration 080: page_content 已退役';
+END $$;
+-- <<< END MIGRATION: active\080_retire_page_content_management.sql
+
+-- >>> BEGIN MIGRATION: active\081_remove_blacklist_feature.sql
+-- ============================================
+-- 081: 移除无用黑名单功能
+--
+-- 背景:
+--   黑名单 / 邮箱黑白名单验证链当前已无运行时调用，
+--   仅剩超管后台与历史 schema 残留。
+--
+-- 目标:
+--   1. 删除 blacklist 表与旧邮箱黑白名单表
+--   2. 删除 is_email_blacklisted / validate_email_domain 等旧函数
+--   3. 收口无效的防刷旧链，避免继续误导维护者
+-- ============================================
+
+DROP FUNCTION IF EXISTS public.is_email_blacklisted(TEXT);
+DROP FUNCTION IF EXISTS public.validate_email_domain(TEXT);
+
+DROP TABLE IF EXISTS public.blacklist CASCADE;
+DROP TABLE IF EXISTS public.email_blacklist CASCADE;
+DROP TABLE IF EXISTS public.email_whitelist CASCADE;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Migration 081: 黑名单与邮箱黑白名单旧链已移除';
+END $$;
+-- <<< END MIGRATION: active\081_remove_blacklist_feature.sql
 

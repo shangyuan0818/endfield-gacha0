@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Search, UserPlus, Edit2, Ban, Trash2, Save, X,
+  Search, UserPlus, Edit2, Trash2, Save, X,
   Users, ChevronUp, ChevronDown, ChevronsUpDown
 } from 'lucide-react';
 
@@ -41,8 +41,7 @@ const UsersPanel = ({
   users,
   actionLoading,
   onSaveUser,
-  onDeleteUser,
-  onAddToBlacklist
+  onDeleteUser
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -339,9 +338,6 @@ const UsersPanel = ({
                         <>
                           <button onClick={() => startEditUser(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="编辑">
                             <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => onAddToBlacklist(u)} className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded" title="加入黑名单">
-                            <Ban size={16} />
                           </button>
                           <button onClick={() => onDeleteUser(u)} disabled={actionLoading === u.id} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50" title="删除">
                             <Trash2 size={16} />
