@@ -1,6 +1,6 @@
 -- ============================================
 -- Alias merge SQL (generated)
--- Generated at: 2026-03-12T00:16:36.345Z
+-- Generated at: 2026-03-13T10:29:06.514Z
 -- ============================================
 BEGIN;
 
@@ -62,19 +62,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['manual_character_char_ab12cd_123abc']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'char_official_example'
-      AND source.id = 'manual_character_char_ab12cd_123abc';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'char_official_example'
     WHERE character_id = 'manual_character_char_ab12cd_123abc';
@@ -104,7 +92,20 @@ BEGIN
         'manual_character_char_ab12cd_123abc'
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['manual_character_char_ab12cd_123abc']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'char_official_example'
+      AND source.id = 'manual_character_char_ab12cd_123abc';
     DELETE FROM public.characters
     WHERE id = 'manual_character_char_ab12cd_123abc'
       AND id <> 'char_official_example';
@@ -203,26 +204,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.pools AS target
-    SET
-      description = COALESCE(target.description, source.description),
-      start_time = COALESCE(target.start_time, source.start_time),
-      end_time = COALESCE(target.end_time, source.end_time),
-      banner_url = COALESCE(target.banner_url, source.banner_url),
-      featured_characters = CASE
-        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
-        ELSE source.featured_characters
-      END,
-      up_character = COALESCE(target.up_character, source.up_character),
-      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
-      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
-      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
-      updated_at = NOW()
-    FROM public.pools AS source
-    WHERE target.pool_id = 'special_1_0_1'
-      AND source.pool_id = 'pool_limited_levantin';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET pool_id = 'special_1_0_1'
     WHERE pool_id = 'pool_limited_levantin';
@@ -249,7 +231,27 @@ BEGIN
         'pool_limited_levantin'
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.pools AS target
+    SET
+      description = COALESCE(target.description, source.description),
+      start_time = COALESCE(target.start_time, source.start_time),
+      end_time = COALESCE(target.end_time, source.end_time),
+      banner_url = COALESCE(target.banner_url, source.banner_url),
+      featured_characters = CASE
+        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
+        ELSE source.featured_characters
+      END,
+      up_character = COALESCE(target.up_character, source.up_character),
+      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
+      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
+      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
+      updated_at = NOW()
+    FROM public.pools AS source
+    WHERE target.pool_id = 'special_1_0_1'
+      AND source.pool_id = 'pool_limited_levantin';
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_levantin'
       AND pool_id <> 'special_1_0_1';
@@ -348,26 +350,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.pools AS target
-    SET
-      description = COALESCE(target.description, source.description),
-      start_time = COALESCE(target.start_time, source.start_time),
-      end_time = COALESCE(target.end_time, source.end_time),
-      banner_url = COALESCE(target.banner_url, source.banner_url),
-      featured_characters = CASE
-        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
-        ELSE source.featured_characters
-      END,
-      up_character = COALESCE(target.up_character, source.up_character),
-      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
-      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
-      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
-      updated_at = NOW()
-    FROM public.pools AS source
-    WHERE target.pool_id = 'special_1_0_3'
-      AND source.pool_id = 'pool_limited_jerpeta';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET pool_id = 'special_1_0_3'
     WHERE pool_id = 'pool_limited_jerpeta';
@@ -394,7 +377,27 @@ BEGIN
         'pool_limited_jerpeta'
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.pools AS target
+    SET
+      description = COALESCE(target.description, source.description),
+      start_time = COALESCE(target.start_time, source.start_time),
+      end_time = COALESCE(target.end_time, source.end_time),
+      banner_url = COALESCE(target.banner_url, source.banner_url),
+      featured_characters = CASE
+        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
+        ELSE source.featured_characters
+      END,
+      up_character = COALESCE(target.up_character, source.up_character),
+      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
+      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
+      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
+      updated_at = NOW()
+    FROM public.pools AS source
+    WHERE target.pool_id = 'special_1_0_3'
+      AND source.pool_id = 'pool_limited_jerpeta';
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_jerpeta'
       AND pool_id <> 'special_1_0_3';
@@ -493,26 +496,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.pools AS target
-    SET
-      description = COALESCE(target.description, source.description),
-      start_time = COALESCE(target.start_time, source.start_time),
-      end_time = COALESCE(target.end_time, source.end_time),
-      banner_url = COALESCE(target.banner_url, source.banner_url),
-      featured_characters = CASE
-        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
-        ELSE source.featured_characters
-      END,
-      up_character = COALESCE(target.up_character, source.up_character),
-      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
-      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
-      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
-      updated_at = NOW()
-    FROM public.pools AS source
-    WHERE target.pool_id = 'special_1_0_2'
-      AND source.pool_id = 'pool_limited_yiwen';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET pool_id = 'special_1_0_2'
     WHERE pool_id = 'pool_limited_yiwen';
@@ -539,7 +523,27 @@ BEGIN
         'pool_limited_yiwen'
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.pools AS target
+    SET
+      description = COALESCE(target.description, source.description),
+      start_time = COALESCE(target.start_time, source.start_time),
+      end_time = COALESCE(target.end_time, source.end_time),
+      banner_url = COALESCE(target.banner_url, source.banner_url),
+      featured_characters = CASE
+        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
+        ELSE source.featured_characters
+      END,
+      up_character = COALESCE(target.up_character, source.up_character),
+      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
+      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
+      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
+      updated_at = NOW()
+    FROM public.pools AS source
+    WHERE target.pool_id = 'special_1_0_2'
+      AND source.pool_id = 'pool_limited_yiwen';
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_yiwen'
       AND pool_id <> 'special_1_0_2';

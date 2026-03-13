@@ -155,19 +155,7 @@ ${skipIfMissing
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ${sqlArrayMerge('target.aliases', 'source.aliases', [merge.fromId])},
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = ${toId}
-      AND source.id = ${fromId};
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = ${toId}
     WHERE character_id = ${fromId};
@@ -197,7 +185,20 @@ ${skipIfMissing
         ${fromId}
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ${sqlArrayMerge('target.aliases', 'source.aliases', [merge.fromId])},
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = ${toId}
+      AND source.id = ${fromId};
     DELETE FROM public.characters
     WHERE id = ${fromId}
       AND id <> ${toId};
@@ -307,26 +308,7 @@ ${skipIfMissing
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.pools AS target
-    SET
-      description = COALESCE(target.description, source.description),
-      start_time = COALESCE(target.start_time, source.start_time),
-      end_time = COALESCE(target.end_time, source.end_time),
-      banner_url = COALESCE(target.banner_url, source.banner_url),
-      featured_characters = CASE
-        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
-        ELSE source.featured_characters
-      END,
-      up_character = COALESCE(target.up_character, source.up_character),
-      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
-      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
-      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
-      updated_at = NOW()
-    FROM public.pools AS source
-    WHERE target.pool_id = ${toId}
-      AND source.pool_id = ${fromId};
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET pool_id = ${toId}
     WHERE pool_id = ${fromId};
@@ -353,7 +335,27 @@ ${skipIfMissing
         ${fromId}
       );
     END IF;
+  END IF;
 
+  IF source_exists AND target_exists THEN
+    UPDATE public.pools AS target
+    SET
+      description = COALESCE(target.description, source.description),
+      start_time = COALESCE(target.start_time, source.start_time),
+      end_time = COALESCE(target.end_time, source.end_time),
+      banner_url = COALESCE(target.banner_url, source.banner_url),
+      featured_characters = CASE
+        WHEN COALESCE(array_length(target.featured_characters, 1), 0) > 0 THEN target.featured_characters
+        ELSE source.featured_characters
+      END,
+      up_character = COALESCE(target.up_character, source.up_character),
+      locked = COALESCE(target.locked, FALSE) OR COALESCE(source.locked, FALSE),
+      is_limited_weapon = COALESCE(target.is_limited_weapon, source.is_limited_weapon),
+      rotation_processed = COALESCE(target.rotation_processed, FALSE) OR COALESCE(source.rotation_processed, FALSE),
+      updated_at = NOW()
+    FROM public.pools AS source
+    WHERE target.pool_id = ${toId}
+      AND source.pool_id = ${fromId};
     DELETE FROM public.pools
     WHERE pool_id = ${fromId}
       AND pool_id <> ${toId};
