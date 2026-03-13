@@ -21,6 +21,7 @@
     "test:simulator-inheritance": "node scripts/verify-simulator-inheritance.mjs",
     "test:resource-ui": "node scripts/verify-resource-ui-playwright.mjs",
     "audit:canonical-data": "node scripts/audit-canonical-data.mjs",
+    "generate:supabase-baseline": "node scripts/generate-supabase-baseline.mjs",
     "generate:alias-merge-sql": "node scripts/generate-alias-merge-sql.mjs",
     "generate:legacy-id-alias-seed": "node scripts/generate-legacy-id-alias-seed.mjs"
   },

@@ -4,6 +4,7 @@
 
 - `baseline/`
   - 新环境的基线 schema。当前入口是 `baseline/000_complete_schema.sql`
+  - 由 `npm run generate:supabase-baseline` 从 `migrations/` 自动生成
 - `migrations/`
   - 标准前向迁移链，只保留单调递增、适合正常部署的 SQL
 - `manual/`
@@ -29,3 +30,4 @@
 - 不要把说明文档放回 `migrations/`
 - 不要把 destructive / rollback SQL 放回标准链
 - 新迁移必须保持编号唯一
+- 修改 `migrations/` 后，如果希望刷新新环境基线，请执行 `npm run generate:supabase-baseline`
