@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { RARITY_CONFIG } from '../../constants';
-import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
-import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook';
+import { RARITY_CONFIG } from '../../constants/index.js';
+import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
+import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 
 /**
  * 统计数据计算 Hook

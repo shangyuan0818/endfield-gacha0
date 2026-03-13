@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useHistoryStore } from '../../stores';
+import useHistoryStore from '../../stores/useHistoryStore.js';
 
 /**
  * 当前卡池日志分组 Hook

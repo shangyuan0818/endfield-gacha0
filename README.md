@@ -56,6 +56,11 @@ A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*,
 
 ### 本地开发
 
+前提版本：
+
+- Node.js: `^20.19.0 || >=22.12.0`
+- npm: `>=10.8.2 <12`（仓库当前锁定 `packageManager: npm@11.2.0`）
+
 ```bash
 git clone https://github.com/MoguJunn/endfield-gacha.git
 cd gacha-analyzer
@@ -65,6 +70,8 @@ npm run dev            # 启动前端（公开仓库默认可运行）
 ```
 
 公开仓库默认包含前端、Serverless API、Supabase migrations 和 Edge Functions。
+
+仓库当前使用 `package-lock.json` 作为唯一包管理锁文件；建议使用 `npm`，并通过 `.nvmrc` / `.npmrc` 对齐运行时与安装行为。
 
 涉及游戏数据抓取的本地代理 / 独立后端因为合规与版权风险默认不纳入本仓库。如需导入链路，请在私有环境中接入单独维护的代理服务；否则公开仓库仍可用于基础浏览、统计、登录、云同步和管理功能开发。
 

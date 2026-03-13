@@ -1,16 +1,16 @@
-import { supabase } from '../supabaseClient';
-import { RARITY_CONFIG } from '../constants';
-import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy';
+import { supabase } from '../supabaseClient.js';
+import { RARITY_CONFIG } from '../constants/index.js';
+import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy.js';
 import {
   getBootstrapCharacterRanking,
   getBootstrapGlobalSummary
-} from './bootstrapService';
+} from './bootstrapService.js';
 import {
   SUPABASE_RPC_TIMEOUT_MS,
   executeSupabaseRpc,
   fetchWithTimeout,
   isRetryableSupabaseError,
-} from './supabaseRequest';
+} from './supabaseRequest.js';
 
 /**
  * 统计服务
@@ -25,7 +25,7 @@ const GLOBAL_STATS_SNAPSHOT_KEY = 'global_summary_stats_snapshot';
 const CHARACTER_RANKING_SNAPSHOT_KEY = 'character_ranking_snapshot';
 const USER_RANKING_SNAPSHOT_PREFIX = 'user_ranking_snapshot_';
 const STATS_API_TIMEOUT_MS = 25000;
-const IS_LOCAL_DEV = import.meta.env.DEV;
+const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 const globalStatsRequestState = {
   data: null,
   fetchedAt: 0,
@@ -124,6 +124,7 @@ async function fetchCharacterRankingDirect() {
 function createEmptyTypeStats() {
   return {
     total: 0,
+    chargedPulls: 0,
     six: 0,
     sixStarLimited: 0,
     sixStarStandard: 0,
@@ -143,6 +144,9 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     totalPulls: 0,
     totalPullsWithFree: 0,
     freePullCount: 0,
+    chargedCharacterPulls: 0,
+    chargedWeaponPulls: 0,
+    infoBookPullCount: 0,
     totalUsers: 0,
     totalContributors: 0,
     sixStarTotal: 0,
@@ -259,11 +263,13 @@ function processTypeStats(typeData) {
   }
 
   const total = typeData.total || 0;
+  const chargedPulls = Number(typeData.chargedPulls ?? total) || 0;
   const counts = typeData.counts || {};
   const normalizedType = typeData.poolType || null;
 
   return {
     total,
+    chargedPulls,
     six: typeData.six || 0,
     sixStarLimited: typeData.sixStarLimited || 0,
     sixStarStandard: typeData.sixStarStandard || 0,
@@ -277,6 +283,8 @@ function processTypeStats(typeData) {
     resources: buildResourceSummaryFromAggregates({
       characterPulls: normalizedType === 'weapon' ? 0 : total,
       weaponPulls: normalizedType === 'weapon' ? total : 0,
+      chargedCharacterPulls: normalizedType === 'weapon' ? 0 : chargedPulls,
+      chargedWeaponPulls: normalizedType === 'weapon' ? chargedPulls : 0,
       counts,
       arsenalGainCounts: normalizedType === 'weapon' ? {} : counts
     })
@@ -308,7 +316,7 @@ function mergeDistributions(primary = [], secondary = []) {
   });
 }
 
-function normalizeGlobalStats(rpcData) {
+export function normalizeGlobalStats(rpcData) {
   if (!rpcData) {
     return createEmptyGlobalSummaryStats();
   }
@@ -317,6 +325,9 @@ function normalizeGlobalStats(rpcData) {
     totalPulls: rpcData.totalPulls || 0,
     totalPullsWithFree: rpcData.totalPullsWithFree || rpcData.totalPulls || 0,
     freePullCount: rpcData.freePullCount || 0,
+    chargedCharacterPulls: 0,
+    chargedWeaponPulls: 0,
+    infoBookPullCount: Number(rpcData.infoBookPullCount) || 0,
     totalUsers: rpcData.totalUsers || 0,
     totalContributors: rpcData.totalContributors || 0,
     sixStarTotal: rpcData.sixStarTotal || 0,
@@ -346,6 +357,12 @@ function normalizeGlobalStats(rpcData) {
 
   const limitedStats = stats.byType.limited;
   const standardStats = stats.byType.standard;
+  const weaponStats = stats.byType.weapon;
+  const limitedChargedPulls = Number(limitedStats.chargedPulls ?? limitedStats.total) || 0;
+  const standardChargedPulls = Number(standardStats.chargedPulls ?? standardStats.total) || 0;
+  const weaponChargedPulls = Number(weaponStats.chargedPulls ?? weaponStats.total) || 0;
+  stats.chargedCharacterPulls = Number(rpcData.chargedCharacterPulls ?? (limitedChargedPulls + standardChargedPulls)) || 0;
+  stats.chargedWeaponPulls = Number(rpcData.chargedWeaponPulls ?? weaponChargedPulls) || 0;
   const limitedSix = limitedStats.six || 0;
   const standardSix = standardStats.six || 0;
   const totalSix = limitedSix + standardSix;
@@ -366,6 +383,7 @@ function normalizeGlobalStats(rpcData) {
 
   stats.byType.character = {
     total: limitedStats.total + standardStats.total,
+    chargedPulls: limitedChargedPulls + standardChargedPulls,
     six: limitedStats.six + standardStats.six,
     sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
     sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
@@ -388,6 +406,7 @@ function normalizeGlobalStats(rpcData) {
     }),
     resources: buildResourceSummaryFromAggregates({
       characterPulls: limitedStats.total + standardStats.total,
+      chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
       counts: {
         '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
         '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
@@ -406,6 +425,8 @@ function normalizeGlobalStats(rpcData) {
   stats.resources = buildResourceSummaryFromAggregates({
     characterPulls: stats.byType.character.total,
     weaponPulls: stats.byType.weapon.total,
+    chargedCharacterPulls: stats.chargedCharacterPulls,
+    chargedWeaponPulls: stats.chargedWeaponPulls,
     counts: stats.counts,
     arsenalGainCounts: stats.byType.character.counts
   });

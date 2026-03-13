@@ -1,5 +1,5 @@
 // 数据校验工具函数
-import { LIMITED_POOL_RULES, STANDARD_POOL_RULES, WEAPON_POOL_RULES } from '../constants';
+import { LIMITED_POOL_RULES, STANDARD_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 
 /**
  * 获取卡池规则

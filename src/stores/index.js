@@ -1,8 +1,8 @@
 /**
  * Zustand Stores 统一导出
  */
-export { default as useUIStore } from './useUIStore';
-export { default as useAuthStore } from './useAuthStore';
-export { default as useAppStore } from './useAppStore';
-export { default as usePoolStore } from './usePoolStore';
-export { default as useHistoryStore } from './useHistoryStore';
+export { default as useUIStore } from './useUIStore.js';
+export { default as useAuthStore } from './useAuthStore.js';
+export { default as useAppStore } from './useAppStore.js';
+export { default as usePoolStore } from './usePoolStore.js';
+export { default as useHistoryStore } from './useHistoryStore.js';

@@ -8,14 +8,14 @@ export {
   calculatePity5FromHistory,
   calculateInheritedPity,
   getPoolRules
-} from './validators';
+} from './validators.js';
 export {
   extractDrawerFromPoolName,
   extractCharNameFromPoolName,
   extractTypeFromPoolName,
   groupPoolsByDrawer,
   normalizeIsStandard
-} from './poolUtils';
+} from './poolUtils.js';
 export {
   STORAGE_KEYS,
   getStorageItem,
@@ -25,4 +25,4 @@ export {
   markAsViewed,
   getHomeCollapseState,
   setHomeCollapseState
-} from './storageUtils';
+} from './storageUtils.js';

@@ -1,4 +1,4 @@
-import { POOL_TYPE_KEYWORDS } from '../constants';
+import { POOL_TYPE_KEYWORDS } from '../constants/index.js';
 
 /**
  * 统一归一化 isStandard 字段（DR-B04）
