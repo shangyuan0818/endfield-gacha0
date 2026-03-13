@@ -48,6 +48,7 @@ const AdminPanel = React.memo(({ showToast }) => {
     selectedUserId,
     userPools,
     userHistory,
+    userHistoryMeta,
     userDataLoading,
     expandedPools,
     actionLoading: userDataActionLoading,
@@ -89,6 +90,7 @@ const AdminPanel = React.memo(({ showToast }) => {
             selectedUserId={selectedUserId}
             userPools={userPools}
             userHistory={userHistory}
+            userHistoryMeta={userHistoryMeta}
             userDataLoading={userDataLoading}
             expandedPools={expandedPools}
             actionLoading={userDataActionLoading}

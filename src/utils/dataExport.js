@@ -2,12 +2,12 @@ import {
   getPoolsForGroupType,
   getPoolGroupType,
   isPoolGroupId
-} from '../stores/usePoolStore';
+} from './poolGroupUtils.js';
 import {
   buildGameAccountServerTag,
   loadGameAccountMetadataMap,
   normalizeGameAccountMetadata
-} from './gameAccountMetadata';
+} from './gameAccountMetadata.js';
 
 export const EXPORT_SCHEMA_VERSION = '3.0.0';
 
@@ -488,4 +488,3 @@ export function buildExportCsvContent(payload) {
 
   return `\uFEFF${[headers.join(','), ...rows].join('\r\n')}`;
 }
-

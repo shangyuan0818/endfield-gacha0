@@ -2,6 +2,15 @@ import { useState, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { executeSupabaseRead } from '../../services/supabaseRequest';
 
+const USER_HISTORY_SAMPLE_LIMIT = 500;
+
+const EMPTY_HISTORY_META = {
+  sampleLimit: USER_HISTORY_SAMPLE_LIMIT,
+  totalCount: 0,
+  loadedCount: 0,
+  isTruncated: false
+};
+
 /**
  * 用户数据查看器 Hook
  * 负责：加载/清理用户的卡池和抽卡记录数据
@@ -10,6 +19,7 @@ export function useUserDataViewer(showToast) {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [userPools, setUserPools] = useState([]);
   const [userHistory, setUserHistory] = useState([]);
+  const [userHistoryMeta, setUserHistoryMeta] = useState(EMPTY_HISTORY_META);
   const [userDataLoading, setUserDataLoading] = useState(false);
   const [expandedPools, setExpandedPools] = useState(new Set());
   const [actionLoading, setActionLoading] = useState(null);
@@ -21,6 +31,7 @@ export function useUserDataViewer(showToast) {
     setUserDataLoading(true);
     setSelectedUserId(userId);
     setExpandedPools(new Set());
+    setUserHistoryMeta(EMPTY_HISTORY_META);
 
     try {
       const [poolsRes, historyRes] = await Promise.all([
@@ -32,7 +43,12 @@ export function useUserDataViewer(showToast) {
           }
         ),
         executeSupabaseRead(
-          () => supabase.from('history').select('*').eq('user_id', userId).order('timestamp', { ascending: false }).limit(500),
+          () => supabase
+            .from('history')
+            .select('*', { count: 'exact' })
+            .eq('user_id', userId)
+            .order('timestamp', { ascending: false })
+            .limit(USER_HISTORY_SAMPLE_LIMIT),
           {
             label: 'loadUserData history',
             retries: 1
@@ -43,9 +59,22 @@ export function useUserDataViewer(showToast) {
       if (poolsRes.error) throw poolsRes.error;
       if (historyRes.error) throw historyRes.error;
 
-      setUserPools(poolsRes.data || []);
-      setUserHistory(historyRes.data || []);
+      const nextPools = poolsRes.data || [];
+      const nextHistory = historyRes.data || [];
+      const totalCount = typeof historyRes.count === 'number' ? historyRes.count : nextHistory.length;
+
+      setUserPools(nextPools);
+      setUserHistory(nextHistory);
+      setUserHistoryMeta({
+        sampleLimit: USER_HISTORY_SAMPLE_LIMIT,
+        totalCount,
+        loadedCount: nextHistory.length,
+        isTruncated: totalCount > nextHistory.length
+      });
     } catch (error) {
+      setUserPools([]);
+      setUserHistory([]);
+      setUserHistoryMeta(EMPTY_HISTORY_META);
       showToast('加载用户数据失败: ' + error.message, 'error');
     } finally {
       setUserDataLoading(false);
@@ -68,11 +97,18 @@ export function useUserDataViewer(showToast) {
   // 获取用户统计
   const getUserStats = useCallback(() => {
     const userPoolCount = userPools.length;
-    const userRecordCount = userHistory.length;
     const sixStarCount = userHistory.filter(h => h.rarity === 6).length;
     const fiveStarCount = userHistory.filter(h => h.rarity === 5).length;
-    return { userPoolCount, userRecordCount, sixStarCount, fiveStarCount };
-  }, [userPools, userHistory]);
+    return {
+      userPoolCount,
+      totalRecordCount: userHistoryMeta.totalCount,
+      loadedRecordCount: userHistoryMeta.loadedCount,
+      sampleLimit: userHistoryMeta.sampleLimit,
+      isSampleTruncated: userHistoryMeta.isTruncated,
+      sixStarCount,
+      fiveStarCount
+    };
+  }, [userPools, userHistory, userHistoryMeta]);
 
   // 获取卡池统计
   const getPoolStats = useCallback((poolId) => {
@@ -172,6 +208,7 @@ export function useUserDataViewer(showToast) {
     selectedUserId,
     userPools,
     userHistory,
+    userHistoryMeta,
     userDataLoading,
     expandedPools,
     actionLoading,

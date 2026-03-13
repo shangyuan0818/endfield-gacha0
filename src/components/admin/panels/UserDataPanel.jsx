@@ -12,6 +12,7 @@ const UserDataPanel = ({
   selectedUserId,
   userPools,
   userHistory,
+  userHistoryMeta,
   userDataLoading,
   expandedPools,
   actionLoading,
@@ -32,6 +33,10 @@ const UserDataPanel = ({
   );
 
   const stats = selectedUserId ? getUserStats() : null;
+  const isHistorySampleTruncated = Boolean(userHistoryMeta?.isTruncated);
+  const loadedHistoryCount = userHistoryMeta?.loadedCount || 0;
+  const totalHistoryCount = userHistoryMeta?.totalCount || 0;
+  const historySampleLimit = userHistoryMeta?.sampleLimit || loadedHistoryCount;
 
   const filteredUsersForData = useMemo(() =>
     users.filter(user =>
@@ -123,18 +128,24 @@ const UserDataPanel = ({
                     <div className="text-xs text-blue-100">卡池</div>
                   </div>
                   <div className="text-center p-2 bg-white/10 rounded">
-                    <div className="text-2xl font-bold">{stats?.userRecordCount || 0}</div>
-                    <div className="text-xs text-blue-100">记录</div>
+                    <div className="text-2xl font-bold">{stats?.totalRecordCount || 0}</div>
+                    <div className="text-xs text-blue-100">记录总数</div>
                   </div>
                   <div className="text-center p-2 bg-white/10 rounded">
                     <div className="text-2xl font-bold text-yellow-300">{stats?.sixStarCount || 0}</div>
-                    <div className="text-xs text-blue-100">6星</div>
+                    <div className="text-xs text-blue-100">{isHistorySampleTruncated ? '样本6星' : '6星'}</div>
                   </div>
                   <div className="text-center p-2 bg-white/10 rounded">
                     <div className="text-2xl font-bold text-purple-300">{stats?.fiveStarCount || 0}</div>
-                    <div className="text-xs text-blue-100">5星</div>
+                    <div className="text-xs text-blue-100">{isHistorySampleTruncated ? '样本5星' : '5星'}</div>
                   </div>
                 </div>
+                {isHistorySampleTruncated && (
+                  <div className="mt-3 rounded bg-amber-500/15 border border-amber-300/40 px-3 py-2 text-xs text-amber-50">
+                    当前仅加载最近 {loadedHistoryCount} / 共 {totalHistoryCount} 条记录。
+                    下方星级统计、卡池抽数与最近记录列表均基于已加载样本，不代表该用户全量历史。
+                  </div>
+                )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     onClick={onDeleteUserData}
@@ -188,9 +199,9 @@ const UserDataPanel = ({
                             </div>
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500">
-                                <span>{poolStats.total} 抽</span>
-                                <span className="text-yellow-600">★{poolStats.sixStar}</span>
-                                <span className="text-purple-600">★{poolStats.fiveStar}</span>
+                                <span>{isHistorySampleTruncated ? `样本 ${poolStats.total} 抽` : `${poolStats.total} 抽`}</span>
+                                <span className="text-yellow-600">{isHistorySampleTruncated ? `样本★${poolStats.sixStar}` : `★${poolStats.sixStar}`}</span>
+                                <span className="text-purple-600">{isHistorySampleTruncated ? `样本★${poolStats.fiveStar}` : `★${poolStats.fiveStar}`}</span>
                               </div>
                               {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </div>
@@ -202,21 +213,26 @@ const UserDataPanel = ({
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                                 <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                                   <div className="text-lg font-bold text-yellow-600">{poolStats.sixStar}</div>
-                                  <div className="text-xs text-slate-500">6星</div>
+                                  <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本6星' : '6星'}</div>
                                 </div>
                                 <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                                   <div className="text-lg font-bold text-purple-600">{poolStats.fiveStar}</div>
-                                  <div className="text-xs text-slate-500">5星</div>
+                                  <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本5星' : '5星'}</div>
                                 </div>
                                 <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                                   <div className="text-lg font-bold text-blue-600">{poolStats.fourStar}</div>
-                                  <div className="text-xs text-slate-500">4星</div>
+                                  <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本4星' : '4星'}</div>
                                 </div>
                                 <div className="text-center p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700">
                                   <div className="text-lg font-bold text-slate-500">{poolStats.threeStar}</div>
-                                  <div className="text-xs text-slate-500">3星</div>
+                                  <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本3星' : '3星'}</div>
                                 </div>
                               </div>
+                              {isHistorySampleTruncated && (
+                                <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300">
+                                  该卡池统计仅基于该用户最近 {historySampleLimit} 条已加载记录中的命中样本，不代表该池全量抽卡数。
+                                </div>
+                              )}
 
                               {/* 卡池级操作 */}
                               <div className="flex flex-wrap gap-2 mb-3">
@@ -242,7 +258,7 @@ const UserDataPanel = ({
                               {poolRecords.length > 0 && (
                                 <div>
                                   <div className="text-xs text-slate-500 dark:text-zinc-500 mb-2">
-                                    最近 {Math.min(poolRecords.length, 20)} 条记录:
+                                    最近 {Math.min(poolRecords.length, 20)} 条已加载记录:
                                   </div>
                                   <div className="flex flex-wrap gap-1">
                                     {poolRecords.slice(0, 20).map((record, idx) => (
@@ -286,33 +302,39 @@ const UserDataPanel = ({
               <div>
                 <h5 className="font-bold text-slate-700 dark:text-zinc-300 mb-2 flex items-center gap-2">
                   <BarChart3 size={16} />
-                  抽卡记录汇总
+                  {isHistorySampleTruncated ? '抽卡记录样本汇总' : '抽卡记录汇总'}
                 </h5>
                 <div className="p-4 bg-slate-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700">
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
                     <div>
-                      <div className="text-2xl font-bold text-slate-700 dark:text-zinc-300">{userHistory.length}</div>
-                      <div className="text-xs text-slate-500">总抽数</div>
+                      <div className="text-2xl font-bold text-slate-700 dark:text-zinc-300">{loadedHistoryCount}</div>
+                      <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '已加载样本' : '总抽数'}</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-yellow-600">{userHistory.filter(h => h.rarity === 6).length}</div>
-                      <div className="text-xs text-slate-500">6星</div>
+                      <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本6星' : '6星'}</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-purple-600">{userHistory.filter(h => h.rarity === 5).length}</div>
-                      <div className="text-xs text-slate-500">5星</div>
+                      <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本5星' : '5星'}</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-blue-600">{userHistory.filter(h => h.rarity === 4).length}</div>
-                      <div className="text-xs text-slate-500">4星</div>
+                      <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本4星' : '4星'}</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-slate-500">{userHistory.filter(h => h.rarity === 3).length}</div>
-                      <div className="text-xs text-slate-500">3星</div>
+                      <div className="text-xs text-slate-500">{isHistorySampleTruncated ? '样本3星' : '3星'}</div>
                     </div>
                   </div>
                   {userHistory.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-700 text-xs text-slate-500 dark:text-zinc-500">
+                      {isHistorySampleTruncated && (
+                        <>
+                          以下出率基于最近 {loadedHistoryCount} 条已加载样本
+                          {' · '}
+                        </>
+                      )}
                       6星出率: {((userHistory.filter(h => h.rarity === 6).length / userHistory.length) * 100).toFixed(2)}%
                       {' · '}
                       5星出率: {((userHistory.filter(h => h.rarity === 5).length / userHistory.length) * 100).toFixed(2)}%
