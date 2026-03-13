@@ -24,6 +24,7 @@ export function useNotificationBadges() {
     const fetchAnnouncements = async () => {
       try {
         let data = null;
+        let shouldFallbackToLocal = !supabase;
 
         // 优先尝试从 Supabase 加载
         if (supabase) {
@@ -39,13 +40,14 @@ export function useNotificationBadges() {
             }
           );
 
-          if (!error && dbData && dbData.length > 0) {
-            data = dbData;
+          if (!error) {
+            data = dbData || [];
+            shouldFallbackToLocal = false;
           }
         }
 
-        // 回退到本地 JSON
-        if (!data) {
+        // 只在真实读取失败时回退到本地 JSON；“成功但空数组”应视为合法空态
+        if (shouldFallbackToLocal) {
           const response = await fetchWithTimeout('/announcements.json', undefined, {
             label: 'load announcements fallback',
             timeoutMs: 15000,
@@ -53,6 +55,8 @@ export function useNotificationBadges() {
           if (response.ok) {
             const jsonData = await response.json();
             data = jsonData.filter(a => a.is_active).sort((a, b) => b.priority - a.priority);
+          } else {
+            data = [];
           }
         }
 

@@ -5,6 +5,7 @@ const CACHE_TTL = 60 * 1000;
 
 const cache = {
   payload: null,
+  partial: false,
   lastFetch: 0
 };
 
@@ -28,70 +29,14 @@ function normalizeRemotePoolType(type, isLimitedWeaponFlag) {
   return type || 'standard';
 }
 
-function hasText(value) {
-  return typeof value === 'string' ? value.trim().length > 0 : Boolean(value);
-}
-
-function isSharedPoolId(poolId) {
-  if (!poolId || typeof poolId !== 'string') {
-    return false;
-  }
-
-  return (
-    poolId === 'standard'
-    || poolId === 'beginner'
-    || poolId.startsWith('special_')
-    || poolId.startsWith('weponbox_')
-    || poolId.startsWith('weaponbox_')
-  );
-}
-
 function getPoolRecordId(record) {
   return record?.pool_id || record?.id || null;
-}
-
-function hasFeaturedCharacters(record) {
-  return Array.isArray(record?.featured_characters) && record.featured_characters.length > 0;
-}
-
-function getRoleWeight(role) {
-  if (role === 'super_admin') return 3;
-  if (role === 'admin') return 2;
-  return 1;
-}
-
-function getPoolCompletenessScore(record) {
-  return (
-    (hasText(record?.up_character) ? 4 : 0)
-    + (record?.start_time ? 2 : 0)
-    + (record?.end_time ? 2 : 0)
-    + (hasFeaturedCharacters(record) ? 1 : 0)
-    + (hasText(record?.banner_url) ? 1 : 0)
-    + (hasText(record?.description) ? 1 : 0)
-    + (record?.locked ? 1 : 0)
-  );
 }
 
 function getSortTimestamp(record) {
   const source = record?.start_time || record?.created_at || record?.updated_at || 0;
   const value = new Date(source).getTime();
   return Number.isFinite(value) ? value : 0;
-}
-
-function shouldPreferCandidate(existingRecord, candidateRecord) {
-  const existingRoleWeight = getRoleWeight(existingRecord?.creator_role);
-  const candidateRoleWeight = getRoleWeight(candidateRecord?.creator_role);
-  if (existingRoleWeight !== candidateRoleWeight) {
-    return candidateRoleWeight > existingRoleWeight;
-  }
-
-  const existingScore = getPoolCompletenessScore(existingRecord);
-  const candidateScore = getPoolCompletenessScore(candidateRecord);
-  if (existingScore !== candidateScore) {
-    return candidateScore > existingScore;
-  }
-
-  return getSortTimestamp(candidateRecord) > getSortTimestamp(existingRecord);
 }
 
 function sortVisiblePoolRecords(left, right) {
@@ -103,38 +48,6 @@ function sortVisiblePoolRecords(left, right) {
   return String(getPoolRecordId(left) || '').localeCompare(String(getPoolRecordId(right) || ''));
 }
 
-function isVisiblePoolRecord(record) {
-  return (
-    isSharedPoolId(getPoolRecordId(record))
-    || !record?.user_id
-    || record?.locked === true
-    || record?.creator_role === 'admin'
-    || record?.creator_role === 'super_admin'
-  );
-}
-
-function isTimedLimitedPool(record) {
-  const poolType = normalizeRemotePoolType(record?.type, record?.is_limited_weapon);
-  return poolType === 'limited' && record?.start_time && record?.end_time && hasText(record?.up_character);
-}
-
-function shouldBackfillFromLegacyQuery(rpcRows) {
-  if (!Array.isArray(rpcRows) || rpcRows.length === 0) {
-    return true;
-  }
-
-  const now = new Date();
-  return !rpcRows.some((record) => {
-    if (!isTimedLimitedPool(record)) {
-      return false;
-    }
-
-    const start = new Date(record.start_time);
-    const end = new Date(record.end_time);
-    return now >= start && now < end;
-  });
-}
-
 function dedupeVisiblePoolRecords(records) {
   const deduped = new Map();
 
@@ -144,8 +57,7 @@ function dedupeVisiblePoolRecords(records) {
       return;
     }
 
-    const existing = deduped.get(poolId);
-    if (!existing || shouldPreferCandidate(existing, record)) {
+    if (!deduped.has(poolId)) {
       deduped.set(poolId, record);
     }
   });
@@ -212,44 +124,11 @@ async function fetchSiteConfig(supabase) {
 
 async function fetchVisiblePools(supabase) {
   const { data, error } = await supabase.rpc('get_app_visible_pools');
-  const rpcRows = dedupeVisiblePoolRecords(data || []);
-
-  if (!error && !shouldBackfillFromLegacyQuery(rpcRows)) {
-    return rpcRows.map(formatVisiblePoolRecord);
+  if (error) {
+    throw error;
   }
 
-  const { data: poolRows, error: poolError } = await supabase
-    .from('pools')
-    .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters');
-
-  if (poolError) {
-    if (error) {
-      throw error;
-    }
-    throw poolError;
-  }
-
-  const userIds = [...new Set((poolRows || []).map((row) => row.user_id).filter(Boolean))];
-  let publicProfilesMap = new Map();
-  if (userIds.length > 0) {
-    const { data: profileRows } = await supabase
-      .from('public_profiles')
-      .select('id, username, role')
-      .in('id', userIds);
-
-    publicProfilesMap = new Map((profileRows || []).map((profile) => [profile.id, profile]));
-  }
-
-  const visibleLegacyRows = (poolRows || [])
-    .map((row) => ({
-      ...row,
-      creator_username: publicProfilesMap.get(row.user_id)?.username || null,
-      creator_role: publicProfilesMap.get(row.user_id)?.role || null
-    }))
-    .filter(isVisiblePoolRecord);
-
-  const mergedRows = dedupeVisiblePoolRecords([...rpcRows, ...visibleLegacyRows]);
-  return mergedRows.map(formatVisiblePoolRecord);
+  return dedupeVisiblePoolRecords(data || []).map(formatVisiblePoolRecord);
 }
 
 async function fetchGlobalSummary(supabase) {
@@ -297,7 +176,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       cached: true,
-      partial: false,
+      partial: Boolean(cache.partial),
       data: cache.payload
     });
   }
@@ -307,7 +186,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       success: true,
       cached: true,
-      partial: false,
+      partial: Boolean(cache.partial),
       data: cachedPayload,
       message: 'Database not configured, returning cached/default data'
     });
@@ -328,10 +207,10 @@ export default async function handler(req, res) {
   });
 
   cache.payload = nextPayload;
-  cache.lastFetch = now;
-
   const criticalResults = [poolsResult, globalSummaryResult, characterRankingResult];
   const partial = criticalResults.some((result) => result.status === 'rejected');
+  cache.partial = partial;
+  cache.lastFetch = now;
 
   return res.status(200).json({
     success: true,
@@ -340,3 +219,10 @@ export default async function handler(req, res) {
     data: nextPayload
   });
 }
+
+export const __internal = {
+  CACHE_TTL,
+  cache,
+  createEmptyBootstrapPayload,
+  mergeBootstrapPayload
+};
