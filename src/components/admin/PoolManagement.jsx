@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, Database, RefreshCw, RotateCw, AlertTriangle, ArrowUpDown, Filter } from 'lucide-react';
+import { Search, Plus, Database, RotateCw, ArrowUpDown, Filter } from 'lucide-react';
 import { usePools } from '../../hooks/admin/usePools';
 import { PoolCard, PoolEditDialog } from './pools';
 
@@ -15,12 +15,10 @@ const PoolManagement = ({ showToast }) => {
     poolCharacters,
     filteredPools,
     limitedSixStarCharacters,
-    pendingRotationPools,
 
     // 状态
     loading,
     actionLoading,
-    autoRotationProcessing,
 
     // 搜索筛选排序
     searchQuery,
@@ -46,8 +44,6 @@ const PoolManagement = ({ showToast }) => {
     startEdit,
     handleSavePool,
     handleDeletePool,
-    handleStartRotation,
-    handleProcessAllPendingRotations,
     handleRecalculateIsStandard,
 
     // 角色池子管理
@@ -136,47 +132,6 @@ const PoolManagement = ({ showToast }) => {
         </button>
       </div>
 
-      {/* 自动轮换提示横幅 */}
-      {pendingRotationPools.length > 0 && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded">
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="font-bold text-amber-700 dark:text-amber-400 mb-1">
-                🔄 检测到 {pendingRotationPools.length} 个已结束的卡池需要处理轮换
-              </h4>
-              <p className="text-sm text-amber-600 dark:text-amber-500 mb-2">
-                以下卡池已结束但尚未处理角色轮换计数：
-              </p>
-              <ul className="text-sm text-amber-600 dark:text-amber-500 mb-3 space-y-1">
-                {pendingRotationPools.slice(0, 3).map(pool => (
-                  <li key={pool.pool_id} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                    <span className="font-medium">{pool.name}</span>
-                    <span className="text-xs opacity-70">
-                      (结束于 {new Date(pool.end_time).toLocaleString('zh-CN')})
-                    </span>
-                  </li>
-                ))}
-                {pendingRotationPools.length > 3 && (
-                  <li className="text-xs opacity-70">
-                    ... 还有 {pendingRotationPools.length - 3} 个卡池
-                  </li>
-                )}
-              </ul>
-              <button
-                onClick={handleProcessAllPendingRotations}
-                disabled={autoRotationProcessing}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={16} className={autoRotationProcessing ? 'animate-spin' : ''} />
-                {autoRotationProcessing ? '处理中...' : `立即处理所有轮换 (+${pendingRotationPools.length})`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 统计信息 */}
       <div className="text-xs text-slate-500 dark:text-zinc-500">
         显示 {filteredPools.length} / {pools.length} 个卡池
@@ -200,7 +155,6 @@ const PoolManagement = ({ showToast }) => {
               actionLoading={actionLoading}
               onEdit={startEdit}
               onDelete={handleDeletePool}
-              onStartRotation={handleStartRotation}
             />
           ))}
         </div>

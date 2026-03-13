@@ -50,6 +50,9 @@ const BatchEditDialog = ({
               <p className="text-blue-700 dark:text-blue-300">
                 💡 只有勾选的选项才会被修改，未勾选的选项将保持原值不变
               </p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                批量加入限定池时，如原记录缺少首次入池时间，系统会自动补当前时间作为 `introduced_at`
+              </p>
             </div>
 
             {/* 限定状态设置 */}

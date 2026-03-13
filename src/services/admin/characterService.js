@@ -274,7 +274,21 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
       });
 
       if (poolsChanged) {
-        updates.pool_config = { ...currentConfig, pools: newPools };
+        const nextPoolConfig = { ...currentConfig, pools: newPools };
+
+        if (batchEditForm.pools.limited === true && !nextPoolConfig.introduced_at) {
+          nextPoolConfig.introduced_at = new Date().toISOString();
+        }
+
+        if (!newPools.includes('limited')) {
+          nextPoolConfig.is_active_in_limited = false;
+        } else {
+          const rotationCount = Number(nextPoolConfig.limited_rotation_count) || 0;
+          const removesAfter = nextPoolConfig.removes_after;
+          nextPoolConfig.is_active_in_limited = removesAfter === null || removesAfter === undefined || rotationCount < removesAfter;
+        }
+
+        updates.pool_config = nextPoolConfig;
         needUpdate = true;
       }
 

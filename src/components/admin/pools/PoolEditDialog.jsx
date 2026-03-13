@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Save, Star, Users, RotateCw, UserPlus, CheckCircle, Lock, Unlock, CheckSquare, Square } from 'lucide-react';
 import DateTimePicker from '../../common/DateTimePicker';
+import { getLimitedCharacterPoolStatus } from '../../../utils/characterUtils';
 
 /**
  * 角色标签组件
@@ -102,13 +103,16 @@ const PoolEditDialog = ({
   const fourStars = allChars.filter(c => c.rarity === 4);
 
   const isInPool = (char) => editingPoolCharacters.some(pc => pc.character_id === char.id);
+  const poolContext = {
+    start_time: editingPool?.start_time || poolForm.start_time,
+    rotation_position: editingPool?.rotationPosition ?? null,
+  };
 
   const renderCharTag = (char) => {
     const inPool = isInPool(char);
     const isUp = char.name === poolForm.up_character.trim();
-    const rotationCount = char.pool_config?.limited_rotation_count || 0;
-    const removesAfter = char.pool_config?.removes_after;
-    const isRemoved = poolType === 'limited' && removesAfter !== null && removesAfter !== undefined && rotationCount >= removesAfter;
+    const rotationStatus = getLimitedCharacterPoolStatus(char, poolContext);
+    const isRemoved = poolType === 'limited' && !rotationStatus.isActive;
 
     return (
       <CharacterTag
@@ -220,7 +224,7 @@ const PoolEditDialog = ({
                         <UserPlus size={14} className="text-amber-500 shrink-0 mt-0.5" />
                         <div className="text-amber-700 dark:text-amber-400">
                           <p className="font-medium">将自动创建新角色「{poolForm.up_character.trim()}」</p>
-                          <p className="mt-0.5 opacity-80">6星 · {poolForm.type === 'weapon' ? '武器' : '角色'} · 3次轮换后移出</p>
+                          <p className="mt-0.5 opacity-80">6星 · {poolForm.type === 'weapon' ? '武器' : '角色'} · 轮换基数按开始时间自动派生，默认 3 池后移出</p>
                         </div>
                       </div>
                     </div>
@@ -406,7 +410,7 @@ const PoolEditDialog = ({
                         <div>
                           <p className="font-medium">限定池轮换机制</p>
                           <p className="mt-1 opacity-80">
-                            • 绿色 = 在池中 · 红色删除线 = 已轮换移出 · 灰色 = 不在池中
+                            • 绿色 = 当前池计划内 · 红色删除线 = 当前池不在计划内 · 灰色 = 不在池中
                           </p>
                         </div>
                       </div>

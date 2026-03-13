@@ -54,7 +54,14 @@ const ensureLeadingCharacter = (names, leadingName) => {
 
 const getPoolContext = (currentUpInfo) => {
   const startTime = currentUpInfo?.poolData?.start_time || currentUpInfo?.startDate;
-  return startTime ? { start_time: startTime } : null;
+  if (!startTime) {
+    return null;
+  }
+
+  return {
+    start_time: startTime,
+    rotation_position: currentUpInfo?.rotationPosition,
+  };
 };
 
 const getFeaturedCharacters = (currentUpInfo) => {

@@ -5,8 +5,12 @@
  * @date 2026-02-04
  */
 
-import React from 'react';
-import { Save, X, Plus, Link as LinkIcon, Package } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { Save, X, Plus, Link as LinkIcon, Package, Clock3 } from 'lucide-react';
+import DateTimePicker from '../../common/DateTimePicker';
+import usePoolStore from '../../../stores/usePoolStore';
+import { getCurrentUpPoolInfo } from '../../../utils/poolTimeUtils';
+import { getLimitedCharacterPoolStatus } from '../../../utils/characterUtils';
 
 /**
  * 角色编辑对话框
@@ -27,6 +31,27 @@ const CharacterEditDialog = ({
   onAddAlias,
   onRemoveAlias
 }) => {
+  const pools = usePoolStore(state => state.pools);
+  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : Object.values(pools || {})), [pools]);
+  const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray), [poolsArray]);
+  const currentPoolContext = useMemo(() => ({
+    start_time: currentUpInfo?.poolData?.start_time || currentUpInfo?.startDate,
+    rotation_position: currentUpInfo?.rotationPosition,
+  }), [currentUpInfo]);
+  const limitedStatus = useMemo(
+    () => getLimitedCharacterPoolStatus({ pool_config: characterForm.pool_config }, currentPoolContext),
+    [characterForm.pool_config, currentPoolContext]
+  );
+  const getCurrentLocalDateTimeValue = () => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   if (!show) return null;
 
   return (
@@ -212,15 +237,22 @@ const CharacterEditDialog = ({
                         type="checkbox"
                         checked={characterForm.pool_config.pools.includes(poolType)}
                         onChange={(e) => {
-                          setCharacterForm(prev => ({
-                            ...prev,
-                            pool_config: {
-                              ...prev.pool_config,
-                              pools: e.target.checked
-                                ? [...prev.pool_config.pools, poolType]
-                                : prev.pool_config.pools.filter(p => p !== poolType)
-                            }
-                          }));
+                          setCharacterForm(prev => {
+                            const nextPools = e.target.checked
+                              ? [...prev.pool_config.pools, poolType]
+                              : prev.pool_config.pools.filter(p => p !== poolType);
+
+                            return {
+                              ...prev,
+                              pool_config: {
+                                ...prev.pool_config,
+                                pools: nextPools,
+                                introduced_at: poolType === 'limited' && e.target.checked && !prev.pool_config.introduced_at
+                                  ? getCurrentLocalDateTimeValue()
+                                  : prev.pool_config.introduced_at
+                              }
+                            };
+                          });
                         }}
                         className="w-4 h-4"
                       />
@@ -243,30 +275,22 @@ const CharacterEditDialog = ({
               {characterForm.pool_config.pools.includes('limited') && (
                 <div className="p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800/30 mb-4">
                   <h5 className="text-xs font-bold text-orange-700 dark:text-orange-400 mb-3 uppercase">
-                    限定池轮换配置
+                    限定池计划配置
                   </h5>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* 轮换次数 */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                        当前轮换次数
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={characterForm.pool_config.limited_rotation_count}
-                        onChange={(e) => setCharacterForm(prev => ({
-                          ...prev,
-                          pool_config: {
-                            ...prev.pool_config,
-                            limited_rotation_count: parseInt(e.target.value) || 0
-                          }
-                        }))}
-                        className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 text-sm"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <DateTimePicker
+                      label="首次进入限定池时间"
+                      value={characterForm.pool_config.introduced_at || ''}
+                      onChange={(val) => setCharacterForm(prev => ({
+                        ...prev,
+                        pool_config: {
+                          ...prev.pool_config,
+                          introduced_at: val
+                        }
+                      }))}
+                      placeholder="留空时保存为当前时间"
+                    />
 
-                    {/* 移出限制 */}
                     <div>
                       <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
                         几次轮换后移出
@@ -280,51 +304,38 @@ const CharacterEditDialog = ({
                           ...prev,
                           pool_config: {
                             ...prev.pool_config,
-                            removes_after: e.target.value === '' ? null : parseInt(e.target.value) || null
+                            removes_after: e.target.value === '' ? null : parseInt(e.target.value, 10) || null
                           }
                         }))}
                         className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 text-sm"
                       />
                     </div>
-
-                    {/* 当前状态 */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                        限定池状态
-                      </label>
-                      <div className="flex items-center gap-2 h-[38px]">
-                        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
-                          <input
-                            type="checkbox"
-                            checked={characterForm.pool_config.is_active_in_limited}
-                            onChange={(e) => setCharacterForm(prev => ({
-                              ...prev,
-                              pool_config: {
-                                ...prev.pool_config,
-                                is_active_in_limited: e.target.checked
-                              }
-                            }))}
-                            className="w-4 h-4"
-                          />
-                          仍在限定池中
-                        </label>
-                      </div>
-                    </div>
                   </div>
 
-                  {/* 状态提示 */}
-                  {characterForm.pool_config.removes_after !== null && (
-                    <div className={`mt-3 text-xs px-2 py-1 rounded ${
-                      characterForm.pool_config.limited_rotation_count >= characterForm.pool_config.removes_after
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400">
+                      <Clock3 size={12} />
+                      <span>
+                        当前计划位次: {limitedStatus.effectiveRotationPosition}
+                        {limitedStatus.removesAfter !== null ? ` / ${limitedStatus.removesAfter}` : ' / ∞'}
+                      </span>
+                    </div>
+                    <div className={`text-xs px-2 py-1 rounded ${
+                      !limitedStatus.isIntroduced || limitedStatus.isRemoved
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                         : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
                     }`}>
-                      {characterForm.pool_config.limited_rotation_count >= characterForm.pool_config.removes_after
-                        ? `⚠️ 已轮换 ${characterForm.pool_config.limited_rotation_count}/${characterForm.pool_config.removes_after} 次，已从限定池移出`
-                        : `✓ 已轮换 ${characterForm.pool_config.limited_rotation_count}/${characterForm.pool_config.removes_after} 次，仍在限定池中`
+                      {!limitedStatus.isIntroduced
+                        ? '当前限定池开始时间早于该角色首次入池时间，当前池计划中不会出现此角色'
+                        : limitedStatus.isRemoved
+                          ? `当前计划位次已达到 ${limitedStatus.effectiveRotationPosition}/${limitedStatus.removesAfter}，该角色按计划已移出限定池`
+                          : `当前计划位次 ${limitedStatus.effectiveRotationPosition}${limitedStatus.removesAfter !== null ? `/${limitedStatus.removesAfter}` : '/∞'}，该角色仍在限定池计划中`
                       }
                     </div>
-                  )}
+                    <div className="text-[11px] text-slate-500 dark:text-zinc-500">
+                      兼容字段 `limited_rotation_count / is_active_in_limited` 已改为保存时自动派生，不再在后台手动编辑。
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

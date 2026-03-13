@@ -6,6 +6,28 @@
  */
 
 import { getPoolCharacters } from '../utils/characterUtils.js';
+import usePoolStore from '../stores/usePoolStore';
+import { getCurrentUpPoolInfo, getCurrentUpPoolName } from '../utils/poolTimeUtils';
+
+function getStorePoolsArray() {
+  const storePools = usePoolStore.getState?.().pools;
+  return Array.isArray(storePools) ? storePools : Object.values(storePools || {});
+}
+
+function getCurrentLimitedPoolContext() {
+  const pools = getStorePoolsArray();
+  const currentUpInfo = getCurrentUpPoolInfo(pools);
+  const startTime = currentUpInfo?.poolData?.start_time || currentUpInfo?.startDate;
+
+  if (!startTime) {
+    return null;
+  }
+
+  return {
+    start_time: startTime,
+    rotation_position: currentUpInfo?.rotationPosition,
+  };
+}
 
 // ============================================
 // 限定角色池（动态读取）
@@ -16,7 +38,7 @@ import { getPoolCharacters } from '../utils/characterUtils.js';
  * @returns {Array<string>} 角色名称数组
  */
 function getLimitedUpCharactersList() {
-  const chars = getPoolCharacters('limited', 6, true)
+  const chars = getPoolCharacters('limited', 6, true, getCurrentLimitedPoolContext())
     .filter(char => char.is_limited);
   return chars.map(char => char.name);
 }
@@ -26,7 +48,7 @@ function getLimitedUpCharactersList() {
  * @returns {Array<string>} 角色名称数组
  */
 function getLimitedOffBannerCharactersList() {
-  const chars = getPoolCharacters('limited', 6, true)
+  const chars = getPoolCharacters('limited', 6, true, getCurrentLimitedPoolContext())
     .filter(char => !char.is_limited);
   return chars.map(char => char.name);
 }
@@ -36,7 +58,7 @@ function getLimitedOffBannerCharactersList() {
  * @returns {Array<string>} 角色名称数组
  */
 function getLimitedAllSixStarList() {
-  const chars = getPoolCharacters('limited', 6, true);
+  const chars = getPoolCharacters('limited', 6, true, getCurrentLimitedPoolContext());
   return chars.map(char => char.name);
 }
 
@@ -45,7 +67,7 @@ function getLimitedAllSixStarList() {
  * @returns {Array<string>} 角色名称数组
  */
 function getLimitedFiveStarList() {
-  const chars = getPoolCharacters('limited', 5, true);
+  const chars = getPoolCharacters('limited', 5, true, getCurrentLimitedPoolContext());
   return chars.map(char => char.name);
 }
 
@@ -54,7 +76,7 @@ function getLimitedFiveStarList() {
  * @returns {Array<string>} 角色名称数组
  */
 function getLimitedFourStarList() {
-  const chars = getPoolCharacters('limited', 4, true);
+  const chars = getPoolCharacters('limited', 4, true, getCurrentLimitedPoolContext());
   return chars.map(char => char.name);
 }
 
@@ -370,30 +392,7 @@ export function getCharacterName(poolType, rarity, isUp = false, currentUpCharac
  * @returns {string} 当前UP角色名称
  */
 export function getCurrentUpCharacter() {
-  // 导入 LIMITED_POOL_SCHEDULE
-  const now = new Date();
-
-  // 简化版本：根据日期判断
-  // 莱万汀：2025-11-28 ~ 2025-12-12
-  // 伊冯：2025-12-12 ~ 2025-12-26
-  // 洁尔佩塔：2025-12-26 ~ 2025-12-29
-
-  const schedule = [
-    { name: '莱万汀', start: '2025-11-28T11:00:00+08:00', end: '2025-12-12T13:59:59+08:00' },
-    { name: '伊冯', start: '2025-12-12T14:00:00+08:00', end: '2025-12-26T13:59:59+08:00' },
-    { name: '洁尔佩塔', start: '2025-12-26T14:00:00+08:00', end: '2025-12-29T14:00:00+08:00' }
-  ];
-
-  for (const pool of schedule) {
-    const start = new Date(pool.start);
-    const end = new Date(pool.end);
-    if (now >= start && now < end) {
-      return pool.name;
-    }
-  }
-
-  // 默认返回莱万汀（如果都不匹配）
-  return '莱万汀';
+  return getCurrentUpPoolName(getStorePoolsArray()) || '莱万汀';
 }
 
 export default {

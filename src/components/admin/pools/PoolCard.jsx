@@ -1,5 +1,6 @@
 import React from 'react';
-import { Edit2, Trash2, Calendar, Star, Layers, Swords, RotateCw, RefreshCw, CheckCircle, AlertTriangle, Users } from 'lucide-react';
+import { Edit2, Trash2, Calendar, Star, Layers, Swords, RotateCw, Users } from 'lucide-react';
+import { getLimitedCharacterPoolStatus } from '../../../utils/characterUtils';
 
 /**
  * 获取类型图标
@@ -151,28 +152,36 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
 const RotationStatus = ({ pool, limitedSixStarCharacters }) => {
   if (pool.type !== 'limited' && pool.type !== 'limited_character') return null;
 
+  const poolContext = {
+    start_time: pool.start_time,
+    rotation_position: pool.rotationPosition,
+  };
+
   return (
     <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 flex items-center gap-1">
           <RotateCw size={12} />
-          6★ 轮换状态
-          <span className="text-slate-400 dark:text-zinc-500 font-normal">（从自己UP池开始计数）</span>
+          6★ 计划状态
+          <span className="text-slate-400 dark:text-zinc-500 font-normal">（按该池时间位次派生）</span>
         </span>
       </div>
       <div className="flex flex-wrap gap-1 mb-2">
         {limitedSixStarCharacters
           .slice(0, 6)
           .map(char => {
-            const rotationCount = char.pool_config?.limited_rotation_count || 0;
-            const removesAfter = char.pool_config?.removes_after;
-            const isRemoved = removesAfter !== null && removesAfter !== undefined && rotationCount >= removesAfter;
+            const rotationStatus = getLimitedCharacterPoolStatus(char, poolContext);
+            const removesAfter = rotationStatus.removesAfter;
+            const isRemoved = !rotationStatus.isIntroduced || rotationStatus.isRemoved;
             const isCurrentUp = char.name === pool.up_character;
+            const stateText = !rotationStatus.isIntroduced
+              ? '未引入'
+              : `${rotationStatus.effectiveRotationPosition}/${removesAfter ?? '∞'}`;
 
             return (
               <span
                 key={char.id}
-                title={`${char.name}: ${rotationCount}/${removesAfter ?? '∞'} 次轮换${isRemoved ? ' (已移出)' : ''}${isCurrentUp ? ' [当前UP]' : ''}`}
+                title={`${char.name}: ${stateText}${isRemoved ? ' (当前池不在计划内)' : ''}${isCurrentUp ? ' [当前UP]' : ''}`}
                 className={`text-xs px-1.5 py-0.5 rounded ${
                   isRemoved
                     ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 line-through'
@@ -182,7 +191,7 @@ const RotationStatus = ({ pool, limitedSixStarCharacters }) => {
                 }`}
               >
                 {isCurrentUp && '★'}{char.name.length > 4 ? char.name.slice(0, 4) + '...' : char.name}
-                <span className="opacity-70 ml-0.5">{rotationCount}/{removesAfter ?? '∞'}</span>
+                <span className="opacity-70 ml-0.5">{stateText}</span>
               </span>
             );
           })}
@@ -206,11 +215,9 @@ const PoolCard = ({
   limitedSixStarCharacters,
   actionLoading,
   onEdit,
-  onDelete,
-  onStartRotation
+  onDelete
 }) => {
   const isLimitedPool = pool.type === 'limited' || pool.type === 'limited_character';
-  const isEnded = pool.end_time && new Date(pool.end_time) < new Date();
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
@@ -291,34 +298,10 @@ const PoolCard = ({
         {/* 操作按钮 */}
         <div className={`flex items-center gap-2 ${!isLimitedPool ? 'mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800' : ''}`}>
           {isLimitedPool && (
-            <>
-              {pool.rotation_processed ? (
-                <span className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-none">
-                  <CheckCircle size={12} />
-                  轮换已处理
-                </span>
-              ) : isEnded ? (
-                <button
-                  onClick={() => onStartRotation(pool)}
-                  disabled={actionLoading === `rotation_${pool.pool_id}`}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-none transition-colors disabled:opacity-50 animate-pulse"
-                  title="此卡池已结束，请处理轮换"
-                >
-                  <AlertTriangle size={12} />
-                  {actionLoading === `rotation_${pool.pool_id}` ? '处理中...' : '待处理轮换'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => onStartRotation(pool)}
-                  disabled={actionLoading === `rotation_${pool.pool_id}`}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-none transition-colors disabled:opacity-50"
-                  title="手动开启轮换（卡池结束后会自动提示）"
-                >
-                  <RefreshCw size={12} className={actionLoading === `rotation_${pool.pool_id}` ? 'animate-spin' : ''} />
-                  {actionLoading === `rotation_${pool.pool_id}` ? '轮换中...' : '手动轮换'}
-                </button>
-              )}
-            </>
+            <span className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-50 dark:bg-zinc-800/60 text-slate-500 dark:text-zinc-400 rounded-none">
+              <RotateCw size={12} />
+              按时间计划派生
+            </span>
           )}
           <button
             onClick={() => onEdit(pool)}

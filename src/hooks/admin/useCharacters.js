@@ -26,7 +26,8 @@ export const INITIAL_CHARACTER_FORM = {
     pools: [],
     limited_rotation_count: 0,
     removes_after: null,
-    is_active_in_limited: true
+    is_active_in_limited: true,
+    introduced_at: ''
   }
 };
 
@@ -50,6 +51,18 @@ export const INITIAL_BATCH_EDIT_FORM = {
  */
 export function useCharacters({ showToast }) {
   const userRole = useAuthStore(state => state.userRole);
+
+  const formatDateTimeLocal = useCallback((utcDateString) => {
+    if (!utcDateString) return '';
+    const date = new Date(utcDateString);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }, []);
 
   // 数据状态
   const [characters, setCharacters] = useState([]);
@@ -263,12 +276,13 @@ export function useCharacters({ showToast }) {
         pools: existingPoolConfig.pools || [],
         limited_rotation_count: existingPoolConfig.limited_rotation_count || 0,
         removes_after: existingPoolConfig.removes_after ?? null,
-        is_active_in_limited: existingPoolConfig.is_active_in_limited !== false
+        is_active_in_limited: existingPoolConfig.is_active_in_limited !== false,
+        introduced_at: formatDateTimeLocal(existingPoolConfig.introduced_at)
       }
     });
     setEditingCharacter(character);
     setShowEditDialog(true);
-  }, []);
+  }, [formatDateTimeLocal]);
 
   // 添加别名
   const addAlias = useCallback(() => {
@@ -311,11 +325,21 @@ export function useCharacters({ showToast }) {
 
     setActionLoading('save');
 
+    const normalizedIntroducedAt = characterForm.pool_config.introduced_at
+      ? new Date(characterForm.pool_config.introduced_at).toISOString()
+      : ((characterForm.pool_config.pools || []).includes('limited') ? new Date().toISOString() : null);
+    const normalizedRotationCount = characterForm.pool_config.limited_rotation_count || 0;
+    const normalizedRemovesAfter = characterForm.pool_config.removes_after;
+    const derivedIsActiveInLimited = (characterForm.pool_config.pools || []).includes('limited')
+      ? (normalizedRemovesAfter === null || normalizedRemovesAfter === undefined || normalizedRotationCount < normalizedRemovesAfter)
+      : false;
+
     const poolConfig = {
       pools: characterForm.pool_config.pools || [],
-      limited_rotation_count: characterForm.pool_config.limited_rotation_count || 0,
-      removes_after: characterForm.pool_config.removes_after,
-      is_active_in_limited: characterForm.pool_config.is_active_in_limited
+      limited_rotation_count: normalizedRotationCount,
+      removes_after: normalizedRemovesAfter,
+      is_active_in_limited: derivedIsActiveInLimited,
+      introduced_at: normalizedIntroducedAt
     };
 
     const characterData = {

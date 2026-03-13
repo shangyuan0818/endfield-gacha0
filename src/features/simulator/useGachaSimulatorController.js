@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSimulator } from '../../utils/gachaSimulator';
-import { getCurrentUpPool, WEAPON_POOL_RULES } from '../../constants';
+import { WEAPON_POOL_RULES } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import { loadVisiblePools } from '../../services/poolReadService';
@@ -43,6 +43,7 @@ import {
   reconcileInfoBookState,
   sortLimitedPoolsByStartTime
 } from './simulatorInfoBook';
+import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
 
 const getWeaponPoolRules = (pool) => (
   pool?.isLimitedWeapon !== false
@@ -88,6 +89,17 @@ export function useGachaSimulatorController() {
   );
   const [publicPools, setPublicPools] = useState([]);
   const realPools = storePools.length > 0 ? storePools : publicPools;
+  const fallbackLimitedPoolName = useMemo(
+    () => getCurrentUpPoolName(realPools) || '莱万汀',
+    [realPools]
+  );
+  const resolveLimitedUpCharacter = useCallback((pool, fallbackName = null) => {
+    if (normalizeSimulatorPoolType(pool?.type) !== 'limited') {
+      return null;
+    }
+
+    return pool?.up_character || fallbackName || fallbackLimitedPoolName;
+  }, [fallbackLimitedPoolName]);
 
   useEffect(() => {
     if (storePools.length > 0) {
@@ -98,15 +110,15 @@ export function useGachaSimulatorController() {
 
     const loadPublicPools = async () => {
       try {
-        const directPools = await loadVisiblePools().catch(() => null);
-        if (!cancelled && Array.isArray(directPools) && directPools.length > 0) {
-          setPublicPools(directPools);
-          return;
-        }
-
         const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
         if (!cancelled && Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
           setPublicPools(bootstrapPools);
+          return;
+        }
+
+        const directPools = await loadVisiblePools().catch(() => null);
+        if (!cancelled && Array.isArray(directPools) && directPools.length > 0) {
+          setPublicPools(directPools);
         }
       } catch (error) {
         console.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);
@@ -120,10 +132,7 @@ export function useGachaSimulatorController() {
   }, [storePools.length]);
 
   const [poolCharactersList, setPoolCharactersList] = useState(null);
-  const [simulator, setSimulator] = useState(() => {
-    const currentUp = getCurrentUpPool();
-    return createSimulator('limited', null, currentUp.name, null);
-  });
+  const [simulator, setSimulator] = useState(() => createSimulator('limited', null, fallbackLimitedPoolName, null));
   const [isAnimating, setIsAnimating] = useState(false);
   const [lastResults, setLastResults] = useState(null);
   const [stats, setStats] = useState(simulator.getStatistics());
@@ -142,7 +151,7 @@ export function useGachaSimulatorController() {
   const [skipAnimation, setSkipAnimation] = useState(() => localStorage.getItem('simulator_skipAnimation') === 'true');
   const [multipleFreeTen, setMultipleFreeTen] = useState(() => localStorage.getItem('simulator_multipleFreeTen') === 'true');
   const [showPoolMenu, setShowPoolMenu] = useState(false);
-  const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => getCurrentUpPool().name);
+  const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => fallbackLimitedPoolName);
   const [resourceSettings, setResourceSettings] = useState(() => loadSimulatorResourceSettings(simulatorStorageScope));
   const [currentSimulatorState, setCurrentSimulatorState] = useState(() => simulator.getState());
 
@@ -178,7 +187,7 @@ export function useGachaSimulatorController() {
   }, [simulatorPools, simulatorStorageScope]);
 
   useEffect(() => {
-    const fallbackUpPool = getCurrentUpPool().name;
+    const fallbackUpPool = fallbackLimitedPoolName;
     const nextSimulator = createSimulator('limited', null, fallbackUpPool, null);
     const nextResourceSettings = loadSimulatorResourceSettings(simulatorStorageScope);
     const nextPoolId = normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey));
@@ -208,7 +217,7 @@ export function useGachaSimulatorController() {
     return () => {
       cancelled = true;
     };
-  }, [simulatorCurrentPoolStorageKey, simulatorStorageScope]);
+  }, [fallbackLimitedPoolName, simulatorCurrentPoolStorageKey, simulatorStorageScope]);
 
   const currentSimPool = useMemo(
     () => simulatorPools.find((pool) => pool.id === currentSimPoolId),
@@ -445,9 +454,7 @@ export function useGachaSimulatorController() {
 
     if (targetPool && targetPoolId) {
       const savedState = loadSimulatorState(targetPoolId, simulatorStorageScope);
-      const upCharacter = normalizeSimulatorPoolType(targetPool.type) === 'limited'
-        ? (targetPool.up_character || getCurrentUpPool().name)
-        : null;
+      const upCharacter = resolveLimitedUpCharacter(targetPool);
       const nextSimulator = createSimulator(targetPool.type, getCustomRulesForPool(targetPool), upCharacter, poolCharactersList);
 
       if (savedState) {
@@ -464,7 +471,7 @@ export function useGachaSimulatorController() {
         setStats(nextSimulator.getStatistics());
         setPityInfo(nextSimulator.getPityInfo());
         if (normalizeSimulatorPoolType(targetPool.type) === 'limited') {
-          setSelectedLimitedPool(upCharacter || getCurrentUpPool().name);
+          setSelectedLimitedPool(upCharacter || fallbackLimitedPoolName);
         }
       });
     }
@@ -472,7 +479,7 @@ export function useGachaSimulatorController() {
     queueMicrotask(() => {
       setIsInitialized(true);
     });
-  }, [getDefaultPool, isInitialized, poolCharactersList, simulatorCurrentPoolStorageKey, simulatorPools, simulatorStorageScope]);
+  }, [fallbackLimitedPoolName, getDefaultPool, isInitialized, poolCharactersList, resolveLimitedUpCharacter, simulatorCurrentPoolStorageKey, simulatorPools, simulatorStorageScope]);
 
   useEffect(() => {
     const updateUI = () => {
@@ -856,7 +863,7 @@ export function useGachaSimulatorController() {
     const inheritedState = inheritedSnapshot.statesByPoolId[currentSimPoolId];
     const normalizedPoolType = normalizeSimulatorPoolType(currentSimPool.type);
     const upCharacter = normalizedPoolType === 'limited'
-      ? (currentSimPool.up_character || getCurrentUpPool().name)
+      ? resolveLimitedUpCharacter(currentSimPool)
       : null;
     const nextSimulator = createSimulator(currentSimPool.type, getCustomRulesForPool(currentSimPool), upCharacter, poolCharactersList);
 
@@ -890,7 +897,8 @@ export function useGachaSimulatorController() {
     resourceSettings,
     simulatorPools,
     showToastMessage,
-    switchGameAccount
+    switchGameAccount,
+    resolveLimitedUpCharacter
   ]);
 
   const closeResetDialog = useCallback(() => {
@@ -974,9 +982,7 @@ export function useGachaSimulatorController() {
     setPoolCharactersList(null);
 
     const savedState = loadSimulatorState(poolId, simulatorStorageScope);
-    const upCharacter = normalizeSimulatorPoolType(targetPool.type) === 'limited'
-      ? (targetPool.up_character || selectedLimitedPool)
-      : null;
+    const upCharacter = resolveLimitedUpCharacter(targetPool, selectedLimitedPool);
     const nextSimulator = createSimulator(targetPool.type, getCustomRulesForPool(targetPool), upCharacter, null);
 
     if (savedState) {
@@ -1024,8 +1030,8 @@ export function useGachaSimulatorController() {
       }
     }
 
-    if (normalizeSimulatorPoolType(targetPool.type) === 'limited' && targetPool.up_character) {
-      setSelectedLimitedPool(targetPool.up_character);
+    if (normalizeSimulatorPoolType(targetPool.type) === 'limited' && upCharacter) {
+      setSelectedLimitedPool(upCharacter);
     }
 
     setCurrentSimPoolId(poolId);
@@ -1035,7 +1041,7 @@ export function useGachaSimulatorController() {
     setStats(nextSimulator.getStatistics());
     setPityInfo(nextSimulator.getPityInfo());
     setShowPoolMenu(false);
-  }, [currentSimPoolId, selectedLimitedPool, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
+  }, [currentSimPoolId, resolveLimitedUpCharacter, selectedLimitedPool, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
 
   const handleExportReport = useCallback(() => {
     downloadAnalysisReport(stats, pityInfo, currentPoolType);

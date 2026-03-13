@@ -3,7 +3,6 @@
  * 封装所有 Supabase 操作
  */
 import { supabase } from '../../supabaseClient';
-import { incrementRotationCount, characterCache } from '../../utils/characterUtils';
 import { buildManualCharacterId, buildManualPoolId } from '../../utils/canonicalEntityUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
 import {
@@ -223,12 +222,13 @@ export const removeCharacterFromPool = async (poolId, characterId) => {
 /**
  * 创建新的UP角色
  */
-export const createUpCharacter = async (characterName, poolType, poolStartTime, processedPoolsCount) => {
+export const createUpCharacter = async (characterName, poolType, poolStartTime, rotationBaseCount = 0) => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('请先登录');
 
   const characterType = poolType === 'weapon' ? 'weapon' : 'character';
   const charId = buildManualCharacterId(characterName, characterType);
+  const safeRotationBaseCount = Number(rotationBaseCount) || 0;
 
   const newCharacter = {
     id: charId,
@@ -240,8 +240,8 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
     avatar_url: null,
     pool_config: {
       pools: [poolType],
-      limited_rotation_count: processedPoolsCount,
-      removes_after: processedPoolsCount + 3,
+      limited_rotation_count: safeRotationBaseCount,
+      removes_after: safeRotationBaseCount + 3,
       is_active_in_limited: true,
       introduced_at: poolStartTime || new Date().toISOString()
     }
@@ -329,59 +329,6 @@ export const deletePool = async (poolId) => {
 
     if (error) throw error;
     return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * 处理轮换 - 增加所有限定池6星角色的轮换次数
- */
-export const processRotation = async (pool, limitedChars) => {
-  if (!supabase) return { success: false, error: 'Supabase 未初始化' };
-
-  try {
-    // 逐个增加轮换次数（包括UP角色）
-    for (const char of limitedChars) {
-      await incrementRotationCount(char.id);
-    }
-
-    // 标记该卡池轮换已处理
-    await supabase
-      .from('pools')
-      .update({ rotation_processed: true })
-      .eq('pool_id', pool.pool_id);
-
-    // 刷新缓存
-    await characterCache.refresh();
-
-    return { success: true, count: limitedChars.length };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-/**
- * 批量处理所有待轮换的卡池
- */
-export const processAllPendingRotations = async (pendingPools, limitedChars) => {
-  if (!supabase) return { success: false, error: 'Supabase 未初始化' };
-
-  try {
-    for (const pool of pendingPools) {
-      for (const char of limitedChars) {
-        await incrementRotationCount(char.id);
-      }
-
-      await supabase
-        .from('pools')
-        .update({ rotation_processed: true })
-        .eq('pool_id', pool.pool_id);
-    }
-
-    await characterCache.refresh();
-
-    return { success: true, poolCount: pendingPools.length, charCount: limitedChars.length };
   } catch (error) {
     return { success: false, error: error.message };
   }

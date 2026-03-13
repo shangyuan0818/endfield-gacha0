@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as poolService from '../../services/admin/poolService';
 import { useAuthStore } from '../../stores';
 import { characterCache } from '../../utils/characterUtils';
+import { getLimitedPoolRotationBaseCount, getLimitedPoolScheduleFromDB } from '../../utils/poolTimeUtils';
 
 // 表单初始状态
 export const INITIAL_POOL_FORM = {
@@ -25,6 +26,20 @@ export const INITIAL_POOL_FORM = {
  */
 export const usePools = (showToast) => {
   const userRole = useAuthStore(state => state.userRole);
+
+  const attachRotationMetadata = useCallback((rawPools = []) => {
+    const rotationMetaByPoolId = new Map(
+      getLimitedPoolScheduleFromDB(rawPools).map(scheduleItem => [
+        scheduleItem.poolData?.pool_id,
+        scheduleItem.rotationPosition
+      ])
+    );
+
+    return rawPools.map(pool => ({
+      ...pool,
+      rotationPosition: rotationMetaByPoolId.get(pool.pool_id) ?? null,
+    }));
+  }, []);
 
   // 数据状态
   const [pools, setPools] = useState([]);
@@ -49,10 +64,6 @@ export const usePools = (showToast) => {
   const [editingPool, setEditingPool] = useState(null);
   const [poolForm, setPoolForm] = useState(INITIAL_POOL_FORM);
 
-  // 自动轮换检测状态
-  const [pendingRotationPools, setPendingRotationPools] = useState([]);
-  const [autoRotationProcessing, setAutoRotationProcessing] = useState(false);
-
   const ensureSuperAdmin = useCallback(() => {
     if (userRole !== 'super_admin') {
       showToast('只有超级管理员可以执行该操作', 'error');
@@ -66,12 +77,12 @@ export const usePools = (showToast) => {
     setLoading(true);
     const result = await poolService.loadPools();
     if (result.success) {
-      setPools(result.data);
+      setPools(attachRotationMetadata(result.data));
     } else {
       showToast('加载卡池失败: ' + result.error, 'error');
     }
     setLoading(false);
-  }, [showToast]);
+  }, [attachRotationMetadata, showToast]);
 
   const loadCharactersData = useCallback(async () => {
     const result = await poolService.loadCharacters();
@@ -93,23 +104,6 @@ export const usePools = (showToast) => {
     loadCharactersData();
     loadAllPoolCharactersData();
   }, [loadPoolsData, loadCharactersData, loadAllPoolCharactersData]);
-
-  // 检测需要自动轮换的卡池
-  useEffect(() => {
-    if (pools.length > 0 && characters.length > 0) {
-      const now = new Date();
-      const pending = pools.filter(pool => {
-        if (pool.type !== 'limited' && pool.type !== 'limited_character') return false;
-        if (!pool.end_time) return false;
-        if (new Date(pool.end_time) >= now) return false;
-        if (pool.rotation_processed) return false;
-        return true;
-      });
-
-      pending.sort((a, b) => new Date(a.end_time) - new Date(b.end_time));
-      setPendingRotationPools(pending);
-    }
-  }, [pools, characters]);
 
   // 获取限定池相关的6星角色
   const limitedSixStarCharacters = useMemo(() => {
@@ -219,15 +213,11 @@ export const usePools = (showToast) => {
         const upExists = checkUpCharacterExists(upCharacterName);
 
         if (!upExists) {
-          const processedCount = pools.filter(p =>
-            (p.type === 'limited' || p.type === 'limited_character') &&
-            p.rotation_processed === true
-          ).length;
-
           try {
             const poolStartTime = poolForm.start_time ? new Date(poolForm.start_time).toISOString() : new Date().toISOString();
-            await poolService.createUpCharacter(upCharacterName, poolForm.type, poolStartTime, processedCount);
-            showToast(`已自动创建UP角色「${upCharacterName}」（轮换起始: ${processedCount}，3池后移出）`, 'success');
+            const rotationBaseCount = getLimitedPoolRotationBaseCount(pools, poolStartTime);
+            await poolService.createUpCharacter(upCharacterName, poolForm.type, poolStartTime, rotationBaseCount);
+            showToast(`已自动创建UP角色「${upCharacterName}」（轮换基数: ${rotationBaseCount}，默认 3 池后移出）`, 'success');
             await loadCharactersData();
             await characterCache.refresh();
           } catch (createError) {
@@ -293,53 +283,6 @@ export const usePools = (showToast) => {
 
     setActionLoading(null);
   }, [ensureSuperAdmin, showToast, loadPoolsData]);
-
-  // 处理轮换
-  const handleStartRotation = useCallback(async (pool) => {
-    if (!ensureSuperAdmin()) return;
-
-    if (limitedSixStarCharacters.length === 0) {
-      showToast('没有找到限定池6星角色', 'error');
-      return;
-    }
-
-    setActionLoading(`rotation_${pool.pool_id}`);
-
-    const result = await poolService.processRotation(pool, limitedSixStarCharacters);
-    if (result.success) {
-      await loadPoolsData();
-      await loadCharactersData();
-      showToast(`已为 ${result.count} 个角色增加轮换次数`, 'success');
-    } else {
-      showToast('轮换失败: ' + result.error, 'error');
-    }
-
-    setActionLoading(null);
-  }, [ensureSuperAdmin, limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
-
-  // 处理所有待轮换卡池
-  const handleProcessAllPendingRotations = useCallback(async () => {
-    if (!ensureSuperAdmin()) return;
-    if (pendingRotationPools.length === 0) return;
-
-    if (limitedSixStarCharacters.length === 0) {
-      showToast('没有找到限定池6星角色', 'error');
-      return;
-    }
-
-    setAutoRotationProcessing(true);
-
-    const result = await poolService.processAllPendingRotations(pendingRotationPools, limitedSixStarCharacters);
-    if (result.success) {
-      await loadPoolsData();
-      await loadCharactersData();
-      showToast(`已处理 ${result.poolCount} 个卡池的轮换，共 ${result.charCount} 个角色各增加 ${result.poolCount} 次轮换`, 'success');
-    } else {
-      showToast('自动轮换处理失败: ' + result.error, 'error');
-    }
-
-    setAutoRotationProcessing(false);
-  }, [ensureSuperAdmin, pendingRotationPools, limitedSixStarCharacters, showToast, loadPoolsData, loadCharactersData]);
 
   // 重新计算限定/常驻
   const handleRecalculateIsStandard = useCallback(async () => {
@@ -450,12 +393,10 @@ export const usePools = (showToast) => {
     poolCharacters,
     filteredPools,
     limitedSixStarCharacters,
-    pendingRotationPools,
 
     // 状态
     loading,
     actionLoading,
-    autoRotationProcessing,
 
     // 搜索筛选排序
     searchQuery,
@@ -481,8 +422,6 @@ export const usePools = (showToast) => {
     startEdit,
     handleSavePool,
     handleDeletePool,
-    handleStartRotation,
-    handleProcessAllPendingRotations,
     handleRecalculateIsStandard,
 
     // 角色池子管理

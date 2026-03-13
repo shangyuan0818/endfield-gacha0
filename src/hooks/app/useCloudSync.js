@@ -12,15 +12,26 @@ import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
 
-async function loadLatestVisiblePools() {
+async function loadLatestVisiblePools(options = {}) {
+  const { preferBootstrap = false } = options;
+
+  if (preferBootstrap) {
+    const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
+    if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+      return bootstrapPools;
+    }
+  }
+
   const directPools = await loadVisiblePools().catch(() => null);
   if (Array.isArray(directPools) && directPools.length > 0) {
     return directPools;
   }
 
-  const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
-  if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
-    return bootstrapPools;
+  if (!preferBootstrap) {
+    const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
+    if (Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
+      return bootstrapPools;
+    }
   }
 
   return null;
@@ -226,7 +237,7 @@ export function useCloudSync({ showToast }) {
   // 加载公共卡池数据（无需登录，用于首页轮换计划/倒计时）
   const loadPublicPools = useCallback(async () => {
     try {
-      const latestVisiblePools = await loadLatestVisiblePools();
+      const latestVisiblePools = await loadLatestVisiblePools({ preferBootstrap: true });
       if (Array.isArray(latestVisiblePools) && latestVisiblePools.length > 0) {
         setPools(latestVisiblePools);
         return latestVisiblePools;

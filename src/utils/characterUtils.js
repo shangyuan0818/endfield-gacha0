@@ -5,10 +5,19 @@
  * @feat FEAT-007 卡池详情系统重构 - 角色映射系统
  */
 
-import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest';
-import { supabase } from '../supabaseClient';
+import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest.js';
+import { supabase } from '../supabaseClient.js';
 
 const CHARACTER_CACHE_SNAPSHOT_KEY = 'character_cache_snapshot_v1';
+
+function normalizeNullableNumber(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function readCharacterSnapshot() {
   if (typeof window === 'undefined') {
@@ -436,31 +445,53 @@ export function getPoolCharacters(poolType, rarity = null, onlyActive = true, po
     // 2. 星级过滤
     if (rarity !== null && char.rarity !== rarity) return false;
 
-    // 3. 限定池特殊逻辑：检查是否已移出 + 检查引入时间
-    if (poolType === 'limited' && onlyActive) {
-      const removesAfter = char.pool_config?.removes_after;
-      const rotationCount = char.pool_config?.limited_rotation_count || 0;
+    // 3. 限定池特殊逻辑：优先按池子的轮换位次判断是否仍在池中
+    if (poolType === 'limited') {
+      const limitedStatus = getLimitedCharacterPoolStatus(char, poolInfo);
 
-      // 如果有移出限制，检查是否已达到
-      if (removesAfter !== null && removesAfter !== undefined && rotationCount >= removesAfter) {
+      if (!limitedStatus.isIntroduced) {
         return false;
       }
 
-      // 如果提供了池子信息，检查角色是否在池子开始前就已存在
-      // 新角色只出现在他们引入时间之后的池子中
-      if (poolInfo?.start_time && char.pool_config?.introduced_at) {
-        const poolStartTime = new Date(poolInfo.start_time);
-        const charIntroducedAt = new Date(char.pool_config.introduced_at);
-        
-        // 如果角色引入时间晚于池子开始时间，则角色不应该出现在这个池子中
-        if (charIntroducedAt > poolStartTime) {
-          return false;
-        }
+      if (onlyActive && !limitedStatus.isActive) {
+        return false;
       }
     }
 
     return true;
   });
+}
+
+export function getLimitedCharacterPoolStatus(character, poolInfo = null) {
+  const poolConfig = character?.pool_config || {};
+  const removesAfter = normalizeNullableNumber(poolConfig.removes_after);
+  const storedRotationCount = Number(poolConfig.limited_rotation_count) || 0;
+  const rotationPosition = Number(poolInfo?.rotation_position);
+  const hasRotationPosition = Number.isFinite(rotationPosition);
+  const effectiveRotationPosition = hasRotationPosition ? rotationPosition : storedRotationCount;
+
+  let isIntroduced = true;
+  if (poolInfo?.start_time && poolConfig.introduced_at) {
+    const poolStartTime = new Date(poolInfo.start_time);
+    const charIntroducedAt = new Date(poolConfig.introduced_at);
+
+    if (!Number.isNaN(poolStartTime.getTime()) && !Number.isNaN(charIntroducedAt.getTime()) && charIntroducedAt > poolStartTime) {
+      isIntroduced = false;
+    }
+  }
+
+  const isRemoved = removesAfter !== null && effectiveRotationPosition >= removesAfter;
+
+  return {
+    removesAfter,
+    storedRotationCount,
+    effectiveRotationPosition,
+    isIntroduced,
+    isRemoved,
+    isActive: isIntroduced && !isRemoved,
+    introducedAt: poolConfig.introduced_at || null,
+    usesDerivedRotationPosition: hasRotationPosition,
+  };
 }
 
 /**
