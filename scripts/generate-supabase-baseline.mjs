@@ -5,21 +5,56 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const migrationsDir = path.join(projectRoot, 'supabase', 'migrations');
+const activeMigrationsDir = path.join(projectRoot, 'supabase', 'migrations');
+const archivedMigrationsDir = path.join(projectRoot, 'supabase', 'archive', 'migrations');
 const outputPath = path.join(projectRoot, 'supabase', 'baseline', '000_complete_schema.sql');
 
 function compareMigrationNames(a, b) {
-  const [, aNum = '0', aRest = ''] = a.match(/^(\d+)_?(.*)$/) || [];
-  const [, bNum = '0', bRest = ''] = b.match(/^(\d+)_?(.*)$/) || [];
+  const aName = path.basename(a);
+  const bName = path.basename(b);
+  const [, aNum = '0', aRest = ''] = aName.match(/^(\d+)_?(.*)$/) || [];
+  const [, bNum = '0', bRest = ''] = bName.match(/^(\d+)_?(.*)$/) || [];
   const numDiff = Number(aNum) - Number(bNum);
   if (numDiff !== 0) {
     return numDiff;
   }
-  return aRest.localeCompare(bRest);
+  const restDiff = aRest.localeCompare(bRest);
+  if (restDiff !== 0) {
+    return restDiff;
+  }
+  return a.localeCompare(b);
 }
 
 function stripBom(content) {
   return content.replace(/^\uFEFF/, '');
+}
+
+async function collectMigrationFiles(dirPath, rootDir = dirPath) {
+  let entries;
+  try {
+    entries = await readdir(dirPath, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+
+  const files = [];
+
+  for (const entry of entries) {
+    const absolutePath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await collectMigrationFiles(absolutePath, rootDir));
+      continue;
+    }
+
+    if (entry.isFile() && /^\d+_.+\.sql$/i.test(entry.name)) {
+      files.push(path.relative(rootDir, absolutePath));
+    }
+  }
+
+  return files;
 }
 
 function buildHeader(migrationFiles) {
@@ -33,7 +68,7 @@ function buildHeader(migrationFiles) {
     '--',
     '-- 说明:',
     '--   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成',
-    '--   2. 仅合并 supabase/migrations/ 中的标准前向迁移',
+    '--   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移',
     '--   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本',
     `--   4. 生成时间: ${generatedAt}`,
     `--   5. 覆盖范围: ${firstMigration} -> ${lastMigration}`,
@@ -43,20 +78,24 @@ function buildHeader(migrationFiles) {
 }
 
 async function main() {
-  const dirEntries = await readdir(migrationsDir, { withFileTypes: true });
-  const migrationFiles = dirEntries
-    .filter((entry) => entry.isFile() && /^\d+_.+\.sql$/i.test(entry.name))
-    .map((entry) => entry.name)
-    .sort(compareMigrationNames);
+  const archivedFiles = await collectMigrationFiles(archivedMigrationsDir);
+  const activeFiles = await collectMigrationFiles(activeMigrationsDir);
+  const migrationFiles = [
+    ...archivedFiles.map((file) => path.join('archive', file)),
+    ...activeFiles.map((file) => path.join('active', file)),
+  ].sort(compareMigrationNames);
 
   if (migrationFiles.length === 0) {
-    throw new Error(`No migration SQL files found in ${migrationsDir}`);
+    throw new Error('No migration SQL files found in active or archived migration directories');
   }
 
   const chunks = [buildHeader(migrationFiles)];
 
   for (const fileName of migrationFiles) {
-    const absolutePath = path.join(migrationsDir, fileName);
+    const isArchived = fileName.startsWith('archive\\') || fileName.startsWith('archive/');
+    const relativePath = fileName.replace(/^archive[\\/]/, '').replace(/^active[\\/]/, '');
+    const baseDir = isArchived ? archivedMigrationsDir : activeMigrationsDir;
+    const absolutePath = path.join(baseDir, relativePath);
     const rawContent = await readFile(absolutePath, 'utf8');
     const content = stripBom(rawContent).trim();
 

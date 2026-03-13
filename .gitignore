@@ -20,7 +20,10 @@ dist-ssr
 # Temp files
 nul
 artifacts/
+# Keep generic scratch archives ignored, but version the Supabase migration archive.
 archive/
+!supabase/archive/
+!supabase/archive/**
 scratch/
 coverage/
 test-results/

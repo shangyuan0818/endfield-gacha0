@@ -4,9 +4,11 @@
 
 - `baseline/`
   - 新环境的基线 schema。当前入口是 `baseline/000_complete_schema.sql`
-  - 由 `npm run generate:supabase-baseline` 从 `migrations/` 自动生成
+  - 由 `npm run generate:supabase-baseline` 从 `archive/migrations/` + `migrations/` 自动生成
+- `archive/`
+  - 已归档的历史标准迁移链，仅用于审计与重新生成 baseline
 - `migrations/`
-  - 标准前向迁移链，只保留单调递增、适合正常部署的 SQL
+  - 当前仍在追加的标准前向迁移链
 - `manual/`
   - 不进入默认部署链的脚本
   - `destructive/`: 会清空或重建数据结构
@@ -20,7 +22,7 @@
 ## 新环境部署
 
 1. 先执行 `baseline/000_complete_schema.sql`
-2. 再按编号执行 `migrations/` 中的标准前向迁移
+2. 再按编号执行 `migrations/` 中的标准前向迁移（如果为空则跳过）
 3. 仅在明确场景下手工执行 `manual/` 中的脚本
 
 当前标准链已在后段显式移除 `admin_applications` 历史遗留表；不要再把管理员申请流重新写回 baseline 或新迁移。
@@ -30,4 +32,4 @@
 - 不要把说明文档放回 `migrations/`
 - 不要把 destructive / rollback SQL 放回标准链
 - 新迁移必须保持编号唯一
-- 修改 `migrations/` 后，如果希望刷新新环境基线，请执行 `npm run generate:supabase-baseline`
+- 修改 `archive/migrations/` 或 `migrations/` 后，如果希望刷新新环境基线，请执行 `npm run generate:supabase-baseline`
