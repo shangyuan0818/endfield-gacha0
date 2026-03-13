@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
 import { getSimpleFriendlyError } from './utils/errorMessages';
+import { buildPasswordResetRedirectUrl } from './utils/authRedirects.js';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
 
@@ -124,9 +125,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return;
       }
 
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${appUrl}/reset-password`,
+        redirectTo: buildPasswordResetRedirectUrl(),
       });
 
       if (authError) throw authError;

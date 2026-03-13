@@ -10,18 +10,21 @@ const useAuthStore = create((set) => ({
   user: null,
   userRole: null, // 'user' | 'admin' | 'super_admin'
 
-  setUser: (user) => set({ user }),
+  setUser: (user) => set((state) => ({
+    user,
+    lastSyncAt: user ? state.lastSyncAt : null
+  })),
   setUserRole: (role) => set({ userRole: role }),
 
   login: (user, role) => set({ user, userRole: role }),
-  logout: () => set({ user: null, userRole: null }),
+  logout: () => set({ user: null, userRole: null, syncing: false, syncError: null, lastSyncAt: null }),
 
   /** 完整登出：清除 Supabase 会话 + Zustand 状态 */
   signOut: async () => {
     if (supabase) {
       await supabase.auth.signOut();
     }
-    set({ user: null, userRole: null });
+    set({ user: null, userRole: null, syncing: false, syncError: null, lastSyncAt: null });
   },
 
   // ========== 权限判断 ==========
@@ -43,9 +46,11 @@ const useAuthStore = create((set) => ({
   // ========== 云端同步状态 ==========
   syncing: false,
   syncError: null,
+  lastSyncAt: null,
 
   setSyncing: (value) => set({ syncing: value }),
   setSyncError: (error) => set({ syncError: error }),
+  setLastSyncAt: (value) => set({ lastSyncAt: value }),
   clearSyncError: () => set({ syncError: null }),
 }));
 

@@ -46,6 +46,7 @@ export function useCloudSync({ showToast }) {
   const user = useAuthStore(state => state.user);
   const setSyncing = useAuthStore(state => state.setSyncing);
   const setSyncError = useAuthStore(state => state.setSyncError);
+  const setLastSyncAt = useAuthStore(state => state.setLastSyncAt);
   const pools = usePoolStore(state => state.pools);
   const setPools = usePoolStore(state => state.setPools);
   const history = useHistoryStore(state => state.history);
@@ -216,6 +217,7 @@ export function useCloudSync({ showToast }) {
         return { ...h, isStandard };
       });
 
+      setLastSyncAt(new Date().toISOString());
       return { pools: allPools, history: normalizedHistory };
       } catch (error) {
         setSyncError(error.message);
@@ -232,7 +234,7 @@ export function useCloudSync({ showToast }) {
     } finally {
       loadingPromiseRef.current = null;
     }
-  }, []);
+  }, [setLastSyncAt, setSyncError, setSyncing]);
 
   // 加载公共卡池数据（无需登录，用于首页轮换计划/倒计时）
   const loadPublicPools = useCallback(async () => {
@@ -261,7 +263,7 @@ export function useCloudSync({ showToast }) {
       setSyncError(error.message);
       return false;
     }
-  }, [user]);
+  }, [setSyncError, user]);
 
   // 保存历史记录到云端
   const saveHistoryToCloud = useCallback(async (records) => {
@@ -288,7 +290,7 @@ export function useCloudSync({ showToast }) {
       setSyncError(error.message);
       throw error;
     }
-  }, [showToast, user]);
+  }, [setSyncError, showToast, user]);
 
   // 从云端删除历史记录
   const deleteHistoryFromCloud = useCallback(async (recordIds) => {
@@ -298,6 +300,7 @@ export function useCloudSync({ showToast }) {
       const { error } = await supabase
         .from('history')
         .delete()
+        .eq('user_id', user.id)
         .in('record_id', recordIds);
 
       if (error) throw error;
@@ -307,7 +310,7 @@ export function useCloudSync({ showToast }) {
       showToast(`删除失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, showToast]);
+  }, [setSyncError, showToast, user]);
 
   // 从云端删除指定卡池的所有历史记录
   const deletePoolHistoryFromCloud = useCallback(async (poolId) => {
@@ -317,6 +320,7 @@ export function useCloudSync({ showToast }) {
       const { error } = await supabase
         .from('history')
         .delete()
+        .eq('user_id', user.id)
         .eq('pool_id', poolId);
 
       if (error) throw error;
@@ -326,7 +330,7 @@ export function useCloudSync({ showToast }) {
       showToast(`删除卡池记录失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, showToast]);
+  }, [setSyncError, showToast, user]);
 
   // 从云端删除卡池本身
   const deletePoolFromCloud = useCallback(async (poolId) => {
@@ -336,6 +340,7 @@ export function useCloudSync({ showToast }) {
       const { error } = await supabase
         .from('pools')
         .delete()
+        .eq('user_id', user.id)
         .eq('pool_id', poolId);
 
       if (error) throw error;
@@ -345,7 +350,33 @@ export function useCloudSync({ showToast }) {
       showToast(`删除卡池失败: ${error.message}`, 'error');
       return false;
     }
-  }, [user, showToast]);
+  }, [setSyncError, showToast, user]);
+
+  // 删除当前用户的全部云端抽卡数据（仅作用于本人拥有的数据，不删除账号）
+  const deleteUserDataFromCloud = useCallback(async () => {
+    if (!supabase || !user) return false;
+
+    try {
+      const { error: historyError } = await supabase
+        .from('history')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (historyError) throw historyError;
+
+      const { error: poolError } = await supabase
+        .from('pools')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (poolError) throw poolError;
+
+      return true;
+    } catch (error) {
+      setSyncError(error.message);
+      throw error;
+    }
+  }, [user, setSyncError]);
 
   // 迁移本地数据到云端
   const migrateLocalToCloud = useCallback(async () => {
@@ -365,6 +396,7 @@ export function useCloudSync({ showToast }) {
         await saveHistoryToCloud(batch);
       }
 
+      setLastSyncAt(new Date().toISOString());
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -372,7 +404,7 @@ export function useCloudSync({ showToast }) {
     } finally {
       setSyncing(false);
     }
-  }, [user, pools, history, savePoolToCloud, saveHistoryToCloud]);
+  }, [history, pools, saveHistoryToCloud, savePoolToCloud, setLastSyncAt, setSyncError, setSyncing, user]);
 
   // 手动同步数据到云端（设置页面使用）
   const syncToCloud = useCallback(async () => {
@@ -410,13 +442,14 @@ export function useCloudSync({ showToast }) {
       if (skippedPools > 0 || skippedHistory > 0) {
         message += `（跳过其他用户数据：${skippedPools} 卡池，${skippedHistory} 记录）`;
       }
+      setLastSyncAt(new Date().toISOString());
       showToast(message, 'success');
     } catch (error) {
       showToast('同步失败: ' + error.message, 'error');
     } finally {
       setSyncing(false);
     }
-  }, [user, pools, history, savePoolToCloud, saveHistoryToCloud, showToast]);
+  }, [history, pools, saveHistoryToCloud, savePoolToCloud, setLastSyncAt, setSyncing, showToast, user]);
 
   return {
     loadCloudData,
@@ -426,6 +459,7 @@ export function useCloudSync({ showToast }) {
     deleteHistoryFromCloud,
     deletePoolHistoryFromCloud,
     deletePoolFromCloud,
+    deleteUserDataFromCloud,
     migrateLocalToCloud,
     handleManualSync: syncToCloud,
     syncToCloud

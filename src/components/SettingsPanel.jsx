@@ -4,6 +4,7 @@ import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import { useTheme } from '../contexts/ThemeContext';
+import { buildPasswordResetRedirectUrl } from '../utils/authRedirects.js';
 
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const user = useAuthStore(state => state.user);
@@ -22,7 +23,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   // 统计当前用户创建的数据（过滤掉其他用户的数据）
   const myPools = useMemo(() => {
     if (!pools || !user) return [];
-    return pools.filter(pool => !pool.user_id || pool.user_id === user.id);
+    return pools.filter(pool => pool.user_id === user.id);
   }, [pools, user]);
 
   const myHistory = useMemo(() => {
@@ -57,9 +58,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
     try {
       // 使用环境变量配置的域名，避免 window.location.origin 被篡改
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${appUrl}/reset-password`
+        redirectTo: buildPasswordResetRedirectUrl()
       });
 
       if (error) throw error;
@@ -244,13 +244,13 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               </div>
             </div>
 
-            {/* 删除所有数据 */}
+            {/* 删除我的抽卡数据 */}
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-sm text-red-600 dark:text-red-400">危险区域 // 删除数据</p>
+                  <p className="font-bold text-sm text-red-600 dark:text-red-400">危险区域 // 删除我的抽卡数据</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    永久删除您的所有数据。
+                    仅删除当前账号的抽卡记录与自建卡池，不删除账号本身。
                   </p>
                 </div>
                 <button
@@ -259,7 +259,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                   className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800/50 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:border-zinc-200 dark:disabled:border-zinc-800 disabled:text-zinc-400 text-red-600 dark:text-red-400 text-xs font-bold tracking-wider transition-colors disabled:cursor-not-allowed rounded-sm uppercase"
                 >
                   <Trash2 size={14} />
-                  全部删除
+                  删除我的数据
                 </button>
               </div>
             </div>
@@ -321,7 +321,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
         </div>
       )}
 
-      {/* 删除所有数据确认弹窗 */}
+      {/* 删除我的抽卡数据确认弹窗 */}
       {showDeleteAllModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up">
@@ -331,14 +331,17 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">危险操作确认</h3>
               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                您即将删除当前账号的<span className="text-red-500 font-bold">所有数据</span>，包括：
+                您即将删除当前账号的<span className="text-red-500 font-bold">抽卡数据</span>，包括：
               </p>
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-none mb-4 text-left">
                 <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
-                  <li>• {userPoolCount} 个卡池</li>
-                  <li>• {userHistoryCount} 条抽卡记录</li>
+                  <li>• {userPoolCount} 个我创建的卡池</li>
+                  <li>• {userHistoryCount} 条我的抽卡记录</li>
                 </ul>
               </div>
+              <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
+                您的账号不会被删除，公开共享卡池也会保留。
+              </p>
               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
                 此操作<span className="text-red-500 font-bold">无法撤销</span>！请输入"确认删除"以继续：
               </p>
@@ -365,7 +368,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 disabled={deleteConfirmText !== '确认删除' || deleteLoading}
                 className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
               >
-                {deleteLoading ? '删除中...' : '永久删除'}
+                {deleteLoading ? '删除中...' : '删除我的数据'}
               </button>
             </div>
           </div>

@@ -8,6 +8,7 @@ const MobileApp = lazy(() => import('./mobile/MobileApp'));
 // 懒加载法律页面
 const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
+const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'));
 
 /**
  * 应用路由配置
@@ -15,11 +16,21 @@ const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
  * - /m/* : 移动端入口
  * - /privacy : 隐私政策
  * - /terms : 用户协议
+ * - /reset-password : 密码重置页
  */
 function AppRouter() {
   return (
     <DeviceRedirectGuard>
       <Routes>
+        <Route
+          path="/reset-password"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <ResetPasswordPage />
+            </Suspense>
+          }
+        />
+
         {/* 桌面端路由 */}
         <Route path="/*" element={<App />} />
 

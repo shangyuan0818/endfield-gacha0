@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import AppRouter from './AppRouter'
 import { preloadPublicBootstrap } from './services/bootstrapService'
+import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 
 // 同步设备检测 + 重定向（在 React 渲染前执行）
 // 解决 useEffect 异步重定向导致的闪烁和失效问题
@@ -12,18 +13,13 @@ import { preloadPublicBootstrap } from './services/bootstrapService'
   if (preference) return; // 用户有明确偏好，跳过自动重定向
 
   const pathname = window.location.pathname;
-  // 法律页面不重定向
-  if (pathname === '/privacy' || pathname === '/terms') return;
-
   const mobileQuery = window.matchMedia('(max-width: 768px)');
   const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   const isMobile = mobileQuery.matches || mobileUA;
-  const isMobilePath = pathname.startsWith('/m');
+  const redirectTarget = getDeviceRedirectTarget(pathname, isMobile);
 
-  if (isMobile && !isMobilePath) {
-    window.location.replace(window.location.origin + '/m');
-  } else if (!isMobile && isMobilePath) {
-    window.location.replace(window.location.origin + '/');
+  if (redirectTarget) {
+    window.location.replace(window.location.origin + redirectTarget);
   }
 })();
 

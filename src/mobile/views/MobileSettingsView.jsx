@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
   AlertTriangle, X, Mail, Database, LogOut, ChevronRight
@@ -7,10 +7,13 @@ import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
 import { useCloudSync } from '../../hooks/app';
+import { useToast } from '../../hooks';
 import { supabase } from '../../supabaseClient';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
+import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import { buildPasswordResetRedirectUrl } from '../../utils/authRedirects.js';
 
 function MobileSettingsSection({ title, icon, children }) {
   const IconComponent = icon;
@@ -31,18 +34,17 @@ function MobileSettingsSection({ title, icon, children }) {
  */
 function MobileSettingsView() {
   const { themeMode, setThemeMode } = useTheme();
-  const { user, signOut, userRole } = useAuthStore();
-  const { pools } = usePoolStore();
-  const { history } = useHistoryStore();
-
-  const showToast = useCallback((_message, _type = 'info') => {}, []);
-
-  const { syncToCloud, syncing } = useCloudSync({ showToast });
+  const { user, signOut, userRole, syncing, syncError, lastSyncAt } = useAuthStore();
+  const { pools, setPools, currentPoolId, switchPool } = usePoolStore();
+  const { history, setHistory } = useHistoryStore();
+  const { toasts, showToast, removeToast } = useToast();
+  const { syncToCloud, loadPublicPools, deleteUserDataFromCloud } = useCloudSync({ showToast });
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
@@ -50,7 +52,7 @@ function MobileSettingsView() {
   const myPools = useMemo(() => {
     if (!pools || !user) return [];
     const poolsArray = Array.isArray(pools) ? pools : [];
-    return poolsArray.filter(pool => !pool.user_id || pool.user_id === user.id);
+    return poolsArray.filter(pool => pool.user_id === user.id);
   }, [pools, user]);
 
   const myHistory = useMemo(() => {
@@ -74,6 +76,18 @@ function MobileSettingsView() {
   };
 
   const roleInfo = getRoleInfo(userRole);
+  const lastSyncLabel = useMemo(() => {
+    if (!lastSyncAt) {
+      return '尚未同步';
+    }
+
+    const parsed = new Date(lastSyncAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return '尚未同步';
+    }
+
+    return parsed.toLocaleString('zh-CN');
+  }, [lastSyncAt]);
 
   const handleManualSync = async () => {
     if (syncToCloud) {
@@ -92,9 +106,8 @@ function MobileSettingsView() {
     setPasswordLoading(true);
 
     try {
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${appUrl}/reset-password`
+        redirectTo: buildPasswordResetRedirectUrl()
       });
 
       if (error) throw error;
@@ -114,10 +127,27 @@ function MobileSettingsView() {
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== '确认删除') return;
     setDeleteLoading(true);
+    setDeleteError('');
     try {
-      // Logic for deleting data would go here
+      const historyArray = Array.isArray(history) ? history : [];
+      const poolsArray = Array.isArray(pools) ? pools : [];
+      const nextHistory = historyArray.filter((item) => item?.user_id && item.user_id !== user.id);
+      const refreshedPublicPools = await deleteUserDataFromCloud()
+        .then(() => loadPublicPools?.());
+      const fallbackPools = poolsArray.filter((pool) => pool?.user_id !== user.id);
+      const nextPools = Array.isArray(refreshedPublicPools) ? refreshedPublicPools : fallbackPools;
+
+      setHistory(nextHistory);
+      setPools(nextPools);
+
+      if (!nextPools.some((pool) => pool?.id === currentPoolId)) {
+        switchPool(nextPools[0]?.id || null);
+      }
+
       setShowDeleteModal(false);
       setDeleteConfirmText('');
+    } catch (error) {
+      setDeleteError(error.message || '删除失败');
     } finally {
       setDeleteLoading(false);
     }
@@ -247,7 +277,7 @@ function MobileSettingsView() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">云端同步</p>
-                  <p className="text-[10px] text-zinc-500 mt-0.5 font-mono">上次同步: 未知</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5 font-mono">上次同步: {lastSyncLabel}</p>
                 </div>
                 <button
                   onClick={handleManualSync}
@@ -267,6 +297,11 @@ function MobileSettingsView() {
                   )}
                 </button>
               </div>
+              {syncError && (
+                <p className="mt-2 text-[10px] text-red-500 font-mono">
+                  最近一次同步错误: {syncError}
+                </p>
+              )}
             </div>
 
             {/* 删除数据 */}
@@ -274,15 +309,18 @@ function MobileSettingsView() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-red-600 dark:text-red-500 uppercase">危险区域</p>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">永久删除所有数据</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">仅删除当前账号的抽卡数据，不删除账号本身</p>
                 </div>
                 <button
-                  onClick={() => setShowDeleteModal(true)}
+                  onClick={() => {
+                    setDeleteError('');
+                    setShowDeleteModal(true);
+                  }}
                   disabled={userPoolCount === 0 && userHistoryCount === 0}
                   className="flex items-center gap-2 px-4 py-2 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors rounded-none"
                 >
                   <Trash2 size={12} />
-                  删除
+                  删除我的数据
                 </button>
               </div>
             </div>
@@ -372,14 +410,23 @@ function MobileSettingsView() {
               </div>
               <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1 uppercase tracking-wide">确认删除</h3>
               <p className="text-xs text-zinc-500 mb-4 font-mono">此操作无法撤销</p>
+              {deleteError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-3 py-2 text-xs flex items-start gap-2 rounded-none mb-4">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
               
               <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-3 mb-4 text-left rounded-none">
                 <p className="text-[10px] text-red-400 uppercase font-bold mb-2">目标数据:</p>
                 <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 font-mono">
-                  <li>[x] {userPoolCount} 个卡池</li>
-                  <li>[x] {userHistoryCount} 条记录</li>
+                  <li>[x] {userPoolCount} 个我创建的卡池</li>
+                  <li>[x] {userHistoryCount} 条我的记录</li>
                 </ul>
               </div>
+              <p className="text-xs text-zinc-500 mb-3">
+                公开共享卡池会保留，您的账号不会被删除。
+              </p>
               
               <p className="text-xs text-zinc-500 mb-3">
                 输入 "<span className="text-red-500 font-bold">确认删除</span>" 以确认:
@@ -397,6 +444,7 @@ function MobileSettingsView() {
                 onClick={() => {
                   setShowDeleteModal(false);
                   setDeleteConfirmText('');
+                  setDeleteError('');
                 }}
                 className="flex-1 py-3 text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 touch-feedback uppercase tracking-wider"
               >
@@ -407,12 +455,14 @@ function MobileSettingsView() {
                 disabled={deleteConfirmText !== '确认删除' || deleteLoading}
                 className="flex-1 py-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 touch-feedback disabled:opacity-50 uppercase tracking-wider transition-colors"
               >
-                {deleteLoading ? '删除中...' : '确认删除'}
+                {deleteLoading ? '删除中...' : '删除我的数据'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

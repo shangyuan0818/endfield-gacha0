@@ -64,6 +64,7 @@ export default function GachaAnalyzer() {
     deleteHistoryFromCloud,
     deletePoolHistoryFromCloud,
     deletePoolFromCloud,
+    deleteUserDataFromCloud,
     migrateLocalToCloud
   } = useCloudSync({ showToast });
 
@@ -155,8 +156,10 @@ export default function GachaAnalyzer() {
 
   // 组合 cloudSync 函数为对象，供其他 hooks 使用
   const cloudSync = {
+    loadPublicPools,
     savePoolToCloud, saveHistoryToCloud,
-    deletePoolFromCloud, deletePoolHistoryFromCloud, deleteHistoryFromCloud
+    deletePoolFromCloud, deletePoolHistoryFromCloud, deleteHistoryFromCloud,
+    deleteUserDataFromCloud
   };
 
   // 卡池操作 Hook

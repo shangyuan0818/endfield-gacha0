@@ -22,6 +22,28 @@ Deno.serve(async (req) => {
       throw new Error('Cannot delete current super admin');
     }
 
+    const cleanupOperations = [
+      adminClient
+        .from('announcements')
+        .update({ created_by: null })
+        .eq('created_by', normalizedUserId),
+      adminClient
+        .from('site_config')
+        .update({ updated_by: null })
+        .eq('updated_by', normalizedUserId),
+      adminClient
+        .from('puzzles')
+        .update({ uploader_id: null })
+        .eq('uploader_id', normalizedUserId)
+    ];
+
+    for (const operation of cleanupOperations) {
+      const { error } = await operation;
+      if (error) {
+        throw error;
+      }
+    }
+
     const { error } = await adminClient.auth.admin.deleteUser(normalizedUserId);
     if (error) {
       throw error;

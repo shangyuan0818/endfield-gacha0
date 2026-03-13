@@ -21,12 +21,19 @@ export function usePoolOperations({
   const switchPool = usePoolStore(state => state.switchPool);
   const updatePool = usePoolStore(state => state.updatePool);
 
+  const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
 
   const modalState = useUIStore(state => state.modalState);
   const setModalState = useUIStore(state => state.setModalState);
 
-  const { savePoolToCloud, deletePoolFromCloud, deletePoolHistoryFromCloud } = cloudSync;
+  const {
+    savePoolToCloud,
+    deletePoolFromCloud,
+    deletePoolHistoryFromCloud,
+    deleteUserDataFromCloud,
+    loadPublicPools
+  } = cloudSync;
 
   const isSuperAdmin = userRole === 'super_admin';
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
@@ -179,22 +186,45 @@ export function usePoolOperations({
 
     try {
       setSyncing(true);
+      const nextHistory = (Array.isArray(history) ? history : []).filter((item) => (
+        item?.user_id && item.user_id !== user.id
+      ));
 
-      for (const pool of pools) {
-        await deletePoolHistoryFromCloud(pool.id);
-        await deletePoolFromCloud(pool.id);
+      const refreshedPublicPools = await deleteUserDataFromCloud()
+        .then(() => loadPublicPools?.())
+        .catch((error) => {
+          throw error;
+        });
+
+      const fallbackPools = poolsArray.filter((pool) => pool?.user_id !== user.id);
+      const nextPools = Array.isArray(refreshedPublicPools) ? refreshedPublicPools : fallbackPools;
+
+      setHistory(nextHistory);
+      setPools(nextPools);
+
+      if (!nextPools.some((pool) => pool?.id === currentPoolId)) {
+        switchPool(nextPools[0]?.id || null);
       }
 
-      setPools([]);
-      setHistory([]);
-
-      showToast('所有数据已删除', 'success');
+      showToast('我的抽卡数据已删除', 'success');
     } catch (error) {
       showToast('删除失败: ' + error.message, 'error');
     } finally {
       setSyncing(false);
     }
-  }, [user, pools, setSyncing, deletePoolHistoryFromCloud, deletePoolFromCloud, setPools, setHistory, showToast]);
+  }, [
+    currentPoolId,
+    deleteUserDataFromCloud,
+    history,
+    loadPublicPools,
+    poolsArray,
+    setHistory,
+    setPools,
+    setSyncing,
+    showToast,
+    switchPool,
+    user
+  ]);
 
   return {
     confirmCreatePool,

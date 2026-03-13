@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
+import { getDeviceRedirectTarget } from '../../utils/deviceRedirect.js';
 
 /**
  * 设备重定向守卫组件
@@ -15,13 +16,9 @@ function DeviceRedirectGuard({ children }) {
   useEffect(() => {
     // 有明确偏好时不自动重定向
     if (platformPreference !== null) return;
-
-    const isMobilePath = location.pathname.startsWith('/m');
-
-    if (shouldUseMobile && !isMobilePath) {
-      window.location.replace(window.location.origin + '/m');
-    } else if (!shouldUseMobile && isMobilePath) {
-      window.location.replace(window.location.origin + '/');
+    const redirectTarget = getDeviceRedirectTarget(location.pathname, shouldUseMobile);
+    if (redirectTarget) {
+      window.location.replace(window.location.origin + redirectTarget);
     }
   }, [shouldUseMobile, platformPreference, location.pathname]);
 
