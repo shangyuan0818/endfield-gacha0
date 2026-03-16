@@ -24,6 +24,8 @@
     "preview": "vite preview",
     "test:harness": "node backend/test-harness/run-suite.js",
     "test:simulator-inheritance": "node scripts/verify-simulator-inheritance.mjs",
+    "test:simulator-share": "node scripts/verify-simulator-share.mjs",
+    "test:simulator-share:ui": "node scripts/verify-simulator-share-playwright.mjs",
     "test:info-book-resources": "node scripts/verify-info-book-resource-accounting.mjs",
     "test:export-import": "node scripts/verify-export-import-roundtrip.mjs",
     "test:bootstrap-cache": "node scripts/verify-bootstrap-cache-partial.mjs",

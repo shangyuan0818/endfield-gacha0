@@ -16,7 +16,6 @@ import {
   copyToClipboard,
   downloadAnalysisReport,
   downloadSimulatorData,
-  generateShareText,
   loadSimulatorResourceSettings,
   loadInfoBookState,
   loadSharedPityState,
@@ -33,6 +32,16 @@ import {
   getSimulatorPullCost,
   normalizeResourceSettings
 } from '../../utils/resourceEconomy';
+import {
+  buildSimulatorShareCardFileName,
+  buildSimulatorShareFile,
+  buildSimulatorSharePayload,
+  buildSimulatorShareText,
+  canNativeShareSimulatorFile,
+  downloadSimulatorShareCard,
+  renderSimulatorShareCardToBlob,
+  shareSimulatorShareCardFile
+} from '../../utils/simulatorShare';
 import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups } from './simulatorViewUtils';
 import {
   buildInheritedSimulatorSnapshot,
@@ -1043,6 +1052,45 @@ export function useGachaSimulatorController() {
     setShowPoolMenu(false);
   }, [currentSimPoolId, resolveLimitedUpCharacter, selectedLimitedPool, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
 
+  const historyGroups = useMemo(() => processHistoryGroups(pullHistory), [pullHistory]);
+  const dashboardStats = useMemo(() => buildDashboardStats(stats, pityInfo, simulator), [stats, pityInfo, simulator]);
+  const pityInfoWithGuarantee = useMemo(() => buildPityInfoWithGuarantee(stats, simulator), [stats, simulator]);
+  const currentPoolObj = useMemo(() => ({
+    type: normalizeSimulatorPoolType(simulator.poolType),
+    isLimitedWeapon: currentSimPool?.isLimitedWeapon !== false,
+    name: currentSimPool?.name || '未选择',
+    up_character: currentSimPool?.up_character
+  }), [currentSimPool?.isLimitedWeapon, currentSimPool?.name, currentSimPool?.up_character, simulator.poolType]);
+  const sharePayload = useMemo(() => buildSimulatorSharePayload({
+    currentPoolObj,
+    dashboardStats,
+    pityInfoWithGuarantee
+  }), [currentPoolObj, dashboardStats, pityInfoWithGuarantee]);
+  const supportsNativeImageShare = useMemo(() => {
+    if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
+      return false;
+    }
+
+    if (typeof navigator.canShare !== 'function') {
+      return false;
+    }
+
+    try {
+      return navigator.canShare({
+        files: [
+          new File(['share'], 'share.txt', { type: 'text/plain' })
+        ]
+      });
+    } catch {
+      return false;
+    }
+  }, []);
+  const effectivePityObj = {
+    pity6: pityInfo.sixStar.current,
+    pity5: pityInfo.fiveStar.current,
+    isInherited: false
+  };
+
   const handleExportReport = useCallback(() => {
     downloadAnalysisReport(stats, pityInfo, currentPoolType);
     showToastMessage('分析报告已导出');
@@ -1054,11 +1102,41 @@ export function useGachaSimulatorController() {
     showToastMessage(`已导出${format.toUpperCase()}格式数据`);
   }, [currentPoolType, currentSimPool?.name, currentSimPoolId, showToastMessage, simulator]);
 
-  const handleShare = useCallback(async () => {
-    const shareText = generateShareText(stats, currentPoolType);
+  const handleCopyShareText = useCallback(async () => {
+    const shareText = buildSimulatorShareText(sharePayload);
     const success = await copyToClipboard(shareText);
-    showToastMessage(success ? '已复制到剪贴板' : '复制失败，请手动复制');
-  }, [currentPoolType, showToastMessage, stats]);
+    showToastMessage(success ? '分享文本已复制' : '分享文本复制失败，请手动重试');
+  }, [sharePayload, showToastMessage]);
+
+  const handleShareImage = useCallback(async (shareCardNode) => {
+    if (!shareCardNode) {
+      showToastMessage('分享卡未准备好，请稍后重试');
+      return;
+    }
+
+    try {
+      const blob = await renderSimulatorShareCardToBlob(shareCardNode);
+      const file = buildSimulatorShareFile(blob, sharePayload);
+      const canUseNativeShare = canNativeShareSimulatorFile(file);
+
+      if (supportsNativeImageShare && canUseNativeShare) {
+        const sharePromise = shareSimulatorShareCardFile(file, sharePayload);
+        showToastMessage('系统分享已打开');
+        await sharePromise;
+        return;
+      }
+
+      const downloaded = downloadSimulatorShareCard(blob, sharePayload);
+      showToastMessage(downloaded ? '分享卡已下载' : '分享卡下载失败，请稍后重试');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      console.error('[GachaSimulator] share card generation failed:', error);
+      showToastMessage('分享卡生成失败，请稍后重试');
+    }
+  }, [sharePayload, showToastMessage, supportsNativeImageShare]);
 
   const toggleTenPull = useCallback((id) => {
     setExpandedTenPulls((prev) => {
@@ -1071,21 +1149,6 @@ export function useGachaSimulatorController() {
       return next;
     });
   }, []);
-
-  const historyGroups = useMemo(() => processHistoryGroups(pullHistory), [pullHistory]);
-  const dashboardStats = useMemo(() => buildDashboardStats(stats, pityInfo, simulator), [stats, pityInfo, simulator]);
-  const pityInfoWithGuarantee = useMemo(() => buildPityInfoWithGuarantee(stats, simulator), [stats, simulator]);
-  const currentPoolObj = useMemo(() => ({
-    type: normalizeSimulatorPoolType(simulator.poolType),
-    isLimitedWeapon: currentSimPool?.isLimitedWeapon !== false,
-    name: currentSimPool?.name || '未选择',
-    up_character: currentSimPool?.up_character
-  }), [currentSimPool?.isLimitedWeapon, currentSimPool?.name, currentSimPool?.up_character, simulator.poolType]);
-  const effectivePityObj = {
-    pity6: pityInfo.sixStar.current,
-    pity5: pityInfo.fiveStar.current,
-    isInherited: false
-  };
 
   return {
     availableFreePulls,
@@ -1106,10 +1169,11 @@ export function useGachaSimulatorController() {
     expandedTenPulls,
     handleExportData,
     handleExportReport,
+    handleCopyShareText,
     handleInheritRealState,
     handlePull,
     handleReset,
-    handleShare,
+    handleShareImage,
     historyGroups,
     infoBookTenPullAvailable,
     isAnimating,
@@ -1135,10 +1199,13 @@ export function useGachaSimulatorController() {
     showPoolMenu,
     showResetConfirm,
     showToast,
+    shareCardFileName: buildSimulatorShareCardFileName(sharePayload),
+    sharePayload,
     singlePullDisabledReason,
     simulator,
     simulatorPools,
     skipAnimation,
+    supportsNativeImageShare,
     switchPool,
     tenPullDisabledReason,
     toastMessage,

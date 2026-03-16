@@ -183,7 +183,7 @@ function MobileHomeView() {
   const roadmapItems = [
     { id: 'gacha-simulator', icon: Gamepad2, title: '抽卡模拟器', status: 'completed' },
     { id: 'game-import', icon: ArrowRight, title: '一键导入', status: 'completed' },
-    { id: 'share', icon: ArrowUpRight, title: '分享功能', status: 'planned' },
+    { id: 'share', icon: ArrowUpRight, title: '分享功能', status: 'completed' },
   ];
 
   // 格式化日期

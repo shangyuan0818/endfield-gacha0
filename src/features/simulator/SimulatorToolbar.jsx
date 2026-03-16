@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Check, ChevronDown, Download, Plus, RefreshCw, Share2, User } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, Copy, Download, Plus, RefreshCw, Share2, User } from 'lucide-react';
 import { useHistoryStore } from '../../stores';
 import { RESOURCE_ICON_URLS, RESOURCE_LABELS } from '../../utils/resourceEconomy';
 import PoolGroupCardRail from '../../components/pool/PoolGroupCardRail';
@@ -154,7 +154,8 @@ const SimulatorToolbar = ({
   poolPullCounts,
   resourceLedger,
   onAdjustResourceAmount,
-  onShare,
+  onShareImage,
+  onShareText,
   onSwitchPool,
   onToggleMultipleFreeTen,
   onToggleSkipAnimation,
@@ -162,10 +163,13 @@ const SimulatorToolbar = ({
   poolType,
   simulatorPools,
   multipleFreeTen,
-  skipAnimation
+  skipAnimation,
+  supportsImageShare
 }) => {
   const [activeEditor, setActiveEditor] = useState(null);
   const [showInheritAccountDropdown, setShowInheritAccountDropdown] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const shareMenuRef = useRef(null);
   useHistoryStore((state) => state.history);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const resourceItems = useMemo(() => ([
@@ -192,6 +196,23 @@ const SimulatorToolbar = ({
       value: value === '' ? '' : String(Math.max(0, Math.floor(Number(value) || 0)))
     });
   };
+
+  useEffect(() => {
+    if (!showShareMenu) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!shareMenuRef.current?.contains(event.target)) {
+        setShowShareMenu(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [showShareMenu]);
 
   return (
     <div className="mb-6 px-2 space-y-4">
@@ -319,14 +340,45 @@ const SimulatorToolbar = ({
           )}
         </div>
 
-        <button
-          onClick={onShare}
-          className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
-          title="分享到剪贴板"
-        >
-          <Share2 size={14} />
-          <span className="hidden sm:inline">分享</span>
-        </button>
+        <div className="relative" ref={shareMenuRef}>
+          <button
+            type="button"
+            onClick={() => setShowShareMenu((visible) => !visible)}
+            className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+            title="分享模拟统计"
+          >
+            <Share2 size={14} />
+            <span className="hidden sm:inline">分享</span>
+            <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
+          </button>
+
+          {showShareMenu && (
+            <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShareMenu(false);
+                  onShareImage();
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+              >
+                {supportsImageShare ? <Share2 size={14} /> : <Download size={14} />}
+                <span>{supportsImageShare ? '系统分享图片' : '下载分享卡 PNG'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShareMenu(false);
+                  onShareText();
+                }}
+                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
+              >
+                <Copy size={14} />
+                <span>复制分享文本</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         <div className="relative group">
           <button

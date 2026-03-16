@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Layers, Search, Star } from 'lucide-react';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SimulatorResults from './SimulatorResults';
 import SimulatorControls from './SimulatorControls';
 import PullAnimation from './PullAnimation';
 import LimitedPoolAnalysis from './LimitedPoolAnalysis';
+import SimulatorShareCard from './SimulatorShareCard';
 import SimulatorToolbar from './SimulatorToolbar';
 import SimulatorHistoryPanel from './SimulatorHistoryPanel';
 import { normalizeSimulatorPoolType } from './simulatorInheritance';
@@ -29,10 +30,11 @@ const GachaSimulator = () => {
     expandedTenPulls,
     handleExportData,
     handleExportReport,
+    handleCopyShareText,
     handleInheritRealState,
     handlePull,
     handleReset,
-    handleShare,
+    handleShareImage,
     historyGroups,
     infoBookTenPullAvailable,
     isAnimating,
@@ -56,7 +58,9 @@ const GachaSimulator = () => {
     showOriginitePrompt,
     simulator,
     simulatorPools,
+    sharePayload,
     skipAnimation,
+    supportsNativeImageShare,
     switchPool,
     toastMessage,
     toggleTenPull,
@@ -65,6 +69,7 @@ const GachaSimulator = () => {
     disableOriginitePromptToday,
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
+  const shareCardRef = useRef(null);
 
   return (
     <div className="flex flex-col h-full text-slate-800 dark:text-zinc-100 font-sans max-w-7xl mx-auto w-full">
@@ -76,7 +81,8 @@ const GachaSimulator = () => {
         onInheritRealState={handleInheritRealState}
         onReset={handleReset}
         poolPullCounts={poolPullCounts}
-        onShare={handleShare}
+        onShareImage={() => handleShareImage(shareCardRef.current)}
+        onShareText={handleCopyShareText}
         onSwitchPool={switchPool}
         resourceLedger={resourceLedger}
         onAdjustResourceAmount={adjustResourceAmount}
@@ -87,7 +93,21 @@ const GachaSimulator = () => {
         simulatorPools={simulatorPools}
         multipleFreeTen={multipleFreeTen}
         skipAnimation={skipAnimation}
+        supportsImageShare={supportsNativeImageShare}
       />
+
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-200vw',
+          top: 0,
+          opacity: 0,
+          pointerEvents: 'none',
+        }}
+      >
+        <SimulatorShareCard ref={shareCardRef} payload={sharePayload} />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[32fr_48fr_20fr] gap-6 mb-8 flex-1">
         <div className="space-y-4">
@@ -115,6 +135,7 @@ const GachaSimulator = () => {
             {lastResults ? (
               <div className="relative z-20 w-full h-full animate-fade-in p-4">
                 <SimulatorResults
+                  onShare={() => handleShareImage(shareCardRef.current)}
                   poolType={normalizedSimulatorPoolType}
                   results={lastResults}
                   onClose={() => setLastResults(null)}

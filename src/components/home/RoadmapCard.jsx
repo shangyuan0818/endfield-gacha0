@@ -8,7 +8,7 @@ const ROADMAP_ITEMS = [
   { id: 'global-support', icon: Globe, title: '国际服支持', description: '支持国际服抽卡记录的解析与导入', status: 'planned', priority: 'high' },
   { id: 'currency-calc', icon: Calculator, title: '资源消耗换算', description: '支持换算已消耗合成玉、源石数量及已获得武库配额数量', status: 'planned', priority: 'medium' },
   { id: 'sim-currency', icon: Database, title: '模拟器资源机制', description: '模拟器添加合成玉和源石的使用和获取机制', status: 'planned', priority: 'medium' },
-  { id: 'share', icon: Share2, title: '分享功能', description: '生成抽卡结果分享图片或链接，向朋友展示你的欧气', status: 'planned', priority: 'medium' },
+  { id: 'share', icon: Share2, title: '分享功能', description: '模拟器支持脱敏分享卡图片、系统分享与文本复制', status: 'completed', priority: 'medium' },
   { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'low' },
   { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low' },
   { id: 'virtual-scroll', icon: Database, title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low' },
