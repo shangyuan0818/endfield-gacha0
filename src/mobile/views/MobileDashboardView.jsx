@@ -2,30 +2,52 @@ import React from 'react';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
-  BarChart3, LayoutGrid
+  BarChart3, LayoutGrid, Share2, Copy
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { useDashboardViewState } from '../../hooks';
+import { useDashboardViewState, useToast } from '../../hooks';
 import { RARITY_CONFIG } from '../../constants';
 import { useTheme } from '../../contexts/ThemeContext';
 import RainbowGradientDefs from '../../components/charts/RainbowGradientDefs';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
-import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfallChart';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
 import AveragePullStatsPanel from '../../components/dashboard/AveragePullStatsPanel';
+import PoolTimelinePanel from '../../components/dashboard/PoolTimelinePanel';
+import DashboardShareCard from '../../components/dashboard/DashboardShareCard';
+import { Toast } from '../../components/ui';
 import { calculateCurrentProbability } from '../../utils';
+import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
+import { buildDashboardTimelineSections } from '../../utils/dashboardTimelineSections';
+import {
+  buildDashboardShareCardFileName,
+  buildDashboardSharePayload,
+  buildDashboardShareText
+} from '../../utils/dashboardShare';
+import {
+  buildShareFile,
+  canNativeShareFile,
+  downloadShareCard,
+  renderShareCardToBlob,
+  shareImageFile
+} from '../../utils/simulatorShare';
+import { copyToClipboard } from '../../utils/simulatorStorage';
 
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
  */
 function MobileDashboardView() {
   const { isDark } = useTheme();
+  const { toasts, showToast, removeToast } = useToast();
+  const shareCardRef = React.useRef(null);
   const {
     user,
     charViewMode,
     setCharViewMode,
     currentPool,
+    normalizedPoolHistory,
+    selectedPools,
+    allLimitedHistory,
     normalizedPoolType,
     isLimited,
     isWeapon,
@@ -37,6 +59,7 @@ function MobileDashboardView() {
     hasMergedAccountView,
     stats,
     effectivePity,
+    groupedHistory,
     characterStats,
     checkLimitedInFirstN,
     hasReceivedFreeTen,
@@ -49,6 +72,122 @@ function MobileDashboardView() {
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
     ? calculateCurrentProbability(displayPity6, normalizedPoolType)
     : null;
+  const analysisPity = React.useMemo(
+    () => getPoolAnalysisPityState(currentPool, stats, effectivePity),
+    [currentPool, effectivePity, stats]
+  );
+  const overviewAnalysisPityMap = React.useMemo(() => {
+    if (!currentPool?.isGroupMode) {
+      return null;
+    }
+
+    return buildOverviewPoolAnalysisPityMap({
+      pools: selectedPools,
+      history: normalizedPoolHistory,
+      allLimitedHistory
+    });
+  }, [allLimitedHistory, currentPool?.isGroupMode, normalizedPoolHistory, selectedPools]);
+  const timelineSections = React.useMemo(() => buildDashboardTimelineSections({
+    currentPool,
+    currentPoolHistory: normalizedPoolHistory,
+    groupedHistory,
+    selectedPools,
+    isGroupMode,
+    isAllPoolsOverview,
+    effectivePity,
+    analysisPity,
+    overviewAnalysisPityMap,
+    overviewPoolFilter: 'all',
+    hasMergedAccountView
+  }), [analysisPity, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
+  const dashboardSharePayload = React.useMemo(() => buildDashboardSharePayload({
+    currentPool,
+    normalizedPoolType,
+    isGroupMode,
+    isAllPoolsOverview,
+    hasMergedAccountView,
+    overviewPoolFilter: 'all',
+    stats,
+    analysisPity,
+    sections: timelineSections
+  }), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, stats, timelineSections]);
+  const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
+  const supportsNativeImageShare = React.useMemo(() => {
+    if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
+      return false;
+    }
+
+    if (typeof navigator.canShare !== 'function') {
+      return false;
+    }
+
+    try {
+      return navigator.canShare({
+        files: [
+          new File(['share'], 'share.txt', { type: 'text/plain' })
+        ]
+      });
+    } catch {
+      return false;
+    }
+  }, []);
+  const shareImageActionLabel = supportsNativeImageShare ? '系统分享图片' : '下载分享长图';
+  const shareTextActionLabel = '复制分享文本';
+  const resourceSummaryTitle = isGroupMode ? `${currentPool.name}资源统计` : '资源统计';
+  const primarySixStarLabel = isAllPoolsOverview
+    ? '目标6★'
+    : normalizedPoolType === 'standard'
+      ? '常驻6★'
+      : '限定6★';
+  const secondarySixStarLabel = normalizedPoolType === 'standard' ? '额外6★' : '常驻6★';
+
+  const handleCopyShareText = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast('当前没有可分享的详情数据', 'warning');
+      return;
+    }
+
+    const success = await copyToClipboard(buildDashboardShareText(dashboardSharePayload));
+    showToast(success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试', success ? 'success' : 'error');
+  }, [dashboardSharePayload, hasDashboardShareData, showToast]);
+
+  const handleShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast('当前没有可导出的卡池详情', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: isDark ? '#09090b' : '#f4f4f5'
+      });
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const file = buildShareFile(blob, fileName);
+
+      if (file && supportsNativeImageShare && canNativeShareFile(file)) {
+        showToast('系统分享已打开', 'success');
+        await shareImageFile(file, {
+          title: `${dashboardSharePayload.scopeLabel}分享`,
+          text: buildDashboardShareText(dashboardSharePayload)
+        });
+        return;
+      }
+
+      const downloaded = downloadShareCard(blob, fileName);
+      showToast(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      showToast('详情分享卡生成失败，请稍后重试', 'error');
+    }
+  }, [dashboardSharePayload, hasDashboardShareData, isDark, showToast, supportsNativeImageShare]);
 
   if (!hasPoolData) {
     return (
@@ -81,6 +220,20 @@ function MobileDashboardView() {
 
   return (
     <div className="px-4 py-4 space-y-4">
+      {hasDashboardShareData && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-200vw',
+            top: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        >
+          <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={isDark ? 'dark' : 'light'} />
+        </div>
+      )}
       {/* 卡池选择器 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 flex items-center justify-between rounded-none shadow-sm">
         <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">目标卡池</span>
@@ -108,14 +261,14 @@ function MobileDashboardView() {
                   <span className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-bold">
                     {isLimited ? '限定' : isWeapon ? '武器' : '常驻'}
                   </span>
-                  <span>总计: {stats.total} 抽</span>
+                  <span>总抽数: {stats.total} 抽</span>
                 </p>
               </div>
             </div>
 
             {currentPool.up_character && (
               <div className="text-right bg-zinc-50 dark:bg-zinc-800/50 p-1.5 border border-zinc-100 dark:border-zinc-700">
-                <div className="text-[11px] text-zinc-400 uppercase font-mono mb-0.5">当前UP</div>
+                <div className="text-[11px] text-zinc-400 uppercase font-mono mb-0.5">UP 角色</div>
                 <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase">
                   {currentPool.up_character}
                 </div>
@@ -131,6 +284,27 @@ function MobileDashboardView() {
               <span className="uppercase">
                 剩余时间: {currentUpPool.remainingDays || 0}天 {currentUpPool.remainingHours || 0}时
               </span>
+            </div>
+          )}
+
+          {hasDashboardShareData && (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void handleShareImage()}
+                className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+              >
+                <Share2 size={14} />
+                {shareImageActionLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCopyShareText()}
+                className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+              >
+                <Copy size={14} />
+                {shareTextActionLabel}
+              </button>
             </div>
           )}
         </div>
@@ -155,7 +329,7 @@ function MobileDashboardView() {
       </div>
 
       <ResourceSummaryPanel
-        title="资源统计"
+        title={resourceSummaryTitle}
         resources={stats.resourceSummary}
         variant={isWeapon ? 'weapon' : 'character'}
         compact={true}
@@ -191,7 +365,7 @@ function MobileDashboardView() {
                 />
               </div>
                <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-                 <span>当前: {displayPity}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+                 <span>当前垫刀: {displayPity}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
                  <span>上限: {maxPity}</span>
                </div>
             </div>
@@ -217,7 +391,7 @@ function MobileDashboardView() {
                 />
               </div>
                <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
-                 <span>当前: {displayPity5}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
+                 <span>当前垫刀: {displayPity5}{effectivePity?.isInherited && isLimited ? ' (跨池)' : ''}</span>
                  <span>上限: 10</span>
                </div>
             </div>
@@ -228,7 +402,7 @@ function MobileDashboardView() {
 
       {!isGroupMode && hasMergedAccountView && (
         <div className="bg-white dark:bg-zinc-900 border border-dashed border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-500 dark:text-zinc-400 rounded-none shadow-sm">
-          当前为多账号汇总视图。当前保底与软保底概率只在单账号上下文中成立，因此这里不显示 6★ / 5★ 当前推进。
+          当前为多账号汇总视图。6★ / 5★ 当前保底、软保底概率提示仅在单账号上下文中有确定语义，因此这里已隐藏。
         </div>
       )}
 
@@ -236,14 +410,14 @@ function MobileDashboardView() {
       <div className={`grid ${normalizedPoolType !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
         {normalizedPoolType !== 'standard' && (
           <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">限定 6★</div>
+            <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">{primarySixStarLabel}</div>
             <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-zinc-300'}`}>
               {stats.counts[6]}
             </div>
           </div>
         )}
         <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">常驻 6★</div>
+          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">{secondarySixStarLabel}</div>
           <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">{stats.counts['6_std']}</div>
         </div>
         <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
@@ -375,7 +549,7 @@ function MobileDashboardView() {
               {/* 免费十连 */}
               <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-blue-500 rounded-none">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">免费十连</span>
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">免费十连 (仅一次)</span>
                   <span className="text-xs font-mono text-zinc-500">
                     {hasReceivedFreeTen ? '已领取' : '0 / 1'}
                   </span>
@@ -386,13 +560,13 @@ function MobileDashboardView() {
                     style={{ width: hasReceivedFreeTen ? '100%' : '0%' }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-zinc-400 font-mono">30抽后赠送，不计入保底</div>
+                <div className="mt-1 text-[11px] text-zinc-400 font-mono">不计入保底次数</div>
               </div>
 
               {/* 120必出限定 */}
               <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-green-500 rounded-none">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">井 (硬保底 120)</span>
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">必出限定 (120抽)</span>
                   <span className="text-xs font-mono text-zinc-500">
                     {checkLimitedInFirstN.firstLimitedIndex120 > 0 ? '已达成' : `${Math.min(checkLimitedInFirstN.validPullCount, 120)} / 120`}
                   </span>
@@ -408,7 +582,7 @@ function MobileDashboardView() {
               {/* 240赠送潜能 */}
               <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-purple-500 rounded-none">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">赠送潜能 (240)</span>
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">赠送角色潜能 (每240抽)</span>
                   <span className="text-xs font-mono text-zinc-500">{stats.total % 240} / 240</span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
@@ -424,11 +598,11 @@ function MobileDashboardView() {
               {/* 情报书 */}
               <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-cyan-500 rounded-none">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1 uppercase">
-                    <FileText size={12} /> 情报书 (60)
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                    <FileText size={12} /> 寻访情报书 (60抽)
                   </span>
                   <span className="text-xs font-mono text-zinc-500">
-                    {stats.hasInfoBook ? '已获得' : `${Math.min(stats.total, 60)} / 60`}
+                    {stats.hasInfoBook ? '已达成' : `${Math.min(stats.total, 60)} / 60`}
                   </span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
@@ -447,7 +621,7 @@ function MobileDashboardView() {
               {/* 80必出限定 */}
               <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-slate-500 rounded-none">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">首轮保底 (80)</span>
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">首轮限定必出 (80抽)</span>
                   <span className="text-xs font-mono text-zinc-500">
                     {checkLimitedInFirstN.firstLimitedIndex80 > 0 ? '已达成' : `${Math.min(stats.total, 80)} / 80`}
                   </span>
@@ -465,7 +639,7 @@ function MobileDashboardView() {
                 <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-red-500 rounded-none">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase">
-                      下个奖励
+                      下一档奖励
                       <span className={`px-1 py-0.5 text-[11px] font-bold text-white ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
                         {weaponGifts.nextGiftType === 'limited' ? '限定' : '常驻'}
                       </span>
@@ -490,9 +664,9 @@ function MobileDashboardView() {
 
           {/* 常驻池特殊进度 */}
           {isStandard && (
-            <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-amber-500 rounded-none">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase">自选赠送 (300)</span>
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-amber-500 rounded-none">
+                <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">首次赠送自选 (300抽)</span>
                 <span className="text-xs font-mono text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
               </div>
               <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
@@ -509,10 +683,10 @@ function MobileDashboardView() {
 
       {/* 角色出货统计 */}
       <MobileChartContainer
-        title={`出货记录 (${characterStats.length})`}
-        defaultExpanded={characterStats.length > 0}
+        title={`角色出货统计 (${characterStats.length})`}
+        defaultExpanded={characterStats.length > 0 || normalizedPoolHistory.length > 0}
         className="rounded-none"
-        headerRight={characterStats.length > 0 ? (
+        headerRight={(characterStats.length > 0 || normalizedPoolHistory.length > 0) ? (
           <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
             <button
               onClick={() => setCharViewMode('card')}
@@ -541,7 +715,22 @@ function MobileDashboardView() {
       >
         {characterStats.length > 0 ? (
           charViewMode === 'waterfall' ? (
-            <MobileCharacterWaterfallChart characterStats={characterStats} />
+            <div className="pt-2">
+              <PoolTimelinePanel
+                currentPool={currentPool}
+                currentPoolHistory={normalizedPoolHistory}
+                groupedHistory={groupedHistory}
+                selectedPools={selectedPools}
+                isGroupMode={isGroupMode}
+                isAllPoolsOverview={isAllPoolsOverview}
+                effectivePity={effectivePity}
+                analysisPity={analysisPity}
+                overviewAnalysisPityMap={overviewAnalysisPityMap}
+                overviewPoolFilter="all"
+                hasMergedAccountView={hasMergedAccountView}
+                embedded={true}
+              />
+            </div>
           ) : (
           <div className="space-y-2 pt-2">
             {characterStats.map((char) => {
@@ -645,13 +834,32 @@ function MobileDashboardView() {
             })}
           </div>
           )
+        ) : normalizedPoolHistory.length > 0 && charViewMode === 'waterfall' ? (
+          <div className="pt-2">
+            <PoolTimelinePanel
+              currentPool={currentPool}
+              currentPoolHistory={normalizedPoolHistory}
+              groupedHistory={groupedHistory}
+              selectedPools={selectedPools}
+              isGroupMode={isGroupMode}
+              isAllPoolsOverview={isAllPoolsOverview}
+              effectivePity={effectivePity}
+              analysisPity={analysisPity}
+              overviewAnalysisPityMap={overviewAnalysisPityMap}
+              overviewPoolFilter="all"
+              hasMergedAccountView={hasMergedAccountView}
+              embedded={true}
+            />
+          </div>
         ) : (
-          <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">暂无记录</p>
+          <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">暂无5星及以上记录</p>
         )}
       </MobileChartContainer>
 
       {/* 底部留白 */}
       <div className="h-4" />
+
+      <Toast toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

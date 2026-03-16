@@ -63,6 +63,7 @@ export default function DesktopAppRoutes({
         element={
           <DesktopDashboardWorkspace
             user={user}
+            showToast={showToast}
             canEdit={canEdit}
             canEditCurrentPool={canEditCurrentPool}
             currentPool={currentPool}

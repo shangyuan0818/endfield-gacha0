@@ -42,6 +42,7 @@ import {
   renderSimulatorShareCardToBlob,
   shareSimulatorShareCardFile
 } from '../../utils/simulatorShare';
+import { buildSinglePoolTimelineSection } from '../../utils/poolTimelineView.js';
 import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups } from './simulatorViewUtils';
 import {
   buildInheritedSimulatorSnapshot,
@@ -1055,6 +1056,8 @@ export function useGachaSimulatorController() {
   const historyGroups = useMemo(() => processHistoryGroups(pullHistory), [pullHistory]);
   const dashboardStats = useMemo(() => buildDashboardStats(stats, pityInfo, simulator), [stats, pityInfo, simulator]);
   const pityInfoWithGuarantee = useMemo(() => buildPityInfoWithGuarantee(stats, simulator), [stats, simulator]);
+  const currentSharePity6 = pityInfo?.sixStar?.current;
+  const currentSharePity5 = pityInfo?.fiveStar?.current;
   const currentPoolObj = useMemo(() => ({
     type: normalizeSimulatorPoolType(simulator.poolType),
     isLimitedWeapon: currentSimPool?.isLimitedWeapon !== false,
@@ -1066,6 +1069,21 @@ export function useGachaSimulatorController() {
     dashboardStats,
     pityInfoWithGuarantee
   }), [currentPoolObj, dashboardStats, pityInfoWithGuarantee]);
+  const shareTimelineSections = useMemo(() => {
+    const section = buildSinglePoolTimelineSection({
+      pool: {
+        id: currentSimPoolId || 'simulator-pool',
+        type: currentPoolObj?.type,
+        name: currentPoolObj?.name,
+        up_character: currentPoolObj?.up_character
+      },
+      history: pullHistory,
+      currentPityOverride: currentSharePity6,
+      currentPity5Override: currentSharePity5
+    });
+
+    return section ? [section] : [];
+  }, [currentPoolObj, currentSimPoolId, currentSharePity5, currentSharePity6, pullHistory]);
   const supportsNativeImageShare = useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
       return false;
@@ -1201,6 +1219,7 @@ export function useGachaSimulatorController() {
     showToast,
     shareCardFileName: buildSimulatorShareCardFileName(sharePayload),
     sharePayload,
+    shareTimelineSections,
     singlePullDisabledReason,
     simulator,
     simulatorPools,

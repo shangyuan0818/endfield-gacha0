@@ -1,6 +1,16 @@
 const SHARE_CARD_WIDTH = 1200;
 const SHARE_CARD_HEIGHT = 630;
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
+const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
+
+function formatShareTimestamp(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}${month}${day}-${hours}${minutes}`;
+}
 
 function normalizeNumber(value, fallback = 0) {
   const parsed = Number(value);
@@ -147,7 +157,7 @@ export function buildSimulatorShareText(payload) {
 export function buildSimulatorShareCardFileName(payload) {
   const poolLabel = payload?.poolTypeLabel || '模拟器';
   const safePoolLabel = poolLabel.replace(/[\\/:*?"<>|]/g, '');
-  return `${SHARE_CARD_FILE_PREFIX}_${safePoolLabel}.png`;
+  return `${SHARE_CARD_FILE_PREFIX}_${safePoolLabel}_${formatShareTimestamp()}.png`;
 }
 
 function loadImageFromUrl(source) {
@@ -160,15 +170,91 @@ function loadImageFromUrl(source) {
   });
 }
 
-export async function renderSimulatorShareCardToBlob(node) {
+function resolveShareCardSize(node, options = {}) {
+  const width = Number(options.width) || node?.scrollWidth || node?.offsetWidth || SHARE_CARD_WIDTH;
+  const height = Number(options.height) || node?.scrollHeight || node?.offsetHeight || SHARE_CARD_HEIGHT;
+
+  return {
+    width: Math.max(1, Math.round(width)),
+    height: Math.max(1, Math.round(height))
+  };
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('分享卡图片编码失败'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+const embeddedImageCache = new Map();
+
+async function fetchImageAsDataUrl(source) {
+  if (!source || typeof source !== 'string') {
+    return null;
+  }
+
+  if (source.startsWith('data:')) {
+    return source;
+  }
+
+  if (embeddedImageCache.has(source)) {
+    return embeddedImageCache.get(source);
+  }
+
+  const pending = fetch(source, {
+    mode: 'cors',
+    credentials: 'omit',
+    cache: 'force-cache'
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(`分享卡图片拉取失败: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      return blobToDataUrl(blob);
+    })
+    .catch(() => null);
+
+  embeddedImageCache.set(source, pending);
+  return pending;
+}
+
+async function inlineCloneImages(sourceNode, clonedNode) {
+  const sourceImages = Array.from(sourceNode.querySelectorAll('img'));
+  const clonedImages = Array.from(clonedNode.querySelectorAll('img'));
+
+  await Promise.all(clonedImages.map(async (cloneImage, index) => {
+    const sourceImage = sourceImages[index];
+    const source = sourceImage?.currentSrc || sourceImage?.src || cloneImage?.src;
+    if (!source) {
+      return;
+    }
+
+    const embeddedSource = await fetchImageAsDataUrl(source);
+    if (embeddedSource) {
+      cloneImage.src = embeddedSource;
+      cloneImage.removeAttribute('srcset');
+    }
+
+    cloneImage.setAttribute('loading', 'eager');
+    cloneImage.setAttribute('decoding', 'sync');
+    cloneImage.setAttribute('crossorigin', 'anonymous');
+  }));
+}
+
+export async function renderShareCardToBlob(node, options = {}) {
   if (!node || typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('分享卡节点不可用');
   }
 
-  const width = SHARE_CARD_WIDTH;
-  const height = SHARE_CARD_HEIGHT;
+  const { width, height } = resolveShareCardSize(node, options);
   const clone = node.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  await inlineCloneImages(node, clone);
 
   const serializedNode = new XMLSerializer().serializeToString(clone);
   const svgMarkup = `
@@ -191,7 +277,7 @@ export async function renderSimulatorShareCardToBlob(node) {
   }
 
   context.scale(pixelRatio, pixelRatio);
-  context.fillStyle = '#0a0a0b';
+  context.fillStyle = options.backgroundColor || DEFAULT_SHARE_BACKGROUND;
   context.fillRect(0, 0, width, height);
   context.drawImage(image, 0, 0, width, height);
 
@@ -206,7 +292,14 @@ export async function renderSimulatorShareCardToBlob(node) {
   return blob;
 }
 
-export function downloadSimulatorShareCard(blob, payload) {
+export async function renderSimulatorShareCardToBlob(node) {
+  return renderShareCardToBlob(node, {
+    width: SHARE_CARD_WIDTH,
+    backgroundColor: DEFAULT_SHARE_BACKGROUND
+  });
+}
+
+export function downloadShareCard(blob, fileName = '分享卡.png') {
   if (typeof document === 'undefined' || !blob) {
     return false;
   }
@@ -214,7 +307,7 @@ export function downloadSimulatorShareCard(blob, payload) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = buildSimulatorShareCardFileName(payload);
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -222,17 +315,25 @@ export function downloadSimulatorShareCard(blob, payload) {
   return true;
 }
 
-export function buildSimulatorShareFile(blob, payload) {
+export function downloadSimulatorShareCard(blob, payload) {
+  return downloadShareCard(blob, buildSimulatorShareCardFileName(payload));
+}
+
+export function buildShareFile(blob, fileName = '分享卡.png') {
   if (typeof File === 'undefined' || !blob) {
     return null;
   }
 
-  return new File([blob], buildSimulatorShareCardFileName(payload), {
+  return new File([blob], fileName, {
     type: 'image/png',
   });
 }
 
-export function canNativeShareSimulatorFile(file) {
+export function buildSimulatorShareFile(blob, payload) {
+  return buildShareFile(blob, buildSimulatorShareCardFileName(payload));
+}
+
+export function canNativeShareFile(file) {
   if (!file || typeof navigator === 'undefined' || typeof navigator.share !== 'function') {
     return false;
   }
@@ -248,18 +349,29 @@ export function canNativeShareSimulatorFile(file) {
   }
 }
 
-export async function shareSimulatorShareCardFile(file, payload) {
-  if (!canNativeShareSimulatorFile(file)) {
+export function canNativeShareSimulatorFile(file) {
+  return canNativeShareFile(file);
+}
+
+export async function shareImageFile(file, options = {}) {
+  if (!canNativeShareFile(file)) {
     return false;
   }
 
   await navigator.share({
     files: [file],
-    title: `${payload.poolTypeLabel}模拟分享`,
-    text: buildSimulatorShareText(payload),
+    title: options.title || '终末地分享卡',
+    text: options.text || '',
   });
 
   return true;
+}
+
+export async function shareSimulatorShareCardFile(file, payload) {
+  return shareImageFile(file, {
+    title: `${payload.poolTypeLabel}模拟分享`,
+    text: buildSimulatorShareText(payload),
+  });
 }
 
 export {

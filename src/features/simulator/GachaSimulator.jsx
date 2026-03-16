@@ -59,6 +59,7 @@ const GachaSimulator = () => {
     simulator,
     simulatorPools,
     sharePayload,
+    shareTimelineSections,
     skipAnimation,
     supportsNativeImageShare,
     switchPool,
@@ -106,7 +107,7 @@ const GachaSimulator = () => {
           pointerEvents: 'none',
         }}
       >
-        <SimulatorShareCard ref={shareCardRef} payload={sharePayload} />
+        <SimulatorShareCard ref={shareCardRef} payload={sharePayload} sections={shareTimelineSections} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[32fr_48fr_20fr] gap-6 mb-8 flex-1">

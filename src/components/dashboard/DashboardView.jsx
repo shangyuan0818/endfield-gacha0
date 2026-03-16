@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload, BarChart3, LayoutGrid } from 'lucide-react';
+import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload, BarChart3, LayoutGrid, Share2, Download, Copy, ChevronDown } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { RARITY_CONFIG } from '../../constants';
 import RainbowGradientDefs from '../charts/RainbowGradientDefs';
@@ -9,11 +9,26 @@ import PoolSelector from '../pool/PoolSelector';
 import PoolAnalysisCard from './PoolAnalysisCard';
 import PoolTimelinePanel from './PoolTimelinePanel';
 import AveragePullStatsPanel from './AveragePullStatsPanel';
+import DashboardShareCard from './DashboardShareCard';
 import { characterCache } from '../../utils/characterUtils';
 import ResourceSummaryPanel from '../resources/ResourceSummaryPanel';
 import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
 import { normalizePoolGroupType } from '../../utils/poolSelectorDisplay';
 import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
+import { buildDashboardTimelineSections } from '../../utils/dashboardTimelineSections';
+import {
+  buildDashboardShareCardFileName,
+  buildDashboardSharePayload,
+  buildDashboardShareText
+} from '../../utils/dashboardShare';
+import {
+  buildShareFile,
+  canNativeShareFile,
+  downloadShareCard,
+  renderShareCardToBlob,
+  shareImageFile
+} from '../../utils/simulatorShare';
+import { copyToClipboard } from '../../utils/simulatorStorage';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -21,6 +36,7 @@ const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'weapon', label: '武器池' },
   { id: 'standard', label: '常驻池' }
 ];
+const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
 
 function getOverviewPoolBucket(pool) {
   const groupType = normalizePoolGroupType(pool);
@@ -60,9 +76,20 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
 /**
  * 仪表盘视图组件
  */
-const DashboardView = () => {
+const DashboardView = ({ showToast }) => {
   const { isDark } = useTheme();
   const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
+  const [showShareMenu, setShowShareMenu] = React.useState(false);
+  const [shareTheme, setShareTheme] = React.useState(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
+    }
+
+    return localStorage.getItem(DASHBOARD_SHARE_THEME_KEY)
+      || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  });
+  const shareCardRef = React.useRef(null);
+  const shareMenuRef = React.useRef(null);
   const {
     user,
     charViewMode,
@@ -135,6 +162,123 @@ const DashboardView = () => {
       allLimitedHistory
     });
   }, [allLimitedHistory, isGroupMode, normalizedPoolHistory, selectedPools]);
+  const timelineSections = React.useMemo(() => buildDashboardTimelineSections({
+    currentPool,
+    currentPoolHistory: normalizedPoolHistory,
+    groupedHistory,
+    selectedPools,
+    isGroupMode,
+    isAllPoolsOverview,
+    effectivePity,
+    analysisPity,
+    overviewAnalysisPityMap,
+    overviewPoolFilter: allOverviewPoolFilter,
+    hasMergedAccountView
+  }), [allOverviewPoolFilter, analysisPity, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
+  const dashboardSharePayload = React.useMemo(() => buildDashboardSharePayload({
+    currentPool,
+    normalizedPoolType,
+    isGroupMode,
+    isAllPoolsOverview,
+    hasMergedAccountView,
+    overviewPoolFilter: allOverviewPoolFilter,
+    stats,
+    analysisPity,
+    sections: timelineSections
+  }), [allOverviewPoolFilter, analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, stats, timelineSections]);
+  const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
+  const supportsNativeImageShare = React.useMemo(() => {
+    if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
+      return false;
+    }
+
+    if (typeof navigator.canShare !== 'function') {
+      return false;
+    }
+
+    try {
+      return navigator.canShare({
+        files: [
+          new File(['share'], 'share.txt', { type: 'text/plain' })
+        ]
+      });
+    } catch {
+      return false;
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!showShareMenu) {
+      return undefined;
+    }
+
+    const handleOutsideClick = (event) => {
+      if (!shareMenuRef.current?.contains(event.target)) {
+        setShowShareMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showShareMenu]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
+  }, [shareTheme]);
+
+  const handleCopyShareText = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast?.('当前没有可分享的详情数据', 'warning');
+      return;
+    }
+
+    const shareText = buildDashboardShareText(dashboardSharePayload);
+    const success = await copyToClipboard(shareText);
+    showToast?.(success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试', success ? 'success' : 'error');
+  }, [dashboardSharePayload, hasDashboardShareData, showToast]);
+
+  const handleShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast?.('当前没有可分享的详情数据', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast?.('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
+      });
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const file = buildShareFile(blob, fileName);
+
+      if (file && supportsNativeImageShare && canNativeShareFile(file)) {
+        showToast?.('系统分享已打开', 'success');
+        await shareImageFile(file, {
+          title: `${dashboardSharePayload.scopeLabel}分享`,
+          text: buildDashboardShareText(dashboardSharePayload)
+        });
+        return;
+      }
+
+      const downloaded = downloadShareCard(blob, fileName);
+      showToast?.(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      console.error('[DashboardView] share card generation failed:', error);
+      showToast?.('详情分享卡生成失败，请稍后重试', 'error');
+    }
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare]);
 
   const tooltipStyle = {
     borderRadius: '0px',
@@ -173,6 +317,21 @@ const DashboardView = () => {
 
   return (
     <div className="space-y-6">
+      {hasDashboardShareData && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-200vw',
+            top: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
+        >
+          <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={shareTheme} />
+        </div>
+      )}
+
       {/* 卡池选择器 & 顶部状态栏 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
@@ -405,6 +564,73 @@ const DashboardView = () => {
                       <BarChart3 size={14} />
                       时间线
                     </button>
+                  </div>
+                )}
+                {hasDashboardShareData && (
+                  <div className="relative" ref={shareMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setShowShareMenu((visible) => !visible)}
+                      className="px-2.5 py-1 text-xs font-medium transition-colors border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5"
+                    >
+                      <Share2 size={14} />
+                      分享
+                      <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {showShareMenu && (
+                      <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+                        <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+                          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">分享主题</div>
+                          <div className="mt-2 flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setShareTheme('light')}
+                              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                                shareTheme === 'light'
+                                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                                  : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                              }`}
+                            >
+                              亮色
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShareTheme('dark')}
+                              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                                shareTheme === 'dark'
+                                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                                  : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                              }`}
+                            >
+                              暗色
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowShareMenu(false);
+                            void handleShareImage();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                        >
+                          {supportsNativeImageShare ? <Share2 size={14} /> : <Download size={14} />}
+                          <span>{supportsNativeImageShare ? '系统分享图片' : '下载分享长图'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowShareMenu(false);
+                            void handleCopyShareText();
+                          }}
+                          className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
+                        >
+                          <Copy size={14} />
+                          <span>复制分享文本</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
                 {isAllPoolsOverview && (

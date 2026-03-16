@@ -18,6 +18,7 @@ function TabPanelFallback({ label = '正在加载模块...' }) {
 
 export default function DesktopDashboardWorkspace({
   user,
+  showToast,
   canEdit,
   canEditCurrentPool,
   currentPool,
@@ -62,7 +63,7 @@ export default function DesktopDashboardWorkspace({
       {user && (
         <div className="animate-fade-in">
           <Suspense fallback={<TabPanelFallback label="正在加载卡池分析..." />}>
-            <DashboardView />
+            <DashboardView showToast={showToast} />
           </Suspense>
 
           <div className="mt-6">

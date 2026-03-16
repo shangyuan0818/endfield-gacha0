@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
 import { Layers } from 'lucide-react';
 import {
-  buildOverviewTimelineSections,
-  buildSinglePoolTimelineSection
-} from '../../utils/poolTimelineView.js';
+  buildDashboardTimelineSections,
+  countDashboardTimelineNodes
+} from '../../utils/dashboardTimelineSections.js';
 
 function formatAverage(value) {
   if (!Number.isFinite(value)) {
@@ -336,26 +336,6 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
   );
 }
 
-function matchesOverviewPoolFilter(section, overviewPoolFilter) {
-  if (overviewPoolFilter === 'all') {
-    return true;
-  }
-
-  return section.type === overviewPoolFilter;
-}
-
-function getOverviewPoolFilterType(pool) {
-  if (pool?.type === 'weapon' || pool?.type === 'limited_weapon') {
-    return 'weapon';
-  }
-
-  if (pool?.type === 'limited' || pool?.type === 'limited_character') {
-    return 'limited';
-  }
-
-  return 'standard';
-}
-
 const PoolTimelinePanel = ({
   currentPool,
   currentPoolHistory = [],
@@ -371,31 +351,22 @@ const PoolTimelinePanel = ({
   embedded = false
 }) => {
   const sections = useMemo(() => {
-    if (isGroupMode) {
-      return buildOverviewTimelineSections({
-        pools: isAllPoolsOverview
-          ? selectedPools.filter((pool) => matchesOverviewPoolFilter({ type: getOverviewPoolFilterType(pool) }, overviewPoolFilter))
-          : selectedPools,
-        history: currentPoolHistory,
-        analysisPityByPoolId: overviewAnalysisPityMap,
-        disablePityState: hasMergedAccountView
-      });
-    }
-
-    const section = buildSinglePoolTimelineSection({
-      pool: currentPool,
-      history: currentPoolHistory,
+    return buildDashboardTimelineSections({
+      currentPool,
+      currentPoolHistory,
       groupedHistory,
-      currentPityOverride: hasMergedAccountView ? null : (analysisPity?.displayPity6 ?? effectivePity?.pity6),
-      currentPity5Override: hasMergedAccountView ? null : (analysisPity?.displayPity5 ?? effectivePity?.pity5),
-      currentTargetPullsOverride: analysisPity?.maxPity6,
-      disablePityState: hasMergedAccountView
+      selectedPools,
+      isGroupMode,
+      isAllPoolsOverview,
+      effectivePity,
+      analysisPity,
+      overviewAnalysisPityMap,
+      overviewPoolFilter,
+      hasMergedAccountView
     });
+  }, [analysisPity, currentPool, currentPoolHistory, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
 
-    return section ? [section] : [];
-  }, [analysisPity?.displayPity5, analysisPity?.displayPity6, analysisPity?.maxPity6, currentPool, currentPoolHistory, effectivePity?.pity5, effectivePity?.pity6, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
-
-  const totalNodes = sections.reduce((sum, section) => sum + section.entries.length, 0);
+  const totalNodes = countDashboardTimelineNodes(sections);
   const title = isAllPoolsOverview
     ? '全部卡池总览'
     : isGroupMode
