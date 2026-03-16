@@ -47,12 +47,15 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
               : currentActiveIndex < (index + removesAfter);
             const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
 
+            const relativeRotationDistance = currentActiveIndex - index;
+
             let statusLabel = null;
             if (isCurrent) {
               statusLabel = '当前UP角色';
             } else if (isInPool && removesAfter) {
-              const remainingRotations = (index + removesAfter) - currentActiveIndex - 1;
-              statusLabel = remainingRotations <= 1 ? '下一次卡池轮换后移出' : '第2次卡池轮换后移出';
+              statusLabel = relativeRotationDistance <= 1
+                ? '第2次卡池轮换后移出'
+                : '下一次卡池轮换后移出';
             } else if (!isPast && currentActiveIndex !== -1 && index > currentActiveIndex) {
               const diff = index - currentActiveIndex;
               if (diff === 1) statusLabel = '下一卡池UP';

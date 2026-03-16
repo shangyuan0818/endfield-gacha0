@@ -6,7 +6,7 @@ import MobileDrawer from '../components/MobileDrawer';
 import { getMobilePathForTab, getMobileTabFromPath } from '../../constants/appRoutes';
 
 // 移动端视图
-import MobileHomeView from '../views/MobileHomeView';
+import MobileHomePageView from '../views/MobileHomePageView';
 import MobileSummaryView from '../views/MobileSummaryView';
 import MobileDashboardView from '../views/MobileDashboardView';
 import MobileSimulatorView from '../views/MobileSimulatorView';
@@ -38,7 +38,7 @@ function MobileLayout() {
       {/* 主内容区域 - pt-14 (56px) + safe-area-inset-top */}
       <main className="pb-20" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
         <Routes>
-          <Route index element={<MobileHomeView />} />
+          <Route index element={<MobileHomePageView />} />
           <Route path="summary" element={<MobileSummaryView />} />
           <Route path="dashboard" element={<MobileDashboardView />} />
           <Route path="simulator" element={<MobileSimulatorView />} />

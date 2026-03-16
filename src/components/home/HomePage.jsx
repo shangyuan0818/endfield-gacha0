@@ -224,14 +224,14 @@ const HomePage = React.memo(() => {
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-white mb-1">
-                QQ 群协助通道
+                欢迎加入 QQ 群 ~
               </h3>
               <div className="text-xs text-zinc-300 leading-relaxed space-y-2">
-                <p>账号恢复、临时密码领取和使用问题统一在 QQ 群处理。</p>
+                <p>账号恢复、临时密码领取和使用问题请都统一在 QQ 群处理~</p>
                 <div className="border border-zinc-700 bg-zinc-950/80 px-3 py-2 font-mono text-base tracking-wider text-endfield-yellow">
                   {ACCOUNT_RECOVERY_QQ_GROUP}
                 </div>
-                <p className="text-zinc-400">若超管已完成核验并设置临时密码，请加入该群获取密码。</p>
+                <p className="text-zinc-400">欢迎加群吹水，倒卖和提意见喵~ 账号恢复的临时密码请加群后私信群主~</p>
               </div>
             </div>
           </div>
