@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Mail, Smartphone } from 'lucide-react';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import { useTheme } from '../contexts/ThemeContext';
-import { buildPasswordResetRedirectUrl } from '../utils/authRedirects.js';
 
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const user = useAuthStore(state => state.user);
@@ -19,6 +18,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   // 统计当前用户创建的数据（过滤掉其他用户的数据）
   const myPools = useMemo(() => {
@@ -46,9 +47,26 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     }
   };
 
+  const resetPasswordModalState = () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+  };
+
   const handlePasswordReset = async () => {
-    if (!user?.email) {
-      setPasswordError('无法获取邮箱地址');
+    if (!user) {
+      setPasswordError('当前未登录，无法修改密码');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('密码至少需要 6 位字符');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('两次输入的密码不一致');
       return;
     }
 
@@ -57,20 +75,19 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     setPasswordLoading(true);
 
     try {
-      // 使用环境变量配置的域名，避免 window.location.origin 被篡改
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: buildPasswordResetRedirectUrl()
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
       });
 
       if (error) throw error;
 
-      setPasswordSuccess('密码重置邮件已发送！请查收邮箱并点击链接重置密码。');
+      setPasswordSuccess('密码已更新。下次登录请使用新密码。');
       setTimeout(() => {
         setShowPasswordModal(false);
-        setPasswordSuccess('');
-      }, 3000);
+        resetPasswordModalState();
+      }, 2000);
     } catch (error) {
-      setPasswordError(error.message || '发送失败，请重试');
+      setPasswordError(error.message || '修改失败，请重试');
     } finally {
       setPasswordLoading(false);
     }
@@ -132,7 +149,10 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               <div className="flex items-center justify-between py-3">
                 <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">安全</span>
                 <button
-                  onClick={() => setShowPasswordModal(true)}
+                  onClick={() => {
+                    resetPasswordModalState();
+                    setShowPasswordModal(true);
+                  }}
                   className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow/10 hover:bg-endfield-yellow text-amber-700 dark:text-endfield-yellow hover:text-black border border-endfield-yellow/50 text-xs font-bold tracking-wider transition-all uppercase rounded-sm"
                 >
                   <Lock size={14} />
@@ -274,9 +294,15 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                 <Lock size={18} />
-                重置密码
+                修改密码
               </h3>
-              <button onClick={() => setShowPasswordModal(false)} className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300">
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  resetPasswordModalState();
+                }}
+                className="text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300"
+              >
                 <X size={20} />
               </button>
             </div>
@@ -289,23 +315,38 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               )}
               {passwordSuccess && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-2 rounded-none text-sm flex items-start gap-2">
-                  <Mail size={16} className="shrink-0 mt-0.5" />
+                  <Lock size={16} className="shrink-0 mt-0.5" />
                   <span>{passwordSuccess}</span>
                 </div>
               )}
 
-              <div className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 p-4 rounded-none">
-                <div className="flex items-start gap-3">
-                  <Mail size={20} className="text-endfield-yellow shrink-0 mt-1" />
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    <p className="font-medium text-zinc-800 dark:text-zinc-200 mb-2">邮件重置密码</p>
-                    <p className="mb-2">
-                      我们将向您的注册邮箱 <span className="font-mono text-endfield-yellow">{user?.email}</span> 发送一封密码重置邮件。
-                    </p>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-500">
-                      点击邮件中的链接即可设置新密码。链接将在 1 小时后失效。
-                    </p>
-                  </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                    新密码
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder="至少 6 位字符"
+                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                    确认新密码
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(event) => setConfirmNewPassword(event.target.value)}
+                    placeholder="再次输入新密码"
+                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none"
+                  />
+                  {confirmNewPassword && newPassword !== confirmNewPassword && (
+                    <p className="mt-2 text-xs text-red-500">两次输入的密码不一致。</p>
+                  )}
                 </div>
               </div>
 
@@ -314,7 +355,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 disabled={passwordLoading || !!passwordSuccess}
                 className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold uppercase tracking-wider py-3 rounded-none transition-colors disabled:cursor-not-allowed"
               >
-                {passwordLoading ? '发送中...' : passwordSuccess ? '已发送' : '发送重置邮件'}
+                {passwordLoading ? '修改中...' : passwordSuccess ? '已更新' : '更新密码'}
               </button>
             </div>
           </div>

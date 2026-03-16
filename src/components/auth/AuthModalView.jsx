@@ -3,12 +3,15 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  FileSearch,
   KeyRound,
   Loader2,
   Lock,
   LogIn,
   Mail,
+  Plus,
   RefreshCw,
+  Trash2,
   User,
   UserPlus,
   X,
@@ -21,6 +24,7 @@ export default function AuthModalView({
   emailDomainError,
   emailValid,
   error,
+  forgotPasswordStatus,
   hasEmailError,
   loading,
   message,
@@ -30,17 +34,33 @@ export default function AuthModalView({
   onConfirmPasswordChange,
   onEmailChange,
   onPasswordChange,
+  onAddRecoveryClaim,
   onSubmit,
+  onSubmitRecoveryRequest,
   onSwitchMode,
   onSwitchToForgotPassword,
   onSwitchToLoginWithEmail,
+  onSwitchToRegisterWithEmail,
+  onOpenRecoveryRequest,
+  onCloseRecoveryRequest,
+  onRecoveryClaimChange,
+  onRecoveryClaimedAccountCountChange,
+  onRecoveryNoteChange,
+  onRemoveRecoveryClaim,
   onUsernameChange,
   password,
+  recoveryRequestError,
+  recoveryRequestForm,
+  recoveryRequestLoading,
+  recoveryRequestSuccess,
   resendCooldown,
   showDuplicateEmailPrompt,
   submitDisabled,
   username,
 }) {
+  const recoveryRequestTypeLabel =
+    recoveryRequestForm.requestType === 'delete_account' ? '注销旧账号' : '申请人工恢复';
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in"
@@ -81,17 +101,17 @@ export default function AuthModalView({
               </div>
               <div>
                 <h2 className="text-xl font-bold tracking-tight font-mono">
-                  {mode === 'login' ? 'SIGN IN' : mode === 'register' ? 'REGISTER' : 'RESET PASSWORD'}
+                  {mode === 'login' ? 'SIGN IN' : mode === 'register' ? 'REGISTER' : 'ACCOUNT RECOVERY'}
                 </h2>
                 <p className="text-zinc-400 text-xs uppercase tracking-widest">
-                  {mode === 'login' ? '登录账户' : mode === 'register' ? '创建新账户' : '重置密码'}
+                  {mode === 'login' ? '登录账户' : mode === 'register' ? '创建新账户' : '账号恢复'}
                 </p>
               </div>
             </div>
             <p className="text-zinc-300 text-sm mt-3">
               {mode === 'login' ? '登录以同步你的抽卡数据到云端' :
                 mode === 'register' ? '注册后可多设备同步数据' :
-                  '输入邮箱地址，我们将发送重置链接'}
+                  '输入邮箱地址，先检查该账号是否已注册。当前版本未启用邮件找回，已注册账号只能提交人工恢复申请。'}
             </p>
           </div>
         </div>
@@ -195,6 +215,216 @@ export default function AuthModalView({
             )}
           </div>
 
+          {mode === 'forgotPassword' && forgotPasswordStatus === 'registered' && (
+            <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-none p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 size={20} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-emerald-800 dark:text-emerald-300 font-medium mb-2">
+                    该邮箱已注册
+                  </p>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
+                    当前版本未启用邮件找回，也不允许仅凭邮箱直接修改密码。若你还有已登录设备，请直接前往“设置 &gt; 修改密码”；若完全无法登录，可提交人工恢复或旧账号注销申请。
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenRecoveryRequest('password_reset')}
+                      className={`px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
+                        recoveryRequestForm.requestType === 'password_reset'
+                          ? 'bg-endfield-yellow text-black'
+                          : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      申请人工恢复
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenRecoveryRequest('delete_account')}
+                      className={`px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
+                        recoveryRequestForm.requestType === 'delete_account'
+                          ? 'bg-red-600 text-white'
+                          : 'bg-white text-red-600 border border-red-300 hover:bg-red-50 dark:bg-transparent dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
+                      }`}
+                    >
+                      申请注销旧账号
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onSwitchToLoginWithEmail}
+                    className="w-full mt-2 bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
+                  >
+                    返回登录
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === 'forgotPassword' && forgotPasswordStatus === 'registered' && recoveryRequestForm.requestType && (
+            <div className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-2">
+                    <FileSearch size={16} className="text-endfield-yellow" />
+                    {recoveryRequestTypeLabel}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
+                    请尽量填写你曾上传过的 UID 和游戏内昵称。当前版本没有邮件和匿名站内回传，申请只会进入超管审核队列。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onCloseRecoveryRequest}
+                  className="text-xs text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors"
+                >
+                  收起
+                </button>
+              </div>
+
+              {recoveryRequestSuccess && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-medium">恢复申请已提交</div>
+                      <div className="mt-1">
+                        超管会根据你填写的 UID、昵称和说明进行人工核验。当前系统不会向未登录用户发放自动重置入口。
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {recoveryRequestError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 text-sm flex items-start gap-2">
+                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                  <span>{recoveryRequestError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                  你曾上传过几个账号
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={recoveryRequestForm.claimedAccountCount}
+                  onChange={onRecoveryClaimedAccountCountChange}
+                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
+                    身份核验信息
+                  </label>
+                  <button
+                    type="button"
+                    onClick={onAddRecoveryClaim}
+                    className="text-xs font-bold uppercase tracking-wider text-endfield-yellow hover:text-yellow-500 flex items-center gap-1"
+                  >
+                    <Plus size={12} />
+                    新增一组
+                  </button>
+                </div>
+
+                {recoveryRequestForm.verificationClaims.map((claim, index) => (
+                  <div key={`claim-${index}`} className="border border-zinc-200 dark:border-zinc-700 p-3 space-y-3 bg-slate-50 dark:bg-zinc-950">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">
+                        账号线索 {index + 1}
+                      </span>
+                      {recoveryRequestForm.verificationClaims.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveRecoveryClaim(index)}
+                          className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1"
+                        >
+                          <Trash2 size={12} />
+                          删除
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={claim.gameUid}
+                        onChange={(event) => onRecoveryClaimChange(index, 'gameUid', event.target.value)}
+                        placeholder="游戏 UID"
+                        className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                      />
+                      <input
+                        type="text"
+                        value={claim.nickName}
+                        onChange={(event) => onRecoveryClaimChange(index, 'nickName', event.target.value)}
+                        placeholder="游戏内昵称"
+                        className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                  补充说明
+                </label>
+                <textarea
+                  value={recoveryRequestForm.note}
+                  onChange={onRecoveryNoteChange}
+                  placeholder={
+                    recoveryRequestForm.requestType === 'delete_account'
+                      ? '请说明为什么需要注销旧账号，以及你后续是否会重新注册。'
+                      : '可补充上传时间、常用卡池、历史角色或其他只有你本人知道的信息。'
+                  }
+                  className="w-full min-h-[100px] px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={onSubmitRecoveryRequest}
+                disabled={recoveryRequestLoading}
+                className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors"
+              >
+                {recoveryRequestLoading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <FileSearch size={18} />
+                )}
+                提交{recoveryRequestTypeLabel}
+              </button>
+            </div>
+          )}
+
+          {mode === 'forgotPassword' && forgotPasswordStatus === 'unregistered' && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={20} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-amber-800 dark:text-amber-300 font-medium mb-2">
+                    该邮箱尚未注册
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
+                    邮箱 <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5">{email}</span> 目前没有对应账号，请先注册后再使用云同步功能。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onSwitchToRegisterWithEmail}
+                    className="w-full bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
+                  >
+                    使用此邮箱注册
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {mode !== 'forgotPassword' && (
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
@@ -219,7 +449,7 @@ export default function AuthModalView({
                     onClick={onSwitchToForgotPassword}
                     className="text-xs text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors"
                   >
-                    忘记密码？
+                    账号恢复
                   </button>
                 </div>
               )}
@@ -327,12 +557,12 @@ export default function AuthModalView({
             ) : resendCooldown > 0 ? (
               <>
                 <RefreshCw size={20} />
-                {resendCooldown}秒后可重新发送
+                {resendCooldown}秒后可重新检查
               </>
             ) : (
               <>
-                <Mail size={20} />
-                发送重置邮件
+                <KeyRound size={20} />
+                检查账号状态
               </>
             )}
           </button>

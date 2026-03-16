@@ -42,6 +42,18 @@ const SUPABASE_ERROR_MAP = {
     message: '邮件发送次数超限',
     solution: '请稍后再尝试重新发送',
   },
+  'Auth admin not configured': {
+    message: '账号恢复服务未启用',
+    solution: '本地环境缺少 SUPABASE_SERVICE_ROLE_KEY，请补齐服务端配置后重试',
+  },
+  '当前环境未启用安全的账号恢复流程': {
+    message: '账号恢复服务未启用',
+    solution: '本地环境缺少 SUPABASE_SERVICE_ROLE_KEY，请补齐服务端配置后重试',
+  },
+  '当前环境未启用安全的密码找回流程': {
+    message: '账号恢复服务未启用',
+    solution: '本地环境缺少 SUPABASE_SERVICE_ROLE_KEY，请补齐服务端配置后重试',
+  },
 
   // 数据库相关错误
   '23505': {  // unique_violation

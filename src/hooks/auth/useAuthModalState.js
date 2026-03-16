@@ -133,6 +133,8 @@ export function useAuthModalState() {
     setError('');
     setMessage('');
     setShowDuplicateEmailPrompt(false);
+    setEmailDomainError('');
+    setResendCooldown(0);
     setMode('forgotPassword');
   };
 
@@ -145,6 +147,19 @@ export function useAuthModalState() {
     setShowDuplicateEmailPrompt(false);
     setEmailDomainError('');
     setMode('login');
+  };
+
+  const switchToRegisterWithEmail = () => {
+    const nextEmail = email;
+    resetForm();
+    setMode('register');
+    setEmail(nextEmail);
+    setEmailValid(validateEmail(nextEmail));
+
+    if (nextEmail && validateEmail(nextEmail)) {
+      const domainResult = validateEmailDomain(nextEmail);
+      setEmailDomainError(domainResult.valid ? '' : domainResult.reason);
+    }
   };
 
   return {
@@ -176,5 +191,6 @@ export function useAuthModalState() {
     switchMode,
     switchToForgotPassword,
     switchToLoginWithEmail,
+    switchToRegisterWithEmail,
   };
 }

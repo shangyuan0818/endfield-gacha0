@@ -12,6 +12,10 @@ const ACTION_LIMITS = {
   resend_verification: { windowMs: 10 * 60 * 1000, max: 3 }
 };
 
+function isDevelopmentRuntime() {
+  return process.env.NODE_ENV !== 'production';
+}
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
@@ -57,6 +61,15 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  if (isDevelopmentRuntime()) {
+    return res.status(200).json({
+      success: true,
+      allowed: true,
+      retry_after: 0,
+      source: 'development'
+    });
   }
 
   const { action } = parseRequestBody(req);

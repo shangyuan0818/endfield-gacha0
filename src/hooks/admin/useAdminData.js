@@ -3,6 +3,7 @@ import { useAuthStore } from '../../stores';
 import { validateUserData } from '../../utils/validators';
 import * as userService from '../../services/admin/userService';
 import * as announcementService from '../../services/admin/announcementService';
+import * as accountRecoveryService from '../../services/admin/accountRecoveryService';
 
 /**
  * 管理后台数据统一管理 Hook
@@ -15,6 +16,7 @@ export function useAdminData(showToast) {
   // 数据状态
   const [users, setUsers] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
+  const [accountRecoveryRequests, setAccountRecoveryRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
@@ -30,6 +32,7 @@ export function useAdminData(showToast) {
     if (!user || userRole !== 'super_admin') {
       setUsers([]);
       setAnnouncements([]);
+      setAccountRecoveryRequests([]);
       setLoading(false);
       return;
     }
@@ -38,10 +41,12 @@ export function useAdminData(showToast) {
 
     const [
       usersResult,
-      announcementsResult
+      announcementsResult,
+      accountRecoveryResult
     ] = await Promise.allSettled([
       userService.loadUsers(),
-      announcementService.loadAnnouncements()
+      announcementService.loadAnnouncements(),
+      accountRecoveryService.loadAccountRecoveryRequests()
     ]);
 
     const failedSections = [];
@@ -56,6 +61,12 @@ export function useAdminData(showToast) {
       setAnnouncements(announcementsResult.value);
     } else {
       failedSections.push('公告');
+    }
+
+    if (accountRecoveryResult.status === 'fulfilled') {
+      setAccountRecoveryRequests(accountRecoveryResult.value);
+    } else {
+      failedSections.push('账号恢复');
     }
 
     if (failedSections.length > 0) {
@@ -215,10 +226,32 @@ export function useAdminData(showToast) {
     }
   }, [ensureSuperAdmin, showToast]);
 
+  const updateAccountRecoveryRequest = useCallback(async (request, updateData) => {
+    if (!ensureSuperAdmin()) return;
+
+    setActionLoading(request.id);
+
+    try {
+      const payload = {
+        ...updateData,
+        handled_by: user?.id || null
+      };
+
+      await accountRecoveryService.updateAccountRecoveryRequest(request.id, payload);
+      await loadAdminData();
+      showToast('账号恢复申请已更新', 'success');
+    } catch (error) {
+      showToast('更新账号恢复申请失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [ensureSuperAdmin, loadAdminData, showToast, user?.id]);
+
   return {
     // 数据状态
     users,
     announcements,
+    accountRecoveryRequests,
     loading,
     actionLoading,
     reloadAdminData: loadAdminData,
@@ -231,6 +264,9 @@ export function useAdminData(showToast) {
     saveAnnouncement,
     toggleAnnouncementActive,
     deleteAnnouncement,
+
+    // 账号恢复
+    updateAccountRecoveryRequest,
   };
 }
 

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
-  AlertTriangle, X, Mail, Database, LogOut, ChevronRight
+  AlertTriangle, X, Database, LogOut, ChevronRight
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
@@ -13,7 +13,6 @@ import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
-import { buildPasswordResetRedirectUrl } from '../../utils/authRedirects.js';
 
 function MobileSettingsSection({ title, icon, children }) {
   const IconComponent = icon;
@@ -48,6 +47,8 @@ function MobileSettingsView() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
   const myPools = useMemo(() => {
     if (!pools || !user) return [];
@@ -95,9 +96,26 @@ function MobileSettingsView() {
     }
   };
 
+  const resetPasswordModalState = () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+    setNewPassword('');
+    setConfirmNewPassword('');
+  };
+
   const handlePasswordReset = async () => {
-    if (!user?.email) {
-      setPasswordError('未找到当前账号邮箱');
+    if (!user) {
+      setPasswordError('当前未登录，无法修改密码');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError('密码至少需要 6 位字符');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('两次输入的密码不一致');
       return;
     }
 
@@ -106,19 +124,19 @@ function MobileSettingsView() {
     setPasswordLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: buildPasswordResetRedirectUrl()
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
       });
 
       if (error) throw error;
 
-      setPasswordSuccess('重置邮件已发送！');
+      setPasswordSuccess('密码已更新。');
       setTimeout(() => {
         setShowPasswordModal(false);
-        setPasswordSuccess('');
-      }, 3000);
+        resetPasswordModalState();
+      }, 2000);
     } catch (error) {
-      setPasswordError(error.message || '发送失败');
+      setPasswordError(error.message || '修改失败');
     } finally {
       setPasswordLoading(false);
     }
@@ -200,7 +218,10 @@ function MobileSettingsView() {
 
             {/* 修改密码 */}
             <button
-              onClick={() => setShowPasswordModal(true)}
+              onClick={() => {
+                resetPasswordModalState();
+                setShowPasswordModal(true);
+              }}
               className="w-full px-4 py-3 flex items-center justify-between touch-feedback hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -356,9 +377,15 @@ function MobileSettingsView() {
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase tracking-wide text-sm">
                 <Lock size={16} />
-                重置密码
+                修改密码
               </h3>
-              <button onClick={() => setShowPasswordModal(false)} className="p-1 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors">
+              <button
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  resetPasswordModalState();
+                }}
+                className="p-1 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+              >
                 <X size={18} className="text-zinc-400" />
               </button>
             </div>
@@ -371,20 +398,38 @@ function MobileSettingsView() {
               )}
               {passwordSuccess && (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-3 py-2 text-xs flex items-start gap-2 rounded-none">
-                  <Mail size={14} className="shrink-0 mt-0.5" />
+                  <Lock size={14} className="shrink-0 mt-0.5" />
                   <span>{passwordSuccess}</span>
                 </div>
               )}
 
-              <div className="bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-3 rounded-none">
-                <div className="flex items-start gap-3">
-                  <Mail size={20} className="text-endfield-yellow shrink-0 mt-0.5" />
-                  <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                    <p className="font-bold text-zinc-800 dark:text-zinc-200 mb-1 uppercase text-xs">邮件确认</p>
-                    <p className="text-xs">
-                      发送重置链接至 <span className="font-mono text-endfield-yellow">{user?.email}</span>
-                    </p>
-                  </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    新密码
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder="至少 6 位字符"
+                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:border-endfield-yellow outline-none text-sm font-mono rounded-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    确认新密码
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmNewPassword}
+                    onChange={(event) => setConfirmNewPassword(event.target.value)}
+                    placeholder="再次输入新密码"
+                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:border-endfield-yellow outline-none text-sm font-mono rounded-none"
+                  />
+                  {confirmNewPassword && newPassword !== confirmNewPassword && (
+                    <p className="mt-2 text-[10px] text-red-500">两次输入的密码不一致。</p>
+                  )}
                 </div>
               </div>
 
@@ -393,7 +438,7 @@ function MobileSettingsView() {
                 disabled={passwordLoading || !!passwordSuccess}
                 className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold py-3 text-xs uppercase tracking-widest touch-feedback disabled:opacity-50 rounded-none transition-colors"
               >
-                {passwordLoading ? '发送中...' : passwordSuccess ? '已发送' : '发送重置链接'}
+                {passwordLoading ? '修改中...' : passwordSuccess ? '已更新' : '更新密码'}
               </button>
             </div>
           </div>

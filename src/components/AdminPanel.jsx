@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 
 const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
@@ -8,6 +8,7 @@ const UsersPanel = lazy(() => import('./admin/panels/UsersPanel'));
 const UserDataPanel = lazy(() => import('./admin/panels/UserDataPanel'));
 const AnnouncementsPanel = lazy(() => import('./admin/panels/AnnouncementsPanel'));
 const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
+const AccountRecoveryPanel = lazy(() => import('./admin/panels/AccountRecoveryPanel'));
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
@@ -16,6 +17,7 @@ const MENU_ITEMS = [
   { id: 'pools', label: '卡池管理', icon: Layers },
   { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
+  { id: 'accountRecovery', label: '账号恢复', icon: KeyRound },
   { id: 'siteConfig', label: '站点配置', icon: Settings },
 ];
 
@@ -35,6 +37,7 @@ const AdminPanel = React.memo(({ showToast }) => {
   const {
     users,
     announcements,
+    accountRecoveryRequests,
     loading,
     actionLoading,
     saveUser,
@@ -42,6 +45,8 @@ const AdminPanel = React.memo(({ showToast }) => {
     saveAnnouncement,
     toggleAnnouncementActive,
     deleteAnnouncement,
+    updateAccountRecoveryRequest,
+    reloadAdminData,
   } = adminData;
 
   const {
@@ -124,6 +129,16 @@ const AdminPanel = React.memo(({ showToast }) => {
 
       case 'siteConfig':
         return <SiteConfigPanel showToast={showToast} />;
+
+      case 'accountRecovery':
+        return (
+          <AccountRecoveryPanel
+            requests={accountRecoveryRequests}
+            actionLoading={actionLoading}
+            onRefresh={reloadAdminData}
+            onUpdateRequest={updateAccountRecoveryRequest}
+          />
+        );
 
       default:
         return null;

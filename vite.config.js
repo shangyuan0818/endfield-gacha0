@@ -1,47 +1,142 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
+import authRateLimitHandler from './api/auth-rate-limit.js'
+import authAccountStatusHandler from './api/auth-account-status.js'
+import accountRecoveryRequestHandler from './api/account-recovery-request.js'
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    let rawBody = ''
+
+    req.on('data', (chunk) => {
+      rawBody += chunk
+    })
+
+    req.on('end', () => {
+      if (!rawBody) {
+        resolve({})
+        return
+      }
+
+      try {
+        resolve(JSON.parse(rawBody))
+      } catch (error) {
+        reject(error)
+      }
+    })
+
+    req.on('error', reject)
+  })
+}
+
+function createVercelLikeResponse(res) {
+  res.status = (statusCode) => {
+    res.statusCode = statusCode
+    return res
+  }
+
+  res.json = (payload) => {
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+    }
+    res.end(JSON.stringify(payload))
+    return res
+  }
+
+  return res
+}
+
+function createDevApiPlugin() {
+  const routeHandlers = new Map([
+    ['/api/auth-rate-limit', authRateLimitHandler],
+    ['/api/auth-account-status', authAccountStatusHandler],
+    ['/api/account-recovery-request', accountRecoveryRequestHandler]
+  ])
+
+  return {
+    name: 'dev-api-handlers',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const requestUrl = req.url ? new URL(req.url, 'http://localhost').pathname : ''
+        const handler = routeHandlers.get(requestUrl)
+
+        if (!handler) {
+          next()
+          return
+        }
+
+        try {
+          if (req.method !== 'GET' && req.method !== 'HEAD') {
+            req.body = await readJsonBody(req)
+          } else {
+            req.body = {}
+          }
+
+          await handler(req, createVercelLikeResponse(res))
+        } catch (error) {
+          res.statusCode = 500
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({
+            success: false,
+            error: error?.message || 'Dev API handler failed'
+          }))
+        }
+      })
+    }
+  }
+}
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
-  base: './',
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes('node_modules')) {
-            return;
-          }
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
 
-          if (id.includes('@supabase/')) {
-            return 'supabase-vendor';
-          }
+  Object.entries(env).forEach(([key, value]) => {
+    if (typeof process.env[key] === 'undefined') {
+      process.env[key] = value
+    }
+  })
 
-          if (id.includes('canvas-confetti')) {
-            return 'effects-vendor';
+  return {
+    plugins: [react(), createDevApiPlugin()],
+    base: './',
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return
+            }
+
+            if (id.includes('@supabase/')) {
+              return 'supabase-vendor'
+            }
+
+            if (id.includes('canvas-confetti')) {
+              return 'effects-vendor'
+            }
           }
         }
       }
-    }
-  },
-  server: {
-    proxy: {
-      // 开发环境代理 - 可选地转发到私有代理服务
-      '/api/hg-proxy': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-        configure: (proxy) => {
-          // 如果私有代理服务不可用，会报错
-          proxy.on('error', () => {
-            console.log('[Vite Proxy] 私有代理不可用，公开仓库默认不附带该服务');
-            console.log('[Vite Proxy] 如需导入链路，请接入单独维护的私有代理/后端');
-          });
+    },
+    server: {
+      proxy: {
+        // 开发环境代理 - 可选地转发到私有代理服务
+        '/api/hg-proxy': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          configure: (proxy) => {
+            // 如果私有代理服务不可用，会报错
+            proxy.on('error', () => {
+              console.log('[Vite Proxy] 私有代理不可用，公开仓库默认不附带该服务')
+              console.log('[Vite Proxy] 如需导入链路，请接入单独维护的私有代理/后端')
+            })
+          }
+        },
+        // 开发环境代理 - 将 /api/wiki-proxy 请求转发到本地代理
+        '/api/wiki-proxy': {
+          target: 'http://localhost:3001',
+          changeOrigin: true
         }
-      },
-      // 开发环境代理 - 将 /api/wiki-proxy 请求转发到本地代理
-      '/api/wiki-proxy': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
       }
     }
   }

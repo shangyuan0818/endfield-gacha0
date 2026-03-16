@@ -1,9 +1,19 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
 import { getSimpleFriendlyError } from './utils/errorMessages';
-import { buildPasswordResetRedirectUrl } from './utils/authRedirects.js';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function createEmptyRecoveryForm(requestType = '') {
+  return {
+    requestType,
+    claimedAccountCount: '1',
+    verificationClaims: [{ gameUid: '', nickName: '' }],
+    note: ''
+  };
+}
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const {
@@ -34,11 +44,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     switchMode,
     switchToForgotPassword,
     switchToLoginWithEmail,
+    switchToRegisterWithEmail,
   } = useAuthModalState();
+  const [forgotPasswordStatus, setForgotPasswordStatus] = React.useState(null);
+  const [recoveryRequestForm, setRecoveryRequestForm] = React.useState(() => createEmptyRecoveryForm());
+  const [recoveryRequestLoading, setRecoveryRequestLoading] = React.useState(false);
+  const [recoveryRequestError, setRecoveryRequestError] = React.useState('');
+  const [recoveryRequestSuccess, setRecoveryRequestSuccess] = React.useState(null);
+
+  const resetRecoveryRequestState = React.useCallback(() => {
+    setRecoveryRequestForm(createEmptyRecoveryForm());
+    setRecoveryRequestLoading(false);
+    setRecoveryRequestError('');
+    setRecoveryRequestSuccess(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (mode !== 'forgotPassword') {
+      setForgotPasswordStatus(null);
+      resetRecoveryRequestState();
+    }
+  }, [mode, resetRecoveryRequestState]);
 
   if (!isOpen) return null;
-  
-  // 检查频率限制（生产环境走服务端边界，本地开发允许回退）
+
   const checkRateLimit = async (action) => {
     try {
       const response = await fetch('/api/auth-rate-limit', {
@@ -71,6 +100,62 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
       return { allowed: false, retry_after: 60 };
     }
+  };
+
+  const lookupAccountStatus = async (lookupEmail) => {
+    const response = await fetch('/api/auth-account-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: lookupEmail
+      })
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.success !== true) {
+      if (response.status === 429 && payload?.retry_after) {
+        throw new Error(`查询过于频繁，请 ${Math.ceil(payload.retry_after / 60)} 分钟后再试`);
+      }
+
+      if (payload?.error === 'Auth admin not configured') {
+        throw new Error('当前环境未启用安全的账号恢复流程，请联系管理员协助处理。');
+      }
+
+      throw new Error(payload?.error || '无法检查账号状态，请稍后重试');
+    }
+
+    return payload;
+  };
+
+  const createRecoveryRequest = async (payload) => {
+    const response = await fetch('/api/account-recovery-request', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) {
+      if (response.status === 409) {
+        throw new Error('该邮箱已有待处理的恢复申请，请勿重复提交。');
+      }
+
+      if (response.status === 404) {
+        throw new Error('该邮箱尚未注册，请先注册。');
+      }
+
+      if (response.status === 429 && result?.retry_after) {
+        throw new Error(`提交过于频繁，请 ${Math.ceil(result.retry_after / 60)} 分钟后再试`);
+      }
+
+      throw new Error(result?.error || '提交账号恢复申请失败，请稍后重试');
+    }
+
+    return result.data;
   };
 
   const handleLogin = async (event) => {
@@ -108,9 +193,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setLoading(true);
     setError('');
     setMessage('');
+    setForgotPasswordStatus(null);
+    resetRecoveryRequestState();
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!EMAIL_REGEX.test(email)) {
       setError('请输入有效的邮箱地址');
       setLoading(false);
       return;
@@ -125,14 +211,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return;
       }
 
-      const { error: authError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: buildPasswordResetRedirectUrl(),
-      });
-
-      if (authError) throw authError;
-
-      setMessage('密码重置邮件已发送！请查收邮箱并点击链接重置密码。');
-      setResendCooldown(60);
+      const accountStatus = await lookupAccountStatus(email);
+      setForgotPasswordStatus(accountStatus.registered ? 'registered' : 'unregistered');
+      setResendCooldown(30);
     } catch (err) {
       setError(getSimpleFriendlyError(err));
     } finally {
@@ -146,8 +227,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
     setMessage('');
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!EMAIL_REGEX.test(email)) {
       setError('请输入有效的邮箱地址');
       setLoading(false);
       return;
@@ -233,6 +313,110 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
   };
 
+  const openRecoveryRequestForm = (requestType) => {
+    setRecoveryRequestForm((prev) => ({
+      ...createEmptyRecoveryForm(requestType),
+      claimedAccountCount: prev.claimedAccountCount || '1',
+      verificationClaims: prev.verificationClaims?.length
+        ? prev.verificationClaims
+        : [{ gameUid: '', nickName: '' }],
+      note: prev.note || ''
+    }));
+    setRecoveryRequestError('');
+    setRecoveryRequestSuccess(null);
+  };
+
+  const closeRecoveryRequestForm = () => {
+    resetRecoveryRequestState();
+  };
+
+  const handleRecoveryClaimChange = (index, field, value) => {
+    setRecoveryRequestForm((prev) => ({
+      ...prev,
+      verificationClaims: prev.verificationClaims.map((claim, claimIndex) => (
+        claimIndex === index
+          ? { ...claim, [field]: value }
+          : claim
+      ))
+    }));
+  };
+
+  const handleAddRecoveryClaim = () => {
+    setRecoveryRequestForm((prev) => ({
+      ...prev,
+      verificationClaims: prev.verificationClaims.length >= 5
+        ? prev.verificationClaims
+        : [...prev.verificationClaims, { gameUid: '', nickName: '' }]
+    }));
+  };
+
+  const handleRemoveRecoveryClaim = (index) => {
+    setRecoveryRequestForm((prev) => ({
+      ...prev,
+      verificationClaims: prev.verificationClaims.length <= 1
+        ? prev.verificationClaims
+        : prev.verificationClaims.filter((_, claimIndex) => claimIndex !== index)
+    }));
+  };
+
+  const handleSubmitRecoveryRequest = async () => {
+    setRecoveryRequestLoading(true);
+    setRecoveryRequestError('');
+    setRecoveryRequestSuccess(null);
+
+    if (!EMAIL_REGEX.test(email)) {
+      setRecoveryRequestError('请输入有效的邮箱地址');
+      setRecoveryRequestLoading(false);
+      return;
+    }
+
+    if (!recoveryRequestForm.requestType) {
+      setRecoveryRequestError('请选择恢复申请类型');
+      setRecoveryRequestLoading(false);
+      return;
+    }
+
+    const normalizedClaims = recoveryRequestForm.verificationClaims
+      .map((claim) => ({
+        gameUid: String(claim.gameUid || '').trim(),
+        nickName: String(claim.nickName || '').trim()
+      }))
+      .filter((claim) => claim.gameUid || claim.nickName);
+
+    if (normalizedClaims.length === 0) {
+      setRecoveryRequestError('请至少填写一组 UID 和昵称作为身份核验信息');
+      setRecoveryRequestLoading(false);
+      return;
+    }
+
+    const hasIncompleteClaim = normalizedClaims.some((claim) => !claim.gameUid || !claim.nickName);
+    if (hasIncompleteClaim) {
+      setRecoveryRequestError('每组核验信息都需要同时填写 UID 和昵称');
+      setRecoveryRequestLoading(false);
+      return;
+    }
+
+    try {
+      const result = await createRecoveryRequest({
+        email,
+        requestType: recoveryRequestForm.requestType,
+        claimedAccountCount: recoveryRequestForm.claimedAccountCount,
+        verificationClaims: normalizedClaims,
+        note: recoveryRequestForm.note
+      });
+
+      setRecoveryRequestSuccess({
+        id: result?.id || null,
+        requestType: recoveryRequestForm.requestType
+      });
+      setRecoveryRequestError('');
+    } catch (err) {
+      setRecoveryRequestError(getSimpleFriendlyError(err));
+    } finally {
+      setRecoveryRequestLoading(false);
+    }
+  };
+
   const handleSubmit =
     mode === 'login' ? handleLogin : mode === 'register' ? handleRegister : handleForgotPassword;
 
@@ -249,6 +433,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       emailDomainError={emailDomainError}
       emailValid={emailValid}
       error={error}
+      forgotPasswordStatus={forgotPasswordStatus}
       hasEmailError={hasEmailError}
       loading={loading}
       message={message}
@@ -256,18 +441,49 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       onAgreedToTermsChange={(event) => setAgreedToTerms(event.target.checked)}
       onClose={onClose}
       onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
-      onEmailChange={handleEmailChange}
       onPasswordChange={(event) => setPassword(event.target.value)}
       onSubmit={handleSubmit}
       onSwitchMode={switchMode}
       onSwitchToForgotPassword={switchToForgotPassword}
       onSwitchToLoginWithEmail={switchToLoginWithEmail}
+      onSwitchToRegisterWithEmail={switchToRegisterWithEmail}
       onUsernameChange={(event) => setUsername(event.target.value)}
       password={password}
       resendCooldown={resendCooldown}
+      recoveryRequestError={recoveryRequestError}
+      recoveryRequestForm={recoveryRequestForm}
+      recoveryRequestLoading={recoveryRequestLoading}
+      recoveryRequestSuccess={recoveryRequestSuccess}
       showDuplicateEmailPrompt={showDuplicateEmailPrompt}
       submitDisabled={submitDisabled}
       username={username}
+      onAddRecoveryClaim={handleAddRecoveryClaim}
+      onCloseRecoveryRequest={closeRecoveryRequestForm}
+      onEmailChange={(event) => {
+        if (mode === 'forgotPassword') {
+          setForgotPasswordStatus(null);
+          setMessage('');
+          setError('');
+          resetRecoveryRequestState();
+        }
+        handleEmailChange(event);
+      }}
+      onOpenRecoveryRequest={openRecoveryRequestForm}
+      onRecoveryClaimChange={handleRecoveryClaimChange}
+      onRecoveryClaimedAccountCountChange={(event) => {
+        setRecoveryRequestForm((prev) => ({
+          ...prev,
+          claimedAccountCount: event.target.value
+        }));
+      }}
+      onRecoveryNoteChange={(event) => {
+        setRecoveryRequestForm((prev) => ({
+          ...prev,
+          note: event.target.value
+        }));
+      }}
+      onRemoveRecoveryClaim={handleRemoveRecoveryClaim}
+      onSubmitRecoveryRequest={handleSubmitRecoveryRequest}
     />
   );
 }
