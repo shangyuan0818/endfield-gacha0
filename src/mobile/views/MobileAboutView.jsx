@@ -150,6 +150,26 @@ function MobileAboutView() {
                   </div>
                 </div>
               </div>
+
+              {/* Codex */}
+              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-black dark:bg-white flex items-center justify-center text-white dark:text-black shrink-0 border border-zinc-800 dark:border-zinc-200 rounded-none">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M7.5 8.5 4.5 12l3 3.5" />
+                      <path d="M16.5 8.5 19.5 12l-3 3.5" />
+                      <path d="M13.5 6 10.5 18" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Codex</h5>
+                      <span className="text-[9px] bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 px-1.5 py-0.5 font-mono font-bold">GPT-5</span>
+                    </div>
+                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">OpenAI / 实现与验证</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

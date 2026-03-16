@@ -83,7 +83,7 @@ const AboutPanel = React.memo(() => {
               <Bot size={14} />
               AI 联合开发 // 智能协作单元
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Claude */}
               <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-orange-300 dark:hover:border-orange-800 transition-colors">
                 <div className="flex items-start gap-3">
@@ -121,6 +121,29 @@ const AboutPanel = React.memo(() => {
                     <p className="text-xs text-zinc-500 mt-1 font-mono">GOOGLE</p>
                     <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
                       UI/UX 设计、视觉优化、前端逻辑
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Codex */}
+              <div className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-black dark:bg-white flex items-center justify-center text-white dark:text-black shrink-0 border border-zinc-800 dark:border-zinc-200">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M7.5 8.5 4.5 12l3 3.5" />
+                      <path d="M16.5 8.5 19.5 12l-3 3.5" />
+                      <path d="M13.5 6 10.5 18" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h5 className="font-bold text-zinc-800 dark:text-zinc-200">Codex</h5>
+                      <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-1.5 py-0.5 font-mono">GPT-5</span>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-1 font-mono">OPENAI</p>
+                    <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
+                      代码实现、问题定位、回归验证
                     </p>
                   </div>
                 </div>
