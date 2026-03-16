@@ -19,6 +19,31 @@ export function getSupabaseAdminClient() {
   });
 }
 
+export function getSupabaseAnonServerClient() {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !anonKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    }
+  });
+}
+
+export function getBearerToken(req) {
+  const authorization = req.headers.authorization || req.headers.Authorization || '';
+  if (!authorization.toLowerCase().startsWith('bearer ')) {
+    return null;
+  }
+
+  return authorization.slice(7).trim() || null;
+}
+
 export async function findAuthUserByEmail(adminClient, normalizedEmail) {
   let page = 1;
 

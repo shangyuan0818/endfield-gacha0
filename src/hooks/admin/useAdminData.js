@@ -4,6 +4,7 @@ import { validateUserData } from '../../utils/validators';
 import * as userService from '../../services/admin/userService';
 import * as announcementService from '../../services/admin/announcementService';
 import * as accountRecoveryService from '../../services/admin/accountRecoveryService';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 
 /**
  * 管理后台数据统一管理 Hook
@@ -247,6 +248,27 @@ export function useAdminData(showToast) {
     }
   }, [ensureSuperAdmin, loadAdminData, showToast, user?.id]);
 
+  const resetRecoveryRequestPassword = useCallback(async (request, temporaryPassword, adminNote) => {
+    if (!ensureSuperAdmin()) return;
+
+    setActionLoading(`reset_password_${request.id}`);
+
+    try {
+      await accountRecoveryService.resetRecoveryRequestPassword(
+        request.id,
+        request.matched_user_id,
+        temporaryPassword,
+        adminNote
+      );
+      await loadAdminData();
+      showToast(`临时密码已设置，请引导用户加入 QQ 群 ${ACCOUNT_RECOVERY_QQ_GROUP} 获取临时密码`, 'success');
+    } catch (error) {
+      showToast('设置临时密码失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [ensureSuperAdmin, loadAdminData, showToast]);
+
   return {
     // 数据状态
     users,
@@ -267,6 +289,7 @@ export function useAdminData(showToast) {
 
     // 账号恢复
     updateAccountRecoveryRequest,
+    resetRecoveryRequestPassword,
   };
 }
 

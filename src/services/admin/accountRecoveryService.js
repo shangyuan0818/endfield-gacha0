@@ -1,6 +1,11 @@
 import { supabase } from '../../supabaseClient';
-import { executeSupabaseRead } from '../supabaseRequest';
+import { executeSupabaseRead, fetchWithTimeout } from '../supabaseRequest';
 import { loadPublicProfilesMap } from '../publicProfileService';
+
+async function getAccessToken() {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token;
+}
 
 export async function loadAccountRecoveryRequests() {
   const { data, error } = await executeSupabaseRead(
@@ -45,4 +50,35 @@ export async function updateAccountRecoveryRequest(requestId, updateData) {
   if (error) {
     throw error;
   }
+}
+
+export async function resetRecoveryRequestPassword(requestId, userId, temporaryPassword, adminNote) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
+  const response = await fetchWithTimeout('/api/admin-reset-recovery-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({
+      requestId,
+      userId,
+      temporaryPassword,
+      adminNote
+    })
+  }, {
+    label: 'admin-reset-recovery-password',
+    timeoutMs: 45000
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.success !== true) {
+    throw new Error(result?.error || '设置临时密码失败');
+  }
+
+  return result;
 }

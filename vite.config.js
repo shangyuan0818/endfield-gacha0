@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react-swc'
 import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
+import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -50,7 +51,8 @@ function createDevApiPlugin() {
   const routeHandlers = new Map([
     ['/api/auth-rate-limit', authRateLimitHandler],
     ['/api/auth-account-status', authAccountStatusHandler],
-    ['/api/account-recovery-request', accountRecoveryRequestHandler]
+    ['/api/account-recovery-request', accountRecoveryRequestHandler],
+    ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler]
   ])
 
   return {
@@ -88,7 +90,12 @@ function createDevApiPlugin() {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
+  const rootEnv = loadEnv(mode, process.cwd(), '')
+  const backendEnv = loadEnv(mode, `${process.cwd()}/backend`, '')
+  const env = {
+    ...backendEnv,
+    ...rootEnv
+  }
 
   Object.entries(env).forEach(([key, value]) => {
     if (typeof process.env[key] === 'undefined') {

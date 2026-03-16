@@ -2,11 +2,14 @@ import React, { useMemo, useState } from 'react';
 import {
   CheckCircle2,
   Clock3,
+  Eye,
+  KeyRound,
   Mail,
   RefreshCw,
   Search,
   ShieldAlert
 } from 'lucide-react';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../../constants/community';
 
 const STATUS_META = {
   pending: { label: '待处理', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
@@ -37,12 +40,15 @@ function formatTime(value) {
 export default function AccountRecoveryPanel({
   requests,
   actionLoading,
+  onInspectUser,
   onRefresh,
+  onResetPassword,
   onUpdateRequest
 }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [draftNotes, setDraftNotes] = useState({});
+  const [draftPasswords, setDraftPasswords] = useState({});
 
   const filteredRequests = useMemo(() => (
     requests.filter((request) => {
@@ -72,6 +78,20 @@ export default function AccountRecoveryPanel({
       status: nextStatus,
       admin_note: draftNotes[request.id] ?? request.admin_note ?? ''
     });
+  };
+
+  const handleResetPassword = (request) => {
+    const temporaryPassword = String(draftPasswords[request.id] || '').trim();
+    if (temporaryPassword.length < 6) {
+      window.alert('临时密码至少需要 6 位字符');
+      return;
+    }
+
+    if (!window.confirm('确认要为该账号设置临时密码吗？请仅通过已确认身份的线下渠道告知用户。')) {
+      return;
+    }
+
+    onResetPassword(request, temporaryPassword, draftNotes[request.id] ?? request.admin_note ?? '');
   };
 
   return (
@@ -155,6 +175,21 @@ export default function AccountRecoveryPanel({
                       申报账号数：{request.claimed_account_count || 0}
                       {request.handlerProfile?.username ? ` · 处理人：${request.handlerProfile.username}` : ''}
                     </div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                      匹配用户：{request.matched_user_id ? (
+                        <span className="font-mono">{request.matched_user_id}</span>
+                      ) : '未匹配'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onInspectUser(request)}
+                      disabled={!request.matched_user_id}
+                      className="px-3 py-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700 text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      <Eye size={14} />
+                      查看账号数据
+                    </button>
                   </div>
                 </div>
 
@@ -228,9 +263,38 @@ export default function AccountRecoveryPanel({
                       </button>
                     </div>
 
+                    {request.request_type === 'password_reset' && request.matched_user_id && (
+                      <div className="space-y-2 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                          临时密码
+                        </label>
+                        <input
+                          type="password"
+                          value={draftPasswords[request.id] ?? ''}
+                          onChange={(event) => setDraftPasswords((prev) => ({
+                            ...prev,
+                            [request.id]: event.target.value
+                          }))}
+                          placeholder="至少 6 位字符"
+                          className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 outline-none"
+                        />
+                        <button
+                          onClick={() => handleResetPassword(request)}
+                          disabled={actionLoading === `reset_password_${request.id}` || request.status !== 'verified'}
+                          className="w-full px-3 py-2 bg-endfield-yellow hover:bg-yellow-400 text-black text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          <KeyRound size={14} />
+                          设置临时密码并关闭申请
+                        </button>
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          仅在“已核验”后启用。系统不会站内回传该密码，请引导用户加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 获取临时密码。
+                        </div>
+                      </div>
+                    )}
+
                     <div className="text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
                       <div>当前版本不提供匿名用户的站内安全回传。</div>
-                      <div>“已核验”只表示超管已完成身份核查，不代表系统已经向对方发放重置入口。</div>
+                      <div>“已核验”表示超管已完成身份核查；若需恢复登录，请在核验后设置临时密码，并让用户加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 获取密码。</div>
                     </div>
                   </div>
                 </div>

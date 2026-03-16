@@ -46,6 +46,7 @@ const AdminPanel = React.memo(({ showToast }) => {
     toggleAnnouncementActive,
     deleteAnnouncement,
     updateAccountRecoveryRequest,
+    resetRecoveryRequestPassword,
     reloadAdminData,
   } = adminData;
 
@@ -135,7 +136,17 @@ const AdminPanel = React.memo(({ showToast }) => {
           <AccountRecoveryPanel
             requests={accountRecoveryRequests}
             actionLoading={actionLoading}
+            onInspectUser={(request) => {
+              if (!request?.matched_user_id) {
+                showToast('该申请尚未匹配到站内账号', 'warning');
+                return;
+              }
+
+              setActiveMenu('userData');
+              loadUserData(request.matched_user_id);
+            }}
             onRefresh={reloadAdminData}
+            onResetPassword={resetRecoveryRequestPassword}
             onUpdateRequest={updateAccountRecoveryRequest}
           />
         );
