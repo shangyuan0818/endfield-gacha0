@@ -336,7 +336,7 @@ function MobilePoolSelector() {
                         title={hideZeroPullPools ? '当前会隐藏零抽数卡池' : '当前会显示零抽数卡池'}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
-                        <span>{hideZeroPullPools ? '隐藏零抽' : '显示零抽'}</span>
+                        <span>{hideZeroPullPools ? '隐藏零抽卡池' : '显示零抽卡池'}</span>
                       </button>
                     )}
 

@@ -30,7 +30,7 @@ function MobileSimulatorView() {
               <Terminal size={18} />
               <span className="text-xs font-bold uppercase tracking-widest">系统提示</span>
            </div>
-           <span className="text-[10px] text-zinc-500">移动端视图限制</span>
+           <span className="text-[10px] text-zinc-500">需切换至桌面端</span>
         </div>
 
         {/* 主要内容 */}
@@ -41,10 +41,10 @@ function MobileSimulatorView() {
            </div>
            
            <h1 className="text-lg font-bold text-white mb-2 uppercase tracking-wide">
-             抽卡模拟模块
+             抽卡模拟
            </h1>
            <p className="text-xs text-zinc-400 leading-relaxed max-w-[240px] mx-auto">
-             需要高级图形特性支持。移动端无法提供完整的模拟保真度。
+             模拟器目前仅提供桌面端完整体验，移动端暂不支持概率引擎、视觉演出与导出。
            </p>
         </div>
 
@@ -52,7 +52,7 @@ function MobileSimulatorView() {
         <div className="space-y-2 mb-8 relative z-10">
            {[
              "概率引擎",
-             "视觉特效渲染",
+             "视觉演出",
              "库存管理",
              "数据导出"
            ].map((item, i) => (
@@ -70,12 +70,12 @@ function MobileSimulatorView() {
           className="w-full flex items-center justify-center gap-2 py-3 bg-endfield-yellow text-black text-xs font-bold uppercase tracking-widest hover:bg-yellow-400 transition-colors touch-feedback relative z-10"
         >
           <Monitor size={14} />
-          启动桌面模式
+          切换到桌面端
           <ArrowRight size={14} />
         </button>
 
         <p className="mt-4 text-[9px] text-zinc-600 text-center uppercase tracking-wider relative z-10">
-          可在设置中覆盖
+          也可在设置中手动切换
         </p>
       </div>
     </div>

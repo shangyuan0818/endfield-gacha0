@@ -67,11 +67,11 @@ function MobileSettingsView() {
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
-        return { label: '超级管理员', color: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400', desc: 'System Access Level 5' };
+        return { label: '超级管理员', color: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400', desc: '系统级访问权限' };
       case 'admin':
-        return { label: '管理员', color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400', desc: 'Data Entry Authorized' };
+        return { label: '管理员', color: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400', desc: '数据维护权限' };
       default:
-        return { label: '干员', color: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400', desc: 'Standard Access' };
+        return { label: '干员', color: 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400', desc: '标准访问权限' };
     }
   };
 
@@ -97,7 +97,7 @@ function MobileSettingsView() {
 
   const handlePasswordReset = async () => {
     if (!user?.email) {
-      setPasswordError('Email not found');
+      setPasswordError('未找到当前账号邮箱');
       return;
     }
 
@@ -167,7 +167,7 @@ function MobileSettingsView() {
           <Settings size={20} className="text-endfield-yellow" />
           系统设置
         </h1>
-        <p className="text-[10px] text-zinc-400 mt-1 font-mono uppercase tracking-widest">Configuration & Preferences</p>
+        <p className="text-[10px] text-zinc-400 mt-1 font-mono uppercase tracking-widest">配置与偏好</p>
       </div>
 
       {/* 账户信息 */}
@@ -187,7 +187,7 @@ function MobileSettingsView() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate text-lg">
-                  {user.user_metadata?.full_name || 'Operator'}
+                  {user.user_metadata?.full_name || '未命名用户'}
                 </p>
                 <p className="text-xs text-zinc-500 truncate font-mono uppercase tracking-wide">{user.email}</p>
                 <div className="mt-2 inline-flex items-center px-2 py-0.5 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50">
@@ -342,7 +342,7 @@ function MobileSettingsView() {
       {/* 版本信息 */}
       <div className="text-center py-6">
         <div className="w-8 h-1 bg-zinc-200 dark:bg-zinc-800 mx-auto mb-3" />
-        <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">Endfield Gacha Analyzer</p>
+        <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">终末地抽卡分析器</p>
         <p className="text-[10px] text-zinc-500 mt-1 font-mono">{APP_VERSION_LABEL}</p>
       </div>
 

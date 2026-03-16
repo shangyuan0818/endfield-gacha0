@@ -44,7 +44,7 @@ function MobileSummaryView() {
       {/* 标题和数据源切换 */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide">
-          数据总览
+          统计总览
         </h1>
         <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1">
           <button
@@ -56,7 +56,7 @@ function MobileSummaryView() {
             }`}
           >
             <Cloud size={12} className="inline mr-1" />
-            全服
+            全服数据
           </button>
           <button
             onClick={() => setDataSource('local')}
@@ -67,7 +67,7 @@ function MobileSummaryView() {
             }`}
           >
             <User size={12} className="inline mr-1" />
-            本地
+            我的数据
           </button>
         </div>
       </div>
@@ -104,8 +104,8 @@ function MobileSummaryView() {
             {showGlobalStatsFallbackNotice && (
               <div className="mb-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
                 {globalStatsMeta.status === 'stale'
-                  ? '当前使用上次成功缓存，全服汇总稍后会自动刷新。'
-                  : '全服汇总暂时不可用，网络或数据库响应较慢，请稍后重试。'}
+                  ? '全服汇总暂时使用上次成功缓存，跨境网络较慢时请稍后重试。'
+                  : '全服汇总暂时不可用，当前网络或数据库响应较慢；排行榜和本地统计仍可继续查看。'}
               </div>
             )}
             {/* 标题 */}
@@ -143,7 +143,7 @@ function MobileSummaryView() {
 
                 {/* 6星数量 */}
                 <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-amber-300 dark:hover:border-amber-900 transition-colors">
-                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">6★ 总数</div>
+                  <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">6★ 数量</div>
                   <div className="text-2xl font-black text-amber-500 font-mono">
                     {currentStats.sixStar || 0}
                   </div>
@@ -172,7 +172,7 @@ function MobileSummaryView() {
                   </div>
                 ) : (
                   <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
-                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">不歪 / 歪</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold tracking-wider mb-1">不歪/歪</div>
                     <div className="text-xl font-black font-mono">
                       <span className="text-emerald-500">{currentStats.sixStarLimited || 0}</span>
                       <span className="text-zinc-300 mx-1">/</span>
@@ -284,7 +284,7 @@ function MobileSummaryView() {
                     </div>
                   </div>
                   <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800 rounded-none">
-                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">不歪 / 歪</div>
+                    <div className="text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-1">不歪/歪</div>
                     <div className="text-lg font-bold font-mono">
                       {(() => {
                         const weaponPool = currentStats.byType?.weapon || {};
