@@ -7,9 +7,33 @@ import { useDashboardViewState } from '../../hooks';
 import { useTheme } from '../../contexts/ThemeContext';
 import PoolSelector from '../pool/PoolSelector';
 import PoolAnalysisCard from './PoolAnalysisCard';
+import PoolTimelinePanel from './PoolTimelinePanel';
+import AveragePullStatsPanel from './AveragePullStatsPanel';
 import { characterCache } from '../../utils/characterUtils';
-import CharacterWaterfallChart from './CharacterWaterfallChart';
 import ResourceSummaryPanel from '../resources/ResourceSummaryPanel';
+import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
+import { normalizePoolGroupType } from '../../utils/poolSelectorDisplay';
+import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
+
+const ALL_OVERVIEW_FILTER_OPTIONS = [
+  { id: 'all', label: '全部卡池' },
+  { id: 'limited', label: '限定池' },
+  { id: 'weapon', label: '武器池' },
+  { id: 'standard', label: '常驻池' }
+];
+
+function getOverviewPoolBucket(pool) {
+  const groupType = normalizePoolGroupType(pool);
+  if (groupType === 'limited') {
+    return 'limited';
+  }
+
+  if (groupType === 'weapon_limited' || groupType === 'weapon_standard') {
+    return 'weapon';
+  }
+
+  return 'standard';
+}
 
 /**
  * 仪表盘小统计卡片 (Updated Style)
@@ -38,21 +62,79 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
  */
 const DashboardView = () => {
   const { isDark } = useTheme();
+  const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
   const {
     user,
     charViewMode,
     setCharViewMode,
     currentPool,
+    currentPoolHistory,
+    allLimitedHistory,
+    selectedPools,
     normalizedPoolType,
     hasPoolData,
     isGroupMode,
+    isAllPoolsOverview,
+    hasMergedAccountView,
+    normalizedPoolHistory,
+    crossPoolPityMap,
     stats,
     effectivePity,
+    groupedHistory,
     characterStats,
-    totalCharacterCount,
     checkLimitedInFirstN,
-    hasReceivedFreeTen
+    hasReceivedFreeTen,
+    dashboardResourceSummary,
+    resourceSummaryVariant
   } = useDashboardViewState();
+
+  const allOverviewFilterPoolIds = React.useMemo(() => {
+    if (!isAllPoolsOverview || allOverviewPoolFilter === 'all') {
+      return null;
+    }
+
+    return new Set(
+      selectedPools
+        .filter((pool) => getOverviewPoolBucket(pool) === allOverviewPoolFilter)
+        .map((pool) => pool.id)
+    );
+  }, [allOverviewPoolFilter, isAllPoolsOverview, selectedPools]);
+
+  const visibleCharacterStats = React.useMemo(() => {
+    if (!isAllPoolsOverview || !allOverviewFilterPoolIds) {
+      return characterStats;
+    }
+
+    const filteredHistory = normalizedPoolHistory.filter((item) => {
+      const poolId = item?.poolId || item?.pool_id || null;
+      return poolId && allOverviewFilterPoolIds.has(poolId);
+    });
+
+    return buildCharacterStats({
+      history: filteredHistory,
+      isLimitedPool: normalizedPoolType === 'limited',
+      crossPoolPityMap
+    });
+  }, [allOverviewFilterPoolIds, characterStats, crossPoolPityMap, isAllPoolsOverview, normalizedPoolHistory, normalizedPoolType]);
+
+  const visibleTotalCharacterCount = React.useMemo(() => (
+    visibleCharacterStats.reduce((sum, char) => sum + char.count, 0)
+  ), [visibleCharacterStats]);
+  const analysisPity = React.useMemo(
+    () => getPoolAnalysisPityState(currentPool, stats, effectivePity),
+    [currentPool, effectivePity, stats]
+  );
+  const overviewAnalysisPityMap = React.useMemo(() => {
+    if (!isGroupMode) {
+      return null;
+    }
+
+    return buildOverviewPoolAnalysisPityMap({
+      pools: selectedPools,
+      history: normalizedPoolHistory,
+      allLimitedHistory
+    });
+  }, [allLimitedHistory, isGroupMode, normalizedPoolHistory, selectedPools]);
 
   const tooltipStyle = {
     borderRadius: '0px',
@@ -109,6 +191,7 @@ const DashboardView = () => {
             effectivePity={effectivePity}
             checkLimitedInFirstN={checkLimitedInFirstN}
             hasReceivedFreeTen={hasReceivedFreeTen}
+            hasMergedAccountView={hasMergedAccountView}
           />
 
         </div>
@@ -138,9 +221,12 @@ const DashboardView = () => {
           <div className={`grid grid-cols-2 ${normalizedPoolType !== 'standard' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
             {normalizedPoolType !== 'standard' && (
               <StatBox
-                title="限定6星"
+                title={isAllPoolsOverview ? '目标6星' : '限定6星'}
                 value={stats.counts[6]}
                 subValue={(() => {
+                  if (isAllPoolsOverview) {
+                    return stats.totalSixStar > 0 ? `占全部6★ ${(stats.counts[6] / stats.totalSixStar * 100).toFixed(1)}%` : '暂无6★';
+                  }
                   if (isGroupMode) return `不歪率 ${stats.winRate}%`;
                   let bonusCount = 0;
                   if (normalizedPoolType === 'limited') {
@@ -153,13 +239,13 @@ const DashboardView = () => {
                 })()}
                 colorClass={normalizedPoolType === 'limited' ? 'rainbow-text' : 'text-slate-700 dark:text-zinc-300'}
                 icon={Star}
-                isAnimated={normalizedPoolType === 'limited'}
+                isAnimated={normalizedPoolType === 'limited' && !isAllPoolsOverview}
               />
             )}
             <StatBox
-              title="常驻6星"
+              title={isAllPoolsOverview ? '常驻/偏移6星' : '常驻6星'}
               value={stats.counts['6_std']}
-              subValue={normalizedPoolType === 'standard' && stats.total >= 300 ? "含赠送 1" : "歪"}
+              subValue={isAllPoolsOverview ? '跨卡池汇总' : normalizedPoolType === 'standard' && stats.total >= 300 ? '含赠送 1' : '歪'}
               colorClass="text-red-600 dark:text-red-400"
               icon={Star}
             />
@@ -183,28 +269,36 @@ const DashboardView = () => {
           {isGroupMode && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <StatBox
-                title="不歪率"
+                title={isAllPoolsOverview ? '目标6星占比' : '不歪率'}
                 value={`${stats.winRate}%`}
                 subValue={`${stats.upSixStarCount || 0}/${stats.sixStarCount || 0}`}
                 colorClass="text-green-600 dark:text-green-400"
                 icon={TrendingUp}
               />
               <StatBox
-                title="限定6星"
+                title={isAllPoolsOverview ? '目标6星' : '限定6星'}
                 value={stats.counts[6] ?? 0}
                 subValue={`常驻6星 ${stats.counts['6_std'] ?? 0}`}
                 colorClass={normalizedPoolType === 'weapon' ? 'text-slate-700 dark:text-zinc-300' : 'rainbow-text'}
                 icon={Star}
-                isAnimated={normalizedPoolType !== 'weapon'}
+                isAnimated={normalizedPoolType !== 'weapon' && !isAllPoolsOverview}
               />
             </div>
+          )}
+
+          {isGroupMode && (
+            <AveragePullStatsPanel
+              stats={stats}
+              normalizedPoolType={normalizedPoolType}
+              isAllPoolsOverview={isAllPoolsOverview}
+            />
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
              <ResourceSummaryPanel
                title={isGroupMode ? `${currentPool.name}资源统计` : '资源统计'}
-               resources={stats.resourceSummary}
-               variant={normalizedPoolType === 'weapon' ? 'weapon' : 'character'}
+               resources={dashboardResourceSummary}
+               variant={resourceSummaryVariant}
                stacked={true}
                className="bg-white dark:bg-zinc-900 shadow-sm"
              />
@@ -287,7 +381,7 @@ const DashboardView = () => {
               <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">角色出货统计</h3>
               <div className="ml-auto flex items-center gap-2">
                 {/* 视图切换按钮组 */}
-                {characterStats.length > 0 && (
+                {(characterStats.length > 0 || currentPoolHistory.length > 0) && (
                   <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
                     <button
                       onClick={() => setCharViewMode('card')}
@@ -313,23 +407,53 @@ const DashboardView = () => {
                     </button>
                   </div>
                 )}
-                {totalCharacterCount > 0 && (
+                {isAllPoolsOverview && (
+                  <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
+                    {ALL_OVERVIEW_FILTER_OPTIONS.map((option) => (
+                      <button
+                        key={option.id}
+                        onClick={() => setAllOverviewPoolFilter(option.id)}
+                        className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                          allOverviewPoolFilter === option.id
+                            ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
+                            : 'text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {visibleTotalCharacterCount > 0 && (
                   <span className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
-                    Total: {totalCharacterCount}
+                    Total: {visibleTotalCharacterCount}
                   </span>
                 )}
               </div>
             </div>
 
-            {characterStats.length === 0 ? (
+            {charViewMode === 'waterfall' ? (
+              <PoolTimelinePanel
+                currentPool={currentPool}
+                currentPoolHistory={normalizedPoolHistory}
+                groupedHistory={groupedHistory}
+                selectedPools={selectedPools}
+                isGroupMode={isGroupMode}
+                isAllPoolsOverview={isAllPoolsOverview}
+                effectivePity={effectivePity}
+                analysisPity={analysisPity}
+                overviewAnalysisPityMap={overviewAnalysisPityMap}
+                overviewPoolFilter={allOverviewPoolFilter}
+                hasMergedAccountView={hasMergedAccountView}
+                embedded={true}
+              />
+            ) : visibleCharacterStats.length === 0 ? (
               <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">
                 暂无5星及以上记录
               </div>
-            ) : charViewMode === 'waterfall' ? (
-              <CharacterWaterfallChart characterStats={characterStats} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {characterStats.map((char) => {
+                {visibleCharacterStats.map((char) => {
                   const isSixStar = char.rarity === 6;
                   const isLimitedChar = isSixStar && !char.isStandard;
                   const isStandardChar = isSixStar && char.isStandard;

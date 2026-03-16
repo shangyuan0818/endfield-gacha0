@@ -93,6 +93,36 @@ function CollapseCard({ count, expanded, onClick }) {
   );
 }
 
+function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        relative flex-shrink-0 w-48 p-3 border transition-all text-left
+        hover:border-zinc-400 dark:hover:border-zinc-500
+        ${isSelected
+          ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
+          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+        }
+      `}
+    >
+      <div className="absolute top-2 left-2 p-1 bg-zinc-100 dark:bg-zinc-800">
+        <Layers size={12} className="text-slate-600 dark:text-zinc-300" />
+      </div>
+      <div className={`mt-6 text-sm font-bold ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
+        {title}
+      </div>
+      <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 font-mono">
+        {totalPools} 池 · {totalPulls} 抽
+      </div>
+      <div className="mt-2 text-[11px] text-slate-500 dark:text-zinc-500">
+        跨类型时间线总览
+      </div>
+    </button>
+  );
+}
+
 function PoolCard({ pool, isSelected, onClick }) {
   const groupType = pool.selectorGroupType || 'standard';
   const config = TYPE_CONFIG[groupType] || TYPE_CONFIG.standard;
@@ -157,6 +187,8 @@ const PoolGroupCardRail = ({
   currentSelectionId = null,
   onSelectGroup,
   onSelectPool,
+  leadingOverview = null,
+  showGroupOverviewCards = true,
   collapseLimit = 5,
   collapsibleTypes = ['limited'],
   className = ''
@@ -188,6 +220,16 @@ const PoolGroupCardRail = ({
   return (
     <div className={`relative border-t border-zinc-100 dark:border-zinc-800 pt-4 ${className}`}>
       <div className="flex flex-nowrap items-end gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+        {leadingOverview && showGroupOverviewCards ? (
+          <OverviewCard
+            title={leadingOverview.title}
+            totalPools={leadingOverview.totalPools}
+            totalPulls={leadingOverview.totalPulls}
+            isSelected={leadingOverview.isSelected}
+            onClick={leadingOverview.onClick}
+          />
+        ) : null}
+
         {effectiveGroups.map((group) => {
           const allowCollapse = collapsibleTypes.includes(group.type) && !group.disableCollapse;
           const expanded = expandedGroups.has(group.type);
@@ -206,12 +248,18 @@ const PoolGroupCardRail = ({
             visiblePools,
             hiddenPools,
             autoExpanded
-          } = getSelectorVisiblePools({
-            pools: group.pools,
-            currentPoolId: currentSelectionId,
-            expanded,
-            limit: collapseLimit
-          });
+          } = allowCollapse
+            ? getSelectorVisiblePools({
+                pools: group.pools,
+                currentPoolId: currentSelectionId,
+                expanded,
+                limit: collapseLimit
+              })
+            : {
+                visiblePools: group.pools,
+                hiddenPools: [],
+                autoExpanded: false
+              };
           const showExpanded = expanded || autoExpanded;
 
           return (
@@ -233,12 +281,14 @@ const PoolGroupCardRail = ({
                 }}
               />
 
-              <GroupCard
-                group={group}
-                isSelected={currentSelectionId === group.groupId}
-                interactive={typeof onSelectGroup === 'function'}
-                onClick={() => onSelectGroup?.(group.type)}
-              />
+              {showGroupOverviewCards ? (
+                <GroupCard
+                  group={group}
+                  isSelected={currentSelectionId === group.groupId}
+                  interactive={typeof onSelectGroup === 'function'}
+                  onClick={() => onSelectGroup?.(group.type)}
+                />
+              ) : null}
 
               {isGroupCollapsed && collapsedPreviewPools.map((pool) => (
                 <PoolCard

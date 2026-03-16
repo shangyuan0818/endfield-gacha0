@@ -1,10 +1,11 @@
-export const APP_TAB_IDS = ['home', 'summary', 'dashboard', 'simulator', 'admin', 'settings', 'about', 'tickets'];
+export const APP_TAB_IDS = ['home', 'summary', 'dashboard', 'simulator', 'timeline-demo', 'admin', 'settings', 'about', 'tickets'];
 
 export const DESKTOP_TAB_ROUTES = {
   home: '/',
   summary: '/summary',
   dashboard: '/dashboard',
   simulator: '/simulator',
+  'timeline-demo': '/timeline-demo',
   admin: '/admin',
   settings: '/settings',
   about: '/about',

@@ -14,6 +14,7 @@ import {
 } from '../../utils/historyInfoBook';
 import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
+import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
 
@@ -61,16 +62,30 @@ export function useCurrentPoolData() {
 
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
   const historyArray = useMemo(() => (Array.isArray(history) ? history : []), [history]);
+  const ownedHistoryArray = useMemo(() => {
+    if (!user?.id) {
+      return [];
+    }
+
+    return historyArray.filter((item) => item.user_id === user.id);
+  }, [historyArray, user?.id]);
+  const mergedAccountCount = useMemo(() => (
+    new Set(
+      ownedHistoryArray
+        .map((item) => getHistoryGameUid(item))
+        .filter(Boolean)
+    ).size
+  ), [ownedHistoryArray]);
+  const hasMergedAccountView = !currentGameUid && mergedAccountCount > 1;
   const accountHistoryArray = useMemo(() => {
     if (!user?.id) {
       return [];
     }
 
-    return historyArray.filter(item =>
-      item.user_id === user.id &&
+    return ownedHistoryArray.filter(item =>
       matchesCurrentGameUid(item, currentGameUid)
     );
-  }, [currentGameUid, historyArray, user?.id]);
+  }, [currentGameUid, ownedHistoryArray, user?.id]);
   const annotatedAccountHistoryArray = useMemo(
     () => annotateInfoBookPulls(accountHistoryArray, poolsArray),
     [accountHistoryArray, poolsArray]
@@ -78,9 +93,38 @@ export function useCurrentPoolData() {
 
   const isGroupMode = isPoolGroupId(currentPoolId);
   const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
+  const selectedPools = useMemo(() => {
+    if (isGroupMode) {
+      const orderedGroups = buildPoolSelectorGroups({ pools: poolsArray });
+
+      if (groupType === 'all') {
+        return orderedGroups.flatMap((group) => group.pools);
+      }
+
+      return orderedGroups.find((group) => group.type === groupType)?.pools || getPoolsForGroupType(poolsArray, groupType);
+    }
+
+    const preferredPool = getPreferredPool(poolsArray, {
+      preferredPoolId: currentPoolId,
+      includeDefaultPool: true
+    });
+    return preferredPool ? [preferredPool] : [];
+  }, [currentPoolId, groupType, isGroupMode, poolsArray]);
 
   const currentPool = useMemo(() => {
     if (isGroupMode) {
+      if (groupType === 'all') {
+        return {
+          id: currentPoolId,
+          name: '全部卡池总览',
+          type: 'all',
+          isGroupMode: true,
+          isAllPoolsOverview: true,
+          up_character: null,
+          locked: true
+        };
+      }
+
       const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard'
         ? 'weapon'
         : groupType === 'limited'
@@ -92,6 +136,7 @@ export function useCurrentPoolData() {
         name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
         type: baseType,
         isGroupMode: true,
+        isAllPoolsOverview: false,
         up_character: null,
         locked: true
       };
@@ -119,8 +164,7 @@ export function useCurrentPoolData() {
     }
 
     if (isGroupMode) {
-      const groupPools = getPoolsForGroupType(poolsArray, groupType);
-      const groupPoolIds = new Set(groupPools.map(pool => pool.id));
+      const groupPoolIds = new Set(selectedPools.map(pool => pool.id));
 
       return annotatedAccountHistoryArray.filter(item => groupPoolIds.has(getHistoryPoolId(item)));
     }
@@ -131,7 +175,7 @@ export function useCurrentPoolData() {
     }
 
     return annotatedAccountHistoryArray.filter(item => getHistoryPoolId(item) === activePoolId);
-  }, [annotatedAccountHistoryArray, currentPool?.id, currentPoolId, groupType, isGroupMode, poolsArray, user?.id]);
+  }, [annotatedAccountHistoryArray, currentPool?.id, currentPoolId, isGroupMode, selectedPools, user?.id]);
 
   const normalizedCurrentPoolHistory = useMemo(() => {
     if (isGroupMode) {
@@ -210,12 +254,14 @@ export function useCurrentPoolData() {
 
   return {
     poolsArray,
+    selectedPools,
     historyArray,
     currentPool,
     currentPoolHistory,
     normalizedCurrentPoolHistory,
     allLimitedHistory,
     crossPoolPityMap,
+    hasMergedAccountView,
     isGroupMode,
     groupType
   };

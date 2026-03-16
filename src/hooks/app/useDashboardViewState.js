@@ -3,6 +3,8 @@ import { useAuthStore } from '../../stores';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { characterCache } from '../../utils/characterUtils';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook';
+import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
+import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
 import { useCurrentPoolData } from './useCurrentPoolData';
 import { usePoolStats } from './usePoolStats';
 
@@ -15,14 +17,18 @@ function normalizePoolType(type) {
 
 export function useDashboardViewState() {
   const user = useAuthStore(state => state.user);
-  const [charViewMode, setCharViewMode] = useState('card');
+  const [charViewMode, setCharViewMode] = useState('waterfall');
 
   const {
     poolsArray,
+    selectedPools,
     currentPool,
+    currentPoolHistory,
     normalizedCurrentPoolHistory: normalizedPoolHistory,
     allLimitedHistory,
-    crossPoolPityMap
+    crossPoolPityMap,
+    hasMergedAccountView,
+    groupType
   } = useCurrentPoolData();
 
   const normalizedPoolType = normalizePoolType(currentPool?.type);
@@ -32,99 +38,22 @@ export function useDashboardViewState() {
   const maxPity = isWeapon ? 40 : 80;
   const hasPoolData = poolsArray.length > 0;
   const isGroupMode = currentPool?.isGroupMode === true;
+  const isAllPoolsOverview = currentPool?.isAllPoolsOverview === true;
 
-  const { stats, effectivePity } = usePoolStats({
+  const { stats, effectivePity, groupedHistory } = usePoolStats({
     normalizedCurrentPoolHistory: normalizedPoolHistory,
     currentPool,
     allLimitedHistory,
     currentPoolId: currentPool?.id
   });
 
-  const characterStats = useMemo(() => {
-    const characters = new Map();
-    let pullIndex = 0;
-    let sixStarPityCounter = 0;
-    let fiveStarPityCounter = 0;
-
-    const sortedHistory = [...normalizedPoolHistory].sort((a, b) => {
-      const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
-      const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
-      return timeA - timeB;
-    });
-
-    sortedHistory.forEach(item => {
-      if (item.specialType === 'gift' || item.special_type === 'gift') {
-        return;
-      }
-
-      const isFree = item.isFree || item.is_free;
-      const isInfoBook = isInfoBookHistoryPull(item);
-      if (!isFree) {
-        pullIndex++;
-        sixStarPityCounter++;
-        fiveStarPityCounter++;
-      }
-
-      if (item.rarity < 5) {
-        return;
-      }
-
-      const name = item.character_name || item.item_name || item.name || '未知';
-
-      let pityValue;
-      if (isFree) {
-        pityValue = 'free';
-      } else if (isLimited && crossPoolPityMap) {
-        const crossPity = crossPoolPityMap.get(item.id || item.record_id);
-        pityValue = crossPity
-          ? (item.rarity === 6 ? crossPity.sixStarPity : crossPity.fiveStarPity)
-          : (item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);
-      } else {
-        pityValue = item.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter;
-      }
-
-      const existing = characters.get(name);
-      if (existing) {
-        existing.count++;
-        existing.pullIndices.push(isFree ? 'free' : pullIndex);
-        existing.pities.push(pityValue);
-        existing.freeCount = (existing.freeCount || 0) + (isFree ? 1 : 0);
-        existing.infoBookCount = (existing.infoBookCount || 0) + (isInfoBook ? 1 : 0);
-        existing.infoBookFlags.push(isInfoBook);
-      } else {
-        characters.set(name, {
-          name,
-          count: 1,
-          rarity: item.rarity,
-          isStandard: item.isStandard,
-          isLimited: !item.isStandard && item.rarity === 6,
-          pullIndices: [isFree ? 'free' : pullIndex],
-          pities: [pityValue],
-          freeCount: isFree ? 1 : 0,
-          infoBookCount: isInfoBook ? 1 : 0,
-          infoBookFlags: [isInfoBook]
-        });
-      }
-
-      if (!isFree) {
-        if (item.rarity === 6) {
-          sixStarPityCounter = 0;
-        }
-        if (item.rarity >= 5) {
-          fiveStarPityCounter = 0;
-        }
-      }
-    });
-
-    return Array.from(characters.values()).sort((a, b) => {
-      if (a.rarity === 6 && !a.isStandard && (b.rarity !== 6 || b.isStandard)) return -1;
-      if (b.rarity === 6 && !b.isStandard && (a.rarity !== 6 || a.isStandard)) return 1;
-      if (a.rarity === 6 && a.isStandard && b.rarity !== 6) return -1;
-      if (b.rarity === 6 && b.isStandard && a.rarity !== 6) return 1;
-      if (a.rarity === b.rarity && a.isStandard === b.isStandard) return b.count - a.count;
-      return b.rarity - a.rarity;
-    });
-  }, [crossPoolPityMap, isLimited, normalizedPoolHistory]);
+  const characterStats = useMemo(() => (
+    buildCharacterStats({
+      history: normalizedPoolHistory,
+      isLimitedPool: isLimited,
+      crossPoolPityMap
+    })
+  ), [crossPoolPityMap, isLimited, normalizedPoolHistory]);
 
   const totalCharacterCount = useMemo(() => {
     return characterStats.reduce((sum, char) => sum + char.count, 0);
@@ -230,23 +159,103 @@ export function useDashboardViewState() {
     return charData?.avatar_url;
   };
 
+  const dashboardResourceSummary = useMemo(() => {
+    if (!isAllPoolsOverview) {
+      return stats.resourceSummary;
+    }
+
+    const poolTypeById = new Map(selectedPools.map((pool) => [pool.id, normalizePoolType(pool.type)]));
+    const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
+    const arsenalGainCounts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
+    let characterPulls = 0;
+    let weaponPulls = 0;
+    let chargedCharacterPulls = 0;
+    let chargedWeaponPulls = 0;
+
+    currentPoolHistory.forEach((item) => {
+      const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
+      const isFree = item?.isFree === true || item?.is_free === true;
+      if (isGift || isFree) {
+        return;
+      }
+
+      const poolId = item?.poolId || item?.pool_id || null;
+      const poolType = poolTypeById.get(poolId) || 'standard';
+      const rarity = Number(item?.rarity) || 0;
+      const targetCounts = poolType === 'weapon' ? counts : arsenalGainCounts;
+
+      if (poolType === 'weapon') {
+        weaponPulls += 1;
+        if (!isInfoBookHistoryPull(item)) {
+          chargedWeaponPulls += 1;
+        }
+      } else {
+        characterPulls += 1;
+        if (!isInfoBookHistoryPull(item)) {
+          chargedCharacterPulls += 1;
+        }
+      }
+
+      if (rarity >= 6) {
+        if (item?.isStandard) {
+          targetCounts['6_std'] += 1;
+        } else {
+          targetCounts[6] += 1;
+        }
+      } else if (rarity === 5) {
+        targetCounts[5] += 1;
+      } else if (rarity >= 1) {
+        targetCounts[4] += 1;
+      }
+    });
+
+    return buildResourceSummaryFromAggregates({
+      characterPulls,
+      weaponPulls,
+      chargedCharacterPulls,
+      chargedWeaponPulls,
+      counts: {
+        6: arsenalGainCounts[6] + counts[6],
+        '6_std': arsenalGainCounts['6_std'] + counts['6_std'],
+        5: arsenalGainCounts[5] + counts[5],
+        4: arsenalGainCounts[4] + counts[4]
+      },
+      arsenalGainCounts
+    });
+  }, [currentPoolHistory, isAllPoolsOverview, selectedPools, stats.resourceSummary]);
+
+  const resourceSummaryVariant = useMemo(() => {
+    if (isAllPoolsOverview) {
+      return 'all';
+    }
+
+    return normalizedPoolType === 'weapon' ? 'weapon' : 'character';
+  }, [isAllPoolsOverview, normalizedPoolType]);
+
   return {
     user,
     charViewMode,
     setCharViewMode,
     poolsArray,
+    selectedPools,
     currentPool,
+    currentPoolHistory,
     normalizedPoolHistory,
+    allLimitedHistory,
     crossPoolPityMap,
+    hasMergedAccountView,
     normalizedPoolType,
     isLimited,
     isWeapon,
     isStandard,
+    isAllPoolsOverview,
     maxPity,
     hasPoolData,
     isGroupMode,
+    groupType,
     stats,
     effectivePity,
+    groupedHistory,
     characterStats,
     totalCharacterCount,
     checkLimitedInFirstN,
@@ -254,7 +263,9 @@ export function useDashboardViewState() {
     weaponGifts,
     currentUpPool,
     getProgressClass,
-    getCharacterAvatar
+    getCharacterAvatar,
+    dashboardResourceSummary,
+    resourceSummaryVariant
   };
 }
 

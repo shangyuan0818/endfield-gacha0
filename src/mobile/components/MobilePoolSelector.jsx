@@ -29,6 +29,7 @@ function MobilePoolSelector() {
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [showImportManager, setShowImportManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hideZeroPullPools, setHideZeroPullPools] = useState(true);
 
   const poolDropdownRef = useRef(null);
   const accountDropdownRef = useRef(null);
@@ -56,18 +57,36 @@ function MobilePoolSelector() {
     return counts;
   }, [filteredHistory]);
 
+  const zeroPullPoolCount = useMemo(() => (
+    pools.filter((pool) => (poolPullCounts[pool.id] || 0) === 0).length
+  ), [poolPullCounts, pools]);
+
+  const selectorPools = useMemo(() => (
+    pools.filter((pool) => (
+      !hideZeroPullPools ||
+      (poolPullCounts[pool.id] || 0) > 0 ||
+      pool.id === currentPoolId
+    ))
+  ), [currentPoolId, hideZeroPullPools, poolPullCounts, pools]);
+
   // 当前选中的卡池（或池组）
   const selectedPool = useMemo(() => {
     if (!pools || pools.length === 0) return null;
     if (isPoolGroupId(currentPoolId)) {
       const groupType = currentPoolId.slice(POOL_GROUP_PREFIX.length);
-      return { id: currentPoolId, name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`, isGroupMode: true, type: groupType };
+      return {
+        id: currentPoolId,
+        name: groupType === 'all' ? '全部卡池总览' : `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
+        isGroupMode: true,
+        isAllPoolsOverview: groupType === 'all',
+        type: groupType
+      };
     }
-    return getPreferredPool(pools, {
+    return getPreferredPool(selectorPools, {
       preferredPoolId: currentPoolId,
       includeDefaultPool: true
     });
-  }, [pools, currentPoolId]);
+  }, [currentPoolId, pools, selectorPools]);
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
@@ -78,15 +97,17 @@ function MobilePoolSelector() {
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
     return buildPoolSelectorGroups({
-      pools,
+      pools: selectorPools,
       poolPullCounts,
       searchQuery
     });
-  }, [poolPullCounts, pools, searchQuery]);
+  }, [poolPullCounts, searchQuery, selectorPools]);
 
   // 统计
   const totalPools = pools?.length || 0;
+  const visiblePools = selectorPools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
+  const showOverviewOptions = Boolean(currentGameUid);
 
   // 点击外部关闭
   useEffect(() => {
@@ -101,6 +122,21 @@ function MobilePoolSelector() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (showOverviewOptions || !isPoolGroupId(currentPoolId)) {
+      return;
+    }
+
+    const fallbackPool = getPreferredPool(pools, {
+      preferredPoolId: null,
+      includeDefaultPool: true
+    });
+
+    if (fallbackPool?.id) {
+      switchPool(fallbackPool.id);
+    }
+  }, [currentPoolId, pools, showOverviewOptions, switchPool]);
 
   const handleSelectPool = (poolId) => {
     switchPool(poolId);
@@ -229,7 +265,10 @@ function MobilePoolSelector() {
 
         {/* 统计信息 */}
         <div className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
-          <span className="text-zinc-700 dark:text-zinc-300 font-bold">{totalPools}</span> 池 /
+          <span className="text-zinc-700 dark:text-zinc-300 font-bold">{visiblePools}</span>
+          {visiblePools !== totalPools && (
+            <span className="text-zinc-400 dark:text-zinc-500">/{totalPools}</span>
+          )} 池 /
           <span className="text-zinc-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> 抽
         </div>
       </div>
@@ -282,24 +321,44 @@ function MobilePoolSelector() {
           {isPoolOpen && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg z-50 max-h-80 overflow-hidden animate-scale-up">
               {/* 搜索框（卡池较多时显示） */}
-              {totalPools > 5 && (
+              {(totalPools > 5 || zeroPullPoolCount > 0) && (
                 <div className="sticky top-0 p-2 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="搜索卡池..."
-                      className="w-full pl-8 pr-8 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:border-endfield-yellow outline-none text-zinc-700 dark:text-zinc-300 font-mono"
-                    />
-                    {searchQuery && (
+                  <div className="flex items-center gap-2">
+                    {zeroPullPoolCount > 0 && (
                       <button
-                        onClick={() => setSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                        type="button"
+                        onClick={() => setHideZeroPullPools((value) => !value)}
+                        className={`flex items-center gap-1.5 px-2 py-2 border text-[10px] font-mono whitespace-nowrap transition-colors ${
+                          hideZeroPullPools
+                            ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                            : 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
+                        }`}
+                        title={hideZeroPullPools ? '当前会隐藏零抽数卡池' : '当前会显示零抽数卡池'}
                       >
-                        <X size={14} />
+                        <span className={`h-1.5 w-1.5 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
+                        <span>{hideZeroPullPools ? '隐藏零抽' : '显示零抽'}</span>
                       </button>
+                    )}
+
+                    {totalPools > 5 && (
+                      <div className="relative flex-1">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          placeholder="搜索卡池..."
+                          className="w-full pl-8 pr-8 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:border-endfield-yellow outline-none text-zinc-700 dark:text-zinc-300 font-mono"
+                        />
+                        {searchQuery && (
+                          <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -323,7 +382,7 @@ function MobilePoolSelector() {
                       </div>
 
                       {/* 池组聚合按钮（仅该分组 > 1 个池时显示） */}
-                      {group.pools.length > 1 && (() => {
+                      {showOverviewOptions && group.pools.length > 1 && (() => {
                         const groupId = POOL_GROUP_PREFIX + group.type;
                         const isGroupSelected = currentPoolId === groupId;
                         const totalGroupPulls = group.pools.reduce((sum, p) => sum + (poolPullCounts[p.id] || 0), 0);

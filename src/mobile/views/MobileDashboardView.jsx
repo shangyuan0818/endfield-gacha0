@@ -13,6 +13,8 @@ import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
 import MobileCharacterWaterfallChart from '../components/MobileCharacterWaterfallChart';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
+import AveragePullStatsPanel from '../../components/dashboard/AveragePullStatsPanel';
+import { calculateCurrentProbability } from '../../utils';
 
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
@@ -31,6 +33,8 @@ function MobileDashboardView() {
     maxPity,
     hasPoolData,
     isGroupMode,
+    isAllPoolsOverview,
+    hasMergedAccountView,
     stats,
     effectivePity,
     characterStats,
@@ -41,6 +45,10 @@ function MobileDashboardView() {
     getProgressClass,
     getCharacterAvatar
   } = useDashboardViewState();
+  const displayPity6 = isLimited ? effectivePity.pity6 : stats.currentPity;
+  const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
+    ? calculateCurrentProbability(displayPity6, normalizedPoolType)
+    : null;
 
   if (!hasPoolData) {
     return (
@@ -155,18 +163,18 @@ function MobileDashboardView() {
       />
 
       {/* 保底进度（聚合模式下隐藏） */}
-      {!isGroupMode && (
+      {!isGroupMode && !hasMergedAccountView && (
       <div className="grid grid-cols-2 gap-3">
         {/* 6星保底 */}
         {(() => {
-          const displayPity = isLimited ? effectivePity.pity6 : stats.currentPity;
+          const displayPity = displayPity6;
           return (
             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide">6★ 保底 ({maxPity})</span>
-                {stats.probabilityInfo?.isInSoftPity && (
+                {currentProbabilityInfo?.hasSoftPity && currentProbabilityInfo?.isInSoftPity && (
                   <span className="text-[11px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
-                    概率提升 {(stats.probabilityInfo.probability * 100).toFixed(0)}%
+                    概率提升 {(currentProbabilityInfo.probability * 100).toFixed(0)}%
                   </span>
                 )}
               </div>
@@ -216,6 +224,12 @@ function MobileDashboardView() {
           );
         })()}
       </div>
+      )}
+
+      {!isGroupMode && hasMergedAccountView && (
+        <div className="bg-white dark:bg-zinc-900 border border-dashed border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-500 dark:text-zinc-400 rounded-none shadow-sm">
+          当前为多账号汇总视图。当前保底与软保底概率只在单账号上下文中成立，因此这里不显示 6★ / 5★ 当前推进。
+        </div>
       )}
 
       {/* 核心数据网格 */}
@@ -342,6 +356,14 @@ function MobileDashboardView() {
           </div>
         </div>
       )}
+
+      <AveragePullStatsPanel
+        stats={stats}
+        poolType={normalizedPoolType}
+        isAllPoolsOverview={isAllPoolsOverview}
+        compact={true}
+        className="rounded-none"
+      />
 
       {/* 特殊机制进度（聚合模式下隐藏） */}
       {!isGroupMode && (

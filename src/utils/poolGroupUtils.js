@@ -1,6 +1,7 @@
 export const POOL_GROUP_PREFIX = '__group_';
 
 export const GROUP_TYPE_LABELS = {
+  all: '卡池',
   limited: '限定角色',
   standard: '常驻',
   weapon_limited: '限定武器',
@@ -18,6 +19,10 @@ export function getPoolGroupType(poolId) {
 }
 
 export function getPoolsForGroupType(pools, groupType) {
+  if (groupType === 'all') {
+    return Array.isArray(pools) ? pools : [];
+  }
+
   return (pools || []).filter((pool) => {
     let type = pool.type || 'standard';
     if (type === 'limited_character') type = 'limited';

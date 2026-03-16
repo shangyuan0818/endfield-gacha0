@@ -9,6 +9,7 @@ const AdminPanel = lazy(() => import('../AdminPanel'));
 const SettingsPanel = lazy(() => import('../SettingsPanel'));
 const AboutPanel = lazy(() => import('../AboutPanel'));
 const TicketPanel = lazy(() => import('../TicketPanel'));
+const TimelineConceptDemo = lazy(() => import('../demo/TimelineConceptDemo'));
 
 function TabPanelFallback({ label = '正在加载模块...' }) {
   return (
@@ -81,6 +82,14 @@ export default function DesktopAppRoutes({
         element={
           <Suspense fallback={<TabPanelFallback label="正在加载模拟器..." />}>
             <GachaSimulator />
+          </Suspense>
+        }
+      />
+      <Route
+        path="timeline-demo"
+        element={
+          <Suspense fallback={<TabPanelFallback label="正在加载时间线 Demo..." />}>
+            <TimelineConceptDemo />
           </Suspense>
         }
       />

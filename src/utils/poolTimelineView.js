@@ -1,0 +1,589 @@
+import { characterCache } from './characterUtils.js';
+import {
+  isFreeHistoryPull,
+  isGiftHistoryPull,
+  isInfoBookHistoryPull
+} from './historyInfoBook.js';
+import { getPoolTimingMeta, normalizePoolGroupType } from './poolSelectorDisplay.js';
+import {
+  LIMITED_POOL_RULES,
+  STANDARD_POOL_RULES,
+  WEAPON_POOL_RULES
+} from '../constants/index.js';
+
+function normalizePoolType(type) {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'limited_weapon') return 'weapon';
+  if (type === 'beginner') return 'standard';
+  return type || 'standard';
+}
+
+function getPoolSixStarPity(poolType) {
+  if (poolType === 'weapon') {
+    return WEAPON_POOL_RULES.sixStarPity;
+  }
+
+  if (poolType === 'limited') {
+    return LIMITED_POOL_RULES.sixStarPity;
+  }
+
+  return STANDARD_POOL_RULES.sixStarPity;
+}
+
+function getHistoryPoolId(item) {
+  return item?.poolId || item?.pool_id || null;
+}
+
+function getHistorySeqId(item) {
+  return parseInt(item?.seqId || item?.seq_id || '0', 10) || 0;
+}
+
+function getHistoryTimestamp(item) {
+  if (typeof item?.timestamp === 'number') {
+    return item.timestamp;
+  }
+
+  const parsed = new Date(item?.timestamp || item?.gacha_time || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortHistoryAsc(left, right) {
+  const timeDiff = getHistoryTimestamp(left) - getHistoryTimestamp(right);
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  return getHistorySeqId(left) - getHistorySeqId(right);
+}
+
+function roundScaleMax(value, minimum) {
+  return Math.max(minimum, Math.ceil(Math.max(value, 0) / 10) * 10);
+}
+
+function formatDateLabel(input) {
+  const timestamp = getHistoryTimestamp({ timestamp: input });
+  if (!timestamp) {
+    return '--';
+  }
+
+  const date = new Date(timestamp);
+  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function formatPeriod(pool) {
+  if (!pool?.start_time || !pool?.end_time) {
+    return '长期开放';
+  }
+
+  return `${formatDateLabel(pool.start_time)} - ${formatDateLabel(pool.end_time)}`;
+}
+
+function getItemName(item) {
+  return item?.character_name || item?.item_name || item?.name || '未知目标';
+}
+
+function getAvatarUrl(name) {
+  if (!name) {
+    return null;
+  }
+
+  return characterCache.searchByName(name, false)?.avatar_url || null;
+}
+
+function isActuallyLimited(item) {
+  const characterName = getItemName(item);
+  return Boolean(characterCache.searchByName(characterName, false)?.is_limited);
+}
+
+function createDropBadges(items) {
+  const badgeMap = new Map();
+
+  items.forEach((item) => {
+    const label = getItemName(item);
+    const existing = badgeMap.get(label);
+    if (existing) {
+      existing.count += 1;
+      existing.rarity = Math.max(existing.rarity, Number(item?.rarity) || 0);
+      return;
+    }
+
+    badgeMap.set(label, {
+      label,
+      rarity: Number(item?.rarity) || 0,
+      count: 1,
+      avatarUrl: getAvatarUrl(label)
+    });
+  });
+
+  return Array.from(badgeMap.values())
+    .sort((left, right) => {
+      if (left.rarity !== right.rarity) {
+        return right.rarity - left.rarity;
+      }
+
+      if (left.count !== right.count) {
+        return right.count - left.count;
+      }
+
+      return left.label.localeCompare(right.label, 'zh-Hans-CN');
+    })
+    .slice(0, 4);
+}
+
+function createLeadBadge(item, fallbackLabel = '?') {
+  if (!item) {
+    return {
+      label: fallbackLabel,
+      rarity: 0,
+      count: 1,
+      avatarUrl: null
+    };
+  }
+
+  const label = getItemName(item);
+  return {
+    label,
+    rarity: Number(item?.rarity) || 0,
+    count: 1,
+    avatarUrl: getAvatarUrl(label)
+  };
+}
+
+function classifySixStarStageKind(item) {
+  if (!item || Number(item?.rarity) < 6) {
+    return 'generic';
+  }
+
+  if (item?.isStandard !== true) {
+    return 'up';
+  }
+
+  return isActuallyLimited(item) ? 'offLimited' : 'offStandard';
+}
+
+function mergeBadgeItems(...groups) {
+  return groups.flatMap((group) => Array.isArray(group) ? group : []);
+}
+
+function groupHistoryBatches(history = []) {
+  const sorted = [...history].sort(sortHistoryAsc).reverse();
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  const groups = [];
+  let currentGroup = [sorted[0]];
+
+  for (let index = 1; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    const timeDiff = Math.abs(getHistoryTimestamp(previous) - getHistoryTimestamp(current));
+
+    if (timeDiff <= 2000) {
+      currentGroup.push(current);
+    } else {
+      groups.push(currentGroup.reverse());
+      currentGroup = [current];
+    }
+  }
+
+  groups.push(currentGroup.reverse());
+  return groups;
+}
+
+function calculateTimelineMetrics(history = []) {
+  const validPulls = history.filter((item) => !isGiftHistoryPull(item) && !isFreeHistoryPull(item));
+  const sixStars = validPulls.filter((item) => Number(item?.rarity) >= 6);
+  const fiveStars = validPulls.filter((item) => Number(item?.rarity) === 5);
+  const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
+  const currentPity = (() => {
+    let pity = 0;
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const item = history[index];
+      if (isGiftHistoryPull(item) || isFreeHistoryPull(item)) {
+        continue;
+      }
+      if (Number(item?.rarity) >= 6) {
+        break;
+      }
+      pity += 1;
+    }
+    return pity;
+  })();
+  const currentPity5 = (() => {
+    let pity = 0;
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const item = history[index];
+      if (isGiftHistoryPull(item) || isFreeHistoryPull(item)) {
+        continue;
+      }
+      if (Number(item?.rarity) >= 5) {
+        break;
+      }
+      pity += 1;
+    }
+    return pity;
+  })();
+
+  return {
+    totalPulls: validPulls.length,
+    sixStarCount: sixStars.length,
+    fiveStarCount: fiveStars.length,
+    upSixStarCount: upSixStars.length,
+    winRate: sixStars.length > 0 ? ((upSixStars.length / sixStars.length) * 100) : 0,
+    avgSixStarPulls: sixStars.length > 0 ? (validPulls.length / sixStars.length) : Number.NaN,
+    avgFiveStarPulls: fiveStars.length > 0 ? (validPulls.length / fiveStars.length) : Number.NaN,
+    avgUpPulls: upSixStars.length > 0 ? (validPulls.length / upSixStars.length) : Number.NaN,
+    currentPity,
+    currentPity5
+  };
+}
+
+function summarizeGroup(group = []) {
+  const sixStars = group.filter((item) => Number(item?.rarity) >= 6);
+  const fiveStars = group.filter((item) => Number(item?.rarity) === 5);
+  const highRarityItems = group.filter((item) => Number(item?.rarity) >= 5);
+  const paidCount = group.filter((item) => !isGiftHistoryPull(item) && !isFreeHistoryPull(item)).length;
+  const hasGift = group.some((item) => isGiftHistoryPull(item) || isFreeHistoryPull(item));
+  const hasInfoBook = group.some((item) => isInfoBookHistoryPull(item));
+  const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
+  const offLimitedSixStars = sixStars.filter((item) => item?.isStandard === true && isActuallyLimited(item));
+  const offStandardSixStars = sixStars.filter((item) => item?.isStandard === true && !isActuallyLimited(item));
+  const primarySixStar = sixStars.length > 0 ? sixStars[sixStars.length - 1] : null;
+  const primaryHighRarity = highRarityItems.length > 0 ? highRarityItems[highRarityItems.length - 1] : null;
+
+  return {
+    paidCount,
+    hasGift,
+    hasInfoBook,
+    hasSixStar: sixStars.length > 0,
+    hasFiveStar: fiveStars.length > 0,
+    sixStars,
+    fiveStars,
+    upSixStars,
+    offLimitedSixStars,
+    offStandardSixStars,
+    primarySixStar,
+    primaryHighRarity,
+    highRarityItems,
+    dropBadges: createDropBadges(highRarityItems),
+    timestamp: group[0]?.timestamp || null
+  };
+}
+
+function buildMilestoneSummary(summary, poolType) {
+  if (summary.hasGift) {
+    return {
+      stageLabel: '免费阶段',
+      resultSummary: '免费/赠送阶段，不计入保底',
+      tags: ['赠送'],
+      stageKind: 'gift'
+    };
+  }
+
+  const primaryStageKind = classifySixStarStageKind(summary.primarySixStar);
+  if (poolType === 'standard') {
+    return {
+      stageLabel: '6★ 节点',
+      resultSummary: `获得 6★ ${summary.sixStars.length} 次${summary.fiveStars.length > 0 ? `，附带 ${summary.fiveStars.length} 次 5★` : ''}`,
+      tags: [],
+      stageKind: primaryStageKind === 'offLimited' ? 'offLimited' : 'offStandard',
+      leadBadge: createLeadBadge(summary.primarySixStar)
+    };
+  }
+
+  const secondarySegments = [];
+  if (summary.upSixStars.length > 0 && primaryStageKind !== 'up') {
+    secondarySegments.push(`UP ${summary.upSixStars.length}`);
+  }
+  if (summary.offLimitedSixStars.length > 0 && primaryStageKind !== 'offLimited') {
+    secondarySegments.push(`歪限定 ${summary.offLimitedSixStars.length}`);
+  }
+  if (summary.offStandardSixStars.length > 0 && primaryStageKind !== 'offStandard') {
+    secondarySegments.push(`歪常驻 ${summary.offStandardSixStars.length}`);
+  }
+  const secondarySummary = secondarySegments.length > 0 ? `，同批含 ${secondarySegments.join(' / ')}` : '';
+
+  if (primaryStageKind === 'up') {
+    return {
+      stageLabel: '命中节点',
+      resultSummary: `命中目标 6★ ${summary.upSixStars.length} 次${secondarySummary}${summary.fiveStars.length > 0 ? `，附带 ${summary.fiveStars.length} 次 5★` : ''}`,
+      tags: ['UP'],
+      stageKind: 'up',
+      leadBadge: createLeadBadge(summary.primarySixStar)
+    };
+  }
+
+  if (primaryStageKind === 'offLimited') {
+    return {
+      stageLabel: '偏移节点',
+      resultSummary: `偏移到其他限定 ${summary.offLimitedSixStars.length} 次${secondarySummary}${summary.fiveStars.length > 0 ? `，附带 ${summary.fiveStars.length} 次 5★` : ''}`,
+      tags: ['偏移'],
+      stageKind: 'offLimited',
+      leadBadge: createLeadBadge(summary.primarySixStar)
+    };
+  }
+
+  if (primaryStageKind === 'offStandard') {
+    return {
+      stageLabel: '偏移节点',
+      resultSummary: `偏移到常驻 6★ ${summary.offStandardSixStars.length} 次${secondarySummary}${summary.fiveStars.length > 0 ? `，附带 ${summary.fiveStars.length} 次 5★` : ''}`,
+      tags: ['歪'],
+      stageKind: 'offStandard',
+      leadBadge: createLeadBadge(summary.primarySixStar)
+    };
+  }
+
+  return {
+    stageLabel: '阶段节点',
+    resultSummary: '阶段节点',
+    tags: [],
+    stageKind: 'generic',
+    leadBadge: createLeadBadge(summary.primaryHighRarity)
+  };
+}
+
+function getStageTargetPulls(poolType, stageKind) {
+  if (stageKind === 'gift') {
+    return 30;
+  }
+
+  return getPoolSixStarPity(poolType);
+}
+
+function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, supportItems = [], pendingInfoBook = false, currentTargetPullsOverride) {
+  const targetLabel = '6★ 节点';
+  const displayPulls = Number.isFinite(currentPityValue) ? currentPityValue : pendingPaidCount;
+  const includesInheritedPity = Number.isFinite(currentPityValue) && currentPityValue !== pendingPaidCount;
+  const normalizedType = normalizePoolType(pool?.type);
+  const supportBadges = createDropBadges(supportItems.filter((item) => Number(item?.rarity) === 5));
+
+  return {
+    id: `${pool?.id || 'pool'}-current-stage`,
+    isCurrentStage: true,
+    stageKind: 'current',
+    dateLabel: '至今',
+    stageLabel: '当前推进',
+    pulls: displayPulls,
+    targetPulls: Number.isFinite(currentTargetPullsOverride)
+      ? currentTargetPullsOverride
+      : getStageTargetPulls(normalizedType, 'current'),
+    resultSummary: displayPulls > 0
+      ? `当前仍在推进，尚未触发新的 ${targetLabel}`
+      : '当前阶段尚未形成新的高稀有节点',
+    metaSummary: displayPulls > 0
+      ? `当前垫刀 ${displayPulls} 抽${includesInheritedPity ? ' · 含跨池继承' : ''}${pendingInfoBook ? ' · 含情报书' : ''}`
+      : `暂无新增付费抽数${pendingInfoBook ? ' · 含情报书' : ''}`,
+    tags: ['当前'],
+    leadBadge: createLeadBadge(null, pool?.up_character || pool?.upCharacter || '?'),
+    dropBadges: supportBadges
+  };
+}
+
+function buildStageEntries({
+  groupedHistory,
+  pool,
+  currentPityOverride,
+  currentTargetPullsOverride,
+  showCurrentStage = true
+}) {
+  const ascendingGroups = [...groupedHistory].reverse();
+  const stages = [];
+  let pendingPaidCount = 0;
+  let pendingSupportItems = [];
+  let pendingSupportCount = 0;
+  let pendingHasInfoBook = false;
+
+  ascendingGroups.forEach((group) => {
+    const summary = summarizeGroup(group);
+    pendingPaidCount += summary.paidCount;
+    const normalizedType = normalizePoolType(pool?.type);
+
+    if (summary.hasGift) {
+      const milestone = buildMilestoneSummary(summary, normalizedType);
+      stages.push({
+        id: `${pool?.id || 'pool'}-stage-${stages.length + 1}`,
+        stageKind: milestone.stageKind,
+        dateLabel: formatDateLabel(summary.timestamp),
+        stageLabel: milestone.stageLabel,
+        pulls: Math.max(group.length, summary.paidCount),
+        targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind),
+        resultSummary: milestone.resultSummary,
+        metaSummary: '免费节点保留独立展示，不与正式抽卡合并',
+        tags: milestone.tags,
+        leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?'),
+        dropBadges: createDropBadges(summary.fiveStars)
+      });
+      return;
+    }
+
+    const shouldEmitMilestone = summary.hasSixStar;
+    if (!shouldEmitMilestone) {
+      if (summary.fiveStars.length > 0) {
+        pendingSupportItems = mergeBadgeItems(pendingSupportItems, summary.fiveStars);
+        pendingSupportCount += summary.fiveStars.length;
+      }
+      if (summary.hasInfoBook) {
+        pendingHasInfoBook = true;
+      }
+      return;
+    }
+
+    const milestone = buildMilestoneSummary(summary, normalizedType);
+    const mergedSupportItems = mergeBadgeItems(pendingSupportItems, summary.fiveStars);
+    const mergedSupportCount = pendingSupportCount + summary.fiveStars.length;
+    stages.push({
+      id: `${pool?.id || 'pool'}-stage-${stages.length + 1}`,
+      stageKind: milestone.stageKind,
+      dateLabel: formatDateLabel(summary.timestamp),
+      stageLabel: milestone.stageLabel,
+      pulls: pendingPaidCount,
+      targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind),
+      resultSummary: milestone.resultSummary,
+      metaSummary: `阶段抽数 ${pendingPaidCount} 抽 · 辅助 5★ ${mergedSupportCount} 件${summary.hasInfoBook || pendingHasInfoBook ? ' · 含情报书' : ''}`,
+      tags: milestone.tags,
+      leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?'),
+      dropBadges: createDropBadges(mergedSupportItems)
+    });
+    pendingPaidCount = 0;
+    pendingSupportItems = [];
+    pendingSupportCount = 0;
+    pendingHasInfoBook = false;
+  });
+
+  const shouldAlwaysShowCurrentStage = normalizePoolType(pool?.type) === 'weapon';
+
+  if (showCurrentStage && (pendingPaidCount > 0 || stages.length === 0 || shouldAlwaysShowCurrentStage)) {
+    stages.push(
+      buildCurrentStageEntry(
+        pool,
+        pendingPaidCount,
+        currentPityOverride,
+        pendingSupportItems,
+        pendingHasInfoBook,
+        currentTargetPullsOverride
+      )
+    );
+  }
+
+  return stages.reverse();
+}
+
+function buildTimelineSection({
+  pool,
+  history,
+  groupedHistory,
+  currentPityOverride,
+  currentPity5Override,
+  currentTargetPullsOverride,
+  disablePityState = false
+}) {
+  const normalizedType = normalizePoolType(pool?.type);
+  const metrics = calculateTimelineMetrics(history);
+  const timing = getPoolTimingMeta(pool);
+  const showCurrentStage = !disablePityState && (normalizedType === 'weapon' || !timing.isTimed || timing.isActive);
+  const entries = buildStageEntries({
+    groupedHistory,
+    pool,
+    currentPityOverride,
+    currentTargetPullsOverride,
+    showCurrentStage
+  });
+  const maxEntryPulls = entries.reduce((maxValue, entry) => Math.max(maxValue, entry.pulls || 0), 0);
+  const minimumScale = normalizedType === 'weapon' ? 40 : 60;
+
+  return {
+    id: pool?.id || 'pool-timeline',
+    title: pool?.name || '未知卡池',
+    type: normalizedType,
+    featured: pool?.up_character || pool?.upCharacter || null,
+    period: formatPeriod(pool),
+    status: timing,
+    totalPulls: metrics.totalPulls,
+    currentPity: disablePityState ? null : (currentPityOverride ?? metrics.currentPity),
+    currentPity5: disablePityState ? null : (currentPity5Override ?? metrics.currentPity5),
+    sixStarCount: metrics.sixStarCount,
+    fiveStarCount: metrics.fiveStarCount,
+    upSixStarCount: metrics.upSixStarCount,
+    winRate: metrics.winRate,
+    avgSixStarPulls: metrics.avgSixStarPulls,
+    avgFiveStarPulls: metrics.avgFiveStarPulls,
+    avgUpPulls: metrics.avgUpPulls,
+    hidePityState: disablePityState,
+    scaleMax: roundScaleMax(Math.max(maxEntryPulls, disablePityState ? 0 : (currentPityOverride ?? metrics.currentPity)), minimumScale),
+    entries
+  };
+}
+
+export function buildSinglePoolTimelineSection({
+  pool,
+  history = [],
+  groupedHistory = [],
+  currentPityOverride,
+  currentPity5Override,
+  currentTargetPullsOverride,
+  disablePityState = false
+}) {
+  if (!pool) {
+    return null;
+  }
+
+  return buildTimelineSection({
+    pool,
+    history,
+    groupedHistory,
+    currentPityOverride,
+    currentPity5Override,
+    currentTargetPullsOverride,
+    disablePityState
+  });
+}
+
+export function buildOverviewTimelineSections({
+  pools = [],
+  history = [],
+  analysisPityByPoolId = null,
+  disablePityState = false
+}) {
+  const historyByPoolId = new Map();
+
+  history.forEach((item) => {
+    const poolId = getHistoryPoolId(item);
+    if (!poolId) {
+      return;
+    }
+
+    if (!historyByPoolId.has(poolId)) {
+      historyByPoolId.set(poolId, []);
+    }
+    historyByPoolId.get(poolId).push(item);
+  });
+
+  return (pools || [])
+    .map((pool) => {
+      const poolHistory = historyByPoolId.get(pool.id) || [];
+      if (poolHistory.length === 0) {
+        return null;
+      }
+
+      const groupedHistory = groupHistoryBatches(poolHistory);
+      return buildTimelineSection({
+        pool: {
+          ...pool,
+          selectorGroupType: normalizePoolGroupType(pool)
+        },
+        history: poolHistory,
+        groupedHistory,
+        currentPityOverride: disablePityState ? null : analysisPityByPoolId?.get(pool.id)?.displayPity6,
+        currentPity5Override: disablePityState ? null : analysisPityByPoolId?.get(pool.id)?.displayPity5,
+        currentTargetPullsOverride: analysisPityByPoolId?.get(pool.id)?.maxPity6,
+        disablePityState
+      });
+    })
+    .filter(Boolean);
+}
+
+export default {
+  buildSinglePoolTimelineSection,
+  buildOverviewTimelineSections
+};

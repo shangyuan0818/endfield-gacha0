@@ -2,6 +2,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Calculator, Sparkles, FileText, Clock } from 'lucide-react';
 import { usePoolStore } from '../../stores';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
+import { getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
+import { calculateCurrentProbability } from '../../utils';
+import AveragePullStatsPanel from './AveragePullStatsPanel';
 
 /**
  * 卡池时间信息组件 - 实时更新 (内部组件)
@@ -179,12 +182,19 @@ const WeaponGifts = ({ stats }) => {
 /**
  * 卡池分析卡片 (Dashboard Version)
  */
-const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFirstN, hasReceivedFreeTen }) => {
+const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFirstN, hasReceivedFreeTen, hasMergedAccountView = false }) => {
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
+  const pityState = getPoolAnalysisPityState(currentPool, stats, effectivePity);
+  const currentProbabilityInfo = useMemo(() => {
+    if (currentPool?.isGroupMode || hasMergedAccountView) {
+      return null;
+    }
 
-  const maxPity = isWeapon ? 40 : 80;
+    return calculateCurrentProbability(pityState.displayPity6, pityState.normalizedType);
+  }, [currentPool?.isGroupMode, hasMergedAccountView, pityState.displayPity6, pityState.normalizedType]);
+  const maxPity = pityState.maxPity6;
   
   // 颜色主题
   const accentColor = isLimited 
@@ -234,10 +244,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
       </div>
 
       {/* 保底信息网格 */}
+      {!hasMergedAccountView ? (
       <div className="grid grid-cols-2 gap-4 mb-4">
         {/* 6星保底 */}
         {(() => {
-          const displayPity = isLimited ? (effectivePity?.pity6 ?? stats.currentPity) : stats.currentPity;
+          const displayPity = pityState.displayPity6;
           return (
             <StatCard
                label={`6星保底 (${maxPity})`}
@@ -245,11 +256,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                subValue="抽"
                progress={(displayPity / maxPity) * 100}
                progressColor={progressClass}
-               warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `概率UP ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
+               warning={currentProbabilityInfo?.hasSoftPity && currentProbabilityInfo?.isInSoftPity ? `概率UP ${(currentProbabilityInfo.probability * 100).toFixed(1)}%` : null}
                footer={
                  <>
                     <span>当前垫刀: {displayPity}</span>
-                    {effectivePity?.isInherited && isLimited && (
+                    {pityState.isInherited6 && (
                       <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
                     )}
                  </>
@@ -259,7 +270,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         })()}
         {/* 5星保底 */}
         {(() => {
-          const displayPity5 = isLimited ? (effectivePity?.pity5 ?? stats.currentPity5) : stats.currentPity5;
+          const displayPity5 = pityState.displayPity5;
           return (
             <StatCard
                label="5星保底 (10)"
@@ -270,7 +281,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                footer={
                  <>
                     <span>当前垫刀: {displayPity5}</span>
-                    {effectivePity?.isInherited && isLimited && effectivePity.pity5 > 0 && (
+                    {pityState.isInherited5 && (
                       <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
                     )}
                  </>
@@ -279,6 +290,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
           );
         })()}
       </div>
+      ) : (
+        <div className="mb-4 border border-dashed border-zinc-200 bg-zinc-50 px-4 py-4 text-sm text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+          当前为多账号汇总视图。6★ / 5★ 当前保底、软保底概率提示仅在单账号上下文中有确定语义，因此这里已隐藏。
+        </div>
+      )}
 
       {/* 数据概览网格 (限定/武器池显示) */}
       {(isLimited || isWeapon) && (
@@ -298,6 +314,12 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            />
         </div>
       )}
+
+      <AveragePullStatsPanel
+        stats={stats}
+        normalizedPoolType={pityState.normalizedType}
+        className="mb-6"
+      />
 
       {/* 特殊进度列表 (Technical List Style) */}
       <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">

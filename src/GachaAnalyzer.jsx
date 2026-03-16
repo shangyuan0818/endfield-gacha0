@@ -27,6 +27,7 @@ export default function GachaAnalyzer() {
   const globalStatsLoading = useAppStore(state => state.globalStatsLoading);
   // 卡池状态
   const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
   const switchPool = usePoolStore(state => state.switchPool);
 
   const {
@@ -89,7 +90,7 @@ export default function GachaAnalyzer() {
     // 当前选中的卡池存在，无需回退
     const exists = poolsArray.some(p => p.id === currentPoolId);
     // FEAT-018: 池组虚拟ID也视为有效，不回退
-    if (exists || isPoolGroupId(currentPoolId)) {
+    if (exists || (isPoolGroupId(currentPoolId) && currentGameUid)) {
       // 清除任何待处理的切换
       if (pendingSwitchRef.current) {
         clearTimeout(pendingSwitchRef.current);
@@ -133,7 +134,7 @@ export default function GachaAnalyzer() {
         pendingSwitchRef.current = null;
       }
     };
-  }, [poolsArray, currentPoolId, switchPool]);
+  }, [poolsArray, currentGameUid, currentPoolId, switchPool]);
 
   // 当前卡池是否可编辑（锁定的卡池只有超管能改）
   const canEditCurrentPool = useMemo(() => {

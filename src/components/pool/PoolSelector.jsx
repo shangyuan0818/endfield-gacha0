@@ -1,9 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Upload, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
 import ImportManager from '../../features/import/ImportManager';
 import PoolGroupCardRail from './PoolGroupCardRail';
-import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, getPoolGroupId } from '../../utils/poolSelectorDisplay';
+import { getPreferredPool } from '../../utils/poolSelectionUtils';
+import { isPoolGroupId } from '../../stores/usePoolStore';
 
 /**
  * 卡池选择器组件 V3 (Technical Style)
@@ -25,6 +27,7 @@ const PoolSelector = () => {
   const [showImportManager, setShowImportManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const [hideZeroPullPools, setHideZeroPullPools] = useState(true);
 
   // 获取所有游戏账号（从历史记录）
   const gameAccounts = useMemo(() => {
@@ -51,19 +54,49 @@ const PoolSelector = () => {
     return counts;
   }, [filteredHistory]);
 
+  const zeroPullPoolCount = useMemo(() => (
+    filteredPools.filter((pool) => (poolPullCounts[pool.id] || 0) === 0).length
+  ), [filteredPools, poolPullCounts]);
+
+  const selectorPools = useMemo(() => (
+    filteredPools.filter((pool) => (
+      !hideZeroPullPools ||
+      (poolPullCounts[pool.id] || 0) > 0 ||
+      pool.id === currentPoolId
+    ))
+  ), [currentPoolId, filteredPools, hideZeroPullPools, poolPullCounts]);
+
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
     return buildPoolSelectorGroups({
-      pools: filteredPools,
+      pools: selectorPools,
       poolPullCounts,
       searchQuery
     });
-  }, [filteredPools, poolPullCounts, searchQuery]);
+  }, [poolPullCounts, searchQuery, selectorPools]);
 
   const totalPools = pools.length;
+  const visiblePools = selectorPools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
+  const allOverviewId = getPoolGroupId('all');
+  const showOverviewOptions = Boolean(currentGameUid);
 
   const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
+
+  useEffect(() => {
+    if (showOverviewOptions || !isPoolGroupId(currentPoolId)) {
+      return;
+    }
+
+    const fallbackPool = getPreferredPool(filteredPools, {
+      preferredPoolId: null,
+      includeDefaultPool: true
+    });
+
+    if (fallbackPool?.id) {
+      switchPool(fallbackPool.id);
+    }
+  }, [currentPoolId, filteredPools, showOverviewOptions, switchPool]);
 
   return (
     <div className="space-y-4">
@@ -148,30 +181,51 @@ const PoolSelector = () => {
         {/* 搜索与统计 */}
         <div className="flex items-center gap-4">
           {/* 搜索 */}
-          {totalPools > 5 && (
-            <div className="relative group">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 group-focus-within:text-yellow-500 transition-colors" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="SEARCH POOLS..."
-                className="w-40 pl-8 pr-8 py-1.5 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-700 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-700 transition-colors"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500"
-                >
-                  <X size={14} />
-                </button>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {zeroPullPoolCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setHideZeroPullPools((value) => !value)}
+                className={`flex items-center gap-2 px-2.5 py-1.5 border text-[11px] font-mono transition-colors ${
+                  hideZeroPullPools
+                    ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
+                    : 'border-zinc-200 bg-white text-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                }`}
+                title={hideZeroPullPools ? '当前会隐藏零抽数卡池' : '当前会显示零抽数卡池'}
+              >
+                <span className={`h-2 w-2 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
+                <span>{hideZeroPullPools ? '隐藏零抽卡池' : '显示零抽卡池'}</span>
+              </button>
+            )}
+
+            {totalPools > 5 && (
+              <div className="relative group">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 group-focus-within:text-yellow-500 transition-colors" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="SEARCH POOLS..."
+                  className="w-40 pl-8 pr-8 py-1.5 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-700 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-700 transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* 统计 */}
           <div className="text-xs font-mono text-slate-500 dark:text-zinc-400">
-            <span className="text-slate-700 dark:text-zinc-300 font-bold">{totalPools}</span> POOLS /
+            <span className="text-slate-700 dark:text-zinc-300 font-bold">{visiblePools}</span>
+            {visiblePools !== totalPools && (
+              <span className="text-slate-400 dark:text-zinc-500">/{totalPools}</span>
+            )} POOLS /
             <span className="text-slate-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> PULLS
           </div>
         </div>
@@ -182,8 +236,16 @@ const PoolSelector = () => {
         <PoolGroupCardRail
           groups={sortedPoolsWithGroups}
           currentSelectionId={currentPoolId}
-          onSelectGroup={switchToPoolGroup}
+          onSelectGroup={showOverviewOptions ? switchToPoolGroup : undefined}
           onSelectPool={switchPool}
+          showGroupOverviewCards={showOverviewOptions}
+          leadingOverview={showOverviewOptions ? {
+            title: '全部卡池总览',
+            totalPools: visiblePools,
+            totalPulls,
+            isSelected: currentPoolId === allOverviewId,
+            onClick: () => switchToPoolGroup('all')
+          } : null}
         />
       ) : (
         <div className="text-center py-12 border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">

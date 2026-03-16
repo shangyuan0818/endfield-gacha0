@@ -65,6 +65,24 @@ async function loadPoolRowsByIds(poolIds) {
   return poolRows || [];
 }
 
+async function loadAllPoolRows() {
+  const { data: poolRows, error } = await executeSupabaseRead(
+    () => supabase
+      .from('pools')
+      .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters'),
+    {
+      label: 'loadAllPoolRows',
+      retries: 1
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return poolRows || [];
+}
+
 export function normalizeRemotePoolType(type, isLimitedWeaponFlag) {
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
@@ -134,9 +152,32 @@ export async function loadPoolsByIds(poolIds) {
     .map(formatVisiblePoolRecord);
 }
 
+export async function loadAllPoolsForCatalog() {
+  if (!supabase) {
+    return [];
+  }
+
+  const poolRows = await loadAllPoolRows();
+  if (poolRows.length === 0) {
+    return [];
+  }
+
+  const profilesMap = await loadPublicProfilesMap((poolRows || []).map((row) => row.user_id));
+
+  return poolRows
+    .map((row) => ({
+      ...row,
+      creator_username: profilesMap.get(row.user_id)?.username || null,
+      creator_role: profilesMap.get(row.user_id)?.role || null
+    }))
+    .sort(sortVisiblePoolRecords)
+    .map(formatVisiblePoolRecord);
+}
+
 export default {
   loadVisiblePools,
   loadPoolsByIds,
+  loadAllPoolsForCatalog,
   normalizeRemotePoolType,
   formatVisiblePoolRecord
 };

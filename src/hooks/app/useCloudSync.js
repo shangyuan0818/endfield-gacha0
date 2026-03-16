@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
-import { loadVisiblePools, loadPoolsByIds, normalizeRemotePoolType } from '../../services/poolReadService';
+import { loadAllPoolsForCatalog, loadVisiblePools, loadPoolsByIds, normalizeRemotePoolType } from '../../services/poolReadService';
 import {
   resolveAliasValue,
   resolveCharacterAliasMap,
@@ -75,6 +75,7 @@ export function useCloudSync({ showToast }) {
       try {
         const fallbackPools = usePoolStore.getState().pools;
         const latestVisiblePools = await loadLatestVisiblePools();
+        const catalogPools = await loadAllPoolsForCatalog().catch(() => []);
         const visiblePools = Array.isArray(latestVisiblePools) && latestVisiblePools.length > 0
           ? latestVisiblePools
           : (Array.isArray(fallbackPools) ? fallbackPools : []);
@@ -148,7 +149,12 @@ export function useCloudSync({ showToast }) {
         nick_name: h.nick_name
       }));
 
-      const knownPoolsMap = new Map(visiblePools.map(pool => [pool.id, pool]));
+      const knownPoolsMap = new Map();
+      [...catalogPools, ...visiblePools].forEach((pool) => {
+        if (pool?.id) {
+          knownPoolsMap.set(pool.id, pool);
+        }
+      });
       const historyPoolIds = [...new Set(formattedHistory.map(h => h.poolId))];
       const missingPoolIds = historyPoolIds.filter(pid => pid && !knownPoolsMap.has(pid));
       const hydratedHistoryPools = missingPoolIds.length > 0
