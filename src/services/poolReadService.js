@@ -111,6 +111,24 @@ export function formatVisiblePoolRecord(record) {
   };
 }
 
+export function mergePoolCollections(primaryPools = [], fallbackPools = []) {
+  const merged = new Map();
+
+  [...fallbackPools, ...primaryPools].forEach((pool) => {
+    if (!pool?.id) {
+      return;
+    }
+
+    const existing = merged.get(pool.id) || {};
+    merged.set(pool.id, {
+      ...existing,
+      ...pool
+    });
+  });
+
+  return Array.from(merged.values()).sort(sortVisiblePoolRecords);
+}
+
 export async function loadVisiblePools() {
   if (!supabase) {
     return [];
@@ -178,6 +196,7 @@ export default {
   loadVisiblePools,
   loadPoolsByIds,
   loadAllPoolsForCatalog,
+  mergePoolCollections,
   normalizeRemotePoolType,
   formatVisiblePoolRecord
 };

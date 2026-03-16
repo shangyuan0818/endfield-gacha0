@@ -3,7 +3,7 @@ import { createSimulator } from '../../utils/gachaSimulator';
 import { WEAPON_POOL_RULES } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
-import { loadVisiblePools } from '../../services/poolReadService';
+import { loadAllPoolsForCatalog, loadVisiblePools, mergePoolCollections } from '../../services/poolReadService';
 import { supabase } from '../../supabaseClient';
 import {
   buildSimulatorStorageScope,
@@ -121,14 +121,17 @@ export function useGachaSimulatorController() {
     const loadPublicPools = async () => {
       try {
         const bootstrapPools = await getBootstrapVisiblePools().catch(() => null);
-        if (!cancelled && Array.isArray(bootstrapPools) && bootstrapPools.length > 0) {
-          setPublicPools(bootstrapPools);
-          return;
-        }
+        const directPools = Array.isArray(bootstrapPools) && bootstrapPools.length > 0
+          ? bootstrapPools
+          : await loadVisiblePools().catch(() => null);
+        const catalogPools = await loadAllPoolsForCatalog().catch(() => []);
+        const mergedPools = mergePoolCollections(
+          Array.isArray(directPools) ? directPools : [],
+          Array.isArray(catalogPools) ? catalogPools : []
+        );
 
-        const directPools = await loadVisiblePools().catch(() => null);
-        if (!cancelled && Array.isArray(directPools) && directPools.length > 0) {
-          setPublicPools(directPools);
+        if (!cancelled && mergedPools.length > 0) {
+          setPublicPools(mergedPools);
         }
       } catch (error) {
         console.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);

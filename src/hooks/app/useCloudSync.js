@@ -2,7 +2,13 @@ import { useCallback, useRef } from 'react';
 import { supabase } from '../../supabaseClient';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
-import { loadAllPoolsForCatalog, loadVisiblePools, loadPoolsByIds, normalizeRemotePoolType } from '../../services/poolReadService';
+import {
+  loadAllPoolsForCatalog,
+  loadVisiblePools,
+  loadPoolsByIds,
+  mergePoolCollections,
+  normalizeRemotePoolType
+} from '../../services/poolReadService';
 import {
   resolveAliasValue,
   resolveCharacterAliasMap,
@@ -246,9 +252,15 @@ export function useCloudSync({ showToast }) {
   const loadPublicPools = useCallback(async () => {
     try {
       const latestVisiblePools = await loadLatestVisiblePools({ preferBootstrap: true });
-      if (Array.isArray(latestVisiblePools) && latestVisiblePools.length > 0) {
-        setPools(latestVisiblePools);
-        return latestVisiblePools;
+      const catalogPools = await loadAllPoolsForCatalog().catch(() => []);
+      const mergedPools = mergePoolCollections(
+        Array.isArray(latestVisiblePools) ? latestVisiblePools : [],
+        Array.isArray(catalogPools) ? catalogPools : []
+      );
+
+      if (mergedPools.length > 0) {
+        setPools(mergedPools);
+        return mergedPools;
       }
     } catch {
       return null;
