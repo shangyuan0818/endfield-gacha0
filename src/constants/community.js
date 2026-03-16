@@ -1,0 +1,5 @@
+export const ACCOUNT_RECOVERY_QQ_GROUP = '1080983185';
+
+export default {
+  ACCOUNT_RECOVERY_QQ_GROUP
+};

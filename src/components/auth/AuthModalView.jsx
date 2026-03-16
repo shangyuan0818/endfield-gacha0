@@ -16,6 +16,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 
 export default function AuthModalView({
   agreedToTerms,
@@ -226,6 +227,13 @@ export default function AuthModalView({
                   <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
                     当前版本未启用邮件找回，也不允许仅凭邮箱直接修改密码。若你还有已登录设备，请直接前往“设置 &gt; 修改密码”；若完全无法登录，可提交人工恢复或旧账号注销申请。
                   </p>
+                  <div className="mb-3 border border-emerald-200 dark:border-emerald-800 bg-white/70 dark:bg-black/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+                    若超管核验通过并为你设置了临时密码，请加入 QQ 群
+                    {' '}
+                    <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
+                    {' '}
+                    获取临时密码，并在登录后立即到设置页修改密码。
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -291,6 +299,13 @@ export default function AuthModalView({
                       <div className="font-medium">恢复申请已提交</div>
                       <div className="mt-1">
                         超管会根据你填写的 UID、昵称和说明进行人工核验。当前系统不会向未登录用户发放自动重置入口。
+                      </div>
+                      <div className="mt-2">
+                        若超管核验通过并已重置密码，请加入 QQ 群
+                        {' '}
+                        <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
+                        {' '}
+                        获取临时密码。
                       </div>
                     </div>
                   </div>
