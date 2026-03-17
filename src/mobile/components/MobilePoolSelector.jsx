@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown, Star, Layers, Swords, User, Lock, Check, Upload, Search, X
 } from 'lucide-react';
@@ -7,6 +8,7 @@ import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../store
 import ImportManager from '../../features/import/ImportManager';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
+import { getMobilePathForTab } from '../../constants/appRoutes';
 
 /**
  * 移动端卡池选择器 - 完整版
@@ -14,6 +16,7 @@ import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
  * 参考桌面端 PoolSelector.jsx 实现
  */
 function MobilePoolSelector() {
+  const navigate = useNavigate();
   // Store 状态
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -472,11 +475,11 @@ function MobilePoolSelector() {
         <ImportManager
           isOpen={showImportManager}
           onClose={() => {
-            console.log('[MobilePoolSelector] 关闭导入管理器');
             setShowImportManager(false);
           }}
-          onImportComplete={(result) => {
-            console.log('[MobilePoolSelector] 导入完成:', result);
+          onImportComplete={() => {
+            setShowImportManager(false);
+            navigate(getMobilePathForTab('dashboard'));
           }}
         />
       )}

@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
-import { getPreferredPoolId } from '../../utils/poolSelectionUtils';
+import { applyCloudDataToStores } from '../../utils/cloudDataSync';
 
 const APP_INIT_SYNC_BUDGET_MS = import.meta.env.DEV ? 9000 : 6500;
 
@@ -11,28 +11,6 @@ function wait(ms) {
   return new Promise(resolve => {
     window.setTimeout(resolve, ms);
   });
-}
-
-function applyCloudDataToStores(cloudData, { setPools, switchPool, setHistory, currentPoolIdRef }) {
-  if (!cloudData || !Array.isArray(cloudData.pools) || cloudData.pools.length === 0) {
-    return;
-  }
-
-  setPools(cloudData.pools);
-
-  const savedPoolId = currentPoolIdRef.current;
-  const fallbackId = getPreferredPoolId(cloudData.pools, {
-    preferredPoolId: savedPoolId
-  });
-
-  if (fallbackId) {
-    switchPool(fallbackId);
-    localStorage.setItem('gacha_current_pool_id', fallbackId);
-  }
-
-  if (Array.isArray(cloudData.history) && cloudData.history.length > 0) {
-    setHistory(cloudData.history);
-  }
 }
 
 /**
@@ -111,7 +89,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
                 setPools,
                 switchPool,
                 setHistory,
-                currentPoolIdRef
+                preferredPoolId: currentPoolIdRef.current
               });
               return cloudData;
             })

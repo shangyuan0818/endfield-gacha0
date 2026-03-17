@@ -1,15 +1,15 @@
 import { useState, useCallback } from 'react';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { useAuthStore, usePoolStore } from '../../stores';
+import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
-import { normalizeIsStandard } from '../../utils/poolUtils';
-import { clampHistoryPity, splitHistoryUpsertGroups } from '../../utils/historyRecordUtils';
 import { saveGameAccountMetadata } from '../../utils/gameAccountMetadata.js';
+import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
+import { useCloudSync } from '../../hooks';
+import { upsertHistory, upsertPools } from '../../services/cloudWriteService.js';
 import {
-  resolveAliasValue,
-  resolveCharacterAliasMap,
-  resolvePoolAliasMap,
-} from '../../../shared/idAliasService.js';
+  filterImportedHistoryRecords,
+  prepareOfficialImportPersistenceData,
+} from './importPersistence.js';
 import OfficialAPIImport from './OfficialAPIImport';
 
 /**
@@ -71,6 +71,12 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   // 从 stores 获取数据
   const user = useAuthStore(state => state.user);
   const pools = usePoolStore(state => state.pools);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const setPools = usePoolStore(state => state.setPools);
+  const switchPool = usePoolStore(state => state.switchPool);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
+  const setHistory = useHistoryStore(state => state.setHistory);
+  const { loadCloudData } = useCloudSync({ showToast: () => {} });
 
   // 处理子组件的获取状态变化
   const handleFetchStatusChange = useCallback((status) => {
@@ -81,55 +87,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
    * 直接保存卡池到 Supabase
    * 修改为：首次创建，后续不更新（避免多账号导入时覆盖）
    */
-  const savePoolsToServer = useCallback(async (poolInfos) => {
-    if (!supabase || !user || poolInfos.length === 0) return;
-
-    const poolAliasMap = await resolvePoolAliasMap(
-      supabase,
-      poolInfos.map(info => info?.poolId),
-      'official_api'
-    );
-    const normalizedPoolInfos = poolInfos.map(info => ({
-      ...info,
-      poolId: resolveAliasValue(poolAliasMap, info?.poolId)
-    }));
-
-    // 1. 查询已存在的卡池
-    const poolIds = normalizedPoolInfos.map(info => info.poolId);
-    const { data: existingPools } = await supabase
-      .from('pools')
-      .select('pool_id')
-      .in('pool_id', poolIds);
-
-    const existingPoolIds = new Set(existingPools?.map(p => p.pool_id) || []);
-
-    // 2. 只创建不存在的卡池
-    const poolsToCreate = normalizedPoolInfos
-      .filter(info => !existingPoolIds.has(info.poolId))
-      .map(info => ({
-        pool_id: info.poolId,
-        name: info.poolName || info.poolId,
-        type: getPoolTypeFromId(info.poolId),
-        locked: false,
-        user_id: user.id, // 记录创建者
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-    if (poolsToCreate.length > 0) {
-      const { error } = await supabase
-        .from('pools')
-        .insert(poolsToCreate); // 改用insert，不再upsert
-
-      if (error) {
-        console.error('[ImportManager] 保存卡池失败:', error);
-        throw error;
-      }
-
-      console.log('[ImportManager] 新建卡池:', poolsToCreate.length);
-    } else {
-      console.log('[ImportManager] 所有卡池已存在，跳过创建');
-    }
+  const savePoolsToServer = useCallback(async (poolEntries) => {
+    if (!supabase || !user || poolEntries.length === 0) return;
+    await upsertPools(supabase, poolEntries, user.id);
   }, [user]);
 
   /**
@@ -138,77 +98,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   const saveHistoryToServer = useCallback(async (records) => {
     if (!supabase || !user || records.length === 0) return;
 
-    const [poolAliasMap, characterAliasMap] = await Promise.all([
-      resolvePoolAliasMap(
-        supabase,
-        records.map(record => record?.poolId || record?.pool_id),
-        'official_api'
-      ),
-      resolveCharacterAliasMap(
-        supabase,
-        records.map(record => record?.character_id || record?.item_id),
-        'official_api'
-      ),
-    ]);
-
     const batchSize = 100;
     let savedCount = 0;
 
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
-
-      // 在每批内进行去重
-      const seenIds = new Set();
-      const uniqueBatch = batch.filter(r => {
-        const recordId = typeof r.id === 'number' ? r.id : parseInt(r.id, 10) || Date.now();
-        if (seenIds.has(recordId)) return false;
-        seenIds.add(recordId);
-        return true;
-      });
-
-      const recordsToSave = uniqueBatch.map(r => ({
-        user_id: user.id,
-        record_id: typeof r.id === 'number' ? r.id : parseInt(r.id, 10) || Date.now(),
-        pool_id: String(resolveAliasValue(poolAliasMap, r.poolId || r.pool_id)),
-        rarity: typeof r.rarity === 'number' ? r.rarity : parseInt(r.rarity, 10) || 4,
-        is_standard: Boolean(r.isStandard),
-        special_type: null,
-        character_name: r.character_name || r.name || null,
-        item_name: r.name || r.character_name || null,
-        character_id: resolveAliasValue(characterAliasMap, r.character_id || r.item_id),
-        batch_id: r.batchId || null,
-        seq_id: r.seqId || null,
-        pity: clampHistoryPity(r.pity),
-        is_new: Boolean(r.isNew),
-        is_free: Boolean(r.isFree),
-        game_uid: r.gameUid || null,
-        nick_name: r.nickName || null,  // 添加昵称
-        timestamp: typeof r.timestamp === 'number'
-          ? new Date(r.timestamp).toISOString()
-          : new Date(r.timestamp).toISOString(),
-        updated_at: new Date().toISOString()
-      }));
-
-      const { compositeKeyRecords, legacyRecords } = splitHistoryUpsertGroups(recordsToSave);
-      const upsertGroups = [
-        { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
-        { rows: legacyRecords, onConflict: 'user_id,record_id' }
-      ];
-
-      for (const group of upsertGroups) {
-        if (group.rows.length === 0) continue;
-
-        const { error } = await supabase
-          .from('history')
-          .upsert(group.rows, { onConflict: group.onConflict });
-
-        if (error) {
-          console.error('[ImportManager] 保存历史记录失败:', error);
-          throw error;
-        }
-      }
-
-      savedCount += uniqueBatch.length;
+      await upsertHistory(supabase, batch, user.id);
+      savedCount += batch.length;
       setSaveProgress({ current: savedCount, total: records.length });
     }
   }, [user]);
@@ -247,12 +143,6 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
    * 处理 API 导入完成
    */
   const handleAPIImportComplete = useCallback(async (result) => {
-    console.log('[ImportManager] handleAPIImportComplete 被调用:', {
-      hasResult: !!result,
-      success: result?.success,
-      recordsCount: result?.records?.length
-    });
-
     if (!result?.success) {
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage(result?.error || '导入失败');
@@ -285,109 +175,31 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     }
 
     try {
-      console.log('[ImportManager] 开始保存数据...');
       setImportStatus(ImportStatus.SAVING);
       setSaveProgress({ current: 0, total: result.records.length });
       if (result.userInfo) {
         saveGameAccountMetadata(result.userInfo);
       }
 
-      // 1. 收集所有涉及的卡池信息
-      const poolInfos = [];
-      const seenPools = new Set();
-
-      result.records.forEach(record => {
-        const poolId = record.pool_id;
-        if (poolId && !seenPools.has(poolId)) {
-          seenPools.add(poolId);
-          poolInfos.push({
-            poolId: poolId,
-            poolName: record.pool_name
-          });
-        }
+      const {
+        currentGameUid,
+        poolEntries,
+        historyRecords,
+      } = await prepareOfficialImportPersistenceData({
+        supabase,
+        records: result.records,
+        userInfo: result.userInfo,
+        pools,
       });
 
-      const [poolAliasMap, characterAliasMap] = await Promise.all([
-        resolvePoolAliasMap(
-          supabase,
-          result.records.map(record => record?.pool_id),
-          'official_api'
-        ),
-        resolveCharacterAliasMap(
-          supabase,
-          result.records.map(record => record?.character_id || record?.item_id),
-          'official_api'
-        ),
-      ]);
+      // 1. 保存卡池到服务器
+      await savePoolsToServer(poolEntries);
 
-      const canonicalPoolInfos = poolInfos.map(info => ({
-        ...info,
-        poolId: resolveAliasValue(poolAliasMap, info.poolId)
-      }));
-
-      // 2. 保存卡池到服务器（不再传递 userInfo）
-      await savePoolsToServer(canonicalPoolInfos);
-
-      // 2.1 构建 poolId -> UP角色 和 poolId -> 类型 的映射
-      const poolUpCharacterMap = new Map();
-      const poolTypeMap = new Map();
-      pools.forEach(pool => {
-        if (pool.up_character) {
-          if (pool.pool_id) poolUpCharacterMap.set(pool.pool_id, pool.up_character);
-          poolUpCharacterMap.set(pool.id, pool.up_character);
-        }
-        if (pool.pool_id) poolTypeMap.set(pool.pool_id, pool.type);
-        poolTypeMap.set(pool.id, pool.type);
-      });
-
-      // 3. 转换记录格式
-      const currentGameUid = result.userInfo?.gameUid || result.userInfo?.hgUid || null;
-      const historyRecords = result.records.map((record, index) => {
-        // 保持原有的 record_id 计算方式（向后兼容已有数据）
-        const poolHash = simpleStringHash(record.pool_id || 'unknown');
-        const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
-        const numericId = poolHash * 10000000 + seqNum;
-
-        const poolType = poolTypeMap.get(record.pool_id) || 'unknown';
-        const upCharacter = poolUpCharacterMap.get(record.pool_id);
-        const isStandard = normalizeIsStandard(record, poolType, upCharacter);
-
-        return {
-          id: numericId,
-          poolId: resolveAliasValue(poolAliasMap, record.pool_id),
-          name: record.name,
-          character_name: record.name,
-          character_id: resolveAliasValue(characterAliasMap, record.character_id || record.item_id),
-          rarity: record.rarity,
-          isStandard: isStandard,
-          isLimited: record.isLimited,
-          batchId: record.batchId,
-          seqId: record.seqId,
-          pity: clampHistoryPity(record.pity),
-          isNew: record.isNew || false,
-          isFree: record.isFree || false,
-          gameUid: result.userInfo?.gameUid || result.userInfo?.hgUid || null,
-          nickName: result.userInfo?.nickName || null,  // 添加昵称
-          timestamp: record.timestamp,
-          created_at: new Date().toISOString()
-        };
-      });
-
-      // 4. 从服务器获取已存在的记录进行去重（基于 game_uid + pool_id + seq_id）
+      // 2. 从服务器获取已存在的记录进行去重（基于 game_uid + pool_id + seq_id）
       const existingSeqIds = await getExistingSeqIds(currentGameUid);
+      const { newRecords, duplicateCount } = filterImportedHistoryRecords(historyRecords, existingSeqIds);
 
-      const newRecords = historyRecords.filter(record => {
-        if (record.seqId) {
-          // 使用 game_uid:pool_id:seq_id 组合进行去重（seqId 是每个卡池独立的）
-          const compositeKey = `${record.gameUid || 'unknown'}:${record.poolId || 'unknown'}:${record.seqId}`;
-          if (existingSeqIds.has(compositeKey)) return false;
-        }
-        return true;
-      });
-
-      const duplicateCount = historyRecords.length - newRecords.length;
-
-      // 5. 保存新记录到服务器
+      // 3. 保存新记录到服务器
       if (newRecords.length > 0) {
         await saveHistoryToServer(newRecords);
       } else {
@@ -396,7 +208,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         await new Promise(resolve => setTimeout(resolve, 800));
       }
 
-      // 6. 设置导入结果
+      // 4. 设置导入结果
       const finalResult = {
         success: true,
         records: newRecords,
@@ -409,31 +221,27 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         userInfo: result.userInfo
       };
 
-      console.log('[ImportManager] 准备设置导入成功状态:', {
-        importStatus: 'SUCCESS',
-        hasResult: !!finalResult,
-        newRecords: newRecords.length,
-        total: historyRecords.length
+      const refreshedCloudData = await loadCloudData(user);
+      applyCloudDataToStores(refreshedCloudData, {
+        setPools,
+        switchPool,
+        setHistory,
+        preferredPoolId: currentPoolId
       });
 
-      // ⚠️ 修复：直接设置状态，不使用 setTimeout
-      // 不调用 onImportComplete 回调，避免父组件状态更新导致组件卸载
+      if (currentGameUid) {
+        switchGameAccount(currentGameUid);
+      }
+
       setImportResult(finalResult);
       setImportStatus(ImportStatus.SUCCESS);
-      console.log('[ImportManager] 导入状态已更新为 SUCCESS');
-
-      // 不再调用 onImportComplete，让 ImportManager 完全控制显示
-      // if (onImportComplete) {
-      //   console.log('[ImportManager] 调用 onImportComplete 回调');
-      //   onImportComplete(finalResult);
-      // }
 
     } catch (error) {
       console.error('[ImportManager] 保存数据失败:', error);
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage(error.message || '保存数据失败');
     }
-  }, [user, savePoolsToServer, saveHistoryToServer, getExistingSeqIds, onImportComplete, pools]);
+  }, [currentPoolId, getExistingSeqIds, loadCloudData, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, user]);
 
   const handleReset = useCallback(() => {
     setImportStatus(ImportStatus.IDLE);
@@ -443,19 +251,22 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     setFetchStatus('idle');
   }, []);
 
-  /**
-   * 刷新页面并跳转到卡池详情
-   */
-  const handleRefreshAndNavigate = useCallback(() => {
-    // 保存目标页面到 sessionStorage，刷新后自动跳转
-    sessionStorage.setItem('redirect_after_import', 'dashboard');
-    window.location.reload();
-  }, []);
-
   const handleClose = useCallback(() => {
     handleReset();
     onClose();
   }, [handleReset, onClose]);
+
+  const handleViewImportedData = useCallback(() => {
+    if (importResult?.userInfo?.gameUid || importResult?.userInfo?.hgUid) {
+      switchGameAccount(importResult.userInfo.gameUid || importResult.userInfo.hgUid);
+    }
+
+    if (typeof onImportComplete === 'function') {
+      onImportComplete(importResult);
+    }
+
+    handleClose();
+  }, [handleClose, importResult, onImportComplete, switchGameAccount]);
 
   if (!isOpen) return null;
 
@@ -612,13 +423,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 </div>
               )}
 
-              {/* 刷新提示 */}
+              {/* 结果提示 */}
               {importResult.summary?.newRecords > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 flex items-start gap-3 transition-colors">
                   <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">需要刷新页面以显示新数据</p>
-                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">点击下方按钮刷新页面，将自动跳转到卡池详情页查看您的抽卡记录。</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">新数据已同步到当前会话</p>
+                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">点击下方按钮可直接跳转到卡池详情页查看，无需刷新整页。</p>
                   </div>
                 </div>
               )}
@@ -633,11 +444,11 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 </button>
                 {importResult.summary?.newRecords > 0 ? (
                   <button
-                    onClick={handleRefreshAndNavigate}
+                    onClick={handleViewImportedData}
                     className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2"
                   >
                     <RefreshCw className="w-4 h-4" />
-                    刷新并查看数据
+                    查看已导入数据
                   </button>
                 ) : (
                   <button
@@ -683,30 +494,4 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       </div>
     </div>
   );
-}
-
-/**
- * 根据 poolId 推断卡池类型 (辅助函数)
- */
-function getPoolTypeFromId(poolId) {
-  if (!poolId) return 'standard';
-  const prefix = poolId.split('_')[0].toLowerCase();
-  const typeMap = {
-    'special': 'limited',
-    'standard': 'standard',
-    'beginner': 'beginner',
-    'weponbox': 'weapon',
-    'weaponbox': 'weapon'
-  };
-  return typeMap[prefix] || 'standard';
-}
-
-function simpleStringHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash % 1000);
 }

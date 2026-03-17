@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
 import ImportManager from '../../features/import/ImportManager';
@@ -6,12 +7,14 @@ import PoolGroupCardRail from './PoolGroupCardRail';
 import { buildPoolSelectorGroups, getPoolGroupId } from '../../utils/poolSelectorDisplay';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { isPoolGroupId } from '../../stores/usePoolStore';
+import { getDesktopPathForTab } from '../../constants/appRoutes';
 
 /**
  * 卡池选择器组件 V3 (Technical Style)
  * 卡池管理功能已移至管理页面，仅超管可操作
  */
 const PoolSelector = () => {
+  const navigate = useNavigate();
   // 从 stores 获取状态
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -260,13 +263,11 @@ const PoolSelector = () => {
         <ImportManager
           isOpen={showImportManager}
           onClose={() => {
-            console.log('[PoolSelector] 关闭导入管理器');
             setShowImportManager(false);
           }}
-          onImportComplete={(result) => {
-            // ⚠️ 什么都不做，让 ImportManager 自己控制显示
-            // 避免父组件状态更新导致 ImportManager 重新渲染
-            console.log('[PoolSelector] 导入完成（不做任何操作）:', result);
+          onImportComplete={() => {
+            setShowImportManager(false);
+            navigate(getDesktopPathForTab('dashboard'));
           }}
         />
       )}

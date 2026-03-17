@@ -199,18 +199,6 @@ export default function GachaAnalyzer() {
 
   // --- Effects ---
 
-  // 检查导入后重定向
-  useEffect(() => {
-    const redirectTarget = sessionStorage.getItem('redirect_after_import');
-    if (redirectTarget) {
-      sessionStorage.removeItem('redirect_after_import');
-      // 延迟一点确保页面渲染完成
-      setTimeout(() => {
-        navigateToTab(redirectTarget, { replace: true });
-      }, 100);
-    }
-  }, [navigateToTab]);
-
   // 兼容旧的 `?tab=` 链接，统一切到真实路由
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
