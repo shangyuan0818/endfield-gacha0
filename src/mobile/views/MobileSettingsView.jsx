@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
   AlertTriangle, X, Database, LogOut, ChevronRight
@@ -13,6 +14,8 @@ import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import { deleteOwnAccount } from '../../services/selfAccountService';
+import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccountSession';
 
 function MobileSettingsSection({ title, icon, children }) {
   const IconComponent = icon;
@@ -32,9 +35,10 @@ function MobileSettingsSection({ title, icon, children }) {
  * 移动端设置视图 - 工业风重构版 (中文)
  */
 function MobileSettingsView() {
+  const navigate = useNavigate();
   const { themeMode, setThemeMode } = useTheme();
-  const { user, signOut, userRole, syncing, syncError, lastSyncAt } = useAuthStore();
-  const { pools, setPools, currentPoolId, switchPool } = usePoolStore();
+  const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt } = useAuthStore();
+  const { pools, setPools, currentPoolId, switchPool, switchGameAccount } = usePoolStore();
   const { history, setHistory } = useHistoryStore();
   const { toasts, showToast, removeToast } = useToast();
   const { syncToCloud, loadPublicPools, deleteUserDataFromCloud } = useCloudSync({ showToast });
@@ -44,6 +48,11 @@ function MobileSettingsView() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
@@ -168,6 +177,51 @@ function MobileSettingsView() {
       setDeleteError(error.message || '删除失败');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const resetDeleteAccountState = () => {
+    setDeleteAccountLoading(false);
+    setDeleteAccountError('');
+    setDeleteAccountConfirmText('');
+    setDeleteAccountPassword('');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) {
+      setDeleteAccountError('当前未登录，无法注销账号');
+      return;
+    }
+
+    if (deleteAccountConfirmText !== '确认注销账号') {
+      setDeleteAccountError('请输入“确认注销账号”后再继续');
+      return;
+    }
+
+    if (deleteAccountPassword.length < 6) {
+      setDeleteAccountError('请输入当前密码以确认身份');
+      return;
+    }
+
+    setDeleteAccountLoading(true);
+    setDeleteAccountError('');
+
+    try {
+      await deleteOwnAccount(deleteAccountPassword);
+      await finalizeDeletedAccountSession({
+        loadPublicPools,
+        setPools,
+        setHistory,
+        switchPool,
+        switchGameAccount,
+        logout,
+      });
+      showToast('账号已注销，当前会话已退出', 'success');
+      navigate('/m', { replace: true });
+    } catch (error) {
+      setDeleteAccountError(error.message || '注销账号失败');
+    } finally {
+      setDeleteAccountLoading(false);
     }
   };
 
@@ -345,6 +399,33 @@ function MobileSettingsView() {
                 </button>
               </div>
             </div>
+
+            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-red-700 dark:text-red-500 uppercase">注销账号</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    永久删除当前账号、抽卡记录与自建卡池。管理员账号不支持自助注销。
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    resetDeleteAccountState();
+                    setShowDeleteAccountModal(true);
+                  }}
+                  disabled={userRole === 'admin' || userRole === 'super_admin'}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors rounded-none"
+                >
+                  <Trash2 size={12} />
+                  注销账号
+                </button>
+              </div>
+              {(userRole === 'admin' || userRole === 'super_admin') && (
+                <p className="mt-2 text-[10px] text-zinc-500 font-mono">
+                  管理员账号请使用超管流程删除，不提供自助注销。
+                </p>
+              )}
+            </div>
           </div>
         </MobileSettingsSection>
       )}
@@ -501,6 +582,87 @@ function MobileSettingsView() {
                 className="flex-1 py-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 touch-feedback disabled:opacity-50 uppercase tracking-wider transition-colors"
               >
                 {deleteLoading ? '删除中...' : '删除我的数据'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none shadow-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-950/20 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} className="text-red-500" />
+                <span className="text-sm font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">注销当前账号</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDeleteAccountModal(false);
+                  resetDeleteAccountState();
+                }}
+                className="text-zinc-400 hover:text-zinc-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {deleteAccountError && (
+                <div className="px-3 py-2 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10 text-red-600 dark:text-red-400 text-xs">
+                  {deleteAccountError}
+                </div>
+              )}
+
+              <div className="px-3 py-3 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10 text-xs text-red-700 dark:text-red-300 space-y-1">
+                <p>• 当前账号将被永久删除</p>
+                <p>• 当前账号名下的抽卡记录与自建卡池会一起删除</p>
+                <p>• 删除后无法恢复，请先导出需要保留的数据</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  当前密码
+                </label>
+                <input
+                  type="password"
+                  value={deleteAccountPassword}
+                  onChange={(event) => setDeleteAccountPassword(event.target.value)}
+                  placeholder="输入当前密码"
+                  className="w-full px-3 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                  确认短语
+                </label>
+                <input
+                  type="text"
+                  value={deleteAccountConfirmText}
+                  onChange={(event) => setDeleteAccountConfirmText(event.target.value)}
+                  placeholder='请输入“确认注销账号”'
+                  className="w-full px-3 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex gap-2">
+              <button
+                onClick={() => {
+                  setShowDeleteAccountModal(false);
+                  resetDeleteAccountState();
+                }}
+                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountLoading || deleteAccountConfirmText !== '确认注销账号'}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+              >
+                {deleteAccountLoading ? '注销中...' : '确认注销'}
               </button>
             </div>
           </div>

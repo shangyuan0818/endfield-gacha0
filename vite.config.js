@@ -4,6 +4,7 @@ import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
 import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
+import selfDeleteAccountHandler from './api/self-delete-account.js'
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -52,7 +53,8 @@ function createDevApiPlugin() {
     ['/api/auth-rate-limit', authRateLimitHandler],
     ['/api/auth-account-status', authAccountStatusHandler],
     ['/api/account-recovery-request', accountRecoveryRequestHandler],
-    ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler]
+    ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler],
+    ['/api/self-delete-account', selfDeleteAccountHandler]
   ])
 
   return {

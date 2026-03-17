@@ -2,6 +2,7 @@
 
 仓库内的补充文档统一收口到 `docs/`：
 
+- `docs/CODEMAP.md`：前端代码地图与端到端主路径
 - `docs/screenshots/`：README 和发布页引用的产品截图
 - `docs/reviews/`：设计评审、架构审计、阶段性复盘
 

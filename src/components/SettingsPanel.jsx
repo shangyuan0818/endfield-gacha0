@@ -1,20 +1,37 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import { useTheme } from '../contexts/ThemeContext';
+import { useCloudSync } from '../hooks/app';
+import { deleteOwnAccount } from '../services/selfAccountService';
+import { finalizeDeletedAccountSession } from '../utils/finalizeDeletedAccountSession';
 
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
+  const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
+  const logout = useAuthStore(state => state.logout);
   const pools = usePoolStore(state => state.pools);
+  const setPools = usePoolStore(state => state.setPools);
+  const switchPool = usePoolStore(state => state.switchPool);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
   const history = useHistoryStore(state => state.history);
+  const setHistory = useHistoryStore(state => state.setHistory);
   const { themeMode, setThemeMode } = useTheme();
+  const { loadPublicPools } = useCloudSync({ showToast: () => {} });
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
+  const [deleteAccountPassword, setDeleteAccountPassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteAccountLoading, setDeleteAccountLoading] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [deleteAccountSuccess, setDeleteAccountSuccess] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
@@ -44,6 +61,54 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       setDeleteConfirmText('');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const resetDeleteAccountModalState = () => {
+    setDeleteAccountConfirmText('');
+    setDeleteAccountPassword('');
+    setDeleteAccountError('');
+    setDeleteAccountSuccess('');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) {
+      setDeleteAccountError('当前未登录，无法注销账号');
+      return;
+    }
+
+    if (deleteAccountConfirmText !== '确认注销账号') {
+      setDeleteAccountError('请输入“确认注销账号”后再继续');
+      return;
+    }
+
+    if (deleteAccountPassword.length < 6) {
+      setDeleteAccountError('请输入当前密码以继续');
+      return;
+    }
+
+    setDeleteAccountError('');
+    setDeleteAccountSuccess('');
+    setDeleteAccountLoading(true);
+
+    try {
+      await deleteOwnAccount(deleteAccountPassword);
+      setDeleteAccountSuccess('账号已注销，正在清理本地会话并返回首页。');
+
+      await finalizeDeletedAccountSession({
+        loadPublicPools,
+        setPools,
+        setHistory,
+        switchPool,
+        switchGameAccount,
+        logout,
+      });
+
+      navigate('/', { replace: true });
+    } catch (error) {
+      setDeleteAccountError(error.message || '注销账号失败，请稍后重试');
+    } finally {
+      setDeleteAccountLoading(false);
     }
   };
 
@@ -283,6 +348,33 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 </button>
               </div>
             </div>
+
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-sm text-red-700 dark:text-red-400">危险区域 // 注销当前账号</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
+                    删除账号、抽卡记录与自建卡池。该操作不可撤销，管理员账号不支持自助注销。
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    resetDeleteAccountModalState();
+                    setShowDeleteAccountModal(true);
+                  }}
+                  disabled={userRole === 'admin' || userRole === 'super_admin'}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 border border-red-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:border-zinc-200 dark:disabled:border-zinc-800 disabled:text-zinc-400 text-white text-xs font-bold tracking-wider transition-colors disabled:cursor-not-allowed rounded-sm uppercase"
+                >
+                  <Trash2 size={14} />
+                  注销账号
+                </button>
+              </div>
+              {(userRole === 'admin' || userRole === 'super_admin') && (
+                <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500 font-mono">
+                  管理员账号请使用超管流程删除，不提供自助注销。
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -356,6 +448,85 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold uppercase tracking-wider py-3 rounded-none transition-colors disabled:cursor-not-allowed"
               >
                 {passwordLoading ? '修改中...' : passwordSuccess ? '已更新' : '更新密码'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-md overflow-hidden animate-scale-up">
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-950/30">
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                <AlertTriangle size={20} />
+                注销当前账号
+              </h3>
+              <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
+                此操作会删除当前账号本身，以及其名下的抽卡记录和自建卡池。删除后无法恢复。
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              {deleteAccountError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-none text-sm flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>{deleteAccountError}</span>
+                </div>
+              )}
+              {deleteAccountSuccess && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-2 rounded-none text-sm">
+                  {deleteAccountSuccess}
+                </div>
+              )}
+
+              <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
+                <p>• 当前账号将被永久删除</p>
+                <p>• 该账号名下的抽卡记录与自建卡池会一起删除</p>
+                <p>• 删除后如需重新使用，请重新注册</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                  当前密码
+                </label>
+                <input
+                  type="password"
+                  value={deleteAccountPassword}
+                  onChange={(event) => setDeleteAccountPassword(event.target.value)}
+                  placeholder="输入当前密码以确认身份"
+                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
+                  确认短语
+                </label>
+                <input
+                  type="text"
+                  value={deleteAccountConfirmText}
+                  onChange={(event) => setDeleteAccountConfirmText(event.target.value)}
+                  placeholder='请输入“确认注销账号”'
+                  className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowDeleteAccountModal(false);
+                  resetDeleteAccountModalState();
+                }}
+                className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountLoading || deleteAccountSuccess || deleteAccountConfirmText !== '确认注销账号'}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
+              >
+                {deleteAccountLoading ? '注销中...' : deleteAccountSuccess ? '已注销' : '确认注销账号'}
               </button>
             </div>
           </div>
