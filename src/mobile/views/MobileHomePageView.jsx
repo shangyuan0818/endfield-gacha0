@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowRight, BarChart3, Bell, Shield, Sparkles, Star, Users } from 'lucide-react';
+import { ArrowRight, BarChart3, Bell, CircleDot, Info, Shield, Sparkles, Star, Terminal, Users } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useNavigate } from 'react-router-dom';
 import CountdownTimer from '../../components/home/CountdownTimer';
@@ -10,6 +10,7 @@ import GuideCard from '../../components/home/GuideCard';
 import PoolMechanicsCard from '../../components/home/PoolMechanicsCard';
 import RoadmapCard from '../../components/home/RoadmapCard';
 import HomeRotationScheduleCard from '../../components/home/RotationScheduleCard';
+import { APP_VERSION } from '../../constants/appMeta';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import {
@@ -22,6 +23,40 @@ import {
 import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';
+
+function MobileSectionHeader({ title, subtitle, icon: Icon }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start gap-2 min-w-0">
+        {Icon ? <Icon size={14} className="mt-0.5 text-zinc-400 dark:text-zinc-500 shrink-0" /> : null}
+        <div className="min-w-0">
+          <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-zinc-500 dark:text-zinc-400">{title}</h2>
+          {subtitle ? (
+            <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500 leading-relaxed">{subtitle}</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuickActionCard({ action, onClick }) {
+  const Icon = action.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="border border-zinc-200 bg-white px-4 py-4 text-left dark:border-zinc-800 dark:bg-zinc-900"
+    >
+      <div className={`inline-flex border p-2 ${action.accentClass}`}>
+        <Icon size={16} />
+      </div>
+      <div className="mt-3 text-sm font-bold text-zinc-800 dark:text-zinc-100">{action.label}</div>
+      <div className="mt-1 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">{action.description}</div>
+    </button>
+  );
+}
 
 function MobileHomePageView() {
   const navigate = useNavigate();
@@ -132,9 +167,34 @@ function MobileHomePageView() {
   }, []);
 
   const quickActions = [
-    { id: 'dashboard', label: '卡池分析', icon: BarChart3 },
-    { id: 'summary', label: '统计总览', icon: Star },
-    { id: 'simulator', label: '抽卡模拟', icon: Sparkles }
+    {
+      id: 'dashboard',
+      label: '卡池分析',
+      description: '查看单池详情、保底、时间线与分享长图。',
+      icon: BarChart3,
+      accentClass: 'border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-400'
+    },
+    {
+      id: 'summary',
+      label: '统计总览',
+      description: '查看跨卡池汇总、分布、排行与资源统计。',
+      icon: Star,
+      accentClass: 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-400'
+    },
+    {
+      id: 'simulator',
+      label: '抽卡模拟',
+      description: '继承账号数据继续模拟，并导出完整分享图。',
+      icon: Sparkles,
+      accentClass: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-600 dark:border-fuchsia-900 dark:bg-fuchsia-950/30 dark:text-fuchsia-400'
+    },
+    {
+      id: 'about',
+      label: '关于项目',
+      description: '查看版本、协作单元、链接与使用说明。',
+      icon: Info,
+      accentClass: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300'
+    }
   ];
 
   return (
@@ -143,10 +203,21 @@ function MobileHomePageView() {
         <div className="relative z-10">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-xl font-bold tracking-tight">终末地抽卡分析器</h1>
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-endfield-yellow">
+                <Terminal size={12} />
+                SYSTEM ONLINE
+              </div>
+              <h1 className="mt-2 text-xl font-bold tracking-tight">终末地抽卡分析器</h1>
               <p className="mt-2 text-xs text-zinc-300 leading-relaxed">
                 记录抽卡历程，查看卡池分析、统计汇总与模拟器数据。
               </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-zinc-400">
+                <span>VERSION {APP_VERSION}</span>
+                <span>|</span>
+                <span>{now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}</span>
+                <span>|</span>
+                <span>{user ? '已登录' : '游客模式'}</span>
+              </div>
               {!user && (
                 <p className="mt-2 text-[11px] text-zinc-400 flex items-center gap-1">
                   <ArrowRight size={12} />
@@ -168,21 +239,44 @@ function MobileHomePageView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              <CircleDot size={10} className="text-endfield-yellow" />
+              当前轮换状态
+            </div>
+            <div className="mt-2 text-sm font-bold text-zinc-800 dark:text-zinc-100">
+              {currentUpInfo?.name || countdown?.name || '等待下一期轮换数据'}
+            </div>
+            <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              {countdown?.isActive ? '当前卡池进行中，可直接查看详情和时间线。' : '当前没有处于开启状态的限定池，将展示下一期计划。'}
+            </div>
+          </div>
+          <div className="shrink-0 border border-zinc-200 bg-zinc-50 px-3 py-2 text-right dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">阶段卡池</div>
+            <div className="mt-1 text-lg font-black font-mono text-zinc-800 dark:text-zinc-100">{poolSchedule.length}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="快速入口"
+          subtitle="优先保留移动端最常用的分析、统计、模拟与说明入口。"
+          icon={BarChart3}
+        />
+        <div className="grid grid-cols-2 gap-3">
         {quickActions.map((action) => {
-          const Icon = action.icon;
           return (
-            <button
+            <QuickActionCard
               key={action.id}
-              type="button"
+              action={action}
               onClick={() => navigate(getMobilePathForTab(action.id))}
-              className="border border-zinc-200 bg-white px-3 py-3 text-left dark:border-zinc-800 dark:bg-zinc-900"
-            >
-              <Icon size={16} className="text-zinc-500 dark:text-zinc-400" />
-              <div className="mt-2 text-xs font-bold text-zinc-800 dark:text-zinc-100">{action.label}</div>
-            </button>
+            />
           );
         })}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3">
@@ -221,7 +315,13 @@ function MobileHomePageView() {
       </div>
 
       {latestAnnouncement && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 overflow-hidden">
+        <div className="space-y-3">
+          <MobileSectionHeader
+            title="站点公告"
+            subtitle="版本更新、维护说明与功能变更会优先展示在这里。"
+            icon={Bell}
+          />
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 overflow-hidden">
           <button
             type="button"
             onClick={handleToggleAnnouncement}
@@ -258,27 +358,74 @@ function MobileHomePageView() {
             <HomeAnnouncementContent content={latestAnnouncement.content} />
           </CollapsibleContent>
         </div>
+        </div>
       )}
 
       {countdown && (
-        <CountdownTimer
-          targetDate={countdown.targetDate}
-          title={countdown.title}
-          subTitle={countdown.subTitle}
-          link={null}
-          characterName={countdown.name}
-        />
+        <div className="space-y-3">
+          <MobileSectionHeader
+            title="倒计时"
+            subtitle="跟踪当前池结束时间或下一期开启时间。"
+            icon={Sparkles}
+          />
+          <CountdownTimer
+            targetDate={countdown.targetDate}
+            title={countdown.title}
+            subTitle={countdown.subTitle}
+            link={null}
+            characterName={countdown.name}
+          />
+        </div>
       )}
 
-      <HomeRotationScheduleCard poolSchedule={poolSchedule} now={now} />
-      <HomeFriendlyLinksCard />
-      <GuideCard isOpen={showGuide} onToggle={handleToggleGuide} />
-      <PoolMechanicsCard
-        isOpen={showPoolMechanics}
-        onToggle={handleTogglePoolMechanics}
-        currentUpInfo={currentUpInfo}
-      />
-      <RoadmapCard isOpen={showRoadmap} onToggle={handleToggleRoadmap} />
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="轮换计划"
+          subtitle="按当前 UP 相对位置查看卡池轮换、移出和后续 UP。"
+          icon={Star}
+        />
+        <HomeRotationScheduleCard poolSchedule={poolSchedule} now={now} />
+      </div>
+
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="常用链接"
+          subtitle="聚合地图、工具和相关站点入口。"
+          icon={Users}
+        />
+        <HomeFriendlyLinksCard />
+      </div>
+
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="使用指南"
+          subtitle="新用户优先看这里，快速完成登录、导入和分析。"
+          icon={ArrowRight}
+        />
+        <GuideCard isOpen={showGuide} onToggle={handleToggleGuide} />
+      </div>
+
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="卡池机制"
+          subtitle="查看当前 UP、轮换规则、免费节点与机制说明。"
+          icon={Info}
+        />
+        <PoolMechanicsCard
+          isOpen={showPoolMechanics}
+          onToggle={handleTogglePoolMechanics}
+          currentUpInfo={currentUpInfo}
+        />
+      </div>
+
+      <div className="space-y-3">
+        <MobileSectionHeader
+          title="开发路线"
+          subtitle="查看近期已完成能力和下一阶段功能计划。"
+          icon={Sparkles}
+        />
+        <RoadmapCard isOpen={showRoadmap} onToggle={handleToggleRoadmap} />
+      </div>
     </div>
   );
 }

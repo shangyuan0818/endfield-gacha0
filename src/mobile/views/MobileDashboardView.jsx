@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
-  BarChart3, LayoutGrid, Share2, Copy
+  BarChart3, LayoutGrid, Share2, Copy, Sun, Moon
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useDashboardViewState, useToast } from '../../hooks';
@@ -19,6 +19,7 @@ import { Toast } from '../../components/ui';
 import { calculateCurrentProbability } from '../../utils';
 import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { buildDashboardTimelineSections } from '../../utils/dashboardTimelineSections';
+import { buildDashboardOverviewSplitStats } from '../../utils/dashboardOverviewSplitStats';
 import {
   buildDashboardShareCardFileName,
   buildDashboardSharePayload,
@@ -33,6 +34,8 @@ import {
 } from '../../utils/simulatorShare';
 import { copyToClipboard } from '../../utils/simulatorStorage';
 
+const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
+
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
  */
@@ -40,6 +43,14 @@ function MobileDashboardView() {
   const { isDark } = useTheme();
   const { toasts, showToast, removeToast } = useToast();
   const shareCardRef = React.useRef(null);
+  const [shareTheme, setShareTheme] = React.useState(() => {
+    if (typeof window === 'undefined') {
+      return 'light';
+    }
+
+    return localStorage.getItem(DASHBOARD_SHARE_THEME_KEY)
+      || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  });
   const {
     user,
     charViewMode,
@@ -100,6 +111,16 @@ function MobileDashboardView() {
     overviewPoolFilter: 'all',
     hasMergedAccountView
   }), [analysisPity, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
+  const overviewSplitStats = React.useMemo(() => {
+    if (!isAllPoolsOverview) {
+      return null;
+    }
+
+    return buildDashboardOverviewSplitStats({
+      history: normalizedPoolHistory,
+      selectedPools
+    });
+  }, [isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
   const dashboardSharePayload = React.useMemo(() => buildDashboardSharePayload({
     currentPool,
     normalizedPoolType,
@@ -109,8 +130,9 @@ function MobileDashboardView() {
     overviewPoolFilter: 'all',
     stats,
     analysisPity,
-    sections: timelineSections
-  }), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, stats, timelineSections]);
+    sections: timelineSections,
+    overviewSplitStats
+  }), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, overviewSplitStats, stats, timelineSections]);
   const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
   const supportsNativeImageShare = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
@@ -131,6 +153,14 @@ function MobileDashboardView() {
       return false;
     }
   }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
+  }, [shareTheme]);
   const shareImageActionLabel = supportsNativeImageShare ? '系统分享图片' : '下载分享长图';
   const shareTextActionLabel = '复制分享文本';
   const resourceSummaryTitle = isGroupMode ? `${currentPool.name}资源统计` : '资源统计';
@@ -164,7 +194,7 @@ function MobileDashboardView() {
 
     try {
       const blob = await renderShareCardToBlob(shareCardRef.current, {
-        backgroundColor: isDark ? '#09090b' : '#f4f4f5'
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
       const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
       const file = buildShareFile(blob, fileName);
@@ -187,7 +217,7 @@ function MobileDashboardView() {
 
       showToast('详情分享卡生成失败，请稍后重试', 'error');
     }
-  }, [dashboardSharePayload, hasDashboardShareData, isDark, showToast, supportsNativeImageShare]);
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare]);
 
   if (!hasPoolData) {
     return (
@@ -231,7 +261,7 @@ function MobileDashboardView() {
             pointerEvents: 'none',
           }}
         >
-          <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={isDark ? 'dark' : 'light'} />
+          <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={shareTheme} />
         </div>
       )}
       {/* 卡池选择器 */}
@@ -288,23 +318,57 @@ function MobileDashboardView() {
           )}
 
           {hasDashboardShareData && (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => void handleShareImage()}
-                className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
-              >
-                <Share2 size={14} />
-                {shareImageActionLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCopyShareText()}
-                className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
-              >
-                <Copy size={14} />
-                {shareTextActionLabel}
-              </button>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center justify-between gap-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                  分享主题
+                </div>
+                <div className="flex border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShareTheme('light')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                      shareTheme === 'light'
+                        ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                        : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    <Sun size={12} />
+                    亮色
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShareTheme('dark')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
+                      shareTheme === 'dark'
+                        ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                        : 'text-zinc-500 dark:text-zinc-400'
+                    }`}
+                  >
+                    <Moon size={12} />
+                    暗色
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleShareImage()}
+                  className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                >
+                  <Share2 size={14} />
+                  {shareImageActionLabel}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyShareText()}
+                  className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                >
+                  <Copy size={14} />
+                  {shareTextActionLabel}
+                </button>
+              </div>
             </div>
           )}
         </div>
