@@ -9,9 +9,8 @@ import useAuthStore from '../../stores/useAuthStore';
 function MobileAdminView() {
   const { userRole } = useAuthStore();
   const isSuperAdmin = userRole === 'super_admin';
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
-  if (!isSuperAdmin && !isAdmin) {
+  if (!isSuperAdmin) {
     return (
       <div className="px-4 py-8">
         <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-6 shadow-sm">
@@ -20,7 +19,7 @@ function MobileAdminView() {
             <h3 className="text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">拒绝访问</h3>
           </div>
           <p className="text-red-600 dark:text-red-300 text-xs font-mono">
-            权限不足。需要管理员权限。
+            权限不足。需要超级管理员权限。
           </p>
         </div>
       </div>

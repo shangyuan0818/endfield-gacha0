@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MinecraftCaptcha from '../MinecraftCaptcha';
 import TerminalPowCaptcha from './TerminalPowCaptcha';
-import EnhancedPuzzleCaptchaDemo from './EnhancedPuzzleCaptchaDemo';
+import EnhancedPuzzleCaptcha from './EnhancedPuzzleCaptchaImpl';
 import { fetchWithTimeout } from '../../services/supabaseRequest';
 import { buildPlayerUrl, expandPuzzle } from './puzzleUtils';
-import './CaptchaPuzzleDemo.css';
+import './CaptchaPuzzleOracle.css';
 
 const CAPTCHA_MODES = [
   {
@@ -230,7 +230,7 @@ function SecondaryModeFrame({ modeRail, title, eyebrow, children }) {
   );
 }
 
-export default function OracleCaptchaHubDemo({ onVerified, isMobile = false }) {
+export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   const [activeMode, setActiveMode] = useState(getInitialMode);
   const [currentDifficulty, setCurrentDifficulty] = useState(getInitialDifficulty);
   const [puzzleRows, setPuzzleRows] = useState([]);
@@ -378,7 +378,7 @@ export default function OracleCaptchaHubDemo({ onVerified, isMobile = false }) {
     }
 
     return (
-      <EnhancedPuzzleCaptchaDemo
+      <EnhancedPuzzleCaptcha
         key={`${puzzleVersion}-${currentPuzzle.id}`}
         noticeMessage={puzzleNotice}
         modeRail={renderModeRail()}

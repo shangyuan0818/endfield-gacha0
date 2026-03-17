@@ -152,7 +152,7 @@ function renderBarStack(target, current, vertical = false) {
   });
 }
 
-export default function EnhancedPuzzleCaptchaDemo({
+export default function EnhancedPuzzleCaptchaImpl({
   puzzle,
   puzzleId,
   puzzleAuthor,
