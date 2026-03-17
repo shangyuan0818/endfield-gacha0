@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 
-const SHARE_CARD_WIDTH = 1200;
+const SHARE_CARD_WIDTH = 880;
 const SHARE_WATERMARK_NAME = '终末地抽卡分析器';
 const SHARE_WATERMARK_URL = 'ef-gacha.mogujun.icu';
 
@@ -49,11 +49,11 @@ function getThemeTokens(theme = 'light') {
 const styles = {
   root: {
     width: `${SHARE_CARD_WIDTH}px`,
-    minHeight: '720px',
+    minHeight: '760px',
     boxSizing: 'border-box',
     background: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)',
     color: '#18181b',
-    padding: '28px',
+    padding: '24px',
     fontFamily: '"Microsoft YaHei UI", "Segoe UI", sans-serif',
     border: '2px solid #d4d4d8',
     display: 'flex',
@@ -73,9 +73,9 @@ const styles = {
     zIndex: 1,
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '20px',
+    gap: '16px',
     borderBottom: '1px solid #d4d4d8',
-    paddingBottom: '16px'
+    paddingBottom: '14px'
   },
   titleWrap: {
     display: 'flex',
@@ -91,7 +91,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   title: {
-    fontSize: '36px',
+    fontSize: '34px',
     lineHeight: 1.08,
     fontWeight: 900,
     letterSpacing: '-0.04em',
@@ -100,9 +100,9 @@ const styles = {
   subtitle: {
     display: 'flex',
     flexWrap: 'wrap',
-    gap: '10px',
+    gap: '8px',
     alignItems: 'center',
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#52525b',
     fontWeight: 600
   },
@@ -110,7 +110,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'flex-end',
-    gap: '8px',
+    gap: '6px',
     flexShrink: 0
   },
   badge: {
@@ -134,17 +134,17 @@ const styles = {
     position: 'relative',
     zIndex: 1,
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     gap: '12px'
   },
   statCard: {
     border: '1px solid #d4d4d8',
     background: '#ffffff',
-    padding: '16px',
+    padding: '14px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
-    minHeight: '112px'
+    minHeight: '104px'
   },
   statLabel: {
     fontSize: '11px',
@@ -154,7 +154,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   statValue: {
-    fontSize: '34px',
+    fontSize: '32px',
     lineHeight: 1,
     fontWeight: 900,
     color: '#111827'
@@ -168,13 +168,13 @@ const styles = {
     position: 'relative',
     zIndex: 1,
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 0.75fr)',
+    gridTemplateColumns: 'minmax(0, 1fr)',
     gap: '14px'
   },
   panel: {
     border: '1px solid #d4d4d8',
     background: '#ffffff',
-    padding: '16px'
+    padding: '14px'
   },
   averageGrid: {
     display: 'grid',
@@ -261,7 +261,7 @@ const styles = {
   },
   sectionMeta: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     gap: '10px',
     marginTop: '12px'
   },
@@ -271,7 +271,7 @@ const styles = {
   },
   metricValue: {
     marginTop: '6px',
-    fontSize: '18px',
+    fontSize: '20px',
     fontWeight: 900,
     color: '#18181b'
   },
@@ -283,8 +283,8 @@ const styles = {
     marginTop: '14px'
   },
   portrait: {
-    width: '52px',
-    height: '52px',
+    width: '68px',
+    height: '68px',
     border: '1px solid #d4d4d8',
     background: '#fafafa',
     display: 'flex',
@@ -305,7 +305,7 @@ const styles = {
     padding: '2px 4px'
   },
   portraitLabel: {
-    fontSize: '18px',
+    fontSize: '22px',
     fontWeight: 900,
     color: '#18181b'
   },
@@ -355,8 +355,10 @@ const styles = {
   },
   barTrack: {
     position: 'relative',
-    flex: 1,
-    height: '32px',
+    flex: '0 1 360px',
+    width: '100%',
+    maxWidth: '360px',
+    height: '34px',
     border: '1px solid #d4d4d8',
     background: '#f4f4f5',
     overflow: 'hidden'
@@ -377,7 +379,7 @@ const styles = {
     inset: '0 auto 0 12px',
     display: 'flex',
     alignItems: 'center',
-    fontSize: '18px',
+    fontSize: '20px',
     fontWeight: 900,
     color: '#111827'
   },
@@ -477,6 +479,18 @@ function getSectionTone(type) {
   };
 }
 
+function getSectionTypeLabel(type) {
+  if (type === 'weapon') {
+    return '武器池';
+  }
+
+  if (type === 'standard') {
+    return '常驻角色池';
+  }
+
+  return '限定角色池';
+}
+
 function getBarColor(entry, sectionType) {
   if (entry.stageKind === 'gift') {
     return '#34d399';
@@ -568,7 +582,7 @@ function TimelineEntry({ entry, section, tokens }) {
 
   return (
     <div style={{ ...styles.entryRow, borderTopColor: tokens.subtleBorder }}>
-      <div style={{ width: '64px', flexShrink: 0 }}>
+      <div style={{ width: '80px', flexShrink: 0 }}>
         <div style={{ ...styles.portrait, borderColor: tokens.border, background: tokens.panelMutedBackground, overflow: 'hidden' }}>
           <div style={{ ...styles.portraitRarity, background: tokens.rarityBadgeBackground, color: tokens.rarityBadgeText }}>
             {leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : '阶段'}
@@ -577,7 +591,7 @@ function TimelineEntry({ entry, section, tokens }) {
             <img
               src={leadBadge.avatarUrl}
               alt={leadBadge.label}
-              style={{ width: '52px', height: '52px', objectFit: 'cover', display: 'block' }}
+              style={{ width: '68px', height: '68px', objectFit: 'cover', display: 'block' }}
             />
           ) : (
             <div style={{ ...styles.portraitLabel, color: tokens.textPrimary }}>{String(leadBadge.label || '?').slice(0, 1)}</div>
@@ -667,6 +681,18 @@ function TimelineSection({ section, tokens }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
               <div style={{ fontSize: '24px', fontWeight: 900, color: tokens.textPrimary }}>{section.title}</div>
+              <div
+                style={{
+                  ...styles.badge,
+                  padding: '4px 8px',
+                  fontSize: '10px',
+                  color: tone.accent,
+                  borderColor: tone.accent,
+                  background: tone.soft
+                }}
+              >
+                {getSectionTypeLabel(section.type)}
+              </div>
               {section.featured && (
                 <div
                   style={{
@@ -759,24 +785,57 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
 
       <div>
         <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>核心统计</div>
-        <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
-          {payload?.summaryItems?.map((item) => (
-            <SummaryCard key={item.id} item={item} tokens={tokens} />
-          ))}
-        </div>
+        {Array.isArray(payload?.summaryGroups) && payload.summaryGroups.length > 0 ? (
+          <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
+            {payload.summaryGroups.map((group) => (
+              <div key={group.id} style={{ ...styles.panel, borderColor: tokens.border, background: tokens.panelBackground }}>
+                <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{group.label}</div>
+                <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
+                  {group.items.map((item) => (
+                    <SummaryCard key={`${group.id}-${item.id}`} item={item} tokens={tokens} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
+            {payload?.summaryItems?.map((item) => (
+              <SummaryCard key={item.id} item={item} tokens={tokens} />
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={styles.midGrid}>
         <div style={{ ...styles.panel, borderColor: tokens.border, background: tokens.panelBackground }}>
           <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>平均出货</div>
-          <div style={styles.averageGrid}>
-            {payload?.averageItems?.map((item) => (
-              <div key={item.id} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
-                <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>{item.label}</div>
-                <div style={{ ...styles.averageValue, color: tokens.textPrimary }}>{item.value}</div>
-              </div>
-            ))}
-          </div>
+          {Array.isArray(payload?.averageGroups) && payload.averageGroups.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginTop: '12px' }}>
+              {payload.averageGroups.map((group) => (
+                <div key={group.id} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
+                  <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{group.label}</div>
+                  <div style={styles.averageGrid}>
+                    {group.items.map((item) => (
+                      <div key={`${group.id}-${item.id}`} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelBackground }}>
+                        <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>{item.label}</div>
+                        <div style={{ ...styles.averageValue, color: tokens.textPrimary }}>{item.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={styles.averageGrid}>
+              {payload?.averageItems?.map((item) => (
+                <div key={item.id} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
+                  <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>{item.label}</div>
+                  <div style={{ ...styles.averageValue, color: tokens.textPrimary }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ ...styles.averageNote, color: tokens.textMuted }}>
             口径：排除赠送与免费十连；情报书计入有效抽数。
           </div>

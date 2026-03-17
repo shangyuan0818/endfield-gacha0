@@ -11,7 +11,7 @@ const cardStyles = {
     boxSizing: 'border-box',
     background: 'linear-gradient(135deg, #0a0a0b 0%, #12151a 45%, #111827 100%)',
     color: '#f5f5f5',
-    padding: '36px',
+    padding: '24px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
@@ -40,7 +40,7 @@ const cardStyles = {
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '24px',
+    gap: '18px',
     position: 'relative',
     zIndex: 1,
   },
@@ -57,14 +57,14 @@ const cardStyles = {
     fontWeight: 700,
   },
   title: {
-    fontSize: '42px',
+    fontSize: '34px',
     lineHeight: 1.1,
     fontWeight: 800,
     letterSpacing: '-0.04em',
     color: '#fafafa',
   },
   subTitle: {
-    fontSize: '20px',
+    fontSize: '16px',
     color: '#d4d4d8',
     fontWeight: 600,
   },
@@ -78,8 +78,8 @@ const cardStyles = {
     border: '1px solid #3f3f46',
     background: 'rgba(12, 14, 18, 0.86)',
     color: '#facc15',
-    padding: '8px 14px',
-    fontSize: '14px',
+    padding: '7px 12px',
+    fontSize: '12px',
     fontWeight: 700,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -89,7 +89,7 @@ const cardStyles = {
   },
   metricGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     gap: '18px',
     position: 'relative',
     zIndex: 1,
@@ -97,33 +97,33 @@ const cardStyles = {
   metricCard: {
     border: '1px solid #27272a',
     background: 'rgba(14, 17, 22, 0.88)',
-    padding: '20px',
+    padding: '16px',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
-    minHeight: '148px',
+    minHeight: '120px',
   },
   metricLabel: {
-    fontSize: '14px',
+    fontSize: '12px',
     letterSpacing: '0.12em',
     textTransform: 'uppercase',
     color: '#a1a1aa',
     fontWeight: 700,
   },
   metricValue: {
-    fontSize: '46px',
+    fontSize: '38px',
     lineHeight: 1,
     fontWeight: 800,
     color: '#fafafa',
   },
   metricSub: {
-    fontSize: '18px',
+    fontSize: '15px',
     color: '#e4e4e7',
     fontWeight: 600,
   },
   footerGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
     gap: '14px',
     position: 'relative',
     zIndex: 1,
@@ -144,7 +144,7 @@ const cardStyles = {
     textTransform: 'uppercase',
   },
   footerValue: {
-    fontSize: '26px',
+    fontSize: '24px',
     color: '#fafafa',
     fontWeight: 800,
   },
@@ -218,12 +218,12 @@ const cardStyles = {
     gap: '12px',
   },
   timelineSectionTitle: {
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: 800,
     color: '#fafafa',
   },
   timelineSectionMeta: {
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
     color: '#a1a1aa',
     display: 'flex',
@@ -237,7 +237,7 @@ const cardStyles = {
     paddingTop: '12px',
   },
   timelinePortraitWrap: {
-    width: '58px',
+    width: '74px',
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
@@ -245,8 +245,8 @@ const cardStyles = {
     gap: '6px',
   },
   timelinePortrait: {
-    width: '52px',
-    height: '52px',
+    width: '68px',
+    height: '68px',
     border: '1px solid #3f3f46',
     background: '#18181b',
     display: 'flex',
@@ -256,7 +256,7 @@ const cardStyles = {
     position: 'relative',
   },
   timelinePortraitFallback: {
-    fontSize: '18px',
+    fontSize: '22px',
     fontWeight: 900,
     color: '#fafafa',
   },
@@ -313,7 +313,8 @@ const cardStyles = {
     border: '1px solid #3f3f46',
     background: '#18181b',
     overflow: 'hidden',
-    maxWidth: '88%',
+    width: '100%',
+    maxWidth: '360px',
   },
   timelineBarFill: {
     position: 'absolute',
@@ -326,7 +327,7 @@ const cardStyles = {
     left: '14px',
     display: 'flex',
     alignItems: 'center',
-    fontSize: '22px',
+    fontSize: '24px',
     fontWeight: 900,
     color: '#09090b',
   },
@@ -373,6 +374,18 @@ function getAccentColor(poolType) {
   }
 
   return '#facc15';
+}
+
+function getPoolTypeChipLabel(poolType) {
+  if (poolType === 'weapon') {
+    return '武器池';
+  }
+
+  if (poolType === 'standard') {
+    return '常驻角色池';
+  }
+
+  return '限定角色池';
 }
 
 function getLeadBadge(entry, featured) {
@@ -469,7 +482,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
         </div>
       </div>
 
-      <div style={{ ...cardStyles.metricGrid, gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+      <div style={{ ...cardStyles.metricGrid, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
         {primaryCards.map((card) => (
           <div key={card.label} style={{ ...cardStyles.metricCard, borderColor: accentColor }}>
             <div style={cardStyles.metricLabel}>{card.label}</div>
@@ -526,6 +539,8 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                 <div style={cardStyles.timelineSectionTitle}>{section.title}</div>
                 <div style={cardStyles.timelineSectionMeta}>
                   <span>{section.period}</span>
+                  <span>·</span>
+                  <span>{getPoolTypeChipLabel(section.type || payload?.poolType)}</span>
                   <span>·</span>
                   <span>{section.featured || payload?.upCharacter || '当前目标'}</span>
                   <span>·</span>

@@ -37,6 +37,18 @@ function getTimelineTone(type) {
   };
 }
 
+function getSectionTypeLabel(type) {
+  if (type === 'weapon') {
+    return '武器池';
+  }
+
+  if (type === 'standard') {
+    return '常驻角色池';
+  }
+
+  return '限定角色池';
+}
+
 function getStatusText(status) {
   if (!status?.isTimed) {
     return '长期开放';
@@ -283,6 +295,9 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className={`${embedded ? 'text-base' : 'text-lg'} font-bold tracking-tight text-slate-900 dark:text-zinc-100`}>{section.title}</h3>
+              <span className={`inline-flex border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${tone.chip}`}>
+                {getSectionTypeLabel(section.type)}
+              </span>
               {section.featured && (
                 <span className={`inline-flex border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${tone.chip}`}>
                   {section.featured}

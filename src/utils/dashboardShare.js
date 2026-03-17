@@ -95,6 +95,60 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   return items;
 }
 
+function buildSplitSummaryGroups(overviewSplitStats) {
+  if (!overviewSplitStats) {
+    return null;
+  }
+
+  return [
+    {
+      id: 'character',
+      label: '角色池汇总',
+      items: buildSummaryItems({
+        stats: overviewSplitStats.character,
+        poolType: 'limited',
+        isAllPoolsOverview: true
+      })
+    },
+    {
+      id: 'weapon',
+      label: '武器池汇总',
+      items: buildSummaryItems({
+        stats: overviewSplitStats.weapon,
+        poolType: 'weapon',
+        isAllPoolsOverview: true
+      })
+    }
+  ];
+}
+
+function buildSplitAverageGroups(overviewSplitStats) {
+  if (!overviewSplitStats) {
+    return null;
+  }
+
+  return [
+    {
+      id: 'character',
+      label: '角色池平均',
+      items: buildAverageItems({
+        stats: overviewSplitStats.character,
+        poolType: 'limited',
+        isAllPoolsOverview: true
+      })
+    },
+    {
+      id: 'weapon',
+      label: '武器池平均',
+      items: buildAverageItems({
+        stats: overviewSplitStats.weapon,
+        poolType: 'weapon',
+        isAllPoolsOverview: true
+      })
+    }
+  ];
+}
+
 function buildSummaryItems({ stats, poolType, isAllPoolsOverview }) {
   const items = [
     {
@@ -200,7 +254,8 @@ export function buildDashboardSharePayload({
   overviewPoolFilter = 'all',
   stats = {},
   analysisPity = null,
-  sections = []
+  sections = [],
+  overviewSplitStats = null
 } = {}) {
   const scopeLabel = isAllPoolsOverview
     ? '全部卡池总览'
@@ -218,13 +273,21 @@ export function buildDashboardSharePayload({
     scopeLabel,
     poolName,
     poolType: normalizedPoolType || 'standard',
-    poolTypeLabel: getPoolTypeLabel(normalizedPoolType),
+    poolTypeLabel: isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? '角色池 + 武器池'
+      : getPoolTypeLabel(normalizedPoolType),
     overviewFilterLabel,
     featured: currentPool?.up_character || currentPool?.upCharacter || null,
     periodLabel,
     totalNodes,
     totalSections: sections.length,
     hasMergedAccountView,
+    summaryGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitSummaryGroups(overviewSplitStats)
+      : null,
+    averageGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitAverageGroups(overviewSplitStats)
+      : null,
     summaryItems: buildSummaryItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
     averageItems: buildAverageItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
     pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }),
@@ -258,13 +321,31 @@ export function buildDashboardShareText(payload) {
     lines.push(`当前目标：${payload.featured}`);
   }
 
-  payload.summaryItems.forEach((item) => {
-    lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
-  });
+  if (Array.isArray(payload.summaryGroups) && payload.summaryGroups.length > 0) {
+    payload.summaryGroups.forEach((group) => {
+      lines.push(group.label);
+      group.items.forEach((item) => {
+        lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
+      });
+    });
+  } else {
+    payload.summaryItems.forEach((item) => {
+      lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
+    });
+  }
 
-  payload.averageItems.forEach((item) => {
-    lines.push(`${item.label}：${item.value}`);
-  });
+  if (Array.isArray(payload.averageGroups) && payload.averageGroups.length > 0) {
+    payload.averageGroups.forEach((group) => {
+      lines.push(group.label);
+      group.items.forEach((item) => {
+        lines.push(`${item.label}：${item.value}`);
+      });
+    });
+  } else {
+    payload.averageItems.forEach((item) => {
+      lines.push(`${item.label}：${item.value}`);
+    });
+  }
 
   if (payload.pitySummary) {
     lines.push(`当前 6★ 保底：${payload.pitySummary.current6}/${payload.pitySummary.max6}`);

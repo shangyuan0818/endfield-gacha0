@@ -16,6 +16,7 @@ import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
 import { normalizePoolGroupType } from '../../utils/poolSelectorDisplay';
 import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { buildDashboardTimelineSections } from '../../utils/dashboardTimelineSections';
+import { buildDashboardOverviewSplitStats } from '../../utils/dashboardOverviewSplitStats';
 import {
   buildDashboardShareCardFileName,
   buildDashboardSharePayload,
@@ -70,6 +71,24 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
     </div>
     
     {subValue && <div className="text-[10px] text-slate-400 dark:text-zinc-500 mt-1 font-mono">{subValue}</div>}
+  </div>
+);
+
+const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-zinc-100' }) => (
+  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
+    <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent" />
+    <div className="relative z-10">
+      <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">
+        {title}
+      </h3>
+      <div className={`text-4xl font-black font-mono flex items-baseline gap-2 ${accentClass}`}>
+        {value}
+        <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
+      </div>
+    </div>
+    <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500">
+      <Layers size={24} />
+    </div>
   </div>
 );
 
@@ -175,6 +194,16 @@ const DashboardView = ({ showToast }) => {
     overviewPoolFilter: allOverviewPoolFilter,
     hasMergedAccountView
   }), [allOverviewPoolFilter, analysisPity, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
+  const splitOverviewStats = React.useMemo(() => {
+    if (!isAllPoolsOverview || allOverviewPoolFilter !== 'all') {
+      return null;
+    }
+
+    return buildDashboardOverviewSplitStats({
+      history: normalizedPoolHistory,
+      selectedPools
+    });
+  }, [allOverviewPoolFilter, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
   const dashboardSharePayload = React.useMemo(() => buildDashboardSharePayload({
     currentPool,
     normalizedPoolType,
@@ -184,8 +213,9 @@ const DashboardView = ({ showToast }) => {
     overviewPoolFilter: allOverviewPoolFilter,
     stats,
     analysisPity,
-    sections: timelineSections
-  }), [allOverviewPoolFilter, analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, stats, timelineSections]);
+    sections: timelineSections,
+    overviewSplitStats: splitOverviewStats
+  }), [allOverviewPoolFilter, analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, splitOverviewStats, stats, timelineSections]);
   const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
   const supportsNativeImageShare = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
@@ -359,179 +389,285 @@ const DashboardView = ({ showToast }) => {
         {/* 右列：详细数据与图表（聚合模式下全宽） */}
         <div className={`${isGroupMode ? 'md:col-span-3' : 'md:col-span-2'} space-y-6`}>
           
-          {/* 总投入 Banner */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
-            <div className="absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent"></div>
-            <div className="relative z-10">
-              <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">
-                {isGroupMode ? `${currentPool.name}总投入` : '当前卡池总投入'}
-              </h3>
-              <div className="text-4xl font-black font-mono text-slate-800 dark:text-zinc-100 flex items-baseline gap-2">
-                {stats.total}
-                <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
+          {splitOverviewStats ? (
+            <>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                <OverviewBanner title="全部卡池总投入 · 角色池" value={splitOverviewStats.character.total} accentClass="rainbow-text" />
+                <OverviewBanner title="全部卡池总投入 · 武器池" value={splitOverviewStats.weapon.total} accentClass="text-amber-600 dark:text-amber-400" />
               </div>
-            </div>
-            <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500 group-hover:bg-slate-200 dark:group-hover:bg-zinc-700 transition-colors">
-              <Layers size={24} />
-            </div>
-          </div>
 
-          {/* 核心数据网格 */}
-          <div className={`grid grid-cols-2 ${normalizedPoolType !== 'standard' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
-            {normalizedPoolType !== 'standard' && (
-              <StatBox
-                title={isAllPoolsOverview ? '目标6星' : '限定6星'}
-                value={stats.counts[6]}
-                subValue={(() => {
-                  if (isAllPoolsOverview) {
-                    return stats.totalSixStar > 0 ? `占全部6★ ${(stats.counts[6] / stats.totalSixStar * 100).toFixed(1)}%` : '暂无6★';
-                  }
-                  if (isGroupMode) return `不歪率 ${stats.winRate}%`;
-                  let bonusCount = 0;
-                  if (normalizedPoolType === 'limited') {
-                    bonusCount = Math.floor(stats.total/240);
-                  } else if (normalizedPoolType === 'weapon') {
-                     // 简单估算武器池赠送
-                     if (stats.total >= 180) bonusCount = 1 + Math.floor((stats.total - 180) / 160);
-                  }
-                  return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占比 ${(stats.winRate)}%`;
-                })()}
-                colorClass={normalizedPoolType === 'limited' ? 'rainbow-text' : 'text-slate-700 dark:text-zinc-300'}
-                icon={Star}
-                isAnimated={normalizedPoolType === 'limited' && !isAllPoolsOverview}
-              />
-            )}
-            <StatBox
-              title={isAllPoolsOverview ? '常驻/偏移6星' : '常驻6星'}
-              value={stats.counts['6_std']}
-              subValue={isAllPoolsOverview ? '跨卡池汇总' : normalizedPoolType === 'standard' && stats.total >= 300 ? '含赠送 1' : '歪'}
-              colorClass="text-red-600 dark:text-red-400"
-              icon={Star}
-            />
-            <StatBox 
-              title="5星总数" 
-              value={stats.counts[5]} 
-              subValue={`占比 ${(stats.total > 0 ? stats.counts[5]/stats.total*100 : 0).toFixed(1)}%`} 
-              colorClass="text-amber-600 dark:text-amber-400" 
-              icon={Star} 
-            />
-            <StatBox 
-              title="4星总数" 
-              value={stats.counts[4]} 
-              subValue={`占比 ${(stats.total > 0 ? stats.counts[4]/stats.total*100 : 0).toFixed(1)}%`} 
-              colorClass="text-purple-600 dark:text-purple-400" 
-              icon={Star} 
-            />
-          </div>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">角色池统计</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <StatBox title="目标6星" value={splitOverviewStats.character.counts[6]} subValue={splitOverviewStats.character.totalSixStar > 0 ? `占全部6★ ${(splitOverviewStats.character.counts[6] / splitOverviewStats.character.totalSixStar * 100).toFixed(1)}%` : '暂无6★'} colorClass="rainbow-text" icon={Star} isAnimated />
+                    <StatBox title="常驻/偏移6星" value={splitOverviewStats.character.counts['6_std']} subValue="角色池汇总" colorClass="text-red-600 dark:text-red-400" icon={Star} />
+                    <StatBox title="5星总数" value={splitOverviewStats.character.counts[5]} subValue={`占比 ${(splitOverviewStats.character.total > 0 ? splitOverviewStats.character.counts[5] / splitOverviewStats.character.total * 100 : 0).toFixed(1)}%`} colorClass="text-amber-600 dark:text-amber-400" icon={Star} />
+                    <StatBox title="4星总数" value={splitOverviewStats.character.counts[4]} subValue={`占比 ${(splitOverviewStats.character.total > 0 ? splitOverviewStats.character.counts[4] / splitOverviewStats.character.total * 100 : 0).toFixed(1)}%`} colorClass="text-purple-600 dark:text-purple-400" icon={Star} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <StatBox title="目标6星占比" value={`${splitOverviewStats.character.winRate}%`} subValue={`${splitOverviewStats.character.counts[6] || 0}/${splitOverviewStats.character.totalSixStar || 0}`} colorClass="text-green-600 dark:text-green-400" icon={TrendingUp} />
+                    <StatBox title="全部6星" value={splitOverviewStats.character.totalSixStar} subValue={`总抽数 ${splitOverviewStats.character.total}`} colorClass="text-slate-700 dark:text-zinc-200" icon={Star} />
+                  </div>
+                </div>
 
-          {/* 聚合模式下的额外指标（因为左侧栏被隐藏） */}
-          {isGroupMode && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <StatBox
-                title={isAllPoolsOverview ? '目标6星占比' : '不歪率'}
-                value={`${stats.winRate}%`}
-                subValue={`${stats.upSixStarCount || 0}/${stats.sixStarCount || 0}`}
-                colorClass="text-green-600 dark:text-green-400"
-                icon={TrendingUp}
-              />
-              <StatBox
-                title={isAllPoolsOverview ? '目标6星' : '限定6星'}
-                value={stats.counts[6] ?? 0}
-                subValue={`常驻6星 ${stats.counts['6_std'] ?? 0}`}
-                colorClass={normalizedPoolType === 'weapon' ? 'text-slate-700 dark:text-zinc-300' : 'rainbow-text'}
-                icon={Star}
-                isAnimated={normalizedPoolType !== 'weapon' && !isAllPoolsOverview}
-              />
-            </div>
+                <div className="space-y-4">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">武器池统计</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <StatBox title="UP6星" value={splitOverviewStats.weapon.counts[6]} subValue={splitOverviewStats.weapon.totalSixStar > 0 ? `占全部6★ ${(splitOverviewStats.weapon.counts[6] / splitOverviewStats.weapon.totalSixStar * 100).toFixed(1)}%` : '暂无6★'} colorClass="text-amber-600 dark:text-amber-400" icon={Star} />
+                    <StatBox title="常驻/偏移6星" value={splitOverviewStats.weapon.counts['6_std']} subValue="武器池汇总" colorClass="text-red-600 dark:text-red-400" icon={Star} />
+                    <StatBox title="5星总数" value={splitOverviewStats.weapon.counts[5]} subValue={`占比 ${(splitOverviewStats.weapon.total > 0 ? splitOverviewStats.weapon.counts[5] / splitOverviewStats.weapon.total * 100 : 0).toFixed(1)}%`} colorClass="text-amber-600 dark:text-amber-400" icon={Star} />
+                    <StatBox title="4星总数" value={splitOverviewStats.weapon.counts[4]} subValue={`占比 ${(splitOverviewStats.weapon.total > 0 ? splitOverviewStats.weapon.counts[4] / splitOverviewStats.weapon.total * 100 : 0).toFixed(1)}%`} colorClass="text-purple-600 dark:text-purple-400" icon={Star} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <StatBox title="UP6星占比" value={`${splitOverviewStats.weapon.winRate}%`} subValue={`${splitOverviewStats.weapon.counts[6] || 0}/${splitOverviewStats.weapon.totalSixStar || 0}`} colorClass="text-green-600 dark:text-green-400" icon={TrendingUp} />
+                    <StatBox title="全部6星" value={splitOverviewStats.weapon.totalSixStar} subValue={`总抽数 ${splitOverviewStats.weapon.total}`} colorClass="text-slate-700 dark:text-zinc-200" icon={Star} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <AveragePullStatsPanel stats={splitOverviewStats.character} poolType="limited" isAllPoolsOverview={true} />
+                <AveragePullStatsPanel stats={splitOverviewStats.weapon} poolType="weapon" isAllPoolsOverview={true} />
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <ResourceSummaryPanel title="角色池资源统计" resources={splitOverviewStats.character.resourceSummary} variant="character" stacked={true} className="bg-white dark:bg-zinc-900 shadow-sm" />
+                <ResourceSummaryPanel title="武器池资源统计" resources={splitOverviewStats.weapon.resourceSummary} variant="weapon" stacked={true} className="bg-white dark:bg-zinc-900 shadow-sm" />
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {[
+                  { key: 'character', title: '角色池', stats: splitOverviewStats.character },
+                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon }
+                ].map((group) => (
+                  <div key={`pie-${group.key}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                        <PieChartIcon size={16} />
+                        分布概览 · {group.title}
+                      </h3>
+                    </div>
+                    <div className="h-64 w-full">
+                      {group.stats.total === 0 ? (
+                        <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无数据</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <RainbowGradientDefs />
+                            <Pie data={group.stats.chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="displayValue">
+                              {group.stats.chartData.map((entry, index) => (
+                                <Cell key={`cell-${group.key}-${index}`} fill={entry.color} stroke="none" />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip
+                              formatter={(value, name, props) => [`${props.payload.value} (${(props.payload.value / group.stats.total * 100).toFixed(1)}%)`, name]}
+                              contentStyle={tooltipStyle}
+                              itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                            />
+                            <Legend verticalAlign="bottom" iconSize={8} formatter={(value) => <span className="text-xs text-slate-500 dark:text-zinc-400 ml-1">{value}</span>} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {[
+                  { key: 'character', title: '角色池', stats: splitOverviewStats.character, targetName: '目标' },
+                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon, targetName: 'UP' }
+                ].map((group) => (
+                  <div key={`bar-${group.key}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                        <TrendingUp size={16} />
+                        出货分布 · {group.title}
+                      </h3>
+                    </div>
+                    <div className="h-64 w-full">
+                      {group.stats.pityStats.history.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无6星记录</div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={group.stats.pityStats.distribution} stackOffset="sign" margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <RainbowGradientDefs />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
+                            <XAxis dataKey="range" tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} interval={0} axisLine={false} tickLine={false} />
+                            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} axisLine={false} tickLine={false} />
+                            <RechartsTooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }} />
+                            <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name={group.targetName} radius={[0, 0, 2, 2]} />
+                            <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻/偏移" radius={[2, 2, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* 总投入 Banner */}
+              <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                <div className="absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent"></div>
+                <div className="relative z-10">
+                  <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">
+                    {isGroupMode ? `${currentPool.name}总投入` : '当前卡池总投入'}
+                  </h3>
+                  <div className="text-4xl font-black font-mono text-slate-800 dark:text-zinc-100 flex items-baseline gap-2">
+                    {stats.total}
+                    <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
+                  </div>
+                </div>
+                <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500 group-hover:bg-slate-200 dark:group-hover:bg-zinc-700 transition-colors">
+                  <Layers size={24} />
+                </div>
+              </div>
+
+              {/* 核心数据网格 */}
+              <div className={`grid grid-cols-2 ${normalizedPoolType !== 'standard' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+                {normalizedPoolType !== 'standard' && (
+                  <StatBox
+                    title={isAllPoolsOverview ? '目标6星' : '限定6星'}
+                    value={stats.counts[6]}
+                    subValue={(() => {
+                      if (isAllPoolsOverview) {
+                        return stats.totalSixStar > 0 ? `占全部6★ ${(stats.counts[6] / stats.totalSixStar * 100).toFixed(1)}%` : '暂无6★';
+                      }
+                      if (isGroupMode) return `不歪率 ${stats.winRate}%`;
+                      let bonusCount = 0;
+                      if (normalizedPoolType === 'limited') {
+                        bonusCount = Math.floor(stats.total/240);
+                      } else if (normalizedPoolType === 'weapon') {
+                         if (stats.total >= 180) bonusCount = 1 + Math.floor((stats.total - 180) / 160);
+                      }
+                      return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占比 ${(stats.winRate)}%`;
+                    })()}
+                    colorClass={normalizedPoolType === 'limited' ? 'rainbow-text' : 'text-slate-700 dark:text-zinc-300'}
+                    icon={Star}
+                    isAnimated={normalizedPoolType === 'limited' && !isAllPoolsOverview}
+                  />
+                )}
+                <StatBox
+                  title={isAllPoolsOverview ? '常驻/偏移6星' : '常驻6星'}
+                  value={stats.counts['6_std']}
+                  subValue={isAllPoolsOverview ? '跨卡池汇总' : normalizedPoolType === 'standard' && stats.total >= 300 ? '含赠送 1' : '歪'}
+                  colorClass="text-red-600 dark:text-red-400"
+                  icon={Star}
+                />
+                <StatBox 
+                  title="5星总数" 
+                  value={stats.counts[5]} 
+                  subValue={`占比 ${(stats.total > 0 ? stats.counts[5]/stats.total*100 : 0).toFixed(1)}%`} 
+                  colorClass="text-amber-600 dark:text-amber-400" 
+                  icon={Star} 
+                />
+                <StatBox 
+                  title="4星总数" 
+                  value={stats.counts[4]} 
+                  subValue={`占比 ${(stats.total > 0 ? stats.counts[4]/stats.total*100 : 0).toFixed(1)}%`} 
+                  colorClass="text-purple-600 dark:text-purple-400" 
+                  icon={Star} 
+                />
+              </div>
+
+              {isGroupMode && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <StatBox
+                    title={isAllPoolsOverview ? '目标6星占比' : '不歪率'}
+                    value={`${stats.winRate}%`}
+                    subValue={`${stats.upSixStarCount || 0}/${stats.sixStarCount || 0}`}
+                    colorClass="text-green-600 dark:text-green-400"
+                    icon={TrendingUp}
+                  />
+                  <StatBox
+                    title={isAllPoolsOverview ? '目标6星' : '限定6星'}
+                    value={stats.counts[6] ?? 0}
+                    subValue={`常驻6星 ${stats.counts['6_std'] ?? 0}`}
+                    colorClass={normalizedPoolType === 'weapon' ? 'text-slate-700 dark:text-zinc-300' : 'rainbow-text'}
+                    icon={Star}
+                    isAnimated={normalizedPoolType !== 'weapon' && !isAllPoolsOverview}
+                  />
+                </div>
+              )}
+
+              {isGroupMode && (
+                <AveragePullStatsPanel
+                  stats={stats}
+                  poolType={normalizedPoolType}
+                  isAllPoolsOverview={isAllPoolsOverview}
+                />
+              )}
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                 <ResourceSummaryPanel
+                   title={isGroupMode ? `${currentPool.name}资源统计` : '资源统计'}
+                   resources={dashboardResourceSummary}
+                   variant={resourceSummaryVariant}
+                   stacked={true}
+                   className="bg-white dark:bg-zinc-900 shadow-sm"
+                 />
+                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                         <PieChartIcon size={16} />
+                         分布概览
+                       </h3>
+                    </div>
+                    <div className="h-64 w-full">
+                       {stats.total === 0 ? (
+                          <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无数据</div>
+                       ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <RainbowGradientDefs />
+                              <Pie data={stats.chartData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="displayValue">
+                                {stats.chartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip
+                                formatter={(value, name, props) => [`${props.payload.value} (${(props.payload.value/stats.total*100).toFixed(1)}%)`, name]}
+                                contentStyle={tooltipStyle}
+                                itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
+                              />
+                              <Legend verticalAlign="bottom" iconSize={8} formatter={(value) => <span className="text-xs text-slate-500 dark:text-zinc-400 ml-1">{value}</span>} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                       )}
+                    </div>
+                 </div>
+
+                 <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
+                    <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                         <TrendingUp size={16} />
+                         出货分布
+                       </h3>
+                    </div>
+                    <div className="h-64 w-full">
+                       {stats.pityStats.history.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无6星记录</div>
+                       ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.pityStats.distribution} stackOffset="sign" margin={{top: 10, right: 10, left: -20, bottom: 0}}>
+                              <RainbowGradientDefs />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
+                              <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} interval={0} axisLine={false} tickLine={false} />
+                              <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} axisLine={false} tickLine={false} />
+                              <RechartsTooltip contentStyle={tooltipStyle} cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'}} />
+                              <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定" radius={[0, 0, 2, 2]} />
+                              <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻" radius={[2, 2, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                       )}
+                    </div>
+                 </div>
+              </div>
+            </>
           )}
-
-          {isGroupMode && (
-            <AveragePullStatsPanel
-              stats={stats}
-              normalizedPoolType={normalizedPoolType}
-              isAllPoolsOverview={isAllPoolsOverview}
-            />
-          )}
-
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-             <ResourceSummaryPanel
-               title={isGroupMode ? `${currentPool.name}资源统计` : '资源统计'}
-               resources={dashboardResourceSummary}
-               variant={resourceSummaryVariant}
-               stacked={true}
-               className="bg-white dark:bg-zinc-900 shadow-sm"
-             />
-             {/* 概率分布 (Pie) */}
-             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                   <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                     <PieChartIcon size={16} />
-                     分布概览
-                   </h3>
-                </div>
-                <div className="h-64 w-full">
-                   {stats.total === 0 ? (
-                      <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无数据</div>
-                   ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <RainbowGradientDefs />
-                          <Pie
-                            data={stats.chartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={2}
-                            dataKey="displayValue"
-                          >
-                            {stats.chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip
-                            formatter={(value, name, props) => [`${props.payload.value} (${(props.payload.value/stats.total*100).toFixed(1)}%)`, name]}
-                            contentStyle={tooltipStyle}
-                            itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
-                          />
-                          <Legend 
-                            verticalAlign="bottom" 
-                            iconSize={8}
-                            formatter={(value, _entry) => <span className="text-xs text-slate-500 dark:text-zinc-400 ml-1">{value}</span>}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                   )}
-                </div>
-             </div>
-
-             {/* 6星分布直方图 */}
-             <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                   <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                     <TrendingUp size={16} />
-                     出货分布
-                   </h3>
-                </div>
-                <div className="h-64 w-full">
-                   {stats.pityStats.history.length === 0 ? (
-                      <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无6星记录</div>
-                   ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={stats.pityStats.distribution} stackOffset="sign" margin={{top: 10, right: 10, left: -20, bottom: 0}}>
-                          <RainbowGradientDefs />
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
-                          <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} interval={0} axisLine={false} tickLine={false} />
-                          <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} axisLine={false} tickLine={false} />
-                          <RechartsTooltip contentStyle={tooltipStyle} cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'}} />
-                          <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定" radius={[0, 0, 2, 2]} />
-                          <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻" radius={[2, 2, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                   )}
-                </div>
-             </div>
-          </div>
 
           {/* 角色出货列表 (Updated Style) */}
           <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
