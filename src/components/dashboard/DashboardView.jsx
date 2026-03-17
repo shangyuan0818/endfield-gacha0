@@ -24,7 +24,9 @@ import {
 } from '../../utils/dashboardShare';
 import {
   buildShareFile,
+  canCopyImageToClipboard,
   canNativeShareFile,
+  copyImageBlobToClipboard,
   downloadShareCard,
   renderShareCardToBlob,
   shareImageFile
@@ -236,6 +238,7 @@ const DashboardView = ({ showToast }) => {
       return false;
     }
   }, []);
+  const supportsClipboardImageCopy = React.useMemo(() => canCopyImageToClipboard(), []);
 
   React.useEffect(() => {
     if (!showShareMenu) {
@@ -309,6 +312,56 @@ const DashboardView = ({ showToast }) => {
       showToast?.('详情分享卡生成失败，请稍后重试', 'error');
     }
   }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare]);
+
+  const handleDownloadShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast?.('当前没有可分享的详情数据', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast?.('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
+      });
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const downloaded = downloadShareCard(blob, fileName);
+      showToast?.(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+    } catch {
+      showToast?.('详情分享卡生成失败，请稍后重试', 'error');
+    }
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast]);
+
+  const handleCopyShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast?.('当前没有可分享的详情数据', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast?.('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    if (!supportsClipboardImageCopy) {
+      showToast?.('当前浏览器不支持复制图片，请改用下载', 'warning');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
+      });
+      const copied = await copyImageBlobToClipboard(blob);
+      showToast?.(copied ? '详情分享图片已复制' : '复制图片失败，请改用下载', copied ? 'success' : 'error');
+    } catch {
+      showToast?.('复制图片失败，请改用下载', 'error');
+    }
+  }, [hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy]);
 
   const tooltipStyle = {
     borderRadius: '0px',
@@ -743,17 +796,45 @@ const DashboardView = ({ showToast }) => {
                             </button>
                           </div>
                         </div>
+                        {supportsNativeImageShare && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowShareMenu(false);
+                              void handleShareImage();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                          >
+                            <Share2 size={14} />
+                            <span>系统分享图片</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
                             setShowShareMenu(false);
-                            void handleShareImage();
+                            void handleDownloadShareImage();
                           }}
-                          className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                          className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 ${
+                            supportsNativeImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
+                          }`}
                         >
-                          {supportsNativeImageShare ? <Share2 size={14} /> : <Download size={14} />}
-                          <span>{supportsNativeImageShare ? '系统分享图片' : '下载分享长图'}</span>
+                          <Download size={14} />
+                          <span>下载分享长图</span>
                         </button>
+                        {supportsClipboardImageCopy && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowShareMenu(false);
+                              void handleCopyShareImage();
+                            }}
+                            className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
+                          >
+                            <Copy size={14} />
+                            <span>复制分享图片</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {

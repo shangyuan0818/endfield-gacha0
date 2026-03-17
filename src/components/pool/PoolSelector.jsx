@@ -87,6 +87,20 @@ const PoolSelector = () => {
   const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
 
   useEffect(() => {
+    if (gameAccounts.length === 1) {
+      const onlyAccountUid = gameAccounts[0]?.gameUid || null;
+      if (onlyAccountUid && currentGameUid !== onlyAccountUid) {
+        switchGameAccount(onlyAccountUid);
+      }
+      return;
+    }
+
+    if (currentGameUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      switchGameAccount(null);
+    }
+  }, [currentGameUid, gameAccounts, switchGameAccount]);
+
+  useEffect(() => {
     if (showOverviewOptions || !isPoolGroupId(currentPoolId)) {
       return;
     }

@@ -353,6 +353,28 @@ export function canNativeShareSimulatorFile(file) {
   return canNativeShareFile(file);
 }
 
+export function canCopyImageToClipboard() {
+  if (typeof navigator === 'undefined' || typeof ClipboardItem === 'undefined') {
+    return false;
+  }
+
+  return Boolean(navigator.clipboard?.write);
+}
+
+export async function copyImageBlobToClipboard(blob) {
+  if (!blob || !canCopyImageToClipboard()) {
+    return false;
+  }
+
+  const mimeType = blob.type || 'image/png';
+  const clipboardItem = new ClipboardItem({
+    [mimeType]: blob
+  });
+
+  await navigator.clipboard.write([clipboardItem]);
+  return true;
+}
+
 export async function shareImageFile(file, options = {}) {
   if (!canNativeShareFile(file)) {
     return false;

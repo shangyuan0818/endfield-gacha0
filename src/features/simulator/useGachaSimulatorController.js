@@ -37,7 +37,9 @@ import {
   buildSimulatorShareFile,
   buildSimulatorSharePayload,
   buildSimulatorShareText,
+  canCopyImageToClipboard,
   canNativeShareSimulatorFile,
+  copyImageBlobToClipboard,
   downloadSimulatorShareCard,
   renderSimulatorShareCardToBlob,
   shareSimulatorShareCardFile
@@ -1106,6 +1108,7 @@ export function useGachaSimulatorController() {
       return false;
     }
   }, []);
+  const supportsClipboardImageCopy = useMemo(() => canCopyImageToClipboard(), []);
   const effectivePityObj = {
     pity6: pityInfo.sixStar.current,
     pity5: pityInfo.fiveStar.current,
@@ -1159,6 +1162,41 @@ export function useGachaSimulatorController() {
     }
   }, [sharePayload, showToastMessage, supportsNativeImageShare]);
 
+  const handleDownloadShareImage = useCallback(async (shareCardNode) => {
+    if (!shareCardNode) {
+      showToastMessage('分享卡未准备好，请稍后重试');
+      return;
+    }
+
+    try {
+      const blob = await renderSimulatorShareCardToBlob(shareCardNode);
+      const downloaded = downloadSimulatorShareCard(blob, sharePayload);
+      showToastMessage(downloaded ? '分享卡已下载' : '分享卡下载失败，请稍后重试');
+    } catch {
+      showToastMessage('分享卡生成失败，请稍后重试');
+    }
+  }, [sharePayload, showToastMessage]);
+
+  const handleCopyShareImage = useCallback(async (shareCardNode) => {
+    if (!shareCardNode) {
+      showToastMessage('分享卡未准备好，请稍后重试');
+      return;
+    }
+
+    if (!supportsClipboardImageCopy) {
+      showToastMessage('当前浏览器不支持复制图片，请改用下载');
+      return;
+    }
+
+    try {
+      const blob = await renderSimulatorShareCardToBlob(shareCardNode);
+      const copied = await copyImageBlobToClipboard(blob);
+      showToastMessage(copied ? '分享图片已复制' : '复制图片失败，请改用下载');
+    } catch {
+      showToastMessage('复制图片失败，请改用下载');
+    }
+  }, [showToastMessage, supportsClipboardImageCopy]);
+
   const toggleTenPull = useCallback((id) => {
     setExpandedTenPulls((prev) => {
       const next = new Set(prev);
@@ -1191,6 +1229,8 @@ export function useGachaSimulatorController() {
     handleExportData,
     handleExportReport,
     handleCopyShareText,
+    handleCopyShareImage,
+    handleDownloadShareImage,
     handleInheritRealState,
     handlePull,
     handleReset,
@@ -1228,6 +1268,7 @@ export function useGachaSimulatorController() {
     simulatorPools,
     skipAnimation,
     supportsNativeImageShare,
+    supportsClipboardImageCopy,
     switchPool,
     tenPullDisabledReason,
     toastMessage,

@@ -111,6 +111,21 @@ function MobilePoolSelector() {
   const visiblePools = selectorPools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
   const showOverviewOptions = Boolean(currentGameUid);
+  const allOverviewId = `${POOL_GROUP_PREFIX}all`;
+
+  useEffect(() => {
+    if (gameAccounts.length === 1) {
+      const onlyAccountUid = gameAccounts[0]?.gameUid || null;
+      if (onlyAccountUid && currentGameUid !== onlyAccountUid) {
+        switchGameAccount(onlyAccountUid);
+      }
+      return;
+    }
+
+    if (currentGameUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      switchGameAccount(null);
+    }
+  }, [currentGameUid, gameAccounts, switchGameAccount]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -370,8 +385,35 @@ function MobilePoolSelector() {
               {/* 卡池列表 */}
               <div className="max-h-64 overflow-y-auto">
                 {sortedPoolsWithGroups.length > 0 ? (
-                  sortedPoolsWithGroups.map((group) => (
-                    <div key={group.type}>
+                  <>
+                    {showOverviewOptions && (
+                      <button
+                        onClick={() => handleSelectGroup('all')}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors touch-feedback border-b border-dashed border-zinc-100 dark:border-zinc-800 ${
+                          currentPoolId === allOverviewId
+                            ? 'bg-endfield-yellow/10 border-l-2 border-l-endfield-yellow'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 border-l-2 border-l-transparent'
+                        }`}
+                      >
+                        <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800">
+                          <Layers size={14} className="text-zinc-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-medium ${
+                            currentPoolId === allOverviewId ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'
+                          }`}>
+                            全部卡池总览
+                          </div>
+                          <div className="text-[10px] text-zinc-400 font-mono">
+                            {visiblePools} 池 · {totalPulls} 抽
+                          </div>
+                        </div>
+                        {currentPoolId === allOverviewId && <Check size={16} className="text-endfield-yellow flex-shrink-0" />}
+                      </button>
+                    )}
+
+                    {sortedPoolsWithGroups.map((group) => (
+                      <div key={group.type}>
                       {/* 分组标题 */}
                       <div className="sticky top-0 px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800">
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${
@@ -458,7 +500,8 @@ function MobilePoolSelector() {
                         );
                       })}
                     </div>
-                  ))
+                    ))}
+                  </>
                 ) : (
                   <div className="py-8 text-center text-sm text-zinc-400 font-mono">
                     {searchQuery ? '未找到匹配的卡池' : '暂无卡池'}

@@ -30,7 +30,9 @@ const GachaSimulator = () => {
     expandedTenPulls,
     handleExportData,
     handleExportReport,
+    handleCopyShareImage,
     handleCopyShareText,
+    handleDownloadShareImage,
     handleInheritRealState,
     handlePull,
     handleReset,
@@ -61,6 +63,7 @@ const GachaSimulator = () => {
     sharePayload,
     shareTimelineSections,
     skipAnimation,
+    supportsClipboardImageCopy,
     supportsNativeImageShare,
     switchPool,
     toastMessage,
@@ -83,6 +86,8 @@ const GachaSimulator = () => {
         onReset={handleReset}
         poolPullCounts={poolPullCounts}
         onShareImage={() => handleShareImage(shareCardRef.current)}
+        onDownloadImage={() => handleDownloadShareImage(shareCardRef.current)}
+        onCopyImage={() => handleCopyShareImage(shareCardRef.current)}
         onShareText={handleCopyShareText}
         onSwitchPool={switchPool}
         resourceLedger={resourceLedger}
@@ -94,6 +99,7 @@ const GachaSimulator = () => {
         simulatorPools={simulatorPools}
         multipleFreeTen={multipleFreeTen}
         skipAnimation={skipAnimation}
+        supportsClipboardImageCopy={supportsClipboardImageCopy}
         supportsImageShare={supportsNativeImageShare}
       />
 
@@ -137,9 +143,13 @@ const GachaSimulator = () => {
               <div className="relative z-20 w-full h-full animate-fade-in p-4">
                 <SimulatorResults
                   onShare={() => handleShareImage(shareCardRef.current)}
+                  onDownloadImage={() => handleDownloadShareImage(shareCardRef.current)}
+                  onCopyImage={() => handleCopyShareImage(shareCardRef.current)}
                   poolType={normalizedSimulatorPoolType}
                   results={lastResults}
                   onClose={() => setLastResults(null)}
+                  supportsClipboardImageCopy={supportsClipboardImageCopy}
+                  supportsImageShare={supportsNativeImageShare}
                 />
               </div>
             ) : !isAnimating && (

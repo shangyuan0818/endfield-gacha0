@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Star, Share2, Download, User } from 'lucide-react';
+import { X, Star, Share2, Download, Copy, User } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
 import { calculateArsenalQuotaRewardForRarity, RESOURCE_ICON_URLS } from '../../utils/resourceEconomy';
 
@@ -108,7 +108,16 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
   );
 };
 
-const SimulatorResults = ({ results, onClose, onShare, poolType }) => {
+const SimulatorResults = ({
+  results,
+  onClose,
+  onShare,
+  onDownloadImage,
+  onCopyImage,
+  poolType,
+  supportsClipboardImageCopy,
+  supportsImageShare
+}) => {
   // 统计本次结果
   const sixStars = results.filter(r => r.rarity === 6).length;
   const fiveStars = results.filter(r => r.rarity === 5).length;
@@ -128,14 +137,34 @@ const SimulatorResults = ({ results, onClose, onShare, poolType }) => {
           </div>
         </div>
         <div className="flex gap-2">
+           {supportsImageShare && (
+             <button
+                type="button"
+                onClick={onShare}
+                className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
+                title="系统分享当前模拟统计"
+             >
+                <Share2 size={20} />
+             </button>
+           )}
            <button
               type="button"
-              onClick={onShare}
+              onClick={onDownloadImage}
               className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
-              title="分享当前模拟统计"
+              title="下载当前模拟统计图片"
            >
-              <Share2 size={20} />
+              <Download size={20} />
            </button>
+           {supportsClipboardImageCopy && (
+             <button
+                type="button"
+                onClick={onCopyImage}
+                className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
+                title="复制当前模拟统计图片"
+             >
+                <Copy size={20} />
+             </button>
+           )}
            {/* Close button kept for manual closing if needed, but Confirm button below removed */}
            <button type="button" onClick={onClose} className="p-2 bg-yellow-500 dark:bg-endfield-yellow text-white dark:text-black hover:bg-yellow-600 dark:hover:bg-yellow-400 transition-colors">
               <X size={20} />

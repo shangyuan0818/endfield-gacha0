@@ -155,6 +155,8 @@ const SimulatorToolbar = ({
   resourceLedger,
   onAdjustResourceAmount,
   onShareImage,
+  onDownloadImage,
+  onCopyImage,
   onShareText,
   onSwitchPool,
   onToggleMultipleFreeTen,
@@ -164,6 +166,7 @@ const SimulatorToolbar = ({
   simulatorPools,
   multipleFreeTen,
   skipAnimation,
+  supportsClipboardImageCopy,
   supportsImageShare
 }) => {
   const [activeEditor, setActiveEditor] = useState(null);
@@ -354,17 +357,45 @@ const SimulatorToolbar = ({
 
           {showShareMenu && (
             <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+              {supportsImageShare && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowShareMenu(false);
+                    onShareImage();
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                >
+                  <Share2 size={14} />
+                  <span>系统分享图片</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setShowShareMenu(false);
-                  onShareImage();
+                  onDownloadImage();
                 }}
-                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 ${
+                  supportsImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
+                }`}
               >
-                {supportsImageShare ? <Share2 size={14} /> : <Download size={14} />}
-                <span>{supportsImageShare ? '系统分享图片' : '下载分享卡 PNG'}</span>
+                <Download size={14} />
+                <span>下载分享卡 PNG</span>
               </button>
+              {supportsClipboardImageCopy && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowShareMenu(false);
+                    onCopyImage();
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
+                >
+                  <Copy size={14} />
+                  <span>复制分享图片</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

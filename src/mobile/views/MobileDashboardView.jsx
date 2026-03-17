@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
-  BarChart3, LayoutGrid, Share2, Copy, Sun, Moon
+  BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useDashboardViewState, useToast } from '../../hooks';
@@ -27,7 +27,9 @@ import {
 } from '../../utils/dashboardShare';
 import {
   buildShareFile,
+  canCopyImageToClipboard,
   canNativeShareFile,
+  copyImageBlobToClipboard,
   downloadShareCard,
   renderShareCardToBlob,
   shareImageFile
@@ -153,6 +155,7 @@ function MobileDashboardView() {
       return false;
     }
   }, []);
+  const supportsClipboardImageCopy = React.useMemo(() => canCopyImageToClipboard(), []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') {
@@ -161,7 +164,9 @@ function MobileDashboardView() {
 
     localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
   }, [shareTheme]);
-  const shareImageActionLabel = supportsNativeImageShare ? '系统分享图片' : '下载分享长图';
+  const shareImageActionLabel = '系统分享图片';
+  const downloadImageActionLabel = '下载分享长图';
+  const copyImageActionLabel = '复制分享图片';
   const shareTextActionLabel = '复制分享文本';
   const resourceSummaryTitle = isGroupMode ? `${currentPool.name}资源统计` : '资源统计';
   const primarySixStarLabel = isAllPoolsOverview
@@ -218,6 +223,56 @@ function MobileDashboardView() {
       showToast('详情分享卡生成失败，请稍后重试', 'error');
     }
   }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare]);
+
+  const handleDownloadShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast('当前没有可导出的卡池详情', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
+      });
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const downloaded = downloadShareCard(blob, fileName);
+      showToast(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+    } catch {
+      showToast('详情分享卡生成失败，请稍后重试', 'error');
+    }
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast]);
+
+  const handleCopyShareImage = React.useCallback(async () => {
+    if (!hasDashboardShareData) {
+      showToast('当前没有可导出的卡池详情', 'warning');
+      return;
+    }
+
+    if (!shareCardRef.current) {
+      showToast('分享卡未准备好，请稍后重试', 'error');
+      return;
+    }
+
+    if (!supportsClipboardImageCopy) {
+      showToast('当前浏览器不支持复制图片，请改用下载', 'warning');
+      return;
+    }
+
+    try {
+      const blob = await renderShareCardToBlob(shareCardRef.current, {
+        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
+      });
+      const copied = await copyImageBlobToClipboard(blob);
+      showToast(copied ? '详情分享图片已复制' : '复制图片失败，请改用下载', copied ? 'success' : 'error');
+    } catch {
+      showToast('复制图片失败，请改用下载', 'error');
+    }
+  }, [hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy]);
 
   if (!hasPoolData) {
     return (
@@ -352,14 +407,34 @@ function MobileDashboardView() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
+                {supportsNativeImageShare && (
+                  <button
+                    type="button"
+                    onClick={() => void handleShareImage()}
+                    className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                  >
+                    <Share2 size={14} />
+                    {shareImageActionLabel}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => void handleShareImage()}
+                  onClick={() => void handleDownloadShareImage()}
                   className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
                 >
-                  <Share2 size={14} />
-                  {shareImageActionLabel}
+                  <Download size={14} />
+                  {downloadImageActionLabel}
                 </button>
+                {supportsClipboardImageCopy && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyShareImage()}
+                    className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                  >
+                    <Copy size={14} />
+                    {copyImageActionLabel}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleCopyShareText()}
