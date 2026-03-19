@@ -13,9 +13,9 @@ import {
   PieChart,
   Zap
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import CollapsibleContent from './CollapsibleContent';
-import { getDesktopPathForTab } from '../../constants/appRoutes';
+import { getDesktopPathForTab, getMobilePathForTab } from '../../constants/appRoutes';
 import { useAuthStore } from '../../stores';
 
 const NavButton = ({ icon: Icon, label, onClick }) => (
@@ -31,12 +31,15 @@ const NavButton = ({ icon: Icon, label, onClick }) => (
 
 const GuideCard = React.memo(function GuideCard({ isOpen, onToggle }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
+  const isMobileRoute = location.pathname.startsWith('/m');
 
   const goTo = useCallback((tab, scrollTo) => () => {
-    navigate(getDesktopPathForTab(tab), scrollTo ? { state: { scrollTo, _ts: Date.now() } } : undefined);
-  }, [navigate]);
+    const targetPath = isMobileRoute ? getMobilePathForTab(tab) : getDesktopPathForTab(tab);
+    navigate(targetPath, scrollTo ? { state: { scrollTo, _ts: Date.now() } } : undefined);
+  }, [isMobileRoute, navigate]);
 
   return (
     <div className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 overflow-hidden relative group/card">

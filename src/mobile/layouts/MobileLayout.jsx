@@ -15,6 +15,7 @@ import MobileAboutView from '../views/MobileAboutView';
 import MobileAdminView from '../views/MobileAdminView';
 import MobileTicketView from '../views/MobileTicketView';
 import useAuthStore from '../../stores/useAuthStore';
+import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 
 /**
  * 移动端主布局
@@ -26,6 +27,8 @@ function MobileLayout() {
   const activeTab = getMobileTabFromPath(location.pathname);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const isSuperAdmin = userRole === 'super_admin';
+
+  useScrollToHighlight();
 
   useEffect(() => {
     if (activeTab === 'home' && location.pathname !== getMobilePathForTab('home')) {
