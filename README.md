@@ -75,6 +75,35 @@ npm run dev            # 启动前端（公开仓库默认可运行）
 
 涉及游戏数据抓取的本地代理 / 独立后端因为合规与版权风险默认不纳入本仓库。如需导入链路，请在私有环境中接入单独维护的代理服务；否则公开仓库仍可用于基础浏览、统计、登录、云同步和管理功能开发。
 
+### 可选私有后端脚本
+
+以下脚本现在都改成了“私有 backend 存在时执行，不存在时输出提示并退出”，因此 fresh clone 不会再直接报路径错误：
+
+```bash
+npm run dev:backend
+npm run dev:backend:cn
+npm run dev:backend:intl
+npm run test:harness
+```
+
+如果你的本地工作区没有 `backend/`，这些命令会明确提示“当前公开仓库不包含私有 backend”，而不会把公开仓库直接跑成死链。
+
+### 公开仓库验证入口
+
+```bash
+npm test
+```
+
+当前会顺序执行公开仓库内可复跑的核心验证脚本（模拟器继承、情报书资源口径、导入导出 round-trip、导入持久化、bootstrap cache、Supabase baseline）。私有 `backend/test-harness` 仍通过 `npm run test:harness` 单独维护。
+
+若需对 Supabase baseline 做一次真实数据库 smoke，可在本机启动 Docker Desktop 后执行：
+
+```bash
+npm run test:supabase-baseline:smoke
+```
+
+该脚本会拉起临时 PostgreSQL 容器，注入最小 Supabase `auth` stub，再执行 `baseline/000_complete_schema.sql`。
+
 ## 环境变量
 
 ```env
@@ -91,16 +120,18 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key       # 仅服务端使用：账
 
 **SMTP 配置**：仅在你仍需要邮箱注册确认等邮件能力时再配置。账号恢复流程本身不依赖 SMTP。
 
+**导出与分享边界**：JSON / CSV 导出用于备份与再导入，保留结构化记录字段；站内分享卡与分享文本默认采用脱敏口径，不包含账号、UID、精确时间戳与原始抽卡明细。
+
 ## 部署 / Deployment
 
 ### Vercel 部署
 
 1. Fork 仓库 → 在 [Supabase](https://supabase.com) 创建项目
-2. 当前优先按顺序执行 `supabase/migrations/` 中的标准前向迁移；`supabase/baseline/000_complete_schema.sql` 仍待重新生成，不建议和完整迁移链叠加使用
+2. 新环境可直接执行 `supabase/baseline/000_complete_schema.sql` 起库；当前基线已覆盖到 `085_restore_history_v2_columns.sql`
 3. 启用 `global_stats` 表的 Realtime
 4. 如需账号恢复 / bootstrap / 受限管理接口，给 Vercel Serverless Functions 配置 `SUPABASE_SERVICE_ROLE_KEY`
 5. 若要启用邮箱注册确认，再额外配置 SMTP
-5. 在 [Vercel](https://vercel.com) 导入仓库，配置环境变量后部署
+6. 在 [Vercel](https://vercel.com) 导入仓库，配置环境变量后部署
 
 ### 私有代理（可选）
 
@@ -118,7 +149,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key       # 仅服务端使用：账
 - `supabase/manual/`：破坏性 / 高风险 / 回滚 / 数据回填脚本，仅手工执行
 - `supabase/docs/`：迁移说明文档
 
-当前新部署优先直接按顺序执行 `supabase/migrations/`。待 baseline 重新生成并验收后，再恢复 baseline 起库说明。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）：
+当前 `baseline/000_complete_schema.sql` 已覆盖到 `085_restore_history_v2_columns.sql`。新环境可直接执行 baseline 起库；若后续新增了编号更高的迁移，再只补执行“覆盖范围之后”的标准前向迁移。不要再把同一批 `migrations/` 叠加执行在同版本 baseline 之上。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）：
 
 ```bash
 supabase functions deploy admin-create-user

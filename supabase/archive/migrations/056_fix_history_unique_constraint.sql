@@ -16,46 +16,54 @@
 --
 -- =====================================================
 
--- 1. 删除旧的唯一约束
 DO $$
 BEGIN
-  -- 删除 user_id,game_uid,seq_id 约束（如果存在）
   IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_id_game_uid_seq_id_key'
-    AND conrelid = 'history'::regclass
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
   ) THEN
-    ALTER TABLE history DROP CONSTRAINT history_user_id_game_uid_seq_id_key;
-    RAISE NOTICE '✅ 已删除旧约束 history_user_id_game_uid_seq_id_key';
-  ELSE
-    RAISE NOTICE 'ℹ️ 约束 history_user_id_game_uid_seq_id_key 不存在';
-  END IF;
+    -- 1. 删除旧的唯一约束
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_id_game_uid_seq_id_key'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history DROP CONSTRAINT history_user_id_game_uid_seq_id_key;
+      RAISE NOTICE '✅ 已删除旧约束 history_user_id_game_uid_seq_id_key';
+    ELSE
+      RAISE NOTICE 'ℹ️ 约束 history_user_id_game_uid_seq_id_key 不存在';
+    END IF;
 
-  -- 检查其他可能的命名
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
-    AND conrelid = 'history'::regclass
-  ) THEN
-    ALTER TABLE history DROP CONSTRAINT history_user_game_seq_unique;
-    RAISE NOTICE '✅ 已删除旧约束 history_user_game_seq_unique';
-  END IF;
-END $$;
+    -- 检查其他可能的命名
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history DROP CONSTRAINT history_user_game_seq_unique;
+      RAISE NOTICE '✅ 已删除旧约束 history_user_game_seq_unique';
+    END IF;
 
--- 2. 创建新的唯一约束（包含 pool_id）
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_pool_seq_unique'
-    AND conrelid = 'history'::regclass
-  ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_pool_seq_unique
-    UNIQUE (user_id, game_uid, pool_id, seq_id);
-    RAISE NOTICE '✅ 已创建新约束 history_user_game_pool_seq_unique';
+    -- 2. 创建新的唯一约束（包含 pool_id）
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_pool_seq_unique'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history
+      ADD CONSTRAINT history_user_game_pool_seq_unique
+      UNIQUE (user_id, game_uid, pool_id, seq_id);
+      RAISE NOTICE '✅ 已创建新约束 history_user_game_pool_seq_unique';
+    ELSE
+      RAISE NOTICE 'ℹ️ 约束 history_user_game_pool_seq_unique 已存在';
+    END IF;
   ELSE
-    RAISE NOTICE 'ℹ️ 约束 history_user_game_pool_seq_unique 已存在';
+    RAISE NOTICE 'ℹ️ 跳过 history pool 级唯一约束修复，因为 history.game_uid / history.seq_id 不存在';
   END IF;
 END $$;
 

@@ -41,20 +41,32 @@ BEGIN
   END IF;
 END $$;
 
--- 2. 确保新约束存在
+-- 2. 仅在 game_uid / seq_id 已存在时确保新约束存在
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
   ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_seq_unique
-    UNIQUE (user_id, game_uid, seq_id);
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+    ) THEN
+      ALTER TABLE history
+      ADD CONSTRAINT history_user_game_seq_unique
+      UNIQUE (user_id, game_uid, seq_id);
 
-    RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+      RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    ELSE
+      RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    END IF;
   ELSE
-    RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    RAISE NOTICE 'Skipping history_user_game_seq_unique because history.game_uid / history.seq_id are unavailable';
   END IF;
 END $$;
 

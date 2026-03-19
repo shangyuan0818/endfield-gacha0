@@ -21,9 +21,12 @@
 
 ## 新环境部署
 
-1. 先执行 `baseline/000_complete_schema.sql`
-2. 再按编号执行 `migrations/` 中的标准前向迁移（如果为空则跳过）
-3. 仅在明确场景下手工执行 `manual/` 中的脚本
+1. 先查看 `baseline/000_complete_schema.sql` 头部的“覆盖范围”
+2. 新环境默认直接执行 `baseline/000_complete_schema.sql`
+3. 仅当仓库里存在“编号高于 baseline 覆盖范围”的新迁移时，再补执行这些较新的 `migrations/` 文件
+4. 仅在明确场景下手工执行 `manual/` 中的脚本
+
+当前仓库内的 baseline 已覆盖到 `active\085_restore_history_v2_columns.sql`，因此不要再把 `001~085` 这批标准迁移重复叠加执行在同版本 baseline 上。
 
 当前标准链已在后段显式移除 `admin_applications` 历史遗留表；不要再把管理员申请流重新写回 baseline 或新迁移。
 
@@ -33,3 +36,5 @@
 - 不要把 destructive / rollback SQL 放回标准链
 - 新迁移必须保持编号唯一
 - 修改 `archive/migrations/` 或 `migrations/` 后，如果希望刷新新环境基线，请执行 `npm run generate:supabase-baseline`
+- baseline 刷新后请同步执行 `npm run test:supabase-baseline`，确认头部覆盖范围与首尾 migration 标记一致
+- 已验证 `npm run test:supabase-baseline:smoke` 可在临时 PostgreSQL 容器内注入最小 Supabase `auth` stub 后真实运行 baseline；如需复跑，请先确保 Docker daemon 可访问

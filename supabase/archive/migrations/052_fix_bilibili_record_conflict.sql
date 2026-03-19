@@ -14,47 +14,82 @@
 -- 执行日期: 2026-02-03
 -- ============================================
 
--- 1. 为没有 game_uid 的历史记录补充默认值（避免唯一约束冲突）
-UPDATE history
-SET game_uid = 'legacy_' || LEFT(user_id::text, 8)
-WHERE game_uid IS NULL AND seq_id IS NOT NULL;
+-- 0. 补齐 V2 历史导入链依赖的字段（旧库可能从未执行过 manual/legacy/042）
+ALTER TABLE public.history
+  ADD COLUMN IF NOT EXISTS batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS seq_id TEXT,
+  ADD COLUMN IF NOT EXISTS pity INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS game_uid TEXT;
 
--- 2. 清理可能存在的重复数据（保留 id 更大的，即更新的记录）
--- 这一步确保添加唯一约束时不会失败
-WITH duplicates AS (
-  SELECT id, ROW_NUMBER() OVER (
-    PARTITION BY user_id, game_uid, seq_id
-    ORDER BY updated_at DESC NULLS LAST, id DESC
-  ) as rn
-  FROM history
-  WHERE seq_id IS NOT NULL AND game_uid IS NOT NULL
-)
-DELETE FROM history
-WHERE id IN (SELECT id FROM duplicates WHERE rn > 1);
+COMMENT ON COLUMN public.history.batch_id IS '批次 ID（十连分组）';
+COMMENT ON COLUMN public.history.seq_id IS '官方序列号（去重用）';
+COMMENT ON COLUMN public.history.pity IS '当前保底计数';
+COMMENT ON COLUMN public.history.is_new IS '是否首次获得';
+COMMENT ON COLUMN public.history.is_free IS '是否免费抽取';
+COMMENT ON COLUMN public.history.game_uid IS '关联的游戏账号 UID';
 
--- 3. 添加新的唯一约束（基于 user_id + game_uid + seq_id）
+CREATE INDEX IF NOT EXISTS idx_history_batch_id ON public.history(batch_id);
+CREATE INDEX IF NOT EXISTS idx_history_seq_id ON public.history(seq_id);
+CREATE INDEX IF NOT EXISTS idx_history_game_uid ON public.history(game_uid);
+
+-- 1~6. 仅在 seq_id / game_uid 已存在时执行去重和约束修复
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
   ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_seq_unique
-    UNIQUE (user_id, game_uid, seq_id);
+    -- 1. 为没有 game_uid 的历史记录补充默认值（避免唯一约束冲突）
+    UPDATE public.history
+    SET game_uid = 'legacy_' || LEFT(user_id::text, 8)
+    WHERE game_uid IS NULL AND seq_id IS NOT NULL;
 
-    RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    -- 2. 清理可能存在的重复数据（保留 id 更大的，即更新的记录）
+    DELETE FROM public.history
+    WHERE id IN (
+      SELECT id
+      FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY user_id, game_uid, seq_id
+          ORDER BY updated_at DESC NULLS LAST, id DESC
+        ) AS rn
+        FROM public.history
+        WHERE seq_id IS NOT NULL AND game_uid IS NOT NULL
+      ) duplicates
+      WHERE duplicates.rn > 1
+    );
+
+    -- 3. 添加新的唯一约束（基于 user_id + game_uid + seq_id）
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+    ) THEN
+      ALTER TABLE public.history
+      ADD CONSTRAINT history_user_game_seq_unique
+      UNIQUE (user_id, game_uid, seq_id);
+
+      RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    ELSE
+      RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    END IF;
   ELSE
-    RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    RAISE NOTICE 'Migration 052 skipped data cleanup because history.game_uid / history.seq_id are unavailable';
   END IF;
 END $$;
 
 -- 4. 创建复合索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_history_user_game_seq
-ON history(user_id, game_uid, seq_id);
+ON public.history(user_id, game_uid, seq_id);
 
 -- 5. 添加约束说明注释
-COMMENT ON CONSTRAINT history_user_game_seq_unique ON history IS
+COMMENT ON CONSTRAINT history_user_game_seq_unique ON public.history IS
 '确保同一用户、同一游戏账号（官服/B服）、同一 seq_id 不重复';
 
 -- 6. 输出修复统计信息

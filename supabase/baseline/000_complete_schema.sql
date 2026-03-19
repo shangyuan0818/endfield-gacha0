@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-03-13T08:48:47.427Z
---   5. 覆盖范围: archive\001_init_tables.sql -> active\081_remove_blacklist_feature.sql
+--   4. 生成时间: 2026-03-19T11:38:26.996Z
+--   5. 覆盖范围: archive\001_init_tables.sql -> active\085_restore_history_v2_columns.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive\001_init_tables.sql
@@ -6500,47 +6500,82 @@ GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
 -- 执行日期: 2026-02-03
 -- ============================================
 
--- 1. 为没有 game_uid 的历史记录补充默认值（避免唯一约束冲突）
-UPDATE history
-SET game_uid = 'legacy_' || LEFT(user_id::text, 8)
-WHERE game_uid IS NULL AND seq_id IS NOT NULL;
+-- 0. 补齐 V2 历史导入链依赖的字段（旧库可能从未执行过 manual/legacy/042）
+ALTER TABLE public.history
+  ADD COLUMN IF NOT EXISTS batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS seq_id TEXT,
+  ADD COLUMN IF NOT EXISTS pity INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS game_uid TEXT;
 
--- 2. 清理可能存在的重复数据（保留 id 更大的，即更新的记录）
--- 这一步确保添加唯一约束时不会失败
-WITH duplicates AS (
-  SELECT id, ROW_NUMBER() OVER (
-    PARTITION BY user_id, game_uid, seq_id
-    ORDER BY updated_at DESC NULLS LAST, id DESC
-  ) as rn
-  FROM history
-  WHERE seq_id IS NOT NULL AND game_uid IS NOT NULL
-)
-DELETE FROM history
-WHERE id IN (SELECT id FROM duplicates WHERE rn > 1);
+COMMENT ON COLUMN public.history.batch_id IS '批次 ID（十连分组）';
+COMMENT ON COLUMN public.history.seq_id IS '官方序列号（去重用）';
+COMMENT ON COLUMN public.history.pity IS '当前保底计数';
+COMMENT ON COLUMN public.history.is_new IS '是否首次获得';
+COMMENT ON COLUMN public.history.is_free IS '是否免费抽取';
+COMMENT ON COLUMN public.history.game_uid IS '关联的游戏账号 UID';
 
--- 3. 添加新的唯一约束（基于 user_id + game_uid + seq_id）
+CREATE INDEX IF NOT EXISTS idx_history_batch_id ON public.history(batch_id);
+CREATE INDEX IF NOT EXISTS idx_history_seq_id ON public.history(seq_id);
+CREATE INDEX IF NOT EXISTS idx_history_game_uid ON public.history(game_uid);
+
+-- 1~6. 仅在 seq_id / game_uid 已存在时执行去重和约束修复
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
   ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_seq_unique
-    UNIQUE (user_id, game_uid, seq_id);
+    -- 1. 为没有 game_uid 的历史记录补充默认值（避免唯一约束冲突）
+    UPDATE public.history
+    SET game_uid = 'legacy_' || LEFT(user_id::text, 8)
+    WHERE game_uid IS NULL AND seq_id IS NOT NULL;
 
-    RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    -- 2. 清理可能存在的重复数据（保留 id 更大的，即更新的记录）
+    DELETE FROM public.history
+    WHERE id IN (
+      SELECT id
+      FROM (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY user_id, game_uid, seq_id
+          ORDER BY updated_at DESC NULLS LAST, id DESC
+        ) AS rn
+        FROM public.history
+        WHERE seq_id IS NOT NULL AND game_uid IS NOT NULL
+      ) duplicates
+      WHERE duplicates.rn > 1
+    );
+
+    -- 3. 添加新的唯一约束（基于 user_id + game_uid + seq_id）
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+    ) THEN
+      ALTER TABLE public.history
+      ADD CONSTRAINT history_user_game_seq_unique
+      UNIQUE (user_id, game_uid, seq_id);
+
+      RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    ELSE
+      RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    END IF;
   ELSE
-    RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    RAISE NOTICE 'Migration 052 skipped data cleanup because history.game_uid / history.seq_id are unavailable';
   END IF;
 END $$;
 
 -- 4. 创建复合索引优化查询性能
 CREATE INDEX IF NOT EXISTS idx_history_user_game_seq
-ON history(user_id, game_uid, seq_id);
+ON public.history(user_id, game_uid, seq_id);
 
 -- 5. 添加约束说明注释
-COMMENT ON CONSTRAINT history_user_game_seq_unique ON history IS
+COMMENT ON CONSTRAINT history_user_game_seq_unique ON public.history IS
 '确保同一用户、同一游戏账号（官服/B服）、同一 seq_id 不重复';
 
 -- 6. 输出修复统计信息
@@ -6607,20 +6642,32 @@ BEGIN
   END IF;
 END $$;
 
--- 2. 确保新约束存在
+-- 2. 仅在 game_uid / seq_id 已存在时确保新约束存在
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
   ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_seq_unique
-    UNIQUE (user_id, game_uid, seq_id);
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+    ) THEN
+      ALTER TABLE history
+      ADD CONSTRAINT history_user_game_seq_unique
+      UNIQUE (user_id, game_uid, seq_id);
 
-    RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+      RAISE NOTICE 'Added unique constraint: history_user_game_seq_unique';
+    ELSE
+      RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    END IF;
   ELSE
-    RAISE NOTICE 'Constraint history_user_game_seq_unique already exists';
+    RAISE NOTICE 'Skipping history_user_game_seq_unique because history.game_uid / history.seq_id are unavailable';
   END IF;
 END $$;
 
@@ -7287,46 +7334,54 @@ END $$;
 --
 -- =====================================================
 
--- 1. 删除旧的唯一约束
 DO $$
 BEGIN
-  -- 删除 user_id,game_uid,seq_id 约束（如果存在）
   IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_id_game_uid_seq_id_key'
-    AND conrelid = 'history'::regclass
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'game_uid'
+  ) AND EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'seq_id'
   ) THEN
-    ALTER TABLE history DROP CONSTRAINT history_user_id_game_uid_seq_id_key;
-    RAISE NOTICE '✅ 已删除旧约束 history_user_id_game_uid_seq_id_key';
-  ELSE
-    RAISE NOTICE 'ℹ️ 约束 history_user_id_game_uid_seq_id_key 不存在';
-  END IF;
+    -- 1. 删除旧的唯一约束
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_id_game_uid_seq_id_key'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history DROP CONSTRAINT history_user_id_game_uid_seq_id_key;
+      RAISE NOTICE '✅ 已删除旧约束 history_user_id_game_uid_seq_id_key';
+    ELSE
+      RAISE NOTICE 'ℹ️ 约束 history_user_id_game_uid_seq_id_key 不存在';
+    END IF;
 
-  -- 检查其他可能的命名
-  IF EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_seq_unique'
-    AND conrelid = 'history'::regclass
-  ) THEN
-    ALTER TABLE history DROP CONSTRAINT history_user_game_seq_unique;
-    RAISE NOTICE '✅ 已删除旧约束 history_user_game_seq_unique';
-  END IF;
-END $$;
+    -- 检查其他可能的命名
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_seq_unique'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history DROP CONSTRAINT history_user_game_seq_unique;
+      RAISE NOTICE '✅ 已删除旧约束 history_user_game_seq_unique';
+    END IF;
 
--- 2. 创建新的唯一约束（包含 pool_id）
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint
-    WHERE conname = 'history_user_game_pool_seq_unique'
-    AND conrelid = 'history'::regclass
-  ) THEN
-    ALTER TABLE history
-    ADD CONSTRAINT history_user_game_pool_seq_unique
-    UNIQUE (user_id, game_uid, pool_id, seq_id);
-    RAISE NOTICE '✅ 已创建新约束 history_user_game_pool_seq_unique';
+    -- 2. 创建新的唯一约束（包含 pool_id）
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'history_user_game_pool_seq_unique'
+      AND conrelid = 'history'::regclass
+    ) THEN
+      ALTER TABLE history
+      ADD CONSTRAINT history_user_game_pool_seq_unique
+      UNIQUE (user_id, game_uid, pool_id, seq_id);
+      RAISE NOTICE '✅ 已创建新约束 history_user_game_pool_seq_unique';
+    ELSE
+      RAISE NOTICE 'ℹ️ 约束 history_user_game_pool_seq_unique 已存在';
+    END IF;
   ELSE
-    RAISE NOTICE 'ℹ️ 约束 history_user_game_pool_seq_unique 已存在';
+    RAISE NOTICE 'ℹ️ 跳过 history pool 级唯一约束修复，因为 history.game_uid / history.seq_id 不存在';
   END IF;
 END $$;
 
@@ -8280,20 +8335,32 @@ GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats(uuid) TO anon, authentic
 --   3. 添加 CHECK 约束防止未来再次发生
 -- ============================================================
 
--- 步骤 1: 创建临时函数重算 pity
-CREATE OR REPLACE FUNCTION _temp_recalculate_pity() RETURNS void AS $$
+DO $$
 DECLARE
   rec RECORD;
   current_pity INTEGER := 0;
   prev_user_id UUID := NULL;
   prev_pool_id TEXT := NULL;
 BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'pity'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'history' AND column_name = 'is_free'
+  ) THEN
+    RAISE NOTICE 'Migration 059 skipped because history.pity / history.is_free are unavailable';
+    RETURN;
+  END IF;
+
+  -- 步骤 1~3: 直接在 DO 块中重算 pity
   FOR rec IN
     SELECT user_id, record_id, pool_id, rarity, is_free
     FROM public.history
     ORDER BY user_id, pool_id, timestamp ASC, record_id ASC
   LOOP
-    -- 当 user 或 pool 切换时，重置 pity 计数器
     IF rec.user_id IS DISTINCT FROM prev_user_id
        OR rec.pool_id IS DISTINCT FROM prev_pool_id THEN
       current_pity := 0;
@@ -8301,40 +8368,28 @@ BEGIN
       prev_pool_id := rec.pool_id;
     END IF;
 
-    -- 免费十连不计入保底进度
     IF rec.is_free IS NOT TRUE THEN
       current_pity := current_pity + 1;
     END IF;
 
-    -- 更新该记录的 pity 值
     UPDATE public.history
     SET pity = current_pity
     WHERE user_id = rec.user_id AND record_id = rec.record_id;
 
-    -- 抽到6星后重置计数器
     IF rec.rarity = 6 THEN
       current_pity := 0;
     END IF;
   END LOOP;
-END;
-$$ LANGUAGE plpgsql;
 
--- 步骤 2: 执行重算
-SELECT _temp_recalculate_pity();
+  -- 步骤 4: 钳制边界情况
+  UPDATE public.history SET pity = 80 WHERE pity > 80;
+  UPDATE public.history SET pity = 0 WHERE pity < 0;
 
--- 步骤 3: 清理临时函数
-DROP FUNCTION _temp_recalculate_pity();
-
--- 步骤 4: 钳制边界情况
--- 某些用户的数据可能不完整（缺少6星记录），导致重算后 pity 仍然 > 80
--- 将这些值钳制到 80，防止 CHECK 约束失败
-UPDATE public.history SET pity = 80 WHERE pity > 80;
-UPDATE public.history SET pity = 0 WHERE pity < 0;
-
--- 步骤 5: 添加 CHECK 约束
-ALTER TABLE public.history DROP CONSTRAINT IF EXISTS history_pity_check;
-ALTER TABLE public.history ADD CONSTRAINT history_pity_check
-  CHECK (pity >= 0 AND pity <= 80);
+  -- 步骤 5: 添加 CHECK 约束
+  ALTER TABLE public.history DROP CONSTRAINT IF EXISTS history_pity_check;
+  ALTER TABLE public.history ADD CONSTRAINT history_pity_check
+    CHECK (pity >= 0 AND pity <= 80);
+END $$;
 -- <<< END MIGRATION: archive\059_fix_pity_data_and_constraint.sql
 
 -- >>> BEGIN MIGRATION: archive\060_fix_global_stats_exclude_free.sql
@@ -11551,4 +11606,693 @@ BEGIN
   RAISE NOTICE '✅ Migration 081: 黑名单与邮箱黑白名单旧链已移除';
 END $$;
 -- <<< END MIGRATION: active\081_remove_blacklist_feature.sql
+
+-- >>> BEGIN MIGRATION: active\082_fix_global_stats_exclude_info_book_resource.sql
+-- ============================================
+-- 082: 修复全服统计中的情报书十连资源口径
+--
+-- 背景:
+--   get_global_stats() 当前只排除了 gift / 免费十连，
+--   但没有识别“上一限定池 60 抽后，下一限定池前 10 抽为情报书”的收费例外。
+--   前端全服资源卡因此会把情报书十连误计入嵌晶玉消耗。
+--
+-- 目标:
+--   1. 在 RPC 内按“用户 + 限定池轮换顺序”推导情报书十连
+--   2. 输出各池 chargedPulls 与全局 chargedCharacterPulls / chargedWeaponPulls
+--   3. 保持总抽数、保底、出货统计继续按有效抽数（含情报书）计算
+-- ============================================
+
+CREATE OR REPLACE FUNCTION public.get_global_stats()
+RETURNS JSON
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+WITH history_base AS MATERIALIZED (
+  SELECT
+    h.pool_id,
+    h.user_id,
+    h.record_id,
+    h.rarity,
+    h.special_type,
+    h.is_free,
+    h.is_standard,
+    h.character_name,
+    h.item_name,
+    p.type AS pool_type,
+    p.up_character
+  FROM public.history AS h
+  LEFT JOIN public.pools AS p ON p.pool_id = h.pool_id
+),
+history_enriched AS MATERIALIZED (
+  SELECT
+    hb.pool_id,
+    hb.user_id,
+    hb.record_id,
+    hb.rarity,
+    hb.special_type,
+    hb.is_free,
+    CASE
+      WHEN hb.pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN true
+      WHEN hb.rarity = 6 AND hb.up_character IS NOT NULL THEN
+        NOT (
+          COALESCE(hb.character_name, '') ILIKE '%' || hb.up_character || '%'
+          OR COALESCE(hb.item_name, '') ILIKE '%' || hb.up_character || '%'
+          OR hb.up_character ILIKE '%' || COALESCE(hb.character_name, hb.item_name, '') || '%'
+        )
+      ELSE COALESCE(hb.is_standard, false)
+    END AS is_standard_calc,
+    COALESCE(
+      CASE
+        WHEN hb.pool_type IN ('limited', 'limited_character') THEN 'limited'
+        WHEN hb.pool_type IN ('weapon', 'limited_weapon') THEN 'weapon'
+        WHEN hb.pool_type IN ('standard', 'beginner') THEN 'standard'
+        ELSE NULL
+      END,
+      CASE
+        WHEN hb.pool_id IN ('standard', 'beginner') THEN 'standard'
+        WHEN split_part(hb.pool_id, '_', 1) = 'special' THEN 'limited'
+        WHEN split_part(hb.pool_id, '_', 1) IN ('weaponbox', 'weponbox') THEN 'weapon'
+        WHEN
+          CASE
+            WHEN hb.pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN true
+            WHEN hb.rarity = 6 AND hb.up_character IS NOT NULL THEN
+              NOT (
+                COALESCE(hb.character_name, '') ILIKE '%' || hb.up_character || '%'
+                OR COALESCE(hb.item_name, '') ILIKE '%' || hb.up_character || '%'
+                OR hb.up_character ILIKE '%' || COALESCE(hb.character_name, hb.item_name, '') || '%'
+              )
+            ELSE COALESCE(hb.is_standard, false)
+          END
+        THEN 'standard'
+        ELSE 'limited'
+      END
+    ) AS classified_pool_type
+  FROM history_base AS hb
+),
+valid_pulls AS MATERIALIZED (
+  SELECT
+    pool_id,
+    user_id,
+    record_id,
+    rarity,
+    is_standard_calc,
+    classified_pool_type
+  FROM history_enriched
+  WHERE special_type IS DISTINCT FROM 'gift'
+    AND (is_free IS NOT TRUE)
+),
+limited_pool_sequence AS MATERIALIZED (
+  SELECT
+    p.pool_id,
+    LEAD(p.pool_id) OVER (
+      ORDER BY COALESCE(p.start_time, p.created_at), p.pool_id
+    ) AS next_pool_id
+  FROM public.pools AS p
+  WHERE p.type IN ('limited', 'limited_character')
+),
+limited_paid_pool_counts AS MATERIALIZED (
+  SELECT
+    vp.user_id,
+    vp.pool_id,
+    COUNT(*) AS paid_pull_count
+  FROM valid_pulls AS vp
+  WHERE vp.classified_pool_type = 'limited'
+  GROUP BY vp.user_id, vp.pool_id
+),
+info_book_credits AS MATERIALIZED (
+  SELECT
+    lpc.user_id,
+    lps.next_pool_id AS pool_id,
+    SUM(10) AS credit_pull_count
+  FROM limited_paid_pool_counts AS lpc
+  JOIN limited_pool_sequence AS lps
+    ON lps.pool_id = lpc.pool_id
+  WHERE lps.next_pool_id IS NOT NULL
+    AND lpc.paid_pull_count >= 60
+  GROUP BY lpc.user_id, lps.next_pool_id
+),
+limited_paid_pull_order AS MATERIALIZED (
+  SELECT
+    vp.user_id,
+    vp.pool_id,
+    vp.record_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY vp.user_id, vp.pool_id
+      ORDER BY vp.record_id
+    ) AS paid_pull_order
+  FROM valid_pulls AS vp
+  WHERE vp.classified_pool_type = 'limited'
+),
+info_book_pulls AS MATERIALIZED (
+  SELECT
+    lpo.user_id,
+    lpo.pool_id,
+    lpo.record_id
+  FROM limited_paid_pull_order AS lpo
+  JOIN info_book_credits AS ibc
+    ON ibc.user_id = lpo.user_id
+   AND ibc.pool_id = lpo.pool_id
+  WHERE lpo.paid_pull_order <= ibc.credit_pull_count
+),
+charged_valid_pulls AS MATERIALIZED (
+  SELECT vp.*
+  FROM valid_pulls AS vp
+  LEFT JOIN info_book_pulls AS ibp
+    ON ibp.user_id = vp.user_id
+   AND ibp.pool_id = vp.pool_id
+   AND ibp.record_id = vp.record_id
+  WHERE ibp.record_id IS NULL
+),
+valid_counts AS MATERIALIZED (
+  SELECT
+    COUNT(*) AS total_pulls,
+    COUNT(DISTINCT user_id) AS total_contributors,
+    COUNT(*) FILTER (WHERE rarity = 6) AS six_star_total,
+    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = false) AS six_star_limited,
+    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = true) AS six_star_standard,
+    COUNT(*) FILTER (WHERE rarity = 5) AS five_star,
+    COUNT(*) FILTER (WHERE rarity <= 4) AS four_star
+  FROM valid_pulls
+),
+history_counts AS MATERIALIZED (
+  SELECT
+    COUNT(*) FILTER (WHERE special_type IS DISTINCT FROM 'gift') AS total_pulls_with_free,
+    COUNT(*) FILTER (WHERE special_type IS DISTINCT FROM 'gift' AND is_free = true) AS free_pull_count,
+    COUNT(*) FILTER (WHERE special_type = 'gift') AS gift_total,
+    COUNT(*) FILTER (
+      WHERE special_type = 'gift'
+        AND rarity = 6
+        AND classified_pool_type = 'limited'
+    ) AS char_gift,
+    COUNT(*) FILTER (
+      WHERE special_type = 'gift'
+        AND rarity = 6
+        AND classified_pool_type = 'weapon'
+        AND is_standard_calc = false
+    ) AS weapon_gift_limited,
+    COUNT(*) FILTER (
+      WHERE special_type = 'gift'
+        AND rarity = 6
+        AND classified_pool_type = 'weapon'
+        AND is_standard_calc = true
+    ) AS weapon_gift_standard
+  FROM history_enriched
+),
+type_counts AS MATERIALIZED (
+  SELECT
+    classified_pool_type,
+    COUNT(*) AS total,
+    COUNT(*) FILTER (WHERE rarity = 6) AS six,
+    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = false) AS six_star_limited,
+    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = true) AS six_star_standard,
+    COUNT(*) FILTER (WHERE rarity = 5) AS five,
+    COUNT(*) FILTER (WHERE rarity <= 4) AS four
+  FROM valid_pulls
+  GROUP BY classified_pool_type
+),
+charged_counts AS MATERIALIZED (
+  SELECT
+    COUNT(*) FILTER (WHERE classified_pool_type IN ('limited', 'standard')) AS charged_character_pulls,
+    COUNT(*) FILTER (WHERE classified_pool_type = 'weapon') AS charged_weapon_pulls,
+    COUNT(*) FILTER (WHERE classified_pool_type = 'limited') AS charged_limited_pulls,
+    COUNT(*) FILTER (WHERE classified_pool_type = 'standard') AS charged_standard_pulls,
+    COUNT(*) FILTER (WHERE classified_pool_type = 'weapon') AS charged_weapon_type_pulls,
+    (SELECT COUNT(*) FROM info_book_pulls) AS info_book_pull_count
+  FROM charged_valid_pulls
+),
+ordered_valid AS MATERIALIZED (
+  SELECT
+    pool_id,
+    user_id,
+    rarity,
+    is_standard_calc,
+    classified_pool_type,
+    record_id,
+    ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) AS rn
+  FROM valid_pulls
+),
+six_pity AS MATERIALIZED (
+  SELECT
+    pool_id,
+    user_id,
+    is_standard_calc,
+    classified_pool_type,
+    rn,
+    LEAST(
+      rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+      80
+    ) AS pity
+  FROM ordered_valid
+  WHERE rarity = 6
+),
+limited_first_up AS MATERIALIZED (
+  SELECT
+    pool_id,
+    user_id,
+    MIN(rn) FILTER (WHERE is_standard_calc = false) AS first_up_rn
+  FROM six_pity
+  WHERE classified_pool_type = 'limited'
+  GROUP BY pool_id, user_id
+),
+limited_six_pity AS MATERIALIZED (
+  SELECT
+    sp.pool_id,
+    sp.user_id,
+    sp.is_standard_calc,
+    sp.rn,
+    sp.pity,
+    CASE
+      WHEN sp.is_standard_calc = false
+        AND sp.rn = 120
+        AND COALESCE(lfu.first_up_rn, 999999) = 120
+      THEN true
+      ELSE false
+    END AS is_spark
+  FROM six_pity AS sp
+  LEFT JOIN limited_first_up AS lfu
+    ON lfu.pool_id = sp.pool_id
+   AND lfu.user_id = sp.user_id
+  WHERE sp.classified_pool_type = 'limited'
+),
+pity_ranges AS MATERIALIZED (
+  SELECT
+    classified_pool_type,
+    is_standard_calc,
+    CASE
+      WHEN pity BETWEEN 1 AND 10 THEN '01-10'
+      WHEN pity BETWEEN 11 AND 20 THEN '11-20'
+      WHEN pity BETWEEN 21 AND 30 THEN '21-30'
+      WHEN pity BETWEEN 31 AND 40 THEN '31-40'
+      WHEN pity BETWEEN 41 AND 50 THEN '41-50'
+      WHEN pity BETWEEN 51 AND 60 THEN '51-60'
+      WHEN pity BETWEEN 61 AND 70 THEN '61-70'
+      WHEN pity BETWEEN 71 AND 80 THEN '71-80'
+      WHEN pity BETWEEN 81 AND 90 THEN '81-90'
+      ELSE '91+'
+    END AS range_label
+  FROM six_pity
+),
+global_distribution_rows AS MATERIALIZED (
+  SELECT
+    range_label,
+    COUNT(*) FILTER (WHERE is_standard_calc = false) AS limited_count,
+    COUNT(*) FILTER (WHERE is_standard_calc = true) AS standard_count
+  FROM pity_ranges
+  GROUP BY range_label
+),
+type_distribution_rows AS MATERIALIZED (
+  SELECT
+    classified_pool_type,
+    range_label,
+    COUNT(*) FILTER (WHERE is_standard_calc = false) AS limited_count,
+    COUNT(*) FILTER (WHERE is_standard_calc = true) AS standard_count
+  FROM pity_ranges
+  GROUP BY classified_pool_type, range_label
+),
+global_distribution AS MATERIALIZED (
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'range', REPLACE(range_label, '01-10', '1-10'),
+        'limited', limited_count,
+        'standard', standard_count
+      )
+      ORDER BY range_label
+    ),
+    '[]'::json
+  ) AS distribution
+  FROM global_distribution_rows
+),
+type_distributions AS MATERIALIZED (
+  SELECT
+    classified_pool_type,
+    COALESCE(
+      json_agg(
+        json_build_object(
+          'range', REPLACE(range_label, '01-10', '1-10'),
+          'limited', limited_count,
+          'standard', standard_count
+        )
+        ORDER BY range_label
+      ),
+      '[]'::json
+    ) AS distribution
+  FROM type_distribution_rows
+  GROUP BY classified_pool_type
+),
+global_avg_pity AS MATERIALIZED (
+  SELECT COALESCE(ROUND(AVG(pity)::numeric, 1), 0) AS avg_pity
+  FROM six_pity
+),
+type_pity_stats AS MATERIALIZED (
+  SELECT
+    classified_pool_type,
+    COALESCE(ROUND(AVG(pity)::numeric, 1), 0) AS avg_pity,
+    COALESCE(ROUND(AVG(pity) FILTER (WHERE is_standard_calc = false)::numeric, 1), 0) AS avg_pity_up
+  FROM six_pity
+  GROUP BY classified_pool_type
+),
+limited_pity_stats AS MATERIALIZED (
+  SELECT
+    COALESCE(ROUND(AVG(pity)::numeric, 1), 0) AS avg_pity,
+    COALESCE(ROUND(AVG(pity) FILTER (WHERE is_standard_calc = false AND NOT is_spark)::numeric, 1), 0) AS avg_pity_up,
+    COUNT(DISTINCT user_id) FILTER (WHERE is_spark = true) AS spark_count
+  FROM limited_six_pity
+),
+total_users AS MATERIALIZED (
+  SELECT COUNT(*) AS total_users
+  FROM public.profiles
+)
+SELECT json_build_object(
+  'totalPulls', COALESCE(vc.total_pulls, 0),
+  'totalPullsWithFree', COALESCE(hc.total_pulls_with_free, 0),
+  'freePullCount', COALESCE(hc.free_pull_count, 0),
+  'chargedCharacterPulls', COALESCE(cc.charged_character_pulls, 0),
+  'chargedWeaponPulls', COALESCE(cc.charged_weapon_pulls, 0),
+  'infoBookPullCount', COALESCE(cc.info_book_pull_count, 0),
+  'totalUsers', COALESCE(tu.total_users, 0),
+  'totalContributors', COALESCE(vc.total_contributors, 0),
+  'sixStarTotal', COALESCE(vc.six_star_total, 0),
+  'sixStarLimited', COALESCE(vc.six_star_limited, 0),
+  'sixStarStandard', COALESCE(vc.six_star_standard, 0),
+  'fiveStar', COALESCE(vc.five_star, 0),
+  'fourStar', COALESCE(vc.four_star, 0),
+  'avgPity', COALESCE(gap.avg_pity, 0),
+  'counts', json_build_object(
+    '6', COALESCE(vc.six_star_limited, 0),
+    '6_std', COALESCE(vc.six_star_standard, 0),
+    '5', COALESCE(vc.five_star, 0),
+    '4', COALESCE(vc.four_star, 0)
+  ),
+  'distribution', COALESCE(gd.distribution, '[]'::json),
+  'byType', json_build_object(
+    'limited', json_build_object(
+      'total', COALESCE(tc_limited.total, 0),
+      'chargedPulls', COALESCE(cc.charged_limited_pulls, 0),
+      'six', COALESCE(tc_limited.six, 0),
+      'sixStarLimited', COALESCE(tc_limited.six_star_limited, 0),
+      'sixStarStandard', COALESCE(tc_limited.six_star_standard, 0),
+      'avgPity', COALESCE(lps.avg_pity, 0),
+      'avgPityUp', COALESCE(lps.avg_pity_up, 0),
+      'sparkCount', COALESCE(lps.spark_count, 0),
+      'counts', json_build_object(
+        '6', COALESCE(tc_limited.six_star_limited, 0),
+        '6_std', COALESCE(tc_limited.six_star_standard, 0),
+        '5', COALESCE(tc_limited.five, 0),
+        '4', COALESCE(tc_limited.four, 0)
+      ),
+      'distribution', COALESCE(td_limited.distribution, '[]'::json)
+    ),
+    'weapon', json_build_object(
+      'total', COALESCE(tc_weapon.total, 0),
+      'chargedPulls', COALESCE(cc.charged_weapon_type_pulls, 0),
+      'six', COALESCE(tc_weapon.six, 0),
+      'sixStarLimited', COALESCE(tc_weapon.six_star_limited, 0),
+      'sixStarStandard', COALESCE(tc_weapon.six_star_standard, 0),
+      'avgPity', COALESCE(tps_weapon.avg_pity, 0),
+      'avgPityUp', COALESCE(tps_weapon.avg_pity_up, 0),
+      'counts', json_build_object(
+        '6', COALESCE(tc_weapon.six_star_limited, 0),
+        '6_std', COALESCE(tc_weapon.six_star_standard, 0),
+        '5', COALESCE(tc_weapon.five, 0),
+        '4', COALESCE(tc_weapon.four, 0)
+      ),
+      'distribution', COALESCE(td_weapon.distribution, '[]'::json)
+    ),
+    'standard', json_build_object(
+      'total', COALESCE(tc_standard.total, 0),
+      'chargedPulls', COALESCE(cc.charged_standard_pulls, 0),
+      'six', COALESCE(tc_standard.six, 0),
+      'sixStarLimited', 0,
+      'sixStarStandard', COALESCE(tc_standard.six, 0),
+      'avgPity', COALESCE(tps_standard.avg_pity, 0),
+      'counts', json_build_object(
+        '6', 0,
+        '6_std', COALESCE(tc_standard.six, 0),
+        '5', COALESCE(tc_standard.five, 0),
+        '4', COALESCE(tc_standard.four, 0)
+      ),
+      'distribution', COALESCE(td_standard.distribution, '[]'::json)
+    )
+  ),
+  'charGift', COALESCE(hc.char_gift, 0),
+  'weaponGiftLimited', COALESCE(hc.weapon_gift_limited, 0),
+  'weaponGiftStandard', COALESCE(hc.weapon_gift_standard, 0),
+  'giftTotal', COALESCE(hc.gift_total, 0)
+)
+FROM valid_counts AS vc
+CROSS JOIN history_counts AS hc
+CROSS JOIN charged_counts AS cc
+CROSS JOIN global_avg_pity AS gap
+CROSS JOIN global_distribution AS gd
+CROSS JOIN limited_pity_stats AS lps
+CROSS JOIN total_users AS tu
+LEFT JOIN type_counts AS tc_limited
+  ON tc_limited.classified_pool_type = 'limited'
+LEFT JOIN type_counts AS tc_weapon
+  ON tc_weapon.classified_pool_type = 'weapon'
+LEFT JOIN type_counts AS tc_standard
+  ON tc_standard.classified_pool_type = 'standard'
+LEFT JOIN type_pity_stats AS tps_weapon
+  ON tps_weapon.classified_pool_type = 'weapon'
+LEFT JOIN type_pity_stats AS tps_standard
+  ON tps_standard.classified_pool_type = 'standard'
+LEFT JOIN type_distributions AS td_limited
+  ON td_limited.classified_pool_type = 'limited'
+LEFT JOIN type_distributions AS td_weapon
+  ON td_weapon.classified_pool_type = 'weapon'
+LEFT JOIN type_distributions AS td_standard
+  ON td_standard.classified_pool_type = 'standard';
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Migration 082: get_global_stats 已补 chargedPulls / 情报书资源口径';
+END $$;
+-- <<< END MIGRATION: active\082_fix_global_stats_exclude_info_book_resource.sql
+
+-- >>> BEGIN MIGRATION: active\083_harden_admin_delete_user_foreign_keys.sql
+-- ============================================
+-- 083: 加固 admin-delete-user 的 auth.users 外键删除策略
+--
+-- 背景:
+--   announcements.created_by / site_config.updated_by 仍直接引用 auth.users(id)，
+--   默认行为会在超管删除管理员账号时阻塞 auth.admin.deleteUser()。
+--
+-- 目标:
+--   1. 将仍保留的元数据外键改为 ON DELETE SET NULL
+--   2. 保持公告 / 站点配置内容可保留，删除账号后仅清空“最后操作者”
+-- ============================================
+
+ALTER TABLE public.announcements
+  DROP CONSTRAINT IF EXISTS announcements_created_by_fkey;
+
+ALTER TABLE public.announcements
+  ADD CONSTRAINT announcements_created_by_fkey
+  FOREIGN KEY (created_by)
+  REFERENCES auth.users(id)
+  ON DELETE SET NULL;
+
+ALTER TABLE public.site_config
+  DROP CONSTRAINT IF EXISTS site_config_updated_by_fkey;
+
+ALTER TABLE public.site_config
+  ADD CONSTRAINT site_config_updated_by_fkey
+  FOREIGN KEY (updated_by)
+  REFERENCES auth.users(id)
+  ON DELETE SET NULL;
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Migration 083: admin-delete-user 外键策略已改为 ON DELETE SET NULL';
+END $$;
+-- <<< END MIGRATION: active\083_harden_admin_delete_user_foreign_keys.sql
+
+-- >>> BEGIN MIGRATION: active\084_create_account_recovery_requests.sql
+-- ============================================
+-- 084: 新增账号恢复申请表
+--
+-- 目标:
+--   1. 为“忘记密码/账号恢复”提供匿名申请入口
+--   2. 将验证信息（账号个数、UID、昵称）交给超管审核
+--   3. 不在未登录状态下直接开放改密，仅记录与处理恢复申请
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.account_recovery_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  matched_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  request_type TEXT NOT NULL CHECK (request_type IN ('password_reset', 'delete_account')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'verified', 'rejected', 'closed')),
+  claimed_account_count INTEGER NOT NULL DEFAULT 1 CHECK (claimed_account_count BETWEEN 1 AND 20),
+  verification_claims JSONB NOT NULL DEFAULT '[]'::jsonb,
+  note TEXT,
+  admin_note TEXT,
+  handled_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  handled_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_recovery_requests_email
+  ON public.account_recovery_requests(email);
+
+CREATE INDEX IF NOT EXISTS idx_account_recovery_requests_status
+  ON public.account_recovery_requests(status);
+
+CREATE INDEX IF NOT EXISTS idx_account_recovery_requests_created_at
+  ON public.account_recovery_requests(created_at DESC);
+
+ALTER TABLE public.account_recovery_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Super admins can view recovery requests" ON public.account_recovery_requests;
+CREATE POLICY "Super admins can view recovery requests"
+  ON public.account_recovery_requests FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'super_admin'
+    )
+  );
+
+DROP POLICY IF EXISTS "Super admins can update recovery requests" ON public.account_recovery_requests;
+CREATE POLICY "Super admins can update recovery requests"
+  ON public.account_recovery_requests FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'super_admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE profiles.id = auth.uid()
+      AND profiles.role = 'super_admin'
+    )
+  );
+
+GRANT SELECT, UPDATE ON public.account_recovery_requests TO authenticated;
+
+DROP TRIGGER IF EXISTS update_account_recovery_requests_updated_at ON public.account_recovery_requests;
+CREATE TRIGGER update_account_recovery_requests_updated_at
+  BEFORE UPDATE ON public.account_recovery_requests
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+COMMENT ON TABLE public.account_recovery_requests IS
+  '匿名账号恢复申请：记录忘记密码或申请注销旧账号时提交的人工核验信息。';
+
+COMMENT ON COLUMN public.account_recovery_requests.request_type IS
+  '申请类型：password_reset=申请恢复登录，delete_account=申请注销旧账号。';
+
+COMMENT ON COLUMN public.account_recovery_requests.verification_claims IS
+  '申请人提交的身份核验信息，格式如 [{gameUid, nickName}]。';
+-- <<< END MIGRATION: active\084_create_account_recovery_requests.sql
+
+-- >>> BEGIN MIGRATION: active\085_restore_history_v2_columns.sql
+-- ============================================
+-- 085: 恢复 history 的 V2 导入字段与约束
+--
+-- 背景:
+--   公开仓库的标准迁移链曾默认依赖 manual/legacy/042_v2_schema_upgrade.sql
+--   提前补充 history 的官网导入字段；但 baseline / 新库起库时不会执行 manual/legacy。
+--   结果是 game_uid / seq_id / pity / is_free 等字段在标准链中被后续迁移引用时可能缺失。
+--
+-- 目标:
+--   1. 将 V2 导入链必须的 history 字段收口到标准迁移链
+--   2. 补齐索引与唯一约束，和前端 cloudWriteService 的 upsert 口径保持一致
+--   3. 兼容已存在旧字段/旧约束的数据库，保持幂等
+-- ============================================
+
+ALTER TABLE public.history
+  ADD COLUMN IF NOT EXISTS batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS seq_id TEXT,
+  ADD COLUMN IF NOT EXISTS pity INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_new BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_free BOOLEAN DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS game_uid TEXT;
+
+COMMENT ON COLUMN public.history.batch_id IS '批次 ID（十连分组）';
+COMMENT ON COLUMN public.history.seq_id IS '官方序列号（去重用）';
+COMMENT ON COLUMN public.history.pity IS '当前保底计数';
+COMMENT ON COLUMN public.history.is_new IS '是否首次获得';
+COMMENT ON COLUMN public.history.is_free IS '是否免费抽取';
+COMMENT ON COLUMN public.history.game_uid IS '关联的游戏账号 UID';
+
+CREATE INDEX IF NOT EXISTS idx_history_batch_id ON public.history(batch_id);
+CREATE INDEX IF NOT EXISTS idx_history_seq_id ON public.history(seq_id);
+CREATE INDEX IF NOT EXISTS idx_history_game_uid ON public.history(game_uid);
+CREATE INDEX IF NOT EXISTS idx_history_user_record_id ON public.history(user_id, record_id);
+
+UPDATE public.history
+SET game_uid = 'legacy_' || LEFT(user_id::text, 8)
+WHERE game_uid IS NULL AND seq_id IS NOT NULL;
+
+UPDATE public.history
+SET pity = 0
+WHERE pity IS NULL OR pity < 0;
+
+UPDATE public.history
+SET pity = 80
+WHERE pity > 80;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.history'::regclass
+      AND conname = 'history_user_id_game_uid_seq_id_key'
+  ) THEN
+    ALTER TABLE public.history DROP CONSTRAINT history_user_id_game_uid_seq_id_key;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.history'::regclass
+      AND conname = 'history_user_game_seq_unique'
+  ) THEN
+    ALTER TABLE public.history DROP CONSTRAINT history_user_game_seq_unique;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.history'::regclass
+      AND conname = 'history_user_game_pool_seq_unique'
+  ) THEN
+    ALTER TABLE public.history
+      ADD CONSTRAINT history_user_game_pool_seq_unique
+      UNIQUE (user_id, game_uid, pool_id, seq_id);
+  END IF;
+END $$;
+
+ALTER TABLE public.history DROP CONSTRAINT IF EXISTS history_pity_check;
+ALTER TABLE public.history
+  ADD CONSTRAINT history_pity_check
+  CHECK (pity >= 0 AND pity <= 80);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'history'
+      AND column_name IN ('batch_id', 'seq_id', 'pity', 'is_new', 'is_free', 'game_uid')
+    GROUP BY table_name
+    HAVING COUNT(*) = 6
+  ) THEN
+    RAISE EXCEPTION 'Migration 085 failed: history V2 columns are still incomplete';
+  END IF;
+
+  RAISE NOTICE '✅ Migration 085: history V2 columns / indexes / constraints are ready';
+END $$;
+-- <<< END MIGRATION: active\085_restore_history_v2_columns.sql
 
