@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Footer from './components/layout/Footer';
 import GachaModals from './components/modals/GachaModals';
 import { LoadingBar } from './components/ui';
-import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole } from './hooks';
+import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight } from './hooks';
 import { useAuthStore, useAppStore, usePoolStore } from './stores';
 import { getDesktopPathForTab, getDesktopTabFromPath, normalizeAppTab } from './constants/appRoutes';
 import AppHeader from './components/layout/AppHeader';
@@ -227,6 +227,9 @@ export default function GachaAnalyzer() {
 
   // 获取用户角色
   useUserRole();
+
+  // 导航后滚动到目标元素并高亮
+  useScrollToHighlight();
 
   // 注意：公告加载和未读工单数量已移至 useNotificationBadges hook
 

@@ -210,8 +210,8 @@ const HomePage = React.memo(() => {
                 安全与隐私声明
               </h3>
               <div className="text-xs text-green-700 dark:text-green-500/80 leading-relaxed space-y-1">
-                <p>本站<strong>绝对不会</strong>存在窃取玩家电脑数据的恶意脚本。核心代码均已开源接受严格监督，一切纯净运行于浏览器沙盒内，无任何系统后门或越权操作。</p>
-                <p>如果各位对本站不放心，请在获取数据之后<strong>退出游戏网页登录</strong>。反复登录获取到的凭证是不同的，退出登录可使之前获取的 Token 失效，确保您的账号安全。</p>
+                <p>本站不会读取本地文件或执行系统级操作。前端主逻辑运行在浏览器内；站点配置、云同步、账号恢复与公开统计等能力会通过 Supabase、Edge Functions、`/api/bootstrap` 与可选私有代理配合完成。</p>
+                <p>如你仍对凭证安全有顾虑，获取数据后请<strong>退出游戏网页登录</strong>。重新登录会刷新凭证，旧 Token 会随之失效。</p>
               </div>
             </div>
           </div>

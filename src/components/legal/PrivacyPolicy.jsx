@@ -14,7 +14,7 @@ export default function PrivacyPolicy() {
         </a>
 
         <h1 className="text-2xl font-bold mb-2">隐私政策</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年2月23日</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月17日</p>
 
         <div className="space-y-6 text-sm leading-relaxed">
           <section>
@@ -40,6 +40,7 @@ export default function PrivacyPolicy() {
               <li>提供抽卡数据分析和统计服务。</li>
               <li>实现跨设备数据同步功能。</li>
               <li>生成匿名化的全服统计数据（如平均出货抽数排行）。</li>
+              <li>处理账号恢复申请、人工核验与临时密码发放等账号安全事务。</li>
               <li>改进和优化本工具的功能和性能。</li>
               <li>发送与服务相关的通知（如系统维护通知）。</li>
             </ul>
@@ -66,7 +67,13 @@ export default function PrivacyPolicy() {
 
           <section>
             <h2 className="text-lg font-semibold mb-2">六、Cookie 与本地存储</h2>
-            <p>本工具使用浏览器本地存储（localStorage）保存登录状态和用户偏好设置（如主题选择、当前查看的卡池等）。这些数据仅存储在您的设备上，不会上传至服务器。</p>
+            <p>本工具会使用浏览器本地存储（localStorage）保存必要的界面状态和缓存快照。这些数据仅保留在您的设备上，用于改善加载速度和跨页面体验，不会因为“写入 localStorage”而自动上传到服务器。</p>
+            <ul className="list-disc pl-6 mt-2 space-y-1">
+              <li><strong>界面偏好</strong>：主题模式、当前查看的卡池、当前游戏账号、桌面端 / 移动端偏好、验证码模式与分享主题。</li>
+              <li><strong>模拟器本地状态</strong>：按用户与游戏账号隔离的模拟器保底、资源设置、情报书和演出开关。</li>
+              <li><strong>只读缓存快照</strong>：站点配置、公开 bootstrap、角色缓存和部分全服统计快照，用于离线回退与减少重复请求。</li>
+            </ul>
+            <p className="mt-2">抽卡记录、云同步后的卡池数据和账号资料并不会因为写入 localStorage 而替代服务器存储；登录用户的主数据仍以 Supabase 中的受限数据为准。</p>
           </section>
 
           <section>
@@ -75,10 +82,11 @@ export default function PrivacyPolicy() {
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li><strong>访问权</strong>：查看您存储在本工具中的所有个人数据。</li>
               <li><strong>更正权</strong>：修改您的账号信息。</li>
-              <li><strong>删除权</strong>：请求删除您的账号及所有关联数据。</li>
-              <li><strong>导出权</strong>：导出您的抽卡记录数据。</li>
+              <li><strong>删除权</strong>：普通用户可在设置页自助注销自己的账号；若无法登录，也可提交账号恢复 / 注销申请，由超管人工核验处理。</li>
+              <li><strong>导出权</strong>：导出您的抽卡记录数据。JSON / CSV 导出用于备份和再导入，可能包含卡池、时间、游戏账号等结构化记录字段。</li>
+              <li><strong>分享控制权</strong>：站内分享卡和分享文本采用脱敏口径，默认不包含账号、UID、精确时间戳与原始抽卡明细。</li>
             </ul>
-            <p className="mt-2">如需行使上述权利，请通过工单系统联系我们。</p>
+            <p className="mt-2">如需行使上述权利，请优先使用站内设置页、导出功能或工单系统；账号恢复与临时密码领取当前通过 QQ 群 <strong>1080983185</strong> 配合超管人工处理。</p>
           </section>
 
           <section>
@@ -96,6 +104,7 @@ export default function PrivacyPolicy() {
             <p>如果您对本隐私政策有任何疑问或建议，可通过以下方式联系我们：</p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li>站内工单系统</li>
+              <li>QQ 群：1080983185（账号恢复、临时密码与使用问题）</li>
               <li>GitHub Issues</li>
             </ul>
           </section>

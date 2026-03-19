@@ -3,11 +3,11 @@ import { Accessibility, Calculator, ChevronUp, Database, Github, Globe, Language
 import CollapsibleContent from './CollapsibleContent';
 
 const ROADMAP_ITEMS = [
-  { id: 'sim-inherit', icon: RefreshCw, title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'planned', priority: 'high' },
-  { id: 'puzzle-captcha', icon: Shield, title: '拼图验证码', description: '主站验证码更换为简单拼图玩法，同时保留现有方式', status: 'planned', priority: 'high' },
-  { id: 'global-support', icon: Globe, title: '国际服支持', description: '支持国际服抽卡记录的解析与导入', status: 'planned', priority: 'high' },
-  { id: 'currency-calc', icon: Calculator, title: '资源消耗换算', description: '支持换算已消耗合成玉、源石数量及已获得武库配额数量', status: 'planned', priority: 'medium' },
-  { id: 'sim-currency', icon: Database, title: '模拟器资源机制', description: '模拟器添加合成玉和源石的使用和获取机制', status: 'planned', priority: 'medium' },
+  { id: 'sim-inherit', icon: RefreshCw, title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'completed', priority: 'high' },
+  { id: 'puzzle-captcha', icon: Shield, title: '拼图验证码', description: '主站验证码已切换为简单拼图玩法，并保留备用方式', status: 'completed', priority: 'high' },
+  { id: 'global-support', icon: Globe, title: '国际服支持', description: '现已支持国际服抽卡记录的解析与导入', status: 'completed', priority: 'high' },
+  { id: 'currency-calc', icon: Calculator, title: '资源消耗换算', description: '现已支持换算已消耗合成玉、源石数量及武库配额', status: 'completed', priority: 'medium' },
+  { id: 'sim-currency', icon: Database, title: '模拟器资源机制', description: '模拟器已加入合成玉、源石与武库配额机制', status: 'completed', priority: 'medium' },
   { id: 'share', icon: Share2, title: '分享功能', description: '模拟器支持脱敏分享卡图片、系统分享与文本复制', status: 'completed', priority: 'medium' },
   { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'low' },
   { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low' },

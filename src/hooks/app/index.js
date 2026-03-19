@@ -10,3 +10,4 @@ export { useHistoryOperations } from './useHistoryOperations';
 export { useDataExportImport } from './useDataExportImport';
 export { usePoolRealtimeSubscription } from './usePoolRealtimeSubscription';
 export { useUserRole } from './useUserRole';
+export { useScrollToHighlight } from './useScrollToHighlight';

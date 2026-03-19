@@ -67,7 +67,7 @@ export default function DesktopDashboardWorkspace({
           </Suspense>
 
           <div className="mt-6">
-            <details className="group">
+            <details id="guide-export-section" className="group">
               <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
                 <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                   <History size={18} /> 详细日志

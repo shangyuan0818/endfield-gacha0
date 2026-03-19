@@ -730,6 +730,41 @@
     animation: overlay-fade-in 0.2s ease-out forwards;
   }
 
+  /* 使用指南跳转高亮闪烁 */
+  @keyframes guide-flash {
+    0%   { box-shadow: none; background-color: transparent; }
+    10%  { box-shadow: 0 0 0 4px rgba(255, 250, 0, 0.7), 0 0 24px rgba(255, 250, 0, 0.4); background-color: rgba(255, 250, 0, 0.15); }
+    30%  { box-shadow: 0 0 0 4px rgba(255, 250, 0, 0.7), 0 0 24px rgba(255, 250, 0, 0.4); background-color: rgba(255, 250, 0, 0.15); }
+    50%  { box-shadow: 0 0 0 2px rgba(255, 250, 0, 0.4), 0 0 12px rgba(255, 250, 0, 0.2); background-color: rgba(255, 250, 0, 0.08); }
+    70%  { box-shadow: 0 0 0 4px rgba(255, 250, 0, 0.6), 0 0 20px rgba(255, 250, 0, 0.35); background-color: rgba(255, 250, 0, 0.12); }
+    100% { box-shadow: none; background-color: transparent; }
+  }
+
+  .guide-highlight-flash {
+    animation: guide-flash 3s ease-in-out;
+    border-radius: 2px;
+  }
+
+  /* 浮动箭头指示器 */
+  @keyframes guide-arrow-bounce {
+    0%, 100% { transform: translate(-50%, 0); opacity: 0; }
+    10%      { opacity: 1; }
+    20%, 80% { opacity: 1; }
+    30%      { transform: translate(-50%, 6px); }
+    50%      { transform: translate(-50%, 0); }
+    70%      { transform: translate(-50%, 6px); }
+    90%      { transform: translate(-50%, 0); opacity: 1; }
+  }
+
+  .guide-arrow-indicator {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    color: #FFFA00;
+    filter: drop-shadow(0 0 8px rgba(255, 250, 0, 0.6)) drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+    animation: guide-arrow-bounce 3s ease-in-out forwards;
+  }
+
   /* 移动端触摸反馈 */
   .touch-feedback {
     transition: transform 0.1s, opacity 0.1s;

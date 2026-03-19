@@ -288,8 +288,8 @@ function MobileHomePageView() {
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-green-800 dark:text-green-400 mb-1">安全与隐私声明</h3>
               <div className="text-xs text-green-700 dark:text-green-500/80 leading-relaxed space-y-1">
-                <p>本站绝不会窃取玩家电脑数据，核心逻辑均运行在浏览器沙盒内。</p>
-                <p>若你对站点安全仍有顾虑，获取数据后退出官网登录即可让旧 Token 失效。</p>
+                <p>本站不会读取本地文件或执行系统级操作。前端主逻辑运行在浏览器内；云同步、公开统计、账号恢复与导入代理等能力会通过 Supabase、`/api/bootstrap` 和可选私有后端完成。</p>
+                <p>若你仍对凭证安全有顾虑，获取数据后退出官网登录即可让旧 Token 失效。</p>
               </div>
             </div>
           </div>

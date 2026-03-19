@@ -760,10 +760,10 @@ const DashboardView = ({ showToast }) => {
                     <button
                       type="button"
                       onClick={() => setShowShareMenu((visible) => !visible)}
-                      className="px-2.5 py-1 text-xs font-medium transition-colors border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5"
+                      className="group px-3.5 py-1.5 text-xs font-bold tracking-wide transition-all rounded-sm flex items-center gap-2 bg-endfield-yellow text-black hover:bg-yellow-400 shadow-sm hover:shadow-[0_0_16px_rgba(255,250,0,0.35)] active:scale-95"
                     >
-                      <Share2 size={14} />
-                      分享
+                      <Share2 size={14} className="group-hover:-rotate-12 transition-transform" />
+                      分享出货
                       <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
                     </button>
 

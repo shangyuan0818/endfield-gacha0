@@ -123,6 +123,7 @@ const PoolSelector = () => {
         <div className="flex items-center gap-3">
           {user ? (
             <button
+              id="guide-import-btn"
               onClick={() => setShowImportManager(true)}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wider transition-all"
             >
@@ -130,7 +131,7 @@ const PoolSelector = () => {
               导入数据
             </button>
           ) : (
-            <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
+            <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
               [ 请登录以导入数据 ]
             </div>
           )}
