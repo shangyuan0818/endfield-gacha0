@@ -153,6 +153,7 @@ function renderBarStack(target, current, vertical = false) {
 }
 
 export default function EnhancedPuzzleCaptchaImpl({
+  isMobile = false,
   puzzle,
   puzzleId,
   puzzleAuthor,
@@ -183,6 +184,7 @@ export default function EnhancedPuzzleCaptchaImpl({
   const [hintUnlocked, setHintUnlocked] = useState(false);
   const [hintRemainingSeconds, setHintRemainingSeconds] = useState(60);
   const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
+  const [showHintPanel, setShowHintPanel] = useState(!isMobile);
 
   const placedEntries = useMemo(() => Object.entries(placed), [placed]);
   const placedCount = placedEntries.length;
@@ -432,11 +434,421 @@ export default function EnhancedPuzzleCaptchaImpl({
     setPreview(null);
   };
 
+  const attemptPlaceSelectedPiece = useCallback((row, col) => {
+    if (!isMobile || selectedPieceId === null || resolvedRef.current) {
+      return false;
+    }
+
+    const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
+    if (!selectedPiece || placed[selectedPieceId]) {
+      return false;
+    }
+
+    const [grabRow, grabCol] = getNearestCell(selectedPiece.shape, 0, 0);
+    const anchorRow = row - grabRow;
+    const anchorCol = col - grabCol;
+    const cells = getPlaceableCells(puzzle, pieces, placed, selectedPieceId, anchorRow, anchorCol);
+
+    if (!cells) {
+      return false;
+    }
+
+    setPlaced((previousPlaced) => ({
+      ...previousPlaced,
+      [selectedPieceId]: {
+        anchor: [anchorRow, anchorCol],
+        cells,
+      },
+    }));
+    setPreview(null);
+    return true;
+  }, [isMobile, pieces, placed, puzzle, selectedPieceId]);
+
   const dragPiece = drag ? pieces.find((piece) => piece.id === drag.id) : null;
   const dragBounds = dragPiece ? {
     rows: Math.max(...dragPiece.shape.map(([row]) => row)) + 1,
     cols: Math.max(...dragPiece.shape.map(([, col]) => col)) + 1,
   } : null;
+  const hintPanel = (
+    <section className={`panel side-block hint-panel${isMobile ? ' mobile-hint-panel' : ''}`.trim()}>
+      {isMobile ? (
+        <button
+          className="mobile-hint-toggle"
+          type="button"
+          onClick={() => setShowHintPanel((previous) => !previous)}
+        >
+          <span className="mobile-hint-label">提示</span>
+          <span className="mobile-hint-status">
+            {hintUnlocked ? '已解锁' : formatCountdown(hintRemainingSeconds)}
+          </span>
+        </button>
+      ) : null}
+
+      {!isMobile || showHintPanel ? (
+        !hintUnlocked ? (
+          <div className="hint-locked">
+            <div className="hint-badge">HINT LOCKED</div>
+            <div className="hint-title">提示按钮未解锁</div>
+            <div className="hint-copy">
+              剩余 <span>{formatCountdown(hintRemainingSeconds)}</span> 后可查看提示。
+            </div>
+            <button
+              className="action-btn"
+              type="button"
+              onClick={() => {
+                clearHintTimers();
+                setHintRemainingSeconds(0);
+                setHintUnlocked(true);
+              }}
+            >
+              直接看提示
+            </button>
+          </div>
+        ) : (
+          <div className="hint-shell">
+            <div className="hint-badge">HINT ONLINE</div>
+            <button
+              className="hint-trigger"
+              type="button"
+              onClick={() => setShowSolutionOverlay((previous) => !previous)}
+            >
+              <img className="hint-image" src="/penguin_endmin.jpeg" alt="提示按钮" />
+            </button>
+          </div>
+        )
+      ) : null}
+    </section>
+  );
+
+  const trayPanel = (
+    <aside className={isMobile ? 'panel mobile-tray-panel' : 'panel side-column side-right tray-panel'}>
+      <section>
+        <div className="panel-head tray-head">
+          <div>
+            <div className="panel-title">拼图模块</div>
+            <p className="panel-copy tray-copy">
+              {isMobile
+                ? '先点选下方模块，再点棋盘放置；需要时点右侧按钮旋转。'
+                : <>右侧模块区固定为独立卡片，拖拽整张卡片放入网格，按 <span className="inline-kbd">R</span> 旋转当前抓取或选中的模块。</>}
+            </p>
+          </div>
+        </div>
+
+        <div className="tray-grid" style={isMobile ? undefined : { maxHeight: trayViewportHeight }}>
+          {pieces.map((piece, index) => {
+            const maxRow = Math.max(...piece.shape.map(([row]) => row));
+            const maxCol = Math.max(...piece.shape.map(([, col]) => col));
+            const occupied = new Set(piece.shape.map(([row, col]) => `${row},${col}`));
+            const isPlaced = Boolean(placed[piece.id]);
+            const isSelected = selectedPieceId === piece.id;
+
+            return (
+              <article
+                key={piece.id}
+                className={`piece-card ${isPlaced ? 'done' : ''} ${isSelected ? 'selected' : ''}`.trim()}
+                onPointerDown={(event) => {
+                  if (isMobile) {
+                    return;
+                  }
+
+                  if (event.target.closest('[data-rotate]')) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  const captureRect = event.currentTarget.querySelector('[data-piece-grid]')?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
+                  beginDrag(piece.id, event.clientX, event.clientY, captureRect);
+                }}
+                onClick={() => {
+                  if (resolvedRef.current || isPlaced) {
+                    return;
+                  }
+
+                  if (isMobile) {
+                    setSelectedPieceId(piece.id);
+                    setPreview(null);
+                  }
+                }}
+              >
+                <div className="piece-card-body">
+                  <div className="piece-meta">
+                    <div>
+                      <div className="piece-label">模块 {String(index + 1).padStart(2, '0')}</div>
+                      <div className="piece-stat">{piece.shape.length} 格</div>
+                    </div>
+                  </div>
+
+                  <div className="piece-mini-frame">
+                    <div className="piece-mini-shell">
+                      <div className="piece-mini-wrap">
+                        <div
+                          className="mini-grid"
+                          data-piece-grid={piece.id}
+                          style={{ gridTemplateColumns: `repeat(${maxCol + 1}, ${miniCell}px)` }}
+                        >
+                          {Array.from({ length: (maxRow + 1) * (maxCol + 1) }).map((_, miniIndex) => {
+                            const row = Math.floor(miniIndex / (maxCol + 1));
+                            const col = miniIndex % (maxCol + 1);
+                            const filled = occupied.has(`${row},${col}`);
+
+                            return (
+                              <div
+                                key={`mini-${piece.id}-${miniIndex}`}
+                                className={`mini-cell ${filled ? 'filled' : ''}`.trim()}
+                                style={{
+                                  width: miniCell,
+                                  height: miniCell,
+                                  opacity: filled ? 1 : 0,
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  className="ghost-btn piece-rotate"
+                  type="button"
+                  data-rotate={piece.id}
+                  disabled={isPlaced}
+                  onClick={() => rotatePiece(piece.id)}
+                >
+                  ↻
+                </button>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+    </aside>
+  );
+
+  const puzzleCard = (
+    <div className="panel demo-frame demo-content captcha-card">
+      <section className={`topbar${isMobile ? ' compact-topbar' : ''}`.trim()}>
+        <div>
+          {!isMobile ? <div className="eyebrow">ORACLE PUZZLE ACCESS</div> : null}
+          <div className="topbar-title">
+            <strong>#{puzzleId}</strong>
+            <span className="badge source">已审核 / {getDifficultyLabel(puzzleDifficulty)}</span>
+          </div>
+          {isMobile ? (
+            <div className="mobile-meta-strip">
+              <span>已放 {placedCount}/{pieces.length}</span>
+              <span>{getDifficultyLabel(puzzleDifficulty)}</span>
+              <span>{author === '匿名上传者' ? '匿名出题' : `出题：${author}`}</span>
+            </div>
+          ) : (
+            <div className="meta-row meta-pills">
+              <span><i className="meta-dot" />上传者 {author}</span>
+              <span><i className="meta-dot" />{pieces.length} 块模块</span>
+              <span><i className="meta-dot" />已放 {placedCount} / {pieces.length} 块</span>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className={`play-body ${isShaking ? 'shake' : ''}`}>
+        <article className="panel board-panel">
+          <div className="board-layer">
+            <div className="board-wrap">
+              <div className="col-bars">
+                {puzzle.colConstraints.map((target, index) => {
+                  const current = currentCounts.colCounts[index] || 0;
+                  const tone = getConstraintTone(target, current);
+
+                  if (constraintMode === 'numbers') {
+                    return (
+                      <div key={`col-${index}`} className="constraint-top number" style={{ width: cellSize }}>
+                        <span className={`constraint-number ${tone === 'done' ? 'done' : tone === 'over' ? 'over' : ''}`.trim()}>
+                          {target}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={`col-${index}`} className="constraint-top" style={{ width: cellSize }}>
+                      {renderBarStack(target, current)}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div ref={gridRef}>
+                {Array.from({ length: puzzle.rows || 5 }).map((_, rowIndex) => (
+                  <div key={`row-${rowIndex}`} className="row">
+                    {constraintMode === 'numbers' ? (
+                      <div className="constraint-side number">
+                        <span
+                          className={`constraint-number ${
+                            getConstraintTone(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0) === 'done'
+                              ? 'done'
+                              : getConstraintTone(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0) === 'over'
+                                ? 'over'
+                                : ''
+                          }`.trim()}
+                        >
+                          {puzzle.rowConstraints[rowIndex]}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="row-bars">
+                        {renderBarStack(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0, true)}
+                      </div>
+                    )}
+
+                    {Array.from({ length: puzzle.cols || 5 }).map((_, colIndex) => {
+                      const cellKey = `${rowIndex},${colIndex}`;
+                      const occupiedId = getPlacedPieceId(rowIndex, colIndex);
+                      const isRestricted = restrictedSet.has(cellKey);
+                      const isLocked = lockedSet.has(cellKey);
+                      const isPreview = previewSet.has(cellKey) && occupiedId === null;
+                      const isSolutionTarget = (
+                        showSolutionOverlay &&
+                        occupiedId === null &&
+                        !isRestricted &&
+                        !isLocked &&
+                        solutionCellSet.has(cellKey)
+                      );
+
+                      const classNames = [
+                        'cell',
+                        occupiedId !== null ? 'occ' : isRestricted ? 'restricted' : isLocked ? 'locked' : 'free',
+                        isPreview ? 'preview' : '',
+                        isSolutionTarget ? 'solution-target' : '',
+                      ].filter(Boolean).join(' ');
+
+                      return (
+                        <button
+                          key={`cell-${rowIndex}-${colIndex}`}
+                          type="button"
+                          className={classNames}
+                          style={{ width: cellSize, height: cellSize }}
+                          onClick={() => {
+                            if (occupiedId !== null) {
+                              removePlacedPiece(occupiedId);
+                              return;
+                            }
+
+                            if (isMobile) {
+                              attemptPlaceSelectedPiece(rowIndex, colIndex);
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <div className="play-actions">
+        <button className="action-btn" type="button" onClick={onRequestNextPuzzle}>换一题</button>
+        <button className="action-btn" type="button" onClick={onCycleDifficulty}>难度：{getDifficultyLabel(puzzleDifficulty)}</button>
+        <button
+          className="action-btn"
+          type="button"
+          onClick={() => setConstraintMode((previous) => (previous === 'bars' ? 'numbers' : 'bars'))}
+        >
+          {constraintMode === 'bars' ? '显示数字' : '显示条形'}
+        </button>
+        {!isMobile || playerUrl ? (
+          <button
+            className="action-btn primary"
+            type="button"
+            disabled={!playerUrl}
+            onClick={() => {
+              if (playerUrl) {
+                window.open(playerUrl, '_blank', 'noopener,noreferrer');
+              }
+            }}
+          >
+            前往游玩站
+          </button>
+        ) : null}
+      </div>
+
+      <div className="play-status">
+        <span>已放 {placedCount}/{pieces.length}</span>
+        {isMobile && selectedPieceId !== null ? <span>已选模块 {String(pieces.findIndex((piece) => piece.id === selectedPieceId) + 1).padStart(2, '0')}</span> : null}
+        {!isMobile ? <span>{author === '匿名上传者' ? '匿名上传' : `出题：${author}`}</span> : null}
+      </div>
+
+      <div className="footer-bar play-hint">
+        <div>将拼图块放入网格，使每行每列的填充数满足约束条件。</div>
+        <div className="footer-accent">
+          {isMobile
+            ? '操作提示：先点下方模块，再点棋盘放置 · 点右侧旋转按钮调整方向 · 点击已放模块移除'
+            : '操作提示：拖拽放置 · 按 R 旋转 · 点击已放块移除 · 可切换为数字提示'}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <div className="endfield-captcha-container mobile-puzzle">
+        <div className="play-shell mobile-shell">
+          {noticeMessage ? (
+            <div className="notice">
+              <div>{noticeMessage}</div>
+              <button type="button" onClick={onRetryRemote}>重试共享题库</button>
+            </div>
+          ) : null}
+
+          <div className="mobile-puzzle-shell">
+            {hintPanel}
+            {puzzleCard}
+            {trayPanel}
+          </div>
+        </div>
+
+        {drag && dragPiece && dragBounds ? (
+          <div
+            className="drag-ghost"
+            style={{
+              left: drag.x - ((drag.grabCol + 0.5) * cellSize),
+              top: drag.y - ((drag.grabRow + 0.5) * cellSize),
+            }}
+          >
+            <div
+              className="mini-grid"
+              style={{
+                gridTemplateColumns: `repeat(${dragBounds.cols}, ${cellSize}px)`,
+                gap: '1px',
+                cursor: 'grabbing',
+              }}
+            >
+              {Array.from({ length: dragBounds.rows * dragBounds.cols }).map((_, index) => {
+                const row = Math.floor(index / dragBounds.cols);
+                const col = index % dragBounds.cols;
+                const filled = dragPiece.shape.some(([shapeRow, shapeCol]) => shapeRow === row && shapeCol === col);
+
+                return (
+                  <div
+                    key={`ghost-${index}`}
+                    className={`mini-cell ${filled ? 'filled' : ''}`.trim()}
+                    style={{
+                      width: cellSize,
+                      height: cellSize,
+                      opacity: filled ? 1 : 0,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="endfield-captcha-container">
@@ -451,269 +863,14 @@ export default function EnhancedPuzzleCaptchaImpl({
         <div className="captcha-stage">
           <aside className="side-column side-left">
             {modeRail}
-
-            <section className="panel side-block hint-panel">
-              {!hintUnlocked ? (
-                <div className="hint-locked">
-                  <div className="hint-badge">HINT LOCKED</div>
-                  <div className="hint-title">提示按钮未解锁</div>
-                  <div className="hint-copy">
-                    剩余 <span>{formatCountdown(hintRemainingSeconds)}</span> 后可查看提示。
-                  </div>
-                  <button
-                    className="action-btn"
-                    type="button"
-                    onClick={() => {
-                      clearHintTimers();
-                      setHintRemainingSeconds(0);
-                      setHintUnlocked(true);
-                    }}
-                  >
-                    直接看提示
-                  </button>
-                </div>
-              ) : (
-                <div className="hint-shell">
-                  <div className="hint-badge">HINT ONLINE</div>
-                  <button
-                    className="hint-trigger"
-                    type="button"
-                    onClick={() => setShowSolutionOverlay((previous) => !previous)}
-                  >
-                    <img className="hint-image" src="/penguin_endmin.jpeg" alt="提示按钮" />
-                  </button>
-                </div>
-              )}
-            </section>
+            {hintPanel}
           </aside>
 
-          <div className="panel demo-frame demo-content captcha-card">
-            <section className="topbar">
-              <div>
-                <div className="eyebrow">ORACLE PUZZLE ACCESS</div>
-                <div className="topbar-title">
-                  <strong>#{puzzleId}</strong>
-                  <span className="badge source">已审核 / {getDifficultyLabel(puzzleDifficulty)}</span>
-                </div>
-                <div className="meta-row meta-pills">
-                  <span><i className="meta-dot" />上传者 {author}</span>
-                  <span><i className="meta-dot" />{pieces.length} 块模块</span>
-                  <span><i className="meta-dot" />已放 {placedCount} / {pieces.length} 块</span>
-                </div>
-              </div>
-            </section>
-
-            <section className={`play-body ${isShaking ? 'shake' : ''}`}>
-              <article className="panel board-panel">
-                <div className="board-layer">
-                  <div className="board-wrap">
-                    <div className="col-bars">
-                      {puzzle.colConstraints.map((target, index) => {
-                        const current = currentCounts.colCounts[index] || 0;
-                        const tone = getConstraintTone(target, current);
-
-                        if (constraintMode === 'numbers') {
-                          return (
-                            <div key={`col-${index}`} className="constraint-top number" style={{ width: cellSize }}>
-                              <span className={`constraint-number ${tone === 'done' ? 'done' : tone === 'over' ? 'over' : ''}`.trim()}>
-                                {target}
-                              </span>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={`col-${index}`} className="constraint-top" style={{ width: cellSize }}>
-                            {renderBarStack(target, current)}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div ref={gridRef}>
-                      {Array.from({ length: puzzle.rows || 5 }).map((_, rowIndex) => (
-                        <div key={`row-${rowIndex}`} className="row">
-                          {constraintMode === 'numbers' ? (
-                            <div className="constraint-side number">
-                              <span
-                                className={`constraint-number ${
-                                  getConstraintTone(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0) === 'done'
-                                    ? 'done'
-                                    : getConstraintTone(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0) === 'over'
-                                      ? 'over'
-                                      : ''
-                                }`.trim()}
-                              >
-                                {puzzle.rowConstraints[rowIndex]}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="row-bars">
-                              {renderBarStack(puzzle.rowConstraints[rowIndex], currentCounts.rowCounts[rowIndex] || 0, true)}
-                            </div>
-                          )}
-
-                          {Array.from({ length: puzzle.cols || 5 }).map((_, colIndex) => {
-                            const cellKey = `${rowIndex},${colIndex}`;
-                            const occupiedId = getPlacedPieceId(rowIndex, colIndex);
-                            const isRestricted = restrictedSet.has(cellKey);
-                            const isLocked = lockedSet.has(cellKey);
-                            const isPreview = previewSet.has(cellKey) && occupiedId === null;
-                            const isSolutionTarget = (
-                              showSolutionOverlay &&
-                              occupiedId === null &&
-                              !isRestricted &&
-                              !isLocked &&
-                              solutionCellSet.has(cellKey)
-                            );
-
-                            const classNames = [
-                              'cell',
-                              occupiedId !== null ? 'occ' : isRestricted ? 'restricted' : isLocked ? 'locked' : 'free',
-                              isPreview ? 'preview' : '',
-                              isSolutionTarget ? 'solution-target' : '',
-                            ].filter(Boolean).join(' ');
-
-                            return (
-                              <button
-                                key={`cell-${rowIndex}-${colIndex}`}
-                                type="button"
-                                className={classNames}
-                                style={{ width: cellSize, height: cellSize }}
-                                onClick={() => occupiedId !== null && removePlacedPiece(occupiedId)}
-                              />
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </article>
-            </section>
-
-            <div className="play-actions">
-              <button className="action-btn" type="button" onClick={onRequestNextPuzzle}>换一题</button>
-              <button className="action-btn" type="button" onClick={onCycleDifficulty}>难度：{getDifficultyLabel(puzzleDifficulty)}</button>
-              <button
-                className="action-btn"
-                type="button"
-                onClick={() => setConstraintMode((previous) => (previous === 'bars' ? 'numbers' : 'bars'))}
-              >
-                {constraintMode === 'bars' ? '显示数字' : '显示条形'}
-              </button>
-              <button
-                className="action-btn primary"
-                type="button"
-                disabled={!playerUrl}
-                onClick={() => {
-                  if (playerUrl) {
-                    window.open(playerUrl, '_blank', 'noopener,noreferrer');
-                  }
-                }}
-              >
-                前往游玩站
-              </button>
-            </div>
-
-            <div className="play-status">
-              <span>已放 {placedCount}/{pieces.length}</span>
-              <span>{author === '匿名上传者' ? '匿名上传' : `出题：${author}`}</span>
-            </div>
-
-            <div className="footer-bar play-hint">
-              <div>将拼图块放入网格，使每行每列的填充数满足约束条件。</div>
-              <div className="footer-accent">操作提示：拖拽放置 · 按 R 旋转 · 点击已放块移除 · 可切换为数字提示</div>
-            </div>
+          <div>
+            {puzzleCard}
           </div>
 
-          <aside className="panel side-column side-right tray-panel">
-            <section>
-              <div className="panel-head tray-head">
-                <div>
-                  <div className="panel-title">拼图模块</div>
-                  <p className="panel-copy tray-copy">
-                    右侧模块区固定为独立卡片，拖拽整张卡片放入网格，按 <span className="inline-kbd">R</span> 旋转当前抓取或选中的模块。
-                  </p>
-                </div>
-              </div>
-
-              <div className="tray-grid" style={{ maxHeight: trayViewportHeight }}>
-                {pieces.map((piece, index) => {
-                  const maxRow = Math.max(...piece.shape.map(([row]) => row));
-                  const maxCol = Math.max(...piece.shape.map(([, col]) => col));
-                  const occupied = new Set(piece.shape.map(([row, col]) => `${row},${col}`));
-                  const isPlaced = Boolean(placed[piece.id]);
-                  const isSelected = selectedPieceId === piece.id;
-
-                  return (
-                    <article
-                      key={piece.id}
-                      className={`piece-card ${isPlaced ? 'done' : ''} ${isSelected ? 'selected' : ''}`.trim()}
-                      onPointerDown={(event) => {
-                        if (event.target.closest('[data-rotate]')) {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        const captureRect = event.currentTarget.querySelector('[data-piece-grid]')?.getBoundingClientRect() || event.currentTarget.getBoundingClientRect();
-                        beginDrag(piece.id, event.clientX, event.clientY, captureRect);
-                      }}
-                    >
-                      <div className="piece-card-body">
-                        <div className="piece-meta">
-                          <div>
-                            <div className="piece-label">模块 {String(index + 1).padStart(2, '0')}</div>
-                            <div className="piece-stat">{piece.shape.length} 格</div>
-                          </div>
-                        </div>
-
-                        <div className="piece-mini-frame">
-                          <div className="piece-mini-shell">
-                            <div className="piece-mini-wrap">
-                              <div
-                                className="mini-grid"
-                                data-piece-grid={piece.id}
-                                style={{ gridTemplateColumns: `repeat(${maxCol + 1}, ${miniCell}px)` }}
-                              >
-                                {Array.from({ length: (maxRow + 1) * (maxCol + 1) }).map((_, miniIndex) => {
-                                  const row = Math.floor(miniIndex / (maxCol + 1));
-                                  const col = miniIndex % (maxCol + 1);
-                                  const filled = occupied.has(`${row},${col}`);
-
-                                  return (
-                                    <div
-                                      key={`mini-${piece.id}-${miniIndex}`}
-                                      className={`mini-cell ${filled ? 'filled' : ''}`.trim()}
-                                      style={{
-                                        width: miniCell,
-                                        height: miniCell,
-                                        opacity: filled ? 1 : 0,
-                                      }}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        className="ghost-btn piece-rotate"
-                        type="button"
-                        data-rotate={piece.id}
-                        disabled={isPlaced}
-                        onClick={() => rotatePiece(piece.id)}
-                      >
-                        ↻
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          </aside>
+          {trayPanel}
         </div>
       </div>
 

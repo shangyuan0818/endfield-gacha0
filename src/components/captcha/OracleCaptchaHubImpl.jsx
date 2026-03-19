@@ -159,10 +159,12 @@ async function loadSharedPuzzlePool(difficulty) {
   }));
 }
 
-function CaptchaShell({ modeRail, children, placeholderRight = true, noticeMessage, onRetryRemote }) {
+function CaptchaShell({ modeRail, children, placeholderRight = true, noticeMessage, onRetryRemote, isMobile = false }) {
+  const showModeRail = Boolean(modeRail);
+
   return (
-    <div className="endfield-captcha-container">
-      <div className="play-shell">
+    <div className={`endfield-captcha-container${isMobile ? ' mobile-captcha' : ''}`}>
+      <div className={`play-shell${isMobile ? ' mobile-shell' : ''}`}>
         {noticeMessage ? (
           <div className="notice">
             <div>{noticeMessage}</div>
@@ -170,37 +172,45 @@ function CaptchaShell({ modeRail, children, placeholderRight = true, noticeMessa
           </div>
         ) : null}
 
-        <div className="captcha-stage">
-          <aside className="side-column side-left">{modeRail}</aside>
+        <div className={`captcha-stage${isMobile ? ' mobile-stage' : ''}${showModeRail ? '' : ' no-rail'}`}>
+          {showModeRail ? <aside className="side-column side-left">{modeRail}</aside> : null}
           {children}
-          {placeholderRight ? <aside className="panel side-column side-right side-placeholder" aria-hidden="true" /> : null}
+          {placeholderRight && showModeRail ? <aside className="panel side-column side-right side-placeholder" aria-hidden="true" /> : null}
         </div>
       </div>
     </div>
   );
 }
 
-function LoadingFrame({ modeRail, noticeMessage, onRetryRemote }) {
+function LoadingFrame({ modeRail, noticeMessage, onRetryRemote, isMobile = false }) {
   return (
-    <CaptchaShell modeRail={modeRail} noticeMessage={noticeMessage} onRetryRemote={onRetryRemote}>
+    <CaptchaShell isMobile={isMobile} modeRail={modeRail} noticeMessage={noticeMessage} onRetryRemote={onRetryRemote}>
       <div className="demo-frame demo-content">
         <div className="loading-view">
           <div className="loading-spinner" />
           <strong>同步拼图题库</strong>
-          <p>正在尝试从共享题库拉取已审核题目。若长时间没有返回，请重试共享题库或切换其他验证方式。</p>
+          <p>
+            {isMobile
+              ? '正在拉取手机端拼图题目，请稍候后重试。'
+              : '正在尝试从共享题库拉取已审核题目。若长时间没有返回，请重试共享题库或切换其他验证方式。'}
+          </p>
         </div>
       </div>
     </CaptchaShell>
   );
 }
 
-function OfflineFrame({ modeRail, noticeMessage, onRetryRemote }) {
+function OfflineFrame({ modeRail, noticeMessage, onRetryRemote, isMobile = false }) {
   return (
-    <CaptchaShell modeRail={modeRail} noticeMessage={noticeMessage} onRetryRemote={onRetryRemote}>
+    <CaptchaShell isMobile={isMobile} modeRail={modeRail} noticeMessage={noticeMessage} onRetryRemote={onRetryRemote}>
       <div className="demo-frame demo-content">
         <div className="offline-view">
           <strong>题库暂不可用</strong>
-          <p>当前没有拿到可用的拼图题目。你可以重试共享题库，或从左侧切换到 MC 合成和终端备用验证。</p>
+          <p>
+            {isMobile
+              ? '当前没有拿到可用的拼图题目，请稍后重试共享题库。'
+              : '当前没有拿到可用的拼图题目。你可以重试共享题库，或从左侧切换到 MC 合成和终端备用验证。'}
+          </p>
           <button className="action-btn" type="button" onClick={onRetryRemote}>重试共享题库</button>
         </div>
       </div>
@@ -240,6 +250,12 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   const [puzzleNotice, setPuzzleNotice] = useState('');
   const bootstrapRequestRef = useRef(0);
   const playerBaseUrl = import.meta.env.VITE_PUZZLE_PLAYER_URL?.trim() || '';
+  const availableModes = isMobile
+    ? CAPTCHA_MODES.filter((mode) => mode.id !== 'puzzle')
+    : CAPTCHA_MODES;
+  const effectiveMode = isMobile
+    ? (activeMode === 'minecraft' ? 'minecraft' : 'terminal')
+    : activeMode;
 
   const persistMode = useCallback((nextMode) => {
     localStorage.setItem('captchaModePreference', nextMode);
@@ -251,14 +267,14 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   }, []);
 
   const renderModeRail = useCallback(() => (
-    <section className="panel mode-rail">
-      <div className="panel-title">验证切换</div>
-      <p className="panel-copy">左侧保留独立验证码切换卡，可在不同验证方式之间切换。</p>
+    <section className={`panel mode-rail${isMobile ? ' compact' : ''}`.trim()}>
+      <div className="panel-title">{isMobile ? '验证方式' : '验证切换'}</div>
+      {!isMobile ? <p className="panel-copy">左侧保留独立验证码切换卡，可在不同验证方式之间切换。</p> : null}
       <div className="mode-list">
-        {CAPTCHA_MODES.map((mode) => (
+        {availableModes.map((mode) => (
           <button
             key={mode.id}
-            className={`mode-card ${activeMode === mode.id ? 'active' : ''}`.trim()}
+            className={`mode-card ${effectiveMode === mode.id ? 'active' : ''}`.trim()}
             type="button"
             onClick={() => {
               persistMode(mode.id);
@@ -272,14 +288,14 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
             <span className="mode-copy">
               <span className="mode-short">{mode.short}</span>
               <span className="mode-main">{mode.label}</span>
-              <span className="mode-detail">{mode.detail}</span>
+              {!isMobile ? <span className="mode-detail">{mode.detail}</span> : null}
             </span>
           </button>
         ))}
       </div>
-      <div className="mode-note">当前高亮：{CAPTCHA_MODES.find((mode) => mode.id === activeMode)?.label ?? '拼图'}</div>
+      {!isMobile ? <div className="mode-note">当前高亮：{CAPTCHA_MODES.find((mode) => mode.id === activeMode)?.label ?? '拼图'}</div> : null}
     </section>
-  ), [activeMode, persistMode]);
+  ), [activeMode, availableModes, effectiveMode, isMobile, persistMode]);
 
   const fetchPuzzleRows = useCallback(async (difficulty, currentId = null, forceRemote = true) => {
     const rows = !forceRemote && puzzleRows.length ? puzzleRows : await loadSharedPuzzlePool(difficulty);
@@ -293,7 +309,7 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   }, [puzzleRows]);
 
   useEffect(() => {
-    if (activeMode !== 'puzzle' || currentPuzzle) {
+    if (effectiveMode !== 'puzzle' || currentPuzzle) {
       return undefined;
     }
 
@@ -327,7 +343,7 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
     return () => {
       disposed = true;
     };
-  }, [activeMode, currentDifficulty, currentPuzzle, fetchPuzzleRows]);
+  }, [currentDifficulty, currentPuzzle, effectiveMode, fetchPuzzleRows]);
 
   const handlePuzzleRetry = useCallback(async (forceRemote = true) => {
     if (puzzleLoading) {
@@ -368,18 +384,19 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
     setActiveMode('puzzle');
   }, [currentDifficulty, persistDifficulty]);
 
-  if (activeMode === 'puzzle') {
+  if (effectiveMode === 'puzzle') {
     if (puzzleLoading && !currentPuzzle) {
-      return <LoadingFrame modeRail={renderModeRail()} noticeMessage={puzzleNotice} onRetryRemote={() => void handlePuzzleRetry(true)} />;
+      return <LoadingFrame isMobile={isMobile} modeRail={renderModeRail()} noticeMessage={puzzleNotice} onRetryRemote={() => void handlePuzzleRetry(true)} />;
     }
 
     if (!currentPuzzle) {
-      return <OfflineFrame modeRail={renderModeRail()} noticeMessage={puzzleNotice} onRetryRemote={() => void handlePuzzleRetry(true)} />;
+      return <OfflineFrame isMobile={isMobile} modeRail={renderModeRail()} noticeMessage={puzzleNotice} onRetryRemote={() => void handlePuzzleRetry(true)} />;
     }
 
     return (
       <EnhancedPuzzleCaptcha
         key={`${puzzleVersion}-${currentPuzzle.id}`}
+        isMobile={isMobile}
         noticeMessage={puzzleNotice}
         modeRail={renderModeRail()}
         onRetryRemote={() => void handlePuzzleRetry(true)}
@@ -395,7 +412,19 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
     );
   }
 
-  if (activeMode === 'minecraft') {
+  if (effectiveMode === 'minecraft') {
+    if (isMobile) {
+      return (
+        <CaptchaShell isMobile modeRail={renderModeRail()} placeholderRight={false}>
+          <div className="mobile-secondary-mode">
+            <div className="origin-top scale-[0.8]">
+              <MinecraftCaptcha onVerified={onVerified} />
+            </div>
+          </div>
+        </CaptchaShell>
+      );
+    }
+
     return (
       <SecondaryModeFrame modeRail={renderModeRail()} eyebrow="ORACLE BACKUP ACCESS" title="MC 合成">
         <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -404,6 +433,19 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
           </div>
         </div>
       </SecondaryModeFrame>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <CaptchaShell isMobile modeRail={renderModeRail()} placeholderRight={false}>
+        <div className="mobile-secondary-mode">
+          <TerminalPowCaptcha isMobile onUseMinecraft={() => {
+            persistMode('minecraft');
+            setActiveMode('minecraft');
+          }} onVerified={onVerified} />
+        </div>
+      </CaptchaShell>
     );
   }
 
