@@ -45,3 +45,4 @@ api/hg-proxy.js
 *.njsproj
 *.sln
 *.sw?
+docs/email-template/twilio_2FA_recovery_code.txt
