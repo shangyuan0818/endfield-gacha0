@@ -5,6 +5,7 @@ import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicP
 import CreateTicketForm from './tickets/CreateTicketForm';
 import TicketCard from './tickets/TicketCard';
 import { TICKET_STATUS } from './tickets/constants';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../constants/community';
 
 const TicketPanel = React.memo(({ user, userRole, showToast }) => {
   const [tickets, setTickets] = useState([]);
@@ -132,6 +133,12 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
                 : '支持与反馈通道'}
           </p>
         </div>
+      </div>
+
+      <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-1">
+        <div>工单用于提交 Bug、数据异常、功能建议和使用问题。</div>
+        <div>忘记密码请回登录弹窗使用“账号恢复”；已登录需要删除账号，请到设置页使用“注销账号”。</div>
+        <div>请不要在工单中填写密码；若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-4">

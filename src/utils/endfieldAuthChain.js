@@ -17,6 +17,7 @@
 
 import { queuedFetch } from './requestQueue.js';
 import { supabase } from '../supabaseClient';
+import { appLogger } from './appLogger.js';
 
 function normalizeImportSource(source) {
   return source === 'intl' ? 'intl' : 'cn';
@@ -37,10 +38,9 @@ function getProxyBase(source = 'cn') {
   return root ? `${root.replace(/\/+$/, '')}/api/hg-proxy` : '/api/hg-proxy';
 }
 
-// 调试：打印当前使用的代理地址
-console.log('[AuthChain] VITE_PROXY_URL_CN:', import.meta.env.VITE_PROXY_URL_CN);
-console.log('[AuthChain] VITE_PROXY_URL_INTL:', import.meta.env.VITE_PROXY_URL_INTL);
-console.log('[AuthChain] VITE_PROXY_URL:', import.meta.env.VITE_PROXY_URL);
+appLogger.info('[AuthChain] VITE_PROXY_URL_CN:', import.meta.env.VITE_PROXY_URL_CN);
+appLogger.info('[AuthChain] VITE_PROXY_URL_INTL:', import.meta.env.VITE_PROXY_URL_INTL);
+appLogger.info('[AuthChain] VITE_PROXY_URL:', import.meta.env.VITE_PROXY_URL);
 
 // 卡池类型
 export const POOL_TYPES = {
@@ -521,7 +521,7 @@ async function pollTaskUntilComplete(taskId, taskKey, onProgress, maxWaitTime = 
       await delay(pollInterval);
     } catch (error) {
       // 网络错误，等待后重试
-      console.warn('[pollTaskUntilComplete] 轮询失败，重试中...', error.message);
+      appLogger.warn('[pollTaskUntilComplete] 轮询失败，重试中...', error.message);
       await delay(pollInterval);
     }
   }
@@ -545,7 +545,7 @@ export async function fetchImportQueueStatus(source = 'cn') {
 
     return result.data;
   } catch (error) {
-    console.warn('[fetchImportQueueStatus] 获取队列状态失败:', error.message);
+    appLogger.warn('[fetchImportQueueStatus] 获取队列状态失败:', error.message);
     return { queueLength: 0, isProcessing: false };
   }
 }
@@ -595,7 +595,7 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
         throw error;
       }
 
-      console.warn('[pollFullImportUntilComplete] 轮询失败，重试中...', error.message);
+      appLogger.warn('[pollFullImportUntilComplete] 轮询失败，重试中...', error.message);
       await delay(pollInterval);
     }
   }
@@ -767,7 +767,7 @@ function processRecordsBatchResult(result, onProgress) {
     if (onProgress) onProgress(`部分卡池获取失败: ${failedNames}，已获取 ${allRecords.length} 条记录`);
 
     // 如果有记录则继续，但标记警告
-    console.warn('[fetchAllGachaRecordsConcurrent] 部分卡池失败:', failedPools);
+    appLogger.warn('[fetchAllGachaRecordsConcurrent] 部分卡池失败:', failedPools);
   } else {
     if (onProgress) onProgress(`全部记录获取完成，共 ${allRecords.length} 条`);
   }

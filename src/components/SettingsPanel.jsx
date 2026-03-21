@@ -354,7 +354,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 <div>
                   <p className="font-bold text-sm text-red-700 dark:text-red-400">危险区域 // 注销当前账号</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    删除账号、抽卡记录与自建卡池。该操作不可撤销，管理员账号不支持自助注销。
+                    删除账号、抽卡记录、自建卡池与本人名下工单。该操作不可撤销，管理员账号不支持自助注销。
                   </p>
                 </div>
                 <button
@@ -463,7 +463,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 注销当前账号
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                此操作会删除当前账号本身，以及其名下的抽卡记录和自建卡池。删除后无法恢复。
+                此操作会删除当前账号本身，以及其名下的抽卡记录、自建卡池与工单记录。删除后无法恢复。
               </p>
             </div>
             <div className="p-6 space-y-4">
@@ -481,7 +481,9 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
               <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
                 <p>• 当前账号将被永久删除</p>
-                <p>• 该账号名下的抽卡记录与自建卡池会一起删除</p>
+                <p>• 该账号名下的抽卡记录、自建卡池、工单与工单回复会一起删除</p>
+                <p>• 后续重新计算的全服统计不再继续包含这些抽卡记录</p>
+                <p>• 已导出的文件或已分享到站外的图片 / 文本不会被远程回收</p>
                 <p>• 删除后如需重新使用，请重新注册</p>
               </div>
 

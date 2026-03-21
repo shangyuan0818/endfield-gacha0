@@ -10,6 +10,7 @@ import useAuthStore from '../../stores/useAuthStore';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
 import { getMobilePathForTab } from '../../constants/appRoutes';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 
 // 工单类型
 const TICKET_TYPES = {
@@ -143,6 +144,12 @@ function MobileTicketView() {
         </p>
       </div>
 
+      <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-3 text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
+        <div>工单适用于 Bug、数据问题、功能建议和一般使用咨询。</div>
+        <div>忘记密码请回登录弹窗使用“账号恢复”；已登录需要删除账号，请到设置页使用“注销账号”。</div>
+        <div>请不要在工单里填写密码；若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
+      </div>
+
       {/* 操作栏 */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-1.5 overflow-x-auto">
@@ -266,6 +273,12 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-3 text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
+            <div>请提交 Bug、数据异常或功能建议。</div>
+            <div>忘记密码请使用“账号恢复”，不要在工单里填写密码或要求站内直接发密码。</div>
+            <div>若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
+          </div>
+
           {/* 类型 */}
           <div>
             <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">工单类型</label>
@@ -317,6 +330,7 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
               required
             />
             <div className="text-[10px] text-zinc-400 mt-1 text-right font-mono">{formData.content.length}/2000</div>
+            <p className="text-[10px] text-zinc-500 mt-2 font-mono">建议附上账号、卡池、时间范围和复现步骤；不要填写密码或完整访问令牌。</p>
           </div>
 
           {/* 优先级 */}

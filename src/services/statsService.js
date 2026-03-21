@@ -11,6 +11,7 @@ import {
   fetchWithTimeout,
   isRetryableSupabaseError,
 } from './supabaseRequest.js';
+import { appLogger } from '../utils/appLogger.js';
 
 /**
  * 统计服务
@@ -462,11 +463,11 @@ function isRecoverableStatsError(error) {
 
 function logStatsFailure(scope, error) {
   if (isRecoverableStatsError(error)) {
-    console.warn(`[statsService] ${scope}请求超时，已回退到缓存/空态（跨境网络较慢时可重试）`, error);
+    appLogger.warn(`[statsService] ${scope}请求超时，已回退到缓存/空态（跨境网络较慢时可重试）`, error);
     return;
   }
 
-  console.error(`[statsService] ${scope}失败:`, error);
+  appLogger.error(`[statsService] ${scope}失败:`, error);
 }
 
 /**
@@ -599,12 +600,12 @@ export async function getCharacterRankingStats(forceRefresh = false) {
 export async function getUserRankingStats(userId) {
   try {
     if (!supabase) {
-      console.warn('[statsService] Supabase 未配置，无法获取用户排名');
+      appLogger.warn('[statsService] Supabase 未配置，无法获取用户排名');
       return readPersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`);
     }
 
     if (!userId) {
-      console.warn('[statsService] 未提供用户ID');
+      appLogger.warn('[statsService] 未提供用户ID');
       return null;
     }
 

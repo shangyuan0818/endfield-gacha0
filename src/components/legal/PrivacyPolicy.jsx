@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 
 /**
  * 隐私政策页面
@@ -14,7 +15,7 @@ export default function PrivacyPolicy() {
         </a>
 
         <h1 className="text-2xl font-bold mb-2">隐私政策</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月17日</p>
+        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月21日</p>
 
         <div className="space-y-6 text-sm leading-relaxed">
           <section>
@@ -86,7 +87,8 @@ export default function PrivacyPolicy() {
               <li><strong>导出权</strong>：导出您的抽卡记录数据。JSON / CSV 导出用于备份和再导入，可能包含卡池、时间、游戏账号等结构化记录字段。</li>
               <li><strong>分享控制权</strong>：站内分享卡和分享文本采用脱敏口径，默认不包含账号、UID、精确时间戳与原始抽卡明细。</li>
             </ul>
-            <p className="mt-2">如需行使上述权利，请优先使用站内设置页、导出功能或工单系统；账号恢复与临时密码领取当前通过 QQ 群 <strong>1080983185</strong> 配合超管人工处理。</p>
+            <p className="mt-2">如需行使上述权利，请优先使用站内设置页、导出功能或工单系统；账号恢复与临时密码领取当前通过 QQ 群 <strong>{ACCOUNT_RECOVERY_QQ_GROUP}</strong> 配合超管人工处理。</p>
+            <p className="mt-2">普通用户自助注销成功后，当前账号、抽卡记录、自建卡池、工单与工单回复会一起删除；后续重新计算的全服统计不再继续包含这些抽卡记录。已经导出的文件、已分享到站外的图片 / 文本，以及为安全审计最小必要保留的账号恢复申请处理记录，不属于站内可回收范围。</p>
           </section>
 
           <section>
@@ -104,7 +106,7 @@ export default function PrivacyPolicy() {
             <p>如果您对本隐私政策有任何疑问或建议，可通过以下方式联系我们：</p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li>站内工单系统</li>
-              <li>QQ 群：1080983185（账号恢复、临时密码与使用问题）</li>
+              <li>QQ 群：{ACCOUNT_RECOVERY_QQ_GROUP}（账号恢复、临时密码与使用问题）</li>
               <li>GitHub Issues</li>
             </ul>
           </section>

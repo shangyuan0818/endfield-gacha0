@@ -405,7 +405,7 @@ function MobileSettingsView() {
                 <div>
                   <p className="text-sm font-bold text-red-700 dark:text-red-500 uppercase">注销账号</p>
                   <p className="text-[10px] text-zinc-500 mt-0.5">
-                    永久删除当前账号、抽卡记录与自建卡池。管理员账号不支持自助注销。
+                    永久删除当前账号、抽卡记录、自建卡池与本人名下工单。管理员账号不支持自助注销。
                   </p>
                 </div>
                 <button
@@ -616,7 +616,9 @@ function MobileSettingsView() {
 
               <div className="px-3 py-3 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10 text-xs text-red-700 dark:text-red-300 space-y-1">
                 <p>• 当前账号将被永久删除</p>
-                <p>• 当前账号名下的抽卡记录与自建卡池会一起删除</p>
+                <p>• 当前账号名下的抽卡记录、自建卡池、工单与工单回复会一起删除</p>
+                <p>• 后续重新计算的全服统计不再继续包含这些抽卡记录</p>
+                <p>• 已导出的文件或已分享到站外的图片 / 文本不会被远程回收</p>
                 <p>• 删除后无法恢复，请先导出需要保留的数据</p>
               </div>
 

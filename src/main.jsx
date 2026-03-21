@@ -5,6 +5,7 @@ import './index.css'
 import AppRouter from './AppRouter'
 import { preloadPublicBootstrap } from './services/bootstrapService'
 import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
+import { appLogger } from './utils/appLogger.js'
 
 // 同步设备检测 + 重定向（在 React 渲染前执行）
 // 解决 useEffect 异步重定向导致的闪烁和失效问题
@@ -30,8 +31,7 @@ const schedulePreload = typeof window.requestIdleCallback === 'function'
 
 schedulePreload(() => {
   preloadPublicBootstrap().catch(err => {
-    // eslint-disable-next-line no-console
-    console.warn('预加载数据失败，将使用实时查询:', err);
+    appLogger.warn('预加载数据失败，将使用实时查询:', err);
   });
 });
 

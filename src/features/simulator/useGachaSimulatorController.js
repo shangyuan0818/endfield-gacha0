@@ -56,6 +56,7 @@ import {
   sortLimitedPoolsByStartTime
 } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
+import { appLogger } from '../../utils/appLogger.js';
 
 const getWeaponPoolRules = (pool) => (
   pool?.isLimitedWeapon !== false
@@ -142,7 +143,7 @@ export function useGachaSimulatorController() {
           setPublicPools(mergedPools);
         }
       } catch (error) {
-        console.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);
+        appLogger.warn('加载公开卡池失败，继续使用本地/已缓存卡池:', error);
       }
     };
 
@@ -371,7 +372,7 @@ export function useGachaSimulatorController() {
         return;
       }
 
-      console.log('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
+      appLogger.info('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
 
       const { data: allCharacters, error: charError } = await supabase
         .from('characters')
@@ -379,7 +380,7 @@ export function useGachaSimulatorController() {
         .eq('type', expectedType);
 
       if (charError || !allCharacters) {
-        console.error('加载角色列表失败:', charError);
+        appLogger.error('加载角色列表失败:', charError);
         if (!cancelled) {
           setPoolCharactersList(null);
         }
@@ -1168,7 +1169,7 @@ export function useGachaSimulatorController() {
         return;
       }
 
-      console.error('[GachaSimulator] share card generation failed:', error);
+      appLogger.error('[GachaSimulator] share card generation failed:', error);
       showToastMessage('分享卡生成失败，请稍后重试');
     }
   }, [sharePayload, showToastMessage, supportsNativeImageShare]);

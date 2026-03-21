@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send } from 'lucide-react';
 import { TICKET_TYPES } from './constants';
+import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
 
 export default function CreateTicketForm({ userRole, onCancel, onSubmit }) {
   const [formData, setFormData] = useState({
@@ -33,6 +34,12 @@ export default function CreateTicketForm({ userRole, onCancel, onSubmit }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-4 py-3 text-xs text-blue-800 dark:text-blue-300 space-y-1">
+        <div>此处适合提交 Bug、数据问题和功能建议。</div>
+        <div>忘记密码请使用登录弹窗里的“账号恢复”，不要在工单里填写密码或请求站内直接发密码。</div>
+        <div>若超管已完成核验并设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">工单类型</label>
         <div className="grid grid-cols-5 gap-2">
@@ -78,6 +85,9 @@ export default function CreateTicketForm({ userRole, onCancel, onSubmit }) {
           required
         />
         <div className="text-xs text-slate-400 mt-1 text-right">{formData.content.length}/2000</div>
+        <p className="text-xs text-slate-400 dark:text-zinc-500 mt-2">
+          建议附上所用账号、卡池、时间范围和复现步骤；不要填写密码或完整访问令牌。
+        </p>
       </div>
 
       <div className="flex items-center gap-4">
