@@ -37,10 +37,10 @@ export function createInitialState(poolType = 'limited_character') {
     sixStarPity: 0,
     fiveStarPity: 0,
 
-    // 保底状态
-    isGuaranteedUp: false,              // 是否保底必出UP
-    guaranteedLimitedPity: 0,           // 120抽硬保底计数（限定池）/80抽硬保底（武器池）
-    hasReceivedGuaranteedLimited: false, // 是否已领取硬保底
+    // 目标保底状态
+    isGuaranteedUp: false,              // 兼容旧存档字段；当前规则下不使用“歪了下次必出”
+    guaranteedLimitedPity: 0,           // 当前卡池的一次性目标保底进度（限定120 / 武器80）
+    hasReceivedGuaranteedLimited: false, // 当前卡池的一次性目标保底是否已满足
 
     // 统计数据
     totalPulls: 0,

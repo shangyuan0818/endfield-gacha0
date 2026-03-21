@@ -1,3 +1,5 @@
+import { resolvePlatformPath } from '../constants/appRoutes';
+
 const DEVICE_REDIRECT_BYPASS_PREFIXES = ['/privacy', '/terms', '/share', '/reset-password'];
 
 function normalizePathname(pathname) {
@@ -25,11 +27,11 @@ export function getDeviceRedirectTarget(pathname, shouldUseMobile) {
 
   const isMobilePath = normalizedPath.startsWith('/m');
   if (shouldUseMobile && !isMobilePath) {
-    return '/m';
+    return resolvePlatformPath(normalizedPath, 'mobile');
   }
 
   if (!shouldUseMobile && isMobilePath) {
-    return '/';
+    return resolvePlatformPath(normalizedPath, 'desktop');
   }
 
   return null;

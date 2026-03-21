@@ -559,9 +559,7 @@ export function useGachaSimulatorController() {
 
         saveSharedPityState({
           sixStarPity: state.sixStarPity,
-          fiveStarPity: state.fiveStarPity,
-          guaranteedLimitedPity: state.guaranteedLimitedPity,
-          hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
+          fiveStarPity: state.fiveStarPity
         }, simulatorStorageScope);
       } else {
         setAvailableFreePulls(0);
@@ -1000,9 +998,7 @@ export function useGachaSimulatorController() {
       const state = simulator.getState();
       saveSharedPityState({
         sixStarPity: state.sixStarPity,
-        fiveStarPity: state.fiveStarPity,
-        guaranteedLimitedPity: state.guaranteedLimitedPity,
-        hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
+        fiveStarPity: state.fiveStarPity
       }, simulatorStorageScope);
     }
 
@@ -1022,7 +1018,10 @@ export function useGachaSimulatorController() {
     if (normalizeSimulatorPoolType(targetPool.type) === 'limited') {
       const sharedPity = loadSharedPityState(simulatorStorageScope);
       if (sharedPity) {
-        nextSimulator.updateState(sharedPity);
+        nextSimulator.updateState({
+          sixStarPity: Number(sharedPity.sixStarPity || 0),
+          fiveStarPity: Number(sharedPity.fiveStarPity || 0)
+        });
       }
 
       const limitedPools = sortLimitedPoolsByStartTime(simulatorPools);

@@ -82,19 +82,6 @@ export function rollProbability(probability) {
 }
 
 /**
- * 计算UP角色是否命中
- * @param {boolean} isGuaranteed - 是否保底必出UP
- * @param {number} upProbability - UP概率（0-1）
- * @returns {boolean} 是否为UP角色
- */
-export function rollUpCharacter(isGuaranteed, upProbability = 0.5) {
-  if (isGuaranteed) {
-    return true;
-  }
-  return rollProbability(upProbability);
-}
-
-/**
  * 模拟单次抽卡
  * @param {Object} state - 当前模拟器状态
  * @param {Object} rules - 卡池规则
@@ -104,17 +91,22 @@ export function rollUpCharacter(isGuaranteed, upProbability = 0.5) {
  * @returns {Object} 抽卡结果
  */
 export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
+  const guaranteedLimitedThreshold = Number(rules?.guaranteedLimitedPity || 0);
+  const tracksGuaranteedLimited = guaranteedLimitedThreshold > 0;
   // 增加保底计数
   const sixStarPity = state.sixStarPity + 1;
   const fiveStarPity = state.fiveStarPity + 1;
-  const guaranteedLimitedPity = state.guaranteedLimitedPity + 1;
+  const guaranteedLimitedPity = tracksGuaranteedLimited && !state.hasReceivedGuaranteedLimited
+    ? Math.min((state.guaranteedLimitedPity || 0) + 1, guaranteedLimitedThreshold)
+    : (state.guaranteedLimitedPity || 0);
 
   // ========== 120抽硬保底检查（限定池）/ 80抽硬保底（武器池首轮） ==========
   // 限定池：如果已经119抽没出限定，第120抽必定是限定6星
   // 武器池：如果已经79抽没出限定，第80抽必定是限定6星
   const shouldTriggerGuaranteedLimited =
+    tracksGuaranteedLimited &&
     !state.hasReceivedGuaranteedLimited &&
-    guaranteedLimitedPity >= rules.guaranteedLimitedPity;
+    guaranteedLimitedPity >= guaranteedLimitedThreshold;
 
   if (shouldTriggerGuaranteedLimited) {
     // 触发硬保底，必出限定6星
@@ -128,12 +120,12 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       characterName,
       sixStarPity: 0,
       fiveStarPity: 0,
-      isGuaranteedUp: false,          // 重置大保底状态
+      isGuaranteedUp: false,
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
-      guaranteedLimitedPity: 0,       // 重置120/80抽计数
-      hasReceivedGuaranteedLimited: false  // 已完成本轮循环，下一轮重新开始累计
+      guaranteedLimitedPity,
+      hasReceivedGuaranteedLimited: true
     };
   }
   // ========== 硬保底检查结束 ==========
@@ -144,15 +136,13 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
   // 判断是否出6星
   if (rollProbability(sixStarProb)) {
-    // 判断是否为UP角色（每次都是50/50，没有大保底）
     const isUp = rollProbability(rules.upProbability);
 
     // 获取当前UP角色名称
     const upChar = currentUpCharacter || getCurrentUpCharacter();
     const characterName = getCharacterName(poolType, 6, isUp, upChar, poolCharactersList);
 
-    // 如果出了限定，重置120/80抽计数
-    const shouldResetGuaranteedPity = isUp;
+    const hasSatisfiedGuaranteedLimited = state.hasReceivedGuaranteedLimited || isUp;
 
     return {
       rarity: 6,
@@ -161,12 +151,12 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       characterName,
       sixStarPity: 0,              // 重置6星保底
       fiveStarPity: 0,              // 出6星时也重置5星保底
-      isGuaranteedUp: false,        // 没有大保底机制，保持false
+      isGuaranteedUp: false,
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount + 1,
       fiveStarCount: state.fiveStarCount,
-      guaranteedLimitedPity: shouldResetGuaranteedPity ? 0 : guaranteedLimitedPity,  // 出限定时重置
-      hasReceivedGuaranteedLimited: shouldResetGuaranteedPity ? false : state.hasReceivedGuaranteedLimited
+      guaranteedLimitedPity,
+      hasReceivedGuaranteedLimited: hasSatisfiedGuaranteedLimited
     };
   }
 
@@ -181,11 +171,11 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
       characterName,
       sixStarPity,
       fiveStarPity: 0,              // 重置5星保底
-      isGuaranteedUp: false,         // 没有大保底机制
+      isGuaranteedUp: false,
       totalPulls: state.totalPulls + 1,
       sixStarCount: state.sixStarCount,
       fiveStarCount: state.fiveStarCount + 1,
-      guaranteedLimitedPity,         // 继续累加120/80抽计数
+      guaranteedLimitedPity,
       hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
     };
   }
@@ -200,11 +190,11 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
     characterName,
     sixStarPity,
     fiveStarPity,
-    isGuaranteedUp: false,         // 没有大保底机制
+    isGuaranteedUp: false,
     totalPulls: state.totalPulls + 1,
     sixStarCount: state.sixStarCount,
     fiveStarCount: state.fiveStarCount,
-    guaranteedLimitedPity,         // 继续累加120/80抽计数
+    guaranteedLimitedPity,
     hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
   };
 }
@@ -367,7 +357,6 @@ export default {
   calculateSixStarProbability,
   calculateFiveStarProbability,
   rollProbability,
-  rollUpCharacter,
   simulateSinglePull,
   simulateTenPull,
   checkGuaranteedLimitedTrigger,

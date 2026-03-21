@@ -51,3 +51,17 @@ export function getMobileTabFromPath(pathname) {
   const normalizedPath = normalizePathname(pathname);
   return Object.entries(MOBILE_TAB_ROUTES).find(([, route]) => route === normalizedPath)?.[0] || 'home';
 }
+
+export function resolvePlatformPath(pathname, targetPlatform = 'desktop') {
+  const normalizedPath = normalizePathname(pathname);
+  const currentPlatform = normalizedPath.startsWith('/m') ? 'mobile' : 'desktop';
+  const currentTab = currentPlatform === 'mobile'
+    ? getMobileTabFromPath(normalizedPath)
+    : getDesktopTabFromPath(normalizedPath);
+
+  if (targetPlatform === 'mobile') {
+    return getMobilePathForTab(currentTab);
+  }
+
+  return getDesktopPathForTab(currentTab);
+}

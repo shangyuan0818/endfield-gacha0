@@ -88,10 +88,16 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
   const targetProbabilityInfo = stats.targetProbabilityInfo;
+  const currentTargetProbabilityPercent = targetProbabilityInfo
+    ? (targetProbabilityInfo.probability * 100).toFixed(2)
+    : null;
+  const targetRatePercent = targetProbabilityInfo
+    ? (targetProbabilityInfo.targetRate * 100).toFixed(1)
+    : null;
   const targetProbabilityFooter = targetProbabilityInfo
     ? targetProbabilityInfo.isHardGuaranteeNextPull
       ? `${targetProbabilityInfo.label}：本抽必出`
-      : `${targetProbabilityInfo.label}：${(targetProbabilityInfo.probability * 100).toFixed(2)}% · 6★命中后${targetProbabilityInfo.label === '目标武器' ? '目标率' : 'UP率'} ${(targetProbabilityInfo.targetRate * 100).toFixed(1)}%`
+      : `${targetProbabilityInfo.label}：${currentTargetProbabilityPercent}% · 6★命中后${targetProbabilityInfo.label === '目标武器' ? '目标率' : 'UP率'} ${targetRatePercent}%`
     : '当前卡池无目标 6★ 额外命中率';
 
   const maxPity = isWeapon ? 40 : 80;
@@ -184,12 +190,16 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
         <div className="grid grid-cols-2 gap-4 mb-6">
            {/* Win Rate */}
            <StatCard 
-             label="历史不歪率"
-             extraLabel={isLimited ? "样本 · 免十不计" : "样本"}
-             value={stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
-             progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
+             label="当前目标 6★ 概率"
+             extraLabel={targetProbabilityInfo?.isHardGuaranteeNextPull ? '硬保' : '动态'}
+             value={targetProbabilityInfo ? `${currentTargetProbabilityPercent}%` : '-'}
+             progress={targetProbabilityInfo ? parseFloat(currentTargetProbabilityPercent) : 0}
              progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
-             footer={stats.sixStarCount > 0 ? `${targetProbabilityFooter} · 历史样本 UP: ${stats.upSixStarCount} / 歪: ${stats.sixStarCount - stats.upSixStarCount}` : targetProbabilityFooter}
+             footer={
+               stats.sixStarCount > 0
+                 ? `${targetProbabilityFooter} · 历史样本不歪率 ${stats.winRate}%（UP ${stats.upSixStarCount} / 歪 ${stats.sixStarCount - stats.upSixStarCount}）`
+                 : targetProbabilityFooter
+             }
            />
            {/* Average */}
            <StatCard 

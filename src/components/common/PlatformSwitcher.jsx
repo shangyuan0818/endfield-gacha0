@@ -1,10 +1,7 @@
 import React from 'react';
 import { Monitor, Smartphone } from 'lucide-react';
 import {
-  getDesktopPathForTab,
-  getDesktopTabFromPath,
-  getMobilePathForTab,
-  getMobileTabFromPath
+  resolvePlatformPath
 } from '../../constants/appRoutes';
 
 const PLATFORM_PREFERENCE_KEY = 'platform-preference';
@@ -17,21 +14,16 @@ function PlatformSwitcher({ variant = 'button', className = '' }) {
   const currentPlatform = window.location.pathname.startsWith('/m') ? 'mobile' : 'desktop';
 
   const resolveTargetPath = (targetPlatform) => {
-    const currentPath = window.location.pathname;
-    const currentTab = currentPlatform === 'mobile'
-      ? getMobileTabFromPath(currentPath)
-      : getDesktopTabFromPath(currentPath);
-
-    return targetPlatform === 'mobile'
-      ? getMobilePathForTab(currentTab)
-      : getDesktopPathForTab(currentTab);
+    return resolvePlatformPath(window.location.pathname, targetPlatform);
   };
 
   const handleSwitch = (targetPlatform) => {
     localStorage.setItem(PLATFORM_PREFERENCE_KEY, targetPlatform);
     const basePath = window.location.origin;
     const targetPath = resolveTargetPath(targetPlatform);
-    window.location.replace(basePath + targetPath);
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    window.location.replace(basePath + targetPath + search + hash);
   };
 
   if (variant === 'menu-item') {

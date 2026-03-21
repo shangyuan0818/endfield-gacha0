@@ -3,6 +3,8 @@ import {
   buildInheritedSimulatorSnapshot,
   buildInheritedSimulatorState
 } from '../src/features/simulator/simulatorInheritance.js';
+import { simulateSinglePull } from '../src/utils/probabilityEngine.js';
+import { LIMITED_POOL_RULES } from '../src/constants/index.js';
 import {
   buildSimulatorResourceLedger,
   DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
@@ -85,8 +87,8 @@ assert.equal(inheritedLimited.totalPulls, 35, 'limited pool total pulls should o
 assert.equal(inheritedLimited.freeTenPullsReceived, 1, 'limited pool should mark already earned free ten-pull for current pool');
 assert.equal(inheritedLimited.hasReceivedInfoBook, false, 'current limited pool should not fake info-book ownership from previous pool');
 assert.equal(inheritedLimited.sixStarPity, 95, 'limited pool should inherit cross-pool six-star pity');
-assert.equal(inheritedLimited.guaranteedLimitedPity, 95, 'limited pool should inherit cross-pool hard pity counter');
-assert.equal(inheritedLimited.hasReceivedGuaranteedLimited, false, 'limited pool should preserve whether hard pity has been consumed');
+assert.equal(inheritedLimited.guaranteedLimitedPity, 35, 'limited pool current-banner hard target progress should stay on current pool only');
+assert.equal(inheritedLimited.hasReceivedGuaranteedLimited, false, 'limited pool should preserve whether the current-banner hard target has been satisfied');
 assert.equal(inheritedLimited.pullHistory.length, 35, 'limited pool history should exclude free pulls and gifts');
 assert.equal(inheritedLimited.infoBookTenPullAvailable, true, 'current target limited pool should activate inherited info book');
 
@@ -140,9 +142,7 @@ assert.ok(inheritedSnapshot.statesByPoolId.sim_limited_b, 'snapshot should inclu
 assert.ok(inheritedSnapshot.statesByPoolId.sim_weapon_a, 'snapshot should include current weapon pool');
 assert.deepEqual(inheritedSnapshot.sharedPityState, {
   sixStarPity: 95,
-  fiveStarPity: 95,
-  guaranteedLimitedPity: 95,
-  hasReceivedGuaranteedLimited: false
+  fiveStarPity: 95
 }, 'snapshot should expose shared limited pity state');
 assert.deepEqual(inheritedSnapshot.infoBooks.sim_limited_a, {
   activated: true,
@@ -253,8 +253,8 @@ const guaranteedLimitedState = buildInheritedSimulatorState({
   currentUserId: 'user-1'
 });
 
-assert.equal(guaranteedLimitedState.guaranteedLimitedPity, 0, 'hard pity counter should reset after hitting the guaranteed limited threshold');
-assert.equal(guaranteedLimitedState.hasReceivedGuaranteedLimited, false, 'hard pity should restart a fresh cycle after a limited character is obtained');
+assert.equal(guaranteedLimitedState.guaranteedLimitedPity, 120, 'hard target progress should stop at 120 after the current-banner guarantee is fulfilled');
+assert.equal(guaranteedLimitedState.hasReceivedGuaranteedLimited, true, 'hard target should be marked as fulfilled after the current-banner UP is obtained');
 
 const restartedGuaranteedLimitedState = buildInheritedSimulatorState({
   history: [
@@ -267,8 +267,8 @@ const restartedGuaranteedLimitedState = buildInheritedSimulatorState({
   currentUserId: 'user-1'
 });
 
-assert.equal(restartedGuaranteedLimitedState.guaranteedLimitedPity, 1, 'after a forced limited resolves, the next paid pull should start a fresh hard-pity cycle');
-assert.equal(restartedGuaranteedLimitedState.hasReceivedGuaranteedLimited, false, 'the new cycle must keep the hard-pity trigger available');
+assert.equal(restartedGuaranteedLimitedState.guaranteedLimitedPity, 120, 'after the current-banner guarantee is fulfilled, later pulls should not restart a new hard-target cycle');
+assert.equal(restartedGuaranteedLimitedState.hasReceivedGuaranteedLimited, true, 'the fulfilled current-banner hard target should stay consumed for the rest of that banner');
 
 const hardGuaranteeTargetProbability = buildCurrentTargetProbabilityInfo({
   guaranteedLimitedPity: 119,
@@ -278,6 +278,51 @@ const hardGuaranteeTargetProbability = buildCurrentTargetProbabilityInfo({
 });
 assert.equal(hardGuaranteeTargetProbability.isHardGuaranteeNextPull, true, 'limited simulator should recognize when the next pull triggers the hard target guarantee');
 assert.equal(hardGuaranteeTargetProbability.probability, 1, 'hard target guarantee should make the next-pull target probability 100%');
+
+const offBannerHistory = [
+  ...Array.from({ length: 20 }, (_, index) => makePull('limited_b', 900 + index + 1)),
+  makePull('limited_b', 980, { rarity: 6, isLimited: false, character_name: '余烬' }),
+  ...Array.from({ length: 6 }, (_, index) => makePull('limited_b', 990 + index + 1))
+];
+
+const inheritedOffBannerState = buildInheritedSimulatorState({
+  history: offBannerHistory,
+  realPools: pools,
+  currentSimPool: { id: 'sim_limited_b', type: 'limited', up_character: 'B' },
+  currentGameUid: 'uid-1',
+  currentUserId: 'user-1'
+});
+
+assert.equal(inheritedOffBannerState.isGuaranteedUp, false, 'limited simulator should not invent a next-6★ UP guarantee after an off-banner 6★');
+assert.equal(inheritedOffBannerState.guaranteedLimitedPity, 27, 'current-banner hard target progress should continue accumulating on the current pool after an off-banner 6★');
+assert.equal(inheritedOffBannerState.hasReceivedGuaranteedLimited, false, 'an off-banner 6★ should not satisfy the current-banner hard target');
+
+const offBannerProbability = buildCurrentTargetProbabilityInfo({
+  guaranteedLimitedPity: inheritedOffBannerState.guaranteedLimitedPity,
+  hasReceivedGuaranteedLimited: inheritedOffBannerState.hasReceivedGuaranteedLimited,
+  currentPity: inheritedOffBannerState.sixStarPity,
+  poolType: 'limited'
+});
+
+assert.equal(offBannerProbability.targetRate, 0.5, 'after an off-banner 6★, the next limited 6★ should still be a normal 50/50 target rate');
+
+const originalRandom = Math.random;
+let randomCallCount = 0;
+Math.random = () => {
+  randomCallCount += 1;
+  return randomCallCount === 1 ? 0 : 0.9;
+};
+
+const forcedOffBannerPull = simulateSinglePull({
+  ...inheritedOffBannerState,
+  sixStarPity: LIMITED_POOL_RULES.sixStarPity - 1
+}, LIMITED_POOL_RULES, 'limited', 'B', null);
+
+Math.random = originalRandom;
+
+assert.equal(forcedOffBannerPull.rarity, 6, 'forcing hard six-star pity should still produce a 6★ result');
+assert.equal(forcedOffBannerPull.isUp, false, 'an off-banner 6★ should not make the next forced 6★ automatically become UP');
+assert.equal(forcedOffBannerPull.isGuaranteedUp, false, 'limited simulator should not persist a fabricated next-6★ UP guarantee state');
 
 const scopeA = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-1' });
 const scopeB = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-2' });

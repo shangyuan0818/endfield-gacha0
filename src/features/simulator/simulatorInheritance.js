@@ -162,20 +162,32 @@ function countPaidPullsByPool(records) {
   }, new Map());
 }
 
-function calculateGuaranteedLimitedState(records, _rules) {
-  let pity = 0;
+function calculateGuaranteedLimitedState(records, rules) {
+  const threshold = Number(rules?.guaranteedLimitedPity || 0);
+  if (threshold <= 0 || records.length === 0) {
+    return {
+      pity: 0,
+      hasReceivedGuaranteedLimited: false
+    };
+  }
 
-  records.forEach((item) => {
-    pity += 1;
+  let pity = 0;
+  let hasReceivedGuaranteedLimited = false;
+
+  records.some((item) => {
+    pity = Math.min(pity + 1, threshold);
 
     if (item.__simulatorIsUp) {
-      pity = 0;
+      hasReceivedGuaranteedLimited = true;
+      return true;
     }
+
+    return false;
   });
 
   return {
     pity,
-    hasReceivedGuaranteedLimited: false
+    hasReceivedGuaranteedLimited
   };
 }
 
@@ -235,6 +247,12 @@ function buildInheritedStateForPool({
   const currentPoolPaidHistory = getPaidPulls(
     relevantHistory.filter((item) => getHistoryPoolId(item) === realPoolId)
   );
+  const currentPoolTimeline = currentPoolPaidHistory.map((item) => ({
+    ...item,
+    __simulatorIsUp: normalizeRecordRarity(item) === 6
+      ? !normalizeHistoryIsStandard(item, currentPool.type, currentPool.up_character)
+      : false
+  }));
 
   const referenceTimeline = buildReferenceTimeline(relevantHistory, limitedPoolIds, realPoolId, normalizedPoolType)
     .map((item) => {
@@ -259,7 +277,7 @@ function buildInheritedStateForPool({
   const upSixStarCount = simulatorPullHistory.filter((item) => item.rarity === 6 && item.isUp).length;
   const currentSimPoolKey = getSimulatorPoolId(realPoolId);
   const guaranteedLimitedState = normalizedPoolType === 'limited' || normalizedPoolType === 'weapon'
-    ? calculateGuaranteedLimitedState(referenceTimeline, normalizedPoolType === 'weapon' ? WEAPON_POOL_RULES : LIMITED_POOL_RULES)
+    ? calculateGuaranteedLimitedState(currentPoolTimeline, normalizedPoolType === 'weapon' ? WEAPON_POOL_RULES : LIMITED_POOL_RULES)
     : { pity: 0, hasReceivedGuaranteedLimited: false };
 
   const baseState = {
@@ -396,14 +414,11 @@ export function buildInheritedSimulatorSnapshot({
     null,
     'limited'
   );
-  const sharedGuaranteedLimitedState = calculateGuaranteedLimitedState(limitedReferenceTimeline, LIMITED_POOL_RULES);
 
   const sharedPityState = limitedReferenceTimeline.length > 0
     ? {
         sixStarPity: calculatePityFromPaidHistory(limitedReferenceTimeline),
-        fiveStarPity: calculatePity5FromPaidHistory(limitedReferenceTimeline),
-        guaranteedLimitedPity: sharedGuaranteedLimitedState.pity,
-        hasReceivedGuaranteedLimited: sharedGuaranteedLimitedState.hasReceivedGuaranteedLimited
+        fiveStarPity: calculatePity5FromPaidHistory(limitedReferenceTimeline)
       }
     : null;
 
