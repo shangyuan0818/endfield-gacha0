@@ -180,6 +180,57 @@ function resolveShareCardSize(node, options = {}) {
   };
 }
 
+async function measureRenderedShareCard(node, options = {}) {
+  if (!node || typeof document === 'undefined') {
+    return resolveShareCardSize(node, options);
+  }
+
+  const fallbackSize = resolveShareCardSize(node, options);
+  const sandbox = document.createElement('div');
+  sandbox.setAttribute('aria-hidden', 'true');
+  sandbox.style.position = 'fixed';
+  sandbox.style.left = '-200vw';
+  sandbox.style.top = '0';
+  sandbox.style.pointerEvents = 'none';
+  sandbox.style.opacity = '0';
+  sandbox.style.zIndex = '-1';
+  sandbox.style.overflow = 'visible';
+
+  const clone = node.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  await inlineCloneImages(node, clone);
+
+  const explicitWidth = Number(options.width) || fallbackSize.width;
+  clone.style.width = `${explicitWidth}px`;
+  clone.style.maxWidth = `${explicitWidth}px`;
+  clone.style.height = 'auto';
+  clone.style.minHeight = clone.style.minHeight || `${fallbackSize.height}px`;
+  clone.style.overflow = 'visible';
+
+  sandbox.appendChild(clone);
+  document.body.appendChild(sandbox);
+
+  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+
+  const measuredWidth = Number(options.width)
+    || clone.scrollWidth
+    || clone.offsetWidth
+    || clone.getBoundingClientRect().width
+    || fallbackSize.width;
+  const measuredHeight = Number(options.height)
+    || clone.scrollHeight
+    || clone.offsetHeight
+    || clone.getBoundingClientRect().height
+    || fallbackSize.height;
+
+  document.body.removeChild(sandbox);
+
+  return {
+    width: Math.max(1, Math.round(measuredWidth)),
+    height: Math.max(1, Math.round(measuredHeight))
+  };
+}
+
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -251,10 +302,15 @@ export async function renderShareCardToBlob(node, options = {}) {
     throw new Error('分享卡节点不可用');
   }
 
-  const { width, height } = resolveShareCardSize(node, options);
+  const { width, height } = await measureRenderedShareCard(node, options);
   const clone = node.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   await inlineCloneImages(node, clone);
+  clone.style.width = `${width}px`;
+  clone.style.maxWidth = `${width}px`;
+  clone.style.height = 'auto';
+  clone.style.minHeight = `${height}px`;
+  clone.style.overflow = 'visible';
 
   const serializedNode = new XMLSerializer().serializeToString(clone);
   const svgMarkup = `
