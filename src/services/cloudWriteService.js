@@ -1,4 +1,4 @@
-import { clampHistoryPity, splitHistoryUpsertGroups } from '../utils/historyRecordUtils';
+import { clampHistoryPity, splitHistoryUpsertGroups } from '../utils/historyRecordUtils.js';
 import {
   resolveAliasValue,
   resolveCharacterAliasMap,
@@ -32,6 +32,16 @@ function normalizeRecordId(record) {
   }
 
   return recordId;
+}
+
+function isMissingHistoryCharacterIdError(error) {
+  const message = String(error?.message || '');
+  return message.includes('history.character_id does not exist')
+    || message.includes("Could not find the 'character_id' column");
+}
+
+function omitHistoryCharacterId(rows) {
+  return rows.map(({ character_id: _characterId, ...rest }) => rest);
 }
 
 export function serializePoolForUpsert(pool, currentUserId, resolvedPoolId = null) {
@@ -136,13 +146,22 @@ export async function upsertHistory(supabaseClient, records, currentUserId) {
     { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
     { rows: legacyRecords, onConflict: 'user_id,record_id' }
   ];
+  let historyCharacterIdSupported = true;
 
   for (const group of upsertGroups) {
     if (group.rows.length === 0) continue;
 
-    const { error } = await supabaseClient
+    const initialRows = historyCharacterIdSupported ? group.rows : omitHistoryCharacterId(group.rows);
+    let { error } = await supabaseClient
       .from('history')
-      .upsert(group.rows, { onConflict: group.onConflict });
+      .upsert(initialRows, { onConflict: group.onConflict });
+
+    if (error && historyCharacterIdSupported && isMissingHistoryCharacterIdError(error)) {
+      historyCharacterIdSupported = false;
+      ({ error } = await supabaseClient
+        .from('history')
+        .upsert(omitHistoryCharacterId(group.rows), { onConflict: group.onConflict }));
+    }
 
     if (error) {
       throw error;

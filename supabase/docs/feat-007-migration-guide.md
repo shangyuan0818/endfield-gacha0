@@ -1,5 +1,10 @@
 # FEAT-007 数据库迁移指南
 
+> [!WARNING]
+> 本文是 FEAT-007 早期阶段的历史迁移指南，只用于理解 `027~030` 这批迁移的原始意图。
+> 当前主线已经切到 canonical id / alias 数据治理；`history.character_id` 与 `legacy_pool_id` 的保留或退役，必须以 `DATA-NEW-008` 的审计结果和 `npm run audit:canonical-retirement-readiness` 为准。
+> 不要再直接照本文执行删列、回滚或“6 个月后删除兼容字段”的旧建议。
+
 ## 迁移文件清单
 
 本次重构共创建了 4 个数据库迁移文件：
@@ -103,7 +108,7 @@ WHERE routine_schema = 'public' AND routine_name = 'migrate_pool_id';
 
 ---
 
-## 回滚迁移（谨慎使用）
+## 历史回滚示意（当前主干不要直接执行）
 
 如果需要回滚迁移，按照**相反顺序**执行：
 
@@ -129,7 +134,7 @@ ALTER TABLE public.history DROP COLUMN IF EXISTS character_id;
 ALTER TABLE public.history DROP COLUMN IF EXISTS avatar_url;
 ```
 
-⚠️ **警告**：回滚会删除 `characters` 表及其所有数据，请谨慎操作！
+⚠️ **警告**：以上 SQL 仅保留作历史阶段参考。当前仓库已引入 canonical alias / baseline / backfill 审计链，直接照本文删 `legacy_pool_id` 或 `history.character_id` 会与现行主线冲突。
 
 ---
 
@@ -163,7 +168,12 @@ ON CONFLICT (id) DO NOTHING;
 
 ### Q4: 什么时候清理 legacy_pool_id 字段？
 
-**答**：建议在 ID 迁移完成并稳定运行 **6 个月** 后再删除，确保所有用户都已迁移。
+**答**：这条旧回答已经失效。当前不应按固定“6 个月窗口”直接删列，而应先完成：
+
+1. 真实库 canonical 审计；
+2. `history / pool_characters / featured_characters` 的 alias-backed 引用复核；
+3. `npm run audit:canonical-retirement-readiness` 显示运行时、baseline、tooling、文档都已脱钩；
+4. `DATA-NEW-008` 的最终人工验收。
 
 ---
 

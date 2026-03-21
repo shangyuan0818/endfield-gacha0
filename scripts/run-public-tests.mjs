@@ -5,6 +5,7 @@ const testCommands = [
   ['node', ['scripts/verify-info-book-resource-accounting.mjs']],
   ['node', ['scripts/verify-export-import-roundtrip.mjs']],
   ['node', ['scripts/verify-import-persistence.mjs']],
+  ['node', ['scripts/verify-history-character-id-fallback.mjs']],
   ['node', ['scripts/verify-bootstrap-cache-partial.mjs']],
   ['node', ['scripts/verify-supabase-baseline.mjs']],
 ];
