@@ -7,6 +7,7 @@ const testCommands = [
   ['node', ['scripts/verify-import-persistence.mjs']],
   ['node', ['scripts/verify-history-character-id-fallback.mjs']],
   ['node', ['scripts/verify-dashboard-share.mjs']],
+  ['node', ['scripts/verify-data-format-registry.mjs']],
   ['node', ['scripts/verify-bootstrap-cache-partial.mjs']],
   ['node', ['scripts/verify-supabase-baseline.mjs']],
 ];

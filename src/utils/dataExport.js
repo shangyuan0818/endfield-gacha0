@@ -8,8 +8,11 @@ import {
   loadGameAccountMetadataMap,
   normalizeGameAccountMetadata
 } from './gameAccountMetadata.js';
+import { getDataFormatById } from './dataFormatRegistry.js';
 
 export const EXPORT_SCHEMA_VERSION = '3.0.0';
+export const EXPORT_FORMAT_ID = 'internal_json_v3';
+const exportFormat = getDataFormatById(EXPORT_FORMAT_ID);
 
 function getHistoryPoolId(record) {
   return record?.poolId || record?.pool_id || null;
@@ -386,6 +389,8 @@ export function buildExportPayload({
     .filter(Boolean);
 
   return {
+    formatId: EXPORT_FORMAT_ID,
+    formatLabel: exportFormat?.label || '站内 JSON v3',
     schemaVersion: EXPORT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     filters: {
@@ -406,6 +411,8 @@ export function buildExportPayload({
 
 export function buildExportJsonContent(payload) {
   return JSON.stringify({
+    formatId: payload.formatId,
+    formatLabel: payload.formatLabel,
     version: '3.0',
     schemaVersion: payload.schemaVersion,
     exportTime: payload.exportedAt,

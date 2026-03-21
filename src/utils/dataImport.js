@@ -1,5 +1,6 @@
 import { clampHistoryPity } from './historyRecordUtils.js';
 import { normalizeGameAccountMetadata } from './gameAccountMetadata.js';
+import { detectImportFormat } from './dataFormatRegistry.js';
 
 const MAX_IMPORT_ERRORS = 10;
 const VALID_POOL_TYPES = new Set([
@@ -294,6 +295,7 @@ export function getHistoryImportDedupKey(record) {
 
 export function validateAndNormalizeImportData(data, options = {}) {
   const errors = [];
+  const detectedFormat = detectImportFormat(data);
 
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: ['无效的数据格式'] };
@@ -309,6 +311,13 @@ export function validateAndNormalizeImportData(data, options = {}) {
 
   if (errors.length > 0) {
     return { valid: false, errors };
+  }
+
+  if (!detectedFormat) {
+    return {
+      valid: false,
+      errors: ['暂不支持该导入格式；当前仅兼容站内 JSON v3 与站内旧版 JSON'],
+    };
   }
 
   const currentUserId = options.currentUserId || null;
@@ -389,6 +398,8 @@ export function validateAndNormalizeImportData(data, options = {}) {
       accountCount: normalizedAccounts.length
     },
     normalizedData: {
+      sourceFormatId: detectedFormat.id,
+      sourceFormatLabel: detectedFormat.label,
       schemaVersion: normalizeString(data.schemaVersion || data.version),
       importedAt: normalizeString(data.exportTime || data.exportedAt) || new Date().toISOString(),
       filters: data.filters || null,
@@ -401,6 +412,7 @@ export function validateAndNormalizeImportData(data, options = {}) {
 }
 
 export default {
+  detectImportFormat,
   getHistoryImportDedupKey,
   validateAndNormalizeImportData
 };
