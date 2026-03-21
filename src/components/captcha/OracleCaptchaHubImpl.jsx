@@ -48,9 +48,9 @@ const CAPTCHA_MODES = [
 
 const CAPTCHA_PUZZLE_READ_TIMEOUT_MS = 10000;
 
-function getInitialMode() {
+function getInitialMode(isMobile = false) {
   const savedMode = localStorage.getItem('captchaModePreference');
-  return CAPTCHA_MODES.some(({ id }) => id === savedMode) ? savedMode : 'puzzle';
+  return CAPTCHA_MODES.some(({ id }) => id === savedMode) ? savedMode : (isMobile ? 'terminal' : 'puzzle');
 }
 
 function getInitialDifficulty() {
@@ -240,8 +240,34 @@ function SecondaryModeFrame({ modeRail, title, eyebrow, children }) {
   );
 }
 
+function MobileModeFrame({ modePills, title, noticeMessage, onRetryRemote, children }) {
+  return (
+    <div className="endfield-captcha-container mobile-captcha mobile-access">
+      <div className="play-shell mobile-shell">
+        {noticeMessage ? (
+          <div className="notice">
+            <div>{noticeMessage}</div>
+            <button type="button" onClick={onRetryRemote}>重试共享题库</button>
+          </div>
+        ) : null}
+
+        <div className="mobile-access-shell">
+          <div className="mobile-compact-header">
+            <div className="mobile-compact-header-title">{title}</div>
+            {modePills}
+          </div>
+
+          <div className="mobile-access-body">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
-  const [activeMode, setActiveMode] = useState(getInitialMode);
+  const [activeMode, setActiveMode] = useState(() => getInitialMode(isMobile));
   const [currentDifficulty, setCurrentDifficulty] = useState(getInitialDifficulty);
   const [puzzleRows, setPuzzleRows] = useState([]);
   const [currentPuzzle, setCurrentPuzzle] = useState(null);
@@ -250,12 +276,8 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   const [puzzleNotice, setPuzzleNotice] = useState('');
   const bootstrapRequestRef = useRef(0);
   const playerBaseUrl = import.meta.env.VITE_PUZZLE_PLAYER_URL?.trim() || '';
-  const availableModes = isMobile
-    ? CAPTCHA_MODES.filter((mode) => mode.id !== 'puzzle')
-    : CAPTCHA_MODES;
-  const effectiveMode = isMobile
-    ? (activeMode === 'minecraft' ? 'minecraft' : 'terminal')
-    : activeMode;
+  const availableModes = CAPTCHA_MODES;
+  const effectiveMode = activeMode;
 
   const persistMode = useCallback((nextMode) => {
     localStorage.setItem('captchaModePreference', nextMode);
@@ -270,7 +292,10 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
     <section className={`panel mode-rail${isMobile ? ' compact' : ''}`.trim()}>
       <div className="panel-title">{isMobile ? '验证方式' : '验证切换'}</div>
       {!isMobile ? <p className="panel-copy">左侧保留独立验证码切换卡，可在不同验证方式之间切换。</p> : null}
-      <div className="mode-list">
+      <div
+        className="mode-list"
+        style={isMobile ? { gridTemplateColumns: `repeat(${availableModes.length}, minmax(0, 1fr))` } : undefined}
+      >
         {availableModes.map((mode) => (
           <button
             key={mode.id}
@@ -296,6 +321,27 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
       {!isMobile ? <div className="mode-note">当前高亮：{CAPTCHA_MODES.find((mode) => mode.id === activeMode)?.label ?? '拼图'}</div> : null}
     </section>
   ), [activeMode, availableModes, effectiveMode, isMobile, persistMode]);
+
+  const renderModePills = useCallback(() => (
+    <div className="mobile-pill-switcher">
+      {availableModes.map((mode) => (
+        <button
+          key={mode.id}
+          type="button"
+          className={`mobile-pill${effectiveMode === mode.id ? ' active' : ''}`}
+          onClick={() => {
+            persistMode(mode.id);
+            setActiveMode(mode.id);
+            if (mode.id !== 'puzzle') {
+              setPuzzleNotice('');
+            }
+          }}
+        >
+          {mode.label}
+        </button>
+      ))}
+    </div>
+  ), [availableModes, effectiveMode, persistMode]);
 
   const fetchPuzzleRows = useCallback(async (difficulty, currentId = null, forceRemote = true) => {
     const rows = !forceRemote && puzzleRows.length ? puzzleRows : await loadSharedPuzzlePool(difficulty);
@@ -399,6 +445,7 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
         isMobile={isMobile}
         noticeMessage={puzzleNotice}
         modeRail={renderModeRail()}
+        modePills={isMobile ? renderModePills() : null}
         onRetryRemote={() => void handlePuzzleRetry(true)}
         onVerified={onVerified}
         onRequestNextPuzzle={() => void handlePuzzleRetry(false)}
@@ -415,13 +462,17 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   if (effectiveMode === 'minecraft') {
     if (isMobile) {
       return (
-        <CaptchaShell isMobile modeRail={renderModeRail()} placeholderRight={false}>
-          <div className="mobile-secondary-mode">
-            <div className="origin-top scale-[0.8]">
+        <MobileModeFrame
+          modePills={renderModePills()}
+          title="MC 合成验证"
+          noticeMessage=""
+        >
+          <div className="mobile-secondary-mode minecraft-mode">
+            <div className="origin-top scale-[0.88]">
               <MinecraftCaptcha onVerified={onVerified} />
             </div>
           </div>
-        </CaptchaShell>
+        </MobileModeFrame>
       );
     }
 
@@ -438,14 +489,18 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
 
   if (isMobile) {
     return (
-      <CaptchaShell isMobile modeRail={renderModeRail()} placeholderRight={false}>
-        <div className="mobile-secondary-mode">
+      <MobileModeFrame
+        modePills={renderModePills()}
+        title="终端验证"
+        noticeMessage=""
+      >
+        <div className="mobile-secondary-mode terminal-mode">
           <TerminalPowCaptcha isMobile onUseMinecraft={() => {
             persistMode('minecraft');
             setActiveMode('minecraft');
           }} onVerified={onVerified} />
         </div>
-      </CaptchaShell>
+      </MobileModeFrame>
     );
   }
 

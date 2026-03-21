@@ -865,6 +865,13 @@
   margin-bottom: 10px;
 }
 
+.endfield-captcha-container .tray-mobile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .endfield-captcha-container .tray-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -895,8 +902,25 @@
   scroll-snap-align: start;
 }
 
+.endfield-captcha-container .mobile-tray-panel.collapsed {
+  padding-bottom: 10px;
+}
+
+.endfield-captcha-container .mobile-tray-panel.collapsed .panel-head {
+  margin-bottom: 0;
+}
+
 .endfield-captcha-container .mobile-tray-panel .piece-mini-frame {
   justify-content: center;
+}
+
+.endfield-captcha-container.mobile-puzzle .mobile-tray-panel::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: -2px auto 10px;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .endfield-captcha-container .side-right .tray-grid {
@@ -1031,6 +1055,15 @@
   align-self: center;
 }
 
+.endfield-captcha-container .tray-toggle,
+.endfield-captcha-container .mobile-selection-clear {
+  width: auto;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
 .endfield-captcha-container .inline-kbd {
   display: inline-flex;
   align-items: center;
@@ -1080,12 +1113,160 @@
   justify-content: center;
 }
 
+.endfield-captcha-container .mobile-access-shell {
+  display: flex;
+  width: 100%;
+  max-width: 420px;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── 移动端紧凑单行 header ── */
+
+.endfield-captcha-container .mobile-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: rgba(8, 8, 8, 0.9);
+}
+
+.endfield-captcha-container .mobile-compact-header-title {
+  color: var(--y);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── 移动端 pill 切换器 ── */
+
+.endfield-captcha-container .mobile-pill-switcher {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.endfield-captcha-container .mobile-pill {
+  padding: 6px 12px;
+  border: none;
+  border-right: 1px solid var(--line);
+  background: rgba(8, 8, 8, 0.8);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.endfield-captcha-container .mobile-pill:last-child {
+  border-right: none;
+}
+
+.endfield-captcha-container .mobile-pill:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+}
+
+.endfield-captcha-container .mobile-pill.active {
+  background: rgba(255, 250, 0, 0.12);
+  color: var(--y);
+  text-shadow: 0 0 6px rgba(255, 250, 0, 0.2);
+}
+
+/* ── 拼图移动端紧凑 topbar ── */
+
+.endfield-captcha-container .mobile-compact-topbar {
+  padding: 8px 12px;
+  gap: 0;
+}
+
+.endfield-captcha-container .mobile-topbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.endfield-captcha-container .mobile-topbar-id {
+  color: var(--y);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.endfield-captcha-container .mobile-topbar-sep {
+  color: var(--dim);
+}
+
+.endfield-captcha-container .mobile-topbar-placed {
+  margin-left: auto;
+  color: var(--ok);
+  font-weight: 700;
+}
+
+/* ── 拼图移动端紧凑按钮行 ── */
+
+.endfield-captcha-container .mobile-compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+}
+
+.endfield-captcha-container .mobile-compact-actions .action-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+  padding: 7px 10px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.endfield-captcha-container .mobile-access-head {
+  padding: 14px;
+  background: linear-gradient(180deg, rgba(20, 20, 20, 0.95), rgba(8, 8, 8, 0.95));
+}
+
+.endfield-captcha-container .mobile-access-title {
+  margin-top: 8px;
+  color: var(--y);
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.endfield-captcha-container .mobile-access-copy {
+  margin-top: 8px;
+}
+
+.endfield-captcha-container .mobile-mode-switcher .mode-rail {
+  padding: 12px;
+}
+
+.endfield-captcha-container .mobile-mode-switcher .panel-title {
+  margin-bottom: 10px;
+}
+
+.endfield-captcha-container .mobile-access-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .endfield-captcha-container .mobile-puzzle-shell {
   display: flex;
   width: 100%;
   max-width: 420px;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .endfield-captcha-container .mobile-puzzle-stage {
@@ -1120,6 +1301,20 @@
 }
 
 .endfield-captcha-container.mobile-captcha .notice button {
+  width: 100%;
+}
+
+.endfield-captcha-container.mobile-access .mode-rail.compact .mode-card {
+  min-height: 64px;
+  padding: 10px 6px;
+}
+
+.endfield-captcha-container.mobile-access .mode-rail.compact .mode-main {
+  font-size: 12px;
+}
+
+.endfield-captcha-container.mobile-access .mobile-secondary-mode.terminal-mode,
+.endfield-captcha-container.mobile-access .mobile-secondary-mode.minecraft-mode {
   width: 100%;
 }
 
@@ -1329,6 +1524,10 @@
     padding: 12px 10px;
   }
 
+  .endfield-captcha-container.mobile-puzzle .tray-mobile-actions {
+    gap: 6px;
+  }
+
   .endfield-captcha-container.mobile-puzzle .mobile-tray-panel .panel-title {
     font-size: 12px;
     letter-spacing: 0.12em;
@@ -1336,6 +1535,10 @@
 
   .endfield-captcha-container.mobile-puzzle .mobile-tray-panel .panel-head {
     margin-bottom: 10px;
+  }
+
+  .endfield-captcha-container.mobile-puzzle .mobile-tray-panel.collapsed .panel-head {
+    margin-bottom: 0;
   }
 
   .endfield-captcha-container.mobile-puzzle .mobile-tray-panel .tray-copy {
@@ -1357,5 +1560,31 @@
   .endfield-captcha-container.mobile-puzzle .mobile-tray-panel .piece-mini-shell {
     width: 60px;
     height: 60px;
+  }
+
+  .endfield-captcha-container.mobile-puzzle .play-status {
+    gap: 8px;
+  }
+
+  .endfield-captcha-container.mobile-puzzle .play-status .ghost-btn {
+    padding: 0 10px;
+  }
+
+  .endfield-captcha-container .mobile-access-shell {
+    max-width: none;
+    gap: 10px;
+  }
+
+  .endfield-captcha-container .mobile-access-head {
+    padding: 12px;
+  }
+
+  .endfield-captcha-container .mobile-access-title {
+    font-size: 16px;
+    letter-spacing: 0.12em;
+  }
+
+  .endfield-captcha-container .mobile-mode-switcher .mode-rail {
+    padding: 10px;
   }
 }

@@ -150,7 +150,9 @@ const LoadingScreen = ({ onComplete }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center font-mono text-endfield-yellow overflow-hidden">
+    <div className={`fixed inset-0 bg-black z-[9999] flex flex-col items-center font-mono text-endfield-yellow ${
+      stage === 'captcha' ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden justify-center'
+    }`}>
       {/* 背景网格效果 */}
       <div
         className="absolute inset-0 opacity-10 pointer-events-none"
@@ -218,7 +220,7 @@ const LoadingScreen = ({ onComplete }) => {
 
       {/* 阶段2: 验证码 */}
       {stage === 'captcha' && (
-        <div className="relative z-10 flex w-full animate-fadeIn px-4">
+        <div className="relative z-10 flex w-full animate-fadeIn px-4 pt-6 pb-10">
           <div className="w-full">
             <OracleCaptchaHub onVerified={handleCaptchaVerified} />
           </div>

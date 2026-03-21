@@ -157,7 +157,9 @@ const MobileLoadingScreen = ({ onComplete }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-[9999] flex flex-col items-center justify-center font-mono text-endfield-yellow overflow-hidden safe-area-inset">
+    <div className={`fixed inset-0 bg-black z-[9999] flex flex-col items-center font-mono text-endfield-yellow safe-area-inset ${
+      stage === 'captcha' ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden justify-center'
+    }`}>
       {/* 背景网格效果 */}
       <div
         className="absolute inset-0 opacity-10 pointer-events-none"
@@ -167,11 +169,15 @@ const MobileLoadingScreen = ({ onComplete }) => {
         }}
       />
 
-      {/* 装饰性边角 */}
-      <div className="absolute top-4 left-4 w-12 h-12 border-t-2 border-l-2 border-endfield-yellow/50" />
-      <div className="absolute top-4 right-4 w-12 h-12 border-t-2 border-r-2 border-endfield-yellow/50" />
-      <div className="absolute bottom-4 left-4 w-12 h-12 border-b-2 border-l-2 border-endfield-yellow/50" />
-      <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-endfield-yellow/50" />
+      {/* 装饰性边角 - 验证码阶段隐藏以节省空间 */}
+      {stage !== 'captcha' && (
+        <>
+          <div className="absolute top-4 left-4 w-12 h-12 border-t-2 border-l-2 border-endfield-yellow/50" />
+          <div className="absolute top-4 right-4 w-12 h-12 border-t-2 border-r-2 border-endfield-yellow/50" />
+          <div className="absolute bottom-4 left-4 w-12 h-12 border-b-2 border-l-2 border-endfield-yellow/50" />
+          <div className="absolute bottom-4 right-4 w-12 h-12 border-b-2 border-r-2 border-endfield-yellow/50" />
+        </>
+      )}
 
       {/* 扫描线 */}
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-yellow-400/5 to-transparent h-4 animate-scan" />
@@ -225,7 +231,7 @@ const MobileLoadingScreen = ({ onComplete }) => {
 
       {/* 阶段2: 验证码 */}
       {stage === 'captcha' && (
-        <div className="relative z-10 flex w-full animate-fadeIn px-4">
+        <div className="relative z-10 w-full animate-fadeIn px-3 pt-4 pb-8">
           <div className="w-full">
             <OracleCaptchaHub isMobile onVerified={handleCaptchaVerified} />
           </div>

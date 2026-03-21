@@ -160,6 +160,7 @@ export default function EnhancedPuzzleCaptchaImpl({
   playerUrl,
   puzzleDifficulty,
   noticeMessage,
+  modePills,
   modeRail,
   onRetryRemote,
   onVerified,
@@ -185,9 +186,19 @@ export default function EnhancedPuzzleCaptchaImpl({
   const [hintRemainingSeconds, setHintRemainingSeconds] = useState(60);
   const [showSolutionOverlay, setShowSolutionOverlay] = useState(false);
   const [showHintPanel, setShowHintPanel] = useState(!isMobile);
+  const [showTrayPanel, setShowTrayPanel] = useState(true);
 
   const placedEntries = useMemo(() => Object.entries(placed), [placed]);
   const placedCount = placedEntries.length;
+  const remainingPieceCount = pieces.length - placedCount;
+  const selectedPiece = useMemo(
+    () => (selectedPieceId === null ? null : pieces.find((piece) => piece.id === selectedPieceId) || null),
+    [pieces, selectedPieceId],
+  );
+  const selectedPieceIndex = useMemo(
+    () => (selectedPieceId === null ? -1 : pieces.findIndex((piece) => piece.id === selectedPieceId)),
+    [pieces, selectedPieceId],
+  );
   const currentCounts = useMemo(() => getCurrentCounts(puzzle, placed), [placed, puzzle]);
   const solutionCellSet = useMemo(
     () => new Set(puzzle.pieces.flatMap((piece) => (piece.cells || []).map(([row, col]) => `${row},${col}`))),
@@ -431,6 +442,9 @@ export default function EnhancedPuzzleCaptchaImpl({
       return nextPlaced;
     });
     setSelectedPieceId(pieceId);
+    if (isMobile) {
+      setShowTrayPanel(true);
+    }
     setPreview(null);
   };
 
@@ -460,6 +474,8 @@ export default function EnhancedPuzzleCaptchaImpl({
         cells,
       },
     }));
+    setSelectedPieceId(null);
+    setShowTrayPanel(true);
     setPreview(null);
     return true;
   }, [isMobile, pieces, placed, puzzle, selectedPieceId]);
@@ -521,19 +537,42 @@ export default function EnhancedPuzzleCaptchaImpl({
   );
 
   const trayPanel = (
-    <aside className={isMobile ? 'panel mobile-tray-panel' : 'panel side-column side-right tray-panel'}>
+    <aside className={`${isMobile ? 'panel mobile-tray-panel' : 'panel side-column side-right tray-panel'}${isMobile && !showTrayPanel ? ' collapsed' : ''}`.trim()}>
       <section>
         <div className="panel-head tray-head">
           <div>
-            <div className="panel-title">拼图模块</div>
+            <div className="panel-title">{isMobile ? '模块托盘' : '拼图模块'}</div>
             <p className="panel-copy tray-copy">
               {isMobile
-                ? '先点选下方模块，再点棋盘放置；需要时点右侧按钮旋转。'
+                ? (selectedPieceIndex >= 0
+                  ? `剩余 ${remainingPieceCount} 块，已选模块 ${String(selectedPieceIndex + 1).padStart(2, '0')}，点棋盘空位即可放置。`
+                  : `剩余 ${remainingPieceCount} 块，先点选下方模块，再点棋盘放置。`)
                 : <>右侧模块区固定为独立卡片，拖拽整张卡片放入网格，按 <span className="inline-kbd">R</span> 旋转当前抓取或选中的模块。</>}
             </p>
           </div>
+          {isMobile ? (
+            <div className="tray-mobile-actions">
+              {selectedPiece ? (
+                <button
+                  className="ghost-btn tray-toggle"
+                  type="button"
+                  onClick={() => rotatePiece(selectedPiece.id)}
+                >
+                  旋转已选
+                </button>
+              ) : null}
+              <button
+                className="ghost-btn tray-toggle"
+                type="button"
+                onClick={() => setShowTrayPanel((previous) => !previous)}
+              >
+                {showTrayPanel ? '收起' : '展开'}
+              </button>
+            </div>
+          ) : null}
         </div>
 
+        {!isMobile || showTrayPanel ? (
         <div className="tray-grid" style={isMobile ? undefined : { maxHeight: trayViewportHeight }}>
           {pieces.map((piece, index) => {
             const maxRow = Math.max(...piece.shape.map(([row]) => row));
@@ -565,7 +604,9 @@ export default function EnhancedPuzzleCaptchaImpl({
                   }
 
                   if (isMobile) {
-                    setSelectedPieceId(piece.id);
+                    const nextSelectedId = selectedPieceId === piece.id ? null : piece.id;
+                    setSelectedPieceId(nextSelectedId);
+                    setShowTrayPanel(nextSelectedId === null);
                     setPreview(null);
                   }
                 }}
@@ -622,31 +663,37 @@ export default function EnhancedPuzzleCaptchaImpl({
             );
           })}
         </div>
+        ) : null}
       </section>
     </aside>
   );
 
   const puzzleCard = (
     <div className="panel demo-frame demo-content captcha-card">
-      <section className={`topbar${isMobile ? ' compact-topbar' : ''}`.trim()}>
+      <section className={`topbar${isMobile ? ' mobile-compact-topbar' : ''}`.trim()}>
         <div>
           {!isMobile ? <div className="eyebrow">ORACLE PUZZLE ACCESS</div> : null}
-          <div className="topbar-title">
-            <strong>#{puzzleId}</strong>
-            <span className="badge source">已审核 / {getDifficultyLabel(puzzleDifficulty)}</span>
-          </div>
           {isMobile ? (
-            <div className="mobile-meta-strip">
-              <span>已放 {placedCount}/{pieces.length}</span>
+            <div className="mobile-topbar-row">
+              <span className="mobile-topbar-id">#{puzzleId}</span>
+              <span className="mobile-topbar-sep">&middot;</span>
               <span>{getDifficultyLabel(puzzleDifficulty)}</span>
-              <span>{author === '匿名上传者' ? '匿名出题' : `出题：${author}`}</span>
+              <span className="mobile-topbar-sep">&middot;</span>
+              <span>{author === '匿名上传者' ? '匿名' : author}</span>
+              <span className="mobile-topbar-placed">已放 {placedCount}/{pieces.length}</span>
             </div>
           ) : (
-            <div className="meta-row meta-pills">
-              <span><i className="meta-dot" />上传者 {author}</span>
-              <span><i className="meta-dot" />{pieces.length} 块模块</span>
-              <span><i className="meta-dot" />已放 {placedCount} / {pieces.length} 块</span>
-            </div>
+            <>
+              <div className="topbar-title">
+                <strong>#{puzzleId}</strong>
+                <span className="badge source">已审核 / {getDifficultyLabel(puzzleDifficulty)}</span>
+              </div>
+              <div className="meta-row meta-pills">
+                <span><i className="meta-dot" />上传者 {author}</span>
+                <span><i className="meta-dot" />{pieces.length} 块模块</span>
+                <span><i className="meta-dot" />已放 {placedCount} / {pieces.length} 块</span>
+              </div>
+            </>
           )}
         </div>
       </section>
@@ -749,46 +796,59 @@ export default function EnhancedPuzzleCaptchaImpl({
         </article>
       </section>
 
-      <div className="play-actions">
-        <button className="action-btn" type="button" onClick={onRequestNextPuzzle}>换一题</button>
-        <button className="action-btn" type="button" onClick={onCycleDifficulty}>难度：{getDifficultyLabel(puzzleDifficulty)}</button>
-        <button
-          className="action-btn"
-          type="button"
-          onClick={() => setConstraintMode((previous) => (previous === 'bars' ? 'numbers' : 'bars'))}
-        >
-          {constraintMode === 'bars' ? '显示数字' : '显示条形'}
-        </button>
-        {!isMobile || playerUrl ? (
+      {isMobile ? (
+        <div className="mobile-compact-actions">
+          <button className="action-btn" type="button" onClick={onRequestNextPuzzle}>换一题</button>
+          <button className="action-btn" type="button" onClick={onCycleDifficulty}>{getDifficultyLabel(puzzleDifficulty)}</button>
           <button
-            className="action-btn primary"
+            className="action-btn"
             type="button"
-            disabled={!playerUrl}
-            onClick={() => {
-              if (playerUrl) {
-                window.open(playerUrl, '_blank', 'noopener,noreferrer');
-              }
-            }}
+            onClick={() => setConstraintMode((previous) => (previous === 'bars' ? 'numbers' : 'bars'))}
           >
-            前往游玩站
+            {constraintMode === 'bars' ? '数字' : '条形'}
           </button>
-        ) : null}
-      </div>
-
-      <div className="play-status">
-        <span>已放 {placedCount}/{pieces.length}</span>
-        {isMobile && selectedPieceId !== null ? <span>已选模块 {String(pieces.findIndex((piece) => piece.id === selectedPieceId) + 1).padStart(2, '0')}</span> : null}
-        {!isMobile ? <span>{author === '匿名上传者' ? '匿名上传' : `出题：${author}`}</span> : null}
-      </div>
-
-      <div className="footer-bar play-hint">
-        <div>将拼图块放入网格，使每行每列的填充数满足约束条件。</div>
-        <div className="footer-accent">
-          {isMobile
-            ? '操作提示：先点下方模块，再点棋盘放置 · 点右侧旋转按钮调整方向 · 点击已放模块移除'
-            : '操作提示：拖拽放置 · 按 R 旋转 · 点击已放块移除 · 可切换为数字提示'}
+          {selectedPieceIndex >= 0 ? (
+            <button className="action-btn" type="button" onClick={() => setSelectedPieceId(null)}>取消</button>
+          ) : !showTrayPanel ? (
+            <button className="action-btn primary" type="button" onClick={() => setShowTrayPanel(true)}>选模块</button>
+          ) : null}
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="play-actions">
+            <button className="action-btn" type="button" onClick={onRequestNextPuzzle}>换一题</button>
+            <button className="action-btn" type="button" onClick={onCycleDifficulty}>难度：{getDifficultyLabel(puzzleDifficulty)}</button>
+            <button
+              className="action-btn"
+              type="button"
+              onClick={() => setConstraintMode((previous) => (previous === 'bars' ? 'numbers' : 'bars'))}
+            >
+              {constraintMode === 'bars' ? '显示数字' : '显示条形'}
+            </button>
+            {playerUrl ? (
+              <button
+                className="action-btn primary"
+                type="button"
+                onClick={() => window.open(playerUrl, '_blank', 'noopener,noreferrer')}
+              >
+                前往游玩站
+              </button>
+            ) : null}
+          </div>
+
+          <div className="play-status">
+            <span>已放 {placedCount}/{pieces.length}</span>
+            <span>{author === '匿名上传者' ? '匿名上传' : `出题：${author}`}</span>
+          </div>
+
+          <div className="footer-bar play-hint">
+            <div>将拼图块放入网格，使每行每列的填充数满足约束条件。</div>
+            <div className="footer-accent">
+              操作提示：拖拽放置 · 按 R 旋转 · 点击已放块移除 · 可切换为数字提示
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 
@@ -800,6 +860,13 @@ export default function EnhancedPuzzleCaptchaImpl({
             <div className="notice">
               <div>{noticeMessage}</div>
               <button type="button" onClick={onRetryRemote}>重试共享题库</button>
+            </div>
+          ) : null}
+
+          {modePills ? (
+            <div className="mobile-compact-header">
+              <div className="mobile-compact-header-title">拼图验证</div>
+              {modePills}
             </div>
           ) : null}
 
