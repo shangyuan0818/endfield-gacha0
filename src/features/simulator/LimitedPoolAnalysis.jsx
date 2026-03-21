@@ -224,7 +224,7 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
              {/* 30 Pulls Gift */}
              <div className="bg-zinc-50 dark:bg-endfield-panel p-2 border-l-2 border-blue-500 flex flex-col gap-1">
                <div className="flex justify-between items-center">
-                 <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">赠送十连 (每30抽)</span>
+                 <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">赠送十连</span>
                  <span className="text-xs font-mono text-slate-500 dark:text-endfield-muted">
                    {!multipleFreeTen && stats.freeTenPulls?.received >= 1
                      ? '已完成'
