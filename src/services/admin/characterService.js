@@ -314,6 +314,38 @@ function isCompleteSyncFailure({ totalItems, newCount, skippedCount, errorCount 
   return totalItems > 0 && errorCount > 0 && newCount === 0 && skippedCount === 0;
 }
 
+export async function batchUpdateCharacterAvatars(avatarUpdates) {
+  if (!supabase) {
+    return { success: false, updateCount: 0, errorCount: 0, error: new Error('数据库未连接') };
+  }
+
+  try {
+    let updateCount = 0;
+    let errorCount = 0;
+
+    for (const item of avatarUpdates) {
+      const { error } = await supabase
+        .from('characters')
+        .update({ avatar_url: item.avatar_url })
+        .eq('id', item.id);
+
+      if (error) {
+        errorCount++;
+      } else {
+        updateCount++;
+      }
+    }
+
+    if (updateCount > 0) {
+      await characterCache.refresh();
+    }
+
+    return { success: errorCount === 0, updateCount, errorCount, error: null };
+  } catch (error) {
+    return { success: false, updateCount: 0, errorCount: 0, error };
+  }
+}
+
 /**
  * 从 Warfarin Wiki 同步角色和武器数据
  * @param {Object} options - 选项

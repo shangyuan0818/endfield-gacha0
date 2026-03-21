@@ -7,9 +7,10 @@
  */
 
 import React from 'react';
-import { Search, Plus, Edit2, Trash2, RefreshCw, User, Swords, Package } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, RefreshCw, User, Swords, Package, ExternalLink, ImagePlus } from 'lucide-react';
 import { useCharacters } from '../../hooks/admin/useCharacters';
-import { CharacterTable, CharacterEditDialog, BatchEditDialog } from './characters';
+import { CharacterTable, CharacterEditDialog, BatchEditDialog, SklandImageImportDialog } from './characters';
+import { CURRENT_SYNC_SOURCE_LABEL, SKLAND_CATALOG_URLS } from '../../constants/adminImageSources';
 
 /**
  * 角色管理组件
@@ -76,6 +77,14 @@ const CharacterManagement = ({ showToast }) => {
     closeBatchEditDialog,
     executeBatchEdit,
     handleBatchDelete,
+    showSklandImportDialog,
+    openSklandImportDialog,
+    closeSklandImportDialog,
+    sklandImportText,
+    setSklandImportText,
+    sklandImportPreview,
+    copySklandExtractScript,
+    applySklandImages,
 
     // 同步操作
     handleSyncFromAPI
@@ -160,11 +169,43 @@ const CharacterManagement = ({ showToast }) => {
           onClick={() => handleSyncFromAPI()}
           disabled={isSyncing}
           className="flex items-center gap-1 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white text-sm font-medium rounded-none transition-colors"
-          title="从 warfarin.wiki 同步数据并上传头像到服务器"
+          title={`从 ${CURRENT_SYNC_SOURCE_LABEL} 同步基础数据并上传当前头像资源到服务器`}
         >
           <RefreshCw size={16} className={isSyncing ? 'animate-spin' : ''} />
           {isSyncing ? syncProgress || '同步中...' : '同步数据'}
         </button>
+        <a
+          href={SKLAND_CATALOG_URLS.character}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1 px-3 py-2 border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 text-sm font-medium rounded-none transition-colors"
+          title="打开森空岛终末地 WIKI 角色图鉴"
+        >
+          <ExternalLink size={16} />
+          角色图鉴
+        </a>
+        <a
+          href={SKLAND_CATALOG_URLS.weapon}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-1 px-3 py-2 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm font-medium rounded-none transition-colors"
+          title="打开森空岛终末地 WIKI 武器图鉴"
+        >
+          <ExternalLink size={16} />
+          武器图鉴
+        </a>
+        <button
+          onClick={openSklandImportDialog}
+          className="flex items-center gap-1 px-3 py-2 border border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-sm font-medium rounded-none transition-colors"
+          title={`从当前${activeTab === 'weapon' ? '武器' : '角色'}森空岛终末地 WIKI 批量导入图片链接`}
+        >
+          <ImagePlus size={16} />
+          导入图鉴图片
+        </button>
+      </div>
+
+      <div className="rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-xs text-slate-500 dark:text-zinc-400">
+        当前“同步数据”仍使用 {CURRENT_SYNC_SOURCE_LABEL} 作为基础数据源；`ADMIN-001` 推进阶段优先将角色 / 武器图片维护入口收口到森空岛终末地 WIKI 官方图鉴，自动抓图源待后续继续推进。
       </div>
 
       {/* 批量操作栏 */}
@@ -254,6 +295,18 @@ const CharacterManagement = ({ showToast }) => {
         actionLoading={actionLoading}
         onExecute={executeBatchEdit}
         onClose={closeBatchEditDialog}
+      />
+
+      <SklandImageImportDialog
+        show={showSklandImportDialog}
+        itemType={activeTab}
+        importText={sklandImportText}
+        setImportText={setSklandImportText}
+        importPreview={sklandImportPreview}
+        actionLoading={actionLoading}
+        onClose={closeSklandImportDialog}
+        onCopyScript={copySklandExtractScript}
+        onImport={applySklandImages}
       />
     </div>
   );

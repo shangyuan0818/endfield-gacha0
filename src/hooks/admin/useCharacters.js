@@ -9,6 +9,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as characterService from '../../services/admin/characterService';
 import { buildManualCharacterId, isGeneratedManualCharacterId } from '../../utils/canonicalEntityUtils';
+import {
+  buildSklandExtractScript,
+  matchSklandImagesToCharacters,
+  parseSklandImportPayload
+} from '../../utils/sklandCatalogImport';
 import { useAuthStore } from '../../stores';
 
 /**
@@ -97,6 +102,8 @@ export function useCharacters({ showToast }) {
   // 批量编辑对话框状态
   const [showBatchEditDialog, setShowBatchEditDialog] = useState(false);
   const [batchEditForm, setBatchEditForm] = useState(INITIAL_BATCH_EDIT_FORM);
+  const [showSklandImportDialog, setShowSklandImportDialog] = useState(false);
+  const [sklandImportText, setSklandImportText] = useState('');
 
   const ensureSuperAdmin = useCallback(() => {
     if (userRole !== 'super_admin') {
@@ -253,12 +260,49 @@ export function useCharacters({ showToast }) {
   const isAllSelected = filteredCharacters.length > 0 &&
     filteredCharacters.every(c => selectedIds.has(c.id));
 
+  const sklandImportPreview = useMemo(() => {
+    const { records, error } = parseSklandImportPayload(sklandImportText);
+    if (error) {
+      return {
+        error,
+        recordCount: 0,
+        matchCount: 0,
+        ambiguousCount: 0,
+        unmatchedCount: 0,
+        updates: [],
+        sampleMatches: []
+      };
+    }
+
+    const { updates, unmatched, ambiguous } = matchSklandImagesToCharacters(records, characters, activeTab);
+
+    return {
+      error: null,
+      recordCount: records.length,
+      matchCount: updates.length,
+      ambiguousCount: ambiguous.length,
+      unmatchedCount: unmatched.length,
+      updates,
+      sampleMatches: updates.slice(0, 5)
+    };
+  }, [activeTab, characters, sklandImportText]);
+
   // 重置表单
   const resetForm = useCallback(() => {
     setCharacterForm(INITIAL_CHARACTER_FORM);
     setAliasInput('');
     setEditingCharacter(null);
     setShowEditDialog(false);
+  }, []);
+
+  const openSklandImportDialog = useCallback(() => {
+    if (!ensureSuperAdmin()) return;
+    setSklandImportText('');
+    setShowSklandImportDialog(true);
+  }, [ensureSuperAdmin]);
+
+  const closeSklandImportDialog = useCallback(() => {
+    setShowSklandImportDialog(false);
   }, []);
 
   // 开始编辑
@@ -499,6 +543,67 @@ export function useCharacters({ showToast }) {
     setSyncProgress('');
   }, [ensureSuperAdmin, characters, loadCharacters, showToast]);
 
+  const copySklandExtractScript = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
+    const script = buildSklandExtractScript(activeTab);
+
+    if (!navigator?.clipboard?.writeText) {
+      showToast('当前浏览器不支持写入剪贴板，请手动复制脚本', 'warning');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(script);
+      showToast('森空岛终末地 WIKI 提取脚本已复制，请到对应图鉴页控制台执行', 'success');
+    } catch (error) {
+      showToast(`复制脚本失败: ${error.message}`, 'error');
+    }
+  }, [activeTab, ensureSuperAdmin, showToast]);
+
+  const applySklandImages = useCallback(async () => {
+    if (!ensureSuperAdmin()) return;
+
+    if (sklandImportPreview.error) {
+      showToast(sklandImportPreview.error, 'error');
+      return;
+    }
+
+    if (!sklandImportPreview.updates.length) {
+      showToast('当前没有可写入的图片匹配结果', 'warning');
+      return;
+    }
+
+    setActionLoading('skland-import');
+
+    const { success, updateCount, errorCount, error } = await characterService.batchUpdateCharacterAvatars(
+      sklandImportPreview.updates
+    );
+
+    if (success || updateCount > 0) {
+      await loadCharacters();
+      const parts = [`成功写入 ${updateCount} 个${activeTab === 'weapon' ? '武器' : '角色'}图片`];
+      if (sklandImportPreview.unmatchedCount > 0) {
+        parts.push(`未匹配 ${sklandImportPreview.unmatchedCount} 个`);
+      }
+      if (sklandImportPreview.ambiguousCount > 0) {
+        parts.push(`名称冲突 ${sklandImportPreview.ambiguousCount} 个`);
+      }
+      if (errorCount > 0) {
+        parts.push(`写库失败 ${errorCount} 个`);
+      }
+      showToast(parts.join('，'), errorCount > 0 ? 'warning' : 'success');
+      if (errorCount === 0) {
+        setShowSklandImportDialog(false);
+        setSklandImportText('');
+      }
+    } else {
+      showToast(`图片导入失败: ${error.message}`, 'error');
+    }
+
+    setActionLoading(null);
+  }, [activeTab, ensureSuperAdmin, loadCharacters, showToast, sklandImportPreview]);
+
   return {
     // 数据状态
     characters,
@@ -560,6 +665,14 @@ export function useCharacters({ showToast }) {
     closeBatchEditDialog,
     executeBatchEdit,
     handleBatchDelete,
+    showSklandImportDialog,
+    openSklandImportDialog,
+    closeSklandImportDialog,
+    sklandImportText,
+    setSklandImportText,
+    sklandImportPreview,
+    copySklandExtractScript,
+    applySklandImages,
 
     // 同步操作
     handleSyncFromAPI,
