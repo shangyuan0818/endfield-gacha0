@@ -130,6 +130,7 @@ function createEmptyTypeStats() {
     sixStarStandard: 0,
     avgPity: null,
     avgPityUp: null,
+    avgPityTarget: null,
     sparkCount: 0,
     avgPityExcludingFree: null,
     counts: {},
@@ -149,6 +150,7 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     infoBookPullCount: 0,
     totalUsers: 0,
     totalContributors: 0,
+    contributorsByRegion: null,
     sixStarTotal: 0,
     sixStarLimited: 0,
     sixStarStandard: 0,
@@ -275,6 +277,7 @@ function processTypeStats(typeData) {
     sixStarStandard: typeData.sixStarStandard || 0,
     avgPity: typeData.avgPity || null,
     avgPityUp: typeData.avgPityUp || null,
+    avgPityTarget: typeData.avgPityTarget || typeData.avgPityUp || null,
     sparkCount: typeData.sparkCount || 0,
     avgPityExcludingFree: typeData.avgPityExcludingFree || null,
     counts,
@@ -330,6 +333,12 @@ export function normalizeGlobalStats(rpcData) {
     infoBookPullCount: Number(rpcData.infoBookPullCount) || 0,
     totalUsers: rpcData.totalUsers || 0,
     totalContributors: rpcData.totalContributors || 0,
+    contributorsByRegion: rpcData.contributorsByRegion
+      ? {
+          cn: Number(rpcData.contributorsByRegion.cn ?? 0) || 0,
+          intl: Number(rpcData.contributorsByRegion.intl ?? 0) || 0
+        }
+      : null,
     sixStarTotal: rpcData.sixStarTotal || 0,
     sixStarLimited: rpcData.sixStarLimited || 0,
     sixStarStandard: rpcData.sixStarStandard || 0,
@@ -388,7 +397,8 @@ export function normalizeGlobalStats(rpcData) {
     sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
     sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
     avgPity: characterAvgPity,
-    avgPityUp: null,
+    avgPityUp: limitedStats.avgPityTarget || limitedStats.avgPityUp || null,
+    avgPityTarget: limitedStats.avgPityTarget || limitedStats.avgPityUp || null,
     sparkCount: limitedStats.sparkCount || 0,
     avgPityExcludingFree: characterAvgPityExcludingFree,
     counts: {

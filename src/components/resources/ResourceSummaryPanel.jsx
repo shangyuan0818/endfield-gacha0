@@ -99,6 +99,7 @@ const ResourceSummaryPanel = ({
   variant = 'all',
   compact = false,
   stacked = false,
+  layout = 'grid',
   className = ''
 }) => {
   const items = getItems(resources, variant);
@@ -113,37 +114,50 @@ const ResourceSummaryPanel = ({
       ? 'grid-cols-1 md:grid-cols-3'
       : 'grid-cols-1 md:grid-cols-2';
 
+  const renderItem = (item) => {
+    const compactValue = formatCompactNumber(item.rawValue);
+    return (
+      <div key={item.key} className="min-w-0 flex items-center gap-3 border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-black/20 px-3 py-3">
+        <img src={item.icon} alt={item.label} loading="lazy" className="w-10 h-10 object-contain shrink-0" />
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold">
+            {item.label}
+          </div>
+          <div
+            className={`text-base sm:text-lg xl:text-xl font-bold font-mono leading-tight ${item.tone}`}
+            title={item.fullValue}
+          >
+            {compactValue || item.fullValue}
+          </div>
+          {compactValue && (
+            <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-mono break-all">
+              {item.fullValue}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={`bg-zinc-50 dark:bg-zinc-950/30 border border-zinc-200 dark:border-zinc-800 p-5 ${className}`}>
       <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
         <span className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{title}</span>
       </div>
-      <div className={`grid ${gridClass} gap-3`}>
-        {items.map((item) => {
-          const compactValue = formatCompactNumber(item.rawValue);
-          return (
-          <div key={item.key} className="min-w-0 flex items-center gap-3 border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-black/20 px-3 py-3">
-            <img src={item.icon} alt={item.label} loading="lazy" className="w-10 h-10 object-contain shrink-0" />
-            <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold">
-                {item.label}
-              </div>
-              <div
-                className={`text-base sm:text-lg xl:text-xl font-bold font-mono leading-tight ${item.tone}`}
-                title={item.fullValue}
-              >
-                {compactValue || item.fullValue}
-              </div>
-              {compactValue && (
-                <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-mono break-all">
-                  {item.fullValue}
-                </div>
-              )}
-            </div>
+      {layout === 'two-plus-one' && items.length === 3 ? (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            {items.slice(0, 2).map(renderItem)}
           </div>
-        );
-        })}
-      </div>
+          <div className="grid grid-cols-1 gap-3">
+            {items.slice(2).map(renderItem)}
+          </div>
+        </div>
+      ) : (
+        <div className={`grid ${gridClass} gap-3`}>
+          {items.map(renderItem)}
+        </div>
+      )}
     </div>
   );
 };

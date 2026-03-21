@@ -124,10 +124,19 @@ function buildVerificationSql() {
 SELECT to_regclass('public.profiles') AS profiles_table;
 SELECT to_regclass('public.account_recovery_requests') AS recovery_table;
 SELECT to_regclass('public.public_profile_cache') AS profile_cache_table;
+SELECT column_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'history'
+  AND column_name IN ('server_id', 'region')
+ORDER BY column_name;
 SELECT proname
 FROM pg_proc
 WHERE proname IN ('get_global_stats', 'get_app_visible_pools', 'resolve_character_alias')
 ORDER BY proname;
+SELECT ((public.get_global_stats())::jsonb ? 'contributorsByRegion')::text AS has_contributor_regions;
+SELECT (((public.get_global_stats())::jsonb -> 'byType' -> 'limited') ? 'avgPityTarget')::text AS has_limited_avg_pity_target;
+SELECT (((public.get_global_stats())::jsonb -> 'byType' -> 'weapon') ? 'avgPityTarget')::text AS has_weapon_avg_pity_target;
 `.trim();
 }
 
@@ -178,9 +187,12 @@ async function main() {
       'profiles',
       'account_recovery_requests',
       'public_profile_cache',
+      'server_id',
+      'region',
       'get_app_visible_pools',
       'get_global_stats',
       'resolve_character_alias',
+      'true',
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !output.includes(marker));
 

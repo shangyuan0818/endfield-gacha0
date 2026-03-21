@@ -5,6 +5,15 @@ import { RESOURCE_ICON_URLS, RESOURCE_LABELS } from '../../utils/resourceEconomy
 import PoolGroupCardRail from '../../components/pool/PoolGroupCardRail';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 
+const ORIGINITE_PURCHASE_PRESETS = [
+  { label: '￥6', amount: 6, bonusLabel: '6颗' },
+  { label: '￥30', amount: 36, bonusLabel: '24+12颗' },
+  { label: '￥98', amount: 126, bonusLabel: '84+42颗' },
+  { label: '￥198', amount: 255, bonusLabel: '170+85颗' },
+  { label: '￥328', amount: 423, bonusLabel: '282+141颗' },
+  { label: '￥648', amount: 840, bonusLabel: '560+280颗' }
+];
+
 function formatCompactMetric(value) {
   const numericValue = Number(value) || 0;
   const absoluteValue = Math.abs(numericValue);
@@ -50,6 +59,7 @@ function ResourceChip({
   onOpenEditor,
   onCloseEditor,
   originiteBalance,
+  quickAddPresets,
   resourceKey,
   value
 }) {
@@ -117,6 +127,30 @@ function ResourceChip({
               >
                 源石换玉 {numericInput > 0 ? `(+${(numericInput * exchangeRate).toLocaleString()} 玉)` : ''}
               </button>
+            </div>
+          )}
+
+          {resourceKey === 'originite' && editor.mode === 'add' && Array.isArray(quickAddPresets) && quickAddPresets.length > 0 && (
+            <div className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black/20 px-2 py-2">
+              <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2">
+                游戏内固定档位
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {quickAddPresets.map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      onAdjustResourceAmount(resourceKey, 'add', preset.amount);
+                      onCloseEditor();
+                    }}
+                    className="border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-endfield-yellow hover:text-endfield-yellow transition-colors"
+                  >
+                    <div className="text-[11px] font-bold">{preset.label}</div>
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">{preset.bonusLabel}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -253,6 +287,7 @@ const SimulatorToolbar = ({
                 onOpenEditor={openEditor}
                 onCloseEditor={() => setActiveEditor(null)}
                 originiteBalance={Math.max(Number(resourceLedger?.originiteBalance || 0), 0)}
+                quickAddPresets={item.resourceKey === 'originite' ? ORIGINITE_PURCHASE_PRESETS : null}
                 resourceKey={item.resourceKey}
                 value={item.value}
               />

@@ -2,6 +2,30 @@ import { useMemo } from 'react';
 import { RARITY_CONFIG } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
+import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
+
+function isGiftPull(pull) {
+  return pull?.specialType === 'gift' || pull?.special_type === 'gift';
+}
+
+function isFreePull(pull) {
+  return pull?.isFree === true || pull?.is_free === true;
+}
+
+function matchesPoolTarget(pull, poolMeta) {
+  const upCharacter = String(poolMeta?.upCharacter || '').trim();
+  if (!upCharacter || pull?.rarity !== 6) {
+    return false;
+  }
+
+  const target = upCharacter.toLowerCase();
+  const pullName = String(pull?.character_name || pull?.item_name || pull?.name || '').trim().toLowerCase();
+  if (!pullName) {
+    return false;
+  }
+
+  return pullName.includes(target) || target.includes(pullName);
+}
 
 /**
  * 统计数据计算 Hook
@@ -73,16 +97,21 @@ export function useSummaryStats(history, pools, user) {
       fiveStar: 0,
       counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
       byType: {
-        limited: { total: 0, six: 0, limitedSix: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
-        weapon: { total: 0, six: 0, limitedSix: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
-        standard: { total: 0, six: 0, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] }
+        limited: { total: 0, six: 0, limitedSix: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
+        weapon: { total: 0, six: 0, limitedSix: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
+        standard: { total: 0, six: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] }
       },
+      contributorsByRegion: { cn: 0, intl: 0 },
       pityStats: { distribution: [] },
       chartData: []
     };
 
     const poolTypeMap = new Map();
-    myPools.forEach(p => poolTypeMap.set(p.id, p.type));
+    const poolMetaMap = new Map();
+    myPools.forEach(p => {
+      poolTypeMap.set(p.id, p.type);
+      poolMetaMap.set(p.id, { type: p.type, upCharacter: p.upCharacter || p.up_character || null });
+    });
 
     const normalizePoolType = (type) => {
       if (type === 'limited' || type === 'limited_character') return 'limited';
@@ -100,6 +129,10 @@ export function useSummaryStats(history, pools, user) {
 
     const allSixStarPulls = [];
     const allSixStarPullsExcludingFree = [];
+    const targetSixStarPulls = {
+      limited: [],
+      weapon: []
+    };
     let charGiftCount = 0;
     let weaponGiftLimitedCount = 0;
     let weaponGiftStandardCount = 0;
@@ -108,6 +141,7 @@ export function useSummaryStats(history, pools, user) {
     Object.keys(pullsByPool).forEach(poolId => {
       const rawType = poolTypeMap.get(poolId) || 'standard';
       const type = normalizePoolType(rawType);
+      const poolMeta = poolMetaMap.get(poolId);
       const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
       const validPulls = sortedPulls.filter(i => i.specialType !== 'gift' && i.special_type !== 'gift' && i.isFree !== true && i.is_free !== true);
       const poolTotal = validPulls.length;
@@ -166,6 +200,12 @@ export function useSummaryStats(history, pools, user) {
             isFree: isFree,
             isSpark
           });
+          if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
+            targetSixStarPulls[type].push({
+              count: tempCounter,
+              isSpark
+            });
+          }
           tempCounter = 0;
         }
       });
@@ -277,6 +317,17 @@ export function useSummaryStats(history, pools, user) {
       }
     });
 
+    const limitedTargetPulls = targetSixStarPulls.limited.filter(item => !item.isSpark);
+    const weaponTargetPulls = targetSixStarPulls.weapon;
+    data.byType.limited.avgPityUp = limitedTargetPulls.length > 0
+      ? (limitedTargetPulls.reduce((sum, item) => sum + item.count, 0) / limitedTargetPulls.length).toFixed(1)
+      : null;
+    data.byType.limited.avgPityTarget = data.byType.limited.avgPityUp;
+    data.byType.weapon.avgPityUp = weaponTargetPulls.length > 0
+      ? (weaponTargetPulls.reduce((sum, item) => sum + item.count, 0) / weaponTargetPulls.length).toFixed(1)
+      : null;
+    data.byType.weapon.avgPityTarget = data.byType.weapon.avgPityUp;
+
     // 全局分布
     if (allSixStarPulls.length > 0) {
       const maxPity = Math.max(...allSixStarPulls.map(p => p.count), 80);
@@ -318,6 +369,8 @@ export function useSummaryStats(history, pools, user) {
       avgPity: characterPityList.length > 0
         ? (characterPityList.reduce((sum, p) => sum + p.count, 0) / characterPityList.length).toFixed(1)
         : '-',
+      avgPityUp: data.byType.limited.avgPityUp,
+      avgPityTarget: data.byType.limited.avgPityUp,
       avgPityExcludingFree: characterPityListExcludingFree.length > 0
         ? (characterPityListExcludingFree.reduce((sum, p) => sum + p.count, 0) / characterPityListExcludingFree.length).toFixed(1)
         : null
@@ -383,6 +436,27 @@ export function useSummaryStats(history, pools, user) {
     data.weaponGiftLimited = weaponGiftLimitedCount;
     data.weaponGiftStandard = weaponGiftStandardCount;
     data.giftTotal = charGiftCount + weaponGiftLimitedCount + weaponGiftStandardCount;
+    const contributorBuckets = new Set();
+    normalizedMyHistory.forEach((item) => {
+      if (isGiftPull(item) || isFreePull(item)) {
+        return;
+      }
+
+      const bucket = classifyGameAccountRegionBucket({
+        serverId: item.serverId || item.server_id,
+        region: item.region || item.serverRegion
+      });
+
+      if (bucket) {
+        contributorBuckets.add(bucket);
+      }
+    });
+    data.totalUsers = user ? 1 : 0;
+    data.totalContributors = user ? 1 : 0;
+    data.contributorsByRegion = {
+      cn: contributorBuckets.has('cn') ? 1 : 0,
+      intl: contributorBuckets.has('intl') ? 1 : 0
+    };
     data.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.character.total,
       weaponPulls: data.byType.weapon.total,
@@ -393,7 +467,7 @@ export function useSummaryStats(history, pools, user) {
     });
 
     return data;
-  }, [normalizedMyHistory, myPools]);
+  }, [normalizedMyHistory, myPools, user]);
 
   return localStats;
 }

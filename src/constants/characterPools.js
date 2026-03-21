@@ -6,8 +6,8 @@
  */
 
 import { getPoolCharacters } from '../utils/characterUtils.js';
-import usePoolStore from '../stores/usePoolStore';
-import { getCurrentUpPoolInfo, getCurrentUpPoolName } from '../utils/poolTimeUtils';
+import usePoolStore from '../stores/usePoolStore.js';
+import { getCurrentUpPoolInfo, getCurrentUpPoolName } from '../utils/poolTimeUtils.js';
 
 function getStorePoolsArray() {
   const storePools = usePoolStore.getState?.().pools;

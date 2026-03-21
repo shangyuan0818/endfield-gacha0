@@ -48,11 +48,13 @@ const GachaSimulator = () => {
     pullHistory,
     resourceLedger,
     resetAllPools,
+    resetKeepResources,
     resetSettings,
     setDisableOriginitePromptToday,
     setLastResults,
     setMultipleFreeTen,
     setResetAllPools,
+    setResetKeepResources,
     setResetSettings,
     setSkipAnimation,
     showResetConfirm,
@@ -219,8 +221,8 @@ const GachaSimulator = () => {
             <div className="px-6 py-6 space-y-4">
                 <p className="text-sm text-slate-600 dark:text-zinc-400">
                   {resetAllPools
-                    ? '确定要重置所有类型的卡池吗？所有数据将被清空。'
-                  : `确定要重置所有${normalizeSimulatorPoolType(currentSimPool?.type) === 'limited' ? '限定角色池' : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon' ? '武器池' : '常驻池'}吗？该类型的所有卡池数据将被清空。`}
+                    ? '确定要重置所有类型的卡池吗？默认会清空模拟记录、保底与资源。'
+                  : `确定要重置所有${normalizeSimulatorPoolType(currentSimPool?.type) === 'limited' ? '限定角色池' : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon' ? '武器池' : '常驻池'}吗？默认会清空该类型的模拟记录、保底与资源。`}
                 </p>
 
               <div
@@ -243,6 +245,29 @@ const GachaSimulator = () => {
                 <div className="flex-1">
                   <div className="text-sm font-bold">重置所有类型的卡池</div>
                   <div className="text-xs opacity-75 mt-0.5">清空限定、武器、常驻所有类型的卡池数据</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setResetKeepResources(!resetKeepResources)}
+                className={`
+                  flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
+                  ${resetKeepResources
+                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  }
+                `}
+              >
+                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetKeepResources ? 'border-emerald-500 bg-emerald-500' : 'border-current'}`}>
+                  {resetKeepResources && (
+                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-bold">保留当前资源</div>
+                  <div className="text-xs opacity-75 mt-0.5">只重置抽卡记录、保底与赠送进度，保留嵌晶玉 / 源石 / 武库配额余额</div>
                 </div>
               </div>
 

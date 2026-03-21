@@ -105,12 +105,18 @@ export function useGachaSimulatorController() {
     () => getCurrentUpPoolName(realPools) || '莱万汀',
     [realPools]
   );
-  const resolveLimitedUpCharacter = useCallback((pool, fallbackName = null) => {
-    if (normalizeSimulatorPoolType(pool?.type) !== 'limited') {
-      return null;
+  const resolvePoolTargetName = useCallback((pool, fallbackName = null) => {
+    const normalizedPoolType = normalizeSimulatorPoolType(pool?.type);
+
+    if (normalizedPoolType === 'limited') {
+      return pool?.up_character || fallbackName || fallbackLimitedPoolName;
     }
 
-    return pool?.up_character || fallbackName || fallbackLimitedPoolName;
+    if (normalizedPoolType === 'weapon') {
+      return pool?.up_character || fallbackName || null;
+    }
+
+    return null;
   }, [fallbackLimitedPoolName]);
 
   useEffect(() => {
@@ -162,6 +168,7 @@ export function useGachaSimulatorController() {
   const [showOriginitePrompt, setShowOriginitePrompt] = useState(null);
   const [disableOriginitePromptToday, setDisableOriginitePromptToday] = useState(false);
   const [resetAllPools, setResetAllPools] = useState(false);
+  const [resetKeepResources, setResetKeepResources] = useState(false);
   const [resetSettings, setResetSettings] = useState(false);
   const [skipAnimation, setSkipAnimation] = useState(() => localStorage.getItem('simulator_skipAnimation') === 'true');
   const [multipleFreeTen, setMultipleFreeTen] = useState(() => localStorage.getItem('simulator_multipleFreeTen') === 'true');
@@ -469,7 +476,7 @@ export function useGachaSimulatorController() {
 
     if (targetPool && targetPoolId) {
       const savedState = loadSimulatorState(targetPoolId, simulatorStorageScope);
-      const upCharacter = resolveLimitedUpCharacter(targetPool);
+      const upCharacter = resolvePoolTargetName(targetPool);
       const nextSimulator = createSimulator(targetPool.type, getCustomRulesForPool(targetPool), upCharacter, poolCharactersList);
 
       if (savedState) {
@@ -494,7 +501,7 @@ export function useGachaSimulatorController() {
     queueMicrotask(() => {
       setIsInitialized(true);
     });
-  }, [fallbackLimitedPoolName, getDefaultPool, isInitialized, poolCharactersList, resolveLimitedUpCharacter, simulatorCurrentPoolStorageKey, simulatorPools, simulatorStorageScope]);
+  }, [fallbackLimitedPoolName, getDefaultPool, isInitialized, poolCharactersList, resolvePoolTargetName, simulatorCurrentPoolStorageKey, simulatorPools, simulatorStorageScope]);
 
   useEffect(() => {
     const updateUI = () => {
@@ -876,10 +883,7 @@ export function useGachaSimulatorController() {
     }
 
     const inheritedState = inheritedSnapshot.statesByPoolId[currentSimPoolId];
-    const normalizedPoolType = normalizeSimulatorPoolType(currentSimPool.type);
-    const upCharacter = normalizedPoolType === 'limited'
-      ? resolveLimitedUpCharacter(currentSimPool)
-      : null;
+    const upCharacter = resolvePoolTargetName(currentSimPool);
     const nextSimulator = createSimulator(currentSimPool.type, getCustomRulesForPool(currentSimPool), upCharacter, poolCharactersList);
 
     if (inheritedState) {
@@ -913,23 +917,26 @@ export function useGachaSimulatorController() {
     simulatorPools,
     showToastMessage,
     switchGameAccount,
-    resolveLimitedUpCharacter
+    resolvePoolTargetName
   ]);
 
   const closeResetDialog = useCallback(() => {
     setShowResetConfirm(false);
     setResetAllPools(false);
+    setResetKeepResources(false);
     setResetSettings(false);
   }, []);
 
   const confirmReset = useCallback(() => {
+    let resetMessage = '';
+
     if (resetAllPools) {
       simulatorPools.forEach((pool) => {
         clearSimulatorState(pool.id, simulatorStorageScope);
       });
       clearSharedPityState(simulatorStorageScope);
       clearInfoBookState(simulatorStorageScope);
-      showToastMessage('已重置所有类型的卡池');
+      resetMessage = '已重置所有类型的卡池';
     } else {
       const type = normalizeSimulatorPoolType(currentSimPool?.type || 'limited');
       simulatorPools
@@ -944,7 +951,7 @@ export function useGachaSimulatorController() {
       }
 
       const typeName = type === 'limited' ? '限定角色池' : type === 'weapon' ? '武器池' : '常驻池';
-      showToastMessage(`已重置所有${typeName}`);
+      resetMessage = `已重置所有${typeName}`;
     }
 
     simulator.reset();
@@ -953,14 +960,17 @@ export function useGachaSimulatorController() {
     setAvailableFreePulls(0);
     setInfoBookTenPullAvailable(false);
     setLastResults(null);
-    clearSimulatorResourceSettings(simulatorStorageScope);
-    setResourceSettings((current) => normalizeResourceSettings({
-      ...current,
-      baseJade: 0,
-      baseOriginite: 0,
-      baseArsenalQuota: 0,
-      manualConvertedOriginite: 0
-    }));
+
+    if (!resetKeepResources) {
+      clearSimulatorResourceSettings(simulatorStorageScope);
+      setResourceSettings((current) => normalizeResourceSettings({
+        ...current,
+        baseJade: 0,
+        baseOriginite: 0,
+        baseArsenalQuota: 0,
+        manualConvertedOriginite: 0
+      }));
+    }
 
     if (resetSettings) {
       setSkipAnimation(false);
@@ -970,7 +980,9 @@ export function useGachaSimulatorController() {
     }
 
     closeResetDialog();
-  }, [closeResetDialog, currentSimPool?.type, resetAllPools, resetSettings, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
+    showToastMessage(resetKeepResources ? `${resetMessage}，当前资源已保留` : resetMessage);
+
+  }, [closeResetDialog, currentSimPool?.type, resetAllPools, resetKeepResources, resetSettings, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
 
   const switchPool = useCallback((poolId) => {
     if (currentSimPoolId === poolId) {
@@ -997,7 +1009,7 @@ export function useGachaSimulatorController() {
     setPoolCharactersList(null);
 
     const savedState = loadSimulatorState(poolId, simulatorStorageScope);
-    const upCharacter = resolveLimitedUpCharacter(targetPool, selectedLimitedPool);
+    const upCharacter = resolvePoolTargetName(targetPool, selectedLimitedPool);
     const nextSimulator = createSimulator(targetPool.type, getCustomRulesForPool(targetPool), upCharacter, null);
 
     if (savedState) {
@@ -1056,7 +1068,7 @@ export function useGachaSimulatorController() {
     setStats(nextSimulator.getStatistics());
     setPityInfo(nextSimulator.getPityInfo());
     setShowPoolMenu(false);
-  }, [currentSimPoolId, resolveLimitedUpCharacter, selectedLimitedPool, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
+  }, [currentSimPoolId, resolvePoolTargetName, selectedLimitedPool, showToastMessage, simulator, simulatorPools, simulatorStorageScope]);
 
   const historyGroups = useMemo(() => processHistoryGroups(pullHistory), [pullHistory]);
   const dashboardStats = useMemo(() => buildDashboardStats(stats, pityInfo, simulator), [stats, pityInfo, simulator]);
@@ -1247,12 +1259,14 @@ export function useGachaSimulatorController() {
     resourceLedger,
     resourceSettings,
     resetAllPools,
+    resetKeepResources,
     resetSettings,
     setDisableOriginitePromptToday,
     setLastResults,
     setMultipleFreeTen,
     setResourceSettings,
     setResetAllPools,
+    setResetKeepResources,
     setResetSettings,
     setShowPoolMenu,
     setSkipAnimation,

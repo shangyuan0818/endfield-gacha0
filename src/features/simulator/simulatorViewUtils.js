@@ -1,5 +1,6 @@
-import { calculateCurrentProbability } from '../../utils/validators';
-import { normalizeSimulatorPoolType } from './simulatorInheritance';
+import { calculateCurrentProbability } from '../../utils/validators.js';
+import { normalizeSimulatorPoolType } from './simulatorInheritance.js';
+import { buildCurrentTargetProbabilityInfo } from './simulatorProbability.js';
 
 export function processHistoryGroups(history) {
   const groups = [];
@@ -52,6 +53,15 @@ export function processHistoryGroups(history) {
 
 export function buildDashboardStats(stats, pityInfo, simulator) {
   const normalizedPoolType = normalizeSimulatorPoolType(simulator.poolType);
+  const probabilityInfo = calculateCurrentProbability(pityInfo.sixStar.current, normalizedPoolType);
+  const simulatorState = simulator?.getState?.() || {};
+  const targetProbabilityInfo = buildCurrentTargetProbabilityInfo({
+    guaranteedLimitedPity: simulatorState.guaranteedLimitedPity,
+    hasReceivedGuaranteedLimited: simulatorState.hasReceivedGuaranteedLimited,
+    currentPity: pityInfo?.sixStar?.current || 0,
+    poolType: normalizedPoolType,
+    customRules: simulator?.rules
+  });
 
   return {
     total: stats.totalPulls,
@@ -134,7 +144,8 @@ export function buildDashboardStats(stats, pityInfo, simulator) {
         }));
       })()
     },
-    probabilityInfo: calculateCurrentProbability(pityInfo.sixStar.current, normalizedPoolType),
+    probabilityInfo,
+    targetProbabilityInfo,
     hasInfoBook: stats.hasReceivedInfoBook,
     pullsUntilInfoBook: normalizedPoolType === 'limited' && !stats.hasReceivedInfoBook
       ? Math.max(0, 60 - stats.totalPulls)

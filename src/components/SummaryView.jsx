@@ -44,6 +44,7 @@ const SummaryView = React.memo(() => {
   });
   const globalStatsMeta = dataSource === 'global' ? currentStats?.meta : null;
   const showGlobalStatsFallbackNotice = globalStatsMeta && globalStatsMeta.status && globalStatsMeta.status !== 'ready';
+  const contributorRegionStats = dataSource === 'global' ? currentStats?.contributorsByRegion : null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -102,6 +103,12 @@ const SummaryView = React.memo(() => {
                       {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
                         <span className="block text-[10px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
                       )}
+                      {contributorRegionStats && (
+                        <div className="mt-1 flex flex-wrap justify-end gap-1 text-[10px] font-mono text-zinc-500">
+                          <span>国服: {Number(contributorRegionStats.cn || 0).toLocaleString()}</span>
+                          <span>国际服: {Number(contributorRegionStats.intl || 0).toLocaleString()}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -138,6 +145,7 @@ const SummaryView = React.memo(() => {
                                 title="限定池 UP 6★ 数量"
                                 visibleSections={['limitedUp']}
                                 flatLayout={true}
+                                denseFlatLayout={true}
                               />
                           </div>
 
@@ -364,14 +372,14 @@ const SummaryView = React.memo(() => {
                           })()}
                         </div>
                         {/* UP六星平均出货 - 角色池 */}
-                        {currentStats.byType?.limited?.avgPityUp && (
+                        {(currentStats.byType?.character?.avgPityUp || currentStats.byType?.limited?.avgPityUp) && (
                           <div className="space-y-1">
                             <div className="text-zinc-400 text-[10px] uppercase font-bold">UP六星平均出货</div>
                             <div className="text-xl font-bold font-mono text-emerald-500">
-                              {currentStats.byType.limited.avgPityUp}
+                              {currentStats.byType?.character?.avgPityUp || currentStats.byType?.limited?.avgPityUp}
                             </div>
                             <div className="text-[10px] text-zinc-500 font-mono">
-                              仅UP6★ 抽/个
+                              仅当期目标6★ 抽/个
                             </div>
                           </div>
                         )}
@@ -458,7 +466,7 @@ const SummaryView = React.memo(() => {
                           <div className="space-y-1">
                             <div className="text-zinc-400 text-[10px] uppercase font-bold">UP六星平均出货</div>
                             <div className="text-xl font-bold font-mono text-emerald-500">{currentStats.byType.weapon.avgPityUp}</div>
-                            <div className="text-[10px] text-zinc-500 font-mono">仅UP6★ 抽/个</div>
+                            <div className="text-[10px] text-zinc-500 font-mono">仅当期目标6★ 抽/个</div>
                           </div>
                         )}
                         <div className="space-y-1">
@@ -505,7 +513,7 @@ const SummaryView = React.memo(() => {
                       <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
                         <div className="text-zinc-400 text-[10px] uppercase font-bold mb-1">UP六星平均出货</div>
                         <div className="text-3xl font-black font-mono text-emerald-500">{currentStats.avgPityUp}</div>
-                        <div className="text-xs text-zinc-500 mt-1 font-mono">仅UP6★ 抽/个</div>
+                        <div className="text-xs text-zinc-500 mt-1 font-mono">仅当期目标6★ 抽/个</div>
                       </div>
                     )}
                     <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-100 dark:border-zinc-800/50 p-4">
@@ -538,7 +546,7 @@ const SummaryView = React.memo(() => {
                   title="角色池资源统计"
                   resources={currentStats.byType?.character?.resources}
                   variant="character"
-                  stacked
+                  layout="two-plus-one"
                 />
                 <ResourceSummaryPanel
                   title="武器池资源统计"

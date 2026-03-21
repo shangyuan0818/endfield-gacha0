@@ -87,6 +87,12 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
+  const targetProbabilityInfo = stats.targetProbabilityInfo;
+  const targetProbabilityFooter = targetProbabilityInfo
+    ? targetProbabilityInfo.isHardGuaranteeNextPull
+      ? `${targetProbabilityInfo.label}：本抽必出`
+      : `${targetProbabilityInfo.label}：${(targetProbabilityInfo.probability * 100).toFixed(2)}% · 6★命中后${targetProbabilityInfo.label === '目标武器' ? '目标率' : 'UP率'} ${(targetProbabilityInfo.targetRate * 100).toFixed(1)}%`
+    : '当前卡池无目标 6★ 额外命中率';
 
   const maxPity = isWeapon ? 40 : 80;
   
@@ -146,7 +152,7 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
            subValue="抽"
            progress={(stats.currentPity / maxPity) * 100}
            progressColor={progressClass}
-           warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `概率UP ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
+           warning={stats.probabilityInfo?.hasSoftPity && stats.probabilityInfo?.isInSoftPity ? `当前6★ ${(stats.probabilityInfo.probability * 100).toFixed(1)}%` : null}
            footer={
              <div className="flex justify-between">
                 <span>当前垫刀: {stats.currentPity}</span>
@@ -178,12 +184,12 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
         <div className="grid grid-cols-2 gap-4 mb-6">
            {/* Win Rate */}
            <StatCard 
-             label="不歪率"
-             extraLabel={isLimited ? "免十不计" : null}
+             label="历史不歪率"
+             extraLabel={isLimited ? "样本 · 免十不计" : "样本"}
              value={stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
              progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
              progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
-             footer={stats.sixStarCount > 0 ? `UP: ${stats.upSixStarCount} / 歪: ${stats.sixStarCount - stats.upSixStarCount}` : '暂无6星数据'}
+             footer={stats.sixStarCount > 0 ? `${targetProbabilityFooter} · 历史样本 UP: ${stats.upSixStarCount} / 歪: ${stats.sixStarCount - stats.upSixStarCount}` : targetProbabilityFooter}
            />
            {/* Average */}
            <StatCard 

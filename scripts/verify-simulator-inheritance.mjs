@@ -9,6 +9,7 @@ import {
   getSimulatorPullCost,
   normalizeResourceSettings
 } from '../src/utils/resourceEconomy.js';
+import { buildCurrentTargetProbabilityInfo } from '../src/features/simulator/simulatorProbability.js';
 import {
   buildSimulatorStorageScope,
   clearInfoBookState,
@@ -109,6 +110,21 @@ assert.equal(inheritedWeapon.sixStarPity, 12, 'weapon pool should not inherit cr
 assert.equal(inheritedWeapon.guaranteedLimitedPity, 12, 'weapon pool hard pity counter should stay on current pool');
 assert.equal(inheritedWeapon.hasReceivedGuaranteedLimited, false, 'weapon pool should preserve whether hard pity has been consumed');
 assert.equal(inheritedWeapon.pullHistory.length, 12, 'weapon pool history should exclude free pulls');
+
+const inheritedWeaponTargetProbability = buildCurrentTargetProbabilityInfo({
+  guaranteedLimitedPity: inheritedWeapon.guaranteedLimitedPity,
+  hasReceivedGuaranteedLimited: inheritedWeapon.hasReceivedGuaranteedLimited,
+  currentPity: inheritedWeapon.sixStarPity,
+  poolType: 'weapon'
+});
+assert.ok(inheritedWeaponTargetProbability, 'weapon simulator should expose a dynamic current target probability');
+assert.equal(inheritedWeaponTargetProbability.targetRate, 0.25, 'weapon current target probability should use weapon target rate');
+assert.equal(inheritedWeaponTargetProbability.isHardGuaranteeNextPull, false, 'weapon current target probability should remain dynamic before hard pity');
+assert.ok(
+  inheritedWeaponTargetProbability.probability > 0
+    && inheritedWeaponTargetProbability.probability < inheritedWeaponTargetProbability.sixStarProbability,
+  'weapon current target probability should be lower than the raw 6★ probability when no hard pity is ready'
+);
 
 const inheritedSnapshot = buildInheritedSimulatorSnapshot({
   history: [...limitedHistory, ...weaponHistory],
@@ -253,6 +269,15 @@ const restartedGuaranteedLimitedState = buildInheritedSimulatorState({
 
 assert.equal(restartedGuaranteedLimitedState.guaranteedLimitedPity, 1, 'after a forced limited resolves, the next paid pull should start a fresh hard-pity cycle');
 assert.equal(restartedGuaranteedLimitedState.hasReceivedGuaranteedLimited, false, 'the new cycle must keep the hard-pity trigger available');
+
+const hardGuaranteeTargetProbability = buildCurrentTargetProbabilityInfo({
+  guaranteedLimitedPity: 119,
+  hasReceivedGuaranteedLimited: false,
+  currentPity: 10,
+  poolType: 'limited'
+});
+assert.equal(hardGuaranteeTargetProbability.isHardGuaranteeNextPull, true, 'limited simulator should recognize when the next pull triggers the hard target guarantee');
+assert.equal(hardGuaranteeTargetProbability.probability, 1, 'hard target guarantee should make the next-pull target probability 100%');
 
 const scopeA = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-1' });
 const scopeB = buildSimulatorStorageScope({ currentUserId: 'user-1', currentGameUid: 'uid-2' });

@@ -34,14 +34,29 @@ function normalizeRecordId(record) {
   return recordId;
 }
 
-function isMissingHistoryCharacterIdError(error) {
+function detectMissingHistoryOptionalColumn(error) {
   const message = String(error?.message || '');
-  return message.includes('history.character_id does not exist')
-    || message.includes("Could not find the 'character_id' column");
+
+  for (const column of ['character_id', 'server_id', 'region']) {
+    if (
+      message.includes(`history.${column} does not exist`)
+      || message.includes(`Could not find the '${column}' column`)
+    ) {
+      return column;
+    }
+  }
+
+  return null;
 }
 
-function omitHistoryCharacterId(rows) {
-  return rows.map(({ character_id: _characterId, ...rest }) => rest);
+function omitHistoryColumns(rows, omittedColumns) {
+  return rows.map((row) => {
+    const nextRow = { ...row };
+    omittedColumns.forEach((column) => {
+      delete nextRow[column];
+    });
+    return nextRow;
+  });
 }
 
 export function serializePoolForUpsert(pool, currentUserId, resolvedPoolId = null) {
@@ -112,6 +127,8 @@ export function serializeHistoryForUpsert(
     is_free: Boolean(record.isFree || record.is_free),
     game_uid: record.gameUid || record.game_uid || null,
     nick_name: record.nickName || record.nick_name || null,
+    server_id: record.serverId || record.server_id || null,
+    region: record.region || record.serverRegion || null,
     timestamp: normalizeTimestamp(record.timestamp),
     updated_at: new Date().toISOString(),
   };
@@ -146,25 +163,36 @@ export async function upsertHistory(supabaseClient, records, currentUserId) {
     { rows: compositeKeyRecords, onConflict: 'user_id,game_uid,pool_id,seq_id' },
     { rows: legacyRecords, onConflict: 'user_id,record_id' }
   ];
-  let historyCharacterIdSupported = true;
+  const supportedOptionalColumns = new Set(['character_id', 'server_id', 'region']);
 
   for (const group of upsertGroups) {
     if (group.rows.length === 0) continue;
 
-    const initialRows = historyCharacterIdSupported ? group.rows : omitHistoryCharacterId(group.rows);
-    let { error } = await supabaseClient
-      .from('history')
-      .upsert(initialRows, { onConflict: group.onConflict });
+    let pendingRows = omitHistoryColumns(
+      group.rows,
+      ['character_id', 'server_id', 'region'].filter(column => !supportedOptionalColumns.has(column))
+    );
 
-    if (error && historyCharacterIdSupported && isMissingHistoryCharacterIdError(error)) {
-      historyCharacterIdSupported = false;
-      ({ error } = await supabaseClient
+    // 兼容真实库仍缺少 optional 列的环境，按缺失列逐步降级重试
+    // 当前已知历史兼容项: character_id / server_id / region
+    while (true) {
+      const { error } = await supabaseClient
         .from('history')
-        .upsert(omitHistoryCharacterId(group.rows), { onConflict: group.onConflict }));
-    }
+        .upsert(pendingRows, { onConflict: group.onConflict });
 
-    if (error) {
-      throw error;
+      if (!error) {
+        break;
+      }
+
+      const missingColumn = detectMissingHistoryOptionalColumn(error);
+      if (!missingColumn || !supportedOptionalColumns.has(missingColumn)) {
+        throw error;
+      }
+
+      supportedOptionalColumns.delete(missingColumn);
+      pendingRows = omitHistoryColumns(group.rows, ['character_id', 'server_id', 'region'].filter(
+        column => !supportedOptionalColumns.has(column)
+      ));
     }
   }
 }

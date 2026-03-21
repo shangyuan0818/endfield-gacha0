@@ -7,7 +7,7 @@ import { characterCache } from '../../utils/characterUtils';
  * 显示角色出货排名，支持领奖台样式布局
  * FEAT-010 增强：支持 UP/歪出分类、常驻池 TOP5
  */
-const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false }) => {
+const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false, denseFlatLayout = false }) => {
   // 根据 poolType 获取对应的排名数据
   const getRankingData = () => {
     if (!ranking) return { sixStarUp: [], sixStarOff: [], sixStar: [], fiveStar: [] };
@@ -111,9 +111,14 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
               const borderColor = isFirst ? 'border-amber-400' : isSecond ? 'border-zinc-400' : isThird ? 'border-orange-700' : 'border-zinc-300';
 
               return (
-                <div key={char.name} className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 px-2 py-1.5 rounded-sm">
+                <div
+                  key={char.name}
+                  className={`flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-sm min-w-0 ${
+                    denseFlatLayout ? 'px-2 py-1 max-w-[9.5rem]' : 'px-2 py-1.5'
+                  }`}
+                >
                   <span className={`${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm`}>#{rank}</span>
-                  <div className={`w-7 h-7 rounded-sm bg-zinc-100 dark:bg-zinc-800 border ${borderColor} overflow-hidden flex-shrink-0`}>
+                  <div className={`rounded-sm bg-zinc-100 dark:bg-zinc-800 border ${borderColor} overflow-hidden flex-shrink-0 ${denseFlatLayout ? 'w-6 h-6' : 'w-7 h-7'}`}>
                     {avatarUrl ? (
                       <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
@@ -122,8 +127,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                       </div>
                     )}
                   </div>
-                  <span className="text-xs font-medium text-slate-700 dark:text-zinc-300 truncate max-w-[4rem]">{char.name}</span>
-                  <span className="text-[10px] font-mono text-zinc-400">×{char.count}</span>
+                  <span className={`font-medium text-slate-700 dark:text-zinc-300 truncate ${denseFlatLayout ? 'text-[11px] leading-tight max-w-[3.5rem]' : 'text-xs max-w-[4rem]'}`}>{char.name}</span>
+                  <span className={`font-mono text-zinc-400 ${denseFlatLayout ? 'text-[9px] leading-none' : 'text-[10px]'}`}>×{char.count}</span>
                 </div>
               );
             })}

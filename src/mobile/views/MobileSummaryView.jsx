@@ -38,6 +38,7 @@ function MobileSummaryView() {
   const limitedSixStarUpRanking = ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || [];
   const globalStatsMeta = dataSource === 'global' ? currentStats?.meta : null;
   const showGlobalStatsFallbackNotice = globalStatsMeta && globalStatsMeta.status && globalStatsMeta.status !== 'ready';
+  const contributorRegionStats = dataSource === 'global' ? currentStats?.contributorsByRegion : null;
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -126,6 +127,12 @@ function MobileSummaryView() {
                     {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
                       <span className="block text-[11px] text-zinc-500 font-mono">注册: {currentStats.totalUsers.toLocaleString()}</span>
                     )}
+                    {contributorRegionStats && (
+                      <div className="mt-1 flex flex-col items-end gap-0.5 text-[10px] font-mono text-zinc-500">
+                        <span>国服: {Number(contributorRegionStats.cn || 0).toLocaleString()}</span>
+                        <span>国际服: {Number(contributorRegionStats.intl || 0).toLocaleString()}</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -168,7 +175,7 @@ function MobileSummaryView() {
                     <div className="text-2xl font-black text-emerald-500 font-mono">
                       {currentStats.avgPityUp}
                     </div>
-                    <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">仅UP6★ 抽/个</div>
+                    <div className="text-[10px] text-zinc-500 font-mono mt-0.5 uppercase">仅当期目标6★ 抽/个</div>
                   </div>
                 ) : (
                   <div className="bg-zinc-50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative group hover:border-emerald-300 dark:hover:border-emerald-900 transition-colors">
@@ -202,6 +209,7 @@ function MobileSummaryView() {
                   resources={currentStats.byType?.character?.resources}
                   variant="character"
                   compact={true}
+                  layout="two-plus-one"
                   className="rounded-none"
                 />
                 <ResourceSummaryPanel

@@ -123,3 +123,20 @@ export function buildGameAccountServerTag(metadata = {}) {
 
   return null;
 }
+
+export function classifyGameAccountRegionBucket(metadata = {}) {
+  const serverTag = buildGameAccountServerTag(metadata);
+  if (!serverTag) {
+    return null;
+  }
+
+  if (serverTag.startsWith('国际服')) {
+    return 'intl';
+  }
+
+  if (serverTag === '官服' || serverTag === 'B服') {
+    return 'cn';
+  }
+
+  return null;
+}
