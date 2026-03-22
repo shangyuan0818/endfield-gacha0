@@ -16,6 +16,7 @@ import CountdownTimer from './CountdownTimer';
 import HomeAnnouncementContent from './AnnouncementContent';
 import CollapsibleContent from './CollapsibleContent';
 import HomeFriendlyLinksCard from './FriendlyLinksCard';
+import GameAnnouncementFeed from './GameAnnouncementFeed';
 import GuideCard from './GuideCard';
 import PoolMechanicsCard from './PoolMechanicsCard';
 import RoadmapCard from './RoadmapCard';
@@ -33,6 +34,7 @@ import { useAppStore, useAuthStore } from '../../stores';
 const HomePage = React.memo(() => {
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
+  const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const pools = usePoolStore((state) => state.pools);
 
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
@@ -96,6 +98,7 @@ const HomePage = React.memo(() => {
   const [showAnnouncement, setShowAnnouncement] = useState(
     hasAnnouncementUpdate ? true : !initialCollapseState.announcement
   );
+  const [showGameAnnouncements, setShowGameAnnouncements] = useState(!initialCollapseState.gameAnnouncements);
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
 
   const handleTogglePoolMechanics = useCallback(() => {
@@ -126,6 +129,14 @@ const HomePage = React.memo(() => {
     setShowAnnouncement((prev) => {
       const next = !prev;
       setHomeCollapseState('announcement', !next);
+      return next;
+    });
+  }, []);
+
+  const handleToggleGameAnnouncements = useCallback(() => {
+    setShowGameAnnouncements((prev) => {
+      const next = !prev;
+      setHomeCollapseState('gameAnnouncements', !next);
       return next;
     });
   }, []);
@@ -238,43 +249,69 @@ const HomePage = React.memo(() => {
         </div>
       </div>
 
-      {latestAnnouncement && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none overflow-hidden">
-          <button
-            onClick={handleToggleAnnouncement}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0 relative">
-                <Bell size={20} />
-                {isAnnouncementNew && (
-                  <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
-                    NEW
-                  </span>
-                )}
-              </div>
-              <div className="text-left">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncement.title}</h3>
-                  {isAnnouncementNew && (
-                    <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
-                      NEW
-                    </span>
-                  )}
+      {(latestAnnouncement || gameAnnouncements.length > 0) && (
+        <div className="space-y-3">
+          {latestAnnouncement && (
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none overflow-hidden">
+              <button
+                onClick={handleToggleAnnouncement}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-none text-amber-600 dark:text-amber-400 shrink-0 relative">
+                    <Bell size={20} />
+                    {isAnnouncementNew && (
+                      <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncement.title}</h3>
+                      {isAnnouncementNew && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    {latestAnnouncement.version && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
+                        v{latestAnnouncement.version}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {latestAnnouncement.version && (
-                  <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
-                    v{latestAnnouncement.version}
-                  </span>
-                )}
-              </div>
-            </div>
-            <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
-          </button>
+                <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
+              </button>
 
-          <CollapsibleContent isOpen={showAnnouncement}>
-            <HomeAnnouncementContent content={latestAnnouncement.content} />
-          </CollapsibleContent>
+              <CollapsibleContent isOpen={showAnnouncement}>
+                <HomeAnnouncementContent content={latestAnnouncement.content} />
+              </CollapsibleContent>
+            </div>
+          )}
+
+          <div className="border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden bg-white dark:bg-zinc-900">
+            <button
+              onClick={handleToggleGameAnnouncements}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">
+                  <Bell size={18} />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-bold text-zinc-800 dark:text-zinc-100">游戏公告</h3>
+                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">来自终末地官网，默认折叠展示</p>
+                </div>
+              </div>
+              <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />
+            </button>
+
+            <CollapsibleContent isOpen={showGameAnnouncements}>
+              <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={3} />
+            </CollapsibleContent>
+          </div>
         </div>
       )}
 

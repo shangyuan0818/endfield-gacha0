@@ -4,7 +4,13 @@ import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
 import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
+import adminApplyOfficialAnnouncementsRunHandler from './api/admin-apply-official-announcements-run.js'
+import adminApplyPoolScheduleRunHandler from './api/admin-apply-pool-schedule-run.js'
+import adminRunOpsAutomationHandler from './api/admin-run-ops-automation.js'
+import officialAnnouncementsFeedHandler from './api/official-announcements-feed.js'
+import poolScheduleFeedHandler from './api/pool-schedule-feed.js'
 import selfDeleteAccountHandler from './api/self-delete-account.js'
+import wikiCatalogFeedHandler from './api/wiki-catalog-feed.js'
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -48,44 +54,89 @@ function createVercelLikeResponse(res) {
   return res
 }
 
+function normalizeRequestPath(url) {
+  if (!url) {
+    return ''
+  }
+
+  const pathname = new URL(url, 'http://localhost').pathname
+  if (!pathname || pathname === '/') {
+    return pathname
+  }
+
+  return pathname.replace(/\/+$/, '')
+}
+
+function createApiMiddleware(routeHandlers) {
+  return async (req, res, next) => {
+    const requestPath = normalizeRequestPath(req.url)
+    const handler = routeHandlers.get(requestPath)
+    const debugApi = process.env.DEBUG_VITE_API === '1'
+
+    if (debugApi && requestPath.startsWith('/api/')) {
+      console.log(`[dev-api] ${req.method || 'GET'} ${requestPath} -> ${handler ? 'handler' : 'next'}`)
+    }
+
+    if (!handler) {
+      next()
+      return
+    }
+
+    try {
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
+        req.body = await readJsonBody(req)
+      } else {
+        req.body = {}
+      }
+
+      await handler(req, createVercelLikeResponse(res))
+    } catch (error) {
+      res.statusCode = 500
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      res.end(JSON.stringify({
+        success: false,
+        error: error?.message || 'Dev API handler failed'
+      }))
+    }
+  }
+}
+
+function installMiddlewareFirst(server, middleware) {
+  const stack = server?.middlewares?.stack
+  if (Array.isArray(stack)) {
+    stack.unshift({
+      route: '',
+      handle: middleware
+    })
+    return
+  }
+
+  server.middlewares.use(middleware)
+}
+
 function createDevApiPlugin() {
   const routeHandlers = new Map([
     ['/api/auth-rate-limit', authRateLimitHandler],
     ['/api/auth-account-status', authAccountStatusHandler],
     ['/api/account-recovery-request', accountRecoveryRequestHandler],
+    ['/api/official-announcements-feed', officialAnnouncementsFeedHandler],
+    ['/api/pool-schedule-feed', poolScheduleFeedHandler],
+    ['/api/wiki-catalog-feed', wikiCatalogFeedHandler],
+    ['/api/admin-run-ops-automation', adminRunOpsAutomationHandler],
+    ['/api/admin-apply-official-announcements-run', adminApplyOfficialAnnouncementsRunHandler],
+    ['/api/admin-apply-pool-schedule-run', adminApplyPoolScheduleRunHandler],
     ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler],
     ['/api/self-delete-account', selfDeleteAccountHandler]
   ])
+  const middleware = createApiMiddleware(routeHandlers)
 
   return {
     name: 'dev-api-handlers',
     configureServer(server) {
-      server.middlewares.use(async (req, res, next) => {
-        const requestUrl = req.url ? new URL(req.url, 'http://localhost').pathname : ''
-        const handler = routeHandlers.get(requestUrl)
-
-        if (!handler) {
-          next()
-          return
-        }
-
-        try {
-          if (req.method !== 'GET' && req.method !== 'HEAD') {
-            req.body = await readJsonBody(req)
-          } else {
-            req.body = {}
-          }
-
-          await handler(req, createVercelLikeResponse(res))
-        } catch (error) {
-          res.statusCode = 500
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.end(JSON.stringify({
-            success: false,
-            error: error?.message || 'Dev API handler failed'
-          }))
-        }
-      })
+      installMiddlewareFirst(server, middleware)
+    },
+    configurePreviewServer(server) {
+      installMiddlewareFirst(server, middleware)
     }
   }
 }

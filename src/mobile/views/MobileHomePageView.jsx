@@ -6,6 +6,7 @@ import CountdownTimer from '../../components/home/CountdownTimer';
 import HomeAnnouncementContent from '../../components/home/AnnouncementContent';
 import CollapsibleContent from '../../components/home/CollapsibleContent';
 import HomeFriendlyLinksCard from '../../components/home/FriendlyLinksCard';
+import GameAnnouncementFeed from '../../components/home/GameAnnouncementFeed';
 import GuideCard from '../../components/home/GuideCard';
 import PoolMechanicsCard from '../../components/home/PoolMechanicsCard';
 import RoadmapCard from '../../components/home/RoadmapCard';
@@ -62,6 +63,7 @@ function MobileHomePageView() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
+  const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const pools = usePoolStore((state) => state.pools);
 
   const [now, setNow] = useState(new Date());
@@ -111,6 +113,7 @@ function MobileHomePageView() {
   const [showAnnouncement, setShowAnnouncement] = useState(
     hasAnnouncementUpdate ? true : !initialCollapseState.announcement
   );
+  const [showGameAnnouncements, setShowGameAnnouncements] = useState(!initialCollapseState.gameAnnouncements);
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
 
   const handleTogglePoolMechanics = useCallback(() => {
@@ -141,6 +144,14 @@ function MobileHomePageView() {
     setShowAnnouncement((prev) => {
       const next = !prev;
       setHomeCollapseState('announcement', !next);
+      return next;
+    });
+  }, []);
+
+  const handleToggleGameAnnouncements = useCallback(() => {
+    setShowGameAnnouncements((prev) => {
+      const next = !prev;
+      setHomeCollapseState('gameAnnouncements', !next);
       return next;
     });
   }, []);
@@ -314,50 +325,89 @@ function MobileHomePageView() {
         </div>
       </div>
 
-      {latestAnnouncement && (
+      {(latestAnnouncement || gameAnnouncements.length > 0) && (
         <div className="space-y-3">
-          <MobileSectionHeader
-            title="站点公告"
-            subtitle="版本更新、维护说明与功能变更会优先展示在这里。"
-            icon={Bell}
-          />
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 overflow-hidden">
-          <button
-            type="button"
-            onClick={handleToggleAnnouncement}
-            className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0 relative">
-                <Bell size={18} />
-                {isAnnouncementNew && (
-                  <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
-                    NEW
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-amber-800 dark:text-amber-300 truncate">{latestAnnouncement.title}</h3>
-                  {latestAnnouncement.version && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
-                      v{latestAnnouncement.version}
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">站点公告与版本更新</p>
-              </div>
-            </div>
-            <ArrowRight
-              size={16}
-              className={`shrink-0 text-amber-500 transition-transform ${showAnnouncement ? 'rotate-90' : ''}`}
-            />
-          </button>
+          {latestAnnouncement && (
+            <>
+              <MobileSectionHeader
+                title="站点公告"
+                subtitle="版本更新、维护说明与功能变更会优先展示在这里。"
+                icon={Bell}
+              />
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={handleToggleAnnouncement}
+                  className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 shrink-0 relative">
+                      <Bell size={18} />
+                      {isAnnouncementNew && (
+                        <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-amber-800 dark:text-amber-300 truncate">{latestAnnouncement.title}</h3>
+                        {latestAnnouncement.version && (
+                          <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
+                            v{latestAnnouncement.version}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">站点公告与版本更新</p>
+                    </div>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className={`shrink-0 text-amber-500 transition-transform ${showAnnouncement ? 'rotate-90' : ''}`}
+                  />
+                </button>
 
-          <CollapsibleContent isOpen={showAnnouncement}>
-            <HomeAnnouncementContent content={latestAnnouncement.content} />
-          </CollapsibleContent>
-        </div>
+                <CollapsibleContent isOpen={showAnnouncement}>
+                  <HomeAnnouncementContent content={latestAnnouncement.content} />
+                </CollapsibleContent>
+              </div>
+            </>
+          )}
+
+          <>
+            {!latestAnnouncement && (
+              <MobileSectionHeader
+                title="游戏公告"
+                subtitle="自动同步终末地官网，默认折叠展示。"
+                icon={Bell}
+              />
+            )}
+            <div className="border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
+              <button
+                type="button"
+                onClick={handleToggleGameAnnouncements}
+                className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">
+                    <Bell size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-zinc-800 dark:text-zinc-100">游戏公告</h3>
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">自动同步终末地官网，默认折叠</p>
+                  </div>
+                </div>
+                <ArrowRight
+                  size={16}
+                  className={`shrink-0 text-zinc-400 transition-transform ${showGameAnnouncements ? 'rotate-90' : ''}`}
+                />
+              </button>
+
+              <CollapsibleContent isOpen={showGameAnnouncements}>
+                <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={3} />
+              </CollapsibleContent>
+            </div>
+          </>
         </div>
       )}
 

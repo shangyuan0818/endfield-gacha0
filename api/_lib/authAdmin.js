@@ -35,6 +35,28 @@ export function getSupabaseAnonServerClient() {
   });
 }
 
+export function createSupabaseAccessTokenClient(accessToken) {
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const normalizedAccessToken = String(accessToken || '').trim();
+
+  if (!supabaseUrl || !anonKey || !normalizedAccessToken) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, anonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    },
+    global: {
+      headers: {
+        Authorization: `Bearer ${normalizedAccessToken}`
+      }
+    }
+  });
+}
+
 export function getBearerToken(req) {
   const authorization = req.headers.authorization || req.headers.Authorization || '';
   if (!authorization.toLowerCase().startsWith('bearer ')) {

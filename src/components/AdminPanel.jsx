@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound, Bot } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 
 const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
@@ -7,6 +7,7 @@ const PoolManagement = lazy(() => import('./admin/PoolManagement'));
 const UsersPanel = lazy(() => import('./admin/panels/UsersPanel'));
 const UserDataPanel = lazy(() => import('./admin/panels/UserDataPanel'));
 const AnnouncementsPanel = lazy(() => import('./admin/panels/AnnouncementsPanel'));
+const AutomationPanel = lazy(() => import('./admin/panels/AutomationPanel'));
 const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
 const AccountRecoveryPanel = lazy(() => import('./admin/panels/AccountRecoveryPanel'));
 
@@ -17,6 +18,7 @@ const MENU_ITEMS = [
   { id: 'pools', label: '卡池管理', icon: Layers },
   { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
+  { id: 'automation', label: '运营自动化', icon: Bot },
   { id: 'accountRecovery', label: '账号恢复', icon: KeyRound },
   { id: 'siteConfig', label: '站点配置', icon: Settings },
 ];
@@ -128,6 +130,9 @@ const AdminPanel = React.memo(({ showToast }) => {
           />
         );
 
+      case 'automation':
+        return <AutomationPanel showToast={showToast} />;
+
       case 'siteConfig':
         return <SiteConfigPanel showToast={showToast} />;
 
@@ -164,7 +169,7 @@ const AdminPanel = React.memo(({ showToast }) => {
           <Shield size={28} />
           超级管理员控制台
         </h2>
-        <p className="text-red-100 mt-1">管理用户、公告、角色、卡池与站点配置</p>
+        <p className="text-red-100 mt-1">管理用户、公告、角色、卡池、自动化任务与站点配置</p>
       </div>
 
       {/* 侧边栏 + 内容布局 */}

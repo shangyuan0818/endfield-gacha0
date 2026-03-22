@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Users, FileText, Database, AlertTriangle } from 'lucide-react';
+import { Shield, Users, FileText, Database, AlertTriangle, Bot } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 
 /**
@@ -30,6 +30,7 @@ function MobileAdminView() {
     { id: 'users', label: '用户管理', icon: Users, desc: '查看注册人员' },
     { id: 'pools', label: '卡池数据库', icon: Database, desc: '监控抽卡池' },
     { id: 'announcements', label: '系统广播', icon: FileText, desc: '公告日志' },
+    { id: 'automation', label: '自动化审计', icon: Bot, desc: '审核运营任务' },
   ];
 
   return (

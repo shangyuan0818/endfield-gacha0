@@ -31,9 +31,11 @@ const useAppStore = create((set, get) => ({
 
   // ========== 公告系统 ==========
   announcements: [],
+  gameAnnouncements: [],
   showAnnouncement: true,
 
   setAnnouncements: (announcements) => set({ announcements }),
+  setGameAnnouncements: (gameAnnouncements) => set({ gameAnnouncements }),
   toggleAnnouncement: () => set((state) => ({ showAnnouncement: !state.showAnnouncement })),
   closeAnnouncement: () => set({ showAnnouncement: false }),
   openAnnouncement: () => set({ showAnnouncement: true }),

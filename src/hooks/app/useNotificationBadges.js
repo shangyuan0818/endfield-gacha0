@@ -3,6 +3,30 @@ import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRe
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
+import { buildServerlessApiUrl } from '../../utils/authRedirects';
+
+function normalizeAnnouncements(records) {
+  return Array.isArray(records) ? records : [];
+}
+
+function getManualSiteAnnouncements(records) {
+  return normalizeAnnouncements(records)
+    .filter((record) => record?.is_active !== false && !record?.source_id)
+    .sort((left, right) => {
+      const priorityDiff = (Number(right?.priority) || 0) - (Number(left?.priority) || 0);
+      if (priorityDiff !== 0) {
+        return priorityDiff;
+      }
+
+      return new Date(right?.updated_at || right?.created_at || 0) - new Date(left?.updated_at || left?.created_at || 0);
+    });
+}
+
+function getPublishedGameAnnouncements(records) {
+  return normalizeAnnouncements(records)
+    .filter((record) => record?.is_active !== false && record?.source_id)
+    .sort((left, right) => new Date(right?.published_at || right?.updated_at || 0) - new Date(left?.published_at || left?.updated_at || 0));
+}
 
 /**
  * 通知徽标 Hook
@@ -12,6 +36,7 @@ export function useNotificationBadges() {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
   const setAnnouncements = useAppStore(state => state.setAnnouncements);
+  const setGameAnnouncements = useAppStore(state => state.setGameAnnouncements);
 
   const isSuperAdmin = userRole === 'super_admin';
 
@@ -22,6 +47,8 @@ export function useNotificationBadges() {
   // 加载公告 - 优先从 Supabase 加载，失败则回退到本地 JSON
   useEffect(() => {
     const fetchAnnouncements = async () => {
+      let publishedGameAnnouncements = [];
+
       try {
         let data = null;
         let shouldFallbackToLocal = !supabase;
@@ -42,6 +69,7 @@ export function useNotificationBadges() {
 
           if (!error) {
             data = dbData || [];
+            publishedGameAnnouncements = getPublishedGameAnnouncements(dbData);
             shouldFallbackToLocal = false;
           }
         }
@@ -54,16 +82,18 @@ export function useNotificationBadges() {
           });
           if (response.ok) {
             const jsonData = await response.json();
-            data = jsonData.filter(a => a.is_active).sort((a, b) => b.priority - a.priority);
+            data = getManualSiteAnnouncements(jsonData);
           } else {
             data = [];
           }
         }
 
-        if (data && data.length > 0) {
-          setAnnouncements(data);
+        const siteAnnouncements = getManualSiteAnnouncements(data);
+
+        if (siteAnnouncements.length > 0) {
+          setAnnouncements(siteAnnouncements);
           // UX-006: 检测是否有新公告
-          const latestAnnouncement = data[0];
+          const latestAnnouncement = siteAnnouncements[0];
           if (latestAnnouncement?.updated_at) {
             const isNew = hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at);
             setHasNewAnnouncement(isNew);
@@ -76,10 +106,28 @@ export function useNotificationBadges() {
         setAnnouncements([]);
         setHasNewAnnouncement(false);
       }
+
+      try {
+        const response = await fetchWithTimeout(buildServerlessApiUrl('/api/official-announcements-feed'), undefined, {
+          label: 'load game announcements',
+          timeoutMs: 15000,
+          retries: 1,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Game announcements request failed: ${response.status}`);
+        }
+
+        const jsonData = await response.json();
+        const gameData = Array.isArray(jsonData?.records) ? jsonData.records : [];
+        setGameAnnouncements(gameData);
+      } catch {
+        setGameAnnouncements(publishedGameAnnouncements);
+      }
     };
 
     fetchAnnouncements();
-  }, [setAnnouncements]);
+  }, [setAnnouncements, setGameAnnouncements]);
 
   // UX-006: 获取未读工单数量
   useEffect(() => {
