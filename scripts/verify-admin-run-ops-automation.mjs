@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { handleAdminRunOpsAutomation } from '../api/admin-run-ops-automation.js';
+import { handleAdminRunOpsAutomation } from '../api/admin-ops-automation.js';
 
 function createMockResponse() {
   return {

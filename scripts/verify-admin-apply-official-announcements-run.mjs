@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { handleAdminApplyOfficialAnnouncements } from '../api/admin-apply-official-announcements-run.js';
+import { handleAdminApplyOfficialAnnouncements } from '../api/admin-ops-automation.js';
 import { buildOfficialAnnouncementApplyPlan } from '../api/_lib/officialAnnouncementAutomation.js';
 
 function createMockResponse() {

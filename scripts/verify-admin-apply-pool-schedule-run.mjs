@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { handleAdminApplyPoolSchedule } from '../api/admin-apply-pool-schedule-run.js';
+import { handleAdminApplyPoolSchedule } from '../api/admin-ops-automation.js';
 import { buildPoolScheduleApplyPlan } from '../api/_lib/poolScheduleAutomation.js';
 
 function createMockResponse() {

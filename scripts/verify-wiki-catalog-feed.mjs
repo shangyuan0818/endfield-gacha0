@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import handler from '../api/wiki-catalog-feed.js';
+import { handleWikiCatalogFeed as handler } from '../api/automation-feed.js';
 import {
   getDefaultRunnableJobIds,
   getOpsAutomationSourceConfig,
@@ -35,7 +35,7 @@ const fallbackSource = getOpsAutomationSourceConfig('wiki-catalog', {}, {
 });
 assert.equal(
   fallbackSource.url,
-  'https://example.com/api/wiki-catalog-feed',
+  'https://example.com/api/automation-feed?job=wiki-catalog',
   'wiki-catalog 应支持站内 feed 回退地址',
 );
 
@@ -81,6 +81,7 @@ globalThis.fetch = async (url) => {
 
 const req = {
   method: 'GET',
+  url: '/api/automation-feed?job=wiki-catalog',
   headers: {
     host: 'example.com',
     'x-forwarded-proto': 'https',

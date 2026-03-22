@@ -3,12 +3,12 @@ import {
   getBearerToken,
   getSupabaseAdminClient,
   getSupabaseAnonServerClient,
-} from './_lib/authAdmin.js';
-import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
+} from './authAdmin.js';
+import { rejectDisallowedBrowserOrigin } from './http.js';
 import {
   buildOfficialAnnouncementApplyPlan,
   buildUpdatedOfficialAnnouncementReviewBundle,
-} from './_lib/officialAnnouncementAutomation.js';
+} from './officialAnnouncementAutomation.js';
 
 const AUTO_GAME_ANNOUNCEMENT_PRIORITY = -100;
 

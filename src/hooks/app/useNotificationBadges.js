@@ -108,7 +108,7 @@ export function useNotificationBadges() {
       }
 
       try {
-        const response = await fetchWithTimeout(buildServerlessApiUrl('/api/official-announcements-feed'), undefined, {
+        const response = await fetchWithTimeout(buildServerlessApiUrl('/api/automation-feed?job=official-announcements'), undefined, {
           label: 'load game announcements',
           timeoutMs: 15000,
           retries: 1,

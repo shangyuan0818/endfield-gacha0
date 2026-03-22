@@ -1,8 +1,8 @@
-import { getSupabaseAnonServerClient } from './_lib/authAdmin.js';
+import { getSupabaseAnonServerClient } from './authAdmin.js';
 import {
   buildManualPoolId,
   normalizeEntityNameForMatch,
-} from '../src/utils/canonicalEntityUtils.js';
+} from '../../src/utils/canonicalEntityUtils.js';
 
 const LIMITED_POOL_DURATION_DAYS = 17;
 const WEAPON_POOL_DURATION_DAYS = LIMITED_POOL_DURATION_DAYS * 3;
@@ -522,7 +522,7 @@ export function buildPoolScheduleRecords(announcementRecords, {
   });
 }
 
-export default async function handler(req, res) {
+export async function handlePoolScheduleFeed(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800');
 
   if (req.method === 'OPTIONS') {
@@ -538,7 +538,7 @@ export default async function handler(req, res) {
 
   try {
     const baseUrl = getRequestBaseUrl(req);
-    const announcementPayload = await fetchLocalJson(`${baseUrl}/api/official-announcements-feed`);
+    const announcementPayload = await fetchLocalJson(`${baseUrl}/api/automation-feed?job=official-announcements`);
     const announcementRecords = Array.isArray(announcementPayload?.records) ? announcementPayload.records : [];
 
     const supabase = getSupabaseAnonServerClient();
@@ -566,4 +566,8 @@ export default async function handler(req, res) {
       error: error?.message || 'Failed to build pool schedule feed',
     });
   }
+}
+
+export default async function handler(req, res) {
+  await handlePoolScheduleFeed(req, res);
 }

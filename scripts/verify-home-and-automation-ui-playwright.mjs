@@ -293,7 +293,7 @@ async function installSharedMocks(page) {
     });
   });
 
-  await page.route('**/api/official-announcements-feed', async (route) => {
+  await page.route('**/api/automation-feed?job=official-announcements', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -490,127 +490,144 @@ async function verifyAutomationPanel(browser, baseUrl) {
     });
   });
 
-  await page.route('**/api/admin-run-ops-automation', async (route) => {
-    const newRun = {
-      ...automationRuns[0],
-      id: 'run-official-002',
-      created_at: '2026-03-22T11:00:00.000Z',
-      updated_at: '2026-03-22T11:00:00.000Z',
-      started_at: '2026-03-22T11:00:00.000Z',
-      finished_at: '2026-03-22T11:00:01.000Z',
-      summary: {
-        current: 2,
-        incoming: 2,
-        added: 0,
-        updated: 1,
-        unchanged: 1,
-        removed: 0,
-      },
-      review_bundle: {
-        ...automationRuns[0].review_bundle,
-        review: {
-          ...automationRuns[0].review_bundle.review,
-          appliedSourceIds: [],
+  await page.route('**/api/admin-ops-automation**', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const action = requestUrl.searchParams.get('action');
+
+    if (action === 'run') {
+      const newRun = {
+        ...automationRuns[0],
+        id: 'run-official-002',
+        created_at: '2026-03-22T11:00:00.000Z',
+        updated_at: '2026-03-22T11:00:00.000Z',
+        started_at: '2026-03-22T11:00:00.000Z',
+        finished_at: '2026-03-22T11:00:01.000Z',
+        summary: {
+          current: 2,
+          incoming: 2,
+          added: 0,
+          updated: 1,
+          unchanged: 1,
+          removed: 0,
         },
-      },
-    };
-
-    automationRuns = [newRun, ...automationRuns];
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        dryRun: true,
-        triggerType: 'manual',
-        results: [
-          {
-            jobId: 'official-announcements',
-            status: 'success',
-            runId: 'run-official-002',
+        review_bundle: {
+          ...automationRuns[0].review_bundle,
+          review: {
+            ...automationRuns[0].review_bundle.review,
+            appliedSourceIds: [],
           },
-        ],
-      }),
-    });
-  });
-
-  await page.route('**/api/admin-apply-official-announcements-run', async (route) => {
-    const body = route.request().postDataJSON();
-    const selectedSourceIds = Array.isArray(body?.sourceIds) ? body.sourceIds : [];
-
-    automationRuns = automationRuns.map((run) => (
-      run.id === body?.runId
-        ? {
-          ...run,
-          review_bundle: {
-            ...run.review_bundle,
-            review: {
-              ...run.review_bundle.review,
-              status: 'applied',
-              appliedSourceIds: selectedSourceIds,
-            },
-          },
-        }
-        : run
-    ));
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        runId: body?.runId,
-        review_status: 'applied',
-        applied_source_ids: selectedSourceIds,
-        blocked_source_ids: [],
-        outstanding_source_ids: [],
-        plan: {
-          summary: {
-            requested: selectedSourceIds.length,
-            applicable: selectedSourceIds.length,
-            blocked: 0,
-          },
-          requested_source_ids: selectedSourceIds,
-          blocked_records: [],
-          already_applied_records: [],
         },
-      }),
-    });
-  });
+      };
 
-  await page.route('**/api/admin-apply-pool-schedule-run', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        runId: 'run-pool-001',
-        review_status: 'partially_applied',
-        applied_pool_ids: [],
-        blocked_pool_ids: ['limited-luoqian'],
-        outstanding_pool_ids: ['limited-luoqian'],
-        plan: {
-          summary: {
-            requested: 1,
-            applicable: 0,
-            blocked: 1,
-          },
-          requested_pool_ids: ['limited-luoqian'],
-          blocked_records: [
+      automationRuns = [newRun, ...automationRuns];
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          dryRun: true,
+          triggerType: 'manual',
+          results: [
             {
-              pool_id: 'limited-luoqian',
-              name: '狼珀',
-              issues: [
-                {
-                  code: 'unresolved_featured_characters',
-                  message: '以下名称未完成规范 ID 映射：洛茜',
-                },
-              ],
+              jobId: 'official-announcements',
+              status: 'success',
+              runId: 'run-official-002',
             },
           ],
-          already_applied_records: [],
-        },
+        }),
+      });
+      return;
+    }
+
+    if (action === 'apply-official-announcements') {
+      const body = route.request().postDataJSON();
+      const selectedSourceIds = Array.isArray(body?.sourceIds) ? body.sourceIds : [];
+
+      automationRuns = automationRuns.map((run) => (
+        run.id === body?.runId
+          ? {
+            ...run,
+            review_bundle: {
+              ...run.review_bundle,
+              review: {
+                ...run.review_bundle.review,
+                status: 'applied',
+                appliedSourceIds: selectedSourceIds,
+              },
+            },
+          }
+          : run
+      ));
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          runId: body?.runId,
+          review_status: 'applied',
+          applied_source_ids: selectedSourceIds,
+          blocked_source_ids: [],
+          outstanding_source_ids: [],
+          plan: {
+            summary: {
+              requested: selectedSourceIds.length,
+              applicable: selectedSourceIds.length,
+              blocked: 0,
+            },
+            requested_source_ids: selectedSourceIds,
+            blocked_records: [],
+            already_applied_records: [],
+          },
+        }),
+      });
+      return;
+    }
+
+    if (action === 'apply-pool-schedule') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          runId: 'run-pool-001',
+          review_status: 'partially_applied',
+          applied_pool_ids: [],
+          blocked_pool_ids: ['limited-luoqian'],
+          outstanding_pool_ids: ['limited-luoqian'],
+          plan: {
+            summary: {
+              requested: 1,
+              applicable: 0,
+              blocked: 1,
+            },
+            requested_pool_ids: ['limited-luoqian'],
+            blocked_records: [
+              {
+                pool_id: 'limited-luoqian',
+                name: '狼珀',
+                issues: [
+                  {
+                    code: 'unresolved_featured_characters',
+                    message: '以下名称未完成规范 ID 映射：洛茜',
+                  },
+                ],
+              },
+            ],
+            already_applied_records: [],
+          },
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: false,
+        error: `Unexpected admin action: ${action || 'missing'}`,
       }),
     });
   });

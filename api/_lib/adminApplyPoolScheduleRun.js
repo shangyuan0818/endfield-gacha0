@@ -3,12 +3,12 @@ import {
   getBearerToken,
   getSupabaseAdminClient,
   getSupabaseAnonServerClient,
-} from './_lib/authAdmin.js';
-import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
+} from './authAdmin.js';
+import { rejectDisallowedBrowserOrigin } from './http.js';
 import {
   buildPoolScheduleApplyPlan,
   buildUpdatedPoolScheduleReviewBundle,
-} from './_lib/poolScheduleAutomation.js';
+} from './poolScheduleAutomation.js';
 
 function parseRequestBody(req) {
   if (!req.body) {

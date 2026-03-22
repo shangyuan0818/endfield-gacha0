@@ -2,13 +2,13 @@ import {
   getBearerToken,
   getSupabaseAdminClient,
   getSupabaseAnonServerClient,
-} from './_lib/authAdmin.js';
-import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
+} from './authAdmin.js';
+import { rejectDisallowedBrowserOrigin } from './http.js';
 import {
   getDefaultRunnableJobIds,
   parseRequestedJobIds,
   runOpsAutomationJob,
-} from './_lib/opsAutomation.js';
+} from './opsAutomation.js';
 
 function parseRequestBody(req) {
   if (!req.body) {

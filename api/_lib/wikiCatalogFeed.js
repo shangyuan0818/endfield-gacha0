@@ -66,7 +66,7 @@ function buildWeaponRecords(rawWeapons) {
     });
 }
 
-export default async function handler(req, res) {
+export async function handleWikiCatalogFeed(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800');
 
   if (req.method === 'OPTIONS') {
@@ -107,4 +107,8 @@ export default async function handler(req, res) {
       error: error?.message || 'Failed to build wiki catalog feed',
     });
   }
+}
+
+export default async function handler(req, res) {
+  await handleWikiCatalogFeed(req, res);
 }

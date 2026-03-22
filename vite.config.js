@@ -3,14 +3,10 @@ import react from '@vitejs/plugin-react-swc'
 import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
+import adminOpsAutomationHandler from './api/admin-ops-automation.js'
 import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
-import adminApplyOfficialAnnouncementsRunHandler from './api/admin-apply-official-announcements-run.js'
-import adminApplyPoolScheduleRunHandler from './api/admin-apply-pool-schedule-run.js'
-import adminRunOpsAutomationHandler from './api/admin-run-ops-automation.js'
-import officialAnnouncementsFeedHandler from './api/official-announcements-feed.js'
-import poolScheduleFeedHandler from './api/pool-schedule-feed.js'
+import automationFeedHandler from './api/automation-feed.js'
 import selfDeleteAccountHandler from './api/self-delete-account.js'
-import wikiCatalogFeedHandler from './api/wiki-catalog-feed.js'
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -119,12 +115,8 @@ function createDevApiPlugin() {
     ['/api/auth-rate-limit', authRateLimitHandler],
     ['/api/auth-account-status', authAccountStatusHandler],
     ['/api/account-recovery-request', accountRecoveryRequestHandler],
-    ['/api/official-announcements-feed', officialAnnouncementsFeedHandler],
-    ['/api/pool-schedule-feed', poolScheduleFeedHandler],
-    ['/api/wiki-catalog-feed', wikiCatalogFeedHandler],
-    ['/api/admin-run-ops-automation', adminRunOpsAutomationHandler],
-    ['/api/admin-apply-official-announcements-run', adminApplyOfficialAnnouncementsRunHandler],
-    ['/api/admin-apply-pool-schedule-run', adminApplyPoolScheduleRunHandler],
+    ['/api/automation-feed', automationFeedHandler],
+    ['/api/admin-ops-automation', adminOpsAutomationHandler],
     ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler],
     ['/api/self-delete-account', selfDeleteAccountHandler]
   ])

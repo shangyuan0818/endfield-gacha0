@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import handler, { buildPoolScheduleRecords } from '../api/pool-schedule-feed.js';
+import { buildPoolScheduleRecords, handlePoolScheduleFeed as handler } from '../api/automation-feed.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {
@@ -133,7 +133,7 @@ assert.deepEqual(
 
 const fetchBackup = globalThis.fetch;
 globalThis.fetch = async (url) => {
-  if (String(url) === 'https://example.com/api/official-announcements-feed') {
+  if (String(url) === 'https://example.com/api/automation-feed?job=official-announcements') {
     return {
       ok: true,
       status: 200,
@@ -150,6 +150,7 @@ globalThis.fetch = async (url) => {
 
 const req = {
   method: 'GET',
+  url: '/api/automation-feed?job=pool-schedule',
   headers: {
     host: 'example.com',
     'x-forwarded-proto': 'https',

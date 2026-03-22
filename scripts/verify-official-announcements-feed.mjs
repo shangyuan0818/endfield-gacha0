@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import handler, { __internal } from '../api/official-announcements-feed.js';
+import { __internal, handleOfficialAnnouncementsFeed as handler } from '../api/automation-feed.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {
@@ -95,6 +95,7 @@ globalThis.fetch = async (url) => {
 
 const req = {
   method: 'GET',
+  url: '/api/automation-feed?job=official-announcements',
   headers: {},
 };
 const res = createMockResponse();

@@ -133,10 +133,10 @@ export async function loadOpsAutomationRuns({
 }
 
 export async function triggerOpsAutomation(jobIds = []) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-run-ops-automation'), {
+  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=run'), {
     jobIds,
   }, {
-    label: 'admin-run-ops-automation',
+    label: 'admin-ops-automation:run',
   });
 }
 
@@ -145,12 +145,12 @@ export async function applyOfficialAnnouncementsRun({
   sourceIds = [],
   reviewNote = '',
 } = {}) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-apply-official-announcements-run'), {
+  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=apply-official-announcements'), {
     runId,
     sourceIds,
     reviewNote,
   }, {
-    label: 'admin-apply-official-announcements-run',
+    label: 'admin-ops-automation:apply-official-announcements',
   });
 }
 
@@ -159,12 +159,12 @@ export async function applyPoolScheduleRun({
   poolIds = [],
   reviewNote = '',
 } = {}) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-apply-pool-schedule-run'), {
+  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=apply-pool-schedule'), {
     runId,
     poolIds,
     reviewNote,
   }, {
-    label: 'admin-apply-pool-schedule-run',
+    label: 'admin-ops-automation:apply-pool-schedule',
   });
 }
 

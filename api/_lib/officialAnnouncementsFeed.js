@@ -1,4 +1,4 @@
-import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
+import { rejectDisallowedBrowserOrigin } from './http.js';
 
 const OFFICIAL_NEWS_BASE_URL = 'https://web-news.hypergryph.com/api';
 const DEFAULT_PAGE_SIZE = 10;
@@ -73,7 +73,7 @@ function buildAnnouncementContent(detail) {
   return `${metaLines.join('')}${detail.data || ''}`;
 }
 
-async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE) {
+export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE) {
   const listPayload = await fetchOfficialNewsList(pageSize);
   const list = Array.isArray(listPayload?.list) ? listPayload.list : [];
 
@@ -103,7 +103,7 @@ async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE) {
   }));
 }
 
-export default async function handler(req, res) {
+export async function handleOfficialAnnouncementsFeed(req, res) {
   res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=1800');
 
   if (rejectDisallowedBrowserOrigin(req, res, {
@@ -159,6 +159,10 @@ export default async function handler(req, res) {
       error: error?.message || 'Failed to build official announcements feed',
     });
   }
+}
+
+export default async function handler(req, res) {
+  await handleOfficialAnnouncementsFeed(req, res);
 }
 
 export const __internal = {

@@ -29,9 +29,9 @@ export const OPS_AUTOMATION_SOURCE_ENVS = Object.freeze({
 });
 
 const INTERNAL_SOURCE_PATHS = Object.freeze({
-  'official-announcements': '/api/official-announcements-feed',
-  'pool-schedule': '/api/pool-schedule-feed',
-  'wiki-catalog': '/api/wiki-catalog-feed',
+  'official-announcements': '/api/automation-feed?job=official-announcements',
+  'pool-schedule': '/api/automation-feed?job=pool-schedule',
+  'wiki-catalog': '/api/automation-feed?job=wiki-catalog',
 });
 
 function getHeaderValue(headers, name) {
