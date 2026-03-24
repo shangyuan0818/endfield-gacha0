@@ -252,6 +252,8 @@ function normalizeAnnouncementRecord(record, index) {
     title,
     summary: coerceNullableText(record?.summary || record?.excerpt || record?.description),
     content,
+    raw_content: coerceNullableText(record?.raw_content || record?.rawContent),
+    summary_mode: coerceNullableText(record?.summary_mode || record?.summaryMode),
     version: coerceText(record?.version) || 'external',
     published_at: coerceIsoDate(record?.published_at || record?.publishedAt || record?.date || record?.updated_at),
     source_url: coerceNullableText(record?.source_url || record?.url || record?.link),

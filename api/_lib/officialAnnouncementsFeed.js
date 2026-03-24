@@ -1,4 +1,5 @@
 import { rejectDisallowedBrowserOrigin } from './http.js';
+import { buildAnnouncementDisplayContent } from './officialAnnouncementPresentation.js';
 
 const OFFICIAL_NEWS_BASE_URL = 'https://web-news.hypergryph.com/api';
 const DEFAULT_PAGE_SIZE = 10;
@@ -63,17 +64,10 @@ async function fetchOfficialNewsDetail(cid) {
   return fetchOfficialNewsJson(`${OFFICIAL_NEWS_BASE_URL}/bulletin/${cid}?${query.toString()}`);
 }
 
-function buildAnnouncementContent(detail) {
-  const sourceUrl = buildOfficialArticleUrl(detail.cid);
-  const metaLines = [
-    `<p><strong>分类：</strong>${detail.tab || 'notices'}</p>`,
-    `<p><a href="${sourceUrl}" target="_blank" rel="noopener noreferrer">查看官方原文</a></p>`,
-  ];
-
-  return `${metaLines.join('')}${detail.data || ''}`;
-}
-
-export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE) {
+export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+} = {}) {
   const listPayload = await fetchOfficialNewsList(pageSize);
   const list = Array.isArray(listPayload?.list) ? listPayload.list : [];
 
@@ -89,17 +83,35 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
       })
   );
 
-  return details.map((detail) => ({
-    source_id: String(detail.cid),
-    title: String(detail.title),
-    summary: typeof detail.brief === 'string' && detail.brief.trim()
+  return Promise.all(details.map(async (detail) => {
+    const publishedAt = buildPublishedAt(detail.displayTime);
+    const sourceUrl = buildOfficialArticleUrl(detail.cid);
+    const normalizedSummary = typeof detail.brief === 'string' && detail.brief.trim()
       ? detail.brief.trim()
-      : null,
-    content: buildAnnouncementContent(detail),
-    version: buildVersion(detail.displayTime, detail.cid),
-    published_at: buildPublishedAt(detail.displayTime),
-    source_url: buildOfficialArticleUrl(detail.cid),
-    is_active: true,
+      : null;
+    const presentation = await buildAnnouncementDisplayContent({
+      title: String(detail.title || ''),
+      summary: normalizedSummary,
+      rawHtml: detail.data || '',
+      sourceUrl,
+      publishedAt,
+      fetchImpl,
+      env,
+    });
+
+    return {
+      source_id: String(detail.cid),
+      title: String(detail.title),
+      summary: normalizedSummary,
+      content: presentation.content,
+      raw_content: presentation.rawContent,
+      image_urls: presentation.imageUrls,
+      summary_mode: presentation.summaryMode,
+      version: buildVersion(detail.displayTime, detail.cid),
+      published_at: publishedAt,
+      source_url: sourceUrl,
+      is_active: true,
+    };
   }));
 }
 
@@ -166,7 +178,6 @@ export default async function handler(req, res) {
 }
 
 export const __internal = {
-  buildAnnouncementContent,
   buildOfficialAnnouncementRecords,
   buildOfficialArticleUrl,
   buildVersion,

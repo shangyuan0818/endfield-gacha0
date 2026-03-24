@@ -48,6 +48,10 @@ function stripHtmlToTextLines(html) {
     .filter(Boolean);
 }
 
+function getAnnouncementRawContent(record) {
+  return record?.raw_content || record?.content || '';
+}
+
 function parseServerDateTime(rawValue) {
   const match = /(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/.exec(rawValue || '');
   if (!match) {
@@ -165,7 +169,7 @@ function normalizeStandaloneLimitedNotice(record) {
     return [];
   }
 
-  const lines = stripHtmlToTextLines(record?.content);
+  const lines = stripHtmlToTextLines(getAnnouncementRawContent(record));
   const timeLine = lines.find(line => line.includes('开放时间'));
   const detailLine = lines.find(line => line.includes('获取概率提升') && line.includes('全部可能出现的6星干员包括'));
   const upMatch = /6星干员【([^】]+)】获取概率提升/.exec(detailLine || '');
@@ -239,7 +243,7 @@ function parseVersionUpdateSections(record) {
     return [];
   }
 
-  const lines = stripHtmlToTextLines(record?.content);
+  const lines = stripHtmlToTextLines(getAnnouncementRawContent(record));
   const maintenanceWindow = parseMaintenanceWindow(lines);
   const sections = [];
   let currentSection = null;

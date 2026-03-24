@@ -29,10 +29,16 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
     () => (Array.isArray(announcements) ? announcements.slice(0, maxItems) : []),
     [announcements, maxItems],
   );
-  const [expandedId, setExpandedId] = useState(() => visibleAnnouncements[0]?.source_id || null);
-  const effectiveExpandedId = visibleAnnouncements.some(item => item.source_id === expandedId)
-    ? expandedId
-    : (visibleAnnouncements[0]?.source_id || null);
+  const [expandedId, setExpandedId] = useState(undefined);
+  const effectiveExpandedId = expandedId === undefined
+    ? (visibleAnnouncements[0]?.source_id || null)
+    : expandedId === null
+      ? null
+      : (
+        visibleAnnouncements.some(item => item.source_id === expandedId)
+          ? expandedId
+          : (visibleAnnouncements[0]?.source_id || null)
+      );
 
   if (visibleAnnouncements.length === 0) {
     return (
@@ -54,40 +60,45 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
             key={announcement.source_id}
             className="border border-zinc-200/80 bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/30"
           >
-            <button
-              type="button"
-              onClick={() => setExpandedId(prev => (prev === announcement.source_id ? null : announcement.source_id))}
-              className="w-full px-4 py-3 flex items-start justify-between gap-3 text-left"
-            >
+            <div className="px-4 py-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
                   <Radio size={11} className="text-endfield-yellow" />
                   游戏公告
                 </div>
-                <h4 className="mt-1 font-bold text-zinc-800 dark:text-zinc-100 break-words">
-                  {announcement.title}
-                </h4>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <h4 className="font-bold text-zinc-800 dark:text-zinc-100 break-words min-w-0 flex-1">
+                    {announcement.title}
+                  </h4>
+                  {announcement.source_url ? (
+                    <a
+                      href={announcement.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="group inline-flex items-center gap-1 shrink-0 px-2.5 py-1 text-[11px] font-semibold border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 hover:-translate-y-0.5 hover:shadow-sm dark:border-amber-700 dark:text-amber-300 dark:bg-amber-900/20 dark:hover:bg-amber-900/35 transition-all duration-200"
+                    >
+                      查看原文
+                      <ExternalLink size={12} className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </a>
+                  ) : null}
+                </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
                   <span>{formatPublishedAt(announcement.published_at)}</span>
                   {announcement.summary ? <span>· {announcement.summary}</span> : null}
                 </div>
               </div>
-              <ChevronDown
-                size={16}
-                className={`shrink-0 text-zinc-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            <div className="px-4 pb-4 -mt-1">
-              <a
-                href={announcement.source_url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+              <button
+                type="button"
+                onClick={() => setExpandedId(isExpanded ? null : announcement.source_id)}
+                aria-expanded={isExpanded}
+                className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
               >
-                查看官方原文
-                <ExternalLink size={12} />
-              </a>
+                {isExpanded ? '收起公告' : '展开公告'}
+                <ChevronDown
+                  size={15}
+                  className={`text-zinc-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                />
+              </button>
             </div>
 
             {isExpanded ? <AnnouncementContent content={announcement.content} /> : null}

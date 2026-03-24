@@ -16,13 +16,17 @@ const sanitizeSchema = {
     // 允许的额外标签（用于 Markdown 扩展）
     'summary',
     'details',
+    'figure',
+    'figcaption',
   ],
   attributes: {
     ...defaultSchema.attributes,
     // 允许 a 标签的 target 和 rel 属性
     a: [...(defaultSchema.attributes?.a || []), 'target', 'rel'],
     // 允许 img 标签的 style 属性（用于尺寸调整）
-    img: [...(defaultSchema.attributes?.img || []), 'style'],
+    img: [...(defaultSchema.attributes?.img || []), 'style', 'width', 'height', 'class', 'className'],
+    figure: [...(defaultSchema.attributes?.figure || []), 'class', 'className'],
+    figcaption: [...(defaultSchema.attributes?.figcaption || []), 'class', 'className'],
     // 允许 span 的 class 属性
     span: [...(defaultSchema.attributes?.span || []), 'className', 'class'],
     // 允许所有元素的 class 属性
@@ -101,15 +105,17 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     // 图片 - 支持尺寸调整
     // 语法: ![alt](url "title =宽x高") 或 ![alt](url "=宽") 或 ![alt](url "=宽x高")
     // 示例: ![图片](url "=300") 宽300px, ![图片](url "=300x200") 宽300高200, ![图片](url "说明 =50%") 宽50%
-    img: ({ src, alt, title }) => {
-      let width, height, actualTitle;
+    img: ({ src, alt, title, style: incomingStyle, className: incomingClassName, width, height }) => {
+      let parsedWidth = width;
+      let parsedHeight = height;
+      let actualTitle;
 
       if (title) {
         // 解析尺寸: 支持 "=300", "=300x200", "=50%", "=50%x30%", "标题 =300"
         const sizeMatch = title.match(/=(\d+%?)(x(\d+%?))?$/);
         if (sizeMatch) {
-          width = sizeMatch[1];
-          height = sizeMatch[3];
+          parsedWidth = sizeMatch[1];
+          parsedHeight = sizeMatch[3];
           // 提取实际标题（去掉尺寸部分）
           actualTitle = title.replace(/\s*=\d+%?(x\d+%?)?$/, '').trim() || undefined;
         } else {
@@ -118,12 +124,14 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       }
 
       // 构建样式
-      const style = {};
-      if (width) {
-        style.width = width.includes('%') ? width : `${width}px`;
+      const style = (incomingStyle && typeof incomingStyle === 'object' && !Array.isArray(incomingStyle))
+        ? { ...incomingStyle }
+        : {};
+      if (parsedWidth) {
+        style.width = String(parsedWidth).includes('%') ? parsedWidth : `${parsedWidth}px`;
       }
-      if (height) {
-        style.height = height.includes('%') ? height : `${height}px`;
+      if (parsedHeight) {
+        style.height = String(parsedHeight).includes('%') ? parsedHeight : `${parsedHeight}px`;
       }
 
       return (
@@ -131,11 +139,27 @@ const SimpleMarkdown = ({ content, className = '' }) => {
           src={src}
           alt={alt}
           title={actualTitle}
+          width={typeof parsedWidth === 'number' || typeof parsedWidth === 'string' ? parsedWidth : undefined}
+          height={typeof parsedHeight === 'number' || typeof parsedHeight === 'string' ? parsedHeight : undefined}
           style={style}
-          className={`${width ? '' : 'max-w-full'} h-auto rounded-none my-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-950`}
+          loading="lazy"
+          decoding="async"
+          className={`block mx-auto ${parsedWidth ? '' : 'max-w-full'} h-auto rounded-none my-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-950 ${incomingClassName || ''}`.trim()}
         />
       );
     },
+
+    figure: ({ children, className }) => (
+      <figure className={`my-3 ${className || ''}`.trim()}>
+        {children}
+      </figure>
+    ),
+
+    figcaption: ({ children, className }) => (
+      <figcaption className={`mt-1 text-xs text-center text-zinc-500 dark:text-zinc-400 ${className || ''}`.trim()}>
+        {children}
+      </figcaption>
+    ),
 
     // 粗体
     strong: ({ children }) => (

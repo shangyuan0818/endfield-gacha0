@@ -42,7 +42,7 @@ function createGameAnnouncementsPayload() {
         source_id: 'game-001',
         title: '游戏公告校验样例一',
         summary: '用于验证首页折叠区',
-        content: '<p>游戏公告正文一</p>',
+        content: '## 核心内容\n- 游戏公告正文一',
         published_at: '2026-03-22T08:00:00.000Z',
         source_url: 'https://example.com/game-001',
       },
@@ -50,7 +50,7 @@ function createGameAnnouncementsPayload() {
         source_id: 'game-002',
         title: '游戏公告校验样例二',
         summary: '用于验证移动端折叠区',
-        content: '<p>游戏公告正文二</p>',
+        content: '## 核心内容\n- 游戏公告正文二',
         published_at: '2026-03-22T09:00:00.000Z',
         source_url: 'https://example.com/game-002',
       },
@@ -272,6 +272,29 @@ function filterRelevantConsoleErrors(entries) {
   return entries.filter((entry) => !entry.includes('favicon.ico'));
 }
 
+async function waitForLocatorText(locator, text, {
+  timeout = 5000,
+  present = true,
+} = {}) {
+  const start = Date.now();
+
+  while (Date.now() - start < timeout) {
+    const value = await locator.innerText().catch(() => '');
+    const matched = value.includes(text);
+
+    if (matched === present) {
+      return;
+    }
+
+    await locator.page().waitForTimeout(100);
+  }
+
+  const lastValue = await locator.innerText().catch(() => '');
+  throw new Error(
+    `未能在 ${timeout}ms 内等待文本 ${present ? '出现' : '消失'}: ${text}\n当前内容: ${(lastValue || '').slice(0, 1200)}`
+  );
+}
+
 async function waitForVisibleOrThrow(locator, {
   timeout = 15000,
   page,
@@ -317,7 +340,10 @@ async function installSharedMocks(page) {
     });
   });
 
-  await page.route('**/api/automation-feed?job=official-announcements', async (route) => {
+  await page.route((url) => {
+    const value = String(url);
+    return value.includes('/api/automation-feed') && value.includes('job=official-announcements');
+  }, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -359,9 +385,11 @@ async function verifyHomeGameAnnouncements(browser, baseUrl) {
   await page.waitForFunction((element) => element.getBoundingClientRect().height > 20, await desktopGameAnnouncementContent.elementHandle(), {
     timeout: 5000,
   });
-  await page.getByText('游戏公告校验样例一').waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByText('游戏公告正文一').waitFor({ state: 'visible', timeout: 5000 });
-  await page.getByRole('link', { name: /查看官方原文/ }).first().waitFor({ state: 'visible', timeout: 5000 });
+  await desktopGameAnnouncementContent.getByText('游戏公告校验样例一').first().waitFor({ state: 'visible', timeout: 5000 });
+  await waitForLocatorText(desktopGameAnnouncementContent, '游戏公告正文一');
+  await desktopGameAnnouncementContent.getByRole('link', { name: /查看原文/ }).first().waitFor({ state: 'visible', timeout: 5000 });
+  await desktopGameAnnouncementContent.getByRole('button', { name: '收起公告' }).first().click();
+  await waitForLocatorText(desktopGameAnnouncementContent, '游戏公告正文一', { present: false });
 
   const mobilePage = await context.newPage();
   const mobileConsoleErrors = getConsoleCollector(mobilePage);
@@ -392,8 +420,10 @@ async function verifyHomeGameAnnouncements(browser, baseUrl) {
   await mobilePage.waitForFunction((element) => element.getBoundingClientRect().height > 20, await mobileGameAnnouncementContent.elementHandle(), {
     timeout: 5000,
   });
-  await mobilePage.getByText('游戏公告校验样例一').waitFor({ state: 'visible', timeout: 5000 });
-  await mobilePage.getByText('游戏公告正文一').waitFor({ state: 'visible', timeout: 5000 });
+  await mobileGameAnnouncementContent.getByText('游戏公告校验样例一').first().waitFor({ state: 'visible', timeout: 5000 });
+  await waitForLocatorText(mobileGameAnnouncementContent, '游戏公告正文一');
+  await mobileGameAnnouncementContent.getByRole('button', { name: '收起公告' }).first().click();
+  await waitForLocatorText(mobileGameAnnouncementContent, '游戏公告正文一', { present: false });
 
   const desktopErrors = filterRelevantConsoleErrors(consoleErrors);
   const mobileErrors = filterRelevantConsoleErrors(mobileConsoleErrors);
