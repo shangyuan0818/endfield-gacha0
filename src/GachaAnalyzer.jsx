@@ -50,7 +50,8 @@ export default function GachaAnalyzer() {
     hasNewAnnouncement,
     setHasNewAnnouncement,
     unreadTicketsCount,
-    setUnreadTicketsCount
+    setUnreadTicketsCount,
+    newGameAnnouncementCount,
   } = useNotificationBadges();
 
   // 0.2 通用弹窗
@@ -271,6 +272,7 @@ export default function GachaAnalyzer() {
         setHasNewAnnouncement={setHasNewAnnouncement}
         unreadTicketsCount={unreadTicketsCount}
         setUnreadTicketsCount={setUnreadTicketsCount}
+        newGameAnnouncementCount={newGameAnnouncementCount}
         setActiveTab={navigateToTab}
         openAuthModal={openAuthModal}
         handleLogout={handleLogout}
@@ -283,6 +285,7 @@ export default function GachaAnalyzer() {
           authResolved={authResolved}
           showToast={showToast}
           isSuperAdmin={isSuperAdmin}
+          newGameAnnouncementCount={newGameAnnouncementCount}
           currentPool={currentPool}
           canEdit={canEdit}
           canEditCurrentPool={canEditCurrentPool}

@@ -33,6 +33,26 @@ function normalizeStringArray(value) {
   ));
 }
 
+const ISO_DATE_TIME_WITH_TIMEZONE_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function getIsoDateTimeFieldError(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (!ISO_DATE_TIME_WITH_TIMEZONE_PATTERN.test(normalized)) {
+    return '需使用带时区的 ISO 8601，例如 2026-03-29T04:00:00.000Z';
+  }
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return '时间格式无效，请检查日期和时区';
+  }
+
+  return null;
+}
+
 function formatDateTime(value) {
   if (!value) {
     return '未记录';
@@ -279,8 +299,16 @@ function PoolRecordEditor({ record, recordId, overrides, setOverrides }) {
 
   const hasEdits = Object.keys(current).length > 0;
 
-  const inputClass = 'w-full px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300';
+  const startTimeError = getIsoDateTimeFieldError(getValue('start_time'));
+  const endTimeError = getIsoDateTimeFieldError(getValue('end_time'));
+
+  const inputBaseClass = 'w-full px-2 py-1 text-xs border bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300';
   const labelClass = 'text-[10px] font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider';
+  const getInputClass = (hasError = false) => `${inputBaseClass} ${
+    hasError
+      ? 'border-red-400 dark:border-red-600'
+      : 'border-zinc-300 dark:border-zinc-700'
+  }`;
 
   return (
     <div className="mt-2">
@@ -296,11 +324,11 @@ function PoolRecordEditor({ record, recordId, overrides, setOverrides }) {
         <div className="mt-2 grid grid-cols-2 gap-2">
           <div>
             <div className={labelClass}>名称</div>
-            <input className={inputClass} value={getValue('name')} onChange={e => update('name', e.target.value)} />
+            <input className={getInputClass()} value={getValue('name')} onChange={e => update('name', e.target.value)} />
           </div>
           <div>
             <div className={labelClass}>类型</div>
-            <select className={inputClass} value={getValue('type')} onChange={e => update('type', e.target.value)}>
+            <select className={getInputClass()} value={getValue('type')} onChange={e => update('type', e.target.value)}>
               <option value="limited">限定角色</option>
               <option value="weapon">武器</option>
               <option value="standard">常驻</option>
@@ -308,19 +336,29 @@ function PoolRecordEditor({ record, recordId, overrides, setOverrides }) {
           </div>
           <div>
             <div className={labelClass}>开始时间</div>
-            <input className={inputClass} value={getValue('start_time')} onChange={e => update('start_time', e.target.value)} placeholder="ISO 8601" />
+            <input className={getInputClass(Boolean(startTimeError))} value={getValue('start_time')} onChange={e => update('start_time', e.target.value)} placeholder="ISO 8601" />
+            {startTimeError ? (
+              <div className="mt-1 text-[11px] text-red-500 dark:text-red-400">
+                {startTimeError}
+              </div>
+            ) : null}
           </div>
           <div>
             <div className={labelClass}>结束时间</div>
-            <input className={inputClass} value={getValue('end_time')} onChange={e => update('end_time', e.target.value)} placeholder="ISO 8601" />
+            <input className={getInputClass(Boolean(endTimeError))} value={getValue('end_time')} onChange={e => update('end_time', e.target.value)} placeholder="ISO 8601" />
+            {endTimeError ? (
+              <div className="mt-1 text-[11px] text-red-500 dark:text-red-400">
+                {endTimeError}
+              </div>
+            ) : null}
           </div>
           <div>
             <div className={labelClass}>UP 角色/武器</div>
-            <input className={inputClass} value={getValue('up_character')} onChange={e => update('up_character', e.target.value)} />
+            <input className={getInputClass()} value={getValue('up_character')} onChange={e => update('up_character', e.target.value)} />
           </div>
           <div>
             <div className={labelClass}>描述</div>
-            <input className={inputClass} value={getValue('description') || ''} onChange={e => update('description', e.target.value)} />
+            <input className={getInputClass()} value={getValue('description') || ''} onChange={e => update('description', e.target.value)} />
           </div>
           {hasEdits && (
             <div className="col-span-2">
@@ -372,7 +410,7 @@ function PreviewSection({ title, items }) {
   );
 }
 
-const AutomationPanel = ({ showToast }) => {
+const AutomationPanel = ({ showToast, newGameAnnouncementCount = 0 }) => {
   const {
     jobFilter,
     setJobFilter,
@@ -462,6 +500,17 @@ const AutomationPanel = ({ showToast }) => {
           当前展示 {runs.length} 条最近审计记录
         </span>
       </div>
+
+      {newGameAnnouncementCount > 0 && (
+        <div className="flex items-center gap-2 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <ShieldAlert size={16} className="shrink-0" />
+          <span>
+            检测到 <strong>{newGameAnnouncementCount}</strong> 条新游戏公告。请在本地执行{' '}
+            <code className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-xs">npm run fetch:announcements</code>{' '}
+            更新静态公告文件后重新部署。
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
         <div className="border border-zinc-200 dark:border-zinc-800 divide-y divide-zinc-100 dark:divide-zinc-800 bg-white dark:bg-zinc-900">

@@ -6,15 +6,11 @@ import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
 import { buildServerlessApiUrl } from '../../utils/authRedirects';
 
 // ---------------------------------------------------------------------------
-// 公告分类与合并
+// 站内公告（DB）
 // ---------------------------------------------------------------------------
 
 function isSiteAnnouncement(record) {
   return record?.is_active !== false && !record?.source_id;
-}
-
-function isGameAnnouncement(record) {
-  return record?.is_active !== false && !!record?.source_id;
 }
 
 function sortByPriority(records) {
@@ -25,30 +21,8 @@ function sortByPriority(records) {
   });
 }
 
-function sortByPublishedAt(records) {
-  return records.slice().sort((a, b) =>
-    new Date(b?.published_at || b?.updated_at || 0) - new Date(a?.published_at || a?.updated_at || 0)
-  );
-}
-
-/**
- * 合并 DB 已发布游戏公告与 API 实时公告
- * - 以 source_id 去重，DB 版本优先（已审核发布）
- * - API 中有但 DB 中没有的公告补入（未发布的实时公告）
- */
-function mergeGameAnnouncements(dbRecords, apiRecords) {
-  const seen = new Set(dbRecords.map(r => r.source_id));
-  const extra = apiRecords.filter(r => r?.source_id && !seen.has(r.source_id));
-  return sortByPublishedAt([...dbRecords, ...extra]);
-}
-
-// ---------------------------------------------------------------------------
-// 公告加载
-// ---------------------------------------------------------------------------
-
 async function loadAnnouncementsFromDb() {
   if (!supabase) return null;
-
   const { data, error } = await executeSupabaseRead(
     () => supabase
       .from('announcements')
@@ -57,28 +31,51 @@ async function loadAnnouncementsFromDb() {
       .order('priority', { ascending: false }),
     { label: 'load announcements', retries: 1 },
   );
-
   return error ? null : (data || []);
 }
 
 async function loadAnnouncementsFromLocal() {
-  const response = await fetchWithTimeout('/announcements.json', undefined, {
+  const resp = await fetchWithTimeout('/announcements.json', undefined, {
     label: 'load announcements fallback',
     timeoutMs: 15000,
   });
-  if (!response.ok) return [];
-  return response.json();
+  if (!resp.ok) return [];
+  return resp.json();
 }
 
-async function loadGameAnnouncementsFromApi() {
-  const response = await fetchWithTimeout(
-    buildServerlessApiUrl('/api/automation-feed?job=official-announcements'),
-    undefined,
-    { label: 'load game announcements', timeoutMs: 15000, retries: 1 },
-  );
-  if (!response.ok) return [];
-  const json = await response.json();
-  return Array.isArray(json?.records) ? json.records : [];
+// ---------------------------------------------------------------------------
+// 游戏公告（静态 JSON，由 npm run fetch:announcements 生成）
+// ---------------------------------------------------------------------------
+
+async function loadGameAnnouncementsFromStatic() {
+  const resp = await fetchWithTimeout('/game-announcements.json', undefined, {
+    label: 'load game announcements',
+    timeoutMs: 10000,
+  });
+  if (!resp.ok) return [];
+  const data = await resp.json();
+  return Array.isArray(data) ? data : [];
+}
+
+// ---------------------------------------------------------------------------
+// 新公告检测（超管用：对比静态 JSON 与实时 API）
+// ---------------------------------------------------------------------------
+
+async function checkForNewGameAnnouncements(staticRecords) {
+  try {
+    const resp = await fetchWithTimeout(
+      buildServerlessApiUrl('/api/automation-feed?job=official-announcements'),
+      undefined,
+      { label: 'check new game announcements', timeoutMs: 15000, retries: 1 },
+    );
+    if (!resp.ok) return 0;
+    const json = await resp.json();
+    const apiRecords = Array.isArray(json?.records) ? json.records : [];
+    const staticIds = new Set(staticRecords.map(r => r.source_id));
+    return apiRecords.filter(r => r?.source_id && !staticIds.has(r.source_id)).length;
+  } catch {
+    return 0;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,13 +92,14 @@ export function useNotificationBadges() {
 
   const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState(0);
+  const [newGameAnnouncementCount, setNewGameAnnouncementCount] = useState(0);
 
-  // 加载公告（站内 + 游戏）
+  // 加载公告
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      // 1. 从 DB 加载全部公告，失败则回退本地 JSON
+      // 1. 站内公告：DB → 本地 JSON 回退
       let allRecords;
       try {
         const dbRecords = await loadAnnouncementsFromDb();
@@ -109,14 +107,9 @@ export function useNotificationBadges() {
       } catch {
         allRecords = [];
       }
-
       if (cancelled) return;
 
-      // 2. 拆分站内公告与已发布的游戏公告
       const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
-      const dbGameRecords = sortByPublishedAt(allRecords.filter(isGameAnnouncement));
-
-      // 3. 设置站内公告 + 新公告检测
       setAnnouncements(siteRecords);
       if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
         setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
@@ -124,57 +117,49 @@ export function useNotificationBadges() {
         setHasNewAnnouncement(false);
       }
 
-      // 4. 从 API 加载实时游戏公告，与 DB 已发布的合并
-      let apiGameRecords = [];
+      // 2. 游戏公告：直接读取静态 JSON
+      let gameRecords = [];
       try {
-        apiGameRecords = await loadGameAnnouncementsFromApi();
+        gameRecords = await loadGameAnnouncementsFromStatic();
       } catch {
-        // API 失败时仅使用 DB 数据
+        // 静默失败
       }
-
       if (cancelled) return;
+      setGameAnnouncements(gameRecords);
 
-      setGameAnnouncements(mergeGameAnnouncements(dbGameRecords, apiGameRecords));
+      // 3. 超管：检测是否有新公告可同步（对比静态 JSON 与实时 API）
+      if (isSuperAdmin) {
+        const newCount = await checkForNewGameAnnouncements(gameRecords);
+        if (!cancelled) setNewGameAnnouncementCount(newCount);
+      }
     };
 
     load();
     return () => { cancelled = true; };
-  }, [setAnnouncements, setGameAnnouncements]);
+  }, [setAnnouncements, setGameAnnouncements, isSuperAdmin]);
 
   // 未读工单计数
   useEffect(() => {
     const load = async () => {
-      if (!supabase || !user) {
-        return 0;
-      }
-
+      if (!supabase || !user) return 0;
       try {
         const lastViewed = getStorageItem(STORAGE_KEYS.TICKETS_LAST_VIEWED, 0);
         const since = lastViewed ? new Date(lastViewed).toISOString() : '1970-01-01T00:00:00Z';
-
         let query = supabase
           .from('tickets')
           .select('*', { count: 'exact', head: true })
           .gt('updated_at', since);
-
-        if (!isSuperAdmin) {
-          query = query.eq('user_id', user.id);
-        }
-
+        if (!isSuperAdmin) query = query.eq('user_id', user.id);
         const { count, error } = await executeSupabaseRead(
           () => query,
           { label: 'load unread ticket count', retries: 1 },
         );
-
-        if (!error) {
-          return count || 0;
-        }
+        if (!error) return count || 0;
       } catch {
         // 静默失败
       }
       return 0;
     };
-
     load().then(setUnreadTicketsCount);
   }, [user, isSuperAdmin]);
 
@@ -183,6 +168,7 @@ export function useNotificationBadges() {
     setHasNewAnnouncement,
     unreadTicketsCount,
     setUnreadTicketsCount,
+    newGameAnnouncementCount,
   };
 }
 

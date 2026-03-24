@@ -1,7 +1,6 @@
 import { buildPoolSelfAliasRows } from '../../shared/idAliasService.js';
 import {
   buildPoolAuditKey,
-  normalizeEntityNameForMatch,
 } from '../../src/utils/canonicalEntityUtils.js';
 import { buildCharacterLookup, resolveEntity } from './poolScheduleFeed.js';
 
@@ -27,6 +26,42 @@ function normalizePoolType(value) {
   if (n === 'limited_weapon') return 'weapon';
   if (n === 'limited' || n === 'weapon' || n === 'standard') return n;
   return 'limited';
+}
+
+const ISO_DATE_TIME_WITH_TIMEZONE_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
+
+function normalizeIsoDateTimeInput(value) {
+  const normalized = normalizeText(value);
+  if (!normalized) {
+    return {
+      value: '',
+      isEmpty: true,
+      isValid: false,
+    };
+  }
+
+  if (!ISO_DATE_TIME_WITH_TIMEZONE_PATTERN.test(normalized)) {
+    return {
+      value: normalized,
+      isEmpty: false,
+      isValid: false,
+    };
+  }
+
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return {
+      value: normalized,
+      isEmpty: false,
+      isValid: false,
+    };
+  }
+
+  return {
+    value: date.toISOString(),
+    isEmpty: false,
+    isValid: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +135,20 @@ function buildCurrentPoolIdLookup(reviewBundle) {
   return lookup;
 }
 
+function resolveTargetPoolId({
+  baseRecord,
+  editedRecord,
+  recordId,
+  currentPoolIdLookup,
+}) {
+  const baseAuditKey = buildPoolAuditKey(baseRecord);
+  const editedAuditKey = buildPoolAuditKey(editedRecord);
+
+  return currentPoolIdLookup.get(baseAuditKey)
+    || currentPoolIdLookup.get(editedAuditKey)
+    || recordId;
+}
+
 // ---------------------------------------------------------------------------
 // 应用计划构建
 // ---------------------------------------------------------------------------
@@ -136,9 +185,14 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
 
     // 应用超管编辑覆盖
     const edits = overrides[recordId];
-    const record = edits ? { ...base, ...edits } : base;
+    const record = normalizeIncomingPoolRecord(edits ? { ...base, ...edits } : base);
 
-    const targetPoolId = currentPoolIdLookup.get(buildPoolAuditKey(record)) || recordId;
+    const targetPoolId = resolveTargetPoolId({
+      baseRecord: base,
+      editedRecord: record,
+      recordId,
+      currentPoolIdLookup,
+    });
     record.record_id = recordId;
     record.target_pool_id = targetPoolId;
 
@@ -160,11 +214,28 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
       continue;
     }
 
-    if (!record.start_time) {
+    const normalizedStartTime = normalizeIsoDateTimeInput(record.start_time);
+    if (normalizedStartTime.isEmpty) {
       issues.push({ code: 'missing_start_time', message: '缺少开始时间' });
+    } else if (!normalizedStartTime.isValid) {
+      issues.push({
+        code: 'invalid_start_time',
+        message: '开始时间格式无效，请使用 ISO 8601 且带时区，例如 2026-03-29T04:00:00.000Z',
+      });
+    } else {
+      record.start_time = normalizedStartTime.value;
     }
-    if (!record.end_time) {
+
+    const normalizedEndTime = normalizeIsoDateTimeInput(record.end_time);
+    if (normalizedEndTime.isEmpty) {
       issues.push({ code: 'missing_end_time', message: '缺少结束时间' });
+    } else if (!normalizedEndTime.isValid) {
+      issues.push({
+        code: 'invalid_end_time',
+        message: '结束时间格式无效，请使用 ISO 8601 且带时区，例如 2026-04-15T04:00:00.000Z',
+      });
+    } else {
+      record.end_time = normalizedEndTime.value;
     }
 
     const itemType = record.type === 'weapon' ? 'weapon' : 'character';

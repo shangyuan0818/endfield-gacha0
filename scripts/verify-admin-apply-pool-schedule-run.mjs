@@ -180,6 +180,46 @@ assert.deepEqual(
   '阻塞计划应显式列出缺失时间和未映射角色',
 );
 
+const editedPlan = buildPoolScheduleApplyPlan(run.review_bundle, {
+  characters,
+  overrides: {
+    special_apply_001: {
+      start_time: '2026-03-30T04:00:00+00:00',
+      end_time: '2026-04-13T03:59:00+00:00',
+    },
+  },
+});
+assert.equal(editedPlan.summary.applicable, 1, '编辑时间后仍应保留为可发布记录');
+assert.equal(
+  editedPlan.applicableRecords[0].target_pool_id,
+  'legacy_pool_luoxi_001',
+  '即使编辑开始/结束时间，发布计划也应优先复用原 canonical pool_id',
+);
+assert.equal(
+  editedPlan.applicableRecords[0].insertPayload.start_time,
+  '2026-03-30T04:00:00.000Z',
+  '编辑后的开始时间应在发布计划中被归一化为标准 ISO 字符串',
+);
+
+const invalidTimePlan = buildPoolScheduleApplyPlan(run.review_bundle, {
+  characters,
+  overrides: {
+    special_apply_001: {
+      start_time: '2026/03/30 04:00',
+    },
+  },
+});
+assert.equal(invalidTimePlan.summary.applicable, 0, '非法时间格式不应进入可发布集合');
+assert.equal(invalidTimePlan.summary.blocked, 2, '非法时间格式应把原可发布记录转为阻塞');
+assert.equal(
+  invalidTimePlan.blockedRecords.some((record) => (
+    record.pool_id === 'special_apply_001'
+      && record.issues.some(issue => issue.code === 'invalid_start_time')
+  )),
+  true,
+  '非法开始时间应在阻塞项中显式标出 invalid_start_time',
+);
+
 const rpcCalls = [];
 const userClient = {
   async rpc(name, payload) {
@@ -215,6 +255,12 @@ const req = {
     runId: run.id,
     poolIds: ['special_apply_001'],
     reviewNote: '通过脚本验证定向发布单池能力',
+    overrides: {
+      special_apply_001: {
+        start_time: '2026-03-30T04:00:00+00:00',
+        end_time: '2026-04-13T03:59:00+00:00',
+      },
+    },
   },
 };
 const res = createMockResponse();
@@ -238,6 +284,16 @@ assert.equal(
   rpcCalls[0].payload.p_pool_id,
   'legacy_pool_luoxi_001',
   '当审计键可匹配既有卡池时，应复用当前 canonical pool_id 而不是公告侧临时 ID',
+);
+assert.equal(
+  rpcCalls[0].payload.p_insert_payload.start_time,
+  '2026-03-30T04:00:00.000Z',
+  '集成链路应保留编辑后的开始时间，并归一化为标准 ISO 字符串',
+);
+assert.equal(
+  rpcCalls[0].payload.p_update_payload.end_time,
+  '2026-04-13T03:59:00.000Z',
+  '集成链路应保留编辑后的结束时间，并归一化为标准 ISO 字符串',
 );
 assert.deepEqual(
   rpcCalls[0].payload.p_pool_character_rows,

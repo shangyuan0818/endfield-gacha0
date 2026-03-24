@@ -29,7 +29,7 @@ const AdminPanelFallback = () => (
   </div>
 );
 
-const AdminPanel = React.memo(({ showToast }) => {
+const AdminPanel = React.memo(({ showToast, newGameAnnouncementCount = 0 }) => {
   const [activeMenu, setActiveMenu] = React.useState('users');
 
   // 使用拆分后的 hooks
@@ -131,7 +131,7 @@ const AdminPanel = React.memo(({ showToast }) => {
         );
 
       case 'automation':
-        return <AutomationPanel showToast={showToast} />;
+        return <AutomationPanel showToast={showToast} newGameAnnouncementCount={newGameAnnouncementCount} />;
 
       case 'siteConfig':
         return <SiteConfigPanel showToast={showToast} />;

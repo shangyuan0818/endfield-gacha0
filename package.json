@@ -54,7 +54,8 @@
     "generate:audit-merge-plan": "node scripts/generate-audit-merge-plan.mjs",
     "generate:alias-merge-sql": "node scripts/generate-alias-merge-sql.mjs",
     "generate:legacy-id-alias-seed": "node scripts/generate-legacy-id-alias-seed.mjs",
-    "fetch:skland-images": "node scripts/fetch-skland-images.mjs"
+    "fetch:skland-images": "node scripts/fetch-skland-images.mjs",
+    "fetch:announcements": "node scripts/fetch-official-announcements.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
