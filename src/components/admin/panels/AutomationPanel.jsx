@@ -48,6 +48,10 @@ function formatDateTime(value) {
   });
 }
 
+function getGateType(run) {
+  return normalizeText(run?.summary?.gate_type);
+}
+
 function getStatusMeta(status) {
   switch (status) {
     case 'success':
@@ -71,6 +75,17 @@ function getStatusMeta(status) {
         className: 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400',
       };
   }
+}
+
+function getRunStatusMeta(run) {
+  if (run?.status === 'skipped' && getGateType(run) === 'maintenance_window') {
+    return {
+      label: '等待维护结束',
+      className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+    };
+  }
+
+  return getStatusMeta(run?.status);
 }
 
 function getReviewStatusMeta(status) {
@@ -110,6 +125,21 @@ function getSummaryValue(summary, key) {
 
 function supportsRemovalPreview(run) {
   return run?.review_bundle?.job?.allowRemovalPreview !== false;
+}
+
+function getSkippedStatusNote(run) {
+  if (run?.status !== 'skipped') {
+    return '';
+  }
+
+  if (getGateType(run) === 'maintenance_window') {
+    const blockedUntil = normalizeText(run?.summary?.blocked_until);
+    return blockedUntil
+      ? `等待维护结束：${formatDateTime(blockedUntil)}`
+      : '等待维护结束后再更新';
+  }
+
+  return normalizeText(run?.error_message) || '本次任务已跳过';
 }
 
 function getRunReviewRecords(run) {
@@ -374,9 +404,10 @@ const AutomationPanel = ({ showToast }) => {
             </div>
           ) : (
             runs.map((run) => {
-              const statusMeta = getStatusMeta(run.status);
+              const statusMeta = getRunStatusMeta(run);
               const reviewStatusMeta = getReviewStatusMeta(run.review_bundle?.review?.status);
               const isActive = run.id === selectedRunId;
+              const skippedStatusNote = getSkippedStatusNote(run);
 
               return (
                 <button
@@ -412,6 +443,11 @@ const AutomationPanel = ({ showToast }) => {
                           ? `新增 ${getSummaryValue(run.summary, 'added')} · 更新 ${getSummaryValue(run.summary, 'updated')} · 删除 ${getSummaryValue(run.summary, 'removed')}`
                           : `新增 ${getSummaryValue(run.summary, 'added')} · 更新 ${getSummaryValue(run.summary, 'updated')} · 不判删`}
                       </div>
+                      {skippedStatusNote && (
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                          {skippedStatusNote}
+                        </div>
+                      )}
                       {run.status === 'success' && (
                         <div className="mt-1 text-xs text-slate-500 dark:text-zinc-500">
                           待处理 {getRunPendingCount(run)} 条
@@ -448,8 +484,8 @@ const AutomationPanel = ({ showToast }) => {
                     <h4 className="text-lg font-bold text-slate-700 dark:text-zinc-300">
                       {selectedRun.job_label}
                     </h4>
-                    <span className={`text-xs px-2 py-0.5 rounded ${getStatusMeta(selectedRun.status).className}`}>
-                      {getStatusMeta(selectedRun.status).label}
+                    <span className={`text-xs px-2 py-0.5 rounded ${getRunStatusMeta(selectedRun).className}`}>
+                      {getRunStatusMeta(selectedRun).label}
                     </span>
                     <span className={`text-xs px-2 py-0.5 rounded ${getReviewStatusMeta(selectedRun.review_bundle?.review?.status).className}`}>
                       {getReviewStatusMeta(selectedRun.review_bundle?.review?.status).label}
@@ -478,7 +514,11 @@ const AutomationPanel = ({ showToast }) => {
               </div>
 
               {selectedRun.error_message && (
-                <div className="border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                <div className={`px-4 py-3 text-sm ${
+                  selectedRun.status === 'skipped'
+                    ? 'border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200'
+                    : 'border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                }`}>
                   {selectedRun.error_message}
                 </div>
               )}

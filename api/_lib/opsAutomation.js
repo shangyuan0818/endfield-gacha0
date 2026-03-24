@@ -124,6 +124,18 @@ function coerceDateOnly(value) {
   return isoValue ? isoValue.slice(0, 10) : null;
 }
 
+function buildZeroDiffSummary(extra = {}) {
+  return {
+    current: 0,
+    incoming: 0,
+    added: 0,
+    updated: 0,
+    unchanged: 0,
+    removed: 0,
+    ...extra,
+  };
+}
+
 function stripHtmlToTextLines(html) {
   return String(html || '')
     .replace(/<br\s*\/?>/gi, '\n')
@@ -651,7 +663,9 @@ export async function runOpsAutomationJob({
       dedupe_key: dedupeKey,
       source_tag: sourceConfig.tag,
       source_url: null,
-      summary: null,
+      summary: buildZeroDiffSummary({
+        gate_type: 'missing_source_url',
+      }),
       top_changed_fields: [],
       preview: null,
       review_bundle: null,
@@ -679,7 +693,12 @@ export async function runOpsAutomationJob({
       dedupe_key: dedupeKey,
       source_tag: sourceConfig.tag,
       source_url: maintenanceGate.window?.source_url || sourceConfig.url,
-      summary: null,
+      summary: buildZeroDiffSummary({
+        gate_type: 'maintenance_window',
+        blocked_until: maintenanceGate.window?.end_time || null,
+        maintenance_notice_id: maintenanceGate.window?.source_id || null,
+        maintenance_notice_title: maintenanceGate.window?.title || null,
+      }),
       top_changed_fields: [],
       preview: null,
       review_bundle: null,
