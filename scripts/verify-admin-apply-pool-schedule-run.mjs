@@ -133,6 +133,16 @@ const run = {
       appliedPoolIds: [],
     },
     snapshots: {
+      current: [
+        {
+          pool_id: 'legacy_pool_luoxi_001',
+          name: '狼珀',
+          type: 'limited',
+          start_time: '2026-03-29T04:00:00.000Z',
+          end_time: '2026-04-12T03:59:00.000Z',
+          up_character: '洛茜',
+        },
+      ],
       incoming: [
         {
           pool_id: 'special_blocked_001',
@@ -224,6 +234,11 @@ assert.equal(res.payload?.success, true, '发布成功时 success 应为 true');
 assert.deepEqual(res.payload?.applied_pool_ids, ['special_apply_001'], '应返回本次已发布 pool_id');
 assert.equal(rpcCalls.length, 1, '应只对被选中的可应用卡池执行一次 RPC');
 assert.equal(rpcCalls[0].name, 'admin_upsert_pool_with_aliases', '应复用现有原子写入 RPC');
+assert.equal(
+  rpcCalls[0].payload.p_pool_id,
+  'legacy_pool_luoxi_001',
+  '当审计键可匹配既有卡池时，应复用当前 canonical pool_id 而不是公告侧临时 ID',
+);
 assert.deepEqual(
   rpcCalls[0].payload.p_pool_character_rows,
   [
@@ -232,6 +247,26 @@ assert.deepEqual(
     { character_id: 'char_yvonne', is_up: false },
   ],
   '发布时应同步构建 pool_characters 初始集并标记 UP 项',
+);
+assert.deepEqual(
+  rpcCalls[0].payload.p_alias_rows,
+  [
+    {
+      source: 'internal',
+      alias_id: 'legacy_pool_luoxi_001',
+      pool_id: 'legacy_pool_luoxi_001',
+      is_primary: true,
+      note: 'Pool canonical self alias',
+    },
+    {
+      source: 'official_notice',
+      alias_id: 'special_apply_001',
+      pool_id: 'legacy_pool_luoxi_001',
+      is_primary: false,
+      note: 'Resolved automation notice pool id to canonical pool id',
+    },
+  ],
+  '发布时应补写公告侧 pool_id 到 canonical pool_id 的 alias，避免再次生成重复卡池',
 );
 assert.equal(
   adminClient.__state.run.review_bundle.review.status,

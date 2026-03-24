@@ -168,12 +168,15 @@ export function useOpsAutomation(showToast) {
       const successCount = Array.isArray(result?.results)
         ? result.results.filter(item => item?.status === 'success').length
         : 0;
+      const skippedCount = Array.isArray(result?.results)
+        ? result.results.filter(item => item?.status === 'skipped').length
+        : 0;
       const failureCount = Array.isArray(result?.results)
-        ? result.results.filter(item => item?.status !== 'success').length
+        ? result.results.filter(item => item?.status === 'failure').length
         : 0;
 
       showToast(
-        `dry-run 完成：成功 ${successCount} 个，异常 ${failureCount} 个`,
+        `dry-run 完成：成功 ${successCount} 个，等待维护结束 ${skippedCount} 个，异常 ${failureCount} 个`,
         failureCount > 0 ? 'warning' : 'success'
       );
     } catch (error) {

@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     results.push(result);
   }
 
-  const hasProblems = results.some(result => result.status !== 'success');
+  const hasProblems = results.some(result => result.status === 'failure');
   return res.status(hasProblems ? 500 : 200).json({
     success: !hasProblems,
     dryRun,

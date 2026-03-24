@@ -1,5 +1,8 @@
 import { buildPoolSelfAliasRows } from '../../shared/idAliasService.js';
-import { normalizeEntityNameForMatch } from '../../src/utils/canonicalEntityUtils.js';
+import {
+  buildPoolAuditKey,
+  normalizeEntityNameForMatch,
+} from '../../src/utils/canonicalEntityUtils.js';
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -93,6 +96,42 @@ function normalizeAppliedPoolIds(reviewBundle) {
   return normalizeStringArray(reviewBundle?.review?.appliedPoolIds);
 }
 
+function buildCurrentPoolIdLookup(reviewBundle) {
+  const currentRecords = Array.isArray(reviewBundle?.snapshots?.current)
+    ? reviewBundle.snapshots.current
+    : [];
+  const lookup = new Map();
+
+  currentRecords.forEach((record) => {
+    const auditKey = buildPoolAuditKey(record);
+    const poolId = normalizeText(record?.pool_id || record?.id);
+
+    if (auditKey && poolId && !lookup.has(auditKey)) {
+      lookup.set(auditKey, poolId);
+    }
+  });
+
+  return lookup;
+}
+
+function buildPoolAliasRows(canonicalPoolId, sourcePoolId) {
+  const normalizedCanonicalPoolId = normalizeText(canonicalPoolId);
+  const normalizedSourcePoolId = normalizeText(sourcePoolId);
+  const rows = buildPoolSelfAliasRows(normalizedCanonicalPoolId);
+
+  if (normalizedSourcePoolId && normalizedCanonicalPoolId && normalizedSourcePoolId !== normalizedCanonicalPoolId) {
+    rows.push({
+      source: 'official_notice',
+      alias_id: normalizedSourcePoolId,
+      pool_id: normalizedCanonicalPoolId,
+      is_primary: false,
+      note: 'Resolved automation notice pool id to canonical pool id',
+    });
+  }
+
+  return rows;
+}
+
 export function buildPoolScheduleApplyPlan(reviewBundle, {
   characters = [],
   selectedPoolIds = [],
@@ -111,6 +150,7 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
   const missingRequestedPoolIds = selectedIdSet.size > 0
     ? Array.from(selectedIdSet).filter(poolId => !availablePoolIds.includes(poolId))
     : [];
+  const currentPoolIdLookup = buildCurrentPoolIdLookup(reviewBundle);
 
   const characterLookup = buildCharacterLookup(characters);
   const applicableRecords = [];
@@ -118,10 +158,18 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
   const alreadyAppliedRecords = [];
 
   requestedRecords.forEach((rawRecord) => {
-    const record = normalizeIncomingPoolRecord(rawRecord);
+    const normalizedRecord = normalizeIncomingPoolRecord(rawRecord);
+    const recordId = normalizeText(normalizedRecord.pool_id || rawRecord?.id);
+    const targetPoolId = currentPoolIdLookup.get(buildPoolAuditKey(normalizedRecord))
+      || recordId;
+    const record = {
+      ...normalizedRecord,
+      record_id: recordId,
+      target_pool_id: targetPoolId,
+    };
     const issues = [];
 
-    if (!record.pool_id) {
+    if (!record.record_id && !record.target_pool_id) {
       issues.push({
         code: 'missing_pool_id',
         message: '缺少 pool_id，无法发布',
@@ -135,9 +183,10 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
       });
     }
 
-    if (record.pool_id && previouslyAppliedSet.has(record.pool_id)) {
+    if (record.record_id && previouslyAppliedSet.has(record.record_id)) {
       alreadyAppliedRecords.push({
-        pool_id: record.pool_id,
+        pool_id: record.record_id,
+        target_pool_id: record.target_pool_id,
         name: record.name,
       });
       return;
@@ -196,7 +245,8 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
 
     if (issues.length > 0) {
       blockedRecords.push({
-        pool_id: record.pool_id,
+        pool_id: record.record_id,
+        target_pool_id: record.target_pool_id,
         name: record.name,
         type: record.type,
         up_character: record.up_character,
@@ -211,9 +261,9 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
       ...record,
       up_character_id: upCharacterId,
       poolCharacterRows,
-      aliasRows: buildPoolSelfAliasRows(record.pool_id),
+      aliasRows: buildPoolAliasRows(record.target_pool_id, record.record_id),
       insertPayload: {
-        pool_id: record.pool_id,
+        pool_id: record.target_pool_id,
         name: record.name,
         type: record.type,
         locked: false,
@@ -247,7 +297,9 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
     requestedPoolIds,
     availablePoolIds,
     missingRequestedPoolIds,
-    applicablePoolIds: applicableRecords.map(record => record.pool_id),
+    applicablePoolIds: applicableRecords
+      .map(record => record.record_id || record.pool_id)
+      .filter(Boolean),
     blockedPoolIds: blockedRecords.map(record => record.pool_id).filter(Boolean),
     alreadyAppliedPoolIds: alreadyAppliedRecords.map(record => record.pool_id).filter(Boolean),
     applicableRecords,

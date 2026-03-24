@@ -38,6 +38,28 @@ function normalizeStringArray(value) {
   ));
 }
 
+function formatStructuredError(error, fallback = 'Unexpected error') {
+  const message = normalizeText(error?.message) || fallback;
+  const details = normalizeText(error?.details);
+  const hint = normalizeText(error?.hint);
+  const code = normalizeText(error?.code);
+  const segments = [message];
+
+  if (code) {
+    segments.push(`code=${code}`);
+  }
+
+  if (details) {
+    segments.push(`details=${details}`);
+  }
+
+  if (hint) {
+    segments.push(`hint=${hint}`);
+  }
+
+  return segments.join(' | ');
+}
+
 async function requireSuperAdmin(req, {
   adminClient,
   callerClient,
@@ -189,8 +211,9 @@ export async function applyPoolScheduleRun({
 
   try {
     for (const record of plan.applicableRecords) {
+      const targetPoolId = normalizeText(record?.target_pool_id || record?.pool_id);
       const { error } = await userClient.rpc('admin_upsert_pool_with_aliases', {
-        p_pool_id: record.pool_id,
+        p_pool_id: targetPoolId,
         p_insert_payload: record.insertPayload,
         p_update_payload: record.updatePayload,
         p_alias_rows: record.aliasRows,
@@ -201,7 +224,7 @@ export async function applyPoolScheduleRun({
         throw error;
       }
 
-      appliedPoolIds.push(record.pool_id);
+      appliedPoolIds.push(normalizeText(record?.record_id || record?.pool_id));
     }
 
     const nextAppliedPoolIds = Array.from(new Set([
@@ -238,6 +261,7 @@ export async function applyPoolScheduleRun({
     };
   } catch (error) {
     const reviewStatus = appliedPoolIds.length > 0 ? 'partially_applied' : 'apply_failed';
+    const errorMessage = formatStructuredError(error, 'Failed to apply pool schedule run');
     const nextReviewBundle = buildUpdatedPoolScheduleReviewBundle(run?.review_bundle, {
       appliedPoolIds,
       blockedPoolIds: allPlan.blockedPoolIds,
@@ -245,20 +269,27 @@ export async function applyPoolScheduleRun({
       attemptedAt: now,
       note: reviewNote,
       status: reviewStatus,
-      error: error?.message || 'Failed to apply pool schedule run',
+      error: errorMessage,
     });
+    let reviewBundleUpdateError = null;
 
-    await updateRunReviewBundle(
-      adminClient,
-      run.id,
-      nextReviewBundle,
-      error?.message || 'Failed to apply pool schedule run',
-    );
+    try {
+      await updateRunReviewBundle(
+        adminClient,
+        run.id,
+        nextReviewBundle,
+        errorMessage,
+      );
+    } catch (updateError) {
+      reviewBundleUpdateError = formatStructuredError(updateError, 'Failed to update review bundle');
+    }
 
     return {
       ok: false,
       status: 500,
-      error: error?.message || 'Failed to apply pool schedule run',
+      error: reviewBundleUpdateError
+        ? `${errorMessage} | review_bundle_update=${reviewBundleUpdateError}`
+        : errorMessage,
       appliedPoolIds,
       plan,
     };
@@ -403,7 +434,7 @@ export async function handleAdminApplyPoolSchedule(req, res, {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to apply pool schedule run',
+      error: formatStructuredError(error, 'Failed to apply pool schedule run'),
     });
   }
 }

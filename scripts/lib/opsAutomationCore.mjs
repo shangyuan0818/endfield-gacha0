@@ -56,6 +56,17 @@ function ensureArrayPayload(payload, label) {
 }
 
 function getRecordKey(record, job) {
+  if (typeof job.recordKey === 'function') {
+    const customKeyValue = job.recordKey(record, job);
+    const normalizedCustomKey = customKeyValue === undefined || customKeyValue === null
+      ? ''
+      : String(customKeyValue).trim();
+
+    if (normalizedCustomKey) {
+      return normalizedCustomKey;
+    }
+  }
+
   const keyValue = record?.[job.keyField];
   if (keyValue === undefined || keyValue === null || keyValue === '') {
     throw new Error(`[${job.id}] 记录缺少主键字段 "${job.keyField}"`);
@@ -87,6 +98,7 @@ export async function loadJobRecords(filePath, label) {
 }
 
 export function computeAutomationDiff(job, currentRecords, incomingRecords) {
+  const allowRemovalPreview = job.allowRemovalPreview !== false;
   const currentMap = new Map();
   const incomingMap = new Map();
 
@@ -137,14 +149,16 @@ export function computeAutomationDiff(job, currentRecords, incomingRecords) {
     });
   });
 
-  currentMap.forEach((currentRecord, key) => {
-    if (!incomingMap.has(key)) {
-      removed.push({
-        key,
-        current: pickFields(currentRecord, job.previewFields),
-      });
-    }
-  });
+  if (allowRemovalPreview) {
+    currentMap.forEach((currentRecord, key) => {
+      if (!incomingMap.has(key)) {
+        removed.push({
+          key,
+          current: pickFields(currentRecord, job.previewFields),
+        });
+      }
+    });
+  }
 
   const topChangedFields = Array.from(changedFieldCounts.entries())
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN'))
@@ -184,6 +198,7 @@ export function buildAutomationAuditReport({
       entityLabel: job.entityLabel,
       sourceLabel: job.sourceLabel,
       publishStrategy: job.publishStrategy,
+      allowRemovalPreview: job.allowRemovalPreview !== false,
     },
     generatedAt,
     dryRun,
@@ -229,6 +244,7 @@ export function buildManualReviewBundle({
 
 export function formatAutomationAuditReport(report) {
   const { job, summary, topChangedFields, preview, dryRun, generatedAt } = report;
+  const allowRemovalPreview = job.allowRemovalPreview !== false;
   const lines = [
     `# ${job.label}`,
     `任务ID: ${job.id}`,
@@ -241,7 +257,7 @@ export function formatAutomationAuditReport(report) {
     `输入记录: ${summary.incoming}`,
     `新增: ${summary.added}`,
     `更新: ${summary.updated}`,
-    `删除: ${summary.removed}`,
+    `删除: ${allowRemovalPreview ? summary.removed : '未启用（当前源非权威全量镜像）'}`,
     `未变化: ${summary.unchanged}`,
   ];
 
@@ -266,14 +282,14 @@ export function formatAutomationAuditReport(report) {
     });
   }
 
-  if (preview.removed.length > 0) {
+  if (allowRemovalPreview && preview.removed.length > 0) {
     lines.push('', '删除预览:');
     preview.removed.forEach((item) => {
       lines.push(`- ${item.key}: ${JSON.stringify(item.current)}`);
     });
   }
 
-  if (summary.added === 0 && summary.updated === 0 && summary.removed === 0) {
+  if (summary.added === 0 && summary.updated === 0 && (!allowRemovalPreview || summary.removed === 0)) {
     lines.push('', '无差异。');
   }
 

@@ -195,7 +195,7 @@ export async function handleAdminRunOpsAutomation(req, res, {
     results.push(result);
   }
 
-  const hasProblems = results.some(result => result.status !== 'success');
+  const hasProblems = results.some(result => result.status === 'failure');
   res.status(hasProblems ? 500 : 200).json({
     success: !hasProblems,
     dryRun: true,

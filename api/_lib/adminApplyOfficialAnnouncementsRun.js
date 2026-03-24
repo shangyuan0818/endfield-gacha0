@@ -1,5 +1,4 @@
 import {
-  createSupabaseAccessTokenClient,
   getBearerToken,
   getSupabaseAdminClient,
   getSupabaseAnonServerClient,
@@ -38,6 +37,28 @@ function normalizeStringArray(value) {
       .map(item => normalizeText(item))
       .filter(Boolean)
   ));
+}
+
+function formatStructuredError(error, fallback = 'Unexpected error') {
+  const message = normalizeText(error?.message) || fallback;
+  const details = normalizeText(error?.details);
+  const hint = normalizeText(error?.hint);
+  const code = normalizeText(error?.code);
+  const segments = [message];
+
+  if (code) {
+    segments.push(`code=${code}`);
+  }
+
+  if (details) {
+    segments.push(`details=${details}`);
+  }
+
+  if (hint) {
+    segments.push(`hint=${hint}`);
+  }
+
+  return segments.join(' | ');
 }
 
 async function requireSuperAdmin(req, {
@@ -139,8 +160,8 @@ async function updateRunReviewBundle(adminClient, runId, reviewBundle, errorMess
   return data;
 }
 
-async function insertAnnouncement(userClient, payload) {
-  const { error } = await userClient
+async function insertAnnouncement(writeClient, payload) {
+  const { error } = await writeClient
     .from('announcements')
     .insert(payload);
 
@@ -149,8 +170,8 @@ async function insertAnnouncement(userClient, payload) {
   }
 }
 
-async function updateAnnouncement(userClient, id, payload) {
-  const { error } = await userClient
+async function updateAnnouncement(writeClient, id, payload) {
+  const { error } = await writeClient
     .from('announcements')
     .update(payload)
     .eq('id', id);
@@ -162,7 +183,6 @@ async function updateAnnouncement(userClient, id, payload) {
 
 export async function applyOfficialAnnouncementsRun({
   adminClient,
-  userClient,
   run,
   selectedSourceIds = [],
   reviewNote = '',
@@ -221,7 +241,7 @@ export async function applyOfficialAnnouncementsRun({
       const existingRow = existingRowMap.get(record.source_id);
 
       if (existingRow?.id) {
-        await updateAnnouncement(userClient, existingRow.id, {
+        await updateAnnouncement(adminClient, existingRow.id, {
           title: record.title,
           content: record.content,
           version: record.version,
@@ -233,7 +253,7 @@ export async function applyOfficialAnnouncementsRun({
           updated_at: now,
         });
       } else {
-        await insertAnnouncement(userClient, {
+        await insertAnnouncement(adminClient, {
           title: record.title,
           content: record.content,
           version: record.version,
@@ -284,6 +304,7 @@ export async function applyOfficialAnnouncementsRun({
     };
   } catch (error) {
     const reviewStatus = appliedSourceIds.length > 0 ? 'partially_applied' : 'apply_failed';
+    const errorMessage = formatStructuredError(error, 'Failed to apply official announcements run');
     const nextReviewBundle = buildUpdatedOfficialAnnouncementReviewBundle(run?.review_bundle, {
       appliedSourceIds,
       blockedSourceIds: allPlan.blockedSourceIds,
@@ -291,20 +312,27 @@ export async function applyOfficialAnnouncementsRun({
       attemptedAt: now,
       note: reviewNote,
       status: reviewStatus,
-      error: error?.message || 'Failed to apply official announcements run',
+      error: errorMessage,
     });
+    let reviewBundleUpdateError = null;
 
-    await updateRunReviewBundle(
-      adminClient,
-      run.id,
-      nextReviewBundle,
-      error?.message || 'Failed to apply official announcements run',
-    );
+    try {
+      await updateRunReviewBundle(
+        adminClient,
+        run.id,
+        nextReviewBundle,
+        errorMessage,
+      );
+    } catch (updateError) {
+      reviewBundleUpdateError = formatStructuredError(updateError, 'Failed to update review bundle');
+    }
 
     return {
       ok: false,
       status: 500,
-      error: error?.message || 'Failed to apply official announcements run',
+      error: reviewBundleUpdateError
+        ? `${errorMessage} | review_bundle_update=${reviewBundleUpdateError}`
+        : errorMessage,
       appliedSourceIds,
       plan,
     };
@@ -314,7 +342,6 @@ export async function applyOfficialAnnouncementsRun({
 export async function handleAdminApplyOfficialAnnouncements(req, res, {
   getAdminClient = getSupabaseAdminClient,
   getCallerClient = getSupabaseAnonServerClient,
-  createUserClient = createSupabaseAccessTokenClient,
   now = () => new Date().toISOString(),
 } = {}) {
   res.setHeader('Cache-Control', 'no-store');
@@ -374,15 +401,6 @@ export async function handleAdminApplyOfficialAnnouncements(req, res, {
     return;
   }
 
-  const userClient = createUserClient(authResult.accessToken);
-  if (!userClient) {
-    res.status(503).json({
-      success: false,
-      error: 'Authenticated Supabase client is not configured',
-    });
-    return;
-  }
-
   try {
     const run = await loadOfficialAnnouncementRun(adminClient, normalizedRunId);
     if (!run) {
@@ -419,7 +437,6 @@ export async function handleAdminApplyOfficialAnnouncements(req, res, {
 
     const applyResult = await applyOfficialAnnouncementsRun({
       adminClient,
-      userClient,
       run,
       selectedSourceIds: normalizedSourceIds,
       reviewNote: normalizeText(reviewNote),
@@ -447,7 +464,7 @@ export async function handleAdminApplyOfficialAnnouncements(req, res, {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to apply official announcements run',
+      error: formatStructuredError(error, 'Failed to apply official announcements run'),
     });
   }
 }

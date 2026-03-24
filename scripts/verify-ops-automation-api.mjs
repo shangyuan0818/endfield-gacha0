@@ -5,6 +5,8 @@ import {
   authorizeOpsAutomationRequest,
   buildOpsAutomationDedupeKey,
   getOpsAutomationSourceConfig,
+  getLatestVersionMaintenanceWindow,
+  getOpsAutomationMaintenanceGate,
   normalizeOpsAutomationSourceRecords,
   parseRequestedJobIds,
 } from '../api/_lib/opsAutomation.js';
@@ -85,6 +87,51 @@ const normalizedAnnouncementRecords = normalizeOpsAutomationSourceRecords('offic
 });
 assert.equal(normalizedAnnouncementRecords[0].source_id, 'notice-001', '公告源数据应归一化到 source_id');
 assert.equal(normalizedAnnouncementRecords[0].summary, '摘要', '公告摘要应被保留');
+
+const maintenanceWindow = getLatestVersionMaintenanceWindow([
+  {
+    source_id: 'notice-maintenance',
+    title: '「新潮起，故渊离」版本更新说明',
+    content: '<p>更新维护时间：2026/03/22 10:00 - 2026/03/22 12:00</p>',
+    published_at: '2026-03-22T01:00:00.000Z',
+    source_url: 'https://example.com/notices/maintenance',
+  },
+  {
+    source_id: 'notice-other',
+    title: '普通公告',
+    content: '<p>无维护时间</p>',
+    published_at: '2026-03-21T01:00:00.000Z',
+    source_url: 'https://example.com/notices/other',
+  },
+]);
+assert.equal(maintenanceWindow?.source_id, 'notice-maintenance', '应从版本更新说明中提取最新维护窗口');
+assert.equal(maintenanceWindow?.end_time, '2026-03-22T04:00:00.000Z', '维护结束时间应按东八区解析为 ISO');
+
+const maintenanceGate = await getOpsAutomationMaintenanceGate('wiki-catalog', {
+  env: {
+    OPS_AUTOMATION_ANNOUNCEMENTS_URL: 'https://example.com/announcements.json',
+  },
+  sourceBaseUrl: 'https://example.com',
+  fetchImpl: async () => ({
+    ok: true,
+    json: async () => ({
+      records: [
+        {
+          source_id: 'notice-maintenance',
+          title: '「新潮起，故渊离」版本更新说明',
+          content: '<p>更新维护时间：2026/03/22 10:00 - 2026/03/22 12:00</p>',
+          published_at: '2026-03-22T01:00:00.000Z',
+          source_url: 'https://example.com/notices/maintenance',
+        },
+      ],
+    }),
+    status: 200,
+    statusText: 'OK',
+  }),
+  now: new Date('2026-03-22T03:00:00.000Z'),
+});
+assert.equal(maintenanceGate.blocked, true, '维护结束前，图鉴巡检应被公告窗口阻塞');
+assert.match(maintenanceGate.reason, /维护结束后才开始更新图鉴与卡池数据/, '阻塞原因应明确说明等待维护结束');
 
 const dedupeKey = buildOpsAutomationDedupeKey(
   'pool-schedule',

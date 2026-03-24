@@ -95,10 +95,55 @@ assert.deepEqual(audit.summary, {
   added: 1,
   updated: 1,
   unchanged: 0,
-  removed: 1,
-}, '审计摘要应正确统计新增/更新/删除');
+  removed: 0,
+}, '非权威全量镜像源的审计摘要不应把缺席记录视作删除');
 assert.equal(audit.preview.updated[0].key, 'notice-001', '更新预览应保留主键');
 assert.ok(audit.topChangedFields.some(item => item.field === 'content'), '字段统计应包含 content');
+assert.equal(audit.job.allowRemovalPreview, false, '官方公告同步应显式禁用删除预览');
+
+const poolJob = getOpsAutomationJob('pool-schedule');
+const poolAudit = buildAutomationAuditReport({
+  job: poolJob,
+  currentRecords: [
+    {
+      pool_id: 'legacy_pool_tangtang_001',
+      name: '河流的女儿',
+      type: 'limited',
+      start_time: '2026-03-12T04:00:00.000Z',
+      end_time: '2026-03-29T03:59:00.000Z',
+      up_character: '汤汤',
+      featured_characters: ['char_tangtang'],
+      banner_url: null,
+    },
+  ],
+  incomingRecords: [
+    {
+      pool_id: 'manual_pool_limited_tangtang_20260312_abcd12',
+      name: '河流的女儿',
+      type: 'limited',
+      start_time: '2026-03-12T04:00:00.000Z',
+      end_time: '2026-03-30T03:59:00.000Z',
+      up_character: '汤汤',
+      featured_characters: ['char_tangtang'],
+      banner_url: null,
+    },
+  ],
+  dryRun: true,
+});
+
+assert.deepEqual(poolAudit.summary, {
+  current: 1,
+  incoming: 1,
+  added: 0,
+  updated: 1,
+  unchanged: 0,
+  removed: 0,
+}, '卡池审计应以稳定审计键归并同一池，不能因 pool_id 变化误判为新增/删除');
+assert.equal(
+  poolAudit.preview.updated[0].key,
+  'limited|汤汤|2026-03-12',
+  '卡池审计预览应使用稳定审计键，而不是公告侧临时 pool_id',
+);
 
 const bundle = buildManualReviewBundle({
   job,

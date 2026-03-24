@@ -108,6 +108,10 @@ function getSummaryValue(summary, key) {
   return Number.isFinite(value) ? value : 0;
 }
 
+function supportsRemovalPreview(run) {
+  return run?.review_bundle?.job?.allowRemovalPreview !== false;
+}
+
 function getRunReviewRecords(run) {
   return Array.isArray(run?.review_bundle?.snapshots?.incoming)
     ? run.review_bundle.snapshots.incoming
@@ -286,6 +290,7 @@ const AutomationPanel = ({ showToast }) => {
   const blockedIdSet = new Set(getRunBlockedIds(selectedRun));
   const selectedIdSet = new Set(selectedRecordIds);
   const applySupported = isRunApplySupported(selectedRun);
+  const removalPreviewEnabled = supportsRemovalPreview(selectedRun);
   const blockedRecords = Array.isArray(lastApplyResult?.plan?.blocked_records)
     ? lastApplyResult.plan.blocked_records
     : [];
@@ -403,7 +408,9 @@ const AutomationPanel = ({ showToast }) => {
                         {formatDateTime(run.created_at)}
                       </div>
                       <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
-                        新增 {getSummaryValue(run.summary, 'added')} · 更新 {getSummaryValue(run.summary, 'updated')} · 删除 {getSummaryValue(run.summary, 'removed')}
+                        {supportsRemovalPreview(run)
+                          ? `新增 ${getSummaryValue(run.summary, 'added')} · 更新 ${getSummaryValue(run.summary, 'updated')} · 删除 ${getSummaryValue(run.summary, 'removed')}`
+                          : `新增 ${getSummaryValue(run.summary, 'added')} · 更新 ${getSummaryValue(run.summary, 'updated')} · 不判删`}
                       </div>
                       {run.status === 'success' && (
                         <div className="mt-1 text-xs text-slate-500 dark:text-zinc-500">
@@ -494,10 +501,18 @@ const AutomationPanel = ({ showToast }) => {
                   <div className="mt-1 text-lg font-semibold text-blue-600 dark:text-blue-400">{getSummaryValue(summary, 'updated')}</div>
                 </div>
                 <div className="border border-zinc-200 dark:border-zinc-800 p-3">
-                  <div className="text-xs text-slate-500 dark:text-zinc-500">删除</div>
-                  <div className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">{getSummaryValue(summary, 'removed')}</div>
+                  <div className="text-xs text-slate-500 dark:text-zinc-500">{removalPreviewEnabled ? '删除候选' : '删除判定'}</div>
+                  <div className="mt-1 text-lg font-semibold text-amber-600 dark:text-amber-400">
+                    {removalPreviewEnabled ? getSummaryValue(summary, 'removed') : '已禁用'}
+                  </div>
                 </div>
               </div>
+
+              {!removalPreviewEnabled && (
+                <div className="border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
+                  当前任务的数据源不是权威全量镜像。系统不会根据“本次源里未出现”自动判定删除，也不会生成删除预览。
+                </div>
+              )}
 
               {Array.isArray(selectedRun.top_changed_fields) && selectedRun.top_changed_fields.length > 0 && (
                 <div className="space-y-2">
@@ -654,7 +669,9 @@ const AutomationPanel = ({ showToast }) => {
               <div className="space-y-3">
                 <PreviewSection title="新增预览" items={selectedRun.preview?.added} />
                 <PreviewSection title="更新预览" items={selectedRun.preview?.updated} />
-                <PreviewSection title="删除预览" items={selectedRun.preview?.removed} />
+                {removalPreviewEnabled && (
+                  <PreviewSection title="删除预览" items={selectedRun.preview?.removed} />
+                )}
               </div>
 
               {selectedRun.review_bundle?.review?.lastAttemptedAt && (

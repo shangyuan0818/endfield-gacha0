@@ -34,6 +34,8 @@ function createMockAdminClient({ run, existingAnnouncements = [] }) {
   const state = {
     run: structuredClone(run),
     existingAnnouncements: structuredClone(existingAnnouncements),
+    insertedRows: [],
+    updatedRows: [],
   };
 
   return {
@@ -101,8 +103,25 @@ function createMockAdminClient({ run, existingAnnouncements = [] }) {
 
       if (table === 'announcements') {
         const builder = {
+          mode: 'select',
+          payload: null,
+          targetId: null,
           sourceIds: [],
           select() {
+            return this;
+          },
+          insert(payload) {
+            this.mode = 'insert';
+            this.payload = payload;
+            return this;
+          },
+          update(payload) {
+            this.mode = 'update';
+            this.payload = payload;
+            return this;
+          },
+          eq(_column, value) {
+            this.targetId = value;
             return this;
           },
           in(_column, sourceIds) {
@@ -110,6 +129,25 @@ function createMockAdminClient({ run, existingAnnouncements = [] }) {
             return this;
           },
           then(resolve) {
+            if (this.mode === 'insert') {
+              state.insertedRows.push(structuredClone(this.payload));
+              return Promise.resolve(resolve({
+                data: null,
+                error: null,
+              }));
+            }
+
+            if (this.mode === 'update') {
+              state.updatedRows.push({
+                id: this.targetId,
+                payload: structuredClone(this.payload),
+              });
+              return Promise.resolve(resolve({
+                data: null,
+                error: null,
+              }));
+            }
+
             const rows = state.existingAnnouncements.filter(item => this.sourceIds.includes(item.source_id));
             return Promise.resolve(resolve({
               data: structuredClone(rows),
@@ -174,43 +212,6 @@ const plan = buildOfficialAnnouncementApplyPlan(run.review_bundle, {
 assert.equal(plan.summary.applicable, 1, '应支持按 source_id 定向发布单条公告');
 assert.equal(plan.applicableRecords[0].source_id, '6003', '应保留选中的公告 source_id');
 
-const insertedRows = [];
-const updatedRows = [];
-const userClient = {
-  from(table) {
-    assert.equal(table, 'announcements', '应仅写入 announcements 表');
-
-    return {
-      insert(payload) {
-        insertedRows.push(payload);
-        return {
-          async then(resolve) {
-            return resolve({ error: null });
-          },
-          async catch() {
-            return undefined;
-          },
-        };
-      },
-      update(payload) {
-        return {
-          eq(column, id) {
-            updatedRows.push({ column, id, payload });
-            return {
-              async then(resolve) {
-                return resolve({ error: null });
-              },
-              async catch() {
-                return undefined;
-              },
-            };
-          },
-        };
-      },
-    };
-  },
-};
-
 const adminClient = createMockAdminClient({
   run,
   existingAnnouncements: [
@@ -256,10 +257,6 @@ const res = createMockResponse();
 await handleAdminApplyOfficialAnnouncements(req, res, {
   getAdminClient: () => adminClient,
   getCallerClient: () => callerClient,
-  createUserClient: (accessToken) => {
-    assert.equal(accessToken, 'valid-token');
-    return userClient;
-  },
   now: () => '2026-03-22T12:00:00.000Z',
 });
 
@@ -271,13 +268,13 @@ assert.deepEqual(
   '应返回本次已发布的 source_id 列表',
 );
 
-assert.equal(updatedRows.length, 1, '已存在的自动公告应走 update');
-assert.equal(updatedRows[0].id, 'announcement_row_6003', '更新应命中已存在 source_id 的公告行');
-assert.equal(updatedRows[0].payload.priority, -80, '更新已有自动公告时应保留原优先级');
+assert.equal(adminClient.__state.updatedRows.length, 1, '已存在的自动公告应走 update');
+assert.equal(adminClient.__state.updatedRows[0].id, 'announcement_row_6003', '更新应命中已存在 source_id 的公告行');
+assert.equal(adminClient.__state.updatedRows[0].payload.priority, -80, '更新已有自动公告时应保留原优先级');
 
-assert.equal(insertedRows.length, 1, '新公告应走 insert');
-assert.equal(insertedRows[0].source_id, '6004', '插入时应保留 source_id');
-assert.equal(insertedRows[0].priority, -100, '自动游戏公告默认应下沉优先级，避免抢占站点公告');
+assert.equal(adminClient.__state.insertedRows.length, 1, '新公告应走 insert');
+assert.equal(adminClient.__state.insertedRows[0].source_id, '6004', '插入时应保留 source_id');
+assert.equal(adminClient.__state.insertedRows[0].priority, -100, '自动游戏公告默认应下沉优先级，避免抢占站点公告');
 
 assert.equal(
   adminClient.__state.run.review_bundle.review.status,

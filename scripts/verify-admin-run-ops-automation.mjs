@@ -173,4 +173,36 @@ assert.ok(
   '应向任务执行器传递当前请求 baseUrl，以便回退到站内 feed',
 );
 
+const skippedRes = createMockResponse();
+await handleAdminRunOpsAutomation(successReq, skippedRes, {
+  env: {
+    OPS_AUTOMATION_ANNOUNCEMENTS_URL: 'https://example.com/announcements.json',
+    OPS_AUTOMATION_POOL_SCHEDULE_URL: 'https://example.com/pools.json',
+  },
+  getAdminClient: () => createMockAdminClient(),
+  getCallerClient: () => ({
+    auth: {
+      async getUser() {
+        return {
+          data: {
+            user: {
+              id: 'super_admin_user',
+            },
+          },
+          error: null,
+        };
+      },
+    },
+  }),
+  runJob: async (payload) => ({
+    jobId: payload.jobId,
+    status: payload.jobId === 'pool-schedule' ? 'skipped' : 'success',
+    runId: `run_${payload.jobId}`,
+  }),
+  now: () => new Date('2026-03-22T10:00:00.000Z'),
+});
+
+assert.equal(skippedRes.statusCode, 200, '仅包含 skipped + success 时不应把整次手动 dry-run 判定为失败');
+assert.equal(skippedRes.payload?.success, true, '仅 skipped 时仍应视为请求成功');
+
 console.log('OPS-002 admin manual dry-run verification passed');

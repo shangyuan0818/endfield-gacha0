@@ -1,3 +1,8 @@
+import {
+  buildCharacterAuditKey,
+  buildPoolAuditKey,
+} from '../../src/utils/canonicalEntityUtils.js';
+
 export const OPS_AUTOMATION_JOBS = Object.freeze([
   {
     id: 'official-announcements',
@@ -6,6 +11,7 @@ export const OPS_AUTOMATION_JOBS = Object.freeze([
     sourceLabel: '官方公告源',
     publishStrategy: 'manual-review',
     keyField: 'source_id',
+    allowRemovalPreview: false,
     compareFields: ['title', 'summary', 'content', 'published_at', 'version', 'source_url', 'is_active'],
     previewFields: ['title', 'version', 'published_at', 'source_url', 'is_active'],
   },
@@ -16,6 +22,8 @@ export const OPS_AUTOMATION_JOBS = Object.freeze([
     sourceLabel: '官方卡池日程源',
     publishStrategy: 'manual-review',
     keyField: 'pool_id',
+    recordKey: buildPoolAuditKey,
+    allowRemovalPreview: false,
     compareFields: ['name', 'type', 'start_time', 'end_time', 'up_character', 'featured_characters', 'banner_url'],
     previewFields: ['name', 'type', 'start_time', 'end_time', 'up_character'],
   },
@@ -26,6 +34,8 @@ export const OPS_AUTOMATION_JOBS = Object.freeze([
     sourceLabel: 'Wiki / 图鉴数据源',
     publishStrategy: 'manual-review',
     keyField: 'id',
+    recordKey: buildCharacterAuditKey,
+    allowRemovalPreview: false,
     compareFields: ['name', 'type', 'rarity', 'avatar_url'],
     previewFields: ['name', 'type', 'rarity', 'avatar_url'],
   },

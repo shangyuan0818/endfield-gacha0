@@ -9,6 +9,8 @@ import {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
 const SUPPORTED_TRIGGER_TYPES = new Set(['cron', 'manual', 'api']);
+const MAINTENANCE_GATED_JOB_IDS = new Set(['pool-schedule', 'wiki-catalog']);
+const VERSION_UPDATE_TITLE_PATTERN = /版本更新说明/;
 
 export const OPS_AUTOMATION_SOURCE_ENVS = Object.freeze({
   'official-announcements': Object.freeze({
@@ -120,6 +122,67 @@ function coerceIsoDate(value) {
 function coerceDateOnly(value) {
   const isoValue = coerceIsoDate(value);
   return isoValue ? isoValue.slice(0, 10) : null;
+}
+
+function stripHtmlToTextLines(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean);
+}
+
+function parseServerDateTime(rawValue) {
+  const match = /(\d{4})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/.exec(rawValue || '');
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hour, minute] = match;
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:00+08:00`).toISOString();
+}
+
+function parseMaintenanceWindowFromAnnouncement(record) {
+  if (!VERSION_UPDATE_TITLE_PATTERN.test(coerceText(record?.title))) {
+    return null;
+  }
+
+  const maintenanceLine = stripHtmlToTextLines(record?.content)
+    .find(line => line.includes('更新维护时间'));
+
+  if (!maintenanceLine) {
+    return null;
+  }
+
+  const timeMatches = Array.from(maintenanceLine.matchAll(/(\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2})/g))
+    .map(match => parseServerDateTime(match[1]))
+    .filter(Boolean);
+
+  if (timeMatches.length < 2) {
+    return null;
+  }
+
+  return {
+    source_id: coerceText(record?.source_id),
+    title: coerceText(record?.title),
+    published_at: coerceIsoDate(record?.published_at),
+    source_url: coerceNullableText(record?.source_url),
+    start_time: timeMatches[0],
+    end_time: timeMatches[1],
+  };
+}
+
+export function getLatestVersionMaintenanceWindow(records) {
+  return (Array.isArray(records) ? records : [])
+    .map(parseMaintenanceWindowFromAnnouncement)
+    .filter(Boolean)
+    .sort((left, right) => (
+      new Date(right.published_at || right.end_time).getTime()
+      - new Date(left.published_at || left.end_time).getTime()
+    ))[0] || null;
 }
 
 function getTimeoutMs(env, key) {
@@ -347,6 +410,74 @@ export function getDefaultRunnableJobIds(env = process.env, {
     .map(entry => entry.id);
 }
 
+export async function getOpsAutomationMaintenanceGate(jobId, {
+  env = process.env,
+  sourceBaseUrl = '',
+  fetchImpl = globalThis.fetch,
+  now = new Date(),
+} = {}) {
+  if (!MAINTENANCE_GATED_JOB_IDS.has(jobId)) {
+    return {
+      blocked: false,
+      window: null,
+    };
+  }
+
+  if (coerceBoolean(env?.OPS_AUTOMATION_BYPASS_MAINTENANCE_GATE, false)) {
+    return {
+      blocked: false,
+      window: null,
+    };
+  }
+
+  const sourceConfig = getOpsAutomationSourceConfig('official-announcements', env, {
+    baseUrl: sourceBaseUrl,
+  });
+
+  if (!sourceConfig.url) {
+    return {
+      blocked: false,
+      window: null,
+    };
+  }
+
+  try {
+    const payload = await fetchJsonWithTimeout(sourceConfig.url, {
+      fetchImpl,
+      timeoutMs: sourceConfig.timeoutMs,
+    });
+    const announcementRecords = normalizeOpsAutomationSourceRecords('official-announcements', payload);
+    const window = getLatestVersionMaintenanceWindow(announcementRecords);
+
+    if (!window?.end_time) {
+      return {
+        blocked: false,
+        window: null,
+      };
+    }
+
+    const nowMs = new Date(now).getTime();
+    const endMs = new Date(window.end_time).getTime();
+    if (!Number.isFinite(nowMs) || !Number.isFinite(endMs) || nowMs >= endMs) {
+      return {
+        blocked: false,
+        window,
+      };
+    }
+
+    return {
+      blocked: true,
+      window,
+      reason: `已检测到版本更新公告「${window.title}」，维护结束时间为 ${window.end_time}；维护结束后才开始更新图鉴与卡池数据`,
+    };
+  } catch {
+    return {
+      blocked: false,
+      window: null,
+    };
+  }
+}
+
 export function normalizeOpsAutomationSourceRecords(jobId, payload) {
   const records = extractRecords(payload);
 
@@ -503,6 +634,12 @@ export async function runOpsAutomationJob({
     baseUrl: sourceBaseUrl,
   });
   const dedupeKey = buildOpsAutomationDedupeKey(jobId, triggerType, now);
+  const maintenanceGate = await getOpsAutomationMaintenanceGate(jobId, {
+    env,
+    sourceBaseUrl,
+    fetchImpl,
+    now,
+  });
 
   if (!sourceConfig.url) {
     const run = await persistOpsAutomationRun(supabase, {
@@ -529,6 +666,36 @@ export async function runOpsAutomationJob({
       runId: run.id,
       sourceEnv: sourceConfig.urlEnv,
       error: `Missing source URL env: ${sourceConfig.urlEnv}`,
+    };
+  }
+
+  if (maintenanceGate.blocked) {
+    const run = await persistOpsAutomationRun(supabase, {
+      job_id: job.id,
+      job_label: job.label,
+      trigger_type: triggerType,
+      status: 'skipped',
+      dry_run: dryRun,
+      dedupe_key: dedupeKey,
+      source_tag: sourceConfig.tag,
+      source_url: maintenanceGate.window?.source_url || sourceConfig.url,
+      summary: null,
+      top_changed_fields: [],
+      preview: null,
+      review_bundle: null,
+      error_message: maintenanceGate.reason,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+    });
+
+    return {
+      jobId: job.id,
+      jobLabel: job.label,
+      status: 'skipped',
+      runId: run.id,
+      sourceTag: sourceConfig.tag,
+      sourceUrl: maintenanceGate.window?.source_url || sourceConfig.url,
+      error: maintenanceGate.reason,
     };
   }
 
