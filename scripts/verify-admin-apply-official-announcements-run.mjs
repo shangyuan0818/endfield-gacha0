@@ -195,7 +195,7 @@ const run = {
           source_id: '6004',
           title: '公测活动说明',
           summary: '活动细则',
-          content: '<p>内容 B</p>',
+          content: `<p>${'超长正文'.repeat(1400)}</p>`,
           version: 'hg-1741852800-6004',
           published_at: '2026-03-13T04:00:00.000Z',
           source_url: 'https://endfield.hypergryph.com/news/6004',
@@ -275,6 +275,8 @@ assert.equal(adminClient.__state.updatedRows[0].payload.priority, 0, '更新已�
 assert.equal(adminClient.__state.insertedRows.length, 1, '新公告应走 insert');
 assert.equal(adminClient.__state.insertedRows[0].source_id, '6004', '插入时应保留 source_id');
 assert.equal(adminClient.__state.insertedRows[0].priority, 0, '自动游戏公告默认优先级应落在数据库允许范围内');
+assert.equal(adminClient.__state.insertedRows[0].content.length <= 5000, true, '超长官方公告写库前应收口到 announcements.content 长度约束内');
+assert.equal(adminClient.__state.insertedRows[0].content.includes('查看官方原文'), true, '超长官方公告收口后应保留官方原文入口');
 
 assert.equal(
   adminClient.__state.run.review_bundle.review.status,

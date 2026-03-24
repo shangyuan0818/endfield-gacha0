@@ -12,6 +12,8 @@ import {
 const AUTO_GAME_ANNOUNCEMENT_PRIORITY = 0;
 const ANNOUNCEMENT_PRIORITY_MIN = 0;
 const ANNOUNCEMENT_PRIORITY_MAX = 100;
+const ANNOUNCEMENT_CONTENT_MAX_LENGTH = 5000;
+const ANNOUNCEMENT_CONTENT_EXCERPT_LIMIT = 1800;
 
 function parseRequestBody(req) {
   if (!req.body) {
@@ -71,6 +73,86 @@ function normalizeAnnouncementPriority(value, fallback = AUTO_GAME_ANNOUNCEMENT_
 
   const integerValue = Math.trunc(numericValue);
   return Math.min(ANNOUNCEMENT_PRIORITY_MAX, Math.max(ANNOUNCEMENT_PRIORITY_MIN, integerValue));
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function stripHtmlToText(value) {
+  return String(value || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function truncateText(value, maxLength) {
+  const normalizedValue = normalizeText(value);
+  if (!normalizedValue || normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function buildFallbackAnnouncementContent({
+  summary,
+  content,
+  sourceUrl,
+}) {
+  const segments = [];
+  const normalizedSummary = normalizeText(summary);
+  const plainText = stripHtmlToText(content);
+
+  if (normalizedSummary) {
+    segments.push(`<p>${escapeHtml(normalizedSummary)}</p>`);
+  }
+
+  const excerpt = truncateText(plainText, ANNOUNCEMENT_CONTENT_EXCERPT_LIMIT);
+  if (excerpt && excerpt !== normalizedSummary) {
+    segments.push(`<p>${escapeHtml(excerpt)}</p>`);
+  }
+
+  segments.push('<p>正文较长，站内已收起，请查看官方原文。</p>');
+
+  if (normalizeText(sourceUrl)) {
+    segments.push(
+      `<p><a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">查看官方原文</a></p>`,
+    );
+  }
+
+  return segments.join('');
+}
+
+function normalizeAnnouncementContent({
+  content,
+  summary,
+  sourceUrl,
+}) {
+  const normalizedContent = normalizeText(content);
+  if (normalizedContent && normalizedContent.length <= ANNOUNCEMENT_CONTENT_MAX_LENGTH) {
+    return normalizedContent;
+  }
+
+  const fallbackContent = buildFallbackAnnouncementContent({
+    summary,
+    content: normalizedContent,
+    sourceUrl,
+  });
+
+  if (fallbackContent.length <= ANNOUNCEMENT_CONTENT_MAX_LENGTH) {
+    return fallbackContent;
+  }
+
+  return truncateText(fallbackContent, ANNOUNCEMENT_CONTENT_MAX_LENGTH);
 }
 
 async function requireSuperAdmin(req, {
@@ -255,7 +337,11 @@ export async function applyOfficialAnnouncementsRun({
       if (existingRow?.id) {
         await updateAnnouncement(adminClient, existingRow.id, {
           title: record.title,
-          content: record.content,
+          content: normalizeAnnouncementContent({
+            content: record.content,
+            summary: record.summary,
+            sourceUrl: record.source_url,
+          }),
           version: record.version,
           is_active: existingRow.is_active !== false,
           priority: normalizeAnnouncementPriority(existingRow.priority),
@@ -267,7 +353,11 @@ export async function applyOfficialAnnouncementsRun({
       } else {
         await insertAnnouncement(adminClient, {
           title: record.title,
-          content: record.content,
+          content: normalizeAnnouncementContent({
+            content: record.content,
+            summary: record.summary,
+            sourceUrl: record.source_url,
+          }),
           version: record.version,
           is_active: record.is_active !== false,
           priority: normalizeAnnouncementPriority(record.priority),
