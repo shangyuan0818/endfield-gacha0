@@ -61,6 +61,7 @@ function loadEnvFiles() {
   const envFiles = [
     join(__dirname, '..', '.env'),
     join(__dirname, '..', 'backend', '.env.local'),
+    join(__dirname, '..', '.secrets', 'siliconflow.local'),
   ];
 
   for (const envPath of envFiles) {
