@@ -190,7 +190,6 @@ async function loadPromptTemplate() {
 
 async function summarizeWithLlm(title, summary, plainText, apiKey, model) {
   if (!apiKey) return null;
-  if (plainText.length < SUMMARY_TRIGGER_LENGTH) return null;
 
   const promptTemplate = await loadPromptTemplate();
   const truncatedText = plainText.length > SUMMARY_INPUT_MAX
@@ -257,27 +256,24 @@ async function buildAnnouncementRecord(detail, apiKey, model) {
   const rawHtml = normalizeHtml(detail.data || '');
   const plainText = stripHtmlToText(rawHtml);
   const imageUrls = extractImageUrls(rawHtml);
+  const gallery = imageUrls.length > 0
+    ? '\n\n' + imageUrls.map(url => `![](${url})`).join('\n')
+    : '';
 
-  // 生成摘要
+  // 所有公告都尝试 LLM 总结
   let content;
   let summaryMode;
 
-  if (plainText.length < SUMMARY_TRIGGER_LENGTH) {
-    content = rawHtml;
-    summaryMode = 'raw';
+  const llmSummary = apiKey
+    ? await summarizeWithLlm(title, brief, plainText, apiKey, model)
+    : null;
+
+  if (llmSummary) {
+    content = llmSummary + gallery;
+    summaryMode = 'llm';
   } else {
-    const llmSummary = await summarizeWithLlm(title, brief, plainText, apiKey, model);
-    if (llmSummary) {
-      const gallery = imageUrls.length > 0
-        ? '\n\n' + imageUrls.map(url => `![](${url})`).join('\n')
-        : '';
-      content = llmSummary + gallery;
-      summaryMode = 'llm';
-    } else {
-      content = buildHeuristicSummary(brief, plainText) +
-        (imageUrls.length > 0 ? '\n\n' + imageUrls.map(url => `![](${url})`).join('\n') : '');
-      summaryMode = 'heuristic';
-    }
+    content = buildHeuristicSummary(brief, plainText) + gallery;
+    summaryMode = 'heuristic';
   }
 
   return {
