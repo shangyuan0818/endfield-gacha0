@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildPoolScheduleRecords, handlePoolScheduleFeed as handler } from '../api/automation-feed.js';
+import { buildPoolScheduleRecords, handlePoolScheduleFeed } from '../api/automation-feed.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {
@@ -65,12 +65,12 @@ const sampleCharacters = [
   { id: 'char_jerpeta', name: '洁尔佩塔', aliases: [], type: 'character' },
   { id: 'char_yujin', name: '余烬', aliases: [], type: 'character' },
   { id: 'char_luoxi', name: '洛茜', aliases: [], type: 'character' },
-  { id: 'wpn_luocao', name: '落草（手铳）', aliases: [], type: 'weapon' },
-  { id: 'wpn_tonglei', name: '同类相食（手铳）', aliases: [], type: 'weapon' },
-  { id: 'wpn_xiezi', name: '楔子（手铳）', aliases: [], type: 'weapon' },
-  { id: 'wpn_langzhifei', name: '狼之绯（单手剑）', aliases: [], type: 'weapon' },
-  { id: 'wpn_fuyao', name: '扶摇（单手剑）', aliases: [], type: 'weapon' },
-  { id: 'wpn_xianhe', name: '显赫声名（单手剑）', aliases: [], type: 'weapon' },
+  { id: 'wpn_luocao', name: '落草', aliases: ['落草（手铳）'], type: 'weapon' },
+  { id: 'wpn_tonglei', name: '同类相食', aliases: ['同类相食（手铳）'], type: 'weapon' },
+  { id: 'wpn_xiezi', name: '楔子', aliases: ['楔子（手铳）'], type: 'weapon' },
+  { id: 'wpn_langzhifei', name: '狼之绯', aliases: ['狼之绯（单手剑）'], type: 'weapon' },
+  { id: 'wpn_fuyao', name: '扶摇', aliases: ['扶摇（单手剑）'], type: 'weapon' },
+  { id: 'wpn_xianhe', name: '显赫声名', aliases: ['显赫声名（单手剑）'], type: 'weapon' },
 ];
 
 const sampleCurrentPools = [
@@ -85,6 +85,10 @@ const sampleCurrentPools = [
     banner_url: null,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// 纯逻辑测试
+// ---------------------------------------------------------------------------
 
 const poolRecords = buildPoolScheduleRecords(sampleAnnouncements, {
   characters: sampleCharacters,
@@ -108,12 +112,20 @@ assert.equal(futureLimited.name, '狼珀', '未来限定池应保留官方卡池
 assert.equal(futureLimited.start_time, '2026-03-29T04:00:00.000Z', '未来限定池应解析开始时间');
 assert.equal(futureLimited.end_time, '2026-04-15T04:00:00.000Z', '维护前结束的角色池应按 17 天持续时间推断结束时间');
 
-const currentWeapon = poolRecords.find(pool => pool.up_character === '落草（手铳）');
+// 武器名应去除括号后缀
+const currentWeapon = poolRecords.find(pool => pool.up_character === '落草');
+assert.ok(currentWeapon, '武器 UP 名称应已去除括号后缀（落草 而非 落草（手铳））');
 assert.equal(currentWeapon.name, '新芽申领', '武器池应保留官方申领标题');
 assert.equal(currentWeapon.start_time, '2026-03-12T04:00:00.000Z', '申领池在版本开启后应继承同期开启的限定时间');
 assert.equal(currentWeapon.end_time, '2026-05-02T04:00:00.000Z', '申领池应按 3 个卡池周期推断结束时间');
+assert.deepEqual(
+  currentWeapon.featured_characters,
+  ['wpn_luocao', 'wpn_tonglei', 'wpn_xiezi'],
+  '武器池应解析并映射 featured_characters（括号后缀已去除后匹配）',
+);
 
-const futureWeapon = poolRecords.find(pool => pool.up_character === '狼之绯（单手剑）');
+const futureWeapon = poolRecords.find(pool => pool.up_character === '狼之绯');
+assert.ok(futureWeapon, '武器 UP 名称应已去除括号后缀（狼之绯 而非 狼之绯（单手剑））');
 assert.equal(futureWeapon.name, '绯珀申领', '后续武器池应保留官方申领标题');
 assert.deepEqual(
   futureWeapon.featured_characters,
@@ -121,6 +133,10 @@ assert.deepEqual(
   '武器池应解析并映射 featured_characters',
 );
 assert.equal(futureWeapon.end_time, '2026-05-19T04:00:00.000Z', '后续申领池应按 3 个卡池周期推断结束时间');
+
+// ---------------------------------------------------------------------------
+// 任务注册检查
+// ---------------------------------------------------------------------------
 
 const runnableJobs = getDefaultRunnableJobIds({}, {
   baseUrl: 'https://example.com',
@@ -131,22 +147,9 @@ assert.deepEqual(
   '默认可运行任务应包含公告、卡池与图鉴 feed',
 );
 
-const fetchBackup = globalThis.fetch;
-globalThis.fetch = async (url) => {
-  if (String(url) === 'https://example.com/api/automation-feed?job=official-announcements') {
-    return {
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      json: async () => ({
-        success: true,
-        records: sampleAnnouncements,
-      }),
-    };
-  }
-
-  throw new Error(`Unexpected URL: ${String(url)}`);
-};
+// ---------------------------------------------------------------------------
+// HTTP handler 测试（依赖注入方式）
+// ---------------------------------------------------------------------------
 
 const req = {
   method: 'GET',
@@ -157,12 +160,32 @@ const req = {
   },
 };
 const res = createMockResponse();
-await handler(req, res);
+
+await handlePoolScheduleFeed(req, res, {
+  getAnnouncements: async () => sampleAnnouncements,
+  getSupabase: () => ({
+    from: (table) => ({
+      select: () => ({
+        then: (resolve) => {
+          if (table === 'characters') {
+            resolve({ data: sampleCharacters, error: null });
+          } else {
+            resolve({ data: [], error: null });
+          }
+        },
+      }),
+    }),
+    rpc: (fnName) => {
+      if (fnName === 'get_app_visible_pools') {
+        return { data: sampleCurrentPools, error: null };
+      }
+      return { data: null, error: new Error(`Unknown RPC: ${fnName}`) };
+    },
+  }),
+});
 
 assert.equal(res.statusCode, 200, 'pool-schedule-feed 应返回 200');
 assert.equal(res.payload?.success, true, 'pool-schedule-feed 应返回 success=true');
 assert.equal(res.payload?.records?.length, 4, 'pool-schedule-feed 应输出标准化卡池记录');
-
-globalThis.fetch = fetchBackup;
 
 console.log('DATA-NEW-012 pool schedule feed verification passed');

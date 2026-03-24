@@ -82,6 +82,7 @@ export function useOpsAutomation(showToast) {
   const [reviewNote, setReviewNote] = useState('');
   const [lastApplyResult, setLastApplyResult] = useState(null);
   const [setupIssue, setSetupIssue] = useState(null);
+  const [recordOverrides, setRecordOverrides] = useState({});
   const selectedRunIdRef = useRef('');
 
   useEffect(() => {
@@ -142,6 +143,7 @@ export function useOpsAutomation(showToast) {
     setSelectedRunId(normalizedRunId);
     setSelectedRecordIds(nextRun ? getPendingRecordIds(nextRun) : []);
     setLastApplyResult(null);
+    setRecordOverrides({});
   }, [runs]);
 
   const refreshRuns = useCallback(async () => {
@@ -242,6 +244,7 @@ export function useOpsAutomation(showToast) {
           runId: selectedRun.id,
           poolIds: normalizedSelectedIds,
           reviewNote,
+          overrides: recordOverrides,
         });
       } else {
         showToast('当前任务暂不支持一键发布', 'warning');
@@ -264,7 +267,7 @@ export function useOpsAutomation(showToast) {
     } finally {
       setActionLoading(null);
     }
-  }, [jobFilter, loadRuns, reviewNote, selectedRecordIds, selectedRun, showToast]);
+  }, [jobFilter, loadRuns, recordOverrides, reviewNote, selectedRecordIds, selectedRun, showToast]);
 
   return {
     jobFilter,
@@ -287,6 +290,8 @@ export function useOpsAutomation(showToast) {
     selectPendingRecords,
     clearSelectedRecords,
     applySelectedRecords,
+    recordOverrides,
+    setRecordOverrides,
   };
 }
 

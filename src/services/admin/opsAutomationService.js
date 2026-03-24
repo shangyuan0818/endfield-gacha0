@@ -158,11 +158,13 @@ export async function applyPoolScheduleRun({
   runId,
   poolIds = [],
   reviewNote = '',
+  overrides = {},
 } = {}) {
   return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=apply-pool-schedule'), {
     runId,
     poolIds,
     reviewNote,
+    overrides,
   }, {
     label: 'admin-ops-automation:apply-pool-schedule',
   });

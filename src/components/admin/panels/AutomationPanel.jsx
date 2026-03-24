@@ -262,6 +262,87 @@ function isRunApplySupported(run) {
   return run?.job_id === 'official-announcements' || run?.job_id === 'pool-schedule';
 }
 
+function PoolRecordEditor({ record, recordId, overrides, setOverrides }) {
+  const current = overrides[recordId] || {};
+  const [expanded, setExpanded] = React.useState(false);
+
+  const update = (field, value) => {
+    setOverrides(prev => ({
+      ...prev,
+      [recordId]: { ...prev[recordId], [field]: value },
+    }));
+  };
+
+  const getValue = (field) => {
+    return current[field] !== undefined ? current[field] : (record?.[field] || '');
+  };
+
+  const hasEdits = Object.keys(current).length > 0;
+
+  const inputClass = 'w-full px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300';
+  const labelClass = 'text-[10px] font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider';
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(v => !v)}
+        className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
+      >
+        {expanded ? '收起编辑' : '编辑字段'}
+        {hasEdits && ' (已修改)'}
+      </button>
+      {expanded && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <div className={labelClass}>名称</div>
+            <input className={inputClass} value={getValue('name')} onChange={e => update('name', e.target.value)} />
+          </div>
+          <div>
+            <div className={labelClass}>类型</div>
+            <select className={inputClass} value={getValue('type')} onChange={e => update('type', e.target.value)}>
+              <option value="limited">限定角色</option>
+              <option value="weapon">武器</option>
+              <option value="standard">常驻</option>
+            </select>
+          </div>
+          <div>
+            <div className={labelClass}>开始时间</div>
+            <input className={inputClass} value={getValue('start_time')} onChange={e => update('start_time', e.target.value)} placeholder="ISO 8601" />
+          </div>
+          <div>
+            <div className={labelClass}>结束时间</div>
+            <input className={inputClass} value={getValue('end_time')} onChange={e => update('end_time', e.target.value)} placeholder="ISO 8601" />
+          </div>
+          <div>
+            <div className={labelClass}>UP 角色/武器</div>
+            <input className={inputClass} value={getValue('up_character')} onChange={e => update('up_character', e.target.value)} />
+          </div>
+          <div>
+            <div className={labelClass}>描述</div>
+            <input className={inputClass} value={getValue('description') || ''} onChange={e => update('description', e.target.value)} />
+          </div>
+          {hasEdits && (
+            <div className="col-span-2">
+              <button
+                type="button"
+                onClick={() => setOverrides(prev => {
+                  const next = { ...prev };
+                  delete next[recordId];
+                  return next;
+                })}
+                className="text-[11px] text-red-500 hover:underline"
+              >
+                重置修改
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PreviewSection({ title, items }) {
   if (!Array.isArray(items) || items.length === 0) {
     return null;
@@ -312,6 +393,8 @@ const AutomationPanel = ({ showToast }) => {
     selectPendingRecords,
     clearSelectedRecords,
     applySelectedRecords,
+    recordOverrides,
+    setRecordOverrides,
   } = useOpsAutomation(showToast);
 
   const summary = selectedRun?.summary || {};
@@ -674,6 +757,15 @@ const AutomationPanel = ({ showToast }) => {
                               <div className="mt-2 text-sm text-slate-600 dark:text-zinc-400 break-words">
                                 {getRecordDescription(selectedRun, record)}
                               </div>
+                            )}
+
+                            {selectedRun.job_id === 'pool-schedule' && !isApplied && (
+                              <PoolRecordEditor
+                                record={record}
+                                recordId={recordId}
+                                overrides={recordOverrides}
+                                setOverrides={setRecordOverrides}
+                              />
                             )}
                           </div>
                         </div>

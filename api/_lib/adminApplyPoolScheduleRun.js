@@ -159,14 +159,16 @@ export async function applyPoolScheduleRun({
   run,
   characters,
   selectedPoolIds = [],
+  overrides = {},
   reviewNote = '',
   callerUserId = '',
   now = new Date().toISOString(),
 }) {
-  const allPlan = buildPoolScheduleApplyPlan(run?.review_bundle, { characters });
+  const allPlan = buildPoolScheduleApplyPlan(run?.review_bundle, { characters, overrides });
   const plan = selectedPoolIds.length > 0
     ? buildPoolScheduleApplyPlan(run?.review_bundle, {
       characters,
+      overrides,
       selectedPoolIds,
     })
     : allPlan;
@@ -324,9 +326,10 @@ export async function handleAdminApplyPoolSchedule(req, res, {
     return;
   }
 
-  const { runId, poolIds, reviewNote } = parseRequestBody(req);
+  const { runId, poolIds, reviewNote, overrides } = parseRequestBody(req);
   const normalizedRunId = normalizeText(runId);
   const normalizedPoolIds = normalizeStringArray(poolIds);
+  const normalizedOverrides = overrides && typeof overrides === 'object' ? overrides : {};
 
   if (!normalizedRunId) {
     res.status(400).json({
@@ -409,6 +412,7 @@ export async function handleAdminApplyPoolSchedule(req, res, {
       run,
       characters,
       selectedPoolIds: normalizedPoolIds,
+      overrides: normalizedOverrides,
       reviewNote: normalizeText(reviewNote),
       callerUserId: authResult.callerUser.id,
       now: now(),

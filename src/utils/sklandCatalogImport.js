@@ -1,4 +1,5 @@
 import { getSklandCatalogUrl } from '../constants/adminImageSources';
+import { normalizeEntityNameForMatch } from './canonicalEntityUtils';
 
 const ASSOCIATE_TYPE_MAP = {
   character: 'char',
@@ -6,12 +7,7 @@ const ASSOCIATE_TYPE_MAP = {
 };
 
 function normalizeName(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[·•・]/g, '')
-    .replace(/[()（）]/g, '');
+  return normalizeEntityNameForMatch(value);
 }
 
 export function buildSklandExtractScript(itemType = 'character') {

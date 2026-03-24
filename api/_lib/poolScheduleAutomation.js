@@ -3,6 +3,11 @@ import {
   buildPoolAuditKey,
   normalizeEntityNameForMatch,
 } from '../../src/utils/canonicalEntityUtils.js';
+import { buildCharacterLookup, resolveEntity } from './poolScheduleFeed.js';
+
+// ---------------------------------------------------------------------------
+// 文本工具
+// ---------------------------------------------------------------------------
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -17,56 +22,16 @@ function normalizeStringArray(value) {
 }
 
 function normalizePoolType(value) {
-  const normalized = normalizeText(value).toLowerCase();
-  if (normalized === 'limited_character') return 'limited';
-  if (normalized === 'limited_weapon') return 'weapon';
-  if (normalized === 'limited' || normalized === 'weapon' || normalized === 'standard') {
-    return normalized;
-  }
+  const n = normalizeText(value).toLowerCase();
+  if (n === 'limited_character') return 'limited';
+  if (n === 'limited_weapon') return 'weapon';
+  if (n === 'limited' || n === 'weapon' || n === 'standard') return n;
   return 'limited';
 }
 
-function buildCharacterLookup(characters) {
-  const lookup = new Map();
-
-  (Array.isArray(characters) ? characters : []).forEach((character) => {
-    const variants = [
-      character?.name,
-      ...(Array.isArray(character?.aliases) ? character.aliases : []),
-    ];
-
-    variants
-      .map(value => normalizeEntityNameForMatch(value))
-      .filter(Boolean)
-      .forEach((key) => {
-        if (!lookup.has(key)) {
-          lookup.set(key, []);
-        }
-
-        lookup.get(key).push(character);
-      });
-  });
-
-  return lookup;
-}
-
-function resolveUniqueCharacter(characterLookup, name, itemType) {
-  const normalized = normalizeEntityNameForMatch(name);
-  if (!normalized) {
-    return {
-      id: null,
-      candidates: [],
-    };
-  }
-
-  const candidates = (characterLookup.get(normalized) || [])
-    .filter(character => character?.type === itemType);
-
-  return {
-    id: candidates.length === 1 ? normalizeText(candidates[0]?.id) : null,
-    candidates,
-  };
-}
+// ---------------------------------------------------------------------------
+// 记录规范化
+// ---------------------------------------------------------------------------
 
 function normalizeIncomingPoolRecord(record) {
   return {
@@ -85,12 +50,38 @@ function normalizeIncomingPoolRecord(record) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Alias 与 pool_characters 构建
+// ---------------------------------------------------------------------------
+
 function buildPoolCharacterRows(featuredCharacterIds, upCharacterId) {
   return normalizeStringArray(featuredCharacterIds).map(characterId => ({
     character_id: characterId,
     is_up: Boolean(upCharacterId) && characterId === upCharacterId,
   }));
 }
+
+function buildPoolAliasRows(canonicalPoolId, sourcePoolId) {
+  const canonical = normalizeText(canonicalPoolId);
+  const source = normalizeText(sourcePoolId);
+  const rows = buildPoolSelfAliasRows(canonical);
+
+  if (source && canonical && source !== canonical) {
+    rows.push({
+      source: 'official_notice',
+      alias_id: source,
+      pool_id: canonical,
+      is_primary: false,
+      note: 'Resolved automation notice pool id to canonical pool id',
+    });
+  }
+
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Review bundle 辅助
+// ---------------------------------------------------------------------------
 
 function normalizeAppliedPoolIds(reviewBundle) {
   return normalizeStringArray(reviewBundle?.review?.appliedPoolIds);
@@ -101,40 +92,22 @@ function buildCurrentPoolIdLookup(reviewBundle) {
     ? reviewBundle.snapshots.current
     : [];
   const lookup = new Map();
-
-  currentRecords.forEach((record) => {
-    const auditKey = buildPoolAuditKey(record);
+  for (const record of currentRecords) {
+    const key = buildPoolAuditKey(record);
     const poolId = normalizeText(record?.pool_id || record?.id);
-
-    if (auditKey && poolId && !lookup.has(auditKey)) {
-      lookup.set(auditKey, poolId);
-    }
-  });
-
+    if (key && poolId && !lookup.has(key)) lookup.set(key, poolId);
+  }
   return lookup;
 }
 
-function buildPoolAliasRows(canonicalPoolId, sourcePoolId) {
-  const normalizedCanonicalPoolId = normalizeText(canonicalPoolId);
-  const normalizedSourcePoolId = normalizeText(sourcePoolId);
-  const rows = buildPoolSelfAliasRows(normalizedCanonicalPoolId);
-
-  if (normalizedSourcePoolId && normalizedCanonicalPoolId && normalizedSourcePoolId !== normalizedCanonicalPoolId) {
-    rows.push({
-      source: 'official_notice',
-      alias_id: normalizedSourcePoolId,
-      pool_id: normalizedCanonicalPoolId,
-      is_primary: false,
-      note: 'Resolved automation notice pool id to canonical pool id',
-    });
-  }
-
-  return rows;
-}
+// ---------------------------------------------------------------------------
+// 应用计划构建
+// ---------------------------------------------------------------------------
 
 export function buildPoolScheduleApplyPlan(reviewBundle, {
   characters = [],
   selectedPoolIds = [],
+  overrides = {},
 } = {}) {
   const incomingRecords = Array.isArray(reviewBundle?.snapshots?.incoming)
     ? reviewBundle.snapshots.incoming
@@ -142,45 +115,40 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
   const selectedIdSet = new Set(normalizeStringArray(selectedPoolIds));
   const previouslyAppliedSet = new Set(normalizeAppliedPoolIds(reviewBundle));
   const availablePoolIds = incomingRecords
-    .map(record => normalizeText(record?.pool_id || record?.id))
+    .map(r => normalizeText(r?.pool_id || r?.id))
     .filter(Boolean);
   const requestedRecords = selectedIdSet.size > 0
-    ? incomingRecords.filter(record => selectedIdSet.has(normalizeText(record?.pool_id || record?.id)))
+    ? incomingRecords.filter(r => selectedIdSet.has(normalizeText(r?.pool_id || r?.id)))
     : incomingRecords;
   const missingRequestedPoolIds = selectedIdSet.size > 0
-    ? Array.from(selectedIdSet).filter(poolId => !availablePoolIds.includes(poolId))
+    ? [...selectedIdSet].filter(id => !availablePoolIds.includes(id))
     : [];
   const currentPoolIdLookup = buildCurrentPoolIdLookup(reviewBundle);
+  const charLookup = buildCharacterLookup(characters);
 
-  const characterLookup = buildCharacterLookup(characters);
   const applicableRecords = [];
   const blockedRecords = [];
   const alreadyAppliedRecords = [];
 
-  requestedRecords.forEach((rawRecord) => {
-    const normalizedRecord = normalizeIncomingPoolRecord(rawRecord);
-    const recordId = normalizeText(normalizedRecord.pool_id || rawRecord?.id);
-    const targetPoolId = currentPoolIdLookup.get(buildPoolAuditKey(normalizedRecord))
-      || recordId;
-    const record = {
-      ...normalizedRecord,
-      record_id: recordId,
-      target_pool_id: targetPoolId,
-    };
+  for (const rawRecord of requestedRecords) {
+    const base = normalizeIncomingPoolRecord(rawRecord);
+    const recordId = normalizeText(base.pool_id || rawRecord?.id);
+
+    // 应用超管编辑覆盖
+    const edits = overrides[recordId];
+    const record = edits ? { ...base, ...edits } : base;
+
+    const targetPoolId = currentPoolIdLookup.get(buildPoolAuditKey(record)) || recordId;
+    record.record_id = recordId;
+    record.target_pool_id = targetPoolId;
+
     const issues = [];
 
     if (!record.record_id && !record.target_pool_id) {
-      issues.push({
-        code: 'missing_pool_id',
-        message: '缺少 pool_id，无法发布',
-      });
+      issues.push({ code: 'missing_pool_id', message: '缺少 pool_id，无法发布' });
     }
-
     if (!record.name) {
-      issues.push({
-        code: 'missing_name',
-        message: '缺少卡池名称，无法发布',
-      });
+      issues.push({ code: 'missing_name', message: '缺少卡池名称，无法发布' });
     }
 
     if (record.record_id && previouslyAppliedSet.has(record.record_id)) {
@@ -189,44 +157,44 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
         target_pool_id: record.target_pool_id,
         name: record.name,
       });
-      return;
+      continue;
     }
 
     if (!record.start_time) {
-      issues.push({
-        code: 'missing_start_time',
-        message: '缺少明确开始时间，当前版本仍要求人工补齐后再发布',
-      });
+      issues.push({ code: 'missing_start_time', message: '缺少开始时间' });
     }
-
     if (!record.end_time) {
-      issues.push({
-        code: 'missing_end_time',
-        message: '缺少明确结束时间，当前版本仍要求人工补齐后再发布',
-      });
+      issues.push({ code: 'missing_end_time', message: '缺少结束时间' });
     }
 
     const itemType = record.type === 'weapon' ? 'weapon' : 'character';
-    const unresolvedFeaturedNames = record.featured_character_names.filter((name) => {
-      const resolved = resolveUniqueCharacter(characterLookup, name, itemType);
-      return !resolved.id || !record.featured_characters.includes(resolved.id);
+
+    // 重新解析 featured characters（可能被编辑覆盖）
+    if (record.featured_character_names.length > 0 && record.featured_characters.length === 0) {
+      const resolved = [];
+      for (const name of record.featured_character_names) {
+        const { id } = resolveEntity(charLookup, name, itemType);
+        if (id) resolved.push(id);
+      }
+      record.featured_characters = [...new Set(resolved)];
+    }
+
+    const unresolvedNames = record.featured_character_names.filter(name => {
+      const { id } = resolveEntity(charLookup, name, itemType);
+      return !id || !record.featured_characters.includes(id);
     });
 
     if (record.featured_character_names.length > 0 && record.featured_characters.length === 0) {
-      issues.push({
-        code: 'missing_featured_character_ids',
-        message: '未能解析 featured_characters 的规范 ID',
-      });
+      issues.push({ code: 'missing_featured_character_ids', message: '未能解析 featured_characters 的规范 ID' });
     }
-
-    if (unresolvedFeaturedNames.length > 0) {
+    if (unresolvedNames.length > 0) {
       issues.push({
         code: 'unresolved_featured_characters',
-        message: `以下名称未完成规范 ID 映射：${unresolvedFeaturedNames.join(' / ')}`,
+        message: `以下名称未完成规范 ID 映射：${unresolvedNames.join(' / ')}`,
       });
     }
 
-    const upMatch = resolveUniqueCharacter(characterLookup, record.up_character, itemType);
+    const upMatch = resolveEntity(charLookup, record.up_character, itemType);
     const upCharacterId = upMatch.id;
 
     if (record.up_character && !upCharacterId) {
@@ -235,7 +203,6 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
         message: `UP 目标「${record.up_character}」未完成规范 ID 映射`,
       });
     }
-
     if (upCharacterId && record.featured_characters.length > 0 && !record.featured_characters.includes(upCharacterId)) {
       issues.push({
         code: 'up_character_not_in_featured',
@@ -249,11 +216,13 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
         target_pool_id: record.target_pool_id,
         name: record.name,
         type: record.type,
+        start_time: record.start_time,
+        end_time: record.end_time,
         up_character: record.up_character,
         featured_character_names: record.featured_character_names,
         issues,
       });
-      return;
+      continue;
     }
 
     const poolCharacterRows = buildPoolCharacterRows(record.featured_characters, upCharacterId);
@@ -287,21 +256,19 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
         up_character: record.up_character || null,
       },
     });
-  });
+  }
 
   const requestedPoolIds = requestedRecords
-    .map(record => normalizeText(record?.pool_id || record?.id))
+    .map(r => normalizeText(r?.pool_id || r?.id))
     .filter(Boolean);
 
   return {
     requestedPoolIds,
     availablePoolIds,
     missingRequestedPoolIds,
-    applicablePoolIds: applicableRecords
-      .map(record => record.record_id || record.pool_id)
-      .filter(Boolean),
-    blockedPoolIds: blockedRecords.map(record => record.pool_id).filter(Boolean),
-    alreadyAppliedPoolIds: alreadyAppliedRecords.map(record => record.pool_id).filter(Boolean),
+    applicablePoolIds: applicableRecords.map(r => r.record_id || r.pool_id).filter(Boolean),
+    blockedPoolIds: blockedRecords.map(r => r.pool_id).filter(Boolean),
+    alreadyAppliedPoolIds: alreadyAppliedRecords.map(r => r.pool_id).filter(Boolean),
     applicableRecords,
     blockedRecords,
     alreadyAppliedRecords,
@@ -316,6 +283,10 @@ export function buildPoolScheduleApplyPlan(reviewBundle, {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Review bundle 更新
+// ---------------------------------------------------------------------------
+
 export function buildUpdatedPoolScheduleReviewBundle(reviewBundle, {
   appliedPoolIds = [],
   blockedPoolIds = [],
@@ -325,31 +296,27 @@ export function buildUpdatedPoolScheduleReviewBundle(reviewBundle, {
   status = 'pending_manual_review',
   error = null,
 } = {}) {
-  const previousReview = reviewBundle?.review && typeof reviewBundle.review === 'object'
+  const prev = reviewBundle?.review && typeof reviewBundle.review === 'object'
     ? reviewBundle.review
     : {};
-  const nextAppliedPoolIds = Array.from(new Set([
+  const nextApplied = [...new Set([
     ...normalizeAppliedPoolIds(reviewBundle),
     ...normalizeStringArray(appliedPoolIds),
-  ]));
+  ])];
 
   return {
     ...reviewBundle,
     review: {
-      ...previousReview,
+      ...prev,
       status,
       requiresApproval: status !== 'applied',
-      appliedPoolIds: nextAppliedPoolIds,
+      appliedPoolIds: nextApplied,
       blockedPoolIds: normalizeStringArray(blockedPoolIds),
       lastAttemptedAt: attemptedAt,
       lastAttemptedBy: actorUserId,
-      lastAppliedAt: appliedPoolIds.length > 0
-        ? attemptedAt
-        : (previousReview.lastAppliedAt || null),
-      lastAppliedBy: appliedPoolIds.length > 0
-        ? actorUserId
-        : (previousReview.lastAppliedBy || null),
-      note: normalizeText(note) || previousReview.note || null,
+      lastAppliedAt: appliedPoolIds.length > 0 ? attemptedAt : (prev.lastAppliedAt || null),
+      lastAppliedBy: appliedPoolIds.length > 0 ? actorUserId : (prev.lastAppliedBy || null),
+      note: normalizeText(note) || prev.note || null,
       lastError: normalizeText(error) || null,
     },
   };

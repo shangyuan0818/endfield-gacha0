@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
+import { normalizeEntityNameForMatch } from '../src/utils/canonicalEntityUtils.js';
 
 // ---------------------------------------------------------------------------
 // 配置
@@ -137,16 +138,11 @@ async function extractFromPage(page, itemType) {
 }
 
 // ---------------------------------------------------------------------------
-// 名称归一化（复用 sklandCatalogImport.js 的逻辑）
+// 名称归一化（统一使用 canonicalEntityUtils）
 // ---------------------------------------------------------------------------
 
 function normalizeName(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '')
-    .replace(/[·•・]/g, '')
-    .replace(/[()（）]/g, '');
+  return normalizeEntityNameForMatch(value);
 }
 
 // ---------------------------------------------------------------------------
