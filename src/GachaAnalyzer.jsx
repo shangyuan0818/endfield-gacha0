@@ -20,6 +20,7 @@ export default function GachaAnalyzer() {
   // 认证状态
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
+  const authResolved = useAuthStore(state => state.authResolved);
   const syncing = useAuthStore(state => state.syncing);
   const openAuthModal = useAuthStore(state => state.openAuthModal);
 
@@ -75,6 +76,7 @@ export default function GachaAnalyzer() {
   // 权限判断
   const canEdit = userRole === 'admin' || userRole === 'super_admin';
   const isSuperAdmin = userRole === 'super_admin';
+  const isAuthPending = !authResolved || (Boolean(user) && userRole === null);
 
   // 如果当前选中卡池ID无效，则回退到默认池
   // 使用 ref 和防抖防止快速切换时的竞态条件
@@ -212,6 +214,10 @@ export default function GachaAnalyzer() {
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
+    if (activeTab === 'admin' && isAuthPending) {
+      return;
+    }
+
     if (activeTab === 'admin' && !isSuperAdmin) {
       navigateToTab('home', { replace: true });
       return;
@@ -220,7 +226,7 @@ export default function GachaAnalyzer() {
     if (activeTab === 'home' && location.pathname !== getDesktopPathForTab('home') && !location.search) {
       navigateToTab('home', { replace: true });
     }
-  }, [activeTab, isSuperAdmin, location.pathname, location.search, navigateToTab]);
+  }, [activeTab, isAuthPending, isSuperAdmin, location.pathname, location.search, navigateToTab]);
 
   // 实时监听卡池变化
   usePoolRealtimeSubscription({ showToast });
@@ -274,6 +280,7 @@ export default function GachaAnalyzer() {
         <DesktopAppRoutes
           user={user}
           userRole={userRole}
+          authResolved={authResolved}
           showToast={showToast}
           isSuperAdmin={isSuperAdmin}
           currentPool={currentPool}

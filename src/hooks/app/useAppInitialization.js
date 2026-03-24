@@ -19,6 +19,7 @@ function wait(ms) {
  */
 export function useAppInitialization({ loadCloudData, loadPublicPools }) {
   const setUser = useAuthStore(state => state.setUser);
+  const setAuthResolved = useAuthStore(state => state.setAuthResolved);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
   const setHistory = useHistoryStore(state => state.setHistory);
@@ -53,6 +54,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
     const initializeApp = async () => {
       if (!supabase) {
+        setAuthResolved(true);
         return;
       }
 
@@ -66,6 +68,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
           return;
         }
         setUser(session?.user ?? null);
+        setAuthResolved(true);
 
         // 更新最后在线时间
         if (session?.user) {
@@ -107,6 +110,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
           wait(APP_INIT_SYNC_BUDGET_MS).then(() => 'budget-exhausted')
         ]);
       } catch (error) {
+        setAuthResolved(true);
         console.error('[useAppInitialization] 初始化失败:', error);
       }
     };
@@ -117,6 +121,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
+        setAuthResolved(true);
         // 用户登录时更新最后在线时间
         if (session?.user) {
           updateLastSeen();
@@ -132,7 +137,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
     return () => {
       isMounted = false;
     };
-  }, [loadCloudData, loadPublicPools, updateLastSeen, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
+  }, [loadCloudData, loadPublicPools, updateLastSeen, setAuthResolved, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
 
   return {
     updateLastSeen

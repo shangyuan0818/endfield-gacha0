@@ -25,6 +25,7 @@ function TabPanelFallback({ label = '正在加载模块...' }) {
 export default function DesktopAppRoutes({
   user,
   userRole,
+  authResolved,
   showToast,
   isSuperAdmin,
   currentPool,
@@ -40,6 +41,8 @@ export default function DesktopAppRoutes({
   handleExportJSON,
   handleExportCSV
 }) {
+  const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
+
   return (
     <Routes>
       <Route
@@ -121,7 +124,9 @@ export default function DesktopAppRoutes({
       <Route
         path="admin"
         element={
-          isSuperAdmin ? (
+          isResolvingRole ? (
+            <TabPanelFallback label="正在校验管理权限..." />
+          ) : isSuperAdmin ? (
             <Suspense fallback={<TabPanelFallback label="正在加载管理后台..." />}>
               <AdminPanel showToast={showToast} />
             </Suspense>

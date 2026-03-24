@@ -9,22 +9,24 @@ const useAuthStore = create((set) => ({
   // ========== 用户认证状态 ==========
   user: null,
   userRole: null, // 'user' | 'admin' | 'super_admin'
+  authResolved: false,
 
   setUser: (user) => set((state) => ({
     user,
     lastSyncAt: user ? state.lastSyncAt : null
   })),
   setUserRole: (role) => set({ userRole: role }),
+  setAuthResolved: (value) => set({ authResolved: Boolean(value) }),
 
-  login: (user, role) => set({ user, userRole: role }),
-  logout: () => set({ user: null, userRole: null, syncing: false, syncError: null, lastSyncAt: null }),
+  login: (user, role) => set({ user, userRole: role, authResolved: true }),
+  logout: () => set({ user: null, userRole: null, authResolved: true, syncing: false, syncError: null, lastSyncAt: null }),
 
   /** 完整登出：清除 Supabase 会话 + Zustand 状态 */
   signOut: async () => {
     if (supabase) {
       await supabase.auth.signOut();
     }
-    set({ user: null, userRole: null, syncing: false, syncError: null, lastSyncAt: null });
+    set({ user: null, userRole: null, authResolved: true, syncing: false, syncError: null, lastSyncAt: null });
   },
 
   // ========== 权限判断 ==========

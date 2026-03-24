@@ -23,10 +23,11 @@ import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 function MobileLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { userRole } = useAuthStore();
+  const { user, userRole, authResolved } = useAuthStore();
   const activeTab = getMobileTabFromPath(location.pathname);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const isSuperAdmin = userRole === 'super_admin';
+  const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
 
   useScrollToHighlight();
 
@@ -52,7 +53,19 @@ function MobileLayout() {
           <Route path="about" element={<MobileAboutView />} />
           <Route
             path="admin"
-            element={isSuperAdmin ? <MobileAdminView /> : <Navigate to={getMobilePathForTab('home')} replace />}
+            element={
+              isResolvingRole ? (
+                <div className="px-4 py-8">
+                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 text-sm text-slate-500 dark:text-zinc-400">
+                    正在校验管理权限...
+                  </div>
+                </div>
+              ) : isSuperAdmin ? (
+                <MobileAdminView />
+              ) : (
+                <Navigate to={getMobilePathForTab('home')} replace />
+              )
+            }
           />
           <Route path="tickets" element={<MobileTicketView />} />
           <Route path="*" element={<Navigate to={getMobilePathForTab('home')} replace />} />

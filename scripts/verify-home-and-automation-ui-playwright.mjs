@@ -272,6 +272,30 @@ function filterRelevantConsoleErrors(entries) {
   return entries.filter((entry) => !entry.includes('favicon.ico'));
 }
 
+async function waitForVisibleOrThrow(locator, {
+  timeout = 15000,
+  page,
+  label,
+} = {}) {
+  try {
+    await locator.waitFor({ state: 'visible', timeout });
+  } catch (error) {
+    if (!page) {
+      throw error;
+    }
+
+    const bodyText = await page.locator('body').innerText().catch(() => '');
+    throw new Error(
+      [
+        `${label || '目标元素'} 未在 ${timeout}ms 内显示`,
+        `URL: ${page.url()}`,
+        `页面摘要: ${(bodyText || '').slice(0, 1200)}`,
+      ].join('\n'),
+      { cause: error },
+    );
+  }
+}
+
 async function installSharedMocks(page) {
   const bootstrapPayload = createBootstrapPayload();
   const statsPayload = createStatsPayload();
@@ -316,7 +340,10 @@ async function verifyHomeGameAnnouncements(browser, baseUrl) {
   await installSharedMocks(page);
 
   await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
-  const desktopGameAnnouncementToggle = page.getByRole('button', { name: /游戏公告.*默认折叠展示/ }).first();
+  const desktopGameAnnouncementToggle = page
+    .getByRole('heading', { name: '游戏公告' })
+    .first()
+    .locator('xpath=ancestor::button[1]');
   const desktopGameAnnouncementContent = desktopGameAnnouncementToggle.locator('xpath=following-sibling::div[1]');
   await desktopGameAnnouncementToggle.waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForTimeout(1200);
@@ -346,7 +373,10 @@ async function verifyHomeGameAnnouncements(browser, baseUrl) {
   await installSharedMocks(mobilePage);
 
   await mobilePage.goto(`${baseUrl}/m`, { waitUntil: 'domcontentloaded' });
-  const mobileGameAnnouncementToggle = mobilePage.getByRole('button', { name: /游戏公告.*默认折叠/ }).first();
+  const mobileGameAnnouncementToggle = mobilePage
+    .getByRole('heading', { name: '游戏公告' })
+    .first()
+    .locator('xpath=ancestor::button[1]');
   const mobileGameAnnouncementContent = mobileGameAnnouncementToggle.locator('xpath=following-sibling::div[1]');
   await mobileGameAnnouncementToggle.waitFor({ state: 'visible', timeout: 15000 });
   await mobilePage.waitForTimeout(1200);
@@ -426,7 +456,7 @@ async function verifyAutomationPanel(browser, baseUrl) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify([{ role: 'super_admin' }]),
+          body: JSON.stringify({ role: 'super_admin' }),
         });
         return;
       }
@@ -633,17 +663,32 @@ async function verifyAutomationPanel(browser, baseUrl) {
   });
 
   await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('heading', { name: '超级管理员控制台' }).waitFor({ state: 'visible', timeout: 15000 });
+  await waitForVisibleOrThrow(
+    page.getByRole('heading', { name: '超级管理员控制台' }),
+    {
+      timeout: 15000,
+      page,
+      label: '超级管理员控制台标题',
+    },
+  );
   await page.getByRole('button', { name: '运营自动化' }).click();
 
-  await page.getByText('官方公告同步').first().waitFor({ state: 'visible', timeout: 10000 });
+  const officialRunCards = page.getByRole('button', { name: /官方公告同步/ });
+  await waitForVisibleOrThrow(
+    officialRunCards.first(),
+    {
+      timeout: 10000,
+      page,
+      label: '官方公告同步任务卡片',
+    },
+  );
   assert.equal(
     await page.getByText('待人工审核').count() >= 1,
     true,
     '自动化面板应显示待人工审核状态',
   );
 
-  const officialRunCardsBefore = await page.getByText('官方公告同步').count();
+  const officialRunCardsBefore = await officialRunCards.count();
   await page.getByRole('button', { name: '手动 dry-run' }).click();
   await page.waitForFunction((expectedCount) => {
     return Array.from(document.querySelectorAll('button')).filter((node) => node.textContent?.includes('官方公告同步')).length >= expectedCount;
@@ -657,7 +702,7 @@ async function verifyAutomationPanel(browser, baseUrl) {
   await page.getByText('已全部发布').first().waitFor({ state: 'visible', timeout: 10000 });
   await page.getByText('已发布').first().waitFor({ state: 'visible', timeout: 10000 });
 
-  await page.getByText('卡池轮换同步').first().click();
+  await page.getByRole('button', { name: /卡池轮换同步/ }).first().click();
   await page.getByText('需人工修订').waitFor({ state: 'visible', timeout: 10000 });
   await page.getByText('UP：洛茜').waitFor({ state: 'visible', timeout: 10000 });
 
