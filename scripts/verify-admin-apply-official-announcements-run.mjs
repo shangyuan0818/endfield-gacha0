@@ -270,11 +270,11 @@ assert.deepEqual(
 
 assert.equal(adminClient.__state.updatedRows.length, 1, '已存在的自动公告应走 update');
 assert.equal(adminClient.__state.updatedRows[0].id, 'announcement_row_6003', '更新应命中已存在 source_id 的公告行');
-assert.equal(adminClient.__state.updatedRows[0].payload.priority, -80, '更新已有自动公告时应保留原优先级');
+assert.equal(adminClient.__state.updatedRows[0].payload.priority, 0, '更新已有自动公告时应将越界优先级收口到数据库允许范围');
 
 assert.equal(adminClient.__state.insertedRows.length, 1, '新公告应走 insert');
 assert.equal(adminClient.__state.insertedRows[0].source_id, '6004', '插入时应保留 source_id');
-assert.equal(adminClient.__state.insertedRows[0].priority, -100, '自动游戏公告默认应下沉优先级，避免抢占站点公告');
+assert.equal(adminClient.__state.insertedRows[0].priority, 0, '自动游戏公告默认优先级应落在数据库允许范围内');
 
 assert.equal(
   adminClient.__state.run.review_bundle.review.status,

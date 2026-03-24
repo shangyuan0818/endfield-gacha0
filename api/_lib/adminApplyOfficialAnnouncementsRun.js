@@ -9,7 +9,9 @@ import {
   buildUpdatedOfficialAnnouncementReviewBundle,
 } from './officialAnnouncementAutomation.js';
 
-const AUTO_GAME_ANNOUNCEMENT_PRIORITY = -100;
+const AUTO_GAME_ANNOUNCEMENT_PRIORITY = 0;
+const ANNOUNCEMENT_PRIORITY_MIN = 0;
+const ANNOUNCEMENT_PRIORITY_MAX = 100;
 
 function parseRequestBody(req) {
   if (!req.body) {
@@ -59,6 +61,16 @@ function formatStructuredError(error, fallback = 'Unexpected error') {
   }
 
   return segments.join(' | ');
+}
+
+function normalizeAnnouncementPriority(value, fallback = AUTO_GAME_ANNOUNCEMENT_PRIORITY) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  const integerValue = Math.trunc(numericValue);
+  return Math.min(ANNOUNCEMENT_PRIORITY_MAX, Math.max(ANNOUNCEMENT_PRIORITY_MIN, integerValue));
 }
 
 async function requireSuperAdmin(req, {
@@ -246,7 +258,7 @@ export async function applyOfficialAnnouncementsRun({
           content: record.content,
           version: record.version,
           is_active: existingRow.is_active !== false,
-          priority: Number.isInteger(existingRow.priority) ? existingRow.priority : AUTO_GAME_ANNOUNCEMENT_PRIORITY,
+          priority: normalizeAnnouncementPriority(existingRow.priority),
           source_url: record.source_url,
           published_at: record.published_at,
           summary: record.summary,
@@ -258,7 +270,7 @@ export async function applyOfficialAnnouncementsRun({
           content: record.content,
           version: record.version,
           is_active: record.is_active !== false,
-          priority: AUTO_GAME_ANNOUNCEMENT_PRIORITY,
+          priority: normalizeAnnouncementPriority(record.priority),
           source_id: record.source_id,
           source_url: record.source_url,
           published_at: record.published_at,
