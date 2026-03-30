@@ -33,6 +33,67 @@ function matchesPoolTarget(pull, poolMeta) {
   return pullName.includes(target) || target.includes(pullName);
 }
 
+function generatePieData(counts) {
+  const rawData = [
+    { name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color },
+    { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
+    { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
+    { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
+  ].filter(item => item.value > 0);
+
+  const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
+  return rawData.map(item => {
+    const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
+    let minPercent = 0;
+    if (item.name.includes('6星')) minPercent = 15;
+    else if (item.name.includes('5星')) minPercent = 20;
+
+    if (currentPercent < minPercent && totalValue > 0) {
+      return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
+    }
+    return { ...item, displayValue: item.value };
+  });
+}
+
+/**
+ * 从桶计数器生成分布数组（O(k) 替代 O(n×k) 的嵌套 filter）
+ */
+function buildDistFromBuckets(buckets, maxPity) {
+  const upperBound = Math.max(maxPity, 80);
+  const numBuckets = Math.ceil(upperBound / 10);
+  const dist = [];
+  for (let i = 0; i < numBuckets; i++) {
+    const b = buckets[i];
+    const rangeStart = i * 10 + 1;
+    const rangeEnd = (i + 1) * 10;
+    if (b) {
+      dist.push({
+        range: `${rangeStart}-${rangeEnd}`,
+        rangeStart,
+        count: (b.limited || 0) + (b.standard || 0),
+        limited: b.limited || 0,
+        standard: b.standard || 0,
+        ...(b.guaranteed !== undefined ? { guaranteed: b.guaranteed } : {})
+      });
+    } else {
+      dist.push({
+        range: `${rangeStart}-${rangeEnd}`,
+        rangeStart,
+        count: 0,
+        limited: 0,
+        standard: 0
+      });
+    }
+  }
+  return dist;
+}
+
+function normalizePoolType(type) {
+  if (type === 'limited' || type === 'limited_character') return 'limited';
+  if (type === 'weapon' || type === 'limited_weapon') return 'weapon';
+  return 'standard';
+}
+
 /**
  * 统计数据计算 Hook
  * 计算本地用户的抽卡统计数据
@@ -96,6 +157,8 @@ export function useSummaryStats(history, pools, user) {
   }, [annotatedMyHistory, myPools]);
 
   // 计算当前用户统计数据
+  // PERF-009: 合并多次全量遍历为 2 次（分组+计数 → 分池保底计算），
+  //           分布图改桶计数 O(n)，消除 chargedPulls 的 3 次独立 filter
   const localStats = useMemo(() => {
     const data = {
       total: 0,
@@ -119,170 +182,54 @@ export function useSummaryStats(history, pools, user) {
       poolMetaMap.set(p.id, { type: p.type, upCharacter: p.upCharacter || p.up_character || null });
     });
 
-    const normalizePoolType = (type) => {
-      if (type === 'limited' || type === 'limited_character') return 'limited';
-      if (type === 'weapon' || type === 'limited_weapon') return 'weapon';
-      return 'standard';
-    };
-
-    // 分组
+    // ── Phase 1: 单次遍历 normalizedMyHistory ──
+    // 同时完成：按池分组、全局/池型计数、chargedPulls、region bucket
     const pullsByPool = {};
-    normalizedMyHistory.forEach(item => {
+    const chargedPullsByType = { limited: 0, weapon: 0, standard: 0 };
+    const contributorBuckets = new Set();
+
+    for (let i = 0; i < normalizedMyHistory.length; i++) {
+      const item = normalizedMyHistory[i];
       const poolId = item.poolId || item.pool_id;
+
+      // 按池分组
       if (!pullsByPool[poolId]) pullsByPool[poolId] = [];
       pullsByPool[poolId].push(item);
-    });
 
-    const allSixStarPulls = [];
-    const allSixStarPullsExcludingFree = [];
-    const targetSixStarIntervals = {
-      limited: [],
-      weapon: []
-    };
-    let charGiftCount = 0;
-    let weaponGiftLimitedCount = 0;
-    let weaponGiftStandardCount = 0;
+      const isGift = isGiftPull(item);
+      const isFree = isFreePull(item);
 
-    // 遍历每个池子计算垫刀和赠送
-    Object.keys(pullsByPool).forEach(poolId => {
+      // gift 和免费十连不计入任何统计
+      if (isGift || isFree) continue;
+
       const rawType = poolTypeMap.get(poolId) || 'standard';
       const type = normalizePoolType(rawType);
-      const poolMeta = poolMetaMap.get(poolId);
-      const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
-      const validPulls = sortedPulls.filter(i => i.specialType !== 'gift' && i.special_type !== 'gift' && i.isFree !== true && i.is_free !== true);
-      const poolTotal = validPulls.length;
-
-      if (type === 'limited') {
-        charGiftCount += Math.floor(poolTotal / 240);
-      } else if (type === 'weapon') {
-        if (poolTotal >= 100) weaponGiftStandardCount += 1 + Math.floor((poolTotal - 100) / 160);
-        if (poolTotal >= 180) weaponGiftLimitedCount += 1 + Math.floor((poolTotal - 180) / 160);
-      }
-
-      let tempCounter = 0;
-      let tempCounterExcludingFree = 0;
-      const targetIntervalTracker = (type === 'limited' || type === 'weapon')
-        ? createHitIntervalTracker()
-        : null;
-      // FEAT-014: 追踪累计抽数用于判断120抽必出(Spark)
-      let cumulativePullCount = 0;
-      let hasGotUpBefore120 = false;
-
-      validPulls.forEach(pull => {
-        const isFree = pull.isFree || pull.is_free;
-        tempCounter++;
-        if (!isFree) tempCounterExcludingFree++;
-        cumulativePullCount++;
-        recordHitIntervalPull(targetIntervalTracker);
-
-        if (pull.rarity === 6) {
-          // FEAT-014: 判断是否为120抽Spark
-          const isUp = !pull.isStandard;
-          let isSpark = false;
-          if (type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
-            isSpark = true;
-          }
-          if (isUp && cumulativePullCount < 120) {
-            hasGotUpBefore120 = true;
-          }
-
-          allSixStarPulls.push({
-            count: tempCounter,
-            isStandard: pull.isStandard,
-            isGuaranteed: pull.specialType === 'guaranteed',
-            isFree: isFree,
-            isSpark
-          });
-
-          if (!isFree) {
-            allSixStarPullsExcludingFree.push({
-              count: tempCounterExcludingFree,
-              isStandard: pull.isStandard,
-              isGuaranteed: pull.specialType === 'guaranteed',
-              isSpark
-            });
-            tempCounterExcludingFree = 0;
-          }
-
-          data.byType[type].pityList.push({
-            count: tempCounter,
-            isStandard: pull.isStandard,
-            isFree: isFree,
-            isSpark
-          });
-          if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
-            recordHitIntervalHit(targetIntervalTracker, { isSpark });
-          }
-          tempCounter = 0;
-        }
-      });
-
-      if (targetIntervalTracker) {
-        targetSixStarIntervals[type].push(...targetIntervalTracker.intervals);
-      }
-    });
-
-    // 辅助函数
-    const generateDist = (list) => {
-      if (!list || list.length === 0) return [];
-      const maxPity = Math.max(...list.map(i => i.count), 80);
-      const max = Math.ceil(maxPity / 10) * 10;
-      const dist = [];
-      for(let i=0; i<max; i+=10) {
-        const rangeStart = i + 1;
-        const rangeEnd = i + 10;
-        const items = list.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
-        dist.push({
-          range: `${rangeStart}-${rangeEnd}`,
-          rangeStart,
-          count: items.length,
-          limited: items.filter(p => !p.isStandard).length,
-          standard: items.filter(p => p.isStandard).length
-        });
-      }
-      return dist.sort((a, b) => a.rangeStart - b.rangeStart);
-    };
-
-    const generatePieData = (counts) => {
-      const rawData = [
-        { name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color },
-        { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
-        { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
-        { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color },
-      ].filter(item => item.value > 0);
-
-      const totalValue = rawData.reduce((sum, d) => sum + d.value, 0);
-      return rawData.map(item => {
-        const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-        let minPercent = 0;
-        if (item.name.includes('6星')) minPercent = 15;
-        else if (item.name.includes('5星')) minPercent = 20;
-
-        if (currentPercent < minPercent && totalValue > 0) {
-          return { ...item, displayValue: Math.ceil(totalValue * minPercent / 100) };
-        }
-        return { ...item, displayValue: item.value };
-      });
-    };
-
-    // 全局统计
-    normalizedMyHistory.forEach(item => {
-      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
-      const type = normalizePoolType(rawType);
       const typeData = data.byType[type];
-      if (!typeData) return;
+      if (!typeData) continue;
 
-      const isFree = item.isFree || item.is_free;
-      if (item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree) {
-        data.total++;
-        typeData.total++;
+      // 总计数
+      data.total++;
+      typeData.total++;
+
+      // chargedPulls（排除 gift + free + 情报书）
+      if (type === 'limited') {
+        if (!isInfoBookHistoryPull(item)) chargedPullsByType.limited++;
+      } else if (type === 'weapon') {
+        chargedPullsByType.weapon++;
+      } else {
+        chargedPullsByType.standard++;
       }
 
-      let r = item.rarity;
-      // 所有稀有度计数统一排除 gift 和 free
-      if (item.specialType === 'gift' || item.special_type === 'gift' || isFree) {
-        // gift 和免费十连不计入任何稀有度统计
-      } else if (r === 6) {
+      // 地区 bucket
+      const bucket = classifyGameAccountRegionBucket({
+        serverId: item.serverId || item.server_id,
+        region: item.region || item.serverRegion
+      });
+      if (bucket) contributorBuckets.add(bucket);
+
+      // 稀有度计数
+      const r = item.rarity;
+      if (r === 6) {
         if (item.isStandard) {
           data.counts['6_std']++;
           typeData.counts['6_std']++;
@@ -300,30 +247,173 @@ export function useSummaryStats(history, pools, user) {
         data.counts[5]++;
         typeData.counts[5]++;
       } else {
-        if (r < 4) r = 4;
-        data.counts[r]++;
-        typeData.counts[r]++;
+        const nr = r < 4 ? 4 : r;
+        data.counts[nr]++;
+        typeData.counts[nr]++;
       }
-    });
+    }
 
-    // 生成图表数据
+    // ── Phase 2: 分池保底/区间/赠送/分布计算 ──
+    const targetSixStarIntervals = { limited: [], weapon: [] };
+
+    // 分布桶计数器（替代 O(n×k) 嵌套 filter）
+    const globalDistBuckets = {};
+    const typeDistBuckets = { limited: {}, weapon: {}, standard: {} };
+
+    // 累加器（替代事后 reduce/filter）
+    const typePitySums = {
+      limited: { sum: 0, count: 0 },
+      weapon: { sum: 0, count: 0 },
+      standard: { sum: 0, count: 0 }
+    };
+    let limitedNonFreeNonSparkSum = 0, limitedNonFreeNonSparkCount = 0;
+    let limitedNonFreeSum = 0, limitedNonFreeCount = 0;
+    let allSixStarPitySum = 0, allSixStarPityCount = 0;
+    let allSixStarExclFreePitySum = 0, allSixStarExclFreePityCount = 0;
+    let globalMaxPity = 0;
+
+    let charGiftCount = 0;
+    let weaponGiftLimitedCount = 0;
+    let weaponGiftStandardCount = 0;
+
+    const poolIds = Object.keys(pullsByPool);
+    for (let pi = 0; pi < poolIds.length; pi++) {
+      const poolId = poolIds[pi];
+      const rawType = poolTypeMap.get(poolId) || 'standard';
+      const type = normalizePoolType(rawType);
+      const poolMeta = poolMetaMap.get(poolId);
+      const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
+
+      // 计算有效抽数（排除 gift 和 free）
+      let poolTotal = 0;
+      for (let j = 0; j < sortedPulls.length; j++) {
+        if (!isGiftPull(sortedPulls[j]) && !isFreePull(sortedPulls[j])) poolTotal++;
+      }
+
+      // 赠送计算
+      if (type === 'limited') {
+        charGiftCount += Math.floor(poolTotal / 240);
+      } else if (type === 'weapon') {
+        if (poolTotal >= 100) weaponGiftStandardCount += 1 + Math.floor((poolTotal - 100) / 160);
+        if (poolTotal >= 180) weaponGiftLimitedCount += 1 + Math.floor((poolTotal - 180) / 160);
+      }
+
+      let tempCounter = 0;
+      let tempCounterExcludingFree = 0;
+      const targetIntervalTracker = (type === 'limited' || type === 'weapon')
+        ? createHitIntervalTracker()
+        : null;
+      let cumulativePullCount = 0;
+      let hasGotUpBefore120 = false;
+
+      for (let j = 0; j < sortedPulls.length; j++) {
+        const pull = sortedPulls[j];
+        if (isGiftPull(pull) || isFreePull(pull)) continue;
+
+        const isFree = pull.isFree || pull.is_free;
+        tempCounter++;
+        if (!isFree) tempCounterExcludingFree++;
+        cumulativePullCount++;
+        recordHitIntervalPull(targetIntervalTracker);
+
+        if (pull.rarity === 6) {
+          const isUp = !pull.isStandard;
+          let isSpark = false;
+          if (type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+            isSpark = true;
+          }
+          if (isUp && cumulativePullCount < 120) {
+            hasGotUpBefore120 = true;
+          }
+
+          // 全局保底累加
+          allSixStarPitySum += tempCounter;
+          allSixStarPityCount++;
+          if (tempCounter > globalMaxPity) globalMaxPity = tempCounter;
+
+          // 全局分布桶（O(1)）
+          const bucketIdx = Math.floor((tempCounter - 1) / 10);
+          if (!globalDistBuckets[bucketIdx]) {
+            globalDistBuckets[bucketIdx] = { limited: 0, standard: 0, guaranteed: 0 };
+          }
+          if (!pull.isStandard) globalDistBuckets[bucketIdx].limited++;
+          else globalDistBuckets[bucketIdx].standard++;
+          if (pull.specialType === 'guaranteed') globalDistBuckets[bucketIdx].guaranteed++;
+
+          // 池型分布桶
+          if (!typeDistBuckets[type][bucketIdx]) {
+            typeDistBuckets[type][bucketIdx] = { limited: 0, standard: 0 };
+          }
+          if (!pull.isStandard) typeDistBuckets[type][bucketIdx].limited++;
+          else typeDistBuckets[type][bucketIdx].standard++;
+
+          // 池型保底均值累加
+          typePitySums[type].sum += tempCounter;
+          typePitySums[type].count++;
+
+          // 限定池特有累加器
+          if (type === 'limited') {
+            if (!isFree && !isSpark) {
+              limitedNonFreeNonSparkSum += tempCounter;
+              limitedNonFreeNonSparkCount++;
+            }
+            if (!isFree) {
+              limitedNonFreeSum += tempCounter;
+              limitedNonFreeCount++;
+            }
+          }
+
+          // 排除免费的全局保底累加
+          if (!isFree) {
+            allSixStarExclFreePitySum += tempCounterExcludingFree;
+            allSixStarExclFreePityCount++;
+            tempCounterExcludingFree = 0;
+          }
+
+          // pityList（仍需保留供消费端使用）
+          data.byType[type].pityList.push({
+            count: tempCounter,
+            isStandard: pull.isStandard,
+            isFree: isFree,
+            isSpark
+          });
+
+          if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
+            recordHitIntervalHit(targetIntervalTracker, { isSpark });
+          }
+          tempCounter = 0;
+        }
+      }
+
+      if (targetIntervalTracker) {
+        targetSixStarIntervals[type].push(...targetIntervalTracker.intervals);
+      }
+    }
+
+    // ── Phase 3: 汇总 ──
+
+    // 饼图
     data.chartData = generatePieData(data.counts);
 
+    // 池型汇总
     ['limited', 'weapon', 'standard'].forEach(t => {
-      data.byType[t].distribution = generateDist(data.byType[t].pityList);
+      let typeMaxPity = 0;
+      const buckets = typeDistBuckets[t];
+      for (const idx in buckets) {
+        const upper = (Number(idx) + 1) * 10;
+        if (upper > typeMaxPity) typeMaxPity = upper;
+      }
+      data.byType[t].distribution = buildDistFromBuckets(buckets, typeMaxPity);
       data.byType[t].chartData = generatePieData(data.byType[t].counts);
-      if (data.byType[t].pityList.length > 0) {
-        data.byType[t].avgPity = (data.byType[t].pityList.reduce((sum, p) => sum + p.count, 0) / data.byType[t].pityList.length).toFixed(1);
+      if (typePitySums[t].count > 0) {
+        data.byType[t].avgPity = (typePitySums[t].sum / typePitySums[t].count).toFixed(1);
       }
       if (t === 'limited') {
-        const nonFreeNonSparkList = data.byType[t].pityList.filter(p => !p.isFree && !p.isSpark);
-        if (nonFreeNonSparkList.length > 0) {
-          data.byType[t].avgPityExcludingFree = (nonFreeNonSparkList.reduce((sum, p) => sum + p.count, 0) / nonFreeNonSparkList.length).toFixed(1);
+        if (limitedNonFreeNonSparkCount > 0) {
+          data.byType[t].avgPityExcludingFree = (limitedNonFreeNonSparkSum / limitedNonFreeNonSparkCount).toFixed(1);
         }
-        // 含Spark的平均出货（供参考）
-        const nonFreeList = data.byType[t].pityList.filter(p => !p.isFree);
-        if (nonFreeList.length > 0) {
-          data.byType[t].avgPityWithSpark = (nonFreeList.reduce((sum, p) => sum + p.count, 0) / nonFreeList.length).toFixed(1);
+        if (limitedNonFreeCount > 0) {
+          data.byType[t].avgPityWithSpark = (limitedNonFreeSum / limitedNonFreeCount).toFixed(1);
         }
       }
     });
@@ -339,21 +429,8 @@ export function useSummaryStats(history, pools, user) {
     data.byType.weapon.avgPityTarget = data.byType.weapon.avgPityUp;
 
     // 全局分布
-    if (allSixStarPulls.length > 0) {
-      const maxPity = Math.max(...allSixStarPulls.map(p => p.count), 80);
-      const maxRange = Math.ceil(maxPity / 10) * 10;
-      for (let i = 0; i < maxRange; i += 10) {
-        const rangeStart = i + 1;
-        const rangeEnd = i + 10;
-        const items = allSixStarPulls.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
-        data.pityStats.distribution.push({
-          range: `${rangeStart}-${rangeEnd}`,
-          count: items.length,
-          limited: items.filter(p => !p.isStandard).length,
-          standard: items.filter(p => p.isStandard).length,
-          guaranteed: items.filter(p => p.isGuaranteed).length
-        });
-      }
+    if (allSixStarPityCount > 0) {
+      data.pityStats.distribution = buildDistFromBuckets(globalDistBuckets, globalMaxPity);
     }
 
     // 角色池合并数据
@@ -363,9 +440,34 @@ export function useSummaryStats(history, pools, user) {
       5: data.byType.limited.counts[5] + data.byType.standard.counts[5],
       4: data.byType.limited.counts[4] + data.byType.standard.counts[4]
     };
+
+    // 合并角色分布桶
+    const charDistBuckets = {};
+    for (const t of ['limited', 'standard']) {
+      for (const idx in typeDistBuckets[t]) {
+        if (!charDistBuckets[idx]) charDistBuckets[idx] = { limited: 0, standard: 0 };
+        charDistBuckets[idx].limited += typeDistBuckets[t][idx].limited || 0;
+        charDistBuckets[idx].standard += typeDistBuckets[t][idx].standard || 0;
+      }
+    }
+    let charMaxPity = 0;
+    for (const idx in charDistBuckets) {
+      const upper = (Number(idx) + 1) * 10;
+      if (upper > charMaxPity) charMaxPity = upper;
+    }
+
     const characterPityList = [...data.byType.limited.pityList, ...data.byType.standard.pityList];
     const limitedPityListExcludingFree = data.byType.limited.pityList.filter(p => !p.isFree);
     const characterPityListExcludingFree = characterPityList.filter(p => !p.isFree && !p.isSpark);
+
+    const charPitySum = typePitySums.limited.sum + typePitySums.standard.sum;
+    const charPityCount = typePitySums.limited.count + typePitySums.standard.count;
+
+    let charExclFreePitySum = 0, charExclFreePityCount = 0;
+    for (let i = 0; i < characterPityListExcludingFree.length; i++) {
+      charExclFreePitySum += characterPityListExcludingFree[i].count;
+      charExclFreePityCount++;
+    }
 
     data.byType.character = {
       total: data.byType.limited.total + data.byType.standard.total,
@@ -374,38 +476,22 @@ export function useSummaryStats(history, pools, user) {
       counts: characterCounts,
       pityList: characterPityList,
       pityListExcludingFree: characterPityListExcludingFree,
-      distribution: generateDist(characterPityList),
+      distribution: buildDistFromBuckets(charDistBuckets, charMaxPity),
       chartData: generatePieData(characterCounts),
-      avgPity: characterPityList.length > 0
-        ? (characterPityList.reduce((sum, p) => sum + p.count, 0) / characterPityList.length).toFixed(1)
+      avgPity: charPityCount > 0
+        ? (charPitySum / charPityCount).toFixed(1)
         : '-',
       avgPityUp: data.byType.limited.avgPityUp,
       avgPityTarget: data.byType.limited.avgPityUp,
-      avgPityExcludingFree: characterPityListExcludingFree.length > 0
-        ? (characterPityListExcludingFree.reduce((sum, p) => sum + p.count, 0) / characterPityListExcludingFree.length).toFixed(1)
+      avgPityExcludingFree: charExclFreePityCount > 0
+        ? (charExclFreePitySum / charExclFreePityCount).toFixed(1)
         : null
     };
 
-    const limitedChargedPulls = normalizedMyHistory.filter(item => {
-      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
-      const type = normalizePoolType(rawType);
-      const isFree = item.isFree || item.is_free;
-      return type === 'limited' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree && !isInfoBookHistoryPull(item);
-    }).length;
-
-    const standardChargedPulls = normalizedMyHistory.filter(item => {
-      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
-      const type = normalizePoolType(rawType);
-      const isFree = item.isFree || item.is_free;
-      return type === 'standard' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree;
-    }).length;
-
-    const weaponChargedPulls = normalizedMyHistory.filter(item => {
-      const rawType = poolTypeMap.get(item.poolId || item.pool_id) || 'standard';
-      const type = normalizePoolType(rawType);
-      const isFree = item.isFree || item.is_free;
-      return type === 'weapon' && item.specialType !== 'gift' && item.special_type !== 'gift' && !isFree;
-    }).length;
+    // 资源
+    const limitedChargedPulls = chargedPullsByType.limited;
+    const standardChargedPulls = chargedPullsByType.standard;
+    const weaponChargedPulls = chargedPullsByType.weapon;
 
     data.byType.limited.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.limited.total,
@@ -434,33 +520,18 @@ export function useSummaryStats(history, pools, user) {
 
     data.byType.limited.pityListExcludingFree = limitedPityListExcludingFree;
 
-    data.avgPity = allSixStarPulls.length > 0
-      ? (allSixStarPulls.reduce((sum, p) => sum + p.count, 0) / allSixStarPulls.length).toFixed(1)
+    data.avgPity = allSixStarPityCount > 0
+      ? (allSixStarPitySum / allSixStarPityCount).toFixed(1)
       : '-';
 
-    data.avgPityExcludingFree = allSixStarPullsExcludingFree.length > 0
-      ? (allSixStarPullsExcludingFree.reduce((sum, p) => sum + p.count, 0) / allSixStarPullsExcludingFree.length).toFixed(1)
+    data.avgPityExcludingFree = allSixStarExclFreePityCount > 0
+      ? (allSixStarExclFreePitySum / allSixStarExclFreePityCount).toFixed(1)
       : '-';
 
     data.charGift = charGiftCount;
     data.weaponGiftLimited = weaponGiftLimitedCount;
     data.weaponGiftStandard = weaponGiftStandardCount;
     data.giftTotal = charGiftCount + weaponGiftLimitedCount + weaponGiftStandardCount;
-    const contributorBuckets = new Set();
-    normalizedMyHistory.forEach((item) => {
-      if (isGiftPull(item) || isFreePull(item)) {
-        return;
-      }
-
-      const bucket = classifyGameAccountRegionBucket({
-        serverId: item.serverId || item.server_id,
-        region: item.region || item.serverRegion
-      });
-
-      if (bucket) {
-        contributorBuckets.add(bucket);
-      }
-    });
     data.totalUsers = user ? 1 : 0;
     data.totalContributors = user ? 1 : 0;
     data.contributorsByRegion = {
