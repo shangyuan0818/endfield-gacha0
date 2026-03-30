@@ -1,18 +1,12 @@
 -- ============================================
--- 090: 重写 get_global_stats 的目标 6★ 间隔口径
+-- 090: 重写 get_global_stats 的目标 6★ 平均出货口径 + 性能优化
 --
--- 背景:
---   1. 088 虽已收窄目标匹配范围，但 avgPityTarget / avgPityUp 仍然沿用了
---      “上一次任意 6★ -> 下一次目标 6★” 的错误口径。
---   2. 正确口径应为“上一次目标 6★ -> 下一次目标 6★”，
---      首次目标命中不应再拿“开池到首个目标”的抽数参与平均。
---   3. 统计页超时的高风险点仍集中在 get_global_stats()；这里顺手把目标间隔链
---      收敛到更小的 6★/目标 6★ 子集，避免继续在大结果集上反复过滤。
---
--- 目标:
---   1. 限定池 / 武器池 avgPityTarget 改为“目标 6★ -> 目标 6★”间隔
---   2. avgPityUp 与 avgPityTarget 统一到同一真实口径
---   3. 保持既有返回 JSON 结构不变
+-- BUG-035: avgPityTarget / avgPityUp 统一为 totalPulls / upCount
+-- PERF-009: 消除 3 次全量排序/物化：
+--   1. ordered_valid + six_pity 合并为 six_star_pity（只物化 6★ 行）
+--   2. 情报书计数改为 LEAST(credit, actual_count) 聚合，
+--      消除 limited_paid_pull_order / info_book_pulls / charged_valid_pulls
+--   3. valid_counts 从 type_counts 派生，不再独立扫描
 -- ============================================
 
 CREATE OR REPLACE FUNCTION public.get_global_stats()
@@ -127,6 +121,7 @@ contributor_region_counts AS MATERIALIZED (
     COUNT(*) FILTER (WHERE region_bucket = 'intl') AS intl_contributors
   FROM contributor_regions
 ),
+-- ── 情报书计数（PERF-009: 消除 ROW_NUMBER + LEFT JOIN 反模式）──
 limited_pool_sequence AS MATERIALIZED (
   SELECT
     p.pool_id,
@@ -157,49 +152,16 @@ info_book_credits AS MATERIALIZED (
     AND lpc.paid_pull_count >= 60
   GROUP BY lpc.user_id, lps.next_pool_id
 ),
-limited_paid_pull_order AS MATERIALIZED (
-  SELECT
-    vp.user_id,
-    vp.pool_id,
-    vp.record_id,
-    ROW_NUMBER() OVER (
-      PARTITION BY vp.user_id, vp.pool_id
-      ORDER BY vp.record_id
-    ) AS paid_pull_order
-  FROM valid_pulls AS vp
-  WHERE vp.classified_pool_type = 'limited'
+info_book_pull_total AS MATERIALIZED (
+  SELECT COALESCE(SUM(
+    LEAST(ibc.credit_pull_count, COALESCE(next_pool.paid_pull_count, 0))
+  ), 0) AS info_book_pull_count
+  FROM info_book_credits AS ibc
+  LEFT JOIN limited_paid_pool_counts AS next_pool
+    ON next_pool.user_id = ibc.user_id
+   AND next_pool.pool_id = ibc.pool_id
 ),
-info_book_pulls AS MATERIALIZED (
-  SELECT
-    lpo.user_id,
-    lpo.pool_id,
-    lpo.record_id
-  FROM limited_paid_pull_order AS lpo
-  JOIN info_book_credits AS ibc
-    ON ibc.user_id = lpo.user_id
-   AND ibc.pool_id = lpo.pool_id
-  WHERE lpo.paid_pull_order <= ibc.credit_pull_count
-),
-charged_valid_pulls AS MATERIALIZED (
-  SELECT vp.*
-  FROM valid_pulls AS vp
-  LEFT JOIN info_book_pulls AS ibp
-    ON ibp.user_id = vp.user_id
-   AND ibp.pool_id = vp.pool_id
-   AND ibp.record_id = vp.record_id
-  WHERE ibp.record_id IS NULL
-),
-valid_counts AS MATERIALIZED (
-  SELECT
-    COUNT(*) AS total_pulls,
-    COUNT(DISTINCT user_id) AS total_contributors,
-    COUNT(*) FILTER (WHERE rarity = 6) AS six_star_total,
-    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = false) AS six_star_limited,
-    COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = true) AS six_star_standard,
-    COUNT(*) FILTER (WHERE rarity = 5) AS five_star,
-    COUNT(*) FILTER (WHERE rarity <= 4) AS four_star
-  FROM valid_pulls
-),
+-- ── 计数聚合 ──
 history_counts AS MATERIALIZED (
   SELECT
     COUNT(*) FILTER (WHERE special_type IS DISTINCT FROM 'gift') AS total_pulls_with_free,
@@ -236,40 +198,51 @@ type_counts AS MATERIALIZED (
   FROM valid_pulls
   GROUP BY classified_pool_type
 ),
-charged_counts AS MATERIALIZED (
+-- PERF-009: valid_counts 从 type_counts 派生，不再独立扫描 valid_pulls
+valid_counts AS (
   SELECT
-    COUNT(*) FILTER (WHERE classified_pool_type IN ('limited', 'standard')) AS charged_character_pulls,
-    COUNT(*) FILTER (WHERE classified_pool_type = 'weapon') AS charged_weapon_pulls,
-    COUNT(*) FILTER (WHERE classified_pool_type = 'limited') AS charged_limited_pulls,
-    COUNT(*) FILTER (WHERE classified_pool_type = 'standard') AS charged_standard_pulls,
-    COUNT(*) FILTER (WHERE classified_pool_type = 'weapon') AS charged_weapon_type_pulls,
-    (SELECT COUNT(*) FROM info_book_pulls) AS info_book_pull_count
-  FROM charged_valid_pulls
+    COALESCE(SUM(total), 0) AS total_pulls,
+    (SELECT COUNT(*) FROM contributor_regions) AS total_contributors,
+    COALESCE(SUM(six), 0) AS six_star_total,
+    COALESCE(SUM(six_star_limited), 0) AS six_star_limited,
+    COALESCE(SUM(six_star_standard), 0) AS six_star_standard,
+    COALESCE(SUM(five), 0) AS five_star,
+    COALESCE(SUM(four), 0) AS four_star
+  FROM type_counts
 ),
-ordered_valid AS MATERIALIZED (
+-- PERF-009: charged_counts 从 type_counts + info_book_pull_total 派生
+charged_counts AS (
+  SELECT
+    COALESCE(tc_l.total, 0) - ibt.info_book_pull_count + COALESCE(tc_s.total, 0) AS charged_character_pulls,
+    COALESCE(tc_w.total, 0) AS charged_weapon_pulls,
+    COALESCE(tc_l.total, 0) - ibt.info_book_pull_count AS charged_limited_pulls,
+    COALESCE(tc_s.total, 0) AS charged_standard_pulls,
+    COALESCE(tc_w.total, 0) AS charged_weapon_type_pulls,
+    ibt.info_book_pull_count
+  FROM info_book_pull_total AS ibt
+  LEFT JOIN type_counts AS tc_l ON tc_l.classified_pool_type = 'limited'
+  LEFT JOIN type_counts AS tc_s ON tc_s.classified_pool_type = 'standard'
+  LEFT JOIN type_counts AS tc_w ON tc_w.classified_pool_type = 'weapon'
+),
+-- PERF-009: 合并 ordered_valid + six_pity，只物化 6★ 行（~7K vs ~500K）
+six_star_pity AS MATERIALIZED (
   SELECT
     pool_id,
     user_id,
-    rarity,
     is_standard_calc,
     is_target_calc,
     classified_pool_type,
-    record_id,
-    ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) AS rn
-  FROM valid_pulls
-),
-six_pity AS MATERIALIZED (
-  SELECT
-    pool_id,
-    user_id,
-    is_standard_calc,
-    classified_pool_type,
     rn,
     LEAST(
-      rn - COALESCE(LAG(rn, 1) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+      rn - COALESCE(LAG(rn) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
       80
     ) AS pity
-  FROM ordered_valid
+  FROM (
+    SELECT
+      pool_id, user_id, rarity, is_standard_calc, is_target_calc, classified_pool_type,
+      ROW_NUMBER() OVER (PARTITION BY pool_id, user_id ORDER BY record_id) AS rn
+    FROM valid_pulls
+  ) AS all_numbered
   WHERE rarity = 6
 ),
 target_hit_rows AS MATERIALIZED (
@@ -278,12 +251,9 @@ target_hit_rows AS MATERIALIZED (
     user_id,
     classified_pool_type,
     rn
-  FROM ordered_valid
-  WHERE rarity = 6
-    AND (
-      (classified_pool_type = 'limited' AND is_target_calc = true)
-      OR (classified_pool_type = 'weapon' AND is_standard_calc = false)
-    )
+  FROM six_star_pity
+  WHERE (classified_pool_type = 'limited' AND is_target_calc = true)
+     OR (classified_pool_type = 'weapon' AND is_standard_calc = false)
 ),
 limited_first_target AS MATERIALIZED (
   SELECT
@@ -311,35 +281,14 @@ limited_target_hits AS MATERIALIZED (
    AND lft.user_id = thr.user_id
   WHERE thr.classified_pool_type = 'limited'
 ),
-target_hit_intervals AS MATERIALIZED (
+target_hit_counts AS MATERIALIZED (
   SELECT
-    th.classified_pool_type,
-    th.pool_id,
-    th.user_id,
-    th.is_spark,
-    th.rn - LAG(th.rn, 1) OVER (
-      PARTITION BY th.pool_id, th.user_id
-      ORDER BY th.rn
-    ) AS pity
-  FROM (
-    SELECT
-      lth.pool_id,
-      lth.user_id,
-      'limited'::TEXT AS classified_pool_type,
-      lth.rn,
-      lth.is_spark
-    FROM limited_target_hits AS lth
-    UNION ALL
-    SELECT
-      thr.pool_id,
-      thr.user_id,
-      thr.classified_pool_type,
-      thr.rn,
-      false AS is_spark
-    FROM target_hit_rows AS thr
-    WHERE thr.classified_pool_type = 'weapon'
-  ) AS th
+    classified_pool_type,
+    COUNT(*) AS target_count
+  FROM target_hit_rows
+  GROUP BY classified_pool_type
 ),
+-- ── 分布 ──
 pity_ranges AS MATERIALIZED (
   SELECT
     classified_pool_type,
@@ -356,7 +305,7 @@ pity_ranges AS MATERIALIZED (
       WHEN pity BETWEEN 81 AND 90 THEN '81-90'
       ELSE '91+'
     END AS range_label
-  FROM six_pity
+  FROM six_star_pity
 ),
 global_distribution_rows AS MATERIALIZED (
   SELECT
@@ -406,37 +355,30 @@ type_distributions AS MATERIALIZED (
   FROM type_distribution_rows
   GROUP BY classified_pool_type
 ),
+-- ── 均值 ──
 global_avg_pity AS MATERIALIZED (
   SELECT ROUND(AVG(pity)::numeric, 1) AS avg_pity
-  FROM six_pity
+  FROM six_star_pity
 ),
 type_pity_stats AS MATERIALIZED (
   SELECT
     classified_pool_type,
     ROUND(AVG(pity)::numeric, 1) AS avg_pity
-  FROM six_pity
+  FROM six_star_pity
   GROUP BY classified_pool_type
 ),
+-- BUG-035: avgPityTarget = totalPulls / upCount
 target_pity_stats AS MATERIALIZED (
   SELECT
-    classified_pool_type,
+    tc.classified_pool_type,
     ROUND(
-      (SUM(total)::numeric / NULLIF(SUM(target_count), 0)),
+      tc.total::numeric / NULLIF(thc.target_count, 0),
       1
     ) AS avg_pity_target
-  FROM (
-    SELECT
-      tc.classified_pool_type,
-      tc.total,
-      (
-        SELECT COUNT(*)
-        FROM target_hit_rows AS thr2
-        WHERE thr2.classified_pool_type = tc.classified_pool_type
-      ) AS target_count
-    FROM type_counts AS tc
-    WHERE tc.classified_pool_type IN ('limited', 'weapon')
-  ) AS sub
-  GROUP BY classified_pool_type
+  FROM type_counts AS tc
+  JOIN target_hit_counts AS thc
+    ON thc.classified_pool_type = tc.classified_pool_type
+  WHERE tc.classified_pool_type IN ('limited', 'weapon')
 ),
 limited_spark_stats AS MATERIALIZED (
   SELECT
@@ -566,5 +508,5 @@ GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
 
 DO $$
 BEGIN
-  RAISE NOTICE '✅ Migration 090: get_global_stats 已改为目标 6★ -> 目标 6★ 平均间隔';
+  RAISE NOTICE '✅ Migration 090: get_global_stats — BUG-035 口径修复 + PERF-009 消除 3 次全量排序';
 END $$;
