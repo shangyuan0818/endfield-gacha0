@@ -508,7 +508,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
         <div style={cardStyles.footerCard}>
           <div style={cardStyles.footerLabel}>平均出货</div>
           <div style={cardStyles.footerValue}>{payload?.avgPullsPerSixStar ?? '0.00'}</div>
-          <div style={cardStyles.footerHint}>按全部 6 星统计，单位：抽/个</div>
+          <div style={cardStyles.footerHint}>按目标 UP 6★ 间隔统计，单位：抽/UP</div>
         </div>
 
         <div style={cardStyles.footerCard}>

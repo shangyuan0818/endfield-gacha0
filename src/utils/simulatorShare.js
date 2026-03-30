@@ -95,7 +95,8 @@ export function buildSimulatorSharePayload({
   const upSixStarCount = normalizeNumber(dashboardStats?.upSixStarCount);
   const sixStarRate = totalPulls > 0 ? roundRate((sixStarCount / totalPulls) * 100) : '0.00';
   const fiveStarRate = totalPulls > 0 ? roundRate((fiveStarCount / totalPulls) * 100) : '0.00';
-  const avgPullsPerSixStar = sixStarCount > 0 ? roundAverage(totalPulls / sixStarCount) : '0.00';
+  const avgPullCost6 = parseFloat(dashboardStats?.avgPullCost?.[6]) || 0;
+  const avgPullsPerSixStar = avgPullCost6 > 0 ? roundAverage(avgPullCost6) : '0.00';
   const hasUpMetrics = poolType === 'limited' || poolType === 'weapon';
 
   return {
@@ -144,7 +145,7 @@ export function buildSimulatorShareText(payload) {
     lines.push(`不歪率：${payload.winRate}%`);
   }
 
-  lines.push(`平均出货：${payload.avgPullsPerSixStar} 抽/个`);
+  lines.push(`平均出货：${payload.avgPullsPerSixStar} 抽/UP`);
   lines.push(`当前保底：6星 ${payload.currentPity6} / 5星 ${payload.currentPity5}`);
   lines.push(`${payload.guaranteeProgress.label}：${payload.guaranteeProgress.summary}`);
   lines.push('');

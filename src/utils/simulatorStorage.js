@@ -344,7 +344,7 @@ export function generateShareText(stats, poolType) {
     text += `🎯 UP 6星: ${stats.upSixStarCount} (不歪率: ${stats.upRate}%)\n`;
   }
 
-  text += `📈 平均出货: ${stats.avgPullsPerSixStar} 抽/个\n`;
+  text += `📈 平均出货: ${stats.avgPullsPerSixStar} 抽/UP\n`;
   text += `🎲 期望抽数: ${stats.expectedPulls} 抽\n\n`;
 
   // 赠送进度
