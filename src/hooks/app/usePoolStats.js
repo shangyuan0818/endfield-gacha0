@@ -9,7 +9,6 @@ import {
 import { characterCache } from '../../utils/characterUtils.js';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import {
-  averageTrackedIntervals,
   createHitIntervalTracker,
   recordHitIntervalHit,
   recordHitIntervalPull
@@ -231,28 +230,22 @@ export function usePoolStats({
       : 0;
 
     const avgAllSixStar = realTotalSix > 0 ? (total / realTotalSix).toFixed(2) : '0';
-    const avgUpSixStar = averageTrackedIntervals(targetSixStarIntervalTracker.intervals, {
-      digits: 2
-    }) || '0';
 
-    // FEAT-014: 排除Spark的平均出货
-    const avgUpSixStarExcludingSpark = averageTrackedIntervals(targetSixStarIntervalTracker.intervals, {
-      digits: 2,
-      exclude: (item) => item.isSpark
-    }) || '0';
+    // BUG-035: 统一 UP 平均出货为 totalPulls / upCount
+    const upHitCount = upSixStarHits.length;
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
+    const nonSparkUpCount = upHitCount - sparkCount;
+    const avgUpSixStar = upHitCount > 0 ? (total / upHitCount).toFixed(2) : '0';
+    const avgUpSixStarExcludingSpark = nonSparkUpCount > 0 ? (total / nonSparkUpCount).toFixed(2) : '0';
 
-    // UI-007: 限定六星(UP+歪限定)平均出货
-    const avgLimitedSixStar = averageTrackedIntervals(limitedSixStarIntervalTracker.intervals, {
-      digits: 2,
-      exclude: (item) => item.isSpark
-    }) || '0';
+    // 限定六星平均也统一用 UP 口径（totalPulls / upCount）
+    const avgLimitedSixStar = avgUpSixStarExcludingSpark;
 
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
       '6_with_spark': avgUpSixStar,
       '6_all': avgAllSixStar,
-      '6_limited': avgLimitedSixStar, // UI-007: 限定六星平均
+      '6_limited': avgLimitedSixStar,
       5: counts[5] > 0 ? (total / counts[5]).toFixed(2) : '0',
     };
 

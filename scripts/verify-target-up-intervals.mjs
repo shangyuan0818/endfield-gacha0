@@ -109,8 +109,8 @@ const poolStatsResult = renderHookResult(
 
 assert.equal(
   poolStatsResult.stats.avgPullCost[6],
-  '20.00',
-  '详情页平均 UP 应按上一次目标 6★ -> 下一次目标 6★ 计算'
+  '15.50',
+  '详情页平均 UP 应为 totalPulls / upCount（31 / 2 = 15.5）'
 );
 
 const summaryStats = renderHookResult(
@@ -124,13 +124,13 @@ const summaryStats = renderHookResult(
 
 assert.equal(
   summaryStats.byType.limited.avgPityUp,
-  '20.0',
-  '统计页限定池平均 UP 应忽略中间歪出的 6★ 重置'
+  '15.5',
+  '统计页限定池平均 UP 应为 totalPulls / upCount（31 / 2 = 15.5）'
 );
 assert.equal(
   summaryStats.byType.weapon.avgPityUp,
-  '10.0',
-  '统计页武器池平均 UP 应按目标武器之间的真实间隔计算'
+  '8.0',
+  '统计页武器池平均 UP 应为 totalPulls / upCount（16 / 2 = 8）'
 );
 
 const overviewStats = buildDashboardOverviewSplitStats({
@@ -140,13 +140,13 @@ const overviewStats = buildDashboardOverviewSplitStats({
 
 assert.equal(
   overviewStats.character.avgPullCost[6],
-  '20.00',
-  '全部卡池总览的角色池目标 6★ 平均应与统一口径一致'
+  '15.50',
+  '全部卡池总览的角色池目标 6★ 平均应为 totalPulls / upCount'
 );
 assert.equal(
   overviewStats.weapon.avgPullCost[6],
-  '10.00',
-  '全部卡池总览的武器池目标 6★ 平均应与统一口径一致'
+  '8.00',
+  '全部卡池总览的武器池目标 6★ 平均应为 totalPulls / upCount'
 );
 
 console.log('BUG-035 target UP interval verification passed');

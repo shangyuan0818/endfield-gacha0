@@ -22,12 +22,6 @@ import {
 } from '../constants/characterPools.js';
 
 import { characterCache } from './characterUtils.js';
-import {
-  averageTrackedIntervals,
-  createHitIntervalTracker,
-  recordHitIntervalHit,
-  recordHitIntervalPull
-} from './pityIntervals.js';
 
 /**
  * 创建初始模拟器状态
@@ -620,19 +614,13 @@ export class GachaSimulator {
       ? ((upSixStarCount / sixStarCount) * 100).toFixed(1)
       : '0.0';
 
-    // 计算平均出货抽数（BUG-035: 统一为 UP→UP 区间口径）
-    const targetIntervalTracker = createHitIntervalTracker();
-    pullHistory.forEach(p => {
-      if (p.isFreePull) return;
-      recordHitIntervalPull(targetIntervalTracker);
-      if (p.rarity === 6 && p.isUp) {
-        recordHitIntervalHit(targetIntervalTracker);
-      }
-    });
+    // BUG-035: 统一 UP 平均出货为 totalPulls / upCount
+    const nonFreePulls = pullHistory.filter(p => !p.isFreePull).length;
+    const nonFreeUpSixStars = pullHistory.filter(p => p.rarity === 6 && p.isUp && !p.isFreePull).length;
 
-    const avgPullsPerSixStar = averageTrackedIntervals(targetIntervalTracker.intervals, {
-      digits: 1
-    }) || '-';
+    const avgPullsPerSixStar = nonFreeUpSixStars > 0
+      ? (nonFreePulls / nonFreeUpSixStars).toFixed(1)
+      : '-';
 
     // 期望抽数
     const expectedPulls = calculateExpectedPulls(sixStarPity, this.rules);

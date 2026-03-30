@@ -3,12 +3,6 @@ import { RARITY_CONFIG } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
-import {
-  averageTrackedIntervals,
-  createHitIntervalTracker,
-  recordHitIntervalHit,
-  recordHitIntervalPull
-} from '../../utils/pityIntervals.js';
 
 function isGiftPull(pull) {
   return pull?.specialType === 'gift' || pull?.special_type === 'gift';
@@ -254,7 +248,8 @@ export function useSummaryStats(history, pools, user) {
     }
 
     // ── Phase 2: 分池保底/区间/赠送/分布计算 ──
-    const targetSixStarIntervals = { limited: [], weapon: [] };
+    // BUG-035: UP 平均出货用 totalPulls / upCount
+    const upCountByType = { limited: 0, weapon: 0 };
 
     // 分布桶计数器（替代 O(n×k) 嵌套 filter）
     const globalDistBuckets = {};
@@ -300,9 +295,6 @@ export function useSummaryStats(history, pools, user) {
 
       let tempCounter = 0;
       let tempCounterExcludingFree = 0;
-      const targetIntervalTracker = (type === 'limited' || type === 'weapon')
-        ? createHitIntervalTracker()
-        : null;
       let cumulativePullCount = 0;
       let hasGotUpBefore120 = false;
 
@@ -314,7 +306,6 @@ export function useSummaryStats(history, pools, user) {
         tempCounter++;
         if (!isFree) tempCounterExcludingFree++;
         cumulativePullCount++;
-        recordHitIntervalPull(targetIntervalTracker);
 
         if (pull.rarity === 6) {
           const isUp = !pull.isStandard;
@@ -379,14 +370,10 @@ export function useSummaryStats(history, pools, user) {
           });
 
           if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
-            recordHitIntervalHit(targetIntervalTracker, { isSpark });
+            if (upCountByType[type] !== undefined) upCountByType[type]++;
           }
           tempCounter = 0;
         }
-      }
-
-      if (targetIntervalTracker) {
-        targetSixStarIntervals[type].push(...targetIntervalTracker.intervals);
       }
     }
 
@@ -418,14 +405,14 @@ export function useSummaryStats(history, pools, user) {
       }
     });
 
-    data.byType.limited.avgPityUp = averageTrackedIntervals(targetSixStarIntervals.limited, {
-      digits: 1,
-      exclude: (item) => item.isSpark
-    });
+    // BUG-035: UP 平均出货 = 池总抽 / UP 6★ 数
+    data.byType.limited.avgPityUp = upCountByType.limited > 0
+      ? (data.byType.limited.total / upCountByType.limited).toFixed(1)
+      : null;
     data.byType.limited.avgPityTarget = data.byType.limited.avgPityUp;
-    data.byType.weapon.avgPityUp = averageTrackedIntervals(targetSixStarIntervals.weapon, {
-      digits: 1
-    });
+    data.byType.weapon.avgPityUp = upCountByType.weapon > 0
+      ? (data.byType.weapon.total / upCountByType.weapon).toFixed(1)
+      : null;
     data.byType.weapon.avgPityTarget = data.byType.weapon.avgPityUp;
 
     // 全局分布

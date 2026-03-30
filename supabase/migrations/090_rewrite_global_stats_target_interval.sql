@@ -420,13 +420,22 @@ type_pity_stats AS MATERIALIZED (
 target_pity_stats AS MATERIALIZED (
   SELECT
     classified_pool_type,
-    ROUND((
-      AVG(pity) FILTER (
-        WHERE pity IS NOT NULL
-          AND (classified_pool_type <> 'limited' OR is_spark IS NOT TRUE)
-      )
-    )::numeric, 1) AS avg_pity_target
-  FROM target_hit_intervals
+    ROUND(
+      (SUM(total)::numeric / NULLIF(SUM(target_count), 0)),
+      1
+    ) AS avg_pity_target
+  FROM (
+    SELECT
+      tc.classified_pool_type,
+      tc.total,
+      (
+        SELECT COUNT(*)
+        FROM target_hit_rows AS thr2
+        WHERE thr2.classified_pool_type = tc.classified_pool_type
+      ) AS target_count
+    FROM type_counts AS tc
+    WHERE tc.classified_pool_type IN ('limited', 'weapon')
+  ) AS sub
   GROUP BY classified_pool_type
 ),
 limited_spark_stats AS MATERIALIZED (
