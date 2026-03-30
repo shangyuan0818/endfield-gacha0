@@ -3,6 +3,12 @@ import { RARITY_CONFIG } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
+import {
+  averageTrackedIntervals,
+  createHitIntervalTracker,
+  recordHitIntervalHit,
+  recordHitIntervalPull
+} from '../../utils/pityIntervals.js';
 
 function isGiftPull(pull) {
   return pull?.specialType === 'gift' || pull?.special_type === 'gift';
@@ -129,7 +135,7 @@ export function useSummaryStats(history, pools, user) {
 
     const allSixStarPulls = [];
     const allSixStarPullsExcludingFree = [];
-    const targetSixStarPulls = {
+    const targetSixStarIntervals = {
       limited: [],
       weapon: []
     };
@@ -155,6 +161,9 @@ export function useSummaryStats(history, pools, user) {
 
       let tempCounter = 0;
       let tempCounterExcludingFree = 0;
+      const targetIntervalTracker = (type === 'limited' || type === 'weapon')
+        ? createHitIntervalTracker()
+        : null;
       // FEAT-014: 追踪累计抽数用于判断120抽必出(Spark)
       let cumulativePullCount = 0;
       let hasGotUpBefore120 = false;
@@ -164,6 +173,7 @@ export function useSummaryStats(history, pools, user) {
         tempCounter++;
         if (!isFree) tempCounterExcludingFree++;
         cumulativePullCount++;
+        recordHitIntervalPull(targetIntervalTracker);
 
         if (pull.rarity === 6) {
           // FEAT-014: 判断是否为120抽Spark
@@ -201,14 +211,15 @@ export function useSummaryStats(history, pools, user) {
             isSpark
           });
           if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
-            targetSixStarPulls[type].push({
-              count: tempCounter,
-              isSpark
-            });
+            recordHitIntervalHit(targetIntervalTracker, { isSpark });
           }
           tempCounter = 0;
         }
       });
+
+      if (targetIntervalTracker) {
+        targetSixStarIntervals[type].push(...targetIntervalTracker.intervals);
+      }
     });
 
     // 辅助函数
@@ -317,15 +328,14 @@ export function useSummaryStats(history, pools, user) {
       }
     });
 
-    const limitedTargetPulls = targetSixStarPulls.limited.filter(item => !item.isSpark);
-    const weaponTargetPulls = targetSixStarPulls.weapon;
-    data.byType.limited.avgPityUp = limitedTargetPulls.length > 0
-      ? (limitedTargetPulls.reduce((sum, item) => sum + item.count, 0) / limitedTargetPulls.length).toFixed(1)
-      : null;
+    data.byType.limited.avgPityUp = averageTrackedIntervals(targetSixStarIntervals.limited, {
+      digits: 1,
+      exclude: (item) => item.isSpark
+    });
     data.byType.limited.avgPityTarget = data.byType.limited.avgPityUp;
-    data.byType.weapon.avgPityUp = weaponTargetPulls.length > 0
-      ? (weaponTargetPulls.reduce((sum, item) => sum + item.count, 0) / weaponTargetPulls.length).toFixed(1)
-      : null;
+    data.byType.weapon.avgPityUp = averageTrackedIntervals(targetSixStarIntervals.weapon, {
+      digits: 1
+    });
     data.byType.weapon.avgPityTarget = data.byType.weapon.avgPityUp;
 
     // 全局分布

@@ -2,10 +2,6 @@ import { supabase } from '../supabaseClient.js';
 import { RARITY_CONFIG } from '../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy.js';
 import {
-  getBootstrapCharacterRanking,
-  getBootstrapGlobalSummary
-} from './bootstrapService.js';
-import {
   SUPABASE_RPC_TIMEOUT_MS,
   executeSupabaseRpc,
   fetchWithTimeout,
@@ -16,7 +12,7 @@ import { appLogger } from '../utils/appLogger.js';
 /**
  * 统计服务
  * 架构说明：
- * - 公共全服数据：Bootstrap API -> Stats API -> Supabase RPC -> localStorage
+ * - 公共全服数据：Stats API -> Supabase RPC -> localStorage
  * - 个人数据：Supabase RPC -> localStorage
  */
 
@@ -481,16 +477,6 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
     return await runCachedRequest(
       globalStatsRequestState,
       async () => {
-        const bootstrapSummary = await getBootstrapGlobalSummary(forceRefresh).catch(() => null);
-        if (bootstrapSummary) {
-          const normalizedFromBootstrap = withStatsMeta(normalizeGlobalStats(bootstrapSummary), {
-            source: 'bootstrap',
-            fetchedAt: Date.now()
-          });
-          writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalizedFromBootstrap);
-          return normalizedFromBootstrap;
-        }
-
         const apiPayload = await fetchStatsApi('global_summary').catch(() => null);
         if (apiPayload?.globalSummary) {
           const normalizedFromApi = withStatsMeta(normalizeGlobalStats(apiPayload.globalSummary), {
@@ -521,7 +507,7 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
 
         return createEmptyGlobalSummaryStats({
           status: 'unavailable',
-          source: 'missing-bootstrap'
+          source: 'missing-stats-api'
         });
       },
       { cacheTtl: GLOBAL_STATS_CACHE_TTL, forceRefresh }
@@ -564,12 +550,6 @@ export async function getCharacterRankingStats(forceRefresh = false) {
     return await runCachedRequest(
       characterRankingRequestState,
       async () => {
-        const bootstrapRanking = await getBootstrapCharacterRanking(forceRefresh).catch(() => null);
-        if (bootstrapRanking) {
-          writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, bootstrapRanking);
-          return bootstrapRanking;
-        }
-
         const apiPayload = await fetchStatsApi('character_ranking').catch(() => null);
         if (apiPayload?.characterRanking) {
           writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, apiPayload.characterRanking);

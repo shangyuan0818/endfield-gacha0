@@ -1,5 +1,11 @@
 import { RARITY_CONFIG } from '../constants/index.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
+import {
+  averageTrackedIntervals,
+  createHitIntervalTracker,
+  recordHitIntervalHit,
+  recordHitIntervalPull
+} from './pityIntervals.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
 
 function normalizePoolType(type) {
@@ -106,9 +112,8 @@ export function buildDashboardOverviewSplitStats({
       ...createBucketAccumulator(),
       label: '角色池汇总',
       poolType: 'limited',
-      _targetSixStarPulls: [],
       _allSixStarPulls: [],
-      _limitedSixStarPulls: [],
+      _targetIntervalTracker: createHitIntervalTracker(),
       _tempCounter: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
@@ -120,9 +125,8 @@ export function buildDashboardOverviewSplitStats({
       ...createBucketAccumulator(),
       label: '武器池汇总',
       poolType: 'weapon',
-      _targetSixStarPulls: [],
       _allSixStarPulls: [],
-      _limitedSixStarPulls: [],
+      _targetIntervalTracker: createHitIntervalTracker(),
       _tempCounter: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
@@ -146,6 +150,7 @@ export function buildDashboardOverviewSplitStats({
 
     bucket.total += 1;
     bucket._tempCounter += 1;
+    recordHitIntervalPull(bucket._targetIntervalTracker);
 
     if (bucketKey === 'weapon') {
       bucket._weaponPulls += 1;
@@ -183,8 +188,7 @@ export function buildDashboardOverviewSplitStats({
 
       bucket._allSixStarPulls.push(pullRecord);
       if (isTargetSixStar) {
-        bucket._targetSixStarPulls.push(pullRecord);
-        bucket._limitedSixStarPulls.push(pullRecord);
+        recordHitIntervalHit(bucket._targetIntervalTracker);
       }
 
       bucket._tempCounter = 0;
@@ -206,17 +210,14 @@ export function buildDashboardOverviewSplitStats({
 
     const avgFiveStar = bucket.counts[5] > 0 ? (bucket.total / bucket.counts[5]).toFixed(2) : '0';
     const avgAllSixStar = bucket.totalSixStar > 0 ? (bucket.total / bucket.totalSixStar).toFixed(2) : '0';
-    const avgTargetSixStar = bucket._targetSixStarPulls.length > 0
-      ? (bucket._targetSixStarPulls.reduce((sum, item) => sum + item.count, 0) / bucket._targetSixStarPulls.length).toFixed(2)
-      : '0';
-    const avgLimitedSixStar = bucket._limitedSixStarPulls.length > 0
-      ? (bucket._limitedSixStarPulls.reduce((sum, item) => sum + item.count, 0) / bucket._limitedSixStarPulls.length).toFixed(2)
-      : '0';
+    const avgTargetSixStar = averageTrackedIntervals(bucket._targetIntervalTracker.intervals, {
+      digits: 2
+    }) || '0';
 
     bucket.avgPullCost = {
       6: avgTargetSixStar,
       '6_all': avgAllSixStar,
-      '6_limited': avgLimitedSixStar,
+      '6_limited': avgTargetSixStar,
       '6_with_spark': avgTargetSixStar,
       5: avgFiveStar
     };
@@ -243,9 +244,8 @@ export function buildDashboardOverviewSplitStats({
       arsenalGainCounts: bucket._arsenalGainCounts
     });
 
-    delete bucket._targetSixStarPulls;
     delete bucket._allSixStarPulls;
-    delete bucket._limitedSixStarPulls;
+    delete bucket._targetIntervalTracker;
     delete bucket._tempCounter;
     delete bucket._characterPulls;
     delete bucket._weaponPulls;

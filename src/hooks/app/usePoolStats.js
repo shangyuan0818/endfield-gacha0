@@ -8,6 +8,12 @@ import {
 } from '../../utils/index.js';
 import { characterCache } from '../../utils/characterUtils.js';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
+import {
+  averageTrackedIntervals,
+  createHitIntervalTracker,
+  recordHitIntervalHit,
+  recordHitIntervalPull
+} from '../../utils/pityIntervals.js';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy.js';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory.js';
 
@@ -166,8 +172,9 @@ export function usePoolStats({
 
     // 统计历史6星出货分布
     const sixStarPulls = [];
-    const upSixStarPulls = [];
-    const limitedSixStarPulls = []; // UI-007: 限定六星(UP+歪限定)
+    const upSixStarHits = [];
+    const limitedSixStarIntervalTracker = createHitIntervalTracker(); // UI-007: 限定六星(UP+歪限定)
+    const targetSixStarIntervalTracker = createHitIntervalTracker();
     let tempCounter = 0;
     let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
     let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
@@ -175,6 +182,8 @@ export function usePoolStats({
     validPullsList.forEach(pull => {
       tempCounter++;
       cumulativePullCount++;
+      recordHitIntervalPull(targetSixStarIntervalTracker);
+      recordHitIntervalPull(limitedSixStarIntervalTracker);
       if (pull.rarity === 6) {
         // 判断是否为120抽Spark触发（FEAT-014）
         // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
@@ -204,10 +213,11 @@ export function usePoolStats({
         };
         sixStarPulls.push(pullRecord);
         if (isUp) {
-          upSixStarPulls.push(pullRecord);
-          limitedSixStarPulls.push(pullRecord);
+          upSixStarHits.push(pullRecord);
+          recordHitIntervalHit(targetSixStarIntervalTracker, { isSpark });
+          recordHitIntervalHit(limitedSixStarIntervalTracker, { isSpark });
         } else if (isActuallyLimited) {
-          limitedSixStarPulls.push(pullRecord);
+          recordHitIntervalHit(limitedSixStarIntervalTracker);
         }
         tempCounter = 0;
       }
@@ -221,22 +231,22 @@ export function usePoolStats({
       : 0;
 
     const avgAllSixStar = realTotalSix > 0 ? (total / realTotalSix).toFixed(2) : '0';
-    const avgUpSixStar = upSixStarPulls.length > 0
-      ? (upSixStarPulls.reduce((sum, p) => sum + p.count, 0) / upSixStarPulls.length).toFixed(2)
-      : '0';
+    const avgUpSixStar = averageTrackedIntervals(targetSixStarIntervalTracker.intervals, {
+      digits: 2
+    }) || '0';
 
     // FEAT-014: 排除Spark的平均出货
-    const upSixStarPullsExcludingSpark = upSixStarPulls.filter(p => !p.isSpark);
-    const avgUpSixStarExcludingSpark = upSixStarPullsExcludingSpark.length > 0
-      ? (upSixStarPullsExcludingSpark.reduce((sum, p) => sum + p.count, 0) / upSixStarPullsExcludingSpark.length).toFixed(2)
-      : '0';
-    const sparkCount = upSixStarPulls.filter(p => p.isSpark).length;
+    const avgUpSixStarExcludingSpark = averageTrackedIntervals(targetSixStarIntervalTracker.intervals, {
+      digits: 2,
+      exclude: (item) => item.isSpark
+    }) || '0';
+    const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
 
     // UI-007: 限定六星(UP+歪限定)平均出货
-    const limitedSixStarPullsExcludingSpark = limitedSixStarPulls.filter(p => !p.isSpark);
-    const avgLimitedSixStar = limitedSixStarPullsExcludingSpark.length > 0
-      ? (limitedSixStarPullsExcludingSpark.reduce((sum, p) => sum + p.count, 0) / limitedSixStarPullsExcludingSpark.length).toFixed(2)
-      : '0';
+    const avgLimitedSixStar = averageTrackedIntervals(limitedSixStarIntervalTracker.intervals, {
+      digits: 2,
+      exclude: (item) => item.isSpark
+    }) || '0';
 
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
