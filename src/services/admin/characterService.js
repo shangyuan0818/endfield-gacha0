@@ -8,7 +8,7 @@
 
 import { supabase } from '../../supabaseClient';
 import { syncAllCharacters, syncAllWeapons } from '../../utils/endfieldDataSync';
-import { batchSyncAvatars, ensureBucketExists } from '../../utils/avatarStorage';
+import { buildWikiAssetProxyPath } from '../../utils/avatarAssetPaths.js';
 import { characterCache } from '../../utils/characterUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
 import {
@@ -314,6 +314,18 @@ function isCompleteSyncFailure({ totalItems, newCount, skippedCount, errorCount 
   return totalItems > 0 && errorCount > 0 && newCount === 0 && skippedCount === 0;
 }
 
+function resolveManagedAvatarUrl(item) {
+  if (!item?.id) {
+    return null;
+  }
+
+  const proxyAssetId = item.type === 'weapon'
+    ? (item._iconId || item.id)
+    : item.id;
+
+  return buildWikiAssetProxyPath(item.type, proxyAssetId) || item.avatar_url || null;
+}
+
 export async function batchUpdateCharacterAvatars(avatarUpdates) {
   if (!supabase) {
     return { success: false, updateCount: 0, errorCount: 0, error: new Error('数据库未连接') };
@@ -388,33 +400,13 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       };
     }
 
-    // 4. 上传头像到 Storage
-    let avatarUrlMap = new Map();
-    let avatarFailedCount = 0;
-    const bucketReady = await ensureBucketExists();
+    const avatarFailedCount = 0;
+    pushUniqueWarning(
+      syncWarnings,
+      '浏览器侧同步已停用 Supabase Storage 头像上传，当前改为写入站点同源代理 URL；如需彻底切到站点本地静态头像，请在仓库本地运行 sync:local-avatars 后提交并部署'
+    );
 
-    if (bucketReady) {
-      onProgress?.(`正在上传头像 (0/${allItems.length})...`);
-
-      const { results, failed } = await batchSyncAvatars(
-        allItems,
-        (current, total, name) => {
-          onProgress?.(`上传头像: ${current}/${total} - ${name}`);
-        },
-        { assumeBucketReady: true }
-      );
-
-      avatarUrlMap = results;
-      avatarFailedCount = failed;
-
-      if (failed > 0) {
-        pushUniqueWarning(syncWarnings, `有 ${failed} 个头像上传失败，已保留 Wiki 原始头像链接`);
-      }
-    } else {
-      pushUniqueWarning(syncWarnings, '头像存储桶 avatars 不可用，本次未上传头像，已保留 Wiki 原始头像链接');
-    }
-
-    // 5. 更新数据库
+    // 4. 更新数据库
     onProgress?.(`正在更新数据库 (${allItems.length} 项)...`);
 
     let newCount = 0;
@@ -441,8 +433,7 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
 
     for (const item of allItems) {
       try {
-        // 优先使用上传到 Storage 的 URL，否则使用原始 URL
-        const finalAvatarUrl = avatarUrlMap.get(item.id) || item.avatar_url;
+        const finalAvatarUrl = resolveManagedAvatarUrl(item);
         const canonicalId = resolveAliasValue(wikiAliasMap, item.id);
 
         if (existingIdSet.has(canonicalId)) {
@@ -527,7 +518,7 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       );
     }
 
-    // 6. 刷新 characterCache
+    // 5. 刷新 characterCache
     await characterCache.refresh();
 
     return {
@@ -535,7 +526,7 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       newCount,
       skippedCount,
       errorCount,
-      avatarCount: avatarUrlMap.size,
+      avatarCount: 0,
       avatarFailedCount,
       warnings: Array.from(syncWarnings),
       error: null

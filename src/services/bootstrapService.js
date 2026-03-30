@@ -2,7 +2,7 @@ import { fetchWithTimeout } from './supabaseRequest.js';
 
 const BOOTSTRAP_API_TIMEOUT_MS = 25000;
 const BOOTSTRAP_MEMORY_TTL = 60 * 1000;
-const BOOTSTRAP_SNAPSHOT_KEY = 'public_bootstrap_snapshot_v1';
+const BOOTSTRAP_SNAPSHOT_KEY = 'public_bootstrap_snapshot_v2';
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
 const bootstrapState = {
@@ -16,9 +16,7 @@ function normalizeBootstrapPayload(payload) {
 
   return {
     siteConfig: data.siteConfig && typeof data.siteConfig === 'object' ? data.siteConfig : {},
-    pools: Array.isArray(data.pools) ? data.pools : [],
-    globalSummary: data.globalSummary ?? null,
-    characterRanking: data.characterRanking ?? null
+    pools: Array.isArray(data.pools) ? data.pools : []
   };
 }
 
@@ -150,19 +148,9 @@ export async function getBootstrapVisiblePools(forceRefresh = false) {
   return (await preloadPublicBootstrap(forceRefresh))?.pools || null;
 }
 
-export async function getBootstrapGlobalSummary(forceRefresh = false) {
-  return (await preloadPublicBootstrap(forceRefresh))?.globalSummary || null;
-}
-
-export async function getBootstrapCharacterRanking(forceRefresh = false) {
-  return (await preloadPublicBootstrap(forceRefresh))?.characterRanking || null;
-}
-
 export default {
   preloadPublicBootstrap,
   getBootstrapSnapshot,
   getBootstrapSiteConfig,
-  getBootstrapVisiblePools,
-  getBootstrapGlobalSummary,
-  getBootstrapCharacterRanking
+  getBootstrapVisiblePools
 };

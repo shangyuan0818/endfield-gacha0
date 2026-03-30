@@ -1,0 +1,11 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# 大型数据快照（不适合纳入版本控制）
+manual/*.ndjson

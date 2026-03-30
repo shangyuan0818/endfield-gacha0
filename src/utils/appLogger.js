@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-const isDev = Boolean(import.meta.env.DEV);
+const isDev = Boolean(import.meta.env?.DEV);
 
 function callConsole(level, args) {
   const target = console?.[level];

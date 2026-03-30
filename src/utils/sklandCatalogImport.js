@@ -1,5 +1,5 @@
-import { getSklandCatalogUrl } from '../constants/adminImageSources';
-import { normalizeEntityNameForMatch } from './canonicalEntityUtils';
+import { getSklandCatalogUrl } from '../constants/adminImageSources.js';
+import { normalizeEntityNameForMatch } from './canonicalEntityUtils.js';
 
 const ASSOCIATE_TYPE_MAP = {
   character: 'char',

@@ -5,6 +5,8 @@ import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
 const cache = {
   pools: null,
   poolsLastFetch: 0,
+  poolCatalog: null,
+  poolCatalogLastFetch: 0,
   characters: null,
   charactersLastFetch: 0,
   globalSummary: null,
@@ -36,6 +38,113 @@ async function fetchVisiblePools(supabase) {
   }
 
   return data || [];
+}
+
+function normalizeRemotePoolType(type, isLimitedWeaponFlag) {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'limited_weapon') return 'weapon';
+  if (type === 'weapon' && isLimitedWeaponFlag === false) return 'weapon';
+  return type || 'standard';
+}
+
+function getPoolRecordId(record) {
+  return record?.pool_id || record?.id || null;
+}
+
+function dedupeVisiblePoolRecords(records) {
+  const deduped = new Map();
+
+  (records || []).forEach((record) => {
+    const poolId = getPoolRecordId(record);
+    if (!poolId) {
+      return;
+    }
+
+    if (!deduped.has(poolId)) {
+      deduped.set(poolId, record);
+    }
+  });
+
+  return Array.from(deduped.values()).sort(sortPoolCatalogRecords);
+}
+
+function formatVisiblePoolRecord(record) {
+  return {
+    id: record.pool_id,
+    name: record.name,
+    type: normalizeRemotePoolType(record.type, record.is_limited_weapon),
+    locked: record.locked || false,
+    isLimitedWeapon: record.is_limited_weapon !== false,
+    created_at: record.created_at || null,
+    updated_at: record.updated_at || null,
+    user_id: record.user_id || null,
+    creator_username: record.creator_username || null,
+    creator_role: record.creator_role || null,
+    up_character: record.up_character || null,
+    description: record.description || null,
+    banner_url: record.banner_url || null,
+    start_time: record.start_time || null,
+    end_time: record.end_time || null,
+    featured_characters: record.featured_characters || null
+  };
+}
+
+function getPoolCatalogSortTimestamp(record) {
+  const source = record?.start_time || record?.created_at || record?.updated_at || 0;
+  const value = new Date(source).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function sortPoolCatalogRecords(left, right) {
+  const diff = getPoolCatalogSortTimestamp(right) - getPoolCatalogSortTimestamp(left);
+  if (diff !== 0) {
+    return diff;
+  }
+
+  return String(left?.pool_id || left?.id || '').localeCompare(String(right?.pool_id || right?.id || ''));
+}
+
+async function fetchPublicProfilesMap(supabase, userIds = []) {
+  const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
+  if (uniqueIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('public_profiles')
+    .select('id, username, role')
+    .in('id', uniqueIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Map((data || []).map((profile) => [profile.id, profile]));
+}
+
+async function fetchPoolCatalog(supabase) {
+  const { data, error } = await supabase
+    .from('pools')
+    .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters');
+
+  if (error) {
+    throw error;
+  }
+
+  const poolRows = data || [];
+  const profilesMap = await fetchPublicProfilesMap(
+    supabase,
+    poolRows.map((row) => row.user_id)
+  );
+
+  return poolRows
+    .map((row) => ({
+      ...row,
+      creator_username: profilesMap.get(row.user_id)?.username || null,
+      creator_role: profilesMap.get(row.user_id)?.role || null
+    }))
+    .sort(sortPoolCatalogRecords)
+    .map(formatVisiblePoolRecord);
 }
 
 export default async function handler(req, res) {
@@ -72,6 +181,8 @@ export default async function handler(req, res) {
     switch (type) {
       case 'pools':
         return await handlePools(supabase, res, now);
+      case 'pool_catalog':
+        return await handlePoolCatalog(supabase, res, now);
       case 'characters':
         return await handleCharacters(supabase, res, now);
       case 'global_summary':
@@ -102,6 +213,8 @@ function getCachedData(type) {
       return { pools: cache.pools ?? [] };
     case 'characters':
       return { characters: cache.characters ?? [] };
+    case 'pool_catalog':
+      return { pools: cache.poolCatalog ?? [] };
     case 'global_summary':
       return { globalSummary: cache.globalSummary ?? null };
     case 'character_ranking':
@@ -109,6 +222,7 @@ function getCachedData(type) {
     case 'all':
       return {
         pools: cache.pools ?? [],
+        poolCatalog: cache.poolCatalog ?? [],
         characters: cache.characters ?? [],
         globalSummary: cache.globalSummary ?? null,
         characterRanking: cache.characterRanking ?? null
@@ -129,10 +243,32 @@ async function handlePools(supabase, res, now) {
     });
   }
 
-  const data = await fetchVisiblePools(supabase);
+  const data = dedupeVisiblePoolRecords(await fetchVisiblePools(supabase)).map(formatVisiblePoolRecord);
 
   cache.pools = data || [];
   cache.poolsLastFetch = now;
+
+  return res.status(200).json({
+    success: true,
+    cached: false,
+    data: { pools: data || [] }
+  });
+}
+
+// 处理角色列表
+async function handlePoolCatalog(supabase, res, now) {
+  if (cache.poolCatalog !== null && now - cache.poolCatalogLastFetch < CACHE_TTL) {
+    return res.status(200).json({
+      success: true,
+      cached: true,
+      data: { pools: cache.poolCatalog }
+    });
+  }
+
+  const data = await fetchPoolCatalog(supabase);
+
+  cache.poolCatalog = data || [];
+  cache.poolCatalogLastFetch = now;
 
   return res.status(200).json({
     success: true,
@@ -154,8 +290,8 @@ async function handleCharacters(supabase, res, now) {
 
   const { data, error } = await supabase
     .from('characters')
-    .select('*')
-    .order('rarity', { ascending: false });
+    .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
+    .order('name');
 
   if (error) {
     throw error;
@@ -223,26 +359,39 @@ async function handleCharacterRanking(supabase, res, now) {
 async function handleAll(supabase, res, now) {
   const result = {
     pools: [],
+    poolCatalog: [],
     characters: [],
     globalSummary: null,
     characterRanking: null
   };
 
   // 并行获取所有数据
-  const [poolsResult, charactersResult, globalSummaryResult, characterRankingResult] = await Promise.allSettled([
+  const [poolsResult, poolCatalogResult, charactersResult, globalSummaryResult, characterRankingResult] = await Promise.allSettled([
     fetchVisiblePools(supabase),
-    supabase.from('characters').select('*').order('rarity', { ascending: false }),
+    fetchPoolCatalog(supabase),
+    supabase
+      .from('characters')
+      .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
+      .order('name'),
     supabase.rpc('get_global_stats'),
     supabase.rpc('get_character_ranking_stats')
   ]);
 
   // 处理卡池
   if (poolsResult.status === 'fulfilled') {
-    result.pools = poolsResult.value || [];
+    result.pools = dedupeVisiblePoolRecords(poolsResult.value || []).map(formatVisiblePoolRecord);
     cache.pools = result.pools;
     cache.poolsLastFetch = now;
   } else if (cache.pools !== null) {
     result.pools = cache.pools;
+  }
+
+  if (poolCatalogResult.status === 'fulfilled') {
+    result.poolCatalog = poolCatalogResult.value || [];
+    cache.poolCatalog = result.poolCatalog;
+    cache.poolCatalogLastFetch = now;
+  } else if (cache.poolCatalog !== null) {
+    result.poolCatalog = cache.poolCatalog;
   }
 
   // 处理角色

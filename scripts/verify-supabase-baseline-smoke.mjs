@@ -140,6 +140,74 @@ SELECT (((public.get_global_stats())::jsonb -> 'byType' -> 'weapon') ? 'avgPityT
 `.trim();
 }
 
+function buildTargetIntervalFixtureSql() {
+  return `
+INSERT INTO auth.users (id, email)
+VALUES ('00000000-0000-0000-0000-000000000001', 'baseline-smoke@example.com')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.pools (user_id, pool_id, name, type, up_character, is_limited_weapon)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'limited_pool', '限定池', 'limited', '目标A', true),
+  ('00000000-0000-0000-0000-000000000001', 'weapon_pool', '武器池', 'weapon', '目标武器', true)
+ON CONFLICT (user_id, pool_id) DO NOTHING;
+
+INSERT INTO public.history (user_id, record_id, pool_id, rarity, is_standard, item_name)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'limited-001', 'limited_pool', 4, false, '填充1'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-002', 'limited_pool', 4, false, '填充2'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-003', 'limited_pool', 4, false, '填充3'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-004', 'limited_pool', 4, false, '填充4'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-005', 'limited_pool', 4, false, '填充5'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-006', 'limited_pool', 4, false, '填充6'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-007', 'limited_pool', 4, false, '填充7'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-008', 'limited_pool', 4, false, '填充8'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-009', 'limited_pool', 4, false, '填充9'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-010', 'limited_pool', 4, false, '填充10'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-011', 'limited_pool', 6, false, '目标A'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-012', 'limited_pool', 4, false, '填充12'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-013', 'limited_pool', 4, false, '填充13'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-014', 'limited_pool', 4, false, '填充14'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-015', 'limited_pool', 4, false, '填充15'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-016', 'limited_pool', 4, false, '填充16'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-017', 'limited_pool', 4, false, '填充17'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-018', 'limited_pool', 4, false, '填充18'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-019', 'limited_pool', 4, false, '填充19'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-020', 'limited_pool', 4, false, '填充20'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-021', 'limited_pool', 6, true, '常驻角色'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-022', 'limited_pool', 4, false, '填充22'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-023', 'limited_pool', 4, false, '填充23'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-024', 'limited_pool', 4, false, '填充24'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-025', 'limited_pool', 4, false, '填充25'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-026', 'limited_pool', 4, false, '填充26'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-027', 'limited_pool', 4, false, '填充27'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-028', 'limited_pool', 4, false, '填充28'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-029', 'limited_pool', 4, false, '填充29'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-030', 'limited_pool', 4, false, '填充30'),
+  ('00000000-0000-0000-0000-000000000001', 'limited-031', 'limited_pool', 6, false, '目标A'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-001', 'weapon_pool', 4, false, '武器填充1'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-002', 'weapon_pool', 4, false, '武器填充2'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-003', 'weapon_pool', 4, false, '武器填充3'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-004', 'weapon_pool', 4, false, '武器填充4'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-005', 'weapon_pool', 4, false, '武器填充5'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-006', 'weapon_pool', 6, false, '目标武器'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-007', 'weapon_pool', 4, false, '武器填充7'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-008', 'weapon_pool', 4, false, '武器填充8'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-009', 'weapon_pool', 4, false, '武器填充9'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-010', 'weapon_pool', 6, true, '常驻武器'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-011', 'weapon_pool', 4, false, '武器填充11'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-012', 'weapon_pool', 4, false, '武器填充12'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-013', 'weapon_pool', 4, false, '武器填充13'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-014', 'weapon_pool', 4, false, '武器填充14'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-015', 'weapon_pool', 4, false, '武器填充15'),
+  ('00000000-0000-0000-0000-000000000001', 'weapon-016', 'weapon_pool', 6, false, '目标武器')
+ON CONFLICT (user_id, record_id) DO NOTHING;
+
+SELECT 'limited_avg_target=' || COALESCE(((public.get_global_stats())::jsonb -> 'byType' -> 'limited' ->> 'avgPityTarget'), 'null');
+SELECT 'weapon_avg_target=' || COALESCE(((public.get_global_stats())::jsonb -> 'byType' -> 'weapon' ->> 'avgPityTarget'), 'null');
+`.trim();
+}
+
 async function main() {
   const baselineSql = await readFile(baselinePath, 'utf8');
 
@@ -176,6 +244,12 @@ async function main() {
       { input: baselineSql },
     );
 
+    await run(
+      'docker',
+      ['exec', '-i', containerName, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', databaseName],
+      { input: `${buildTargetIntervalFixtureSql()}\n` },
+    );
+
     const verification = await run(
       'docker',
       ['exec', '-i', containerName, 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', databaseName, '-At'],
@@ -193,6 +267,8 @@ async function main() {
       'get_global_stats',
       'resolve_character_alias',
       'true',
+      'limited_avg_target=20.0',
+      'weapon_avg_target=10.0',
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !output.includes(marker));
 

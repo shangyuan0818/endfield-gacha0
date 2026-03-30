@@ -1,9 +1,85 @@
 import { supabase } from '../supabaseClient';
 import { loadPublicProfilesMap } from './publicProfileService';
-import { executeSupabaseRead, executeSupabaseRpc } from './supabaseRequest';
+import { executeSupabaseRead, executeSupabaseRpc, fetchWithTimeout } from './supabaseRequest';
+
+const PUBLIC_STATS_API_TIMEOUT_MS = 25000;
+const PUBLIC_DATA_CACHE_TTL = 60 * 1000;
+const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
+
+const requestState = {
+  visiblePools: {
+    data: null,
+    fetchedAt: 0,
+    promise: null
+  },
+  poolCatalog: {
+    data: null,
+    fetchedAt: 0,
+    promise: null
+  }
+};
 
 function getPoolRecordId(record) {
   return record?.pool_id || record?.id || null;
+}
+
+function isFreshRequest(state, forceRefresh = false) {
+  if (forceRefresh) {
+    return false;
+  }
+
+  return state.data !== null && Date.now() - state.fetchedAt < PUBLIC_DATA_CACHE_TTL;
+}
+
+async function runCachedCollectionRequest(state, fetcher, { forceRefresh = false } = {}) {
+  if (isFreshRequest(state, forceRefresh)) {
+    return state.data;
+  }
+
+  if (!forceRefresh && state.promise) {
+    return state.promise;
+  }
+
+  state.promise = (async () => {
+    const result = await fetcher();
+    state.data = result;
+    state.fetchedAt = Date.now();
+    return result;
+  })();
+
+  try {
+    return await state.promise;
+  } finally {
+    state.promise = null;
+  }
+}
+
+async function fetchPublicPoolCollection(type) {
+  if (IS_LOCAL_DEV) {
+    return null;
+  }
+
+  const response = await fetchWithTimeout(`/api/stats?type=${type}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }, {
+    label: `public ${type} api`,
+    timeoutMs: PUBLIC_STATS_API_TIMEOUT_MS,
+    retries: 1
+  });
+
+  if (!response.ok) {
+    throw new Error(`public ${type} api failed with ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result?.success) {
+    throw new Error(result?.error || `public ${type} api returned failure`);
+  }
+
+  return Array.isArray(result?.data?.pools) ? result.data.pools : null;
 }
 
 function getSortTimestamp(record) {
@@ -47,6 +123,10 @@ async function loadPoolRowsByIds(poolIds) {
     return [];
   }
 
+  if (!supabase) {
+    return [];
+  }
+
   const { data: poolRows, error } = await executeSupabaseRead(
     () => supabase
       .from('pools')
@@ -66,6 +146,10 @@ async function loadPoolRowsByIds(poolIds) {
 }
 
 async function loadAllPoolRows() {
+  if (!supabase) {
+    return [];
+  }
+
   const { data: poolRows, error } = await executeSupabaseRead(
     () => supabase
       .from('pools')
@@ -91,23 +175,25 @@ export function normalizeRemotePoolType(type, isLimitedWeaponFlag) {
 }
 
 export function formatVisiblePoolRecord(record) {
+  const limitedWeaponFlag = record?.is_limited_weapon ?? record?.isLimitedWeapon;
+
   return {
-    id: record.pool_id,
+    id: record.pool_id || record.id || null,
     name: record.name,
-    type: normalizeRemotePoolType(record.type, record.is_limited_weapon),
+    type: normalizeRemotePoolType(record.type, limitedWeaponFlag),
     locked: record.locked || false,
-    isLimitedWeapon: record.is_limited_weapon !== false,
+    isLimitedWeapon: limitedWeaponFlag !== false,
     created_at: record.created_at || null,
     updated_at: record.updated_at || null,
-    user_id: record.user_id || null,
-    creator_username: record.creator_username || null,
-    creator_role: record.creator_role || null,
+    user_id: record.user_id || record.userId || null,
+    creator_username: record.creator_username || record.creatorUsername || null,
+    creator_role: record.creator_role || record.creatorRole || null,
     up_character: record.up_character || null,
     description: record.description || null,
     banner_url: record.banner_url || null,
     start_time: record.start_time || null,
     end_time: record.end_time || null,
-    featured_characters: record.featured_characters || null
+    featured_characters: record.featured_characters || record.featuredCharacters || null
   };
 }
 
@@ -129,38 +215,71 @@ export function mergePoolCollections(primaryPools = [], fallbackPools = []) {
   return Array.from(merged.values()).sort(sortVisiblePoolRecords);
 }
 
-export async function loadVisiblePools() {
-  if (!supabase) {
-    return [];
-  }
+export async function loadVisiblePools(options = {}) {
+  const { forceRefresh = false } = options;
 
-  const { data, error } = await executeSupabaseRpc(
-    () => supabase.rpc('get_app_visible_pools'),
-    {
-      label: 'get_app_visible_pools',
-      retries: 2
+  return runCachedCollectionRequest(requestState.visiblePools, async () => {
+    const apiPools = await fetchPublicPoolCollection('pools').catch(() => null);
+    if (Array.isArray(apiPools) && apiPools.length > 0) {
+      return dedupeVisiblePoolRecords(apiPools).map(formatVisiblePoolRecord);
     }
-  );
-  if (error) {
-    throw error;
-  }
 
-  return dedupeVisiblePoolRecords(data || []).map(formatVisiblePoolRecord);
+    if (!supabase) {
+      return [];
+    }
+
+    const { data, error } = await executeSupabaseRpc(
+      () => supabase.rpc('get_app_visible_pools'),
+      {
+        label: 'get_app_visible_pools',
+        retries: 2
+      }
+    );
+    if (error) {
+      throw error;
+    }
+
+    return dedupeVisiblePoolRecords(data || []).map(formatVisiblePoolRecord);
+  }, { forceRefresh });
 }
 
 export async function loadPoolsByIds(poolIds) {
-  if (!supabase) {
+  const normalizedIds = [...new Set(
+    (Array.isArray(poolIds) ? poolIds : [])
+      .filter(id => typeof id === 'string')
+      .map(id => id.trim())
+      .filter(Boolean)
+  )];
+
+  if (normalizedIds.length === 0) {
     return [];
   }
 
-  const poolRows = await loadPoolRowsByIds(poolIds);
+  const cachedPoolCatalog = Array.isArray(requestState.poolCatalog.data)
+    ? requestState.poolCatalog.data
+    : [];
+  const cachedPoolMap = new Map(
+    cachedPoolCatalog
+      .filter((pool) => pool?.id)
+      .map((pool) => [pool.id, pool])
+  );
+  const cachedPools = normalizedIds
+    .map((poolId) => cachedPoolMap.get(poolId))
+    .filter(Boolean);
+  const missingIds = normalizedIds.filter((poolId) => !cachedPoolMap.has(poolId));
+
+  if (missingIds.length === 0) {
+    return cachedPools.sort(sortVisiblePoolRecords);
+  }
+
+  const poolRows = await loadPoolRowsByIds(missingIds);
   if (poolRows.length === 0) {
-    return [];
+    return cachedPools.sort(sortVisiblePoolRecords);
   }
 
   const profilesMap = await loadPublicProfilesMap((poolRows || []).map((row) => row.user_id));
 
-  return poolRows
+  const hydratedPools = poolRows
     .map((row) => ({
       ...row,
       creator_username: profilesMap.get(row.user_id)?.username || null,
@@ -168,28 +287,39 @@ export async function loadPoolsByIds(poolIds) {
     }))
     .sort(sortVisiblePoolRecords)
     .map(formatVisiblePoolRecord);
+
+  return mergePoolCollections(hydratedPools, cachedPools);
 }
 
-export async function loadAllPoolsForCatalog() {
-  if (!supabase) {
-    return [];
-  }
+export async function loadAllPoolsForCatalog(options = {}) {
+  const { forceRefresh = false } = options;
 
-  const poolRows = await loadAllPoolRows();
-  if (poolRows.length === 0) {
-    return [];
-  }
+  return runCachedCollectionRequest(requestState.poolCatalog, async () => {
+    const apiPools = await fetchPublicPoolCollection('pool_catalog').catch(() => null);
+    if (Array.isArray(apiPools) && apiPools.length > 0) {
+      return dedupeVisiblePoolRecords(apiPools).map(formatVisiblePoolRecord);
+    }
 
-  const profilesMap = await loadPublicProfilesMap((poolRows || []).map((row) => row.user_id));
+    if (!supabase) {
+      return [];
+    }
 
-  return poolRows
-    .map((row) => ({
-      ...row,
-      creator_username: profilesMap.get(row.user_id)?.username || null,
-      creator_role: profilesMap.get(row.user_id)?.role || null
-    }))
-    .sort(sortVisiblePoolRecords)
-    .map(formatVisiblePoolRecord);
+    const poolRows = await loadAllPoolRows();
+    if (poolRows.length === 0) {
+      return [];
+    }
+
+    const profilesMap = await loadPublicProfilesMap((poolRows || []).map((row) => row.user_id));
+
+    return poolRows
+      .map((row) => ({
+        ...row,
+        creator_username: profilesMap.get(row.user_id)?.username || null,
+        creator_role: profilesMap.get(row.user_id)?.role || null
+      }))
+      .sort(sortVisiblePoolRecords)
+      .map(formatVisiblePoolRecord);
+  }, { forceRefresh });
 }
 
 export default {

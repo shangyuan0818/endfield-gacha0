@@ -1,69 +1,66 @@
 /**
- * 森空岛终末地WIKI 角色/武器图片自动同步脚本
+ * 森空岛终末地 WIKI 角色/武器图片同步脚本
  *
- * 全自动流程：
+ * 当前流程：
  *   1. Playwright 打开森空岛图鉴页面，等待 JS 渲染
  *   2. 从 __CHIMERA_STORE__.dataMap 提取图片 name→URL 映射
  *   3. 连接 Supabase，按名称匹配现有角色/武器
- *   4. 下载图片并上传到 Supabase Storage (avatars bucket)
- *   5. 更新 characters 表的 avatar_url
+ *   4. 下载图片到 public/avatars 站点静态目录
+ *   5. 更新 characters.avatar_url 为站点本地静态路径
  *
  * 用法：
- *   node scripts/fetch-skland-images.mjs [--type character|weapon|all] [--dry-run] [--output <file>]
- *
- * 参数：
- *   --type       提取类型，默认 all
- *   --dry-run    只提取和匹配，不写入数据库/Storage
- *   --output     额外输出 JSON 到文件
+ *   node scripts/fetch-skland-images.mjs [--type character|weapon|all] [--dry-run] [--no-write-db] [--output <file>]
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeEntityNameForMatch } from '../src/utils/canonicalEntityUtils.js';
+import { buildLocalAvatarPath, inferAvatarFileExtension } from '../src/utils/avatarAssetPaths.js';
+import {
+  buildTeamStardustLookup,
+  findTeamStardustAssetMatch,
+  loadTeamStardustAssetCatalog
+} from './lib/teamStardustAssetCatalog.mjs';
+import { loadSklandCatalogRecords } from './lib/sklandCatalogSource.mjs';
 
-// ---------------------------------------------------------------------------
-// 配置
-// ---------------------------------------------------------------------------
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PUBLIC_AVATAR_DIR = path.join(PROJECT_ROOT, 'public', 'avatars');
 
-const SKLAND_CATALOG_URLS = {
-  character: 'https://wiki.skland.com/endfield/catalog?typeMainId=1&typeSubId=1',
-  weapon: 'https://wiki.skland.com/endfield/catalog?typeMainId=1&typeSubId=2',
-};
-
-const ASSOCIATE_TYPE_MAP = {
-  character: 'char',
-  weapon: 'weapon',
-};
-
-const STORAGE_BUCKET = 'avatars';
-const PAGE_RENDER_WAIT_MS = 8000;
-
-// 提取后排除的角色名称模式（管理员等非抽卡角色）
-const EXCLUDED_NAME_PATTERNS = [
-  /^管理员/,
-];
-
-// 匹配时尝试剥离的名称后缀（如"洛茜-前瞻" → "洛茜"）
+const EXCLUDED_NAME_PATTERNS = [/^管理员/];
 const STRIP_SUFFIXES = ['-前瞻'];
-
-// ---------------------------------------------------------------------------
-// CLI 参数解析
-// ---------------------------------------------------------------------------
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const opts = { type: 'all', dryRun: false, output: null };
+  const opts = {
+    type: 'all',
+    dryRun: false,
+    writeDb: true,
+    output: null
+  };
 
-  for (let i = 0; i < args.length; i++) {
+  for (let i = 0; i < args.length; i += 1) {
     if (args[i] === '--type' && args[i + 1]) {
-      opts.type = args[++i];
-    } else if (args[i] === '--dry-run') {
+      opts.type = args[i + 1];
+      i += 1;
+      continue;
+    }
+
+    if (args[i] === '--dry-run') {
       opts.dryRun = true;
-    } else if (args[i] === '--output' && args[i + 1]) {
-      opts.output = args[++i];
+      continue;
+    }
+
+    if (args[i] === '--no-write-db') {
+      opts.writeDb = false;
+      continue;
+    }
+
+    if (args[i] === '--output' && args[i + 1]) {
+      opts.output = args[i + 1];
+      i += 1;
     }
   }
 
@@ -72,82 +69,16 @@ function parseArgs() {
     process.exit(1);
   }
 
+  if (opts.dryRun) {
+    opts.writeDb = false;
+  }
+
   return opts;
 }
-
-// ---------------------------------------------------------------------------
-// Edge 浏览器查找（复用项目 Playwright 模式）
-// ---------------------------------------------------------------------------
-
-function findEdgeExecutable() {
-  const candidates = [
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-  ];
-  return candidates.find((p) => fs.existsSync(p));
-}
-
-// ---------------------------------------------------------------------------
-// 页面数据提取（复用 sklandCatalogImport.js 的遍历算法）
-// ---------------------------------------------------------------------------
-
-async function extractFromPage(page, itemType) {
-  const associateType = ASSOCIATE_TYPE_MAP[itemType];
-
-  return page.evaluate((filterType) => {
-    const root = window.__CHIMERA_STORE__?.dataMap;
-    if (!root || typeof root !== 'object') {
-      return { records: [], error: '未找到 __CHIMERA_STORE__.dataMap' };
-    }
-
-    const records = [];
-    const seenNodes = new WeakSet();
-    const seenKeys = new Set();
-
-    const visit = (node, depth = 0) => {
-      if (!node || typeof node !== 'object' || seenNodes.has(node) || depth > 20) return;
-      seenNodes.add(node);
-      if (Array.isArray(node)) {
-        for (const item of node) visit(item, depth + 1);
-        return;
-      }
-      if (typeof node.name === 'string' && typeof node.brief?.cover === 'string') {
-        const row = {
-          itemId: node.itemId || null,
-          name: node.name,
-          cover: node.brief.cover,
-          associateId: node.brief?.associate?.id || null,
-          associateType: node.brief?.associate?.type || null,
-        };
-        const key = [row.itemId || '', row.name, row.cover].join('::');
-        if (!seenKeys.has(key)) {
-          seenKeys.add(key);
-          records.push(row);
-        }
-      }
-      for (const value of Object.values(node)) visit(value, depth + 1);
-    };
-
-    visit(root);
-
-    const filtered = records.filter(
-      (r) => !r.associateType || r.associateType === filterType
-    );
-    return { records: filtered, error: null };
-  }, associateType);
-}
-
-// ---------------------------------------------------------------------------
-// 名称归一化（统一使用 canonicalEntityUtils）
-// ---------------------------------------------------------------------------
 
 function normalizeName(value) {
   return normalizeEntityNameForMatch(value);
 }
-
-// ---------------------------------------------------------------------------
-// 匹配提取记录与数据库角色
-// ---------------------------------------------------------------------------
 
 function matchRecordsToDb(records, dbItems) {
   const aliasMap = new Map();
@@ -179,15 +110,17 @@ function matchRecordsToDb(records, dbItems) {
       unmatched.push(record);
       continue;
     }
+
     let dbItem = aliasMap.get(key);
 
-    // 如果原名匹配不到，尝试剥离后缀再匹配（如"洛茜-前瞻" → "洛茜"）
     if (!dbItem) {
       for (const suffix of STRIP_SUFFIXES) {
         const stripped = normalizeName(record.name.replace(suffix, ''));
         if (stripped && stripped !== key && !duplicateKeys.has(stripped)) {
           dbItem = aliasMap.get(stripped);
-          if (dbItem) break;
+          if (dbItem) {
+            break;
+          }
         }
       }
     }
@@ -196,47 +129,70 @@ function matchRecordsToDb(records, dbItems) {
       unmatched.push(record);
       continue;
     }
-    matched.push({ dbId: dbItem.id, dbName: dbItem.name, sourceUrl: record.cover, sourceName: record.name });
+
+    matched.push({
+      dbId: dbItem.id,
+      dbName: dbItem.name,
+      sourceUrl: record.cover,
+      sourceName: record.name
+    });
   }
 
   return { matched, unmatched };
 }
 
-// ---------------------------------------------------------------------------
-// 下载图片并上传到 Supabase Storage
-// ---------------------------------------------------------------------------
+function buildTeamStardustFallbackMatches(itemType, dbItems, matchedDbIds, lookup) {
+  const matched = [];
+  const unresolved = [];
 
-async function downloadAndUpload(supabase, url, storagePath) {
-  const resp = await fetch(url);
-  if (!resp.ok) return null;
+  dbItems.forEach((item) => {
+    if (matchedDbIds.has(item.id)) {
+      return;
+    }
 
-  const buffer = Buffer.from(await resp.arrayBuffer());
-  const contentType = resp.headers.get('content-type') || 'image/png';
+    const fallback = findTeamStardustAssetMatch(item, lookup);
+    if (!fallback?.imageUrl) {
+      unresolved.push(item);
+      return;
+    }
 
-  const { error } = await supabase.storage
-    .from(STORAGE_BUCKET)
-    .upload(storagePath, buffer, { contentType, upsert: true });
+    matched.push({
+      dbId: item.id,
+      dbName: item.name,
+      sourceUrl: fallback.imageUrl,
+      sourceName: fallback.name || item.name,
+      sourceKind: fallback.id === item.id ? 'team_stardust' : 'team_stardust_name'
+    });
+  });
 
-  if (error) {
-    console.error(`  上传失败 ${storagePath}: ${error.message}`);
-    return null;
-  }
-
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-  return data?.publicUrl || null;
+  return { matched, unresolved };
 }
 
-// ---------------------------------------------------------------------------
-// Supabase 初始化
-// ---------------------------------------------------------------------------
+async function ensureOutputDir(filePath) {
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+}
 
-function initSupabase() {
-  // 加载 .env 文件（脚本环境不走 Vite，需要手动加载）
-  // 优先读 .env，再补读 backend/.env.local（SERVICE_ROLE_KEY 通常在后者）
-  const __dirname = dirname(fileURLToPath(import.meta.url));
+async function downloadToLocalAsset(url, outputPath) {
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept': 'image/avif,image/webp,image/*,*/*;q=0.8',
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await ensureOutputDir(outputPath);
+  await fs.promises.writeFile(outputPath, buffer);
+}
+
+function loadEnvironmentFiles() {
   const envFiles = [
-    join(__dirname, '..', '.env'),
-    join(__dirname, '..', 'backend', '.env.local'),
+    path.join(PROJECT_ROOT, '.env'),
+    path.join(PROJECT_ROOT, 'backend', '.env.local'),
   ];
 
   for (const envPath of envFiles) {
@@ -244,19 +200,29 @@ function initSupabase() {
       const envContent = fs.readFileSync(envPath, 'utf-8');
       for (const line of envContent.split('\n')) {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const eqIndex = trimmed.indexOf('=');
-        if (eqIndex === -1) continue;
-        const key = trimmed.slice(0, eqIndex).trim();
-        const val = trimmed.slice(eqIndex + 1).trim();
+        if (!trimmed || trimmed.startsWith('#')) {
+          continue;
+        }
+
+        const separatorIndex = trimmed.indexOf('=');
+        if (separatorIndex === -1) {
+          continue;
+        }
+
+        const key = trimmed.slice(0, separatorIndex).trim();
+        const value = trimmed.slice(separatorIndex + 1).trim();
         if (!process.env[key]) {
-          process.env[key] = val;
+          process.env[key] = value;
         }
       }
     } catch {
-      // 文件不存在，继续
+      // Ignore missing env files.
     }
   }
+}
+
+function initSupabase() {
+  loadEnvironmentFiles();
 
   const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -269,69 +235,28 @@ function initSupabase() {
   return createClient(url, serviceKey);
 }
 
-// ---------------------------------------------------------------------------
-// 主流程
-// ---------------------------------------------------------------------------
-
 async function main() {
   const opts = parseArgs();
   const types = opts.type === 'all' ? ['character', 'weapon'] : [opts.type];
 
-  console.log(`\n=== 森空岛终末地WIKI 图片同步 ===`);
-  console.log(`类型: ${opts.type}${opts.dryRun ? ' (dry-run)' : ''}\n`);
-
-  // 1. 启动浏览器
-  const edgePath = findEdgeExecutable();
-  const launchOptions = edgePath ? { executablePath: edgePath } : {};
-
-  console.log(`启动浏览器${edgePath ? ' (Edge)' : ' (Chromium)'}...`);
-  const browser = await chromium.launch({ headless: true, ...launchOptions });
-
-  let allRecords = [];
-
-  try {
-    const context = await browser.newContext();
-
-    for (const itemType of types) {
-      const url = SKLAND_CATALOG_URLS[itemType];
-      console.log(`\n[${itemType}] 打开 ${url}`);
-
-      const page = await context.newPage();
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
-
-      console.log(`[${itemType}] 等待页面渲染 (${PAGE_RENDER_WAIT_MS / 1000}s)...`);
-      await page.waitForTimeout(PAGE_RENDER_WAIT_MS);
-
-      const { records, error } = await extractFromPage(page, itemType);
-      await page.close();
-
-      if (error) {
-        console.error(`[${itemType}] 提取失败: ${error}`);
-        continue;
-      }
-
-      console.log(`[${itemType}] 提取到 ${records.length} 条记录`);
-
-      // 过滤排除项（管理员等非抽卡角色）
-      const filtered = records.filter(
-        (r) => !EXCLUDED_NAME_PATTERNS.some((pat) => pat.test(r.name.trim()))
-      );
-      if (filtered.length < records.length) {
-        console.log(`[${itemType}] 排除 ${records.length - filtered.length} 条（管理员等）`);
-      }
-
-      allRecords.push(...filtered.map((r) => ({ ...r, _type: itemType })));
+  console.log('\n=== 森空岛终末地 WIKI 图片同步 ===');
+  console.log(`类型: ${opts.type}${opts.dryRun ? ' (dry-run)' : ''}${opts.writeDb ? '' : ' (no-write-db)'}\n`);
+  const sklandCatalog = await loadSklandCatalogRecords(types, {
+    logger: (message) => {
+      console.log(`[skland] ${message}`);
     }
-  } finally {
-    await browser.close();
-  }
+  });
+  const allRecords = types.flatMap((itemType) => (
+    (sklandCatalog[itemType] || [])
+      .filter((record) => !EXCLUDED_NAME_PATTERNS.some((pattern) => pattern.test(record.name.trim())))
+      .map((record) => ({ ...record, _type: itemType }))
+  ));
 
   if (allRecords.length === 0) {
     console.error('\n未提取到任何记录，退出');
     process.exit(1);
   }
 
-  // 2. 输出 JSON（如果指定了 --output）
   if (opts.output) {
     const jsonPayload = allRecords.map(({ _type, ...rest }) => rest);
     fs.writeFileSync(opts.output, JSON.stringify(jsonPayload, null, 2), 'utf-8');
@@ -339,12 +264,11 @@ async function main() {
   }
 
   if (opts.dryRun) {
-    console.log('\n=== dry-run 模式，跳过数据库操作 ===');
+    console.log('\n=== dry-run 模式，跳过本地文件写入和数据库更新 ===');
     console.log(`共提取 ${allRecords.length} 条记录`);
     process.exit(0);
   }
 
-  // 3. 连接 Supabase，加载现有角色列表
   const supabase = initSupabase();
 
   console.log('\n连接 Supabase，加载角色/武器列表...');
@@ -360,74 +284,125 @@ async function main() {
 
   console.log(`数据库中共 ${dbCharacters.length} 条记录`);
 
-  // 4. 按类型匹配
   let totalMatched = 0;
   let totalUnmatched = 0;
-  let uploadSuccess = 0;
-  let uploadFailed = 0;
+  let assetSuccess = 0;
+  let assetFailed = 0;
   let updateSuccess = 0;
   let updateFailed = 0;
+  let teamStardustFallbackSuccess = 0;
+  let teamStardustCatalog = null;
+  let teamStardustLookup = buildTeamStardustLookup();
 
   for (const itemType of types) {
-    const typeRecords = allRecords.filter((r) => r._type === itemType);
-    const dbItems = dbCharacters.filter((c) => c.type === itemType);
+    const typeRecords = allRecords.filter((record) => record._type === itemType);
+    const dbItems = dbCharacters.filter((item) => item.type === itemType);
 
     const { matched, unmatched } = matchRecordsToDb(typeRecords, dbItems);
-    totalMatched += matched.length;
-    totalUnmatched += unmatched.length;
+    const matchedDbIds = new Set(matched.map((item) => item.dbId));
+    const missingDbItems = dbItems.filter((item) => !matchedDbIds.has(item.id));
+    let fallbackMatched = [];
+    let unresolvedDbItems = missingDbItems;
 
-    console.log(`\n[${itemType}] 匹配: ${matched.length}, 未匹配: ${unmatched.length}`);
-    if (unmatched.length > 0) {
-      console.log(`  未匹配项: ${unmatched.map((u) => u.name).join(', ')}`);
+    if (missingDbItems.length > 0) {
+      if (!teamStardustCatalog) {
+        try {
+          teamStardustCatalog = await loadTeamStardustAssetCatalog(types, {
+            logger: (message) => {
+              console.log(`[team-stardust] ${message}`);
+            }
+          });
+          teamStardustLookup = buildTeamStardustLookup(teamStardustCatalog);
+        } catch (error) {
+          console.warn(`[team-stardust] 目录加载失败: ${error.message}`);
+          teamStardustCatalog = {
+            character: new Map(),
+            weapon: new Map()
+          };
+          teamStardustLookup = buildTeamStardustLookup(teamStardustCatalog);
+        }
+      }
+
+      const fallbackResult = buildTeamStardustFallbackMatches(itemType, dbItems, matchedDbIds, teamStardustLookup);
+      fallbackMatched = fallbackResult.matched;
+      unresolvedDbItems = fallbackResult.unresolved;
+      teamStardustFallbackSuccess += fallbackMatched.length;
     }
 
-    // 5. 下载图片 → 上传 Storage → 更新 avatar_url
-    for (let i = 0; i < matched.length; i++) {
-      const item = matched[i];
-      const ext = item.sourceUrl.includes('.webp') ? 'webp' : 'png';
-      const storagePath = `${itemType}s/${item.dbId}.${ext}`;
+    const mergedMatched = [...matched, ...fallbackMatched];
+    totalMatched += mergedMatched.length;
+    totalUnmatched += unmatched.length;
 
-      process.stdout.write(`  [${i + 1}/${matched.length}] ${item.dbName}: 下载+上传...`);
+    console.log(`\n[${itemType}] 匹配: ${mergedMatched.length}, 未匹配源记录: ${unmatched.length}, 缺失 DB 记录: ${unresolvedDbItems.length}`);
+    if (fallbackMatched.length > 0) {
+      console.log(`  Team Stardust 兜底: ${fallbackMatched.map((item) => item.dbName).join(', ')}`);
+    }
+    if (unmatched.length > 0) {
+      console.log(`  未匹配源项: ${unmatched.map((item) => item.name).join(', ')}`);
+    }
+    if (unresolvedDbItems.length > 0) {
+      console.log(`  缺失 DB 项: ${unresolvedDbItems.map((item) => item.name).join(', ')}`);
+    }
 
-      const publicUrl = await downloadAndUpload(supabase, item.sourceUrl, storagePath);
+    for (let index = 0; index < mergedMatched.length; index += 1) {
+      const item = mergedMatched[index];
+      const extension = inferAvatarFileExtension(item.sourceUrl, 'png');
+      const localUrl = buildLocalAvatarPath(itemType, item.dbId, extension);
+      const outputPath = path.join(PUBLIC_AVATAR_DIR, `${itemType}s`, `${item.dbId}.${extension}`);
 
-      if (!publicUrl) {
-        uploadFailed++;
-        console.log(' 失败');
+      process.stdout.write(`  [${index + 1}/${mergedMatched.length}] ${item.dbName}: 下载+写入本地...`);
+
+      try {
+        await downloadToLocalAsset(item.sourceUrl, outputPath);
+        assetSuccess += 1;
+      } catch (error) {
+        assetFailed += 1;
+        console.log(` 失败 (${error.message})`);
         continue;
       }
-      uploadSuccess++;
 
-      // 更新 avatar_url
-      const { error: updateError } = await supabase
+      if (!opts.writeDb) {
+        console.log(' 完成（未写库）');
+        continue;
+      }
+
+      const { data: updateRows, error: updateError } = await supabase
         .from('characters')
-        .update({ avatar_url: publicUrl })
-        .eq('id', item.dbId);
+        .update({ avatar_url: localUrl })
+        .eq('id', item.dbId)
+        .select('id');
 
       if (updateError) {
-        updateFailed++;
-        console.log(` 上传成功但更新失败: ${updateError.message}`);
+        updateFailed += 1;
+        console.log(` 本地文件已写入但更新失败: ${updateError.message}`);
+      } else if (!Array.isArray(updateRows) || updateRows.length === 0) {
+        updateFailed += 1;
+        console.log(' 本地文件已写入但写库未命中');
       } else {
-        updateSuccess++;
+        updateSuccess += 1;
         console.log(' 完成');
       }
 
-      // 避免请求过快
-      if (i < matched.length - 1) {
-        await new Promise((r) => setTimeout(r, 150));
+      if (index < mergedMatched.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
       }
     }
   }
 
-  // 6. 汇总
   console.log('\n=== 同步完成 ===');
   console.log(`提取: ${allRecords.length}`);
   console.log(`匹配: ${totalMatched}, 未匹配: ${totalUnmatched}`);
-  console.log(`上传 Storage: 成功 ${uploadSuccess}, 失败 ${uploadFailed}`);
-  console.log(`更新 avatar_url: 成功 ${updateSuccess}, 失败 ${updateFailed}`);
+  console.log(`Team Stardust 兜底命中: ${teamStardustFallbackSuccess}`);
+  console.log(`写入 public/avatars: 成功 ${assetSuccess}, 失败 ${assetFailed}`);
+  if (opts.writeDb) {
+    console.log(`更新 avatar_url: 成功 ${updateSuccess}, 失败 ${updateFailed}`);
+    console.log('下一步：检查 public/avatars 变更，然后提交并推送以触发静态部署');
+  } else {
+    console.log('未写数据库（dry-run 或 --no-write-db）');
+  }
 }
 
-main().catch((err) => {
-  console.error('\n脚本异常:', err);
+main().catch((error) => {
+  console.error('\n脚本异常:', error);
   process.exit(1);
 });

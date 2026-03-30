@@ -89,9 +89,7 @@ function formatVisiblePoolRecord(record) {
 function createEmptyBootstrapPayload() {
   return {
     siteConfig: {},
-    pools: [],
-    globalSummary: null,
-    characterRanking: null
+    pools: []
   };
 }
 
@@ -101,9 +99,7 @@ function mergeBootstrapPayload(previousPayload, nextPartialPayload) {
 
   return {
     siteConfig: next.siteConfig ?? previous.siteConfig ?? {},
-    pools: next.pools ?? previous.pools ?? [],
-    globalSummary: next.globalSummary ?? previous.globalSummary ?? null,
-    characterRanking: next.characterRanking ?? previous.characterRanking ?? null
+    pools: next.pools ?? previous.pools ?? []
   };
 }
 
@@ -129,24 +125,6 @@ async function fetchVisiblePools(supabase) {
   }
 
   return dedupeVisiblePoolRecords(data || []).map(formatVisiblePoolRecord);
-}
-
-async function fetchGlobalSummary(supabase) {
-  const { data, error } = await supabase.rpc('get_global_stats');
-  if (error) {
-    throw error;
-  }
-
-  return data ?? null;
-}
-
-async function fetchCharacterRanking(supabase) {
-  const { data, error } = await supabase.rpc('get_character_ranking_stats');
-  if (error) {
-    throw error;
-  }
-
-  return data ?? null;
 }
 
 export default async function handler(req, res) {
@@ -192,22 +170,18 @@ export default async function handler(req, res) {
     });
   }
 
-  const [siteConfigResult, poolsResult, globalSummaryResult, characterRankingResult] = await Promise.allSettled([
+  const [siteConfigResult, poolsResult] = await Promise.allSettled([
     fetchSiteConfig(supabase),
-    fetchVisiblePools(supabase),
-    fetchGlobalSummary(supabase),
-    fetchCharacterRanking(supabase)
+    fetchVisiblePools(supabase)
   ]);
 
   const nextPayload = mergeBootstrapPayload(cachedPayload, {
     siteConfig: siteConfigResult.status === 'fulfilled' ? siteConfigResult.value : undefined,
-    pools: poolsResult.status === 'fulfilled' ? poolsResult.value : undefined,
-    globalSummary: globalSummaryResult.status === 'fulfilled' ? globalSummaryResult.value : undefined,
-    characterRanking: characterRankingResult.status === 'fulfilled' ? characterRankingResult.value : undefined
+    pools: poolsResult.status === 'fulfilled' ? poolsResult.value : undefined
   });
 
   cache.payload = nextPayload;
-  const criticalResults = [poolsResult, globalSummaryResult, characterRankingResult];
+  const criticalResults = [siteConfigResult, poolsResult];
   const partial = criticalResults.some((result) => result.status === 'rejected');
   cache.partial = partial;
   cache.lastFetch = now;

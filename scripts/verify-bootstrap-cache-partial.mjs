@@ -37,9 +37,7 @@ function createMockRes() {
 async function invokeHandlerWithCache({ partial }) {
   __internal.cache.payload = {
     siteConfig: { foo: 'bar' },
-    pools: [{ id: 'pool_a', name: '池 A', type: 'limited' }],
-    globalSummary: { totalPulls: 10 },
-    characterRanking: { totalCharacters: 1 }
+    pools: [{ id: 'pool_a', name: '池 A', type: 'limited' }]
   };
   __internal.cache.partial = partial;
   __internal.cache.lastFetch = Date.now();
@@ -54,6 +52,14 @@ async function invokeHandlerWithCache({ partial }) {
 const cachedPartialResponse = await invokeHandlerWithCache({ partial: true });
 assert.equal(cachedPartialResponse.cached, true, '缓存命中应返回 cached=true');
 assert.equal(cachedPartialResponse.partial, true, '缓存命中时应保留 partial=true');
+assert.deepEqual(
+  cachedPartialResponse.data,
+  {
+    siteConfig: { foo: 'bar' },
+    pools: [{ id: 'pool_a', name: '池 A', type: 'limited' }]
+  },
+  'bootstrap 缓存应仅返回站点配置和卡池数据'
+);
 
 const cachedFullResponse = await invokeHandlerWithCache({ partial: false });
 assert.equal(cachedFullResponse.cached, true, '缓存命中应返回 cached=true');

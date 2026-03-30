@@ -50,6 +50,7 @@ import {
   buildInheritedSimulatorSnapshot,
   normalizeSimulatorPoolType
 } from './simulatorInheritance';
+import { characterCache } from '../../utils/characterUtils';
 import {
   getLatestPendingInfoBook,
   reconcileInfoBookState,
@@ -374,13 +375,9 @@ export function useGachaSimulatorController() {
 
       appLogger.info('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
 
-      const { data: allCharacters, error: charError } = await supabase
-        .from('characters')
-        .select('*')
-        .eq('type', expectedType);
-
-      if (charError || !allCharacters) {
-        appLogger.error('加载角色列表失败:', charError);
+      const allCharacters = characterCache.getAll({ type: expectedType });
+      if (!Array.isArray(allCharacters) || allCharacters.length === 0) {
+        appLogger.error('加载角色列表失败: public character cache unavailable');
         if (!cancelled) {
           setPoolCharactersList(null);
         }

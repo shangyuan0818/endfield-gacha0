@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 const testCommands = [
   ['node', ['scripts/verify-simulator-inheritance.mjs']],
   ['node', ['scripts/verify-info-book-resource-accounting.mjs']],
+  ['node', ['scripts/verify-target-up-intervals.mjs']],
   ['node', ['scripts/verify-export-import-roundtrip.mjs']],
   ['node', ['scripts/verify-import-persistence.mjs']],
   ['node', ['scripts/verify-history-character-id-fallback.mjs']],

@@ -104,6 +104,17 @@ npm run test:supabase-baseline:smoke
 
 该脚本会拉起临时 PostgreSQL 容器，注入最小 Supabase `auth` stub，再执行 `baseline/000_complete_schema.sql`。
 
+### 本地静态头像同步
+
+为降低 Supabase `Cached Egress` 与 Storage 占用，头像主链已改为优先落到站点静态目录 `public/avatars/`，再把 `characters.avatar_url` 写成站点本地路径。
+
+```bash
+npm run sync:local-avatars        # 基于 Warfarin Wiki 同步站点本地头像
+npm run fetch:skland-images       # 基于森空岛图鉴同步站点本地头像
+```
+
+两条脚本都会把图片下载到 `public/avatars/`，随后更新数据库中的 `avatar_url`。完成后仍需把本地静态文件提交并推送，部署后线上才会真正切到本地头像。
+
 ## 环境变量
 
 ```env
@@ -191,12 +202,13 @@ gacha-analyzer/
 ## 更新日志 / Changelog
 
 ### v3.5.0 (2026-03-12)
-- 增加公共 bootstrap 只读代理，聚合站点配置、公共卡池、全服统计与角色排名
+- 增加公共 bootstrap 只读代理，聚合站点配置与公共卡池，并把全服统计改为按需拉取
 - 加载界面改为预热 + 限时等待 + 后台补齐，修复 trusted session 刷新卡死并补长加载提示
 - 记录页导出增强，支持按时间 / 卡池 / 账号过滤，JSON / CSV 同步扩展元数据
 - 国际服导入改为公开 token 入口 + 全后端代跑，支持国服 / 国际服分流与双后端部署
 - 真实卡池详情补齐情报书来源标记，出货统计保留原柱状图
 - 统一资源统计口径：武器池只统计总消耗，武库配额获得仅按角色池计算
+- 头像同步改为站点本地静态资源链，停止依赖 Supabase Storage avatars bucket
 - 修复模拟器跨池 120 抽硬保循环、继承后资源异常与武库配额负值归零
 
 ### v3.3.1 (2026-02-24)

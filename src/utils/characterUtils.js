@@ -5,10 +5,12 @@
  * @feat FEAT-007 卡池详情系统重构 - 角色映射系统
  */
 
-import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest.js';
+import { executeSupabaseMutation, executeSupabaseRead, fetchWithTimeout } from '../services/supabaseRequest.js';
 import { supabase } from '../supabaseClient.js';
 
 const CHARACTER_CACHE_SNAPSHOT_KEY = 'character_cache_snapshot_v1';
+const PUBLIC_CHARACTERS_API_TIMEOUT_MS = 25000;
+const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
 function normalizeNullableNumber(value) {
   if (value === null || value === undefined || value === '') {
@@ -50,6 +52,34 @@ function writeCharacterSnapshot(characters) {
   } catch {
     // 本地缓存写入失败时静默降级
   }
+}
+
+async function fetchCharactersFromPublicApi() {
+  if (IS_LOCAL_DEV) {
+    return null;
+  }
+
+  const response = await fetchWithTimeout('/api/stats?type=characters', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  }, {
+    label: 'public characters api',
+    timeoutMs: PUBLIC_CHARACTERS_API_TIMEOUT_MS,
+    retries: 1
+  });
+
+  if (!response.ok) {
+    throw new Error(`public characters api failed with ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result?.success) {
+    throw new Error(result?.error || 'public characters api returned failure');
+  }
+
+  return Array.isArray(result?.data?.characters) ? result.data.characters : null;
 }
 
 /**
@@ -133,6 +163,18 @@ class CharacterCache {
     const cachedCharacters = readCharacterSnapshot();
 
     try {
+      const apiCharacters = await fetchCharactersFromPublicApi().catch(() => null);
+      if (Array.isArray(apiCharacters) && apiCharacters.length > 0) {
+        this.applyCharacters(apiCharacters);
+        this.persistSnapshot();
+        this.finishLoading();
+
+        if (supabase) {
+          this.subscribeToUpdates();
+        }
+        return;
+      }
+
       if (!supabase) {
         if (cachedCharacters.length > 0) {
           this.applyCharacters(cachedCharacters);
@@ -144,7 +186,7 @@ class CharacterCache {
       const { data, error } = await executeSupabaseRead(
         () => supabase
           .from('characters')
-          .select('*')
+          .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
           .order('name'),
         {
           label: 'load characters',
