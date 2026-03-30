@@ -233,7 +233,6 @@ function derivePoolMetrics(pool) {
     upHits,
     avgSixStarPulls: sixStarDrops.length > 0 ? pool.totalPulls / sixStarDrops.length : Number.NaN,
     avgFiveStarPulls: fiveStarDrops.length > 0 ? pool.totalPulls / fiveStarDrops.length : Number.NaN,
-    // NOTE: demo 无逐抽历史，此处仍用 totalPulls/upHits 近似；真实链路已用 pityIntervals
     avgUpPulls: upHits > 0 ? pool.totalPulls / upHits : Number.NaN,
     currentPity5,
     winRate: sixStarDrops.length > 0 ? (upHits / sixStarDrops.length) * 100 : 0
