@@ -4,6 +4,12 @@ import {
   isGiftHistoryPull,
   isInfoBookHistoryPull
 } from './historyInfoBook.js';
+import {
+  averageTrackedIntervals,
+  createHitIntervalTracker,
+  recordHitIntervalHit,
+  recordHitIntervalPull
+} from './pityIntervals.js';
 import { getPoolTimingMeta, normalizePoolGroupType } from './poolSelectorDisplay.js';
 import {
   LIMITED_POOL_RULES,
@@ -255,6 +261,17 @@ function calculateTimelineMetrics(history = []) {
   const sixStars = validPulls.filter((item) => Number(item?.rarity) >= 6);
   const fiveStars = validPulls.filter((item) => Number(item?.rarity) === 5);
   const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
+
+  // BUG-035: UP→UP 区间口径
+  const upIntervalTracker = createHitIntervalTracker();
+  for (let i = 0; i < validPulls.length; i++) {
+    recordHitIntervalPull(upIntervalTracker);
+    if (Number(validPulls[i]?.rarity) >= 6 && validPulls[i]?.isStandard !== true) {
+      recordHitIntervalHit(upIntervalTracker);
+    }
+  }
+  const avgUpPullsRaw = averageTrackedIntervals(upIntervalTracker.intervals, { digits: 2 });
+
   const currentPity = (() => {
     let pity = 0;
     for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -292,7 +309,7 @@ function calculateTimelineMetrics(history = []) {
     winRate: sixStars.length > 0 ? ((upSixStars.length / sixStars.length) * 100) : 0,
     avgSixStarPulls: sixStars.length > 0 ? (validPulls.length / sixStars.length) : Number.NaN,
     avgFiveStarPulls: fiveStars.length > 0 ? (validPulls.length / fiveStars.length) : Number.NaN,
-    avgUpPulls: upSixStars.length > 0 ? (validPulls.length / upSixStars.length) : Number.NaN,
+    avgUpPulls: avgUpPullsRaw !== null ? Number(avgUpPullsRaw) : Number.NaN,
     currentPity,
     currentPity5
   };
