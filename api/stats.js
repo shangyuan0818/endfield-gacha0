@@ -316,7 +316,7 @@ async function handleGlobalSummary(supabase, res, now) {
     });
   }
 
-  const { data, error } = await supabase.rpc('get_global_stats');
+  const { data, error } = await supabase.rpc('get_global_stats_cached');
   if (error) {
     throw error;
   }
@@ -340,7 +340,7 @@ async function handleCharacterRanking(supabase, res, now) {
     });
   }
 
-  const { data, error } = await supabase.rpc('get_character_ranking_stats');
+  const { data, error } = await supabase.rpc('get_character_ranking_stats_cached');
   if (error) {
     throw error;
   }
@@ -373,8 +373,8 @@ async function handleAll(supabase, res, now) {
       .from('characters')
       .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
       .order('name'),
-    supabase.rpc('get_global_stats'),
-    supabase.rpc('get_character_ranking_stats')
+    supabase.rpc('get_global_stats_cached'),
+    supabase.rpc('get_character_ranking_stats_cached')
   ]);
 
   // 处理卡池

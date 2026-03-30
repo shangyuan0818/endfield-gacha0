@@ -20,7 +20,9 @@ function getCharacterRotationMeta(characterName) {
     return null;
   }
 
-  const character = characterCache.searchByName(characterName, false);
+  const trimmed = characterName.trim();
+  const character = characterCache.searchByName(trimmed, false)
+    || characterCache.searchByName(trimmed, true);
   if (!character?.pool_config) {
     return null;
   }
@@ -173,15 +175,13 @@ export const getLimitedPoolScheduleFromDB = (pools) => {
     return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
   });
 
-  // 从硬编码中查找 removesAfter 的映射
   const removesAfterMap = {};
   for (const s of LIMITED_POOL_SCHEDULE) {
-    if (s.removesAfter) removesAfterMap[s.name] = s.removesAfter;
+    if (s.removesAfter) removesAfterMap[s.name.trim()] = s.removesAfter;
   }
 
-  // 转换为与 LIMITED_POOL_SCHEDULE 兼容的格式
   return sortedPools.map((pool, index) => {
-    const charName = pool.up_character || pool.name;
+    const charName = (pool.up_character || pool.name || '').trim();
     const rotationMeta = getCharacterRotationMeta(charName);
     return {
       name: charName,

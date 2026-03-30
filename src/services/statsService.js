@@ -16,8 +16,8 @@ import { appLogger } from '../utils/appLogger.js';
  * - 个人数据：Supabase RPC -> localStorage
  */
 
-const GLOBAL_STATS_CACHE_TTL = 30 * 1000;
-const CHARACTER_RANKING_CACHE_TTL = 30 * 1000;
+const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
+const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
 const GLOBAL_STATS_SNAPSHOT_KEY = 'global_summary_stats_snapshot';
 const CHARACTER_RANKING_SNAPSHOT_KEY = 'character_ranking_snapshot';
 const USER_RANKING_SNAPSHOT_PREFIX = 'user_ranking_snapshot_';
@@ -97,7 +97,7 @@ async function fetchGlobalSummaryDirect() {
     return null;
   }
 
-  const { data, error } = await runRpcWithTimeout('get_global_stats');
+  const { data, error } = await runRpcWithTimeout('get_global_stats_cached');
   if (error) {
     throw error;
   }
@@ -110,7 +110,7 @@ async function fetchCharacterRankingDirect() {
     return null;
   }
 
-  const { data, error } = await runRpcWithTimeout('get_character_ranking_stats');
+  const { data, error } = await runRpcWithTimeout('get_character_ranking_stats_cached');
   if (error) {
     throw error;
   }
@@ -594,7 +594,7 @@ export async function getUserRankingStats(userId) {
     return await runCachedRequest(
       requestState,
       async () => {
-        const { data, error } = await runRpcWithTimeout('get_user_ranking_stats', { p_user_id: userId });
+        const { data, error } = await runRpcWithTimeout('get_user_ranking_stats_cached', { p_user_id: userId });
 
         if (error) {
           throw error;

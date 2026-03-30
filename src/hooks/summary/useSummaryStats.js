@@ -4,6 +4,8 @@ import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
 
+const _localStatsModuleCache = { key: null, result: null };
+
 function isGiftPull(pull) {
   return pull?.specialType === 'gift' || pull?.special_type === 'gift';
 }
@@ -154,6 +156,14 @@ export function useSummaryStats(history, pools, user) {
   // PERF-009: 合并多次全量遍历为 2 次（分组+计数 → 分池保底计算），
   //           分布图改桶计数 O(n)，消除 chargedPulls 的 3 次独立 filter
   const localStats = useMemo(() => {
+    const cacheKey = user?.id
+      ? `${user.id}:${normalizedMyHistory.length}:${myPools.length}`
+      : null;
+
+    if (cacheKey && cacheKey === _localStatsModuleCache.key && _localStatsModuleCache.result) {
+      return _localStatsModuleCache.result;
+    }
+
     const data = {
       total: 0,
       sixStar: 0,
@@ -533,6 +543,11 @@ export function useSummaryStats(history, pools, user) {
       counts: data.counts,
       arsenalGainCounts: characterCounts
     });
+
+    if (cacheKey) {
+      _localStatsModuleCache.key = cacheKey;
+      _localStatsModuleCache.result = data;
+    }
 
     return data;
   }, [normalizedMyHistory, myPools, user]);

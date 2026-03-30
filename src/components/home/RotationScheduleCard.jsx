@@ -38,28 +38,22 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
           {poolSchedule.map((pool, index) => {
             const poolStart = new Date(pool.startDate);
             const poolEnd = new Date(pool.endDate);
-            const isCurrent = now >= poolStart && now < poolEnd;
             const isPast = now >= poolEnd;
-            const removesAfter = Number.isFinite(Number(pool.removesAfter)) ? Number(pool.removesAfter) : null;
-            const hasEntered = index <= currentActiveIndex;
-            const hasNotExpired = removesAfter === null
-              ? index === currentActiveIndex
-              : currentActiveIndex < (index + removesAfter);
-            const isInPool = currentActiveIndex !== -1 && hasEntered && hasNotExpired;
-
-            const relativeRotationDistance = currentActiveIndex - index;
+            const offset = currentActiveIndex === -1 ? null : index - currentActiveIndex;
+            const isCurrent = offset === 0;
+            const isInPool = offset !== null && offset >= -2 && offset <= 0;
 
             let statusLabel = null;
             if (isCurrent) {
               statusLabel = '当前UP角色';
-            } else if (isInPool && removesAfter) {
-              statusLabel = relativeRotationDistance <= 1
-                ? '第2次卡池轮换后移出'
-                : '下一次卡池轮换后移出';
-            } else if (!isPast && currentActiveIndex !== -1 && index > currentActiveIndex) {
-              const diff = index - currentActiveIndex;
-              if (diff === 1) statusLabel = '下一卡池UP';
-              else if (diff === 2) statusLabel = '下下次卡池UP';
+            } else if (offset === -1) {
+              statusLabel = '在卡池中 · 第2次轮换后移出';
+            } else if (offset === -2) {
+              statusLabel = '在卡池中 · 下一次轮换后移出';
+            } else if (offset === 1) {
+              statusLabel = '下一卡池UP';
+            } else if (offset === 2) {
+              statusLabel = '下下次卡池UP';
             }
 
             const characterData = characterCache.searchByName(pool.name, false);
