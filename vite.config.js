@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
+import { VitePWA } from 'vite-plugin-pwa'
 import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
@@ -149,7 +150,53 @@ export default defineConfig(({ mode }) => {
   })
 
   return {
-    plugins: [react(), createDevApiPlugin()],
+    plugins: [
+      react(),
+      createDevApiPlugin(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        workbox: {
+          globPatterns: ['**/*.{html,css}', 'registerSW.js', 'favicon.svg'],
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [
+            {
+              urlPattern: /\/assets\/.*\.js$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'js-assets',
+                expiration: { maxEntries: 80, maxAgeSeconds: 30 * 24 * 3600 }
+              }
+            },
+            {
+              urlPattern: /\/assets\/.*\.(png|jpg|jpeg|svg|webp|ico|woff|woff2)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'static-assets',
+                expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 3600 }
+              }
+            },
+            {
+              urlPattern: /^\/api\/bootstrap/,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'api-bootstrap',
+                expiration: { maxEntries: 1, maxAgeSeconds: 600 }
+              }
+            },
+            {
+              urlPattern: /^\/api\/stats/,
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'api-stats',
+                expiration: { maxEntries: 10, maxAgeSeconds: 300 }
+              }
+            }
+          ]
+        },
+        manifest: false
+      })
+    ],
     base: './',
     build: {
       rollupOptions: {

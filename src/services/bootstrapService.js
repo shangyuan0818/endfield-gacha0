@@ -1,7 +1,7 @@
 import { fetchWithTimeout } from './supabaseRequest.js';
 
 const BOOTSTRAP_API_TIMEOUT_MS = 25000;
-const BOOTSTRAP_MEMORY_TTL = 60 * 1000;
+const BOOTSTRAP_MEMORY_TTL = 5 * 60 * 1000;
 const BOOTSTRAP_SNAPSHOT_KEY = 'public_bootstrap_snapshot_v2';
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 

@@ -148,7 +148,7 @@ async function fetchPoolCatalog(supabase) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
 
   if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
     return;
