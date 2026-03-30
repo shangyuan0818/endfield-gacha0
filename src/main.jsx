@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import './index.css'
 import AppRouter from './AppRouter'
 import { preloadPublicBootstrap } from './services/bootstrapService'
@@ -40,5 +41,6 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppRouter />
     </BrowserRouter>
+    <Analytics />
   </StrictMode>,
 )
