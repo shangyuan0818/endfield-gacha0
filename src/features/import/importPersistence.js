@@ -92,6 +92,8 @@ function buildImportedHistoryRecords({
     const upCharacter = poolUpCharacterMap.get(record.pool_id) || poolUpCharacterMap.get(canonicalPoolId);
     const isStandard = normalizeIsStandard(record, poolType, upCharacter);
 
+    const resolvedServerId = String(userInfo?.serverId || '1');
+
     return {
       id: numericId,
       poolId: canonicalPoolId,
@@ -108,6 +110,8 @@ function buildImportedHistoryRecords({
       isFree: record.isFree || false,
       gameUid: userInfo?.gameUid || userInfo?.hgUid || null,
       nickName: userInfo?.nickName || null,
+      serverId: resolvedServerId,
+      region: resolvedServerId === '1' ? '国服' : 'intl',
       timestamp: record.timestamp,
       created_at: new Date().toISOString(),
     };

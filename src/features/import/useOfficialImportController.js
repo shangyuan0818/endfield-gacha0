@@ -83,7 +83,8 @@ function validateToken(token) {
   return { valid: true, token: trimmed };
 }
 
-function buildPreviewRecords(records) {
+function buildPreviewRecords(records, serverId) {
+  const resolvedServerId = String(serverId || '1');
   const convertedRecords = records.map((record) => {
     const poolType = record._poolType || 'unknown';
     return {
@@ -99,7 +100,9 @@ function buildPreviewRecords(records) {
       isFree: record.isFree || false,
       isLimited: poolType === 'limited_character' || poolType === 'limited_weapon',
       seqId: record.seqId,
-      recordType: record.charId ? 'character' : 'weapon'
+      recordType: record.charId ? 'character' : 'weapon',
+      serverId: resolvedServerId,
+      serverRegion: resolvedServerId === '1' ? '国服' : 'intl',
     };
   });
 
@@ -387,7 +390,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setProgress(95);
       setStatusMessage('正在处理数据...');
 
-      const processedRecords = buildPreviewRecords(records);
+      const processedRecords = buildPreviewRecords(records, account.serverId);
       const summary = generateImportSummary(processedRecords);
 
       setFetchedRecords(processedRecords);
