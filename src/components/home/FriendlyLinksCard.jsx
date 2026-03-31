@@ -1,14 +1,19 @@
 import React from 'react';
-import { ArrowUpRight, BarChart3, Map } from 'lucide-react';
+import { ArrowUpRight, BarChart3, Globe, Map } from 'lucide-react';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 
-const FRIENDLY_LINKS = [
-  { title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: BarChart3, label: 'RESOURCE PLANNER' },
-  { title: '终末地地图（1）', url: 'https://opendfieldmap.cn/', icon: Map, label: 'OPEN WORLD MAP' },
-  { title: '终末地地图（笋干）', url: 'https://www.zmdmap.com/', icon: Map, label: 'GAME MAP WIKI' },
-  { title: '同样优秀的抽卡记录分析（还有舟本体的）', url: 'https://endgacha.kwer.top/', icon: BarChart3, label: 'GACHA ANALYZER' },
+const ICON_MAP = { BarChart3, Map, Globe };
+
+const DEFAULT_FRIENDLY_LINKS = [
+  { title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'BarChart3', label: 'RESOURCE PLANNER' },
+  { title: '终末地地图（1）', url: 'https://opendfieldmap.cn/', icon: 'Map', label: 'OPEN WORLD MAP' },
+  { title: '终末地地图（笋干）', url: 'https://www.zmdmap.com/', icon: 'Map', label: 'GAME MAP WIKI' },
+  { title: '同样优秀的抽卡记录分析（还有舟本体的）', url: 'https://endgacha.kwer.top/', icon: 'BarChart3', label: 'GACHA ANALYZER' },
 ];
 
 const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
+  const FRIENDLY_LINKS = useSiteConfigStore(s => s.getJsonConfig('home_friendly_links', DEFAULT_FRIENDLY_LINKS));
+
   return (
     <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group h-full flex flex-col">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
@@ -36,7 +41,7 @@ const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
                   <span className="font-bold text-zinc-800 dark:text-zinc-200 group-hover/card:text-black dark:group-hover/card:text-white transition-colors">{link.title}</span>
                 </div>
                 <div className="p-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 group-hover/card:border-amber-200 dark:group-hover/card:border-endfield-yellow/50 group-hover/card:bg-amber-50 dark:group-hover/card:bg-endfield-yellow/10 transition-colors rounded-sm text-zinc-400 group-hover/card:text-amber-600 dark:group-hover/card:text-endfield-yellow">
-                  <link.icon size={16} />
+                  {React.createElement(ICON_MAP[link.icon] || Globe, { size: 16 })}
                 </div>
               </div>
 

@@ -1,13 +1,111 @@
-import React, { useState, useEffect } from 'react';
-import { Save, X, Edit2, Settings, Globe, Scale, Link } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Save, X, Edit2, Settings, Globe, Scale, Link, FileText, AlertTriangle } from 'lucide-react';
 import useSiteConfigStore from '../../../stores/useSiteConfigStore';
 import { supabase } from '../../../supabaseClient';
 
 const CATEGORY_META = {
   legal: { label: '法律合规', icon: Scale, color: 'text-red-600 dark:text-red-400' },
   social: { label: '社交链接', icon: Link, color: 'text-blue-600 dark:text-blue-400' },
+  content: { label: '运营内容', icon: FileText, color: 'text-amber-600 dark:text-amber-400' },
+  alert: { label: '系统提醒', icon: AlertTriangle, color: 'text-orange-600 dark:text-orange-400' },
   general: { label: '通用配置', icon: Globe, color: 'text-zinc-600 dark:text-zinc-400' },
 };
+
+function EditableConfigItem({ item, isJsonField, editValue, setEditValue, onSave, onCancel, saving }) {
+  const jsonError = useMemo(() => {
+    if (!isJsonField) return null;
+    try {
+      JSON.parse(editValue);
+      return null;
+    } catch (e) {
+      return e.message;
+    }
+  }, [isJsonField, editValue]);
+
+  const formatJson = () => {
+    try {
+      setEditValue(JSON.stringify(JSON.parse(editValue), null, 2));
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <code className="text-[10px] px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded font-mono">{item.key}</code>
+        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{item.label}</span>
+      </div>
+      {isJsonField ? (
+        <>
+          <textarea
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            rows={Math.min(Math.max(editValue.split('\n').length, 4), 16)}
+            className="w-full px-3 py-2 text-xs font-mono border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 rounded-none focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+            autoFocus
+            onKeyDown={e => {
+              if (e.key === 'Escape') onCancel();
+            }}
+          />
+          {jsonError && (
+            <p className="text-[11px] text-red-500 dark:text-red-400">JSON 格式错误：{jsonError}</p>
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={formatJson}
+              disabled={!!jsonError}
+              className="text-[11px] px-2 py-1 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-30"
+            >
+              格式化 JSON
+            </button>
+            <div className="flex-1" />
+            <button
+              onClick={onSave}
+              disabled={saving || !!jsonError}
+              className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
+            >
+              <Save size={14} />
+              {saving ? '...' : '保存'}
+            </button>
+            <button
+              onClick={onCancel}
+              className="px-2 py-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            className="flex-1 px-3 py-2 text-sm border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 rounded-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+            autoFocus
+            onKeyDown={e => {
+              if (e.key === 'Enter') onSave();
+              if (e.key === 'Escape') onCancel();
+            }}
+          />
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
+          >
+            <Save size={14} />
+            {saving ? '...' : '保存'}
+          </button>
+          <button
+            onClick={onCancel}
+            className="px-2 py-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * 站点配置管理面板
@@ -91,7 +189,7 @@ const SiteConfigPanel = ({ showToast }) => {
     grouped[cat].push(item);
   });
 
-  const categoryOrder = ['legal', 'social', 'general'];
+  const categoryOrder = ['alert', 'content', 'legal', 'social', 'general'];
 
   return (
     <div className="space-y-6">
@@ -118,64 +216,49 @@ const SiteConfigPanel = ({ showToast }) => {
 
             {/* 配置项列表 */}
             <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {items.map(item => (
-                <div key={item.key} className="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
-                  {editingKey === item.key ? (
-                    /* 编辑模式 */
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <code className="text-[10px] px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-500 rounded font-mono">{item.key}</code>
-                        <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{item.label}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={editValue}
-                          onChange={e => setEditValue(e.target.value)}
-                          className="flex-1 px-3 py-2 text-sm border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 rounded-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          autoFocus
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleSave();
-                            if (e.key === 'Escape') cancelEdit();
-                          }}
-                        />
-                        <button
-                          onClick={handleSave}
-                          disabled={saving}
-                          className="flex items-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-none transition-colors disabled:opacity-50"
-                        >
-                          <Save size={14} />
-                          {saving ? '...' : '保存'}
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-2 py-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* 显示模式 */
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{item.label}</span>
-                          <code className="text-[10px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded font-mono">{item.key}</code>
+              {items.map(item => {
+                const isJsonField = item.category === 'content' || item.category === 'alert';
+                const isEditing = editingKey === item.key;
+
+                return (
+                  <div key={item.key} className="px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
+                    {isEditing ? (
+                      <EditableConfigItem
+                        item={item}
+                        isJsonField={isJsonField}
+                        editValue={editValue}
+                        setEditValue={setEditValue}
+                        onSave={handleSave}
+                        onCancel={cancelEdit}
+                        saving={saving}
+                      />
+                    ) : (
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{item.label}</span>
+                            <code className="text-[10px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded font-mono">{item.key}</code>
+                          </div>
+                          {isJsonField ? (
+                            <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono truncate max-w-full">
+                              {item.value ? `JSON (${item.value.length} 字符)` : '(空)'}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-slate-600 dark:text-zinc-400 truncate font-mono">{item.value || '(空)'}</p>
+                          )}
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-zinc-400 truncate font-mono">{item.value || '(空)'}</p>
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded shrink-0"
+                          title="编辑"
+                        >
+                          <Edit2 size={14} />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => startEdit(item)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded shrink-0"
-                        title="编辑"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

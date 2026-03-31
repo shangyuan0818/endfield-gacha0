@@ -110,6 +110,21 @@ const useSiteConfigStore = create((set, get) => ({
   },
 
   /**
+   * 获取 JSON 配置值，自动解析，解析失败返回 defaultValue
+   */
+  getJsonConfig: (key, defaultValue = null) => {
+    const { config } = get();
+    const raw = config[key];
+    if (raw == null || raw === '') return defaultValue;
+    if (typeof raw !== 'string') return raw;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return defaultValue;
+    }
+  },
+
+  /**
    * 管理员更新配置项
    */
   updateConfig: async (key, value) => {

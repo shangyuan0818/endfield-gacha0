@@ -10,14 +10,32 @@ import {
   Code,
   Sparkles,
   ExternalLink,
-  Bot
+  Bot,
+  Globe,
 } from 'lucide-react';
 import { APP_VERSION } from '../constants/appMeta';
+import useSiteConfigStore from '../stores/useSiteConfigStore';
+
+const ICON_MAP = { Star, Calculator, BarChart3, Cloud, Download, Shield, Globe };
+
+const DEFAULT_FEATURES = [
+  { icon: 'Star', label: '卡池管理', desc: '限定/常驻/武器池' },
+  { icon: 'Calculator', label: '抽卡模拟', desc: '真实概率 + 机制复刻' },
+  { icon: 'BarChart3', label: '欧非分析', desc: '不歪率/平均出货' },
+  { icon: 'Cloud', label: '云端缓存', desc: '三级降级策略加速' },
+  { icon: 'Download', label: '数据导入', desc: '批量粘贴 + OCR预告' },
+  { icon: 'Shield', label: '全球统计', desc: '"急"按钮实时同步' },
+];
+
+const DEFAULT_DISCLAIMER = '非官方工具。与 Gryphline / HyperGryph 无关。';
 
 /**
  * 关于面板组件
  */
 const AboutPanel = React.memo(() => {
+  const features = useSiteConfigStore(s => s.getJsonConfig('about_features', DEFAULT_FEATURES));
+  const disclaimer = useSiteConfigStore(s => s.getConfig('about_disclaimer', DEFAULT_DISCLAIMER));
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* 页面标题 */}
@@ -161,20 +179,16 @@ const AboutPanel = React.memo(() => {
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              { icon: Star, label: '卡池管理', desc: '限定/常驻/武器池' },
-              { icon: Calculator, label: '抽卡模拟', desc: '真实概率 + 机制复刻' },
-              { icon: BarChart3, label: '欧非分析', desc: '不歪率/平均出货' },
-              { icon: Cloud, label: '云端缓存', desc: '三级降级策略加速' },
-              { icon: Download, label: '数据导入', desc: '批量粘贴 + OCR预告' },
-              { icon: Shield, label: '全球统计', desc: '"急"按钮实时同步' },
-            ].map((feature, idx) => (
-              <div key={idx} className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group">
-                <feature.icon size={20} className="text-zinc-400 group-hover:text-endfield-yellow mb-3 transition-colors" />
-                <h4 className="font-bold text-zinc-700 dark:text-zinc-300 text-xs mb-1">{feature.label}</h4>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-500">{feature.desc}</p>
-              </div>
-            ))}
+            {features.map((feature, idx) => {
+              const FeatureIcon = ICON_MAP[feature.icon] || Globe;
+              return (
+                <div key={idx} className="p-4 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors group">
+                  <FeatureIcon size={20} className="text-zinc-400 group-hover:text-endfield-yellow mb-3 transition-colors" />
+                  <h4 className="font-bold text-zinc-700 dark:text-zinc-300 text-xs mb-1">{feature.label}</h4>
+                  <p className="text-[10px] text-zinc-500 dark:text-zinc-500">{feature.desc}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -214,7 +228,7 @@ const AboutPanel = React.memo(() => {
       {/* 免责声明 */}
       <div className="text-center">
         <p className="text-[10px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
-          非官方工具。与 Gryphline / HyperGryph 无关。
+          {disclaimer}
         </p>
       </div>
     </div>

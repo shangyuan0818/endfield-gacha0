@@ -13,6 +13,7 @@ import RoadmapCard from '../../components/home/RoadmapCard';
 import HomeRotationScheduleCard from '../../components/home/RotationScheduleCard';
 import { APP_VERSION } from '../../constants/appMeta';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import {
   STORAGE_KEYS,
@@ -65,6 +66,8 @@ function MobileHomePageView() {
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const pools = usePoolStore((state) => state.pools);
+  const heroSlogan = useSiteConfigStore(s => s.getConfig('home_hero_slogan', '记录抽卡历程，查看卡池分析、统计汇总与模拟器数据。'));
+  const qqGroup = useSiteConfigStore(s => s.getConfig('qq_group_number', ACCOUNT_RECOVERY_QQ_GROUP));
 
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -220,7 +223,7 @@ function MobileHomePageView() {
               </div>
               <h1 className="mt-2 text-xl font-bold tracking-tight">终末地抽卡分析器</h1>
               <p className="mt-2 text-xs text-zinc-300 leading-relaxed">
-                记录抽卡历程，查看卡池分析、统计汇总与模拟器数据。
+                {heroSlogan}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-zinc-400">
                 <span>VERSION {APP_VERSION}</span>
@@ -316,7 +319,7 @@ function MobileHomePageView() {
               <div className="text-xs text-zinc-300 leading-relaxed space-y-2">
                 <p>账号恢复、临时密码领取和使用问题统一在 QQ 群处理。</p>
                 <div className="border border-zinc-700 bg-zinc-950/80 px-3 py-2 font-mono text-base tracking-wider text-endfield-yellow">
-                  {ACCOUNT_RECOVERY_QQ_GROUP}
+                  {qqGroup}
                 </div>
                 <p className="text-zinc-400">若超管已完成核验并设置临时密码，请加入该群获取密码。</p>
               </div>
@@ -374,40 +377,45 @@ function MobileHomePageView() {
             </>
           )}
 
-          <>
-            {!latestAnnouncement && (
-              <MobileSectionHeader
-                title="游戏公告"
-                subtitle="自动同步终末地官网，默认折叠展示。"
-                icon={Bell}
-              />
-            )}
-            <div className="border border-zinc-200 dark:border-zinc-800 overflow-hidden bg-white dark:bg-zinc-900">
-              <button
-                type="button"
-                onClick={handleToggleGameAnnouncements}
-                className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">
-                    <Bell size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-zinc-800 dark:text-zinc-100">游戏公告</h3>
-                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">自动同步终末地官网，默认折叠</p>
-                  </div>
-                </div>
-                <ArrowRight
-                  size={16}
-                  className={`shrink-0 text-zinc-400 transition-transform ${showGameAnnouncements ? 'rotate-90' : ''}`}
+          {gameAnnouncements.length > 0 && (
+            <>
+              {!latestAnnouncement && (
+                <MobileSectionHeader
+                  title="游戏公告"
+                  subtitle="自动同步终末地官网，LLM 整理摘要。"
+                  icon={Bell}
                 />
-              </button>
+              )}
+              <div className="bg-gradient-to-r from-amber-50/60 to-orange-50/60 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/70 dark:border-amber-800/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={handleToggleGameAnnouncements}
+                  className="w-full px-4 py-3 flex items-center justify-between gap-3 text-left"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 bg-amber-100/70 dark:bg-amber-900/20 text-amber-500 dark:text-amber-500 shrink-0">
+                      <Bell size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">游戏公告</span>
+                        <h3 className="font-bold text-amber-700 dark:text-amber-400 truncate">来自终末地官网</h3>
+                      </div>
+                      <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">自动抓取 · LLM 整理摘要</p>
+                    </div>
+                  </div>
+                  <ArrowRight
+                    size={16}
+                    className={`shrink-0 text-amber-400 transition-transform ${showGameAnnouncements ? 'rotate-90' : ''}`}
+                  />
+                </button>
 
-              <CollapsibleContent isOpen={showGameAnnouncements}>
-                <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={3} />
-              </CollapsibleContent>
-            </div>
-          </>
+                <CollapsibleContent isOpen={showGameAnnouncements}>
+                  <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={5} />
+                </CollapsibleContent>
+              </div>
+            </>
+          )}
         </div>
       )}
 

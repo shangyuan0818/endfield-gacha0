@@ -1,17 +1,20 @@
 import React from 'react';
 import { Accessibility, Calculator, ChevronUp, Database, Github, Globe, Languages, Lightbulb, Map, RefreshCw, Share2, Shield } from 'lucide-react';
 import CollapsibleContent from './CollapsibleContent';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 
-const ROADMAP_ITEMS = [
-  { id: 'sim-inherit', icon: RefreshCw, title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'completed', priority: 'high' },
-  { id: 'puzzle-captcha', icon: Shield, title: '拼图验证码', description: '主站验证码已切换为简单拼图玩法，并保留备用方式', status: 'completed', priority: 'high' },
-  { id: 'global-support', icon: Globe, title: '国际服支持', description: '现已支持国际服抽卡记录的解析与导入', status: 'completed', priority: 'high' },
-  { id: 'currency-calc', icon: Calculator, title: '资源消耗换算', description: '现已支持换算已消耗合成玉、源石数量及武库配额', status: 'completed', priority: 'medium' },
-  { id: 'sim-currency', icon: Database, title: '模拟器资源机制', description: '模拟器已加入合成玉、源石与武库配额机制', status: 'completed', priority: 'medium' },
-  { id: 'share', icon: Share2, title: '分享功能', description: '模拟器支持脱敏分享卡图片、系统分享与文本复制', status: 'completed', priority: 'medium' },
-  { id: 'i18n', icon: Languages, title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'low' },
-  { id: 'a11y', icon: Accessibility, title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low' },
-  { id: 'virtual-scroll', icon: Database, title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low' },
+const ICON_MAP = { RefreshCw, Shield, Globe, Calculator, Database, Share2, Languages, Accessibility, Map };
+
+const DEFAULT_ROADMAP_ITEMS = [
+  { id: 'sim-inherit', icon: 'RefreshCw', title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'completed', priority: 'high' },
+  { id: 'puzzle-captcha', icon: 'Shield', title: '拼图验证码', description: '主站验证码已切换为简单拼图玩法，并保留备用方式', status: 'completed', priority: 'high' },
+  { id: 'global-support', icon: 'Globe', title: '国际服支持', description: '现已支持国际服抽卡记录的解析与导入', status: 'completed', priority: 'high' },
+  { id: 'currency-calc', icon: 'Calculator', title: '资源消耗换算', description: '现已支持换算已消耗合成玉、源石数量及武库配额', status: 'completed', priority: 'medium' },
+  { id: 'sim-currency', icon: 'Database', title: '模拟器资源机制', description: '模拟器已加入合成玉、源石与武库配额机制', status: 'completed', priority: 'medium' },
+  { id: 'share', icon: 'Share2', title: '分享功能', description: '模拟器支持脱敏分享卡图片、系统分享与文本复制', status: 'completed', priority: 'medium' },
+  { id: 'i18n', icon: 'Languages', title: '国际化支持', description: '支持英语、日语等多语言界面，服务更多玩家', status: 'planned', priority: 'low' },
+  { id: 'a11y', icon: 'Accessibility', title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low' },
+  { id: 'virtual-scroll', icon: 'Database', title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low' },
 ];
 
 const STATUS_CONFIG = {
@@ -27,6 +30,8 @@ const PRIORITY_CONFIG = {
 };
 
 const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
+  const ROADMAP_ITEMS = useSiteConfigStore(s => s.getJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS));
+
   return (
     <div className="group relative overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 transition-all duration-300 rounded-none sm:rounded-lg">
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
@@ -83,9 +88,9 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
             <div className="absolute top-[38px] left-6 right-6 h-0.5 bg-zinc-100 dark:bg-zinc-800"></div>
             <div className="flex gap-4">
               {ROADMAP_ITEMS.map((item, index) => {
-                const status = STATUS_CONFIG[item.status];
-                const priority = PRIORITY_CONFIG[item.priority];
-                const Icon = item.icon;
+                const status = STATUS_CONFIG[item.status] || STATUS_CONFIG.planned;
+                const priority = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG.low;
+                const Icon = ICON_MAP[item.icon] || Database;
 
                 return (
                   <div
