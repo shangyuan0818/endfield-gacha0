@@ -37,6 +37,18 @@
       ]
     },
     {
+      "source": "/m/assets/legacy-mobile-entry.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/m/assets/legacy-empty.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
       "source": "/workbox-(.*).js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
@@ -62,6 +74,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/m/assets/index-(.*).js", "destination": "/m/assets/legacy-mobile-entry.js" },
+    { "source": "/m/assets/supabase-vendor-(.*).js", "destination": "/m/assets/legacy-empty.js" },
     { "source": "/((?!api/)(?!.*\\.[^/]+$).*)", "destination": "/index.html" }
   ]
 }
