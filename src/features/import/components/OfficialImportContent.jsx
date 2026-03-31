@@ -180,6 +180,7 @@ export default function OfficialImportContent({
   statusMessage,
   queueStatus,
   retryInfo,
+  sourceSwitchInfo,
   error,
   importSummary,
   userInfo,
@@ -356,6 +357,15 @@ export default function OfficialImportContent({
       {(status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING || status === ImportStatus.PROCESSING) && (
         <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
           <FetchProgressBar progress={progress} message={statusMessage} />
+          {sourceSwitchInfo && (
+            <div className="mt-3 flex items-center gap-2 text-xs font-mono bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sky-700 dark:text-sky-400 transition-colors">
+              <RefreshCw size={12} className="animate-spin" />
+              <span>
+                正在自动切换到{sourceSwitchInfo.to === 'intl' ? '国际服' : '国服'}
+                {sourceSwitchInfo.countdown > 0 && `（${sourceSwitchInfo.countdown}s）`}
+              </span>
+            </div>
+          )}
           <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} />
           <button
             onClick={onCancel}

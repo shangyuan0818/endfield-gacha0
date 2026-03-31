@@ -29,6 +29,27 @@ function normalizeImportError(err) {
   return errorMessage;
 }
 
+function looksLikeTokenInvalidError(message) {
+  const normalized = String(message || '').toLowerCase();
+  return (
+    normalized.includes('token is invalid') ||
+    normalized.includes('token无效') ||
+    normalized.includes('请检查token是否有效') ||
+    normalized.includes('未能获取 u8_token') ||
+    normalized.includes('未能获取 app_token') ||
+    normalized.includes('当前请求走的是') ||
+    normalized.includes('请切换到')
+  );
+}
+
+function getAlternateSource(source) {
+  return source === 'intl' ? 'cn' : 'intl';
+}
+
+function getSourceDisplayName(source) {
+  return source === 'intl' ? '国际服' : '国服';
+}
+
 function parseTokenInput(input) {
   const trimmed = input.trim();
   if (!trimmed) return { token: '', fromJson: false };
@@ -99,7 +120,7 @@ function buildPreviewRecords(records) {
   return processedRecords;
 }
 
-export function useOfficialImportController({ onImportComplete, onFetchStatusChange, userId, source = 'cn' }) {
+export function useOfficialImportController({ onImportComplete, onFetchStatusChange, onSourceSwitch, userId, source = 'cn' }) {
   const [tokenInput, setTokenInput] = useState('');
   const [status, setStatus] = useState(ImportStatus.IDLE);
   const [progress, setProgress] = useState(0);
@@ -113,11 +134,21 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
   const [appToken, setAppToken] = useState(null);
   const [queueStatus, setQueueStatus] = useState(null);
   const [retryInfo, setRetryInfo] = useState(null);
+  const [sourceSwitchInfo, setSourceSwitchInfo] = useState(null);
   const cancelRef = useRef(false);
+  const switchTimerRef = useRef(null);
 
   useEffect(() => {
     onFetchStatusChange?.(status);
   }, [onFetchStatusChange, status]);
+
+  useEffect(() => {
+    return () => {
+      if (switchTimerRef.current) {
+        clearTimeout(switchTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (status !== ImportStatus.AUTHENTICATING && status !== ImportStatus.FETCHING) {
@@ -198,6 +229,11 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     setAutoDetected(false);
     setAvailableAccounts([]);
     setAppToken(null);
+    setSourceSwitchInfo(null);
+    if (switchTimerRef.current) {
+      clearTimeout(switchTimerRef.current);
+      switchTimerRef.current = null;
+    }
   }, []);
 
   const handleCancel = useCallback(() => {
@@ -368,6 +404,15 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     }
   }, [availableAccounts, onImportComplete, source, tokenInput, userId]);
 
+  const tryFetchAccountsWithSource = useCallback(async (token, targetSource) => {
+    return fetchAccountsList(token, (message) => {
+      if (cancelRef.current) return;
+      setStatusMessage(message);
+      if (message.includes('验证')) setProgress(10);
+      else if (message.includes('账号')) setProgress(20);
+    }, targetSource);
+  }, []);
+
   const handleImport = useCallback(async () => {
     const validation = validateToken(tokenInput);
     if (!validation.valid) {
@@ -384,25 +429,88 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     setUserInfo(null);
     setAvailableAccounts([]);
     setAppToken(null);
+    setSourceSwitchInfo(null);
     cancelRef.current = false;
+
+    let effectiveSource = source;
+    let accountsResult;
 
     try {
       setStatusMessage('正在验证token...');
       setProgress(10);
 
-      const accountsResult = await fetchAccountsList(validation.token, (message) => {
-        if (cancelRef.current) return;
-        setStatusMessage(message);
-        if (message.includes('验证')) setProgress(10);
-        else if (message.includes('账号')) setProgress(20);
-      }, source);
+      accountsResult = await tryFetchAccountsWithSource(validation.token, source);
+    } catch (firstErr) {
+      if (cancelRef.current) return;
+
+      const shouldTryAlternate = looksLikeTokenInvalidError(firstErr.message);
+      if (!shouldTryAlternate) {
+        // eslint-disable-next-line no-console
+        console.error('[OfficialAPIImport] 导入失败:', firstErr);
+        setError(normalizeImportError(firstErr));
+        setStatus(ImportStatus.ERROR);
+        return;
+      }
+
+      const altSource = getAlternateSource(source);
+      const altName = getSourceDisplayName(altSource);
+      const curName = getSourceDisplayName(source);
+
+      setSourceSwitchInfo({ from: source, to: altSource, countdown: 3 });
+      setStatusMessage(`${curName}验证失败，检测到可能是${altName} Token，3 秒后自动切换...`);
+      setProgress(5);
+
+      try {
+        await new Promise((resolve, reject) => {
+          let remaining = 3;
+          const tick = () => {
+            remaining--;
+            if (cancelRef.current) {
+              reject(new Error('cancelled'));
+              return;
+            }
+            setSourceSwitchInfo(prev => prev ? { ...prev, countdown: remaining } : null);
+            setStatusMessage(`${curName}验证失败，检测到可能是${altName} Token，${remaining} 秒后自动切换...`);
+            if (remaining <= 0) {
+              resolve();
+            } else {
+              switchTimerRef.current = setTimeout(tick, 1000);
+            }
+          };
+          switchTimerRef.current = setTimeout(tick, 1000);
+        });
+      } catch {
+        return;
+      }
 
       if (cancelRef.current) return;
 
+      setStatusMessage(`已切换到${altName}，正在重新验证...`);
+      setProgress(10);
+      effectiveSource = altSource;
+
+      try {
+        accountsResult = await tryFetchAccountsWithSource(validation.token, altSource);
+        onSourceSwitch?.(altSource);
+        setSourceSwitchInfo(null);
+      } catch (secondErr) {
+        // eslint-disable-next-line no-console
+        console.error('[OfficialAPIImport] 双服验证均失败:', secondErr);
+        if (cancelRef.current) return;
+        setSourceSwitchInfo(null);
+        setError(`${curName}和${altName}验证均失败，请确认 Token 是否有效。\n${curName}: ${normalizeImportError(firstErr)}\n${altName}: ${normalizeImportError(secondErr)}`);
+        setStatus(ImportStatus.ERROR);
+        return;
+      }
+    }
+
+    if (cancelRef.current || !accountsResult) return;
+
+    try {
       const { appToken: nextAppToken, accounts } = accountsResult;
       const normalizedAccounts = accounts.map((account) => ({
         ...account,
-        source,
+        source: effectiveSource,
         serverTag: buildGameAccountServerTag(account)
       }));
       setAppToken(nextAppToken);
@@ -423,7 +531,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setError(normalizeImportError(err));
       setStatus(ImportStatus.ERROR);
     }
-  }, [continueImportWithAccount, source, tokenInput]);
+  }, [continueImportWithAccount, onSourceSwitch, source, tokenInput, tryFetchAccountsWithSource]);
 
   const handleAccountSelect = useCallback(async (account) => {
     await continueImportWithAccount(appToken, account);
@@ -441,6 +549,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     availableAccounts,
     queueStatus,
     retryInfo,
+    sourceSwitchInfo,
     handleInputChange,
     handleImport,
     handleAccountSelect,

@@ -10,6 +10,10 @@ export default function OfficialAPIImport({
 }) {
   const [source, setSource] = useState('cn');
 
+  const handleAutoSourceSwitch = useCallback((nextSource) => {
+    setSource(nextSource);
+  }, []);
+
   const {
     tokenInput,
     status,
@@ -22,6 +26,7 @@ export default function OfficialAPIImport({
     availableAccounts,
     queueStatus,
     retryInfo,
+    sourceSwitchInfo,
     handleInputChange,
     handleImport,
     handleAccountSelect,
@@ -31,6 +36,7 @@ export default function OfficialAPIImport({
   } = useOfficialImportController({
     onImportComplete,
     onFetchStatusChange,
+    onSourceSwitch: handleAutoSourceSwitch,
     userId,
     source
   });
@@ -54,6 +60,7 @@ export default function OfficialAPIImport({
       statusMessage={statusMessage}
       queueStatus={queueStatus}
       retryInfo={retryInfo}
+      sourceSwitchInfo={sourceSwitchInfo}
       error={error}
       importSummary={importSummary}
       userInfo={userInfo}
