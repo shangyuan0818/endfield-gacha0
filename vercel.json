@@ -19,6 +19,24 @@
       ]
     },
     {
+      "source": "/m/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/registerSW.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/m/registerSW.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
       "source": "/workbox-(.*).js",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
