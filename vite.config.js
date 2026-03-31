@@ -152,13 +152,16 @@ export default defineConfig(({ mode }) => {
       react(),
       createDevApiPlugin(),
       VitePWA({
+        base: '/',
+        scope: '/',
+        injectRegister: 'inline',
         registerType: 'autoUpdate',
         workbox: {
-          globPatterns: ['registerSW.js', 'favicon.svg'],
+          globPatterns: ['favicon.svg'],
+          navigateFallback: null,
           cleanupOutdatedCaches: true,
           skipWaiting: true,
           clientsClaim: true,
-          navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
             {
               urlPattern: /\/assets\/.*\.(js|css)$/,
@@ -197,7 +200,9 @@ export default defineConfig(({ mode }) => {
         manifest: false
       })
     ],
-    base: './',
+    // The app is deployed at the domain root, so generated asset and SW URLs
+    // must stay absolute across nested SPA routes like /m/summary.
+    base: '/',
     build: {
       rollupOptions: {
         output: {
