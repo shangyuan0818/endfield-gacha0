@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { executeSupabaseMutation } from '../services/supabaseRequest';
 import { getBootstrapSiteConfig } from '../services/bootstrapService';
@@ -151,5 +152,19 @@ const useSiteConfigStore = create((set, get) => ({
     }
   },
 }));
+
+/**
+ * React 19 safe hook: select raw config value and memoize JSON parsing.
+ * Avoids creating new object references inside Zustand selectors which
+ * breaks useSyncExternalStore's getSnapshot caching.
+ */
+export function useJsonConfig(key, defaultValue = null) {
+  const raw = useSiteConfigStore(s => s.config[key]);
+  return useMemo(() => {
+    if (raw == null || raw === '') return defaultValue;
+    if (typeof raw !== 'string') return raw;
+    try { return JSON.parse(raw); } catch { return defaultValue; }
+  }, [raw, defaultValue]);
+}
 
 export default useSiteConfigStore;

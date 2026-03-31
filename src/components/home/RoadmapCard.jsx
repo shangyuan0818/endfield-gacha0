@@ -1,7 +1,7 @@
 import React from 'react';
 import { Accessibility, Calculator, ChevronUp, Database, Github, Globe, Languages, Lightbulb, Map, RefreshCw, Share2, Shield } from 'lucide-react';
 import CollapsibleContent from './CollapsibleContent';
-import useSiteConfigStore from '../../stores/useSiteConfigStore';
+import { useJsonConfig } from '../../stores/useSiteConfigStore';
 
 const ICON_MAP = { RefreshCw, Shield, Globe, Calculator, Database, Share2, Languages, Accessibility, Map };
 
@@ -30,7 +30,7 @@ const PRIORITY_CONFIG = {
 };
 
 const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
-  const ROADMAP_ITEMS = useSiteConfigStore(s => s.getJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS));
+  const ROADMAP_ITEMS = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS);
 
   return (
     <div className="group relative overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 transition-all duration-300 rounded-none sm:rounded-lg">

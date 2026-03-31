@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowUpRight, BarChart3, Globe, Map } from 'lucide-react';
-import useSiteConfigStore from '../../stores/useSiteConfigStore';
+import { useJsonConfig } from '../../stores/useSiteConfigStore';
 
 const ICON_MAP = { BarChart3, Map, Globe };
 
@@ -12,7 +12,7 @@ const DEFAULT_FRIENDLY_LINKS = [
 ];
 
 const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
-  const FRIENDLY_LINKS = useSiteConfigStore(s => s.getJsonConfig('home_friendly_links', DEFAULT_FRIENDLY_LINKS));
+  const FRIENDLY_LINKS = useJsonConfig('home_friendly_links', DEFAULT_FRIENDLY_LINKS);
 
   return (
     <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group h-full flex flex-col">

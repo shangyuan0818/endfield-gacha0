@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { APP_VERSION } from '../constants/appMeta';
 import useSiteConfigStore from '../stores/useSiteConfigStore';
+import { useJsonConfig } from '../stores/useSiteConfigStore';
 
 const ICON_MAP = { Star, Calculator, BarChart3, Cloud, Download, Shield, Globe };
 
@@ -33,7 +34,7 @@ const DEFAULT_DISCLAIMER = '非官方工具。与 Gryphline / HyperGryph 无关�
  * 关于面板组件
  */
 const AboutPanel = React.memo(() => {
-  const features = useSiteConfigStore(s => s.getJsonConfig('about_features', DEFAULT_FEATURES));
+  const features = useJsonConfig('about_features', DEFAULT_FEATURES);
   const disclaimer = useSiteConfigStore(s => s.getConfig('about_disclaimer', DEFAULT_DISCLAIMER));
 
   return (
