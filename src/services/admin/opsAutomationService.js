@@ -1,75 +1,13 @@
 import { supabase } from '../../supabaseClient';
-import { executeSupabaseRead, fetchWithTimeout } from '../supabaseRequest';
-import { buildServerlessApiUrl } from '../../utils/authRedirects';
-
-const OPS_AUTOMATION_SCHEMA_MISSING_MESSAGES = [
-  "Could not find the table 'public.ops_automation_runs' in the schema cache",
-  'relation "public.ops_automation_runs" does not exist',
-];
+import { executeSupabaseRead } from '../supabaseRequest';
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function getErrorMessage(error) {
-  if (!error) {
-    return '';
-  }
-
-  return normalizeText(error.message || error.details || error.hint || String(error));
-}
-
-export function isOpsAutomationSchemaMissingError(error) {
-  const message = getErrorMessage(error);
-  if (!message) {
-    return false;
-  }
-
-  return OPS_AUTOMATION_SCHEMA_MISSING_MESSAGES.some((fragment) => message.includes(fragment));
-}
-
 async function getAccessToken() {
-  if (!supabase) {
-    return null;
-  }
-
   const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
-
-async function fetchWithAdminAuth(url, body, {
-  label,
-  timeoutMs = 45000,
-} = {}) {
-  if (!supabase) {
-    throw new Error('Supabase 未配置，无法执行自动化管理操作');
-  }
-
-  const accessToken = await getAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录态已失效，请重新登录后重试');
-  }
-
-  const response = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(body || {}),
-  }, {
-    label,
-    timeoutMs,
-  });
-
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || result?.success !== true) {
-    const error = new Error(result?.error || '自动化管理请求失败');
-    error.result = result;
-    throw error;
-  }
-
-  return result;
+  return session?.access_token;
 }
 
 export async function loadOpsAutomationRuns({
@@ -94,9 +32,6 @@ export async function loadOpsAutomationRuns({
       'source_tag',
       'source_url',
       'summary',
-      'top_changed_fields',
-      'preview',
-      'review_bundle',
       'error_message',
       'started_at',
       'finished_at',
@@ -112,67 +47,30 @@ export async function loadOpsAutomationRuns({
 
   const { data, error } = await executeSupabaseRead(
     () => query,
-    {
-      label: 'loadOpsAutomationRuns',
-      retries: 1,
-    }
+    { label: 'loadOpsAutomationRuns', retries: 1 },
   );
 
-  if (error) {
-    if (isOpsAutomationSchemaMissingError(error)) {
-      const setupError = new Error('自动化审计表尚未部署到当前数据库，请先执行迁移后再刷新页面');
-      setupError.code = 'OPS_AUTOMATION_SCHEMA_MISSING';
-      setupError.cause = error;
-      throw setupError;
-    }
-
-    throw error;
-  }
-
+  if (error) throw error;
   return data || [];
 }
 
-export async function triggerOpsAutomation(jobIds = []) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=run'), {
-    jobIds,
-  }, {
-    label: 'admin-ops-automation:run',
+export async function triggerManualSync() {
+  const token = await getAccessToken();
+  if (!token) throw new Error('未登录或会话已过期');
+
+  const res = await fetch('/api/admin-ops-automation', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
   });
+
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json.error || `请求失败 (${res.status})`);
+  }
+  return json;
 }
 
-export async function applyOfficialAnnouncementsRun({
-  runId,
-  sourceIds = [],
-  reviewNote = '',
-} = {}) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=apply-official-announcements'), {
-    runId,
-    sourceIds,
-    reviewNote,
-  }, {
-    label: 'admin-ops-automation:apply-official-announcements',
-  });
-}
-
-export async function applyPoolScheduleRun({
-  runId,
-  poolIds = [],
-  reviewNote = '',
-  overrides = {},
-} = {}) {
-  return fetchWithAdminAuth(buildServerlessApiUrl('/api/admin-ops-automation?action=apply-pool-schedule'), {
-    runId,
-    poolIds,
-    reviewNote,
-    overrides,
-  }, {
-    label: 'admin-ops-automation:apply-pool-schedule',
-  });
-}
-
-export default {
-  loadOpsAutomationRuns,
-  triggerOpsAutomation,
-  applyOfficialAnnouncementsRun,
-  applyPoolScheduleRun,
-};
+export default { loadOpsAutomationRuns, triggerManualSync };

@@ -268,6 +268,7 @@ const HomePage = React.memo(() => {
                   </div>
                   <div className="text-left">
                     <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">站点公告</span>
                       <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncement.title}</h3>
                       {isAnnouncementNew && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
@@ -275,11 +276,6 @@ const HomePage = React.memo(() => {
                         </span>
                       )}
                     </div>
-                    {latestAnnouncement.version && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 rounded">
-                        v{latestAnnouncement.version}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
@@ -291,27 +287,32 @@ const HomePage = React.memo(() => {
             </div>
           )}
 
-          <div className="border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden bg-white dark:bg-zinc-900">
-            <button
-              onClick={handleToggleGameAnnouncements}
-              className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/60 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">
-                  <Bell size={18} />
+          {gameAnnouncements.length > 0 && (
+            <div className="bg-gradient-to-r from-amber-50/60 to-orange-50/60 dark:from-amber-950/20 dark:to-orange-950/20 border border-amber-200/70 dark:border-amber-800/50 rounded-none overflow-hidden">
+              <button
+                onClick={handleToggleGameAnnouncements}
+                className="w-full px-4 py-3 flex items-center justify-between hover:bg-amber-100/30 dark:hover:bg-amber-900/20 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100/70 dark:bg-amber-900/20 text-amber-500 dark:text-amber-500 shrink-0">
+                    <Bell size={18} />
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">游戏公告</span>
+                      <h3 className="font-bold text-amber-700 dark:text-amber-400">来自终末地官网</h3>
+                    </div>
+                    <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">自动抓取 · LLM 整理摘要</p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <h3 className="font-bold text-zinc-800 dark:text-zinc-100">游戏公告</h3>
-                  <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1">来自终末地官网，默认折叠展示</p>
-                </div>
-              </div>
-              <ChevronUp size={20} className={`text-zinc-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />
-            </button>
+                <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />
+              </button>
 
-            <CollapsibleContent isOpen={showGameAnnouncements}>
-              <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={3} />
-            </CollapsibleContent>
-          </div>
+              <CollapsibleContent isOpen={showGameAnnouncements}>
+                <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={5} />
+              </CollapsibleContent>
+            </div>
+          )}
         </div>
       )}
 

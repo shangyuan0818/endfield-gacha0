@@ -18,7 +18,6 @@ export default function AppHeader({
   setHasNewAnnouncement,
   unreadTicketsCount,
   setUnreadTicketsCount,
-  newGameAnnouncementCount,
   // 操作
   setActiveTab,
   openAuthModal,
@@ -103,22 +102,20 @@ export default function AppHeader({
 
           {/* 超管管理页面 */}
           {isSuperAdmin && (
-            <NotificationBadge showDot={newGameAnnouncementCount > 0}>
-              <button
-                onClick={() => {
-                  setActiveTab('admin');
-                  markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
-                }}
-                className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
-                  activeTab === 'admin'
-                    ? 'bg-red-600 text-white'
-                    : 'text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-white/5'
-                }`}
-                title={newGameAnnouncementCount > 0 ? `${newGameAnnouncementCount} 条新公告可同步` : '管理'}
-              >
-                管理
-              </button>
-            </NotificationBadge>
+            <button
+              onClick={() => {
+                setActiveTab('admin');
+                markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
+              }}
+              className={`text-sm font-bold px-3 py-1.5 rounded-sm transition-all duration-200 ${
+                activeTab === 'admin'
+                  ? 'bg-red-600 text-white'
+                  : 'text-slate-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-white/5'
+              }`}
+              title="管理"
+            >
+              管理
+            </button>
           )}
 
           {/* 工单、设置和关于按钮 */}

@@ -3,14 +3,13 @@ import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRe
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
-import { buildServerlessApiUrl } from '../../utils/authRedirects';
-
-// ---------------------------------------------------------------------------
-// 站内公告（DB）
-// ---------------------------------------------------------------------------
 
 function isSiteAnnouncement(record) {
   return record?.is_active !== false && !record?.source_id;
+}
+
+function isGameAnnouncement(record) {
+  return record?.is_active !== false && !!record?.source_id;
 }
 
 function sortByPriority(records) {
@@ -43,45 +42,6 @@ async function loadAnnouncementsFromLocal() {
   return resp.json();
 }
 
-// ---------------------------------------------------------------------------
-// 游戏公告（静态 JSON，由 npm run fetch:announcements 生成）
-// ---------------------------------------------------------------------------
-
-async function loadGameAnnouncementsFromStatic() {
-  const resp = await fetchWithTimeout('/game-announcements.json', undefined, {
-    label: 'load game announcements',
-    timeoutMs: 10000,
-  });
-  if (!resp.ok) return [];
-  const data = await resp.json();
-  return Array.isArray(data) ? data : [];
-}
-
-// ---------------------------------------------------------------------------
-// 新公告检测（超管用：对比静态 JSON 与实时 API）
-// ---------------------------------------------------------------------------
-
-async function checkForNewGameAnnouncements(staticRecords) {
-  try {
-    const resp = await fetchWithTimeout(
-      buildServerlessApiUrl('/api/automation-feed?job=official-announcements'),
-      undefined,
-      { label: 'check new game announcements', timeoutMs: 15000, retries: 1 },
-    );
-    if (!resp.ok) return 0;
-    const json = await resp.json();
-    const apiRecords = Array.isArray(json?.records) ? json.records : [];
-    const staticIds = new Set(staticRecords.map(r => r.source_id));
-    return apiRecords.filter(r => r?.source_id && !staticIds.has(r.source_id)).length;
-  } catch {
-    return 0;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
-
 export function useNotificationBadges() {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
@@ -92,14 +52,11 @@ export function useNotificationBadges() {
 
   const [hasNewAnnouncement, setHasNewAnnouncement] = useState(false);
   const [unreadTicketsCount, setUnreadTicketsCount] = useState(0);
-  const [newGameAnnouncementCount, setNewGameAnnouncementCount] = useState(0);
 
-  // 加载公告
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      // 1. 站内公告：DB → 本地 JSON 回退
       let allRecords;
       try {
         const dbRecords = await loadAnnouncementsFromDb();
@@ -110,27 +67,15 @@ export function useNotificationBadges() {
       if (cancelled) return;
 
       const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
+      const gameRecords = sortByPriority(allRecords.filter(isGameAnnouncement));
+
       setAnnouncements(siteRecords);
+      setGameAnnouncements(gameRecords);
+
       if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
         setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
       } else {
         setHasNewAnnouncement(false);
-      }
-
-      // 2. 游戏公告：直接读取静态 JSON
-      let gameRecords = [];
-      try {
-        gameRecords = await loadGameAnnouncementsFromStatic();
-      } catch {
-        // 静默失败
-      }
-      if (cancelled) return;
-      setGameAnnouncements(gameRecords);
-
-      // 3. 超管：检测是否有新公告可同步（对比静态 JSON 与实时 API）
-      if (isSuperAdmin) {
-        const newCount = await checkForNewGameAnnouncements(gameRecords);
-        if (!cancelled) setNewGameAnnouncementCount(newCount);
       }
     };
 
@@ -138,7 +83,6 @@ export function useNotificationBadges() {
     return () => { cancelled = true; };
   }, [setAnnouncements, setGameAnnouncements, isSuperAdmin]);
 
-  // 未读工单计数
   useEffect(() => {
     const load = async () => {
       if (!supabase || !user) return 0;
@@ -156,7 +100,7 @@ export function useNotificationBadges() {
         );
         if (!error) return count || 0;
       } catch {
-        // 静默失败
+        // ignored
       }
       return 0;
     };
@@ -168,7 +112,6 @@ export function useNotificationBadges() {
     setHasNewAnnouncement,
     unreadTicketsCount,
     setUnreadTicketsCount,
-    newGameAnnouncementCount,
   };
 }
 

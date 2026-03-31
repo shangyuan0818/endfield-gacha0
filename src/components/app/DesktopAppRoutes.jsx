@@ -28,7 +28,6 @@ export default function DesktopAppRoutes({
   authResolved,
   showToast,
   isSuperAdmin,
-  newGameAnnouncementCount = 0,
   currentPool,
   canEdit,
   canEditCurrentPool,
@@ -129,7 +128,7 @@ export default function DesktopAppRoutes({
             <TabPanelFallback label="正在校验管理权限..." />
           ) : isSuperAdmin ? (
             <Suspense fallback={<TabPanelFallback label="正在加载管理后台..." />}>
-              <AdminPanel showToast={showToast} newGameAnnouncementCount={newGameAnnouncementCount} />
+              <AdminPanel showToast={showToast} />
             </Suspense>
           ) : (
             <Navigate to="/" replace />

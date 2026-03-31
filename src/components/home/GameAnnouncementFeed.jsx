@@ -58,7 +58,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
         return (
           <div
             key={announcement.source_id}
-            className="border border-zinc-200/80 bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/30"
+            className="border border-amber-200/50 bg-white/70 dark:border-amber-900/30 dark:bg-zinc-950/30"
           >
             <div className="px-4 py-3">
               <div className="min-w-0">
