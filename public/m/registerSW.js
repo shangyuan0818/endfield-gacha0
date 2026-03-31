@@ -45,7 +45,10 @@
 
   async function registerRootServiceWorker() {
     try {
-      await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.register('/sw.js', {
+        scope: '/',
+        updateViaCache: 'none'
+      });
     } catch (error) {
       console.warn('[registerSW] root service worker registration failed', error);
     }

@@ -7,8 +7,9 @@ import AppRouter from './AppRouter'
 import { preloadPublicBootstrap } from './services/bootstrapService'
 import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 import { appLogger } from './utils/appLogger.js'
+import { prepareFreshNavigation } from './utils/serviceWorkerRecovery.js'
 
-;(function syncDeviceRedirect() {
+function syncDeviceRedirect() {
   const preference = localStorage.getItem('platform-preference');
   const pathname = window.location.pathname;
 
@@ -22,23 +23,36 @@ import { appLogger } from './utils/appLogger.js'
   if (redirectTarget) {
     window.location.replace(window.location.origin + redirectTarget);
   }
-})();
+}
 
 const schedulePreload = typeof window.requestIdleCallback === 'function'
   ? window.requestIdleCallback.bind(window)
   : (callback) => window.setTimeout(callback, 250);
 
-schedulePreload(() => {
-  preloadPublicBootstrap().catch(err => {
-    appLogger.warn('预加载数据失败，将使用实时查询:', err);
-  });
-});
+async function bootstrapApp() {
+  const { didNavigate } = await prepareFreshNavigation();
+  if (didNavigate) {
+    return;
+  }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AppRouter />
-    </BrowserRouter>
-    <Analytics />
-  </StrictMode>,
-)
+  syncDeviceRedirect();
+
+  schedulePreload(() => {
+    preloadPublicBootstrap().catch(err => {
+      appLogger.warn('预加载数据失败，将使用实时查询:', err);
+    });
+  });
+
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AppRouter />
+      </BrowserRouter>
+      <Analytics />
+    </StrictMode>,
+  );
+}
+
+bootstrapApp().catch((error) => {
+  appLogger.error('应用启动失败:', error);
+});

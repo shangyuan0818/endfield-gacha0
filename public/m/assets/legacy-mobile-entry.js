@@ -38,7 +38,10 @@ async function registerRootServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
   try {
-    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    });
   } catch (error) {
     console.warn('[legacy-mobile-entry] root service worker registration failed', error);
   }

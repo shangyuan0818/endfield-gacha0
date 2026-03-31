@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import { VitePWA } from 'vite-plugin-pwa'
 import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
@@ -150,55 +149,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      createDevApiPlugin(),
-      VitePWA({
-        base: '/',
-        scope: '/',
-        injectRegister: 'inline',
-        registerType: 'autoUpdate',
-        workbox: {
-          globPatterns: ['favicon.svg'],
-          navigateFallback: null,
-          cleanupOutdatedCaches: true,
-          skipWaiting: true,
-          clientsClaim: true,
-          runtimeCaching: [
-            {
-              urlPattern: /\/assets\/.*\.(js|css)$/,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'js-css-assets',
-                expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 3600 }
-              }
-            },
-            {
-              urlPattern: /\/assets\/.*\.(png|jpg|jpeg|svg|webp|ico|woff|woff2)$/,
-              handler: 'CacheFirst',
-              options: {
-                cacheName: 'static-assets',
-                expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 3600 }
-              }
-            },
-            {
-              urlPattern: /^\/api\/bootstrap/,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'api-bootstrap',
-                expiration: { maxEntries: 1, maxAgeSeconds: 600 }
-              }
-            },
-            {
-              urlPattern: /^\/api\/stats/,
-              handler: 'StaleWhileRevalidate',
-              options: {
-                cacheName: 'api-stats',
-                expiration: { maxEntries: 10, maxAgeSeconds: 300 }
-              }
-            }
-          ]
-        },
-        manifest: false
-      })
+      createDevApiPlugin()
     ],
     // The app is deployed at the domain root, so generated asset and SW URLs
     // must stay absolute across nested SPA routes like /m/summary.
