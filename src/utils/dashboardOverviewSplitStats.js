@@ -1,6 +1,9 @@
-import { RARITY_CONFIG } from '../constants/index.js';
+import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
+
+const CHAR_PITY_LIMIT = LIMITED_POOL_RULES.sixStarPity;
+const WEAPON_PITY_LIMIT = WEAPON_POOL_RULES.sixStarPity;
 
 function normalizePoolType(type) {
   if (type === 'limited_character') return 'limited';
@@ -20,21 +23,9 @@ function createBucketAccumulator() {
     counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
     totalSixStar: 0,
     winRate: '0.0',
-    avgPullCost: {
-      6: '0',
-      '6_all': '0',
-      '6_limited': '0',
-      '6_with_spark': '0',
-      5: '0'
-    },
+    avgPullCost: { 6: '0', '6_all': '0', '6_limited': '0', '6_with_spark': '0', 5: '0' },
     chartData: [],
-    pityStats: {
-      history: [],
-      distribution: [],
-      max: 0,
-      min: 0,
-      avg: 0
-    },
+    pityStats: { history: [], distribution: [], max: 0, min: 0, avg: 0 },
     resourceSummary: null
   };
 }
@@ -51,42 +42,32 @@ function toChartData(counts, includeTargetSix) {
     const totalValue = rawChartData.reduce((sum, entry) => sum + entry.value, 0);
     const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
     let minPercent = 0;
-
-    if (item.name.includes('6星')) {
-      minPercent = 15;
-    } else if (item.name.includes('5星')) {
-      minPercent = 20;
-    }
+    if (item.name.includes('6星')) minPercent = 15;
+    else if (item.name.includes('5星')) minPercent = 20;
 
     if (currentPercent < minPercent && totalValue > 0) {
-      return {
-        ...item,
-        displayValue: Math.ceil((totalValue * minPercent) / 100)
-      };
+      return { ...item, displayValue: Math.ceil((totalValue * minPercent) / 100) };
     }
-
     return { ...item, displayValue: item.value };
   });
 }
 
-function buildDistributionData(sixStarPulls) {
-  if (!sixStarPulls.length) {
-    return [];
-  }
-
-  const maxRecorded = Math.max(...sixStarPulls.map((entry) => entry.count));
-  const maxRange = Math.ceil(maxRecorded / 10) * 10;
+function buildDistributionData(sixStarPulls, hardPityLimit) {
+  const numBuckets = Math.ceil(hardPityLimit / 10);
   const distribution = [];
 
-  for (let i = 0; i < maxRange; i += 10) {
-    const rangeStart = i + 1;
-    const rangeEnd = i + 10;
-    const items = sixStarPulls.filter((entry) => entry.count >= rangeStart && entry.count <= rangeEnd);
+  for (let i = 0; i < numBuckets; i++) {
+    const rangeStart = i * 10 + 1;
+    const rangeEnd = (i + 1) * 10;
+    const isLast = i === numBuckets - 1;
+    const items = sixStarPulls.filter((e) =>
+      isLast ? e.count >= rangeStart : e.count >= rangeStart && e.count <= rangeEnd
+    );
     distribution.push({
       range: `${rangeStart}-${rangeEnd}`,
       count: items.length,
-      limited: items.filter((entry) => !entry.isStandard).length,
-      standard: items.filter((entry) => entry.isStandard).length
+      limited: items.filter((e) => !e.isStandard).length,
+      standard: items.filter((e) => e.isStandard).length
     });
   }
 
@@ -108,7 +89,6 @@ export function buildDashboardOverviewSplitStats({
       poolType: 'limited',
       _allSixStarPulls: [],
       _upCount: 0,
-      _tempCounter: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
@@ -121,7 +101,6 @@ export function buildDashboardOverviewSplitStats({
       poolType: 'weapon',
       _allSixStarPulls: [],
       _upCount: 0,
-      _tempCounter: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
@@ -130,72 +109,79 @@ export function buildDashboardOverviewSplitStats({
     }
   };
 
+  // 按池分组
+  const pullsByPool = {};
   history.forEach((item) => {
-    const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
-    const isFree = item?.isFree === true || item?.is_free === true;
-    const poolId = item?.poolId || item?.pool_id || null;
-    const poolType = poolTypeById.get(poolId) || normalizePoolType(item?.poolType || item?.pool_type);
+    const poolId = item?.poolId || item?.pool_id || '__unknown__';
+    if (!pullsByPool[poolId]) pullsByPool[poolId] = [];
+    pullsByPool[poolId].push(item);
+  });
+
+  // 按池独立处理保底计数，与时间线视图一致
+  for (const [poolId, pulls] of Object.entries(pullsByPool)) {
+    const sortedPulls = pulls.sort((a, b) => (a?.id ?? 0) - (b?.id ?? 0));
+    const firstItem = sortedPulls[0];
+    const poolType = poolTypeById.get(poolId)
+      || normalizePoolType(firstItem?.poolType || firstItem?.pool_type);
     const bucketKey = getBucketFromPoolType(poolType);
     const bucket = buckets[bucketKey];
 
-    if (isGift || isFree) {
-      return;
-    }
+    let tempCounter = 0;
 
-    bucket.total += 1;
-    bucket._tempCounter += 1;
+    sortedPulls.forEach((item) => {
+      const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
+      const isFree = item?.isFree === true || item?.is_free === true;
+      if (isGift || isFree) return;
 
-    if (bucketKey === 'weapon') {
-      bucket._weaponPulls += 1;
-      if (!isInfoBookHistoryPull(item)) {
-        bucket._chargedWeaponPulls += 1;
-      }
-    } else {
-      bucket._characterPulls += 1;
-      if (!isInfoBookHistoryPull(item)) {
-        bucket._chargedCharacterPulls += 1;
-      }
-    }
+      bucket.total += 1;
+      tempCounter += 1;
 
-    const rarity = Number(item?.rarity) || 0;
-
-    if (rarity >= 6) {
-      const isTargetSixStar = bucketKey === 'weapon'
-        ? !item?.isStandard
-        : poolType === 'limited' && !item?.isStandard;
-
-      if (isTargetSixStar) {
-        bucket.counts[6] += 1;
+      if (bucketKey === 'weapon') {
+        bucket._weaponPulls += 1;
+        if (!isInfoBookHistoryPull(item)) bucket._chargedWeaponPulls += 1;
       } else {
-        bucket.counts['6_std'] += 1;
+        bucket._characterPulls += 1;
+        if (!isInfoBookHistoryPull(item)) bucket._chargedCharacterPulls += 1;
       }
 
+      const rarity = Number(item?.rarity) || 0;
+
+      if (rarity >= 6) {
+        const isTargetSixStar = !item?.isStandard;
+
+        if (isTargetSixStar) {
+          bucket.counts[6] += 1;
+        } else {
+          bucket.counts['6_std'] += 1;
+        }
+
+        if (bucketKey === 'character') {
+          bucket._arsenalGainCounts[isTargetSixStar ? 6 : '6_std'] += 1;
+        }
+
+        bucket._allSixStarPulls.push({
+          count: tempCounter,
+          isStandard: !isTargetSixStar
+        });
+
+        if (isTargetSixStar) bucket._upCount += 1;
+
+        tempCounter = 0;
+        return;
+      }
+
+      const normalizedRarity = rarity === 5 ? 5 : 4;
+      bucket.counts[normalizedRarity] += 1;
       if (bucketKey === 'character') {
-        bucket._arsenalGainCounts[isTargetSixStar ? 6 : '6_std'] += 1;
+        bucket._arsenalGainCounts[normalizedRarity] += 1;
       }
+    });
+  }
 
-      const pullRecord = {
-        count: bucket._tempCounter,
-        isStandard: !isTargetSixStar
-      };
+  // 汇总每个 bucket
+  Object.entries(buckets).forEach(([key, bucket]) => {
+    const pityLimit = key === 'weapon' ? WEAPON_PITY_LIMIT : CHAR_PITY_LIMIT;
 
-      bucket._allSixStarPulls.push(pullRecord);
-      if (isTargetSixStar) {
-        bucket._upCount += 1;
-      }
-
-      bucket._tempCounter = 0;
-      return;
-    }
-
-    const normalizedRarity = rarity === 5 ? 5 : 4;
-    bucket.counts[normalizedRarity] += 1;
-    if (bucketKey === 'character') {
-      bucket._arsenalGainCounts[normalizedRarity] += 1;
-    }
-  });
-
-  Object.values(buckets).forEach((bucket) => {
     bucket.totalSixStar = bucket.counts[6] + bucket.counts['6_std'];
     bucket.winRate = bucket.totalSixStar > 0
       ? ((bucket.counts[6] / bucket.totalSixStar) * 100).toFixed(1)
@@ -215,14 +201,14 @@ export function buildDashboardOverviewSplitStats({
 
     bucket.chartData = toChartData(bucket.counts, true);
 
-    const pullCounts = bucket._allSixStarPulls.map((entry) => entry.count);
+    const pullCounts = bucket._allSixStarPulls.map((e) => e.count);
     bucket.pityStats = {
       history: bucket._allSixStarPulls,
-      distribution: buildDistributionData(bucket._allSixStarPulls),
+      distribution: buildDistributionData(bucket._allSixStarPulls, pityLimit),
       max: pullCounts.length > 0 ? Math.max(...pullCounts) : 0,
       min: pullCounts.length > 0 ? Math.min(...pullCounts) : 0,
       avg: pullCounts.length > 0
-        ? (pullCounts.reduce((sum, item) => sum + item, 0) / pullCounts.length).toFixed(1)
+        ? (pullCounts.reduce((sum, v) => sum + v, 0) / pullCounts.length).toFixed(1)
         : 0
     };
 
@@ -237,7 +223,6 @@ export function buildDashboardOverviewSplitStats({
 
     delete bucket._allSixStarPulls;
     delete bucket._upCount;
-    delete bucket._tempCounter;
     delete bucket._characterPulls;
     delete bucket._weaponPulls;
     delete bucket._chargedCharacterPulls;

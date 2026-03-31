@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { RARITY_CONFIG } from '../constants/index.js';
+import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy.js';
 import {
   SUPABASE_RPC_TIMEOUT_MS,
@@ -246,14 +246,35 @@ function generateChartData(counts) {
   });
 }
 
-function processDistribution(distribution) {
+function processDistribution(distribution, hardPityLimit = LIMITED_POOL_RULES.sixStarPity) {
   if (!Array.isArray(distribution)) return [];
 
-  return distribution.map(item => ({
-    range: item.range,
-    limited: Number(item.limited) || 0,
-    standard: Number(item.standard) || 0
-  }));
+  const numBuckets = Math.ceil(hardPityLimit / 10);
+  const result = [];
+
+  for (let i = 0; i < numBuckets; i++) {
+    const rangeStart = i * 10 + 1;
+    const rangeEnd = (i + 1) * 10;
+    const range = `${rangeStart}-${rangeEnd}`;
+    const isLast = i === numBuckets - 1;
+
+    let limited = 0;
+    let standard = 0;
+
+    distribution.forEach(item => {
+      const itemStart = parseInt(item.range?.split('-')[0], 10);
+      if (isNaN(itemStart)) return;
+      const itemBucket = Math.floor((itemStart - 1) / 10);
+      if (isLast ? itemBucket >= i : itemBucket === i) {
+        limited += Number(item.limited) || 0;
+        standard += Number(item.standard) || 0;
+      }
+    });
+
+    result.push({ range, limited, standard, count: limited + standard });
+  }
+
+  return result;
 }
 
 function processTypeStats(typeData) {
@@ -278,7 +299,10 @@ function processTypeStats(typeData) {
     sparkCount: typeData.sparkCount || 0,
     avgPityExcludingFree: typeData.avgPityExcludingFree || null,
     counts,
-    distribution: processDistribution(typeData.distribution),
+    distribution: processDistribution(
+      typeData.distribution,
+      normalizedType === 'weapon' ? WEAPON_POOL_RULES.sixStarPity : LIMITED_POOL_RULES.sixStarPity
+    ),
     chartData: generateChartData(counts),
     resources: buildResourceSummaryFromAggregates({
       characterPulls: normalizedType === 'weapon' ? 0 : total,
@@ -291,29 +315,24 @@ function processTypeStats(typeData) {
   };
 }
 
-function mergeDistributions(primary = [], secondary = []) {
-  const grouped = new Map();
+function mergeDistributions(primary = [], secondary = [], hardPityLimit = LIMITED_POOL_RULES.sixStarPity) {
+  const numBuckets = Math.ceil(hardPityLimit / 10);
+  const merged = new Array(numBuckets).fill(null).map((_, i) => ({
+    range: `${i * 10 + 1}-${(i + 1) * 10}`,
+    limited: 0,
+    standard: 0
+  }));
 
   [...primary, ...secondary].forEach(item => {
-    const existing = grouped.get(item.range);
-    if (existing) {
-      existing.limited += item.limited || 0;
-      existing.standard += item.standard || 0;
-      return;
-    }
-
-    grouped.set(item.range, {
-      range: item.range,
-      limited: item.limited || 0,
-      standard: item.standard || 0
-    });
+    const start = parseInt(item.range?.split('-')[0], 10);
+    if (isNaN(start)) return;
+    let idx = Math.floor((start - 1) / 10);
+    if (idx >= numBuckets) idx = numBuckets - 1;
+    merged[idx].limited += item.limited || 0;
+    merged[idx].standard += item.standard || 0;
   });
 
-  return Array.from(grouped.values()).sort((left, right) => {
-    const leftStart = parseInt(left.range.split('-')[0], 10) || 91;
-    const rightStart = parseInt(right.range.split('-')[0], 10) || 91;
-    return leftStart - rightStart;
-  });
+  return merged.map(item => ({ ...item, count: item.limited + item.standard }));
 }
 
 export function normalizeGlobalStats(rpcData) {

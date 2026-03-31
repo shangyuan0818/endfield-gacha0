@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import useHistoryStore from '../../stores/useHistoryStore.js';
-import { RARITY_CONFIG, LIMITED_POOL_RULES } from '../../constants/index.js';
+import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import {
   calculateCurrentProbability,
   calculatePity5FromHistory,
@@ -270,14 +270,20 @@ export function usePoolStats({
       return { ...item, displayValue: item.value };
     });
 
-    // 出货分布直方图
+    // 出货分布直方图 — 范围封顶于池型保底上限
+    const hardPityLimit = isWeaponPool
+      ? WEAPON_POOL_RULES.sixStarPity
+      : LIMITED_POOL_RULES.sixStarPity;
     const distributionData = [];
     if (sixStarPulls.length > 0) {
-      const maxRange = Math.ceil(Math.max(manualPityLimit, maxPityRecorded) / 10) * 10;
-      for (let i = 0; i < maxRange; i += 10) {
-        const rangeStart = i + 1;
-        const rangeEnd = i + 10;
-        const items = sixStarPulls.filter(p => p.count >= rangeStart && p.count <= rangeEnd);
+      const numBuckets = Math.ceil(hardPityLimit / 10);
+      for (let i = 0; i < numBuckets; i++) {
+        const rangeStart = i * 10 + 1;
+        const rangeEnd = (i + 1) * 10;
+        const isLast = i === numBuckets - 1;
+        const items = sixStarPulls.filter(p =>
+          isLast ? p.count >= rangeStart : p.count >= rangeStart && p.count <= rangeEnd
+        );
         distributionData.push({
           range: `${rangeStart}-${rangeEnd}`,
           count: items.length,

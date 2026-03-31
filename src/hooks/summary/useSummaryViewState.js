@@ -102,7 +102,9 @@ function mergeDistributions(limited, standard) {
     };
   });
 
-  return Object.values(merged).sort((a, b) => parseInt(a.range, 10) - parseInt(b.range, 10));
+  return Object.values(merged)
+    .map(item => ({ ...item, count: item.limited + item.standard }))
+    .sort((a, b) => parseInt(a.range, 10) - parseInt(b.range, 10));
 }
 
 function getAveragePity(typeData) {

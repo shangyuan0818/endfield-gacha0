@@ -1,8 +1,14 @@
 import { useMemo } from 'react';
-import { RARITY_CONFIG } from '../../constants/index.js';
+import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
+
+const PITY_LIMITS = {
+  limited: LIMITED_POOL_RULES.sixStarPity,
+  standard: LIMITED_POOL_RULES.sixStarPity,
+  weapon: WEAPON_POOL_RULES.sixStarPity
+};
 
 const _localStatsModuleCache = { key: null, result: null };
 
@@ -52,34 +58,54 @@ function generatePieData(counts) {
 }
 
 /**
- * 从桶计数器生成分布数组（O(k) 替代 O(n×k) 的嵌套 filter）
+ * 从桶计数器生成分布数组
+ * @param {Object} buckets - 桶计数器 { [bucketIndex]: { limited, standard, guaranteed? } }
+ * @param {number} hardPityLimit - 池型保底上限（角色80，武器40），分布不会超出此范围
  */
-function buildDistFromBuckets(buckets, maxPity) {
-  const upperBound = Math.max(maxPity, 80);
-  const numBuckets = Math.ceil(upperBound / 10);
+function buildDistFromBuckets(buckets, hardPityLimit) {
+  const numBuckets = Math.ceil(hardPityLimit / 10);
   const dist = [];
   for (let i = 0; i < numBuckets; i++) {
-    const b = buckets[i];
     const rangeStart = i * 10 + 1;
     const rangeEnd = (i + 1) * 10;
-    if (b) {
-      dist.push({
-        range: `${rangeStart}-${rangeEnd}`,
-        rangeStart,
-        count: (b.limited || 0) + (b.standard || 0),
-        limited: b.limited || 0,
-        standard: b.standard || 0,
-        ...(b.guaranteed !== undefined ? { guaranteed: b.guaranteed } : {})
-      });
+    const isLast = i === numBuckets - 1;
+
+    let limited = 0;
+    let standard = 0;
+    let guaranteed = 0;
+    let hasGuaranteed = false;
+
+    if (isLast) {
+      for (const idx in buckets) {
+        if (Number(idx) >= i) {
+          limited += buckets[idx].limited || 0;
+          standard += buckets[idx].standard || 0;
+          if (buckets[idx].guaranteed !== undefined) {
+            guaranteed += buckets[idx].guaranteed;
+            hasGuaranteed = true;
+          }
+        }
+      }
     } else {
-      dist.push({
-        range: `${rangeStart}-${rangeEnd}`,
-        rangeStart,
-        count: 0,
-        limited: 0,
-        standard: 0
-      });
+      const b = buckets[i];
+      if (b) {
+        limited = b.limited || 0;
+        standard = b.standard || 0;
+        if (b.guaranteed !== undefined) {
+          guaranteed = b.guaranteed;
+          hasGuaranteed = true;
+        }
+      }
     }
+
+    dist.push({
+      range: `${rangeStart}-${rangeEnd}`,
+      rangeStart,
+      count: limited + standard,
+      limited,
+      standard,
+      ...(hasGuaranteed ? { guaranteed } : {})
+    });
   }
   return dist;
 }
@@ -257,15 +283,13 @@ export function useSummaryStats(history, pools, user) {
       }
     }
 
-    // ── Phase 2: 分池保底/区间/赠送/分布计算 ──
-    // BUG-035: UP 平均出货用 totalPulls / upCount
+    // ── Phase 2: 按池独立计算保底/区间/赠送/分布 ──
+    // 每个池独立追踪保底计数器，与时间线视图一致
     const upCountByType = { limited: 0, weapon: 0 };
 
-    // 分布桶计数器（替代 O(n×k) 嵌套 filter）
     const globalDistBuckets = {};
     const typeDistBuckets = { limited: {}, weapon: {}, standard: {} };
 
-    // 累加器（替代事后 reduce/filter）
     const typePitySums = {
       limited: { sum: 0, count: 0 },
       weapon: { sum: 0, count: 0 },
@@ -289,13 +313,11 @@ export function useSummaryStats(history, pools, user) {
       const poolMeta = poolMetaMap.get(poolId);
       const sortedPulls = pullsByPool[poolId].sort((a, b) => a.id - b.id);
 
-      // 计算有效抽数（排除 gift 和 free）
       let poolTotal = 0;
       for (let j = 0; j < sortedPulls.length; j++) {
         if (!isGiftPull(sortedPulls[j]) && !isFreePull(sortedPulls[j])) poolTotal++;
       }
 
-      // 赠送计算
       if (type === 'limited') {
         charGiftCount += Math.floor(poolTotal / 240);
       } else if (type === 'weapon') {
@@ -327,12 +349,10 @@ export function useSummaryStats(history, pools, user) {
             hasGotUpBefore120 = true;
           }
 
-          // 全局保底累加
           allSixStarPitySum += tempCounter;
           allSixStarPityCount++;
           if (tempCounter > globalMaxPity) globalMaxPity = tempCounter;
 
-          // 全局分布桶（O(1)）
           const bucketIdx = Math.floor((tempCounter - 1) / 10);
           if (!globalDistBuckets[bucketIdx]) {
             globalDistBuckets[bucketIdx] = { limited: 0, standard: 0, guaranteed: 0 };
@@ -341,18 +361,15 @@ export function useSummaryStats(history, pools, user) {
           else globalDistBuckets[bucketIdx].standard++;
           if (pull.specialType === 'guaranteed') globalDistBuckets[bucketIdx].guaranteed++;
 
-          // 池型分布桶
           if (!typeDistBuckets[type][bucketIdx]) {
             typeDistBuckets[type][bucketIdx] = { limited: 0, standard: 0 };
           }
           if (!pull.isStandard) typeDistBuckets[type][bucketIdx].limited++;
           else typeDistBuckets[type][bucketIdx].standard++;
 
-          // 池型保底均值累加
           typePitySums[type].sum += tempCounter;
           typePitySums[type].count++;
 
-          // 限定池特有累加器
           if (type === 'limited') {
             if (!isFree && !isSpark) {
               limitedNonFreeNonSparkSum += tempCounter;
@@ -364,14 +381,12 @@ export function useSummaryStats(history, pools, user) {
             }
           }
 
-          // 排除免费的全局保底累加
           if (!isFree) {
             allSixStarExclFreePitySum += tempCounterExcludingFree;
             allSixStarExclFreePityCount++;
             tempCounterExcludingFree = 0;
           }
 
-          // pityList（仍需保留供消费端使用）
           data.byType[type].pityList.push({
             count: tempCounter,
             isStandard: pull.isStandard,
@@ -394,13 +409,7 @@ export function useSummaryStats(history, pools, user) {
 
     // 池型汇总
     ['limited', 'weapon', 'standard'].forEach(t => {
-      let typeMaxPity = 0;
-      const buckets = typeDistBuckets[t];
-      for (const idx in buckets) {
-        const upper = (Number(idx) + 1) * 10;
-        if (upper > typeMaxPity) typeMaxPity = upper;
-      }
-      data.byType[t].distribution = buildDistFromBuckets(buckets, typeMaxPity);
+      data.byType[t].distribution = buildDistFromBuckets(typeDistBuckets[t], PITY_LIMITS[t]);
       data.byType[t].chartData = generatePieData(data.byType[t].counts);
       if (typePitySums[t].count > 0) {
         data.byType[t].avgPity = (typePitySums[t].sum / typePitySums[t].count).toFixed(1);
@@ -425,9 +434,9 @@ export function useSummaryStats(history, pools, user) {
       : null;
     data.byType.weapon.avgPityTarget = data.byType.weapon.avgPityUp;
 
-    // 全局分布
+    // 全局分布（使用角色池保底上限，因为它是所有池中最高的）
     if (allSixStarPityCount > 0) {
-      data.pityStats.distribution = buildDistFromBuckets(globalDistBuckets, globalMaxPity);
+      data.pityStats.distribution = buildDistFromBuckets(globalDistBuckets, PITY_LIMITS.limited);
     }
 
     // 角色池合并数据
@@ -446,11 +455,6 @@ export function useSummaryStats(history, pools, user) {
         charDistBuckets[idx].limited += typeDistBuckets[t][idx].limited || 0;
         charDistBuckets[idx].standard += typeDistBuckets[t][idx].standard || 0;
       }
-    }
-    let charMaxPity = 0;
-    for (const idx in charDistBuckets) {
-      const upper = (Number(idx) + 1) * 10;
-      if (upper > charMaxPity) charMaxPity = upper;
     }
 
     const characterPityList = [...data.byType.limited.pityList, ...data.byType.standard.pityList];
@@ -473,7 +477,7 @@ export function useSummaryStats(history, pools, user) {
       counts: characterCounts,
       pityList: characterPityList,
       pityListExcludingFree: characterPityListExcludingFree,
-      distribution: buildDistFromBuckets(charDistBuckets, charMaxPity),
+      distribution: buildDistFromBuckets(charDistBuckets, PITY_LIMITS.limited),
       chartData: generatePieData(characterCounts),
       avgPity: charPityCount > 0
         ? (charPitySum / charPityCount).toFixed(1)
