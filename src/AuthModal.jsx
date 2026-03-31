@@ -303,6 +303,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         errorMessage = '密码长度不足，至少需要 6 位字符';
       } else if (err.message.includes('Unable to validate email')) {
         errorMessage = '无法验证邮箱地址，请检查邮箱是否正确';
+      } else if (
+        err.message.toLowerCase().includes('sending confirmation') ||
+        err.message.toLowerCase().includes('confirmation email')
+      ) {
+        errorMessage = '邮件服务暂时不可用，请稍后再试或联系管理员';
       } else if (err.message) {
         errorMessage = err.message;
       }
