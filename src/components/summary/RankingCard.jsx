@@ -69,14 +69,14 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
   const hasVisibleData = () => {
     if (!ranking) return false;
     if (!visibleSections) return hasSixStarUp || hasSixStarOff || hasSixStar || hasFiveStar;
-    
+
     if (visibleSections.includes('limitedUp') && hasSixStarUp) return true;
     if (visibleSections.includes('limitedOff') && hasSixStarOff) return true;
     if (visibleSections.includes('standard') && hasSixStar) return true;
     if (visibleSections.includes('fiveStar') && hasFiveStar) return true; // 'fiveStar' covers both limited/standard 5*
     if (visibleSections.includes('limitedFive') && ranking.limited?.fiveStar?.length > 0) return true;
     if (visibleSections.includes('standardFive') && ranking.standard?.fiveStar?.length > 0) return true;
-    
+
     return false;
   };
 
@@ -127,7 +127,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                       </div>
                     )}
                   </div>
-                  <span className={`font-medium text-slate-700 dark:text-zinc-300 truncate ${denseFlatLayout ? 'text-[11px] leading-tight max-w-[3.5rem]' : 'text-xs max-w-[4rem]'}`}>{char.name}</span>
+                  <span className={`font-medium text-slate-700 dark:text-zinc-300 truncate ${denseFlatLayout ? 'text-[11px] leading-tight max-w-[5rem]' : 'text-xs max-w-[5rem]'}`}>{char.name}</span>
                   <span className={`font-mono text-zinc-400 ${denseFlatLayout ? 'text-[9px] leading-none' : 'text-[10px]'}`}>×{char.count}</span>
                 </div>
               );

@@ -190,11 +190,11 @@ const SummaryView = React.memo(() => {
                                 歪到非当期限定
                               </div>
                             </div>
-                            {/* 吃井人数 */}
+                            {/* 吃井次数 */}
                             <div className="space-y-1">
                               <div className="text-zinc-400 text-[10px] uppercase font-bold flex items-center gap-1">
                                 <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                                吃井人数
+                                吃井次数
                               </div>
                               <div className="text-xl font-bold font-mono text-red-500">
                                 {currentStats.byType?.limited?.sparkCount || 0}

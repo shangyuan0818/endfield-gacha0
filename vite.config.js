@@ -154,16 +154,18 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
-          globPatterns: ['**/*.{html,css}', 'registerSW.js', 'favicon.svg'],
-          navigateFallback: '/index.html',
+          globPatterns: ['registerSW.js', 'favicon.svg'],
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
           navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
             {
-              urlPattern: /\/assets\/.*\.js$/,
+              urlPattern: /\/assets\/.*\.(js|css)$/,
               handler: 'CacheFirst',
               options: {
-                cacheName: 'js-assets',
-                expiration: { maxEntries: 80, maxAgeSeconds: 30 * 24 * 3600 }
+                cacheName: 'js-css-assets',
+                expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 3600 }
               }
             },
             {

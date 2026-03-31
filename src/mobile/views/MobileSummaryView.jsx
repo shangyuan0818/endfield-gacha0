@@ -403,7 +403,7 @@ function MobileSummaryView() {
                         </div>
                       </div>
                       <div className="bg-zinc-50 dark:bg-zinc-900/30 p-2 border border-zinc-100 dark:border-zinc-800">
-                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">吃井人数</div>
+                        <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold mb-1">吃井次数</div>
                         <div className="text-lg font-bold font-mono text-red-500">
                           {currentStats.byType?.limited?.sparkCount || 0}
                         </div>
