@@ -186,19 +186,26 @@ function MobileDashboardView() {
     showToast(success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试', success ? 'success' : 'error');
   }, [dashboardSharePayload, hasDashboardShareData, showToast]);
 
+  const waitForShareCard = React.useCallback(async () => {
+    if (shareCardRef.current) return shareCardRef.current;
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return shareCardRef.current;
+  }, []);
+
   const handleShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
       showToast('当前没有可导出的卡池详情', 'warning');
       return;
     }
 
-    if (!shareCardRef.current) {
+    const cardNode = await waitForShareCard();
+    if (!cardNode) {
       showToast('分享卡未准备好，请稍后重试', 'error');
       return;
     }
 
     try {
-      const blob = await renderShareCardToBlob(shareCardRef.current, {
+      const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
       const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
@@ -222,7 +229,7 @@ function MobileDashboardView() {
 
       showToast('详情分享卡生成失败，请稍后重试', 'error');
     }
-  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare]);
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare, waitForShareCard]);
 
   const handleDownloadShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -230,13 +237,14 @@ function MobileDashboardView() {
       return;
     }
 
-    if (!shareCardRef.current) {
+    const cardNode = await waitForShareCard();
+    if (!cardNode) {
       showToast('分享卡未准备好，请稍后重试', 'error');
       return;
     }
 
     try {
-      const blob = await renderShareCardToBlob(shareCardRef.current, {
+      const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
       const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
@@ -245,7 +253,7 @@ function MobileDashboardView() {
     } catch {
       showToast('详情分享卡生成失败，请稍后重试', 'error');
     }
-  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast]);
+  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, waitForShareCard]);
 
   const handleCopyShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -253,7 +261,8 @@ function MobileDashboardView() {
       return;
     }
 
-    if (!shareCardRef.current) {
+    const cardNode = await waitForShareCard();
+    if (!cardNode) {
       showToast('分享卡未准备好，请稍后重试', 'error');
       return;
     }
@@ -264,7 +273,7 @@ function MobileDashboardView() {
     }
 
     try {
-      const blob = await renderShareCardToBlob(shareCardRef.current, {
+      const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
       const copied = await copyImageBlobToClipboard(blob);
@@ -272,7 +281,7 @@ function MobileDashboardView() {
     } catch {
       showToast('复制图片失败，请改用下载', 'error');
     }
-  }, [hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy]);
+  }, [hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy, waitForShareCard]);
 
   if (!hasPoolData) {
     return (

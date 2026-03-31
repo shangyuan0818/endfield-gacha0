@@ -211,7 +211,10 @@ async function measureRenderedShareCard(node, options = {}) {
   sandbox.appendChild(clone);
   document.body.appendChild(sandbox);
 
-  await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  if (document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   const measuredWidth = Number(options.width)
     || clone.scrollWidth
@@ -241,35 +244,51 @@ function blobToDataUrl(blob) {
   });
 }
 
+const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==';
 const embeddedImageCache = new Map();
+
+async function fetchImageOnce(source) {
+  const response = await fetch(source, {
+    mode: 'cors',
+    credentials: 'omit',
+    cache: 'force-cache'
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status}`);
+  }
+  const blob = await response.blob();
+  return blobToDataUrl(blob);
+}
 
 async function fetchImageAsDataUrl(source) {
   if (!source || typeof source !== 'string') {
-    return null;
+    return TRANSPARENT_PIXEL;
   }
 
   if (source.startsWith('data:')) {
     return source;
   }
 
-  if (embeddedImageCache.has(source)) {
-    return embeddedImageCache.get(source);
+  const cached = embeddedImageCache.get(source);
+  if (cached) {
+    return cached;
   }
 
-  const pending = fetch(source, {
-    mode: 'cors',
-    credentials: 'omit',
-    cache: 'force-cache'
-  })
-    .then(async (response) => {
-      if (!response.ok) {
-        throw new Error(`分享卡图片拉取失败: ${response.status}`);
+  const pending = (async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const dataUrl = await fetchImageOnce(source);
+        embeddedImageCache.set(source, dataUrl);
+        return dataUrl;
+      } catch {
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, 300));
+        }
       }
-
-      const blob = await response.blob();
-      return blobToDataUrl(blob);
-    })
-    .catch(() => null);
+    }
+    embeddedImageCache.delete(source);
+    return TRANSPARENT_PIXEL;
+  })();
 
   embeddedImageCache.set(source, pending);
   return pending;
@@ -282,16 +301,10 @@ async function inlineCloneImages(sourceNode, clonedNode) {
   await Promise.all(clonedImages.map(async (cloneImage, index) => {
     const sourceImage = sourceImages[index];
     const source = sourceImage?.currentSrc || sourceImage?.src || cloneImage?.src;
-    if (!source) {
-      return;
-    }
 
     const embeddedSource = await fetchImageAsDataUrl(source);
-    if (embeddedSource) {
-      cloneImage.src = embeddedSource;
-      cloneImage.removeAttribute('srcset');
-    }
-
+    cloneImage.src = embeddedSource;
+    cloneImage.removeAttribute('srcset');
     cloneImage.setAttribute('loading', 'eager');
     cloneImage.setAttribute('decoding', 'sync');
     cloneImage.setAttribute('crossorigin', 'anonymous');
