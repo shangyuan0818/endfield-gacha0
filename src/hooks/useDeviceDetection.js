@@ -1,56 +1,76 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useMediaQuery } from 'react-responsive';
+import { MOBILE_BREAKPOINT } from '../constants/index.js';
 
-const PLATFORM_PREFERENCE_KEY = 'platform-preference';
+const PREF_KEY = 'platform-preference';
+const MOBILE_UA_RE = /Mobile|Android|iPhone|iPod|iPad|webOS|BlackBerry|Opera Mini|IEMobile/i;
 
-/**
- * 使用 matchMedia 检测是否为移动设备（比 innerWidth 更可靠）
- */
-function detectMobileSync() {
-  if (typeof window === 'undefined') return false;
-  const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  const mobileQuery = window.matchMedia('(max-width: 768px)');
-  return mobileUA || mobileQuery.matches;
+function isMobileUA() {
+  if (typeof navigator === 'undefined') return false;
+  return MOBILE_UA_RE.test(navigator.userAgent);
 }
 
-/**
- * 设备检测 Hook
- * 使用 matchMedia 替代 innerWidth + resize 事件
- */
 export function useDeviceDetection() {
-  const [isMobile, setIsMobile] = useState(detectMobileSync);
-  const [platformPreference, setPlatformPreference] = useState(() => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem(PLATFORM_PREFERENCE_KEY);
+  const mqMobile = useMediaQuery({ maxWidth: MOBILE_BREAKPOINT });
+
+  const [fallbackMobile, setFallbackMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth <= MOBILE_BREAKPOINT || isMobileUA();
   });
 
-  // 监听 matchMedia 变化（替代 resize 事件，更可靠）
+  const rafRef = useRef(null);
+
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
-    const handler = (e) => {
-      const mobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(e.matches || mobileUA);
+    const check = () => {
+      setFallbackMobile(
+        window.innerWidth <= MOBILE_BREAKPOINT || isMobileUA()
+      );
     };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
 
-  // 设置平台偏好
-  const setPreference = useCallback((preference) => {
-    if (preference === null) {
-      localStorage.removeItem(PLATFORM_PREFERENCE_KEY);
-    } else {
-      localStorage.setItem(PLATFORM_PREFERENCE_KEY, preference);
+    const throttledCheck = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        check();
+      });
+    };
+
+    window.addEventListener('resize', throttledCheck);
+
+    let ro;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(throttledCheck);
+      ro.observe(document.documentElement);
     }
-    setPlatformPreference(preference);
+
+    return () => {
+      window.removeEventListener('resize', throttledCheck);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (ro) ro.disconnect();
+    };
   }, []);
 
-  // 清除平台偏好（恢复自动检测）
+  const isMobile = mqMobile || fallbackMobile;
+
+  const [platformPreference, setPlatformPreference] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(PREF_KEY);
+  });
+
+  const setPreference = useCallback((pref) => {
+    if (pref === null) {
+      localStorage.removeItem(PREF_KEY);
+    } else {
+      localStorage.setItem(PREF_KEY, pref);
+    }
+    setPlatformPreference(pref);
+  }, []);
+
   const clearPreference = useCallback(() => {
-    localStorage.removeItem(PLATFORM_PREFERENCE_KEY);
+    localStorage.removeItem(PREF_KEY);
     setPlatformPreference(null);
   }, []);
 
-  // 判断是否应该使用移动端
   const shouldUseMobile = platformPreference
     ? platformPreference === 'mobile'
     : isMobile;

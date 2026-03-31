@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import DeviceRedirectGuard from './components/guards/DeviceRedirectGuard';
 import App from './App';
 
@@ -22,6 +22,7 @@ function AppRouter() {
   return (
     <DeviceRedirectGuard>
       <Routes>
+        {/* 独立页面（不受设备重定向影响） */}
         <Route
           path="/reset-password"
           element={
@@ -30,21 +31,6 @@ function AppRouter() {
             </Suspense>
           }
         />
-
-        {/* 桌面端路由 */}
-        <Route path="/*" element={<App />} />
-
-        {/* 移动端路由 */}
-        <Route
-          path="/m/*"
-          element={
-            <Suspense fallback={<MobileLoadingFallback />}>
-              <MobileApp />
-            </Suspense>
-          }
-        />
-
-        {/* 法律页面 */}
         <Route
           path="/privacy"
           element={
@@ -62,8 +48,18 @@ function AppRouter() {
           }
         />
 
-        {/* 未匹配路由重定向到首页 */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 移动端路由（比 /* 更具体，优先匹配） */}
+        <Route
+          path="/m/*"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <MobileApp />
+            </Suspense>
+          }
+        />
+
+        {/* 桌面端路由（兜底） */}
+        <Route path="/*" element={<App />} />
       </Routes>
     </DeviceRedirectGuard>
   );

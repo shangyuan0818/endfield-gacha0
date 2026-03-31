@@ -16,6 +16,9 @@ export const RARITY_CONFIG = {
 // 默认显示保底数
 export const DEFAULT_DISPLAY_PITY = 80;
 
+// 移动端断点（px）- 用于设备检测与路由切换
+export const MOBILE_BREAKPOINT = 768;
+
 // ============================================
 // 卡池规则配置 - 基于官方细则
 // ============================================
