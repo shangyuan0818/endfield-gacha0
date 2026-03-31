@@ -1,61 +1,39 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useMediaQuery } from 'react-responsive';
+import { useState, useEffect, useCallback } from 'react';
 import { MOBILE_BREAKPOINT } from '../constants/index.js';
 
 const PREF_KEY = 'platform-preference';
+const MQ_STRING = `(max-width: ${MOBILE_BREAKPOINT}px)`;
 const MOBILE_UA_RE = /Mobile|Android|iPhone|iPod|iPad|webOS|BlackBerry|Opera Mini|IEMobile/i;
 
-function isMobileUA() {
-  if (typeof navigator === 'undefined') return false;
-  return MOBILE_UA_RE.test(navigator.userAgent);
+function detectMobile() {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia(MQ_STRING).matches ||
+    window.innerWidth <= MOBILE_BREAKPOINT ||
+    MOBILE_UA_RE.test(navigator.userAgent)
+  );
 }
 
 export function useDeviceDetection() {
-  const mqMobile = useMediaQuery({ maxWidth: MOBILE_BREAKPOINT });
-
-  const [fallbackMobile, setFallbackMobile] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth <= MOBILE_BREAKPOINT || isMobileUA();
-  });
-
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    const check = () => {
-      setFallbackMobile(
-        window.innerWidth <= MOBILE_BREAKPOINT || isMobileUA()
-      );
-    };
-
-    const throttledCheck = () => {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(() => {
-        rafRef.current = null;
-        check();
-      });
-    };
-
-    window.addEventListener('resize', throttledCheck);
-
-    let ro;
-    if (typeof ResizeObserver !== 'undefined') {
-      ro = new ResizeObserver(throttledCheck);
-      ro.observe(document.documentElement);
-    }
-
-    return () => {
-      window.removeEventListener('resize', throttledCheck);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (ro) ro.disconnect();
-    };
-  }, []);
-
-  const isMobile = mqMobile || fallbackMobile;
+  const [isMobile, setIsMobile] = useState(detectMobile);
 
   const [platformPreference, setPlatformPreference] = useState(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem(PREF_KEY);
   });
+
+  useEffect(() => {
+    const mql = window.matchMedia(MQ_STRING);
+    const update = () => setIsMobile(detectMobile());
+
+    mql.addEventListener('change', update);
+    window.addEventListener('resize', update);
+
+    return () => {
+      mql.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   const setPreference = useCallback((pref) => {
     if (pref === null) {

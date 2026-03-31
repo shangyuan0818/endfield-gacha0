@@ -1,28 +1,26 @@
-import { useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { getDeviceRedirectTarget } from '../../utils/deviceRedirect.js';
 
+const REDIRECT_TS_KEY = '_device_redirect_ts';
+const REDIRECT_COOLDOWN_MS = 3000;
+
 function DeviceRedirectGuard({ children }) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { shouldUseMobile } = useDeviceDetection();
-  const cooldownRef = useRef(false);
 
   useEffect(() => {
-    if (cooldownRef.current) return;
-
     const target = getDeviceRedirectTarget(location.pathname, shouldUseMobile);
     if (!target) return;
 
-    cooldownRef.current = true;
-    navigate(target, { replace: true });
+    const now = Date.now();
+    const lastTs = Number(sessionStorage.getItem(REDIRECT_TS_KEY) || 0);
+    if (now - lastTs < REDIRECT_COOLDOWN_MS) return;
 
-    const timer = setTimeout(() => {
-      cooldownRef.current = false;
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [shouldUseMobile, location.pathname, navigate]);
+    sessionStorage.setItem(REDIRECT_TS_KEY, String(now));
+    window.location.replace(window.location.origin + target);
+  }, [shouldUseMobile, location.pathname]);
 
   return children;
 }
