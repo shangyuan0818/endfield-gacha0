@@ -1,117 +1,55 @@
-import { getSupabaseAdminClient } from './_lib/authAdmin.js';
 import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
-import {
-  authorizeOpsAutomationRequest,
-  getDefaultRunnableJobIds,
-  normalizeTriggerType,
-  parseRequestedJobIds,
-  runOpsAutomationJob,
-} from './_lib/opsAutomation.js';
+import { syncAnnouncements } from './_lib/syncAnnouncements.js';
+import { syncPools } from './_lib/syncPools.js';
+import { detectNewCharacters } from './_lib/detectNewCharacters.js';
 
-function pickSingleQueryValue(value) {
-  return Array.isArray(value) ? value[0] : value;
-}
+function authorizeRequest(req) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return { ok: true };
 
-function getRequestBaseUrl(req) {
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
+  const bearer = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (bearer === cronSecret) return { ok: true };
 
-  if (!host) {
-    return '';
-  }
-
-  return `${proto}://${host}`;
+  return { ok: false, status: 401, error: 'Unauthorized' };
 }
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
-  if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
-    return;
-  }
-
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
-
+  if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) return;
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const auth = authorizeOpsAutomationRequest(req);
+  const auth = authorizeRequest(req);
   if (!auth.ok) {
-    return res.status(auth.status).json({
-      success: false,
-      error: auth.error,
-    });
+    return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) {
-    return res.status(503).json({
-      success: false,
-      error: 'Supabase admin client is not configured',
-    });
-  }
-
-  const rawJob = pickSingleQueryValue(req.query?.job);
-  const rawTrigger = pickSingleQueryValue(req.query?.trigger);
-  const rawMode = pickSingleQueryValue(req.query?.mode);
-  const sourceBaseUrl = getRequestBaseUrl(req);
-
-  if (rawMode && rawMode !== 'dry-run') {
-    return res.status(501).json({
-      success: false,
-      error: 'Only dry-run mode is implemented for ops automation',
-    });
-  }
-
-  let jobIds;
-  let triggerType;
+  const results = {};
 
   try {
-    jobIds = rawJob
-      ? parseRequestedJobIds(rawJob)
-      : getDefaultRunnableJobIds(process.env, { baseUrl: sourceBaseUrl });
-    triggerType = normalizeTriggerType(rawTrigger, rawJob ? 'manual' : 'cron');
-  } catch (error) {
-    return res.status(400).json({
-      success: false,
-      error: error?.message || 'Invalid ops automation query',
-    });
+    results.announcements = await syncAnnouncements();
+  } catch (err) {
+    results.announcements = { error: err.message };
   }
 
-  if (jobIds.length === 0) {
-    return res.status(503).json({
-      success: false,
-      error: 'No runnable ops automation jobs are configured',
-    });
+  try {
+    results.pools = await syncPools(results.announcements?.rawRecords);
+  } catch (err) {
+    results.pools = { error: err.message };
   }
 
-  const dryRun = true;
-  const results = [];
-
-  for (const jobId of jobIds) {
-    // 串行执行，避免后台任务同时争抢外部源与审计写入顺序
-    const result = await runOpsAutomationJob({
-      supabase,
-      jobId,
-      dryRun,
-      triggerType,
-      sourceBaseUrl,
-    });
-    results.push(result);
+  try {
+    results.newCharacterCheck = await detectNewCharacters(results.pools?.unresolvedNames);
+  } catch (err) {
+    results.newCharacterCheck = { error: err.message };
   }
 
-  const hasProblems = results.some(result => result.status === 'failure');
-  return res.status(hasProblems ? 500 : 200).json({
-    success: !hasProblems,
-    dryRun,
-    triggerType,
-    results,
+  const hasErrors = results.announcements?.error || results.pools?.error;
+  return res.status(hasErrors ? 500 : 200).json({
+    success: !hasErrors,
+    ...results,
   });
 }
-
-export const __internal = {
-  pickSingleQueryValue,
-};
