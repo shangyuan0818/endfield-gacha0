@@ -6,9 +6,11 @@ const ICON_MAP = { BarChart3, Map, Globe };
 
 const DEFAULT_FRIENDLY_LINKS = [
   { title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'BarChart3', label: 'RESOURCE PLANNER' },
-  { title: '终末地地图（1）', url: 'https://opendfieldmap.cn/', icon: 'Map', label: 'OPEN WORLD MAP' },
+  { title: '地图（国际服可用）', url: 'https://opendfieldmap.cn/', icon: 'Map', label: 'OPEN WORLD MAP' },
   { title: '终末地地图（笋干）', url: 'https://www.zmdmap.com/', icon: 'Map', label: 'GAME MAP WIKI' },
   { title: '同样优秀的抽卡记录分析（还有舟本体的）', url: 'https://endgacha.kwer.top/', icon: 'BarChart3', label: 'GACHA ANALYZER' },
+  { title: '剧情检索 (AI精准查询与梗概生成)', url: 'https://endfield.prts.chat/', icon: 'Globe', label: 'STORY SEARCH' },
+  { title: '抽卡规划器', url: 'https://endfield.203.io/', icon: 'BarChart3', label: 'PULL PLANNER' },
 ];
 
 const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
