@@ -4,7 +4,7 @@ A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*,
 
 一个功能完善的抽卡记录分析工具，专为《明日方舟：终末地》设计，支持云端同步、多用户协作和全服数据统计。
 
-[![Version](https://img.shields.io/github/package-json/v/MoguJunn/endfield-gacha?filename=gacha-analyzer%2Fpackage.json)](https://github.com/MoguJunn/endfield-gacha/releases)
+[![Version](https://img.shields.io/github/package-json/v/MoguJunn/endfield-gacha?filename=package.json)](https://github.com/MoguJunn/endfield-gacha/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![React](https://img.shields.io/badge/React-19-61DAFB.svg)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF.svg)
