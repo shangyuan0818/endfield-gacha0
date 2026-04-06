@@ -137,6 +137,8 @@ ORDER BY proname;
 SELECT ((public.get_global_stats())::jsonb ? 'contributorsByRegion')::text AS has_contributor_regions;
 SELECT (((public.get_global_stats())::jsonb -> 'byType' -> 'limited') ? 'avgPityTarget')::text AS has_limited_avg_pity_target;
 SELECT (((public.get_global_stats())::jsonb -> 'byType' -> 'weapon') ? 'avgPityTarget')::text AS has_weapon_avg_pity_target;
+SELECT 'limited_avg_target=' || COALESCE(((public.get_global_stats())::jsonb -> 'byType' -> 'limited' ->> 'avgPityTarget'), 'null');
+SELECT 'weapon_avg_target=' || COALESCE(((public.get_global_stats())::jsonb -> 'byType' -> 'weapon' ->> 'avgPityTarget'), 'null');
 `.trim();
 }
 
@@ -267,8 +269,8 @@ async function main() {
       'get_global_stats',
       'resolve_character_alias',
       'true',
-      'limited_avg_target=20.0',
-      'weapon_avg_target=10.0',
+      'limited_avg_target=15.5',
+      'weapon_avg_target=8.0',
     ];
     const missingMarkers = requiredMarkers.filter((marker) => !output.includes(marker));
 

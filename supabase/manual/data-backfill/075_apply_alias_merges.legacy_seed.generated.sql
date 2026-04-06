@@ -1,6 +1,6 @@
 -- ============================================
 -- Alias merge SQL (generated)
--- Generated at: 2026-03-12T00:55:06.931Z
+-- Generated at: 2026-04-06T11:09:27.786Z
 -- ============================================
 BEGIN;
 
@@ -9,7 +9,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_aitela') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0021_whiten') INTO target_exists;
@@ -62,19 +61,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aitela']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0021_whiten'
-      AND source.id = 'char_aitela';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0021_whiten'
     WHERE character_id = 'char_aitela';
@@ -88,23 +75,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_aitela']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0021_whiten',
-        'char_aitela'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aitela']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0021_whiten'
+      AND source.id = 'char_aitela';
     DELETE FROM public.characters
     WHERE id = 'char_aitela'
       AND id <> 'chr_0021_whiten';
@@ -143,7 +127,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_aiweiwen') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0012_avywen') INTO target_exists;
@@ -196,19 +179,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aiweiwen']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0012_avywen'
-      AND source.id = 'char_aiweiwen';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0012_avywen'
     WHERE character_id = 'char_aiweiwen';
@@ -222,23 +193,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_aiweiwen']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0012_avywen',
-        'char_aiweiwen'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aiweiwen']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0012_avywen'
+      AND source.id = 'char_aiweiwen';
     DELETE FROM public.characters
     WHERE id = 'char_aiweiwen'
       AND id <> 'chr_0012_avywen';
@@ -277,7 +245,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_aliesha') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0024_deepfin') INTO target_exists;
@@ -330,19 +297,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aliesha']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0024_deepfin'
-      AND source.id = 'char_aliesha';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0024_deepfin'
     WHERE character_id = 'char_aliesha';
@@ -356,23 +311,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_aliesha']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0024_deepfin',
-        'char_aliesha'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_aliesha']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0024_deepfin'
+      AND source.id = 'char_aliesha';
     DELETE FROM public.characters
     WHERE id = 'char_aliesha'
       AND id <> 'chr_0024_deepfin';
@@ -411,7 +363,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_antaer') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0023_antal') INTO target_exists;
@@ -464,19 +415,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_antaer']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0023_antal'
-      AND source.id = 'char_antaer';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0023_antal'
     WHERE character_id = 'char_antaer';
@@ -490,23 +429,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_antaer']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0023_antal',
-        'char_antaer'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_antaer']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0023_antal'
+      AND source.id = 'char_antaer';
     DELETE FROM public.characters
     WHERE id = 'char_antaer'
       AND id <> 'chr_0023_antal';
@@ -545,7 +481,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_bieli') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0026_lastrite') INTO target_exists;
@@ -598,19 +533,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_bieli']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0026_lastrite'
-      AND source.id = 'char_bieli';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0026_lastrite'
     WHERE character_id = 'char_bieli';
@@ -624,23 +547,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_bieli']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0026_lastrite',
-        'char_bieli'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_bieli']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0026_lastrite'
+      AND source.id = 'char_bieli';
     DELETE FROM public.characters
     WHERE id = 'char_bieli'
       AND id <> 'chr_0026_lastrite';
@@ -679,7 +599,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_chenqianyu') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0005_chen') INTO target_exists;
@@ -732,19 +651,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_chenqianyu']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0005_chen'
-      AND source.id = 'char_chenqianyu';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0005_chen'
     WHERE character_id = 'char_chenqianyu';
@@ -758,23 +665,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_chenqianyu']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0005_chen',
-        'char_chenqianyu'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_chenqianyu']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0005_chen'
+      AND source.id = 'char_chenqianyu';
     DELETE FROM public.characters
     WHERE id = 'char_chenqianyu'
       AND id <> 'chr_0005_chen';
@@ -813,7 +717,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_dapan') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0018_dapan') INTO target_exists;
@@ -866,19 +769,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_dapan']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0018_dapan'
-      AND source.id = 'char_dapan';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0018_dapan'
     WHERE character_id = 'char_dapan';
@@ -892,23 +783,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_dapan']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0018_dapan',
-        'char_dapan'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_dapan']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0018_dapan'
+      AND source.id = 'char_dapan';
     DELETE FROM public.characters
     WHERE id = 'char_dapan'
       AND id <> 'chr_0018_dapan';
@@ -947,7 +835,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_eldelra') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0025_ardelia') INTO target_exists;
@@ -1000,19 +887,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_eldelra']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0025_ardelia'
-      AND source.id = 'char_eldelra';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0025_ardelia'
     WHERE character_id = 'char_eldelra';
@@ -1026,23 +901,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_eldelra']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0025_ardelia',
-        'char_eldelra'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_eldelra']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0025_ardelia'
+      AND source.id = 'char_eldelra';
     DELETE FROM public.characters
     WHERE id = 'char_eldelra'
       AND id <> 'chr_0025_ardelia';
@@ -1081,7 +953,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_huguang') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0007_ikut') INTO target_exists;
@@ -1134,19 +1005,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_huguang']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0007_ikut'
-      AND source.id = 'char_huguang';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0007_ikut'
     WHERE character_id = 'char_huguang';
@@ -1160,23 +1019,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_huguang']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0007_ikut',
-        'char_huguang'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_huguang']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0007_ikut'
+      AND source.id = 'char_huguang';
     DELETE FROM public.characters
     WHERE id = 'char_huguang'
       AND id <> 'chr_0007_ikut';
@@ -1215,7 +1071,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_jerpeta') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0013_aglina') INTO target_exists;
@@ -1268,19 +1123,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_jerpeta']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0013_aglina'
-      AND source.id = 'char_jerpeta';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0013_aglina'
     WHERE character_id = 'char_jerpeta';
@@ -1294,23 +1137,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_jerpeta']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0013_aglina',
-        'char_jerpeta'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_jerpeta']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0013_aglina'
+      AND source.id = 'char_jerpeta';
     DELETE FROM public.characters
     WHERE id = 'char_jerpeta'
       AND id <> 'chr_0013_aglina';
@@ -1349,7 +1189,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_junwei') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0029_pograni') INTO target_exists;
@@ -1402,19 +1241,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_junwei']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0029_pograni'
-      AND source.id = 'char_junwei';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0029_pograni'
     WHERE character_id = 'char_junwei';
@@ -1428,23 +1255,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_junwei']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0029_pograni',
-        'char_junwei'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_junwei']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0029_pograni'
+      AND source.id = 'char_junwei';
     DELETE FROM public.characters
     WHERE id = 'char_junwei'
       AND id <> 'chr_0029_pograni';
@@ -1483,7 +1307,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_kaqi') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0020_meurs') INTO target_exists;
@@ -1536,19 +1359,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_kaqi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0020_meurs'
-      AND source.id = 'char_kaqi';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0020_meurs'
     WHERE character_id = 'char_kaqi';
@@ -1562,23 +1373,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_kaqi']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0020_meurs',
-        'char_kaqi'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_kaqi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0020_meurs'
+      AND source.id = 'char_kaqi';
     DELETE FROM public.characters
     WHERE id = 'char_kaqi'
       AND id <> 'chr_0020_meurs';
@@ -1617,7 +1425,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_langwei') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0006_wolfgd') INTO target_exists;
@@ -1670,19 +1477,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_langwei']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0006_wolfgd'
-      AND source.id = 'char_langwei';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0006_wolfgd'
     WHERE character_id = 'char_langwei';
@@ -1696,23 +1491,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_langwei']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0006_wolfgd',
-        'char_langwei'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_langwei']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0006_wolfgd'
+      AND source.id = 'char_langwei';
     DELETE FROM public.characters
     WHERE id = 'char_langwei'
       AND id <> 'chr_0006_wolfgd';
@@ -1751,7 +1543,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_levantin') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0016_laevat') INTO target_exists;
@@ -1804,19 +1595,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_levantin']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0016_laevat'
-      AND source.id = 'char_levantin';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0016_laevat'
     WHERE character_id = 'char_levantin';
@@ -1830,23 +1609,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_levantin']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0016_laevat',
-        'char_levantin'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_levantin']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0016_laevat'
+      AND source.id = 'char_levantin';
     DELETE FROM public.characters
     WHERE id = 'char_levantin'
       AND id <> 'chr_0016_laevat';
@@ -1885,7 +1661,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_lifeng') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0015_lifeng') INTO target_exists;
@@ -1938,19 +1713,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_lifeng']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0015_lifeng'
-      AND source.id = 'char_lifeng';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0015_lifeng'
     WHERE character_id = 'char_lifeng';
@@ -1964,23 +1727,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_lifeng']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0015_lifeng',
-        'char_lifeng'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_lifeng']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0015_lifeng'
+      AND source.id = 'char_lifeng';
     DELETE FROM public.characters
     WHERE id = 'char_lifeng'
       AND id <> 'chr_0015_lifeng';
@@ -2019,7 +1779,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_perika') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0004_pelica') INTO target_exists;
@@ -2072,19 +1831,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_perika']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0004_pelica'
-      AND source.id = 'char_perika';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0004_pelica'
     WHERE character_id = 'char_perika';
@@ -2098,23 +1845,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_perika']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0004_pelica',
-        'char_perika'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_perika']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0004_pelica'
+      AND source.id = 'char_perika';
     DELETE FROM public.characters
     WHERE id = 'char_perika'
       AND id <> 'chr_0004_pelica';
@@ -2153,7 +1897,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_qiuli') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0019_karin') INTO target_exists;
@@ -2206,19 +1949,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_qiuli']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0019_karin'
-      AND source.id = 'char_qiuli';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0019_karin'
     WHERE character_id = 'char_qiuli';
@@ -2232,23 +1963,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_qiuli']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0019_karin',
-        'char_qiuli'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_qiuli']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0019_karin'
+      AND source.id = 'char_qiuli';
     DELETE FROM public.characters
     WHERE id = 'char_qiuli'
       AND id <> 'chr_0019_karin';
@@ -2287,7 +2015,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_saixi') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0011_seraph') INTO target_exists;
@@ -2340,19 +2067,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_saixi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0011_seraph'
-      AND source.id = 'char_saixi';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0011_seraph'
     WHERE character_id = 'char_saixi';
@@ -2366,23 +2081,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_saixi']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0011_seraph',
-        'char_saixi'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_saixi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0011_seraph'
+      AND source.id = 'char_saixi';
     DELETE FROM public.characters
     WHERE id = 'char_saixi'
       AND id <> 'chr_0011_seraph';
@@ -2421,7 +2133,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_yingshi') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0022_bounda') INTO target_exists;
@@ -2474,19 +2185,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yingshi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0022_bounda'
-      AND source.id = 'char_yingshi';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0022_bounda'
     WHERE character_id = 'char_yingshi';
@@ -2500,23 +2199,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_yingshi']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0022_bounda',
-        'char_yingshi'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yingshi']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0022_bounda'
+      AND source.id = 'char_yingshi';
     DELETE FROM public.characters
     WHERE id = 'char_yingshi'
       AND id <> 'chr_0022_bounda';
@@ -2555,7 +2251,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_yiwen') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0017_yvonne') INTO target_exists;
@@ -2608,19 +2303,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yiwen']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0017_yvonne'
-      AND source.id = 'char_yiwen';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0017_yvonne'
     WHERE character_id = 'char_yiwen';
@@ -2634,23 +2317,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_yiwen']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0017_yvonne',
-        'char_yiwen'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yiwen']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0017_yvonne'
+      AND source.id = 'char_yiwen';
     DELETE FROM public.characters
     WHERE id = 'char_yiwen'
       AND id <> 'chr_0017_yvonne';
@@ -2689,7 +2369,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_yujin') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0009_azrila') INTO target_exists;
@@ -2742,19 +2421,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yujin']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0009_azrila'
-      AND source.id = 'char_yujin';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0009_azrila'
     WHERE character_id = 'char_yujin';
@@ -2768,23 +2435,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_yujin']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0009_azrila',
-        'char_yujin'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_yujin']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0009_azrila'
+      AND source.id = 'char_yujin';
     DELETE FROM public.characters
     WHERE id = 'char_yujin'
       AND id <> 'chr_0009_azrila';
@@ -2823,7 +2487,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'char_zhouxue') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'chr_0014_aurora') INTO target_exists;
@@ -2876,19 +2539,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_zhouxue']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'chr_0014_aurora'
-      AND source.id = 'char_zhouxue';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'chr_0014_aurora'
     WHERE character_id = 'char_zhouxue';
@@ -2902,23 +2553,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['char_zhouxue']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'chr_0014_aurora',
-        'char_zhouxue'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['char_zhouxue']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'chr_0014_aurora'
+      AND source.id = 'char_zhouxue';
     DELETE FROM public.characters
     WHERE id = 'char_zhouxue'
       AND id <> 'chr_0014_aurora';
@@ -2957,7 +2605,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'weapon_jerpeta_sig') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'wpn_funnel_0011') INTO target_exists;
@@ -3010,19 +2657,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['weapon_jerpeta_sig']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'wpn_funnel_0011'
-      AND source.id = 'weapon_jerpeta_sig';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'wpn_funnel_0011'
     WHERE character_id = 'weapon_jerpeta_sig';
@@ -3036,23 +2671,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['weapon_jerpeta_sig']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'wpn_funnel_0011',
-        'weapon_jerpeta_sig'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['weapon_jerpeta_sig']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'wpn_funnel_0011'
+      AND source.id = 'weapon_jerpeta_sig';
     DELETE FROM public.characters
     WHERE id = 'weapon_jerpeta_sig'
       AND id <> 'wpn_funnel_0011';
@@ -3091,7 +2723,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'weapon_levantin_sig') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = 'wpn_sword_0006') INTO target_exists;
@@ -3144,19 +2775,7 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
-  IF source_exists AND target_exists THEN
-    UPDATE public.characters AS target
-    SET
-      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
-      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['weapon_levantin_sig']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
-      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
-      release_date = COALESCE(target.release_date, source.release_date),
-      pool_config = COALESCE(target.pool_config, source.pool_config),
-      updated_at = NOW()
-    FROM public.characters AS source
-    WHERE target.id = 'wpn_sword_0006'
-      AND source.id = 'weapon_levantin_sig';
-
+  IF target_exists THEN
     UPDATE public.pool_characters
     SET character_id = 'wpn_sword_0006'
     WHERE character_id = 'weapon_levantin_sig';
@@ -3170,23 +2789,20 @@ BEGIN
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY['weapon_levantin_sig']::TEXT[];
+  END IF;
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        'wpn_sword_0006',
-        'weapon_levantin_sig'
-      );
-    END IF;
-
+  IF source_exists AND target_exists THEN
+    UPDATE public.characters AS target
+    SET
+      avatar_url = COALESCE(target.avatar_url, source.avatar_url),
+      aliases = ARRAY(SELECT DISTINCT item FROM unnest(COALESCE(target.aliases, ARRAY[]::TEXT[]) || COALESCE(source.aliases, ARRAY[]::TEXT[]) || ARRAY['weapon_levantin_sig']) AS item WHERE item IS NOT NULL AND BTRIM(item) <> ''),
+      is_limited = COALESCE(target.is_limited, FALSE) OR COALESCE(source.is_limited, FALSE),
+      release_date = COALESCE(target.release_date, source.release_date),
+      pool_config = COALESCE(target.pool_config, source.pool_config),
+      updated_at = NOW()
+    FROM public.characters AS source
+    WHERE target.id = 'wpn_sword_0006'
+      AND source.id = 'weapon_levantin_sig';
     DELETE FROM public.characters
     WHERE id = 'weapon_levantin_sig'
       AND id <> 'wpn_sword_0006';
@@ -3225,7 +2841,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_limited_jerpeta') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'special_1_0_3') INTO target_exists;
@@ -3286,6 +2901,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'special_1_0_3'
+    WHERE pool_id = 'pool_limited_jerpeta';
+
+    UPDATE public.history
+    SET
+      pool_id = 'special_1_0_3',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_limited_jerpeta';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -3305,34 +2932,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'special_1_0_3'
       AND source.pool_id = 'pool_limited_jerpeta';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'special_1_0_3'
-    WHERE pool_id = 'pool_limited_jerpeta';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_3',
-        'pool_limited_jerpeta',
-        'pool_limited_jerpeta'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_3',
-        'pool_limited_jerpeta'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_jerpeta'
       AND pool_id <> 'special_1_0_3';
@@ -3371,7 +2970,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_limited_levantin') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'special_1_0_1') INTO target_exists;
@@ -3432,6 +3030,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'special_1_0_1'
+    WHERE pool_id = 'pool_limited_levantin';
+
+    UPDATE public.history
+    SET
+      pool_id = 'special_1_0_1',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_limited_levantin';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -3451,34 +3061,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'special_1_0_1'
       AND source.pool_id = 'pool_limited_levantin';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'special_1_0_1'
-    WHERE pool_id = 'pool_limited_levantin';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_1',
-        'pool_limited_levantin',
-        'pool_limited_levantin'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_1',
-        'pool_limited_levantin'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_levantin'
       AND pool_id <> 'special_1_0_1';
@@ -3517,7 +3099,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_limited_yiwen') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'special_1_0_2') INTO target_exists;
@@ -3578,6 +3159,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'special_1_0_2'
+    WHERE pool_id = 'pool_limited_yiwen';
+
+    UPDATE public.history
+    SET
+      pool_id = 'special_1_0_2',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_limited_yiwen';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -3597,34 +3190,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'special_1_0_2'
       AND source.pool_id = 'pool_limited_yiwen';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'special_1_0_2'
-    WHERE pool_id = 'pool_limited_yiwen';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_2',
-        'pool_limited_yiwen',
-        'pool_limited_yiwen'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'special_1_0_2',
-        'pool_limited_yiwen'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_limited_yiwen'
       AND pool_id <> 'special_1_0_2';
@@ -3663,7 +3228,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_standard_main') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'standard') INTO target_exists;
@@ -3724,6 +3288,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'standard'
+    WHERE pool_id = 'pool_standard_main';
+
+    UPDATE public.history
+    SET
+      pool_id = 'standard',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_standard_main';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -3743,34 +3319,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'standard'
       AND source.pool_id = 'pool_standard_main';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'standard'
-    WHERE pool_id = 'pool_standard_main';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'standard',
-        'pool_standard_main',
-        'pool_standard_main'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'standard',
-        'pool_standard_main'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_standard_main'
       AND pool_id <> 'standard';
@@ -3809,7 +3357,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_weapon_jerpeta') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'weponbox_1_0_3') INTO target_exists;
@@ -3870,6 +3417,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'weponbox_1_0_3'
+    WHERE pool_id = 'pool_weapon_jerpeta';
+
+    UPDATE public.history
+    SET
+      pool_id = 'weponbox_1_0_3',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_weapon_jerpeta';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -3889,34 +3448,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'weponbox_1_0_3'
       AND source.pool_id = 'pool_weapon_jerpeta';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'weponbox_1_0_3'
-    WHERE pool_id = 'pool_weapon_jerpeta';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'weponbox_1_0_3',
-        'pool_weapon_jerpeta',
-        'pool_weapon_jerpeta'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'weponbox_1_0_3',
-        'pool_weapon_jerpeta'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_weapon_jerpeta'
       AND pool_id <> 'weponbox_1_0_3';
@@ -3955,7 +3486,6 @@ DO $$
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'pool_weapon_levantin') INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = 'weponbox_1_0_1') INTO target_exists;
@@ -4016,6 +3546,18 @@ BEGIN
     target_exists := TRUE;
   END IF;
 
+  IF target_exists THEN
+    UPDATE public.pool_characters
+    SET pool_id = 'weponbox_1_0_1'
+    WHERE pool_id = 'pool_weapon_levantin';
+
+    UPDATE public.history
+    SET
+      pool_id = 'weponbox_1_0_1',
+      updated_at = NOW()
+    WHERE pool_id = 'pool_weapon_levantin';
+  END IF;
+
   IF source_exists AND target_exists THEN
     UPDATE public.pools AS target
     SET
@@ -4035,34 +3577,6 @@ BEGIN
     FROM public.pools AS source
     WHERE target.pool_id = 'weponbox_1_0_1'
       AND source.pool_id = 'pool_weapon_levantin';
-
-    UPDATE public.pool_characters
-    SET pool_id = 'weponbox_1_0_1'
-    WHERE pool_id = 'pool_weapon_levantin';
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        'weponbox_1_0_1',
-        'pool_weapon_levantin',
-        'pool_weapon_levantin'
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        'weponbox_1_0_1',
-        'pool_weapon_levantin'
-      );
-    END IF;
-
     DELETE FROM public.pools
     WHERE pool_id = 'pool_weapon_levantin'
       AND pool_id <> 'weponbox_1_0_1';

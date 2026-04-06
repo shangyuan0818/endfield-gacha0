@@ -82,6 +82,36 @@ async function collectEvidence(items) {
   return results.filter(item => item.matched);
 }
 
+async function checkRetirementEvidence({
+  relativePath,
+  createPattern,
+  retirePattern,
+  description,
+}) {
+  const absolutePath = path.join(projectRoot, relativePath);
+  const contents = await readTextIfExists(absolutePath);
+  if (!contents) {
+    return {
+      relativePath,
+      description,
+      matched: false,
+      missing: true,
+    };
+  }
+
+  return {
+    relativePath,
+    description,
+    matched: createPattern.test(contents) && !retirePattern.test(contents),
+    missing: false,
+  };
+}
+
+async function collectRetirementEvidence(items) {
+  const results = await Promise.all(items.map(checkRetirementEvidence));
+  return results.filter(item => item.matched);
+}
+
 function formatState(state) {
   switch (state) {
     case 'blocked_runtime':
@@ -203,22 +233,24 @@ async function main() {
   const auditReport = await readJsonIfExists(options.audit);
   const cloudWriteContents = await readTextIfExists(path.join(projectRoot, 'src', 'services', 'cloudWriteService.js'));
   const historyCharacterFallbackEnabled = Boolean(cloudWriteContents)
-    && /isMissingHistoryCharacterIdError/.test(cloudWriteContents)
-    && /omitHistoryCharacterId/.test(cloudWriteContents);
+    && /detectMissingHistoryOptionalColumn/.test(cloudWriteContents)
+    && /omitHistoryColumns/.test(cloudWriteContents)
+    && /supportedOptionalColumns\s*=\s*new Set\(\['character_id', 'server_id', 'region'\]\)/.test(cloudWriteContents);
 
   const historyCharacterRuntimeEvidence = await collectEvidence([
     ...(!historyCharacterFallbackEnabled ? [{
       relativePath: 'src/services/cloudWriteService.js',
       pattern: /character_id:\s*resolvedCharacterId\s*\|\|\s*record\.character_id\s*\|\|\s*record\.item_id\s*\|\|\s*null/,
-      description: 'history upsert payload 仍会直接依赖 character_id 且缺少缺列 fallback',
+      description: 'history upsert payload 仍会写入 character_id 且缺少通用 optional-column fallback',
     }] : []),
   ]);
 
-  const historyCharacterSchemaEvidence = await collectEvidence([
+  const historyCharacterSchemaEvidence = await collectRetirementEvidence([
     {
       relativePath: 'supabase/baseline/000_complete_schema.sql',
-      pattern: /COMMENT ON COLUMN public\.history\.character_id IS/,
-      description: 'baseline 仍创建并注释 history.character_id',
+      createPattern: /COMMENT ON COLUMN public\.history\.character_id IS/,
+      retirePattern: /ALTER TABLE public\.history[\s\S]*?DROP COLUMN IF EXISTS character_id/i,
+      description: 'baseline 最终 schema 仍保留 history.character_id',
     },
   ]);
 
@@ -243,16 +275,18 @@ async function main() {
     },
   ]);
 
-  const legacyPoolSchemaEvidence = await collectEvidence([
+  const legacyPoolSchemaEvidence = await collectRetirementEvidence([
     {
       relativePath: 'supabase/baseline/000_complete_schema.sql',
-      pattern: /COMMENT ON COLUMN public\.history\.legacy_pool_id IS/,
-      description: 'baseline 仍创建并注释 history.legacy_pool_id',
+      createPattern: /COMMENT ON COLUMN public\.history\.legacy_pool_id IS/,
+      retirePattern: /ALTER TABLE public\.history[\s\S]*?DROP COLUMN IF EXISTS legacy_pool_id/i,
+      description: 'baseline 最终 schema 仍保留 history.legacy_pool_id',
     },
     {
       relativePath: 'supabase/baseline/000_complete_schema.sql',
-      pattern: /COMMENT ON COLUMN public\.pools\.legacy_pool_id IS/,
-      description: 'baseline 仍创建并注释 pools.legacy_pool_id',
+      createPattern: /COMMENT ON COLUMN public\.pools\.legacy_pool_id IS/,
+      retirePattern: /ALTER TABLE public\.pools[\s\S]*?DROP COLUMN IF EXISTS legacy_pool_id/i,
+      description: 'baseline 最终 schema 仍保留 pools.legacy_pool_id',
     },
   ]);
 

@@ -3,7 +3,7 @@
 > [!WARNING]
 > 本文是 FEAT-007 早期阶段的历史迁移指南，只用于理解 `027~030` 这批迁移的原始意图。
 > 当前主线已经切到 canonical id / alias 数据治理；`history.character_id` 与 `legacy_pool_id` 的保留或退役，必须以 `DATA-NEW-008` 的审计结果和 `npm run audit:canonical-retirement-readiness` 为准。
-> 不要再直接照本文执行删列、回滚或“6 个月后删除兼容字段”的旧建议。
+> 不要再直接照本文执行删列、回滚或“固定时间窗口后删除兼容字段”的旧建议。
 
 ## 迁移文件清单
 
@@ -66,9 +66,9 @@ supabase db diff
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'history'
-AND column_name IN ('character_name', 'character_id', 'avatar_url', 'legacy_pool_id');
+AND column_name IN ('character_name', 'avatar_url');
 
--- 期望结果：4行记录
+-- 期望结果：2行记录
 
 -- 2. 验证 characters 表存在
 SELECT COUNT(*) as character_count FROM public.characters;
@@ -79,15 +79,15 @@ SELECT COUNT(*) as character_count FROM public.characters;
 SELECT column_name, data_type
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name = 'pools'
-AND column_name IN ('description', 'start_time', 'end_time', 'banner_url', 'featured_characters', 'legacy_pool_id');
+AND column_name IN ('description', 'start_time', 'end_time', 'banner_url', 'featured_characters');
 
--- 期望结果：6行记录
+-- 期望结果：5行记录
 
 -- 4. 验证索引
 SELECT indexname
 FROM pg_indexes
 WHERE tablename IN ('history', 'pools', 'characters')
-AND indexname LIKE '%character%' OR indexname LIKE '%legacy%';
+AND (indexname LIKE '%character%' OR indexname LIKE '%featured%');
 
 -- 期望结果：多个索引记录
 
@@ -98,12 +98,8 @@ WHERE tablename = 'characters';
 
 -- 期望结果：2条策略（characters_select_all, characters_manage_super_admin）
 
--- 6. 验证辅助函数
-SELECT routine_name, routine_type
-FROM information_schema.routines
-WHERE routine_schema = 'public' AND routine_name = 'migrate_pool_id';
-
--- 期望结果：1个函数
+-- 6. 当前主线不再要求验证 migrate_pool_id
+-- 该函数仅属于早期 ID 迁移阶段，已不在现行标准 schema 中保留
 ```
 
 ---
@@ -114,9 +110,7 @@ WHERE routine_schema = 'public' AND routine_name = 'migrate_pool_id';
 
 ```sql
 -- 回滚 030
-ALTER TABLE public.pools DROP COLUMN IF EXISTS legacy_pool_id;
-ALTER TABLE public.history DROP COLUMN IF EXISTS legacy_pool_id;
-DROP FUNCTION IF EXISTS migrate_pool_id(TEXT, TEXT, UUID);
+-- 当前主线已退役 legacy_pool_id / migrate_pool_id，不再保留旧兼容字段的回滚示例
 
 -- 回滚 029
 ALTER TABLE public.pools DROP COLUMN IF EXISTS description;
@@ -130,7 +124,6 @@ DROP TABLE IF EXISTS public.characters CASCADE;
 
 -- 回滚 027
 ALTER TABLE public.history DROP COLUMN IF EXISTS character_name;
-ALTER TABLE public.history DROP COLUMN IF EXISTS character_id;
 ALTER TABLE public.history DROP COLUMN IF EXISTS avatar_url;
 ```
 
@@ -168,7 +161,7 @@ ON CONFLICT (id) DO NOTHING;
 
 ### Q4: 什么时候清理 legacy_pool_id 字段？
 
-**答**：这条旧回答已经失效。当前不应按固定“6 个月窗口”直接删列，而应先完成：
+**答**：这条旧回答已经失效。当前不应按固定兼容窗口直接删列，而应先完成：
 
 1. 真实库 canonical 审计；
 2. `history / pool_characters / featured_characters` 的 alias-backed 引用复核；

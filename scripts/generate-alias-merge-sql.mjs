@@ -110,7 +110,6 @@ function buildCharacterMergeBlock(merge) {
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_character_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = ${fromId}) INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.characters WHERE id = ${toId}) INTO target_exists;
@@ -169,22 +168,6 @@ ${skipIfMissing
       ),
       updated_at = NOW()
     WHERE COALESCE(featured_characters, ARRAY[]::TEXT[]) @> ARRAY[${fromId}]::TEXT[];
-
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'character_id'
-    ) INTO history_character_id_exists;
-
-    IF history_character_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET character_id = %L, updated_at = NOW() WHERE character_id = %L',
-        ${toId},
-        ${fromId}
-      );
-    END IF;
   END IF;
 
   IF source_exists AND target_exists THEN
@@ -255,7 +238,6 @@ function buildPoolMergeBlock(merge) {
 DECLARE
   source_exists BOOLEAN;
   target_exists BOOLEAN;
-  history_legacy_pool_id_exists BOOLEAN;
 BEGIN
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = ${fromId}) INTO source_exists;
   SELECT EXISTS(SELECT 1 FROM public.pools WHERE pool_id = ${toId}) INTO target_exists;
@@ -313,28 +295,11 @@ ${skipIfMissing
     SET pool_id = ${toId}
     WHERE pool_id = ${fromId};
 
-    SELECT EXISTS (
-      SELECT 1
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = 'history'
-        AND column_name = 'legacy_pool_id'
-    ) INTO history_legacy_pool_id_exists;
-
-    IF history_legacy_pool_id_exists THEN
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, legacy_pool_id = COALESCE(legacy_pool_id, %L), updated_at = NOW() WHERE pool_id = %L',
-        ${toId},
-        ${fromId},
-        ${fromId}
-      );
-    ELSE
-      EXECUTE format(
-        'UPDATE public.history SET pool_id = %L, updated_at = NOW() WHERE pool_id = %L',
-        ${toId},
-        ${fromId}
-      );
-    END IF;
+    UPDATE public.history
+    SET
+      pool_id = ${toId},
+      updated_at = NOW()
+    WHERE pool_id = ${fromId};
   END IF;
 
   IF source_exists AND target_exists THEN

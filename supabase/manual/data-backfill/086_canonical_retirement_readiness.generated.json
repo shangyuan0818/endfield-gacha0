@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-21T07:41:28.736Z",
+  "generatedAt": "2026-04-06T11:11:06.774Z",
   "auditSource": "supabase\\manual\\data-backfill\\076_canonical_data_audit.supabase.generated.json",
   "historyCharacterId": {
     "auditState": {
@@ -8,42 +8,11 @@
       "unresolvedReferenceCount": 0
     },
     "runtimeEvidence": [],
-    "schemaEvidence": [
-      {
-        "relativePath": "supabase/baseline/000_complete_schema.sql",
-        "description": "baseline 仍创建并注释 history.character_id",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "toolingEvidence": [
-      {
-        "relativePath": "scripts/generate-alias-merge-sql.mjs",
-        "description": "merge SQL 生成器仍会条件性更新 history.character_id",
-        "matched": true,
-        "missing": false
-      },
-      {
-        "relativePath": "scripts/generate-legacy-id-alias-seed.mjs",
-        "description": "legacy alias seed 生成器仍会条件性更新 history.character_id",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "docEvidence": [
-      {
-        "relativePath": "supabase/docs/feat-007-migration-guide.md",
-        "description": "历史迁移指南仍保留直接删除 history.character_id 的回滚示例",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "state": "blocked_schema",
-    "blockers": [
-      "baseline 或标准 schema 仍保留该兼容字段",
-      "审计 / merge / backfill tooling 仍依赖该兼容字段",
-      "历史文档仍给出过时的删列或回滚建议"
-    ]
+    "schemaEvidence": [],
+    "toolingEvidence": [],
+    "docEvidence": [],
+    "state": "planning_ready",
+    "blockers": []
   },
   "legacyPoolId": {
     "auditState": {
@@ -52,59 +21,10 @@
       "unresolvedReferenceCount": 0
     },
     "runtimeEvidence": [],
-    "schemaEvidence": [
-      {
-        "relativePath": "supabase/baseline/000_complete_schema.sql",
-        "description": "baseline 仍创建并注释 history.legacy_pool_id",
-        "matched": true,
-        "missing": false
-      },
-      {
-        "relativePath": "supabase/baseline/000_complete_schema.sql",
-        "description": "baseline 仍创建并注释 pools.legacy_pool_id",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "toolingEvidence": [
-      {
-        "relativePath": "scripts/generate-alias-merge-sql.mjs",
-        "description": "merge SQL 生成器仍会条件性维护 legacy_pool_id",
-        "matched": true,
-        "missing": false
-      },
-      {
-        "relativePath": "scripts/generate-legacy-id-alias-seed.mjs",
-        "description": "legacy alias seed 生成器仍会条件性维护 legacy_pool_id",
-        "matched": true,
-        "missing": false
-      },
-      {
-        "relativePath": "supabase/manual/data-backfill/075_apply_alias_merges.generated.sql",
-        "description": "现有手工 backfill 产物仍会回填 legacy_pool_id",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "docEvidence": [
-      {
-        "relativePath": "supabase/docs/feat-007-migration-guide.md",
-        "description": "历史迁移指南仍保留直接删除 legacy_pool_id 的回滚示例",
-        "matched": true,
-        "missing": false
-      },
-      {
-        "relativePath": "supabase/docs/feat-007-migration-guide.md",
-        "description": "历史迁移指南仍用旧的“6 个月后可删”口径描述 legacy_pool_id",
-        "matched": true,
-        "missing": false
-      }
-    ],
-    "state": "blocked_schema",
-    "blockers": [
-      "baseline 或标准 schema 仍保留该兼容字段",
-      "审计 / merge / backfill tooling 仍依赖该兼容字段",
-      "历史文档仍给出过时的删列或回滚建议"
-    ]
+    "schemaEvidence": [],
+    "toolingEvidence": [],
+    "docEvidence": [],
+    "state": "planning_ready",
+    "blockers": []
   }
 }
