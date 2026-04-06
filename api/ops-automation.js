@@ -1,16 +1,20 @@
 import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
-import { syncAnnouncements } from './_lib/syncAnnouncements.js';
-import { syncPools } from './_lib/syncPools.js';
-import { detectNewCharacters } from './_lib/detectNewCharacters.js';
+import {
+  authorizeOpsAutomationRequest,
+  parseRequestedJobIds,
+} from './_lib/opsAutomation.js';
+import { runOpsAutomationJobs } from './_lib/runOpsAutomation.js';
 
-function authorizeRequest(req) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return { ok: true };
+function readRequestedJobs(req) {
+  if (req.query?.job) {
+    return req.query.job;
+  }
 
-  const bearer = String(req.headers?.authorization || '').replace(/^Bearer\s+/i, '').trim();
-  if (bearer === cronSecret) return { ok: true };
-
-  return { ok: false, status: 401, error: 'Unauthorized' };
+  try {
+    return new URL(req.url || '', 'https://example.com').searchParams.get('job') || 'all';
+  } catch {
+    return 'all';
+  }
 }
 
 export default async function handler(req, res) {
@@ -22,34 +26,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const auth = authorizeRequest(req);
+  const auth = authorizeOpsAutomationRequest(req);
   if (!auth.ok) {
     return res.status(auth.status).json({ success: false, error: auth.error });
   }
 
-  const results = {};
-
+  let requestedJobIds;
   try {
-    results.announcements = await syncAnnouncements();
-  } catch (err) {
-    results.announcements = { error: err.message };
+    requestedJobIds = parseRequestedJobIds(readRequestedJobs(req));
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
   }
 
-  try {
-    results.pools = await syncPools(results.announcements?.rawRecords);
-  } catch (err) {
-    results.pools = { error: err.message };
+  const runResult = await runOpsAutomationJobs({
+    requestedJobIds,
+    triggerType: 'cron',
+  });
+
+  if (!runResult.ok && runResult.status === 503) {
+    return res.status(503).json({ success: false, error: runResult.error });
   }
 
-  try {
-    results.newCharacterCheck = await detectNewCharacters(results.pools?.unresolvedNames);
-  } catch (err) {
-    results.newCharacterCheck = { error: err.message };
-  }
-
-  const hasErrors = results.announcements?.error || results.pools?.error;
-  return res.status(hasErrors ? 500 : 200).json({
-    success: !hasErrors,
-    ...results,
+  return res.status(runResult.status).json({
+    success: runResult.ok,
+    ...runResult.results,
   });
 }

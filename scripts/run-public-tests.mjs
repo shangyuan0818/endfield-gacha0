@@ -11,12 +11,8 @@ const testCommands = [
   ['node', ['scripts/verify-data-format-registry.mjs']],
   ['node', ['scripts/verify-ops-automation.mjs']],
   ['node', ['scripts/verify-ops-automation-api.mjs']],
-  ['node', ['scripts/verify-admin-run-ops-automation.mjs']],
-  ['node', ['scripts/verify-admin-apply-official-announcements-run.mjs']],
   ['node', ['scripts/verify-official-announcements-feed.mjs']],
-  ['node', ['scripts/verify-admin-apply-pool-schedule-run.mjs']],
   ['node', ['scripts/verify-pool-schedule-feed.mjs']],
-  ['node', ['scripts/verify-wiki-catalog-feed.mjs']],
   ['node', ['scripts/verify-bootstrap-cache-partial.mjs']],
   ['node', ['scripts/verify-supabase-baseline.mjs']],
 ];

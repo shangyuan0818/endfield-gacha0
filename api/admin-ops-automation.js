@@ -1,24 +1,37 @@
 import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
-import { syncAnnouncements } from './_lib/syncAnnouncements.js';
-import { syncPools } from './_lib/syncPools.js';
-import { detectNewCharacters } from './_lib/detectNewCharacters.js';
 import { getSupabaseAdminClient, getBearerToken, createSupabaseAccessTokenClient } from './_lib/authAdmin.js';
+import { parseRequestedJobIds } from './_lib/opsAutomation.js';
+import { runOpsAutomationJobs } from './_lib/runOpsAutomation.js';
 
 async function verifySuperAdmin(req) {
   const token = getBearerToken(req);
-  if (!token) return false;
+  if (!token) return null;
   const client = createSupabaseAccessTokenClient(token);
-  if (!client) return false;
+  if (!client) return null;
   const { data: { user } } = await client.auth.getUser();
-  if (!user) return false;
+  if (!user) return null;
   const admin = getSupabaseAdminClient();
-  if (!admin) return false;
+  if (!admin) return null;
   const { data } = await admin
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single();
-  return data?.role === 'super_admin';
+  return data?.role === 'super_admin' ? user : null;
+}
+
+function readRequestedJobs(req) {
+  if (req.body?.job) {
+    return req.body.job;
+  }
+  if (req.query?.job) {
+    return req.query.job;
+  }
+  try {
+    return new URL(req.url || '', 'https://example.com').searchParams.get('job') || 'all';
+  } catch {
+    return 'all';
+  }
 }
 
 export default async function handler(req, res) {
@@ -34,34 +47,31 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const authorized = await verifySuperAdmin(req);
-  if (!authorized) {
+  const authorizedUser = await verifySuperAdmin(req);
+  if (!authorizedUser) {
     return res.status(403).json({ success: false, error: 'Forbidden' });
   }
 
-  const results = {};
-
   try {
-    results.announcements = await syncAnnouncements();
-  } catch (err) {
-    results.announcements = { error: err.message };
-  }
+    const requestedJobIds = parseRequestedJobIds(readRequestedJobs(req));
+    const runResult = await runOpsAutomationJobs({
+      requestedJobIds,
+      triggerType: 'manual',
+      createdBy: authorizedUser.id,
+    });
 
-  try {
-    results.pools = await syncPools(results.announcements?.rawRecords);
-  } catch (err) {
-    results.pools = { error: err.message };
-  }
+    if (!runResult.ok && runResult.status === 503) {
+      return res.status(503).json({ success: false, error: runResult.error });
+    }
 
-  try {
-    results.newCharacterCheck = await detectNewCharacters(results.pools?.unresolvedNames);
-  } catch (err) {
-    results.newCharacterCheck = { error: err.message };
+    return res.status(runResult.status).json({
+      success: runResult.ok,
+      ...runResult.results,
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+    });
   }
-
-  const hasErrors = results.announcements?.error || results.pools?.error;
-  return res.status(hasErrors ? 500 : 200).json({
-    success: !hasErrors,
-    ...results,
-  });
 }
