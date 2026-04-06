@@ -1,8 +1,6 @@
 import React, { forwardRef } from 'react';
-
-const SHARE_CARD_WIDTH = 880;
-const SHARE_WATERMARK_NAME = '终末地抽卡分析器';
-const SHARE_WATERMARK_URL = 'ef-gacha.mogujun.icu';
+import ShareBrandPanel from '../share/ShareBrandPanel';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
 
 function getThemeTokens(theme = 'light') {
   if (theme === 'dark') {
@@ -49,16 +47,16 @@ function getThemeTokens(theme = 'light') {
 const styles = {
   root: {
     width: `${SHARE_CARD_WIDTH}px`,
-    minHeight: '760px',
+    minHeight: `${SHARE_CARD_HEIGHT}px`,
     boxSizing: 'border-box',
     background: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)',
     color: '#18181b',
-    padding: '24px',
+    padding: '20px',
     fontFamily: '"Microsoft YaHei UI", "Segoe UI", sans-serif',
     border: '2px solid #d4d4d8',
     display: 'flex',
     flexDirection: 'column',
-    gap: '18px',
+    gap: '16px',
     position: 'relative'
   },
   grid: {
@@ -73,9 +71,9 @@ const styles = {
     zIndex: 1,
     display: 'flex',
     justifyContent: 'space-between',
-    gap: '16px',
+    gap: '14px',
     borderBottom: '1px solid #d4d4d8',
-    paddingBottom: '14px'
+    paddingBottom: '12px'
   },
   titleWrap: {
     display: 'flex',
@@ -91,7 +89,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   title: {
-    fontSize: '34px',
+    fontSize: '30px',
     lineHeight: 1.08,
     fontWeight: 900,
     letterSpacing: '-0.04em',
@@ -109,8 +107,8 @@ const styles = {
   tagColumn: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '6px',
+    alignItems: 'stretch',
+    gap: '8px',
     flexShrink: 0
   },
   badge: {
@@ -135,16 +133,16 @@ const styles = {
     zIndex: 1,
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '12px'
+    gap: '10px'
   },
   statCard: {
     border: '1px solid #d4d4d8',
     background: '#ffffff',
-    padding: '14px',
+    padding: '12px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    minHeight: '104px'
+    gap: '6px',
+    minHeight: '96px'
   },
   statLabel: {
     fontSize: '11px',
@@ -154,7 +152,7 @@ const styles = {
     textTransform: 'uppercase'
   },
   statValue: {
-    fontSize: '32px',
+    fontSize: '28px',
     lineHeight: 1,
     fontWeight: 900,
     color: '#111827'
@@ -174,7 +172,7 @@ const styles = {
   panel: {
     border: '1px solid #d4d4d8',
     background: '#ffffff',
-    padding: '14px'
+    padding: '12px'
   },
   averageGrid: {
     display: 'grid',
@@ -196,7 +194,7 @@ const styles = {
   },
   averageValue: {
     marginTop: '8px',
-    fontSize: '24px',
+    fontSize: '21px',
     lineHeight: 1,
     fontWeight: 900,
     color: '#18181b'
@@ -220,7 +218,7 @@ const styles = {
   },
   pityValue: {
     marginTop: '8px',
-    fontSize: '26px',
+    fontSize: '23px',
     lineHeight: 1,
     fontWeight: 900,
     color: '#111827'
@@ -431,30 +429,13 @@ const styles = {
     fontSize: '12px',
     color: '#71717a',
     display: 'flex',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
     gap: '12px'
   },
   footerTextWrap: {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px'
-  },
-  watermarkBlock: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '4px',
-    textAlign: 'right'
-  },
-  watermarkName: {
-    fontSize: '12px',
-    fontWeight: 900,
-    letterSpacing: '0.18em',
-    textTransform: 'uppercase'
-  },
-  watermarkUrl: {
-    fontSize: '12px',
-    fontWeight: 700
   }
 };
 
@@ -747,6 +728,14 @@ function TimelineSection({ section, tokens }) {
 
 const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sections = [], theme = 'light' }, ref) {
   const tokens = getThemeTokens(theme);
+  const brandChips = [
+    '已脱敏分享卡',
+    theme === 'dark' ? '暗色主题' : '亮色主题',
+    payload?.overviewFilterLabel && payload.overviewFilterLabel !== '全部卡池' ? `筛选 ${payload.overviewFilterLabel}` : null,
+    payload?.featured ? `目标 ${payload.featured}` : null
+  ].filter(Boolean);
+  const accentColor = getSectionTone(payload?.poolType).accent;
+
   return (
     <div ref={ref} style={{ ...styles.root, background: tokens.rootBackground, borderColor: tokens.border, color: tokens.textPrimary }}>
       <div
@@ -770,16 +759,12 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
         </div>
 
         <div style={styles.tagColumn}>
-          <div style={{ ...styles.badge, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textPrimary }}>已脱敏分享卡</div>
-          <div style={{ ...styles.badge, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textPrimary }}>
-            {theme === 'dark' ? '暗色主题' : '亮色主题'}
-          </div>
-          {payload?.overviewFilterLabel && payload.overviewFilterLabel !== '全部卡池' && (
-            <div style={{ ...styles.badge, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textPrimary }}>筛选：{payload.overviewFilterLabel}</div>
-          )}
-          {payload?.featured && (
-            <div style={{ ...styles.badge, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textPrimary }}>当前目标：{payload.featured}</div>
-          )}
+          <ShareBrandPanel
+            theme={theme}
+            accentColor={accentColor}
+            chips={brandChips}
+            style={{ width: '240px' }}
+          />
         </div>
       </div>
 
@@ -895,11 +880,7 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
       <div style={{ ...styles.footer, borderTopColor: tokens.border, color: tokens.footerText }}>
         <div style={styles.footerTextWrap}>
           <span>{payload?.notes || '已脱敏分享卡，不含账号、UID、时间戳与原始抽卡明细。'}</span>
-          <span>仅在本地生成，不创建公共链接。</span>
-        </div>
-        <div style={styles.watermarkBlock}>
-          <span style={{ ...styles.watermarkName, color: tokens.textPrimary }}>{SHARE_WATERMARK_NAME}</span>
-          <span style={{ ...styles.watermarkUrl, color: tokens.footerText }}>{SHARE_WATERMARK_URL}</span>
+          <span>扫码或访问站点即可直接查看完整功能；分享卡仅在本地生成，不创建公共链接。</span>
         </div>
       </div>
     </div>

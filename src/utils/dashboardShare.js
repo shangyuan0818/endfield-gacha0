@@ -1,4 +1,5 @@
 import { calculateCurrentProbability } from './index.js';
+import { SHARE_BRAND_LINK } from './shareBranding.js';
 
 const DASHBOARD_SHARE_FILE_PREFIX = '终末地卡池分析分享卡';
 
@@ -357,6 +358,7 @@ export function buildDashboardShareText(payload) {
 
   lines.push('');
   lines.push('来自终末地抽卡分析器');
+  lines.push(`网站：${SHARE_BRAND_LINK}`);
   lines.push(payload.notes);
 
   return lines.join('\n');

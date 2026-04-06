@@ -1,8 +1,6 @@
 import React, { forwardRef, useMemo } from 'react';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/simulatorShare';
-
-const SHARE_WATERMARK_NAME = '终末地抽卡分析器';
-const SHARE_WATERMARK_URL = 'ef-gacha.mogujun.icu';
+import ShareBrandPanel from '../../components/share/ShareBrandPanel';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
 
 const cardStyles = {
   root: {
@@ -11,7 +9,7 @@ const cardStyles = {
     boxSizing: 'border-box',
     background: 'linear-gradient(135deg, #0a0a0b 0%, #12151a 45%, #111827 100%)',
     color: '#f5f5f5',
-    padding: '24px',
+    padding: '20px',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
@@ -57,7 +55,7 @@ const cardStyles = {
     fontWeight: 700,
   },
   title: {
-    fontSize: '34px',
+    fontSize: '30px',
     lineHeight: 1.1,
     fontWeight: 800,
     letterSpacing: '-0.04em',
@@ -90,18 +88,18 @@ const cardStyles = {
   metricGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '18px',
+    gap: '12px',
     position: 'relative',
     zIndex: 1,
   },
   metricCard: {
     border: '1px solid #27272a',
     background: 'rgba(14, 17, 22, 0.88)',
-    padding: '16px',
+    padding: '14px',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
-    minHeight: '120px',
+    minHeight: '108px',
   },
   metricLabel: {
     fontSize: '12px',
@@ -111,7 +109,7 @@ const cardStyles = {
     fontWeight: 700,
   },
   metricValue: {
-    fontSize: '38px',
+    fontSize: '34px',
     lineHeight: 1,
     fontWeight: 800,
     color: '#fafafa',
@@ -124,14 +122,14 @@ const cardStyles = {
   footerGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '14px',
+    gap: '12px',
     position: 'relative',
     zIndex: 1,
   },
   footerCard: {
     borderTop: '2px solid #facc15',
     background: 'rgba(10, 12, 16, 0.92)',
-    padding: '14px 16px',
+    padding: '12px 14px',
     display: 'flex',
     flexDirection: 'column',
     gap: '8px',
@@ -144,7 +142,7 @@ const cardStyles = {
     textTransform: 'uppercase',
   },
   footerValue: {
-    fontSize: '24px',
+    fontSize: '22px',
     color: '#fafafa',
     fontWeight: 800,
   },
@@ -158,8 +156,7 @@ const cardStyles = {
     borderTop: '1px solid #27272a',
     paddingTop: '14px',
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
     gap: '12px',
     fontSize: '13px',
     color: '#a1a1aa',
@@ -168,25 +165,6 @@ const cardStyles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
-  },
-  watermarkBlock: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-end',
-    gap: '4px',
-    textAlign: 'right',
-  },
-  watermarkName: {
-    fontSize: '12px',
-    fontWeight: 900,
-    letterSpacing: '0.18em',
-    textTransform: 'uppercase',
-    color: '#fafafa',
-  },
-  watermarkUrl: {
-    fontSize: '12px',
-    fontWeight: 700,
-    color: '#a1a1aa',
   },
   timelineWrap: {
     position: 'relative',
@@ -419,6 +397,11 @@ function getTimelineBarColor(sectionType, entry) {
 const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sections = [] }, ref) {
   const accentColor = getAccentColor(payload?.poolType);
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
+  const brandChips = [
+    '已脱敏分享卡',
+    payload?.poolTypeLabel || '模拟器',
+    payload?.poolName || '未选择卡池'
+  ].filter(Boolean);
   const primaryCards = useMemo(() => {
     const upLabel = payload?.poolType === 'standard' ? payload?.guaranteeProgress?.label : 'UP 结果';
     const upValue = payload?.poolType === 'standard'
@@ -472,14 +455,12 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
           </div>
         </div>
 
-        <div style={cardStyles.badges}>
-          <div style={{ ...cardStyles.badge, borderColor: accentColor, color: accentColor }}>
-            {payload?.poolName || '未选择卡池'}
-          </div>
-          <div style={{ ...cardStyles.badge, ...cardStyles.mutedBadge }}>
-            已脱敏分享卡
-          </div>
-        </div>
+        <ShareBrandPanel
+          theme="dark"
+          accentColor={accentColor}
+          chips={brandChips}
+          style={{ width: '240px' }}
+        />
       </div>
 
       <div style={{ ...cardStyles.metricGrid, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -616,11 +597,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
       <div style={cardStyles.legal}>
         <div style={cardStyles.legalTextWrap}>
           <span>本分享卡仅保留模拟器汇总统计，不含账号、UID、时间戳与资源账本。</span>
-          <span>仅限本地生成，不创建公共链接。</span>
-        </div>
-        <div style={cardStyles.watermarkBlock}>
-          <span style={cardStyles.watermarkName}>{SHARE_WATERMARK_NAME}</span>
-          <span style={cardStyles.watermarkUrl}>{SHARE_WATERMARK_URL}</span>
+          <span>扫码或访问站点即可继续分析；分享卡仅限本地生成，不创建公共链接。</span>
         </div>
       </div>
     </div>

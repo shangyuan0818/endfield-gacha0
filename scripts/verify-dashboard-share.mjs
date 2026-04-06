@@ -4,6 +4,7 @@ import {
   buildDashboardShareText,
   buildDashboardShareCardFileName,
 } from '../src/utils/dashboardShare.js';
+import { SHARE_BRAND_LINK } from '../src/utils/shareBranding.js';
 
 const TOP_LEVEL_KEYS = [
   'averageGroups',
@@ -175,6 +176,7 @@ assert.match(shareText, /已脱敏分享卡/);
 assert.match(shareText, /当前 6★ 保底：64\/80/);
 assert.match(overviewText, /角色池汇总/);
 assert.match(overviewText, /武器池汇总/);
+assert.match(shareText, new RegExp(SHARE_BRAND_LINK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(fileName, /^终末地卡池分析分享卡_/);
 
 const serializedContent = [

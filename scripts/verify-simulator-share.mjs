@@ -3,6 +3,7 @@ import {
   buildSimulatorSharePayload,
   buildSimulatorShareText,
 } from '../src/utils/simulatorShare.js';
+import { SHARE_BRAND_LINK } from '../src/utils/shareBranding.js';
 
 const TOP_LEVEL_KEYS = [
   'avgPullsPerSixStar',
@@ -152,6 +153,7 @@ const standardText = buildSimulatorShareText(standardPayload);
 assert.match(limitedText, /已脱敏分享卡/);
 assert.match(weaponText, /80抽首轮限定必出：52\/80/);
 assert.match(standardText, /300抽自选进度：211\/300/);
+assert.match(limitedText, new RegExp(SHARE_BRAND_LINK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 const serializedPayloads = [
   JSON.stringify(limitedPayload),

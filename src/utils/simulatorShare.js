@@ -1,5 +1,10 @@
-const SHARE_CARD_WIDTH = 880;
-const SHARE_CARD_HEIGHT = 760;
+import {
+  SHARE_BRAND_LINK,
+  SHARE_CARD_EXPORT_PIXEL_RATIO,
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_WIDTH
+} from './shareBranding.js';
+
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
 const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
 
@@ -150,6 +155,7 @@ export function buildSimulatorShareText(payload) {
   lines.push(`${payload.guaranteeProgress.label}：${payload.guaranteeProgress.summary}`);
   lines.push('');
   lines.push('来自终末地抽卡分析器模拟器');
+  lines.push(`网站：${SHARE_BRAND_LINK}`);
   lines.push('不含账号、UID、时间戳与资源明细');
 
   return lines.join('\n');
@@ -336,7 +342,11 @@ export async function renderShareCardToBlob(node, options = {}) {
   const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
   const image = await loadImageFromUrl(svgUrl);
   const canvas = document.createElement('canvas');
-  const pixelRatio = Math.max(window.devicePixelRatio || 1, 2);
+  const pixelRatio = Math.max(
+    Number(options.pixelRatio) || SHARE_CARD_EXPORT_PIXEL_RATIO,
+    window.devicePixelRatio || 1,
+    2
+  );
 
   canvas.width = width * pixelRatio;
   canvas.height = height * pixelRatio;
@@ -365,7 +375,8 @@ export async function renderShareCardToBlob(node, options = {}) {
 export async function renderSimulatorShareCardToBlob(node) {
   return renderShareCardToBlob(node, {
     width: SHARE_CARD_WIDTH,
-    backgroundColor: DEFAULT_SHARE_BACKGROUND
+    backgroundColor: DEFAULT_SHARE_BACKGROUND,
+    pixelRatio: SHARE_CARD_EXPORT_PIXEL_RATIO
   });
 }
 
