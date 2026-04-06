@@ -1,4 +1,5 @@
 import { calculateCurrentProbability } from './index.js';
+import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { SHARE_BRAND_LINK } from './shareBranding.js';
 
 const DASHBOARD_SHARE_FILE_PREFIX = '终末地卡池分析分享卡';
@@ -223,6 +224,68 @@ function buildSummaryItems({ stats, poolType, isAllPoolsOverview }) {
   return items;
 }
 
+function buildResourceItems(resources, poolType) {
+  if (!resources) {
+    return [];
+  }
+
+  const items = [];
+  const normalizedPoolType = poolType || 'standard';
+
+  if (normalizedPoolType !== 'weapon') {
+    items.push(
+      {
+        id: 'jade-spent',
+        label: '耗玉',
+        value: normalizeNumber(resources.jadeSpent).toLocaleString(),
+        hint: '有效抽数换算'
+      },
+      {
+        id: 'originite-equivalent',
+        label: '石折玉',
+        value: formatOriginiteEquivalent(resources.originiteEquivalent || 0),
+        hint: '按当前换算比例'
+      },
+      {
+        id: 'arsenal-gained',
+        label: '得配额',
+        value: normalizeNumber(resources.arsenalGained).toLocaleString(),
+        hint: '4★ / 5★ 转化'
+      }
+    );
+  }
+
+  if (normalizedPoolType === 'weapon' || normalizedPoolType === 'all') {
+    items.push({
+      id: 'arsenal-spent',
+      label: '耗配额',
+      value: normalizeNumber(resources.arsenalSpent).toLocaleString(),
+      hint: '武器池计费'
+    });
+  }
+
+  return items;
+}
+
+function buildSplitResourceGroups(overviewSplitStats) {
+  if (!overviewSplitStats) {
+    return null;
+  }
+
+  return [
+    {
+      id: 'character',
+      label: '角色池资源',
+      items: buildResourceItems(overviewSplitStats.character?.resourceSummary, 'limited')
+    },
+    {
+      id: 'weapon',
+      label: '武器池资源',
+      items: buildResourceItems(overviewSplitStats.weapon?.resourceSummary, 'weapon')
+    }
+  ].filter((group) => group.items.length > 0);
+}
+
 function buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }) {
   if (!currentPool || isGroupMode || hasMergedAccountView || !analysisPity) {
     return null;
@@ -289,8 +352,15 @@ export function buildDashboardSharePayload({
     averageGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
       ? buildSplitAverageGroups(overviewSplitStats)
       : null,
+    resourceGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitResourceGroups(overviewSplitStats)
+      : null,
     summaryItems: buildSummaryItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
     averageItems: buildAverageItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
+    resourceItems: buildResourceItems(
+      stats?.resourceSummary,
+      isAllPoolsOverview && overviewPoolFilter === 'all' ? 'all' : normalizedPoolType
+    ),
     pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }),
     notes: hasMergedAccountView
       ? '当前为多账号汇总视图，当前保底与软保底概率已隐藏。'
@@ -345,6 +415,19 @@ export function buildDashboardShareText(payload) {
   } else {
     payload.averageItems.forEach((item) => {
       lines.push(`${item.label}：${item.value}`);
+    });
+  }
+
+  if (Array.isArray(payload.resourceGroups) && payload.resourceGroups.length > 0) {
+    payload.resourceGroups.forEach((group) => {
+      lines.push(group.label);
+      group.items.forEach((item) => {
+        lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
+      });
+    });
+  } else if (Array.isArray(payload.resourceItems) && payload.resourceItems.length > 0) {
+    payload.resourceItems.forEach((item) => {
+      lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
     });
   }
 

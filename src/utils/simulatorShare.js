@@ -4,6 +4,7 @@ import {
   SHARE_CARD_HEIGHT,
   SHARE_CARD_WIDTH
 } from './shareBranding.js';
+import { formatOriginiteEquivalent } from './resourceEconomy.js';
 
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
 const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
@@ -41,6 +42,39 @@ function getPoolTypeLabel(poolType) {
   }
 
   return '常驻寻访';
+}
+
+function buildResourceItems(resources) {
+  if (!resources) {
+    return [];
+  }
+
+  return [
+    {
+      id: 'jade-spent',
+      label: '耗玉',
+      value: normalizeNumber(resources.jadeSpent).toLocaleString(),
+      hint: '角色池计费'
+    },
+    {
+      id: 'originite-equivalent',
+      label: '石折玉',
+      value: formatOriginiteEquivalent(resources.originiteEquivalent || 0),
+      hint: '按当前换算比例'
+    },
+    {
+      id: 'arsenal-gained',
+      label: '得配额',
+      value: normalizeNumber(resources.arsenalGained).toLocaleString(),
+      hint: '4★ / 5★ / 6★ 转化'
+    },
+    {
+      id: 'arsenal-spent',
+      label: '耗配额',
+      value: normalizeNumber(resources.arsenalSpent).toLocaleString(),
+      hint: '武器池计费'
+    }
+  ];
 }
 
 function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee) {
@@ -92,6 +126,7 @@ export function buildSimulatorSharePayload({
   currentPoolObj,
   dashboardStats,
   pityInfoWithGuarantee,
+  resourceLedger,
 } = {}) {
   const poolType = currentPoolObj?.type || 'limited';
   const totalPulls = normalizeNumber(dashboardStats?.total);
@@ -120,6 +155,7 @@ export function buildSimulatorSharePayload({
     currentPity6: normalizeNumber(dashboardStats?.currentPity),
     currentPity5: normalizeNumber(dashboardStats?.currentPity5),
     guaranteeProgress: buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee),
+    resourceItems: buildResourceItems(resourceLedger),
   };
 }
 
@@ -150,13 +186,20 @@ export function buildSimulatorShareText(payload) {
     lines.push(`不歪率：${payload.winRate}%`);
   }
 
-  lines.push(`平均出货：${payload.avgPullsPerSixStar} 抽/UP`);
+  lines.push(`平均出货：${payload.avgPullsPerSixStar} 抽/${payload.poolType === 'standard' ? '6★' : 'UP'}`);
   lines.push(`当前保底：6星 ${payload.currentPity6} / 5星 ${payload.currentPity5}`);
   lines.push(`${payload.guaranteeProgress.label}：${payload.guaranteeProgress.summary}`);
+
+  if (Array.isArray(payload.resourceItems) && payload.resourceItems.length > 0) {
+    payload.resourceItems.forEach((item) => {
+      lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
+    });
+  }
+
   lines.push('');
   lines.push('来自终末地抽卡分析器模拟器');
   lines.push(`网站：${SHARE_BRAND_LINK}`);
-  lines.push('不含账号、UID、时间戳与资源明细');
+  lines.push('不含账号、UID、时间戳与逐抽资源流水');
 
   return lines.join('\n');
 }

@@ -154,6 +154,16 @@ function createLeadBadge(item, fallbackLabel = '?') {
   };
 }
 
+function formatBadgeSummary(badges = []) {
+  if (!Array.isArray(badges) || badges.length === 0) {
+    return '';
+  }
+
+  return badges
+    .map((badge) => `${badge.rarity > 0 ? `${badge.rarity}★` : ''}「${badge.label}」${badge.count > 1 ? `x${badge.count}` : ''}`)
+    .join(' / ');
+}
+
 function formatSecondarySixStarNames(items = []) {
   if (!Array.isArray(items) || items.length === 0) {
     return '';
@@ -231,9 +241,6 @@ function buildOrderedTimelineGroups(history = []) {
 
     if (isGiftLike) {
       currentGiftGroup.push(item);
-      if (isSixStar) {
-        flushGiftGroup();
-      }
       return;
     }
 
@@ -304,6 +311,8 @@ function summarizeGroup(group = []) {
   const highRarityItems = group.filter((item) => Number(item?.rarity) >= 5);
   const paidCount = group.filter((item) => !isGiftHistoryPull(item) && !isFreeHistoryPull(item)).length;
   const hasGift = group.some((item) => isGiftHistoryPull(item) || isFreeHistoryPull(item));
+  const hasFreePulls = group.some((item) => isFreeHistoryPull(item));
+  const hasGiftPulls = group.some((item) => isGiftHistoryPull(item));
   const hasInfoBook = group.some((item) => isInfoBookHistoryPull(item));
   const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
   const offLimitedSixStars = sixStars.filter((item) => item?.isStandard === true && isActuallyLimited(item));
@@ -315,6 +324,8 @@ function summarizeGroup(group = []) {
   return {
     paidCount,
     hasGift,
+    hasFreePulls,
+    hasGiftPulls,
     hasInfoBook,
     hasSixStar: sixStars.length > 0,
     hasFiveStar: fiveStars.length > 0,
@@ -327,19 +338,23 @@ function summarizeGroup(group = []) {
     primaryHighRarity,
     highRarityItems,
     dropBadges: createDropBadges(highRarityItems),
+    groupSize: group.length,
     timestamp: timestampSource?.timestamp || timestampSource?.gacha_time || null
   };
 }
 
 function buildMilestoneSummary(summary, poolType) {
   if (summary.hasGift) {
-    const primaryLabel = formatPrimaryDropLabel(summary.primarySixStar, formatPrimaryDropLabel(summary.primaryHighRarity));
+    const stageLabel = summary.hasFreePulls
+      ? (summary.groupSize >= 10 ? '免费十连' : '免费节点')
+      : '赠送节点';
+    const badgeSummary = formatBadgeSummary(summary.dropBadges);
     return {
-      stageLabel: '免费阶段',
-      resultSummary: summary.hasSixStar
-        ? `免费/赠送阶段获得 6★「${primaryLabel}」${summary.fiveStars.length > 0 ? `，附带 ${summary.fiveStars.length} 次 5★` : ''}`
-        : '免费/赠送阶段，不计入保底',
-      tags: ['赠送'],
+      stageLabel,
+      resultSummary: badgeSummary
+        ? `${stageLabel}结果：${badgeSummary}`
+        : `${stageLabel}结果：未出 5★ 及以上`,
+      tags: [summary.hasFreePulls ? '免费' : '赠送'],
       stageKind: 'gift',
       leadBadge: summary.hasSixStar
         ? createLeadBadge(summary.primarySixStar)
@@ -410,18 +425,17 @@ function buildMilestoneSummary(summary, poolType) {
   };
 }
 
-function getStageTargetPulls(poolType, stageKind) {
+function getStageTargetPulls(poolType, stageKind, stageSize = 0) {
   if (stageKind === 'gift') {
-    return 30;
+    return Math.max(stageSize || 10, 10);
   }
 
   return getPoolSixStarPity(poolType);
 }
 
-function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, supportItems = [], pendingInfoBook = false, currentTargetPullsOverride) {
+function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, supportItems = [], currentTargetPullsOverride) {
   const targetLabel = '6★ 节点';
   const displayPulls = Number.isFinite(currentPityValue) ? currentPityValue : pendingPaidCount;
-  const includesInheritedPity = Number.isFinite(currentPityValue) && currentPityValue !== pendingPaidCount;
   const normalizedType = normalizePoolType(pool?.type);
   const supportBadges = createDropBadges(supportItems.filter((item) => Number(item?.rarity) === 5));
 
@@ -438,9 +452,7 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
     resultSummary: displayPulls > 0
       ? `当前仍在推进，尚未触发新的 ${targetLabel}`
       : '当前阶段尚未形成新的高稀有节点',
-    metaSummary: displayPulls > 0
-      ? `当前垫刀 ${displayPulls} 抽${includesInheritedPity ? ' · 含跨池继承' : ''}${pendingInfoBook ? ' · 含情报书' : ''}`
-      : `暂无新增付费抽数${pendingInfoBook ? ' · 含情报书' : ''}`,
+    metaSummary: null,
     tags: ['当前'],
     leadBadge: createLeadBadge(null, pool?.up_character || pool?.upCharacter || '?'),
     dropBadges: supportBadges
@@ -458,8 +470,6 @@ function buildStageEntries({
   const stages = [];
   let pendingPaidCount = 0;
   let pendingSupportItems = [];
-  let pendingSupportCount = 0;
-  let pendingHasInfoBook = false;
 
   ascendingGroups.forEach((group) => {
     const summary = summarizeGroup(group);
@@ -474,12 +484,12 @@ function buildStageEntries({
         dateLabel: formatDateLabel(summary.timestamp),
         stageLabel: milestone.stageLabel,
         pulls: Math.max(group.length, summary.paidCount),
-        targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind),
+        targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind, summary.groupSize),
         resultSummary: milestone.resultSummary,
-        metaSummary: '免费节点保留独立展示，不与正式抽卡合并',
+        metaSummary: null,
         tags: milestone.tags,
         leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?'),
-        dropBadges: createDropBadges(summary.fiveStars)
+        dropBadges: createDropBadges(summary.highRarityItems)
       });
       return;
     }
@@ -488,34 +498,27 @@ function buildStageEntries({
     if (!shouldEmitMilestone) {
       if (summary.fiveStars.length > 0) {
         pendingSupportItems = mergeBadgeItems(pendingSupportItems, summary.fiveStars);
-        pendingSupportCount += summary.fiveStars.length;
-      }
-      if (summary.hasInfoBook) {
-        pendingHasInfoBook = true;
       }
       return;
     }
 
     const milestone = buildMilestoneSummary(summary, normalizedType);
     const mergedSupportItems = mergeBadgeItems(pendingSupportItems, summary.fiveStars);
-    const mergedSupportCount = pendingSupportCount + summary.fiveStars.length;
     stages.push({
       id: `${pool?.id || 'pool'}-stage-${stages.length + 1}`,
       stageKind: milestone.stageKind,
       dateLabel: formatDateLabel(summary.timestamp),
       stageLabel: milestone.stageLabel,
       pulls: pendingPaidCount,
-      targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind),
+      targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind, summary.groupSize),
       resultSummary: milestone.resultSummary,
-      metaSummary: `阶段抽数 ${pendingPaidCount} 抽 · 辅助 5★ ${mergedSupportCount} 件${summary.hasInfoBook || pendingHasInfoBook ? ' · 含情报书' : ''}`,
+      metaSummary: null,
       tags: milestone.tags,
       leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?'),
       dropBadges: createDropBadges(mergedSupportItems)
     });
     pendingPaidCount = 0;
     pendingSupportItems = [];
-    pendingSupportCount = 0;
-    pendingHasInfoBook = false;
   });
 
   const shouldAlwaysShowCurrentStage = normalizePoolType(pool?.type) === 'weapon';
@@ -527,7 +530,6 @@ function buildStageEntries({
         pendingPaidCount,
         currentPityOverride,
         pendingSupportItems,
-        pendingHasInfoBook,
         currentTargetPullsOverride
       )
     );

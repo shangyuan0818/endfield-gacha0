@@ -1,12 +1,13 @@
 import React, { forwardRef } from 'react';
 import ShareBrandPanel from '../share/ShareBrandPanel';
 import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
+import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 
 function getThemeTokens(theme = 'light') {
   if (theme === 'dark') {
     return {
-      rootBackground: 'linear-gradient(180deg, #09090b 0%, #18181b 100%)',
-      gridLine: 'rgba(255,255,255,0.04)',
+      rootBackground: 'linear-gradient(145deg, #090b0f 0%, #131820 48%, #1a1f29 100%)',
+      backgroundDecor: 'radial-gradient(circle at 12% 12%, rgba(250, 204, 21, 0.14) 0%, rgba(250, 204, 21, 0) 32%), radial-gradient(circle at 88% 10%, rgba(56, 189, 248, 0.11) 0%, rgba(56, 189, 248, 0) 28%), linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 34%), linear-gradient(320deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 38%)',
       border: '#3f3f46',
       subtleBorder: '#27272a',
       panelBackground: 'rgba(24,24,27,0.94)',
@@ -25,8 +26,8 @@ function getThemeTokens(theme = 'light') {
   }
 
   return {
-    rootBackground: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)',
-    gridLine: 'rgba(24,24,27,0.03)',
+    rootBackground: 'linear-gradient(140deg, #fcfbf7 0%, #f6f2e9 52%, #eef3f8 100%)',
+    backgroundDecor: 'radial-gradient(circle at 10% 14%, rgba(245, 158, 11, 0.16) 0%, rgba(245, 158, 11, 0) 34%), radial-gradient(circle at 88% 12%, rgba(59, 130, 246, 0.13) 0%, rgba(59, 130, 246, 0) 28%), linear-gradient(140deg, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 42%), linear-gradient(325deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 44%)',
     border: '#d4d4d8',
     subtleBorder: '#e4e4e7',
     panelBackground: '#ffffff',
@@ -49,7 +50,7 @@ const styles = {
     width: `${SHARE_CARD_WIDTH}px`,
     minHeight: `${SHARE_CARD_HEIGHT}px`,
     boxSizing: 'border-box',
-    background: 'linear-gradient(180deg, #fafafa 0%, #f4f4f5 100%)',
+    background: 'linear-gradient(140deg, #fcfbf7 0%, #f6f2e9 52%, #eef3f8 100%)',
     color: '#18181b',
     padding: '20px',
     fontFamily: '"Microsoft YaHei UI", "Segoe UI", sans-serif',
@@ -62,8 +63,7 @@ const styles = {
   grid: {
     position: 'absolute',
     inset: 0,
-    backgroundImage: 'linear-gradient(rgba(24,24,27,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(24,24,27,0.03) 1px, transparent 1px)',
-    backgroundSize: '24px 24px',
+    background: 'none',
     pointerEvents: 'none'
   },
   header: {
@@ -127,6 +127,86 @@ const styles = {
     letterSpacing: '0.2em',
     color: '#71717a',
     textTransform: 'uppercase'
+  },
+  compactStatsGrid: {
+    position: 'relative',
+    zIndex: 1,
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '10px'
+  },
+  compactPanel: {
+    border: '1px solid #d4d4d8',
+    background: '#ffffff',
+    padding: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px'
+  },
+  compactGroupHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px'
+  },
+  metricRows: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px'
+  },
+  metricRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px'
+  },
+  metricPill: {
+    flex: '1 1 120px',
+    minWidth: '0',
+    border: '1px solid #d4d4d8',
+    background: '#fafafa',
+    padding: '8px 10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px'
+  },
+  metricPillHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    minWidth: 0
+  },
+  metricPillIcon: {
+    width: '16px',
+    height: '16px',
+    objectFit: 'contain',
+    flexShrink: 0
+  },
+  metricPillLabel: {
+    fontSize: '10px',
+    fontWeight: 800,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: '#71717a'
+  },
+  metricPillValue: {
+    fontSize: '18px',
+    lineHeight: 1.1,
+    fontWeight: 900,
+    color: '#18181b'
+  },
+  metricPillHint: {
+    fontSize: '11px',
+    lineHeight: 1.35,
+    color: '#71717a',
+    fontWeight: 600
+  },
+  compactNote: {
+    position: 'relative',
+    zIndex: 1,
+    fontSize: '12px',
+    lineHeight: 1.5,
+    color: '#71717a',
+    fontWeight: 600
   },
   summaryGrid: {
     position: 'relative',
@@ -258,18 +338,21 @@ const styles = {
     padding: '16px'
   },
   sectionMeta: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    gap: '10px',
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: '12px',
     marginTop: '12px'
   },
   metricCell: {
-    borderLeft: '1px solid #d4d4d8',
-    paddingLeft: '10px'
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '6px',
+    whiteSpace: 'nowrap'
   },
   metricValue: {
-    marginTop: '6px',
-    fontSize: '20px',
+    marginTop: 0,
+    fontSize: '16px',
     fontWeight: 900,
     color: '#18181b'
   },
@@ -429,13 +512,17 @@ const styles = {
     fontSize: '12px',
     color: '#71717a',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
     gap: '12px'
   },
   footerTextWrap: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '4px'
+    gap: '4px',
+    flex: 1,
+    minWidth: 0
   }
 };
 
@@ -528,6 +615,83 @@ function formatAverage(value) {
   return `${Number(value).toFixed(1)} 抽`;
 }
 
+function buildCombinedPityItem(pitySummary) {
+  if (!pitySummary) {
+    return null;
+  }
+
+  return {
+    id: 'current-pity',
+    label: '当前保底',
+    value: `${pitySummary.current6}/${pitySummary.current5}`,
+    hint: '6★ / 5★',
+    accent: true
+  };
+}
+
+function getResourceIcon(itemId) {
+  if (itemId === 'jade-spent') {
+    return RESOURCE_ICON_URLS.jade;
+  }
+
+  if (itemId === 'originite-equivalent') {
+    return RESOURCE_ICON_URLS.originite;
+  }
+
+  if (itemId === 'arsenal-gained' || itemId === 'arsenal-spent') {
+    return RESOURCE_ICON_URLS.arsenalQuota;
+  }
+
+  return null;
+}
+
+function indexItems(items = []) {
+  return new Map((items || []).map((item) => [item.id, item]));
+}
+
+function pickItems(itemMap, ids = []) {
+  return ids
+    .map((id) => itemMap.get(id))
+    .filter(Boolean);
+}
+
+function withResourceIcons(items = []) {
+  return items.map((item) => ({
+    ...item,
+    icon: getResourceIcon(item.id)
+  }));
+}
+
+function buildCompactRows({ poolType, summaryItems = [], averageItems = [], resourceItems = [], pitySummary = null }) {
+  const summaryMap = indexItems(summaryItems);
+  const averageMap = indexItems(averageItems);
+  const pityItem = buildCombinedPityItem(pitySummary);
+
+  if (poolType === 'standard') {
+    return [
+      pickItems(summaryMap, ['total-pulls', 'six-star-total', 'five-star-count', 'four-star-count']),
+      [
+        ...pickItems(averageMap, ['avg-5', 'avg-6-all']),
+        ...(pityItem ? [pityItem] : [])
+      ],
+      withResourceIcons(resourceItems)
+    ];
+  }
+
+  const metricTail = summaryMap.get('win-rate') || summaryMap.get('five-star-count');
+  return [
+    [
+      ...pickItems(summaryMap, ['total-pulls', 'target-six', 'off-six']),
+      ...(metricTail ? [metricTail] : [])
+    ],
+    [
+      ...pickItems(averageMap, ['avg-5', 'avg-6-all', 'avg-6-target']),
+      ...(pityItem ? [pityItem] : pickItems(averageMap, ['avg-6-limited']))
+    ].slice(0, 4),
+    withResourceIcons(resourceItems)
+  ];
+}
+
 function getStatusText(status) {
   if (!status?.isTimed) {
     return '长期开放';
@@ -544,12 +708,52 @@ function getStatusText(status) {
   return '已结束';
 }
 
-function SummaryCard({ item, tokens }) {
+function CompactMetricPill({ item, tokens, accentColor }) {
   return (
-    <div style={{ ...styles.statCard, borderColor: tokens.border, background: tokens.panelBackground }}>
-      <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{item.label}</div>
-      <div style={{ ...styles.statValue, color: tokens.textPrimary }}>{item.value}</div>
-      <div style={{ ...styles.statHint, color: tokens.textSecondary }}>{item.hint}</div>
+    <div
+      style={{
+        ...styles.metricPill,
+        borderColor: item.accent ? accentColor : tokens.border,
+        background: tokens.panelMutedBackground
+      }}
+    >
+      <div style={styles.metricPillHeader}>
+        {item.icon ? (
+          <img src={item.icon} alt={item.label} style={styles.metricPillIcon} />
+        ) : null}
+        <div style={{ ...styles.metricPillLabel, color: tokens.textMuted }}>{item.label}</div>
+      </div>
+      <div style={{ ...styles.metricPillValue, color: item.accent ? accentColor : tokens.textPrimary }}>{item.value}</div>
+      {item.hint ? (
+        <div style={{ ...styles.metricPillHint, color: tokens.textSecondary }}>{item.hint}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompactMetricBlock({ title, rows = [], tokens, accentColor }) {
+  const normalizedRows = rows.filter((row) => Array.isArray(row) && row.length > 0);
+
+  if (normalizedRows.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ ...styles.compactPanel, borderColor: tokens.border, background: tokens.panelBackground }}>
+      {title ? (
+        <div style={styles.compactGroupHeader}>
+          <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{title}</div>
+        </div>
+      ) : null}
+      <div style={styles.metricRows}>
+        {normalizedRows.map((row, rowIndex) => (
+          <div key={`${title || 'overall'}-${rowIndex}`} style={styles.metricRow}>
+            {row.map((item) => (
+              <CompactMetricPill key={`${title || 'overall'}-${rowIndex}-${item.id}`} item={item} tokens={tokens} accentColor={accentColor} />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -586,7 +790,6 @@ function TimelineEntry({ entry, section, tokens }) {
           <div style={{ ...styles.stageChip, borderColor: tokens.border, background: tokens.chipBackground, color: tokens.textMuted }}>{entry.stageLabel}</div>
           <div style={{ ...styles.resultText, color: tokens.textPrimary }}>{entry.resultSummary}</div>
         </div>
-        <div style={{ ...styles.metaText, color: tokens.textMuted }}>{entry.metaSummary || `${entry.targetPulls} 抽阶段`}</div>
 
         <div style={styles.barRow}>
           <div style={{ ...styles.barTrack, borderColor: tokens.border, background: tokens.barTrack }}>
@@ -735,13 +938,39 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
     payload?.featured ? `目标 ${payload.featured}` : null
   ].filter(Boolean);
   const accentColor = getSectionTone(payload?.poolType).accent;
+  const averageGroupMap = new Map((payload?.averageGroups || []).map((group) => [group.id, group.items]));
+  const resourceGroupMap = new Map((payload?.resourceGroups || []).map((group) => [group.id, group.items]));
+  const compactBlocks = Array.isArray(payload?.summaryGroups) && payload.summaryGroups.length > 0
+    ? payload.summaryGroups.map((group) => ({
+        id: group.id,
+        title: group.label,
+        rows: buildCompactRows({
+          poolType: group.id === 'weapon' ? 'weapon' : 'limited',
+          summaryItems: group.items,
+          averageItems: averageGroupMap.get(group.id) || [],
+          resourceItems: resourceGroupMap.get(group.id) || []
+        })
+      }))
+    : [
+        {
+          id: 'overall',
+          title: payload?.scopeLabel || '核心统计',
+          rows: buildCompactRows({
+            poolType: payload?.poolType,
+            summaryItems: payload?.summaryItems || [],
+            averageItems: payload?.averageItems || [],
+            resourceItems: payload?.resourceItems || [],
+            pitySummary: payload?.pitySummary
+          })
+        }
+      ];
 
   return (
     <div ref={ref} style={{ ...styles.root, background: tokens.rootBackground, borderColor: tokens.border, color: tokens.textPrimary }}>
       <div
         style={{
           ...styles.grid,
-          backgroundImage: `linear-gradient(${tokens.gridLine} 1px, transparent 1px), linear-gradient(90deg, ${tokens.gridLine} 1px, transparent 1px)`
+          background: tokens.backgroundDecor
         }}
       />
 
@@ -759,102 +988,39 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
         </div>
 
         <div style={styles.tagColumn}>
-          <ShareBrandPanel
-            theme={theme}
-            accentColor={accentColor}
-            chips={brandChips}
-            style={{ width: '240px' }}
-          />
+          {brandChips.map((chip) => (
+            <div
+              key={chip}
+              style={{
+                ...styles.badge,
+                borderColor: tokens.border,
+                background: tokens.panelBackground,
+                color: tokens.textSecondary,
+                padding: '6px 10px',
+                fontSize: '10px'
+              }}
+            >
+              {chip}
+            </div>
+          ))}
         </div>
       </div>
 
       <div>
         <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>核心统计</div>
-        {Array.isArray(payload?.summaryGroups) && payload.summaryGroups.length > 0 ? (
-          <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
-            {payload.summaryGroups.map((group) => (
-              <div key={group.id} style={{ ...styles.panel, borderColor: tokens.border, background: tokens.panelBackground }}>
-                <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{group.label}</div>
-                <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
-                  {group.items.map((item) => (
-                    <SummaryCard key={`${group.id}-${item.id}`} item={item} tokens={tokens} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ ...styles.summaryGrid, marginTop: '10px' }}>
-            {payload?.summaryItems?.map((item) => (
-              <SummaryCard key={item.id} item={item} tokens={tokens} />
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={styles.midGrid}>
-        <div style={{ ...styles.panel, borderColor: tokens.border, background: tokens.panelBackground }}>
-          <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>平均出货</div>
-          {Array.isArray(payload?.averageGroups) && payload.averageGroups.length > 0 ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px', marginTop: '12px' }}>
-              {payload.averageGroups.map((group) => (
-                <div key={group.id} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
-                  <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{group.label}</div>
-                  <div style={styles.averageGrid}>
-                    {group.items.map((item) => (
-                      <div key={`${group.id}-${item.id}`} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelBackground }}>
-                        <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>{item.label}</div>
-                        <div style={{ ...styles.averageValue, color: tokens.textPrimary }}>{item.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={styles.averageGrid}>
-              {payload?.averageItems?.map((item) => (
-                <div key={item.id} style={{ ...styles.averageCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
-                  <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>{item.label}</div>
-                  <div style={{ ...styles.averageValue, color: tokens.textPrimary }}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ ...styles.averageNote, color: tokens.textMuted }}>
-            口径：排除赠送与免费十连；情报书计入有效抽数。
-          </div>
+        <div style={{ ...(compactBlocks.length > 1 ? styles.compactStatsGrid : {}), marginTop: '10px' }}>
+          {compactBlocks.map((block) => (
+            <CompactMetricBlock
+              key={block.id}
+              title={block.title}
+              rows={block.rows}
+              tokens={tokens}
+              accentColor={accentColor}
+            />
+          ))}
         </div>
-
-        <div style={{ ...styles.panel, borderColor: tokens.border, background: tokens.panelBackground }}>
-          <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>当前状态</div>
-          {payload?.pitySummary ? (
-            <>
-              <div style={styles.pityGrid}>
-                <div style={{ ...styles.pityCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
-                  <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>当前 6★ 保底</div>
-                  <div style={{ ...styles.pityValue, color: tokens.textPrimary }}>{payload.pitySummary.current6}/{payload.pitySummary.max6}</div>
-                  <div style={{ ...styles.averageNote, color: tokens.textMuted }}>
-                    {payload.pitySummary.inherited6 ? '含跨池继承' : '当前池内累计'}
-                  </div>
-                </div>
-                <div style={{ ...styles.pityCard, borderColor: tokens.subtleBorder, background: tokens.panelMutedBackground }}>
-                  <div style={{ ...styles.averageLabel, color: tokens.textMuted }}>当前 5★ 保底</div>
-                  <div style={{ ...styles.pityValue, color: tokens.textPrimary }}>{payload.pitySummary.current5}/{payload.pitySummary.max5}</div>
-                  <div style={{ ...styles.averageNote, color: tokens.textMuted }}>
-                    {payload.pitySummary.inherited5 ? '含跨池继承' : '当前池内累计'}
-                  </div>
-                </div>
-              </div>
-              <div style={{ ...styles.averageNote, color: tokens.textMuted }}>
-                {payload.pitySummary.probabilityHint || '当前未进入额外概率提升区间。'}
-              </div>
-            </>
-          ) : (
-            <div style={{ ...styles.averageNote, marginTop: '12px', color: tokens.textMuted }}>
-              {payload?.notes || '当前状态已按多账号/总览边界隐藏。'}
-            </div>
-          )}
+        <div style={{ ...styles.compactNote, marginTop: '10px', color: tokens.textMuted }}>
+          口径：排除赠送与免费十连；情报书计入有效抽数。
         </div>
       </div>
 
@@ -882,6 +1048,15 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           <span>{payload?.notes || '已脱敏分享卡，不含账号、UID、时间戳与原始抽卡明细。'}</span>
           <span>扫码或访问站点即可直接查看完整功能；分享卡仅在本地生成，不创建公共链接。</span>
         </div>
+        <ShareBrandPanel
+          theme={theme}
+          accentColor={accentColor}
+          compact
+          showChips={false}
+          showHeader={false}
+          qrSize={88}
+          style={{ width: '236px', marginLeft: 'auto' }}
+        />
       </div>
     </div>
   );

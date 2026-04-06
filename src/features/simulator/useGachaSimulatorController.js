@@ -1195,8 +1195,9 @@ export function useGachaSimulatorController() {
         currentPoolObj,
         dashboardStats,
         pityInfoWithGuarantee,
+        resourceLedger,
       }),
-    [currentPoolObj, dashboardStats, pityInfoWithGuarantee]
+    [currentPoolObj, dashboardStats, pityInfoWithGuarantee, resourceLedger]
   );
   const shareTimelineSections = useMemo(() => {
     const section = buildSinglePoolTimelineSection({

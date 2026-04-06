@@ -10,13 +10,15 @@ import {
 function getThemeTokens(theme) {
   if (theme === 'dark') {
     return {
-      background: 'rgba(12, 14, 18, 0.92)',
+      background: 'rgba(9, 12, 16, 0.9)',
       border: '#3f3f46',
       textPrimary: '#fafafa',
       textSecondary: '#d4d4d8',
       textMuted: '#a1a1aa',
       chipBackground: 'rgba(24, 24, 27, 0.92)',
-      qrBackground: '#ffffff'
+      qrBackground: '#f4f4f5',
+      qrForeground: '#09090b',
+      qrLabel: '#111827'
     };
   }
 
@@ -27,7 +29,9 @@ function getThemeTokens(theme) {
     textSecondary: '#52525b',
     textMuted: '#71717a',
     chipBackground: '#fafafa',
-    qrBackground: '#ffffff'
+    qrBackground: '#ffffff',
+    qrForeground: '#111827',
+    qrLabel: '#374151'
   };
 }
 
@@ -36,32 +40,45 @@ const ShareBrandPanel = ({
   accentColor = '#f59e0b',
   chips = [],
   style = {},
-  qrSize = 104
+  qrSize = 104,
+  compact = false,
+  showChips = true,
+  showHeader = true
 }) => {
   const tokens = getThemeTokens(theme);
-  const qrCodeUrl = React.useMemo(() => buildShareQrCodeDataUrl(SHARE_BRAND_LINK, { size: qrSize }), [qrSize]);
+  const qrCodeUrl = React.useMemo(
+    () => buildShareQrCodeDataUrl(SHARE_BRAND_LINK, {
+      size: qrSize,
+      darkColor: tokens.qrForeground,
+      lightColor: tokens.qrBackground
+    }),
+    [qrSize, tokens.qrBackground, tokens.qrForeground]
+  );
+  const panelPadding = compact ? '8px' : '12px';
 
   return (
     <div
       style={{
         border: `1px solid ${tokens.border}`,
         background: tokens.background,
-        padding: '12px',
+        padding: panelPadding,
         display: 'flex',
         flexDirection: 'column',
-        gap: '10px',
-        minWidth: '220px',
+        gap: compact ? '7px' : '10px',
+        minWidth: compact ? '208px' : '220px',
         ...style
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
-        <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.18em', color: tokens.textMuted, textTransform: 'uppercase' }}>
-          Scan To Open
+      {showHeader && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
+          <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.18em', color: tokens.textMuted, textTransform: 'uppercase' }}>
+            Scan To Open
+          </div>
+          <div style={{ width: compact ? '26px' : '36px', height: '3px', background: accentColor }} />
         </div>
-        <div style={{ width: '36px', height: '3px', background: accentColor }} />
-      </div>
+      )}
 
-      {chips.length > 0 && (
+      {showChips && chips.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           {chips.map((chip) => (
             <div
@@ -83,15 +100,24 @@ const ShareBrandPanel = ({
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: compact ? '8px' : '12px', alignItems: 'center' }}>
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ fontSize: '20px', lineHeight: 1.15, fontWeight: 900, color: tokens.textPrimary }}>
+          <div style={{ fontSize: compact ? '16px' : '20px', lineHeight: 1.15, fontWeight: 900, color: tokens.textPrimary }}>
             {SHARE_BRAND_NAME}
           </div>
-          <div style={{ fontSize: '13px', fontWeight: 800, color: accentColor }}>
+          <div
+            style={{
+              fontSize: compact ? '9px' : '11px',
+              lineHeight: 1.1,
+              fontWeight: 800,
+              letterSpacing: compact ? '0.01em' : '0.03em',
+              color: accentColor,
+              whiteSpace: 'nowrap'
+            }}
+          >
             {SHARE_BRAND_URL}
           </div>
-          <div style={{ fontSize: '12px', lineHeight: 1.5, color: tokens.textMuted }}>
+          <div style={{ fontSize: compact ? '10px' : '12px', lineHeight: 1.35, color: tokens.textMuted }}>
             {SHARE_BRAND_TAGLINE}
           </div>
         </div>
@@ -101,7 +127,7 @@ const ShareBrandPanel = ({
             flexShrink: 0,
             border: `1px solid ${tokens.border}`,
             background: tokens.qrBackground,
-            padding: '6px',
+            padding: compact ? '4px' : '6px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -115,7 +141,7 @@ const ShareBrandPanel = ({
             height={qrSize}
             style={{ width: `${qrSize}px`, height: `${qrSize}px`, display: 'block' }}
           />
-          <div style={{ fontSize: '10px', fontWeight: 800, color: '#374151', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: compact ? '9px' : '10px', fontWeight: 800, color: tokens.qrLabel, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             扫码直达
           </div>
         </div>

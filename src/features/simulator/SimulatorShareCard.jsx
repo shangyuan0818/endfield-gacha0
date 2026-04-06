@@ -1,13 +1,14 @@
 import React, { forwardRef, useMemo } from 'react';
 import ShareBrandPanel from '../../components/share/ShareBrandPanel';
 import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
+import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 
 const cardStyles = {
   root: {
     width: `${SHARE_CARD_WIDTH}px`,
     height: `${SHARE_CARD_HEIGHT}px`,
     boxSizing: 'border-box',
-    background: 'linear-gradient(135deg, #0a0a0b 0%, #12151a 45%, #111827 100%)',
+    background: 'linear-gradient(148deg, #080b10 0%, #10151c 50%, #18222d 100%)',
     color: '#f5f5f5',
     padding: '20px',
     display: 'flex',
@@ -18,21 +19,34 @@ const cardStyles = {
     position: 'relative',
     overflow: 'hidden',
   },
-  gridOverlay: {
+  backgroundDecor: {
     position: 'absolute',
     inset: 0,
-    backgroundImage: 'linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)',
-    backgroundSize: '24px 24px',
+    background: 'radial-gradient(circle at 14% 16%, rgba(250, 204, 21, 0.16) 0%, rgba(250, 204, 21, 0) 30%), radial-gradient(circle at 86% 18%, rgba(56, 189, 248, 0.14) 0%, rgba(56, 189, 248, 0) 28%), linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 30%)',
     pointerEvents: 'none',
   },
-  glow: {
+  backgroundPanel: {
     position: 'absolute',
-    top: '-80px',
-    right: '-20px',
-    width: '320px',
-    height: '320px',
-    borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(255, 250, 0, 0.18) 0%, rgba(255, 250, 0, 0) 72%)',
+    top: '-92px',
+    right: '-74px',
+    width: '360px',
+    height: '250px',
+    borderRadius: '42px',
+    transform: 'rotate(-14deg)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 52%, rgba(255, 255, 255, 0) 100%)',
+    pointerEvents: 'none',
+  },
+  backgroundEdge: {
+    position: 'absolute',
+    bottom: '-120px',
+    left: '-36px',
+    width: '300px',
+    height: '220px',
+    borderRadius: '38px',
+    transform: 'rotate(12deg)',
+    border: '1px solid rgba(56, 189, 248, 0.08)',
+    background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.09) 0%, rgba(56, 189, 248, 0) 74%)',
     pointerEvents: 'none',
   },
   header: {
@@ -84,6 +98,74 @@ const cardStyles = {
   },
   mutedBadge: {
     color: '#d4d4d8',
+  },
+  statsPanel: {
+    position: 'relative',
+    zIndex: 1,
+    border: '1px solid #27272a',
+    background: 'rgba(12, 14, 18, 0.9)',
+    padding: '12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  statsPanelTitle: {
+    fontSize: '11px',
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase',
+    color: '#a1a1aa',
+    fontWeight: 800,
+  },
+  statsRows: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  statsRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+  },
+  statPill: {
+    flex: '1 1 120px',
+    minWidth: 0,
+    border: '1px solid #3f3f46',
+    background: 'rgba(14, 17, 22, 0.88)',
+    padding: '8px 10px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  statPillHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    minWidth: 0,
+  },
+  statPillIcon: {
+    width: '16px',
+    height: '16px',
+    objectFit: 'contain',
+    flexShrink: 0,
+  },
+  statPillLabel: {
+    fontSize: '10px',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: '#a1a1aa',
+    fontWeight: 700,
+  },
+  statPillValue: {
+    fontSize: '18px',
+    lineHeight: 1.1,
+    fontWeight: 800,
+    color: '#fafafa',
+  },
+  statPillHint: {
+    fontSize: '11px',
+    lineHeight: 1.35,
+    color: '#d4d4d8',
+    fontWeight: 600,
   },
   metricGrid: {
     display: 'grid',
@@ -156,7 +238,9 @@ const cardStyles = {
     borderTop: '1px solid #27272a',
     paddingTop: '14px',
     display: 'flex',
-    flexDirection: 'column',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
     gap: '12px',
     fontSize: '13px',
     color: '#a1a1aa',
@@ -165,6 +249,8 @@ const cardStyles = {
     display: 'flex',
     flexDirection: 'column',
     gap: '4px',
+    flex: 1,
+    minWidth: 0,
   },
   timelineWrap: {
     position: 'relative',
@@ -394,6 +480,55 @@ function getTimelineBarColor(sectionType, entry) {
   return '#facc15';
 }
 
+function formatAveragePulls(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return '--';
+  }
+
+  return `${numericValue.toFixed(1)} 抽`;
+}
+
+function getResourceIcon(itemId) {
+  if (itemId === 'jade-spent') {
+    return RESOURCE_ICON_URLS.jade;
+  }
+
+  if (itemId === 'originite-equivalent') {
+    return RESOURCE_ICON_URLS.originite;
+  }
+
+  if (itemId === 'arsenal-gained' || itemId === 'arsenal-spent') {
+    return RESOURCE_ICON_URLS.arsenalQuota;
+  }
+
+  return null;
+}
+
+function StatPill({ item, accentColor }) {
+  return (
+    <div
+      style={{
+        ...cardStyles.statPill,
+        borderColor: item.accent ? accentColor : '#3f3f46'
+      }}
+    >
+      <div style={cardStyles.statPillHeader}>
+        {item.icon ? (
+          <img src={item.icon} alt={item.label} style={cardStyles.statPillIcon} />
+        ) : null}
+        <div style={cardStyles.statPillLabel}>{item.label}</div>
+      </div>
+      <div style={{ ...cardStyles.statPillValue, color: item.accent ? accentColor : cardStyles.statPillValue.color }}>
+        {item.value}
+      </div>
+      {item.hint ? (
+        <div style={cardStyles.statPillHint}>{item.hint}</div>
+      ) : null}
+    </div>
+  );
+}
+
 const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sections = [] }, ref) {
   const accentColor = getAccentColor(payload?.poolType);
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
@@ -402,7 +537,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
     payload?.poolTypeLabel || '模拟器',
     payload?.poolName || '未选择卡池'
   ].filter(Boolean);
-  const primaryCards = useMemo(() => {
+  const statRows = useMemo(() => {
     const upLabel = payload?.poolType === 'standard' ? payload?.guaranteeProgress?.label : 'UP 结果';
     const upValue = payload?.poolType === 'standard'
       ? payload?.guaranteeProgress?.summary
@@ -414,35 +549,76 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
       : payload?.winRate !== null
         ? `不歪率 ${payload?.winRate}%`
         : '当前池型无 UP 统计';
+    const averageHint = payload?.poolType === 'standard'
+      ? '按全部 6★ 间隔统计'
+      : '按目标 UP 6★ 间隔统计';
+
+    const combinedPity = {
+      id: 'current-pity',
+      label: '当前保底',
+      value: `${payload?.currentPity6 ?? 0}/${payload?.currentPity5 ?? 0}`,
+      hint: '6★ / 5★',
+      accent: true,
+    };
 
     return [
-      {
-        label: '总抽数',
-        value: payload?.totalPulls ?? 0,
-        subValue: `当前卡池：${payload?.poolName || '未选择卡池'}`,
-      },
-      {
-        label: '6星',
-        value: payload?.sixStarCount ?? 0,
-        subValue: `出率 ${payload?.sixStarRate || '0.00'}%`,
-      },
-      {
-        label: '5星',
-        value: payload?.fiveStarCount ?? 0,
-        subValue: `出率 ${payload?.fiveStarRate || '0.00'}%`,
-      },
-      {
-        label: upLabel,
-        value: upValue,
-        subValue: upSub,
-      },
+      [
+        {
+          id: 'total-pulls',
+          label: '总抽数',
+          value: payload?.totalPulls ?? 0,
+          hint: `当前卡池：${payload?.poolName || '未选择卡池'}`,
+          accent: true,
+        },
+        {
+          id: 'six-star',
+          label: '6★',
+          value: payload?.sixStarCount ?? 0,
+          hint: `出率 ${payload?.sixStarRate || '0.00'}%`,
+        },
+        {
+          id: 'five-star',
+          label: '5★',
+          value: payload?.fiveStarCount ?? 0,
+          hint: `出率 ${payload?.fiveStarRate || '0.00'}%`,
+        },
+        {
+          id: 'up-result',
+          label: upLabel,
+          value: upValue,
+          hint: upSub,
+        },
+      ],
+      [
+        {
+          ...combinedPity,
+        },
+        {
+          id: 'avg-six',
+          label: '平均出货',
+          value: payload?.avgPullsPerSixStar ? `${payload.avgPullsPerSixStar} 抽` : '--',
+          hint: averageHint,
+        },
+        {
+          id: 'guarantee',
+          label: payload?.guaranteeProgress?.label || '保底节点',
+          value: payload?.guaranteeProgress?.summary || '0/0',
+          hint: payload?.guaranteeProgress?.achieved ? '当前节点已完成' : '当前节点推进中',
+          accent: true,
+        },
+      ],
+      (payload?.resourceItems || []).map((item) => ({
+        ...item,
+        icon: getResourceIcon(item.id)
+      }))
     ];
   }, [payload]);
 
   return (
     <div ref={ref} style={{ ...cardStyles.root, height: 'auto', minHeight: `${SHARE_CARD_HEIGHT}px` }}>
-      <div style={cardStyles.gridOverlay} />
-      <div style={cardStyles.glow} />
+      <div style={cardStyles.backgroundDecor} />
+      <div style={cardStyles.backgroundPanel} />
+      <div style={cardStyles.backgroundEdge} />
 
       <div style={cardStyles.header}>
         <div style={cardStyles.titleBlock}>
@@ -455,49 +631,25 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
           </div>
         </div>
 
-        <ShareBrandPanel
-          theme="dark"
-          accentColor={accentColor}
-          chips={brandChips}
-          style={{ width: '240px' }}
-        />
+        <div style={cardStyles.badges}>
+          {brandChips.map((chip) => (
+            <div key={chip} style={cardStyles.badge}>
+              {chip}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div style={{ ...cardStyles.metricGrid, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-        {primaryCards.map((card) => (
-          <div key={card.label} style={{ ...cardStyles.metricCard, borderColor: accentColor }}>
-            <div style={cardStyles.metricLabel}>{card.label}</div>
-            <div style={{ ...cardStyles.metricValue, color: accentColor }}>{card.value}</div>
-            <div style={cardStyles.metricSub}>{card.subValue}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={cardStyles.footerGrid}>
-        <div style={cardStyles.footerCard}>
-          <div style={cardStyles.footerLabel}>当前 6 星保底</div>
-          <div style={cardStyles.footerValue}>{payload?.currentPity6 ?? 0}</div>
-          <div style={cardStyles.footerHint}>距离下一次高稀有度出货的累计垫刀</div>
-        </div>
-
-        <div style={cardStyles.footerCard}>
-          <div style={cardStyles.footerLabel}>当前 5 星保底</div>
-          <div style={cardStyles.footerValue}>{payload?.currentPity5 ?? 0}</div>
-          <div style={cardStyles.footerHint}>10 抽小保底进度</div>
-        </div>
-
-        <div style={cardStyles.footerCard}>
-          <div style={cardStyles.footerLabel}>平均出货</div>
-          <div style={cardStyles.footerValue}>{payload?.avgPullsPerSixStar ?? '0.00'}</div>
-          <div style={cardStyles.footerHint}>按目标 UP 6★ 间隔统计，单位：抽/UP</div>
-        </div>
-
-        <div style={cardStyles.footerCard}>
-          <div style={cardStyles.footerLabel}>{payload?.guaranteeProgress?.label || '保底节点'}</div>
-          <div style={cardStyles.footerValue}>{payload?.guaranteeProgress?.summary || '0/0'}</div>
-          <div style={cardStyles.footerHint}>
-            {payload?.guaranteeProgress?.achieved ? '当前节点已完成' : '当前节点尚未完成'}
-          </div>
+      <div style={cardStyles.statsPanel}>
+        <div style={cardStyles.statsPanelTitle}>核心统计</div>
+        <div style={cardStyles.statsRows}>
+          {statRows.filter((row) => Array.isArray(row) && row.length > 0).map((row, rowIndex) => (
+            <div key={`stats-row-${rowIndex}`} style={cardStyles.statsRow}>
+              {row.map((item) => (
+                <StatPill key={item.id} item={item} accentColor={accentColor} />
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -526,6 +678,17 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                   <span>{section.featured || payload?.upCharacter || '当前目标'}</span>
                   <span>·</span>
                   <span>合计 {section.totalPulls} 抽</span>
+                  <span>·</span>
+                  <span>垫刀 {section.hidePityState ? '多账号' : `${section.currentPity}/${section.currentPity5}`}</span>
+                  <span>·</span>
+                  <span>平均 6★ {formatAveragePulls(section.avgSixStarPulls)}</span>
+                  <span>·</span>
+                  <span>
+                    {section.type === 'standard' ? '平均 5★' : '平均 UP'}{' '}
+                    {section.type === 'standard'
+                      ? formatAveragePulls(section.avgFiveStarPulls)
+                      : formatAveragePulls(section.avgUpPulls)}
+                  </span>
                 </div>
               </div>
 
@@ -550,9 +713,6 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                       <div style={cardStyles.timelineStageTop}>
                         <span style={cardStyles.timelineStageChip}>{entry.stageLabel}</span>
                         <span style={cardStyles.timelineResult}>{entry.resultSummary}</span>
-                      </div>
-                      <div style={cardStyles.timelineMeta}>
-                        阶段上限 {entry.targetPulls} 抽{entry.metaSummary ? ` · ${entry.metaSummary}` : ''}
                       </div>
                       <div style={cardStyles.timelineBarTrack}>
                         <div
@@ -596,9 +756,18 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
 
       <div style={cardStyles.legal}>
         <div style={cardStyles.legalTextWrap}>
-          <span>本分享卡仅保留模拟器汇总统计，不含账号、UID、时间戳与资源账本。</span>
+          <span>本分享卡仅保留模拟器汇总统计与资源消耗摘要，不含账号、UID、时间戳与逐抽明细。</span>
           <span>扫码或访问站点即可继续分析；分享卡仅限本地生成，不创建公共链接。</span>
         </div>
+        <ShareBrandPanel
+          theme="dark"
+          accentColor={accentColor}
+          compact
+          showChips={false}
+          showHeader={false}
+          qrSize={88}
+          style={{ width: '236px', marginLeft: 'auto' }}
+        />
       </div>
     </div>
   );

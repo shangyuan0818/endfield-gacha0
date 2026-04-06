@@ -1,6 +1,6 @@
-const JADE_ICON_URL = 'https://static.warfarin.wiki/v4/itemicon/item_diamond.webp';
-const ORIGINITE_ICON_URL = 'https://static.warfarin.wiki/v4/itemicon/item_originium_recharge.webp';
-const ARSENAL_ICON_URL = 'https://static.warfarin.wiki/v4/itemicon/item_gachabyproducts_weapongold.webp';
+const JADE_ICON_URL = '/resource-icons/item_diamond.webp';
+const ORIGINITE_ICON_URL = '/resource-icons/item_originium_recharge.webp';
+const ARSENAL_ICON_URL = '/resource-icons/item_gachabyproducts_weapongold.webp';
 
 export const RESOURCE_ICON_URLS = {
   jade: JADE_ICON_URL,

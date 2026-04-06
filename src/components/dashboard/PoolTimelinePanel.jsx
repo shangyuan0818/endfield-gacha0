@@ -217,7 +217,6 @@ function MetricItem({ label, value }) {
 function TimelineStageCard({ entry, sectionType, featured }) {
   const compact = entry.stageKind === 'fiveStar';
   const stamp = getStampConfig(entry, sectionType);
-  const stageDropCount = entry.dropBadges.reduce((sum, badge) => sum + badge.count, 0);
   const widthPercent = Math.max(
     compact ? 10 : 12,
     Math.min(100, (entry.pulls / Math.max(entry.targetPulls || 1, 1)) * 100)
@@ -240,11 +239,6 @@ function TimelineStageCard({ entry, sectionType, featured }) {
           <span className={`truncate font-bold text-zinc-700 dark:text-zinc-300 ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
             {entry.resultSummary}
           </span>
-        </div>
-
-        <div className={`font-mono uppercase tracking-wide text-zinc-400 dark:text-zinc-500 ${compact ? 'mb-2 text-[9px] sm:text-[10px]' : 'mb-2 sm:mb-3 text-[10px] sm:text-[11px]'}`}>
-          阶段上限 {entry.targetPulls} 抽 · 出货 {stageDropCount} 件
-          {entry.metaSummary ? ` · ${entry.metaSummary}` : ''}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">

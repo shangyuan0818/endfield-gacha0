@@ -117,6 +117,39 @@ async function main() {
     '偏移节点日期应取 6★ 实际出货时间，不能回退到阶段起始的 5★ 日期',
   );
 
+  const freeTenHistory = Array.from({ length: 10 }, (_, index) => ({
+    id: `free-ten-${index + 1}`,
+    seq_id: 30 + index,
+    timestamp: `2026-02-05T12:${String(index).padStart(2, '0')}:00+08:00`,
+    rarity: index === 3 ? 5 : index === 7 ? 6 : 4,
+    pool_id: 'pool-lev',
+    is_free: true,
+    isStandard: index === 7 ? false : undefined,
+    character_name: index === 3 ? '陈千语' : index === 7 ? '莱万汀' : `素材${index + 1}`,
+  }));
+
+  const freeTenSection = buildSinglePoolTimelineSection({
+    pool: {
+      id: 'pool-lev',
+      name: '熔火灼痕',
+      type: 'limited',
+      up_character: '莱万汀',
+      start_time: '2026-01-22T12:00:00+08:00',
+      end_time: '2026-02-07T12:00:00+08:00',
+    },
+    history: freeTenHistory,
+    currentPityOverride: 0,
+    currentPity5Override: 0,
+  });
+
+  assert.equal(freeTenSection.entries.length, 1, '免费十连应合并成单个时间线节点');
+  assert.equal(freeTenSection.entries[0].stageLabel, '免费十连', '免费节点应直接标记为免费十连');
+  assert.match(
+    freeTenSection.entries[0].resultSummary,
+    /莱万汀/,
+    '免费十连节点应保留整组结果摘要，而不是在 6★ 处切段',
+  );
+
   console.log('dashboard ordering verification passed');
 }
 

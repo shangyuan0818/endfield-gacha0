@@ -13,6 +13,7 @@ import confetti from 'canvas-confetti';
 import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import CountdownTimer from './CountdownTimer';
+import SpringPreviewCard from './SpringPreviewCard';
 import HomeAnnouncementContent from './AnnouncementContent';
 import CollapsibleContent from './CollapsibleContent';
 import HomeFriendlyLinksCard from './FriendlyLinksCard';
@@ -331,28 +332,20 @@ const HomePage = React.memo(() => {
 
         <HomeRotationScheduleCard poolSchedule={poolSchedule} now={now} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.3fr] gap-6">
           <HomeFriendlyLinksCard />
 
-          <div className="flex flex-col gap-6 h-full">
-            <CountdownTimer
-              targetDate="2026-04-11T19:30:00+08:00"
-              title="「春晓时」前瞻特别节目"
-              subTitle="Version Preview Livestream"
-              customEndedContent={<span>前瞻直播已开始</span>}
-              size="small"
-              link="https://live.bilibili.com/1921300321"
-              linkText="前往直播间"
-              bgImage="https://i0.hdslb.com/bfs/new_dyn/462b5299307251703f6764936487aa751265652806.jpg@1416w_798h_1c.webp"
-              theme="spring"
-            />
-            <CountdownTimer
-              targetDate="2026-04-15T12:00:00+08:00"
-              title="下个版本倒计时"
-              subTitle="下个版本发布"
-              customEndedContent={<span>版本已上线</span>}
-              size="small"
-            />
+          <div className="flex flex-col gap-6">
+            <SpringPreviewCard />
+            <div className="shrink-0 min-h-32">
+              <CountdownTimer
+                targetDate="2026-04-15T12:00:00+08:00"
+                title="下个版本倒计时"
+                subTitle="下个版本发布"
+                customEndedContent={<span>版本已上线</span>}
+                size="small"
+              />
+            </div>
           </div>
         </div>
       </div>

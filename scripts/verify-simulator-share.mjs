@@ -15,6 +15,7 @@ const TOP_LEVEL_KEYS = [
   'poolName',
   'poolType',
   'poolTypeLabel',
+  'resourceItems',
   'sixStarCount',
   'sixStarRate',
   'totalPulls',
@@ -24,6 +25,7 @@ const TOP_LEVEL_KEYS = [
 ];
 
 const GUARANTEE_KEYS = ['achieved', 'current', 'label', 'summary', 'target'];
+const RESOURCE_ITEM_KEYS = ['hint', 'id', 'label', 'value'];
 
 function assertAllowedShape(payload) {
   assert.deepEqual(
@@ -37,6 +39,14 @@ function assertAllowedShape(payload) {
     [...GUARANTEE_KEYS].sort(),
     'share payload.guaranteeProgress 字段必须严格受白名单约束'
   );
+
+  payload.resourceItems.forEach((item) => {
+    assert.deepEqual(
+      Object.keys(item).sort(),
+      [...RESOURCE_ITEM_KEYS].sort(),
+      'share payload.resourceItems 字段必须严格受白名单约束'
+    );
+  });
 }
 
 function assertNoForbiddenContent(serialized, forbiddenValues) {
@@ -82,6 +92,12 @@ const limitedPayload = buildSimulatorSharePayload({
       hasReceived: true,
     },
   },
+  resourceLedger: {
+    jadeSpent: 68500,
+    originiteEquivalent: 913.3,
+    arsenalGained: 5200,
+    arsenalSpent: 1980,
+  },
 });
 
 assertAllowedShape(limitedPayload);
@@ -90,6 +106,7 @@ assert.equal(limitedPayload.guaranteeProgress.target, 120);
 assert.equal(limitedPayload.guaranteeProgress.summary, '已达成');
 assert.equal(limitedPayload.upSixStarCount, 2);
 assert.equal(limitedPayload.winRate, '66.67');
+assert.equal(limitedPayload.resourceItems.length, 4);
 
 const weaponPayload = buildSimulatorSharePayload({
   currentPoolObj: {
@@ -112,6 +129,12 @@ const weaponPayload = buildSimulatorSharePayload({
       current: 52,
       hasReceived: false,
     },
+  },
+  resourceLedger: {
+    jadeSpent: 12500,
+    originiteEquivalent: 166.7,
+    arsenalGained: 600,
+    arsenalSpent: 10296,
   },
 });
 
@@ -137,6 +160,12 @@ const standardPayload = buildSimulatorSharePayload({
     currentPity5: 4,
   },
   pityInfoWithGuarantee: {},
+  resourceLedger: {
+    jadeSpent: 105500,
+    originiteEquivalent: 1406.7,
+    arsenalGained: 9400,
+    arsenalSpent: 0,
+  },
 });
 
 assertAllowedShape(standardPayload);
@@ -153,6 +182,7 @@ const standardText = buildSimulatorShareText(standardPayload);
 assert.match(limitedText, /已脱敏分享卡/);
 assert.match(weaponText, /80抽首轮限定必出：52\/80/);
 assert.match(standardText, /300抽自选进度：211\/300/);
+assert.match(limitedText, /耗玉：68,500/);
 assert.match(limitedText, new RegExp(SHARE_BRAND_LINK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 const serializedPayloads = [
