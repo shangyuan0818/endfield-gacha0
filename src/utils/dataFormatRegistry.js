@@ -2,6 +2,10 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function passthroughImportPayload(data) {
+  return data;
+}
+
 function looksLikeInternalPayload(data) {
   return Boolean(
     data
@@ -56,6 +60,7 @@ export const DATA_FORMAT_REGISTRY = Object.freeze([
     kind: 'json',
     fileExtensions: ['json'],
     detect: looksLikeCurrentInternalPayload,
+    normalizeImportPayload: passthroughImportPayload,
   },
   {
     id: 'internal_json_legacy',
@@ -64,6 +69,7 @@ export const DATA_FORMAT_REGISTRY = Object.freeze([
     kind: 'json',
     fileExtensions: ['json'],
     detect: looksLikeLegacyInternalPayload,
+    normalizeImportPayload: passthroughImportPayload,
   },
   {
     id: 'internal_csv_flat',
@@ -90,4 +96,17 @@ export function getDataFormatById(formatId) {
 
 export function detectImportFormat(data) {
   return listSupportedImportFormats().find(format => format.detect(data)) || null;
+}
+
+export function prepareImportPayload(data, format = null) {
+  const resolvedFormat = format || detectImportFormat(data);
+  if (!resolvedFormat) {
+    return data;
+  }
+
+  if (typeof resolvedFormat.normalizeImportPayload !== 'function') {
+    return data;
+  }
+
+  return resolvedFormat.normalizeImportPayload(data);
 }

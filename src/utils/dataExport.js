@@ -12,6 +12,7 @@ import { getDataFormatById } from './dataFormatRegistry.js';
 
 export const EXPORT_SCHEMA_VERSION = '3.0.0';
 export const EXPORT_FORMAT_ID = 'internal_json_v3';
+export const EXPORT_CSV_FORMAT_ID = 'internal_csv_flat';
 const exportFormat = getDataFormatById(EXPORT_FORMAT_ID);
 
 function getHistoryPoolId(record) {
@@ -494,4 +495,31 @@ export function buildExportCsvContent(payload) {
   ];
 
   return `\uFEFF${[headers.join(','), ...rows].join('\r\n')}`;
+}
+
+export function buildExportContent(formatId, payload) {
+  const format = getDataFormatById(formatId);
+  if (!format) {
+    throw new Error(`不支持的导出格式: ${formatId}`);
+  }
+
+  if (formatId === EXPORT_FORMAT_ID) {
+    return {
+      content: buildExportJsonContent(payload),
+      mimeType: 'application/json',
+      extension: 'json',
+      format,
+    };
+  }
+
+  if (formatId === EXPORT_CSV_FORMAT_ID) {
+    return {
+      content: buildExportCsvContent(payload),
+      mimeType: 'text/csv;charset=utf-8;',
+      extension: 'csv',
+      format,
+    };
+  }
+
+  throw new Error(`导出格式尚未实现内容构建: ${formatId}`);
 }

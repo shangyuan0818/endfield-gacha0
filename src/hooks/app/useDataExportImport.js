@@ -2,8 +2,7 @@ import { useState, useCallback } from 'react';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import {
-  buildExportCsvContent,
-  buildExportJsonContent,
+  buildExportContent,
   buildExportPayload
 } from '../../utils/dataExport';
 import {
@@ -56,35 +55,26 @@ export function useDataExportImport({
     options
   }), [currentGameUid, currentPoolId, history, pools, user?.id]);
 
-  // 通用导出函数 - JSON
-  const handleExportJSON = useCallback((scopeOrOptions) => {
+  const exportByFormat = useCallback((scopeOrOptions, formatId) => {
     const payload = buildPayload(scopeOrOptions);
     if (payload.history.length === 0) {
       showToast('所选条件下无数据可导出', 'warning');
       return;
     }
 
-    triggerFileDownload(
-      buildExportJsonContent(payload),
-      'application/json',
-      'json'
-    );
+    const file = buildExportContent(formatId, payload);
+    triggerFileDownload(file.content, file.mimeType, file.extension);
   }, [buildPayload, showToast, triggerFileDownload]);
+
+  // 通用导出函数 - JSON
+  const handleExportJSON = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'internal_json_v3');
+  }, [exportByFormat]);
 
   // 通用导出函数 - CSV
   const handleExportCSV = useCallback((scopeOrOptions) => {
-    const payload = buildPayload(scopeOrOptions);
-    if (payload.history.length === 0) {
-      showToast('所选条件下无数据可导出', 'warning');
-      return;
-    }
-
-    triggerFileDownload(
-      buildExportCsvContent(payload),
-      'text/csv;charset=utf-8;',
-      'csv'
-    );
-  }, [buildPayload, showToast, triggerFileDownload]);
+    exportByFormat(scopeOrOptions, 'internal_csv_flat');
+  }, [exportByFormat]);
 
   // 导入文件处理
   const handleImportFile = useCallback((event) => {

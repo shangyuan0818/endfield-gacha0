@@ -1,6 +1,6 @@
 import { clampHistoryPity } from './historyRecordUtils.js';
 import { normalizeGameAccountMetadata } from './gameAccountMetadata.js';
-import { detectImportFormat } from './dataFormatRegistry.js';
+import { detectImportFormat, prepareImportPayload } from './dataFormatRegistry.js';
 
 const MAX_IMPORT_ERRORS = 10;
 const VALID_POOL_TYPES = new Set([
@@ -296,21 +296,10 @@ export function getHistoryImportDedupKey(record) {
 export function validateAndNormalizeImportData(data, options = {}) {
   const errors = [];
   const detectedFormat = detectImportFormat(data);
+  let sourceData = data;
 
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: ['无效的数据格式'] };
-  }
-
-  if (!Array.isArray(data.pools)) {
-    errors.push('缺少 pools 字段或格式错误');
-  }
-
-  if (!Array.isArray(data.history)) {
-    errors.push('缺少 history 字段或格式错误');
-  }
-
-  if (errors.length > 0) {
-    return { valid: false, errors };
   }
 
   if (!detectedFormat) {
@@ -318,6 +307,31 @@ export function validateAndNormalizeImportData(data, options = {}) {
       valid: false,
       errors: ['暂不支持该导入格式；当前仅兼容站内 JSON v3 与站内旧版 JSON'],
     };
+  }
+
+  try {
+    sourceData = prepareImportPayload(data, detectedFormat);
+  } catch (error) {
+    return {
+      valid: false,
+      errors: [`导入格式预处理失败: ${error?.message || '未知错误'}`],
+    };
+  }
+
+  if (!sourceData || typeof sourceData !== 'object') {
+    return { valid: false, errors: ['导入格式预处理失败：未返回对象 payload'] };
+  }
+
+  if (!Array.isArray(sourceData.pools)) {
+    errors.push('缺少 pools 字段或格式错误');
+  }
+
+  if (!Array.isArray(sourceData.history)) {
+    errors.push('缺少 history 字段或格式错误');
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
   }
 
   const currentUserId = options.currentUserId || null;
@@ -330,9 +344,9 @@ export function validateAndNormalizeImportData(data, options = {}) {
   const normalizedHistory = [];
   const poolLookup = new Map();
   const knownPoolIds = new Set(existingPoolIds);
-  const accountLookup = buildAccountLookup(data.accounts);
+  const accountLookup = buildAccountLookup(sourceData.accounts);
 
-  data.pools.forEach((pool, index) => {
+  sourceData.pools.forEach((pool, index) => {
     const normalized = normalizeImportedPool(pool, currentUserId);
     if (normalized.errors.length > 0) {
       normalized.errors.forEach((error) => {
@@ -352,7 +366,7 @@ export function validateAndNormalizeImportData(data, options = {}) {
   });
 
   const historyKeys = new Set();
-  data.history.forEach((record, index) => {
+  sourceData.history.forEach((record, index) => {
     const normalized = normalizeImportedHistoryRecord(record, {
       currentUserId,
       poolLookup,
@@ -400,10 +414,10 @@ export function validateAndNormalizeImportData(data, options = {}) {
     normalizedData: {
       sourceFormatId: detectedFormat.id,
       sourceFormatLabel: detectedFormat.label,
-      schemaVersion: normalizeString(data.schemaVersion || data.version),
-      importedAt: normalizeString(data.exportTime || data.exportedAt) || new Date().toISOString(),
-      filters: data.filters || null,
-      summary: data.summary || null,
+      schemaVersion: normalizeString(sourceData.schemaVersion || sourceData.version),
+      importedAt: normalizeString(sourceData.exportTime || sourceData.exportedAt) || new Date().toISOString(),
+      filters: sourceData.filters || null,
+      summary: sourceData.summary || null,
       pools: normalizedPools,
       history: normalizedHistory,
       accounts: normalizedAccounts
