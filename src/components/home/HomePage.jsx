@@ -334,7 +334,18 @@ const HomePage = React.memo(() => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <HomeFriendlyLinksCard />
 
-          <div className="h-full">
+          <div className="flex flex-col gap-6 h-full">
+            <CountdownTimer
+              targetDate="2026-04-11T19:30:00+08:00"
+              title="「春晓时」前瞻特别节目"
+              subTitle="Version Preview Livestream"
+              customEndedContent={<span>前瞻直播已开始</span>}
+              size="small"
+              link="https://live.bilibili.com/1921300321"
+              linkText="前往直播间"
+              bgImage="https://i0.hdslb.com/bfs/new_dyn/462b5299307251703f6764936487aa751265652806.jpg@1416w_798h_1c.webp"
+              theme="spring"
+            />
             <CountdownTimer
               targetDate="2026-04-15T12:00:00+08:00"
               title="下个版本倒计时"

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ArrowRight, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { characterCache } from '../../utils/characterUtils';
@@ -14,6 +14,8 @@ const CountdownTimer = React.memo(function CountdownTimer({
   customEndedContent,
   size = 'normal',
   characterName = null,
+  bgImage = null,
+  theme = 'default',
 }) {
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
@@ -23,6 +25,24 @@ const CountdownTimer = React.memo(function CountdownTimer({
     ended: false,
   });
   const hasAutoConfettiFired = useRef(false);
+
+  const t = useMemo(() => ({
+    bg: theme === 'spring' ? 'bg-gradient-to-br from-[#f4faeb] to-[#e0f2c4] dark:from-[#18260d] dark:to-[#0f1708] border-[#a3d65c]/60 sm:border-[#a3d65c]/40 dark:border-[#a3d65c]/20 sm:dark:border-[#a3d65c]/20' : 'bg-white dark:bg-black border-endfield-yellow/80 sm:border-endfield-yellow/20',
+    textMain: theme === 'spring' ? 'text-zinc-900 dark:text-[#f4faeb]' : 'text-zinc-900 dark:text-white',
+    textSub: theme === 'spring' ? 'text-[#5a7a13] dark:text-[#a3d65c]' : 'text-zinc-500',
+    accentDot: theme === 'spring' ? 'bg-[#76a81b] shadow-[0_0_8px_rgba(118,168,27,0.8)] dark:bg-[#a3d65c] dark:shadow-[0_0_8px_rgba(163,214,92,0.8)]' : 'bg-endfield-yellow shadow-[0_0_8px_rgba(255,250,0,0.8)]',
+    accentText: theme === 'spring' ? 'text-[#76a81b] dark:text-[#a3d65c]' : 'text-zinc-500 dark:text-endfield-yellow/80',
+    linkHover: theme === 'spring' ? 'hover:text-[#76a81b] dark:hover:text-[#c3e394]' : 'hover:text-endfield-yellow',
+    linkBorder: theme === 'spring' ? 'border-[#5a7a13]/30 group-hover/link:border-[#76a81b] dark:border-[#a3d65c]/30 dark:group-hover/link:border-[#c3e394]' : 'border-zinc-400 dark:border-zinc-600 group-hover/link:border-endfield-yellow',
+    numBase: theme === 'spring' ? 'text-zinc-800 group-hover/time:text-[#76a81b] dark:text-[#f4faeb] dark:group-hover/time:text-[#c3e394]' : 'text-zinc-800 dark:text-white group-hover/time:text-endfield-yellow',
+    numHighlight: theme === 'spring' ? 'text-[#76a81b] dark:text-[#a3d65c]' : 'text-amber-500 dark:text-endfield-yellow',
+    numHighlightBg: theme === 'spring' ? 'bg-[#76a81b]/10 border-[#76a81b]/20 dark:bg-[#a3d65c]/10 dark:border-[#a3d65c]/20' : 'bg-endfield-yellow/10 border-endfield-yellow/20',
+    numUnderline: theme === 'spring' ? 'bg-[#c3e394] group-hover/time:bg-[#76a81b] dark:bg-[#5a7a13] dark:group-hover/time:bg-[#a3d65c]' : 'bg-zinc-200 dark:bg-zinc-800 group-hover/time:bg-endfield-yellow',
+    colon: theme === 'spring' ? 'text-[#a3d65c] dark:text-[#5a7a13]' : 'text-zinc-300 dark:text-zinc-800',
+    labelBase: theme === 'spring' ? 'text-[#5a7a13]/70 dark:text-[#a3d65c]/60' : 'text-zinc-400 dark:text-zinc-600',
+    labelHighlight: theme === 'spring' ? 'text-[#76a81b] dark:text-[#a3d65c]' : 'text-amber-500/70 dark:text-endfield-yellow/70',
+    gridBg: theme === 'spring' ? 'bg-[linear-gradient(rgba(118,168,27,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(118,168,27,0.06)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(163,214,92,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(163,214,92,0.06)_1px,transparent_1px))]' : 'bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px))]',
+  }), [theme]);
 
   const calculateAndFormat = useCallback((target) => {
     const now = new Date().getTime();
@@ -117,13 +137,18 @@ const CountdownTimer = React.memo(function CountdownTimer({
 
   return (
     <div
-      className={`w-full bg-white dark:bg-black relative overflow-hidden border-y-2 border-endfield-yellow/80 sm:border-2 sm:border-endfield-yellow/20 ${
+      className={`w-full relative overflow-hidden border-y-2 sm:border-2 ${t.bg} ${
         isSmall ? 'rounded-none sm:rounded-sm h-full flex flex-col' : ''
       }`}
     >
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+      {bgImage && (
+        <div className={`absolute inset-0 z-0 pointer-events-none ${theme === 'spring' ? 'opacity-[0.12] mix-blend-multiply dark:mix-blend-lighten' : 'opacity-20 dark:opacity-30 mix-blend-luminosity'}`}>
+          <img src={bgImage} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+      <div className={`absolute inset-0 ${t.gridBg} bg-[size:40px_40px] pointer-events-none z-0`}></div>
 
-      {!isSmall && (
+      {!isSmall && theme !== 'spring' && (
         <>
           <div className="hidden sm:block absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-endfield-yellow"></div>
           <div className="hidden sm:block absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-endfield-yellow"></div>
@@ -140,15 +165,15 @@ const CountdownTimer = React.memo(function CountdownTimer({
         <div
           className={`${
             isSmall
-              ? 'border-b border-zinc-100 dark:border-zinc-800 pb-3'
-              : 'flex-1 p-6 md:p-8 flex flex-col justify-between bg-gradient-to-r from-endfield-yellow/10 to-transparent border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800/50'
+              ? `border-b ${theme === 'spring' ? 'border-[#a3d65c]/30' : 'border-zinc-100 dark:border-zinc-800'} pb-3`
+              : `flex-1 p-6 md:p-8 flex flex-col justify-between bg-gradient-to-r ${theme === 'spring' ? 'from-[#dcf0bc]/50' : 'from-endfield-yellow/10'} to-transparent border-b md:border-b-0 md:border-r ${theme === 'spring' ? 'border-[#a3d65c]/30' : 'border-zinc-200 dark:border-zinc-800/50'}`
           }`}
         >
           <div>
             {!isSmall && (
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-1.5 h-1.5 bg-endfield-yellow animate-pulse shadow-[0_0_8px_rgba(255,250,0,0.8)]"></div>
-                <span className="text-zinc-500 dark:text-endfield-yellow/80 font-mono text-[10px] tracking-[0.2em] uppercase">
+                <div className={`w-1.5 h-1.5 animate-pulse rounded-sm ${t.accentDot}`}></div>
+                <span className={`${t.accentText} font-mono text-[10px] tracking-[0.2em] uppercase`}>
                   系统倒计时
                 </span>
               </div>
@@ -195,15 +220,15 @@ const CountdownTimer = React.memo(function CountdownTimer({
               </div>
             </div>
 
-            <div className={`${isSmall ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-4`}>
+            <div className={`${isSmall ? 'mt-3' : 'mt-6'} flex flex-wrap items-center gap-4 relative z-20`}>
               {link && (
                 <a
                   href={link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-endfield-yellow transition-colors group/link"
+                  className={`inline-flex items-center gap-2 self-start text-xs font-mono ${theme === 'spring' ? 'text-[#5a7a13] dark:text-[#a3d65c]' : 'text-zinc-500 dark:text-zinc-400'} ${t.linkHover} transition-colors group/link`}
                 >
-                  <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link:border-endfield-yellow pb-0.5">
+                  <span className={`border-b pb-0.5 ${t.linkBorder} transition-colors`}>
                     {linkText}
                   </span>
                   <ArrowRight size={12} className="group-hover/link:translate-x-1 transition-transform" />
@@ -214,9 +239,9 @@ const CountdownTimer = React.memo(function CountdownTimer({
                   href={secondaryLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 self-start text-xs font-mono text-zinc-500 dark:text-zinc-400 hover:text-pink-400 transition-colors group/link2"
+                  className={`inline-flex items-center gap-2 self-start text-xs font-mono ${theme === 'spring' ? 'text-[#5a7a13] dark:text-[#a3d65c]' : 'text-zinc-500 dark:text-zinc-400'} hover:text-pink-400 transition-colors group/link2`}
                 >
-                  <span className="border-b border-zinc-400 dark:border-zinc-600 group-hover/link2:border-pink-400 pb-0.5">
+                  <span className={`border-b pb-0.5 ${theme === 'spring' ? 'border-[#5a7a13]/30 dark:border-[#a3d65c]/30' : 'border-zinc-400 dark:border-zinc-600'} group-hover/link2:border-pink-400 transition-colors`}>
                     {secondaryLinkText}
                   </span>
                   <ArrowRight size={12} className="group-hover/link2:translate-x-1 transition-transform" />
@@ -244,7 +269,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
                 <div
                   className={`${
                     isSmall ? 'text-3xl sm:text-4xl pb-3' : 'text-2xl sm:text-4xl pb-6'
-                  } text-zinc-300 dark:text-zinc-800 font-light`}
+                  } ${t.colon} font-light`}
                 >
                   :
                 </div>
