@@ -2,7 +2,11 @@ import { useState, useCallback } from 'react';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
-import { saveGameAccountMetadata } from '../../utils/gameAccountMetadata.js';
+import {
+  buildImportedGameAccountMetadataEntries,
+  getHistoryRecordGameUid,
+  saveGameAccountMetadata
+} from '../../utils/gameAccountMetadata.js';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
 import { useCloudSync } from '../../hooks';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService.js';
@@ -83,6 +87,24 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     setFetchStatus(status);
   }, []);
 
+  const persistImportedAccountMetadata = useCallback(({
+    accounts,
+    historyRecords,
+    importedAt,
+    importSource
+  }) => {
+    const metadataEntries = buildImportedGameAccountMetadataEntries({
+      accounts,
+      historyRecords,
+      importedAt,
+      importSource
+    });
+
+    metadataEntries.forEach((entry) => {
+      saveGameAccountMetadata(entry);
+    });
+  }, []);
+
   /**
    * 直接保存卡池到 Supabase
    * 修改为：首次创建，后续不更新（避免多账号导入时覆盖）
@@ -150,9 +172,50 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     }
 
     if (result.backendImported) {
+      const importedAt = new Date().toISOString();
+      const importedGameUid = result.userInfo?.gameUid || result.userInfo?.hgUid || null;
+
       if (result.userInfo) {
         saveGameAccountMetadata(result.userInfo);
       }
+
+      try {
+        const refreshedCloudData = await loadCloudData(user);
+        applyCloudDataToStores(refreshedCloudData, {
+          setPools,
+          switchPool,
+          setHistory,
+          preferredPoolId: currentPoolId,
+          preferredGameUid: importedGameUid
+        });
+
+        if (importedGameUid) {
+          switchGameAccount(importedGameUid);
+        }
+
+        const refreshedHistory = Array.isArray(refreshedCloudData?.history)
+          ? refreshedCloudData.history
+          : [];
+        const importedHistoryRecords = importedGameUid
+          ? refreshedHistory.filter((record) => getHistoryRecordGameUid(record) === importedGameUid)
+          : refreshedHistory;
+
+        persistImportedAccountMetadata({
+          accounts: result.userInfo ? [result.userInfo] : [],
+          historyRecords: importedHistoryRecords,
+          importedAt,
+          importSource: 'official_api'
+        });
+      } catch (refreshError) {
+        console.error('[ImportManager] 刷新导入后的云端数据失败:', refreshError);
+        persistImportedAccountMetadata({
+          accounts: result.userInfo ? [result.userInfo] : [],
+          historyRecords: [],
+          importedAt,
+          importSource: 'official_api'
+        });
+      }
+
       setImportResult(result);
       setImportStatus(ImportStatus.SUCCESS);
       setSaveProgress({
@@ -175,6 +238,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     }
 
     try {
+      const importedAt = new Date().toISOString();
       setImportStatus(ImportStatus.SAVING);
       setSaveProgress({ current: 0, total: result.records.length });
       if (result.userInfo) {
@@ -226,12 +290,20 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         setPools,
         switchPool,
         setHistory,
-        preferredPoolId: currentPoolId
+        preferredPoolId: currentPoolId,
+        preferredGameUid: currentGameUid
       });
 
       if (currentGameUid) {
         switchGameAccount(currentGameUid);
       }
+
+      persistImportedAccountMetadata({
+        accounts: result.userInfo ? [result.userInfo] : [],
+        historyRecords,
+        importedAt,
+        importSource: 'official_api'
+      });
 
       setImportResult(finalResult);
       setImportStatus(ImportStatus.SUCCESS);
@@ -241,7 +313,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage(error.message || '保存数据失败');
     }
-  }, [currentPoolId, getExistingSeqIds, loadCloudData, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, user]);
+  }, [currentPoolId, getExistingSeqIds, loadCloudData, persistImportedAccountMetadata, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, user]);
 
   const handleReset = useCallback(() => {
     setImportStatus(ImportStatus.IDLE);

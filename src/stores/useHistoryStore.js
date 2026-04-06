@@ -2,12 +2,14 @@ import { create } from 'zustand';
 import { DEFAULT_DISPLAY_PITY } from '../constants/index.js';
 import {
   buildGameAccountServerTag,
+  getHistoryRecordGameUid,
+  getHistoryRecordTimestampMs,
   loadGameAccountMetadataMap,
   normalizeGameAccountMetadata
 } from '../utils/gameAccountMetadata.js';
 
 function getHistoryGameUid(record) {
-  return record?.game_uid || record?.gameUid || null;
+  return getHistoryRecordGameUid(record);
 }
 
 function getHistoryNickName(record) {
@@ -266,6 +268,7 @@ const useHistoryStore = create((set, get) => ({
       if (gameUid) {
         const metadata = getHistoryAccountMetadata(h, storedMetadataMap[gameUid]);
         if (!accountMap.has(gameUid)) {
+          const recordTimestamp = getHistoryRecordTimestampMs(h);
           accountMap.set(gameUid, {
             gameUid,
             nickName: metadata?.nickName || getHistoryNickName(h), // 优先使用昵称，否则使用 UID
@@ -275,6 +278,10 @@ const useHistoryStore = create((set, get) => ({
             region: metadata?.region || null,
             isOfficial: metadata?.isOfficial ?? null,
             serverTag: metadata?.serverTag || null,
+            lastImportedAt: metadata?.lastImportedAt || null,
+            lastImportedRecordAt: metadata?.lastImportedRecordAt || null,
+            lastImportSource: metadata?.lastImportSource || null,
+            latestRecordAt: recordTimestamp ? new Date(recordTimestamp).toISOString() : null,
             recordCount: 0
           });
         } else if (metadata) {
@@ -286,10 +293,23 @@ const useHistoryStore = create((set, get) => ({
             serverId: metadata.serverId || accountMap.get(gameUid).serverId,
             region: metadata.region || accountMap.get(gameUid).region,
             isOfficial: metadata.isOfficial ?? accountMap.get(gameUid).isOfficial,
-            serverTag: metadata.serverTag || accountMap.get(gameUid).serverTag
+            serverTag: metadata.serverTag || accountMap.get(gameUid).serverTag,
+            lastImportedAt: metadata.lastImportedAt || accountMap.get(gameUid).lastImportedAt,
+            lastImportedRecordAt: metadata.lastImportedRecordAt || accountMap.get(gameUid).lastImportedRecordAt,
+            lastImportSource: metadata.lastImportSource || accountMap.get(gameUid).lastImportSource
           });
         }
-        accountMap.get(gameUid).recordCount++;
+        const accountEntry = accountMap.get(gameUid);
+        accountEntry.recordCount++;
+
+        const recordTimestamp = getHistoryRecordTimestampMs(h);
+        const currentLatestTimestamp = getHistoryRecordTimestampMs({
+          timestamp: accountEntry.latestRecordAt
+        });
+
+        if (recordTimestamp && (!currentLatestTimestamp || recordTimestamp > currentLatestTimestamp)) {
+          accountEntry.latestRecordAt = new Date(recordTimestamp).toISOString();
+        }
       }
     });
 

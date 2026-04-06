@@ -16,6 +16,24 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
 import { deleteOwnAccount } from '../../services/selfAccountService';
 import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccountSession';
+import {
+  formatFreshnessAbsolute,
+  formatFreshnessRelative,
+  getFreshnessTone
+} from '../../utils/dataFreshness.js';
+
+function getFreshnessToneClasses(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    case 'notice':
+      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+    case 'stale':
+      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+  }
+}
 
 function MobileSettingsSection({ title, icon, children }) {
   const IconComponent = icon;
@@ -38,8 +56,8 @@ function MobileSettingsView() {
   const navigate = useNavigate();
   const { themeMode, setThemeMode } = useTheme();
   const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt } = useAuthStore();
-  const { pools, setPools, currentPoolId, switchPool, switchGameAccount } = usePoolStore();
-  const { history, setHistory } = useHistoryStore();
+  const { pools, setPools, currentPoolId, currentGameUid, switchPool, switchGameAccount } = usePoolStore();
+  const { history, setHistory, getGameAccountsFromHistory } = useHistoryStore();
   const { toasts, showToast, removeToast } = useToast();
   const { syncToCloud, loadPublicPools, deleteUserDataFromCloud } = useCloudSync({ showToast });
 
@@ -73,6 +91,7 @@ function MobileSettingsView() {
 
   const userPoolCount = myPools.length;
   const userHistoryCount = myHistory.length;
+  const gameAccounts = useMemo(() => getGameAccountsFromHistory(), [getGameAccountsFromHistory, history]);
 
   const getRoleInfo = (role) => {
     switch (role) {
@@ -376,6 +395,62 @@ function MobileSettingsView() {
                 <p className="mt-2 text-[10px] text-red-500 font-mono">
                   最近一次同步错误: {syncError}
                 </p>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div>
+                <p className="text-sm font-bold text-zinc-700 dark:text-zinc-300">导入新鲜度</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5 font-mono">
+                  查看各账号上次导入时间，以及当前数据停留到哪条记录。
+                </p>
+              </div>
+
+              {gameAccounts.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {gameAccounts.map((account) => (
+                    <div
+                      key={account.gameUid}
+                      className={`border px-3 py-3 ${
+                        currentGameUid === account.gameUid
+                          ? 'border-endfield-yellow bg-endfield-yellow/5'
+                          : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{account.nickName}</span>
+                            {account.serverTag && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                                {account.serverTag}
+                              </span>
+                            )}
+                            {currentGameUid === account.gameUid && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-endfield-yellow/15 text-amber-700 dark:text-endfield-yellow">
+                                当前账号
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[10px] font-mono text-zinc-500 dark:text-zinc-500">
+                            UID: {account.gameUid} · {account.recordCount} 条记录
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(account.lastImportedAt))}`}>
+                          {formatFreshnessRelative(account.lastImportedAt, '导入时间未知')}
+                        </span>
+                      </div>
+                      <div className="mt-2 space-y-1 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                        <div>上次导入: {formatFreshnessAbsolute(account.lastImportedAt)}</div>
+                        <div>最新记录: {formatFreshnessAbsolute(account.latestRecordAt)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 border border-dashed border-zinc-200 dark:border-zinc-700 px-3 py-3 text-[10px] font-mono text-zinc-500 dark:text-zinc-500">
+                  暂无可用的账号导入记录。
+                </div>
               )}
             </div>
 

@@ -9,7 +9,10 @@ import {
   getHistoryImportDedupKey,
   validateAndNormalizeImportData
 } from '../../utils/dataImport.js';
-import { saveGameAccountMetadata } from '../../utils/gameAccountMetadata.js';
+import {
+  buildImportedGameAccountMetadataEntries,
+  saveGameAccountMetadata
+} from '../../utils/gameAccountMetadata.js';
 
 /**
  * 数据导入导出 Hook
@@ -154,7 +157,12 @@ export function useDataExportImport({
       }
     });
 
-    (importedData.accounts || []).forEach((account) => {
+    buildImportedGameAccountMetadataEntries({
+      accounts: importedData.accounts || [],
+      historyRecords: importedData.history || [],
+      importedAt: importedData.importedAt,
+      importSource: importedData.sourceFormatId || 'file_import'
+    }).forEach((account) => {
       saveGameAccountMetadata(account);
     });
 

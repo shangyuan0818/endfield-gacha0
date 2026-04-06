@@ -22,10 +22,12 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
   const setAuthResolved = useAuthStore(state => state.setAuthResolved);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
   const setHistory = useHistoryStore(state => state.setHistory);
 
   // 使用 ref 存储 currentPoolId，避免将其作为 useEffect 依赖项导致循环
   const currentPoolIdRef = useRef(usePoolStore.getState().currentPoolId);
+  const currentGameUidRef = useRef(usePoolStore.getState().currentGameUid);
 
   // 订阅 currentPoolId 变化，更新 ref（不触发重渲染）
   useEffect(() => {
@@ -33,6 +35,16 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
       state => state.currentPoolId,
       (newPoolId) => {
         currentPoolIdRef.current = newPoolId;
+      }
+    );
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = usePoolStore.subscribe(
+      state => state.currentGameUid,
+      (newGameUid) => {
+        currentGameUidRef.current = newGameUid;
       }
     );
     return unsubscribe;
@@ -92,7 +104,8 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
                 setPools,
                 switchPool,
                 setHistory,
-                preferredPoolId: currentPoolIdRef.current
+                preferredPoolId: currentPoolIdRef.current,
+                preferredGameUid: currentGameUidRef.current
               });
               return cloudData;
             })
@@ -119,13 +132,45 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
     // 监听登录状态变化
     if (supabase) {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         setUser(session?.user ?? null);
         setAuthResolved(true);
         // 用户登录时更新最后在线时间
         if (session?.user) {
           updateLastSeen();
         }
+
+        if (event === 'INITIAL_SESSION') {
+          return;
+        }
+
+        queueMicrotask(async () => {
+          if (!isMounted) {
+            return;
+          }
+
+          if (session?.user) {
+            const cloudData = await loadCloudData(session.user).catch(() => null);
+            if (!isMounted) {
+              return;
+            }
+
+            applyCloudDataToStores(cloudData, {
+              setPools,
+              switchPool,
+              setHistory,
+              preferredPoolId: currentPoolIdRef.current,
+              preferredGameUid: currentGameUidRef.current
+            });
+            return;
+          }
+
+          setHistory([]);
+          switchGameAccount(null);
+          if (typeof loadPublicPools === 'function') {
+            await loadPublicPools().catch(() => null);
+          }
+        });
       });
 
       return () => {
@@ -137,7 +182,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
     return () => {
       isMounted = false;
     };
-  }, [loadCloudData, loadPublicPools, updateLastSeen, setAuthResolved, setUser, setPools, switchPool, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
+  }, [loadCloudData, loadPublicPools, updateLastSeen, setAuthResolved, setUser, setPools, switchPool, switchGameAccount, setHistory]); // 移除 currentPoolId 依赖，使用 ref 代替
 
   return {
     updateLastSeen

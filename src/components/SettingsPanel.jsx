@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw, AlertTriangle, X, Smartphone } from 'lucide-react';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
@@ -8,6 +8,24 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
 import { deleteOwnAccount } from '../services/selfAccountService';
 import { finalizeDeletedAccountSession } from '../utils/finalizeDeletedAccountSession';
+import {
+  formatFreshnessAbsolute,
+  formatFreshnessRelative,
+  getFreshnessTone
+} from '../utils/dataFreshness.js';
+
+function getFreshnessToneClasses(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    case 'notice':
+      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+    case 'stale':
+      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+  }
+}
 
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const navigate = useNavigate();
@@ -15,10 +33,12 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const userRole = useAuthStore(state => state.userRole);
   const logout = useAuthStore(state => state.logout);
   const pools = usePoolStore(state => state.pools);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
   const setPools = usePoolStore(state => state.setPools);
   const switchPool = usePoolStore(state => state.switchPool);
   const switchGameAccount = usePoolStore(state => state.switchGameAccount);
   const history = useHistoryStore(state => state.history);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
   const setHistory = useHistoryStore(state => state.setHistory);
   const { themeMode, setThemeMode } = useTheme();
   const { loadPublicPools } = useCloudSync({ showToast: () => {} });
@@ -51,6 +71,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
   const userPoolCount = myPools.length;
   const userHistoryCount = myHistory.length;
+  const gameAccounts = useMemo(() => getGameAccountsFromHistory(), [getGameAccountsFromHistory, history]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== '确认删除') return;
@@ -327,6 +348,64 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100">{userHistoryCount}</div>
                 <div className="text-xs text-zinc-500 dark:text-zinc-500 uppercase tracking-wider font-bold">抽卡记录</div>
               </div>
+            </div>
+
+            <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">导入新鲜度</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
+                    查看各账号上次导入时间，以及当前数据停留到哪条记录。
+                  </p>
+                </div>
+              </div>
+
+              {gameAccounts.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {gameAccounts.map((account) => (
+                    <div
+                      key={account.gameUid}
+                      className={`border px-4 py-3 ${
+                        currentGameUid === account.gameUid
+                          ? 'border-endfield-yellow bg-endfield-yellow/5'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-slate-50/30 dark:bg-zinc-950/30'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-zinc-800 dark:text-zinc-100">{account.nickName}</span>
+                            {account.serverTag && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                                {account.serverTag}
+                              </span>
+                            )}
+                            {currentGameUid === account.gameUid && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-endfield-yellow/15 text-amber-700 dark:text-endfield-yellow">
+                                当前账号
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-500">
+                            UID: {account.gameUid} · {account.recordCount} 条记录
+                          </div>
+                        </div>
+                        <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(account.lastImportedAt))}`}>
+                          {formatFreshnessRelative(account.lastImportedAt, '导入时间未知')}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid gap-2 md:grid-cols-2 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                        <div>上次导入: {formatFreshnessAbsolute(account.lastImportedAt)}</div>
+                        <div>最新记录: {formatFreshnessAbsolute(account.latestRecordAt)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-4 border border-dashed border-zinc-200 dark:border-zinc-800 px-4 py-3 text-xs font-mono text-zinc-500 dark:text-zinc-500">
+                  暂无可用的账号导入记录。
+                </div>
+              )}
             </div>
 
             {/* 删除我的抽卡数据 */}

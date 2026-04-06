@@ -6,9 +6,28 @@ import {
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
 import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
+import {
+  formatFreshnessAbsolute,
+  formatFreshnessRelative,
+  getFreshnessTone,
+  getLatestHistoryTimestampMs
+} from '../../utils/dataFreshness.js';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 import { getMobilePathForTab } from '../../constants/appRoutes';
+
+function getFreshnessToneClasses(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    case 'notice':
+      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+    case 'stale':
+      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+  }
+}
 
 /**
  * 移动端卡池选择器 - 完整版
@@ -93,8 +112,15 @@ function MobilePoolSelector() {
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
-    if (!currentGameUid) return null;
-    return gameAccounts.find(a => a.gameUid === currentGameUid);
+    if (currentGameUid) {
+      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    }
+
+    if (gameAccounts.length === 1) {
+      return gameAccounts[0];
+    }
+
+    return null;
   }, [gameAccounts, currentGameUid]);
 
   // 按类型分组并排序的卡池
@@ -112,6 +138,27 @@ function MobilePoolSelector() {
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
   const showOverviewOptions = Boolean(currentGameUid);
   const allOverviewId = `${POOL_GROUP_PREFIX}all`;
+
+  const currentViewLatestRecordAt = useMemo(() => {
+    const latestTimestamp = getLatestHistoryTimestampMs(filteredHistory);
+    return latestTimestamp ? new Date(latestTimestamp).toISOString() : null;
+  }, [filteredHistory]);
+
+  const currentPoolLatestRecordAt = useMemo(() => {
+    if (!currentPoolId || isPoolGroupId(currentPoolId)) {
+      return currentViewLatestRecordAt;
+    }
+
+    const latestTimestamp = getLatestHistoryTimestampMs(
+      filteredHistory.filter((record) => (record.poolId || record.pool_id) === currentPoolId)
+    );
+
+    return latestTimestamp ? new Date(latestTimestamp).toISOString() : null;
+  }, [currentPoolId, currentViewLatestRecordAt, filteredHistory]);
+
+  const currentPoolFreshnessLabel = selectedPool?.isGroupMode
+    ? '当前筛选'
+    : `当前卡池 · ${selectedPool?.name || '未选择'}`;
 
   useEffect(() => {
     if (gameAccounts.length === 1) {
@@ -274,6 +321,9 @@ function MobilePoolSelector() {
                     <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
                       UID: {account.gameUid} · {account.recordCount} 条记录
                     </div>
+                    <div className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                      上次导入: {formatFreshnessRelative(account.lastImportedAt, '时间未知')}
+                    </div>
                   </button>
                 ))}
               </div>
@@ -290,6 +340,50 @@ function MobilePoolSelector() {
           <span className="text-zinc-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> 抽
         </div>
       </div>
+
+      {(currentAccount || gameAccounts.length > 1 || currentPoolLatestRecordAt) && (
+        <div className="grid gap-2">
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+                  账号数据状态
+                </div>
+                <div className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
+                  {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : '多账号总览'}
+                </div>
+              </div>
+              <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentAccount?.lastImportedAt))}`}>
+                {currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, '导入时间未知') : '切换账号可查看'}
+              </span>
+            </div>
+            <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+              {currentAccount
+                ? `上次导入: ${formatFreshnessAbsolute(currentAccount.lastImportedAt)}`
+                : '当前正在汇总多个账号，导入时间请按账号分别查看。'}
+            </div>
+          </div>
+
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+                  卡池数据状态
+                </div>
+                <div className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
+                  {currentPoolFreshnessLabel}
+                </div>
+              </div>
+              <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}>
+                {formatFreshnessRelative(currentPoolLatestRecordAt, '暂无记录')}
+              </span>
+            </div>
+            <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+              最新记录: {formatFreshnessAbsolute(currentPoolLatestRecordAt)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 卡池选择器 */}
       {(!pools || pools.length === 0) ? (

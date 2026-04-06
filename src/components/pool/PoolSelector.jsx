@@ -6,8 +6,63 @@ import ImportManager from '../../features/import/ImportManager';
 import PoolGroupCardRail from './PoolGroupCardRail';
 import { buildPoolSelectorGroups, getPoolGroupId } from '../../utils/poolSelectorDisplay';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
+import {
+  formatFreshnessAbsolute,
+  formatFreshnessRelative,
+  getFreshnessTone,
+  getLatestHistoryTimestampMs
+} from '../../utils/dataFreshness.js';
 import { isPoolGroupId } from '../../stores/usePoolStore';
 import { getDesktopPathForTab } from '../../constants/appRoutes';
+
+function getFreshnessToneClasses(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    case 'notice':
+      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+    case 'stale':
+      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+  }
+}
+
+function CompactFreshnessCard({
+  label,
+  title,
+  badgeText,
+  metaText,
+  detailText,
+  tone,
+  fallback = false
+}) {
+  return (
+    <div className="min-w-[220px] flex-1 border border-zinc-200 bg-white/70 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/70">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
+            {label}
+          </div>
+          <div className="mt-1 truncate text-xs font-bold text-slate-800 dark:text-zinc-100">
+            {title}
+          </div>
+          <div className="mt-1 truncate text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+            {metaText}
+          </div>
+          {detailText && (
+            <div className="truncate text-[10px] font-mono text-slate-400 dark:text-zinc-500">
+              {detailText}
+            </div>
+          )}
+        </div>
+        <span className={`shrink-0 px-2 py-1 text-[10px] font-bold border ${getFreshnessToneClasses(tone)} ${fallback ? 'opacity-80' : ''}`}>
+          {badgeText}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 /**
  * 卡池选择器组件 V3 (Technical Style)
@@ -86,6 +141,47 @@ const PoolSelector = () => {
 
   const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
 
+  const currentAccount = useMemo(() => {
+    if (currentGameUid) {
+      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    }
+
+    if (gameAccounts.length === 1) {
+      return gameAccounts[0];
+    }
+
+    return null;
+  }, [currentGameUid, gameAccounts]);
+
+  const currentPool = useMemo(() => {
+    if (!currentPoolId || isPoolGroupId(currentPoolId)) {
+      return null;
+    }
+
+    return pools.find((pool) => pool.id === currentPoolId) || null;
+  }, [currentPoolId, pools]);
+
+  const currentViewLatestRecordAt = useMemo(() => {
+    const latestTimestamp = getLatestHistoryTimestampMs(filteredHistory);
+    return latestTimestamp ? new Date(latestTimestamp).toISOString() : null;
+  }, [filteredHistory]);
+
+  const currentPoolLatestRecordAt = useMemo(() => {
+    if (!currentPoolId || isPoolGroupId(currentPoolId)) {
+      return currentViewLatestRecordAt;
+    }
+
+    const latestTimestamp = getLatestHistoryTimestampMs(
+      filteredHistory.filter((record) => record.poolId === currentPoolId || record.pool_id === currentPoolId)
+    );
+
+    return latestTimestamp ? new Date(latestTimestamp).toISOString() : null;
+  }, [currentPoolId, currentViewLatestRecordAt, filteredHistory]);
+
+  const currentPoolFreshnessLabel = currentPool
+    ? `当前卡池 · ${currentPool.name}`
+    : '当前筛选';
+
   useEffect(() => {
     if (gameAccounts.length === 1) {
       const onlyAccountUid = gameAccounts[0]?.gameUid || null;
@@ -118,7 +214,7 @@ const PoolSelector = () => {
   return (
     <div className="space-y-4">
       {/* 顶部工具栏 */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         {/* 导入按钮 & 账号切换 */}
         <div className="flex items-center gap-3">
           {user ? (
@@ -188,6 +284,9 @@ const PoolSelector = () => {
                         )}
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
+                      <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
+                        上次导入: {formatFreshnessRelative(account.lastImportedAt, '时间未知')}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -196,8 +295,33 @@ const PoolSelector = () => {
           )}
         </div>
 
+        {(currentAccount || gameAccounts.length > 1 || currentPoolLatestRecordAt) && (
+          <div className="flex min-w-[320px] flex-1 flex-wrap items-center gap-3">
+            <CompactFreshnessCard
+              label="账号数据"
+              title={currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : '多账号总览'}
+              badgeText={currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, '导入时间未知') : '切换账号'}
+              metaText={currentAccount
+                ? `上次导入 ${formatFreshnessAbsolute(currentAccount.lastImportedAt)}`
+                : '导入时间请按账号分别查看'}
+              detailText={currentAccount?.latestRecordAt ? `最新记录 ${formatFreshnessAbsolute(currentAccount.latestRecordAt)}` : null}
+              tone={getFreshnessTone(currentAccount?.lastImportedAt)}
+              fallback={!currentAccount}
+            />
+
+            <CompactFreshnessCard
+              label="卡池数据"
+              title={currentPoolFreshnessLabel}
+              badgeText={formatFreshnessRelative(currentPoolLatestRecordAt, '暂无记录')}
+              metaText={`最新记录 ${formatFreshnessAbsolute(currentPoolLatestRecordAt)}`}
+              detailText={currentPool ? `当前抽数 ${poolPullCounts[currentPool.id] || 0} 抽` : null}
+              tone={getFreshnessTone(currentPoolLatestRecordAt)}
+            />
+          </div>
+        )}
+
         {/* 搜索与统计 */}
-        <div className="flex items-center gap-4">
+        <div className="ml-auto flex items-center gap-4">
           {/* 搜索 */}
           <div className="flex items-center gap-3">
             {zeroPullPoolCount > 0 && (
