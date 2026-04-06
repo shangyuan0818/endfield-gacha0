@@ -1,8 +1,8 @@
 import React from 'react';
 import { Calculator, Star, FileText, Sparkles, User, TrendingUp, Layers, PieChart as PieChartIcon, Clock, Upload, BarChart3, LayoutGrid, Share2, Download, Copy, ChevronDown } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { RARITY_CONFIG } from '../../constants';
-import RainbowGradientDefs from '../charts/RainbowGradientDefs';
+import { DistributionAreaChart, RainbowGradientDefs } from '../charts';
 import { useDashboardViewState } from '../../hooks';
 import { useTheme } from '../../contexts/ThemeContext';
 import PoolSelector from '../pool/PoolSelector';
@@ -40,6 +40,18 @@ const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'standard', label: '常驻池' }
 ];
 const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
+
+function getDistributionVariant(poolType) {
+  if (poolType === 'weapon') {
+    return 'weapon';
+  }
+
+  if (poolType === 'standard') {
+    return 'standard';
+  }
+
+  return 'character';
+}
 
 function getOverviewPoolBucket(pool) {
   const groupType = normalizePoolGroupType(pool);
@@ -537,32 +549,27 @@ const DashboardView = ({ showToast }) => {
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {[
-                  { key: 'character', title: '角色池', stats: splitOverviewStats.character, targetName: '目标' },
-                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon, targetName: 'UP' }
+                {[ 
+                  { key: 'character', title: '角色池', stats: splitOverviewStats.character },
+                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon }
                 ].map((group) => (
                   <div key={`bar-${group.key}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 shadow-sm">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                         <TrendingUp size={16} />
-                        出货分布 · {group.title}
+                        出货趋势 · {group.title}
                       </h3>
                     </div>
                     <div className="h-64 w-full">
                       {group.stats.pityStats.history.length === 0 ? (
                         <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无6星记录</div>
                       ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={group.stats.pityStats.distribution} stackOffset="sign" margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <RainbowGradientDefs />
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
-                            <XAxis dataKey="range" tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} interval={0} axisLine={false} tickLine={false} />
-                            <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} axisLine={false} tickLine={false} />
-                            <RechartsTooltip contentStyle={tooltipStyle} cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }} />
-                            <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name={group.targetName} radius={[0, 0, 2, 2]} />
-                            <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻/偏移" radius={[2, 2, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                        <DistributionAreaChart
+                          data={group.stats.pityStats.distribution}
+                          isDark={isDark}
+                          tooltipStyle={tooltipStyle}
+                          variant={group.key === 'weapon' ? 'weapon' : 'character'}
+                        />
                       )}
                     </div>
                   </div>
@@ -706,24 +713,19 @@ const DashboardView = ({ showToast }) => {
                     <div className="flex justify-between items-center mb-4">
                        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                          <TrendingUp size={16} />
-                         出货分布
+                         出货趋势
                        </h3>
                     </div>
                     <div className="h-64 w-full">
                        {stats.pityStats.history.length === 0 ? (
                           <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">暂无6星记录</div>
                        ) : (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={stats.pityStats.distribution} stackOffset="sign" margin={{top: 10, right: 10, left: -20, bottom: 0}}>
-                              <RainbowGradientDefs />
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
-                              <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} interval={0} axisLine={false} tickLine={false} />
-                              <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa'}} axisLine={false} tickLine={false} />
-                              <RechartsTooltip contentStyle={tooltipStyle} cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)'}} />
-                              <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定" radius={[0, 0, 2, 2]} />
-                              <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻" radius={[2, 2, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
+                          <DistributionAreaChart
+                            data={stats.pityStats.distribution}
+                            isDark={isDark}
+                            tooltipStyle={tooltipStyle}
+                            variant={getDistributionVariant(normalizedPoolType)}
+                          />
                        )}
                     </div>
                  </div>

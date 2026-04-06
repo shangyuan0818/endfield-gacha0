@@ -4,11 +4,11 @@ import {
   Layers, Swords, User, PieChart as PieChartIcon,
   BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { useDashboardViewState, useToast } from '../../hooks';
 import { RARITY_CONFIG } from '../../constants';
 import { useTheme } from '../../contexts/ThemeContext';
-import RainbowGradientDefs from '../../components/charts/RainbowGradientDefs';
+import { DistributionAreaChart, RainbowGradientDefs } from '../../components/charts';
 import MobileChartContainer from '../components/MobileChartContainer';
 import MobilePoolSelector from '../components/MobilePoolSelector';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
@@ -37,6 +37,18 @@ import {
 import { copyToClipboard } from '../../utils/simulatorStorage';
 
 const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
+
+function getDistributionVariant(poolType) {
+  if (poolType === 'weapon') {
+    return 'weapon';
+  }
+
+  if (poolType === 'standard') {
+    return 'standard';
+  }
+
+  return 'character';
+}
 
 /**
  * 移动端卡池分析视图 - 工业风重构版 (中文)
@@ -624,29 +636,22 @@ function MobileDashboardView() {
             </div>
           </MobileChartContainer>
 
-          {/* 柱状图 - 6星出货分布 */}
+          {/* 面积图 - 6星出货趋势 */}
           {stats.pityStats.history.length > 0 && (
-            <MobileChartContainer title="出货分布" defaultExpanded={true} className="rounded-none">
+            <MobileChartContainer title="出货趋势" defaultExpanded={true} className="rounded-none">
               <div className="h-48 w-full pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={stats.pityStats.distribution} stackOffset="sign" margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
-                    <RainbowGradientDefs />
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#27272a' : '#f4f4f5'} />
-                    <XAxis dataKey="range" tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} interval={0} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: isDark ? '#71717a' : '#a1a1aa' }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip
-                      contentStyle={{
-                        backgroundColor: isDark ? '#18181b' : '#fff',
-                        border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
-                        borderRadius: 0,
-                        fontSize: 12,
-                      }}
-                      cursor={{ fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}
-                    />
-                    <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定" radius={[0, 0, 2, 2]} />
-                    <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <DistributionAreaChart
+                  data={stats.pityStats.distribution}
+                  isDark={isDark}
+                  variant={getDistributionVariant(normalizedPoolType)}
+                  tooltipStyle={{
+                    backgroundColor: isDark ? '#18181b' : '#fff',
+                    border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
+                    borderRadius: 0,
+                    fontSize: 12,
+                  }}
+                  margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
+                />
               </div>
             </MobileChartContainer>
           )}

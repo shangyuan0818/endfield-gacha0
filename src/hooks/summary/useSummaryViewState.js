@@ -245,6 +245,12 @@ export function useSummaryViewState({
         weapon: 'text-slate-500',
         standard: 'text-indigo-500'
       };
+      const typeDistributionVariants = {
+        character: 'character',
+        limited: 'character',
+        weapon: 'weapon',
+        standard: 'standard'
+      };
 
       return {
         isGlobal: isGlobalSource,
@@ -253,6 +259,7 @@ export function useSummaryViewState({
           color: typeColors[poolTypeFilter],
           data: {
             ...typeData,
+            distributionVariant: typeDistributionVariants[poolTypeFilter] || 'character',
             chartData: typeData.chartData || generateChartDataFromCounts(typeData.counts)
           }
         }]
@@ -275,12 +282,15 @@ export function useSummaryViewState({
           title: '角色池',
           subtitle: '限定 + 常驻',
           color: 'text-violet-500',
-          data: baseStats.byType?.character || {
-            total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
-            six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
-            counts: characterCounts,
-            distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
-            chartData: generateChartDataFromCounts(characterCounts)
+          data: {
+            ...(baseStats.byType?.character || {
+              total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
+              six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
+              counts: characterCounts,
+              distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
+              chartData: generateChartDataFromCounts(characterCounts)
+            }),
+            distributionVariant: 'character'
           }
         },
         {
@@ -288,6 +298,7 @@ export function useSummaryViewState({
           color: 'text-slate-500',
           data: {
             ...(baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [] }),
+            distributionVariant: 'weapon',
             chartData: baseStats.byType?.weapon?.chartData || generateChartDataFromCounts(baseStats.byType?.weapon?.counts)
           }
         }

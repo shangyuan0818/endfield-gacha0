@@ -1,12 +1,12 @@
 import React from 'react';
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { Cloud } from 'lucide-react';
 import { RARITY_CONFIG } from '../../constants';
-import RainbowGradientDefs from '../charts/RainbowGradientDefs';
+import { DistributionAreaChart, RainbowGradientDefs } from '../charts';
 
 /**
  * 图表区块组件
- * 显示稀有度饼图和6星出货分布柱状图
+ * 显示稀有度饼图和 6 星出货趋势图
  */
 const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, isDark }) => {
   // 检查是否有详细图表数据
@@ -117,25 +117,18 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
           )}
         </div>
 
-        {/* 柱状图 */}
+        {/* 面积图 */}
         <div className="h-52 relative min-w-0">
-          <p className="text-[10px] font-bold text-zinc-500 mb-2">6星出货分布</p>
+          <p className="text-[10px] font-bold text-zinc-500 mb-2">6星出货趋势</p>
           {hasDistribution ? (
             <div className="flex h-full items-center justify-center overflow-hidden">
-              <BarChart width={360} height={208} data={data.distribution} margin={{top: 10, right: 0, left: -20, bottom: 0}}>
-                <RainbowGradientDefs />
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#3f3f46' : '#e4e4e7'} />
-                <XAxis dataKey="range" tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} interval={0} />
-                <YAxis allowDecimals={false} tick={{fontSize: 10, fill: isDark ? '#a1a1aa' : '#71717a'}} />
-                <RechartsTooltip
-                  cursor={{fill: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}}
-                  contentStyle={tooltipStyle}
-                  itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
-                  labelStyle={{ color: isDark ? '#a1a1aa' : '#71717a' }}
-                />
-                <Bar dataKey="limited" stackId="a" fill={RARITY_CONFIG[6].color} name="限定UP" />
-                <Bar dataKey="standard" stackId="a" fill={RARITY_CONFIG['6_std'].color} name="常驻歪" />
-              </BarChart>
+              <DistributionAreaChart
+                data={data.distribution}
+                isDark={isDark}
+                tooltipStyle={tooltipStyle}
+                variant={data.distributionVariant}
+                margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+              />
             </div>
           ) : (
             <div className="h-full flex items-center justify-center text-xs text-zinc-400">暂无数据</div>
