@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
-  BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon
+  BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon, Loader2
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { useDashboardViewState, useToast } from '../../hooks';
@@ -15,6 +15,7 @@ import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPane
 import AveragePullStatsPanel from '../../components/dashboard/AveragePullStatsPanel';
 import PoolTimelinePanel from '../../components/dashboard/PoolTimelinePanel';
 import DashboardShareCard from '../../components/dashboard/DashboardShareCard';
+import ShareActionStatus from '../../components/share/ShareActionStatus';
 import { Toast } from '../../components/ui';
 import { calculateCurrentProbability } from '../../utils';
 import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
@@ -35,6 +36,7 @@ import {
   shareImageFile
 } from '../../utils/simulatorShare';
 import { copyToClipboard } from '../../utils/simulatorStorage';
+import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 
 const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
 
@@ -57,6 +59,16 @@ function MobileDashboardView() {
   const { isDark } = useTheme();
   const { toasts, showToast, removeToast } = useToast();
   const shareCardRef = React.useRef(null);
+  const {
+    feedback: shareActionFeedback,
+    isBusy: isShareActionBusy,
+    isActionRunning,
+    beginAction: beginShareAction,
+    updateAction: updateShareAction,
+    finishAction: finishShareAction,
+    failAction: failShareAction,
+    resetFeedback: resetShareActionFeedback
+  } = useShareActionFeedback();
   const [shareTheme, setShareTheme] = React.useState(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -176,10 +188,10 @@ function MobileDashboardView() {
 
     localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
   }, [shareTheme]);
-  const shareImageActionLabel = '系统分享图片';
-  const downloadImageActionLabel = '下载分享长图';
-  const copyImageActionLabel = '复制分享图片';
-  const shareTextActionLabel = '复制分享文本';
+  const shareImageActionLabel = isActionRunning('share') ? '正在分享图片...' : '系统分享图片';
+  const downloadImageActionLabel = isActionRunning('download') ? '正在下载长图...' : '下载分享长图';
+  const copyImageActionLabel = isActionRunning('copy-image') ? '正在复制图片...' : '复制分享图片';
+  const shareTextActionLabel = isActionRunning('copy-text') ? '正在复制文本...' : '复制分享文本';
   const resourceSummaryTitle = isGroupMode ? `${currentPool.name}资源统计` : '资源统计';
   const primarySixStarLabel = isAllPoolsOverview
     ? '目标6★'
@@ -194,9 +206,25 @@ function MobileDashboardView() {
       return;
     }
 
-    const success = await copyToClipboard(buildDashboardShareText(dashboardSharePayload));
-    showToast(success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试', success ? 'success' : 'error');
-  }, [dashboardSharePayload, hasDashboardShareData, showToast]);
+    if (!beginShareAction('copy-text', '正在复制分享文本...')) {
+      return;
+    }
+
+    try {
+      const success = await copyToClipboard(buildDashboardShareText(dashboardSharePayload));
+      const message = success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试';
+      if (success) {
+        finishShareAction('copy-text', message);
+      } else {
+        failShareAction('copy-text', message);
+      }
+      showToast(message, success ? 'success' : 'error');
+    } catch {
+      const message = '分享文本复制失败，请手动重试';
+      failShareAction('copy-text', message);
+      showToast(message, 'error');
+    }
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, showToast]);
 
   const waitForShareCard = React.useCallback(async () => {
     if (shareCardRef.current) return shareCardRef.current;
@@ -210,9 +238,15 @@ function MobileDashboardView() {
       return;
     }
 
+    if (!beginShareAction('share', '正在生成分享图片...')) {
+      return;
+    }
+
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      showToast('分享卡未准备好，请稍后重试', 'error');
+      const message = '分享卡未准备好，请稍后重试';
+      failShareAction('share', message);
+      showToast(message, 'error');
       return;
     }
 
@@ -224,24 +258,39 @@ function MobileDashboardView() {
       const file = buildShareFile(blob, fileName);
 
       if (file && supportsNativeImageShare && canNativeShareFile(file)) {
-        showToast('系统分享已打开', 'success');
+        updateShareAction('share', '正在调起系统分享...');
         await shareImageFile(file, {
           title: `${dashboardSharePayload.scopeLabel}分享`,
           text: buildDashboardShareText(dashboardSharePayload)
         });
+        const message = '系统分享已打开';
+        finishShareAction('share', message);
+        showToast(message, 'success');
         return;
       }
 
+      updateShareAction('share', '正在下载分享长图...');
       const downloaded = downloadShareCard(blob, fileName);
-      showToast(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+      const message = downloaded
+        ? '系统分享不可用，已改为下载详情分享卡'
+        : '分享卡下载失败，请稍后重试';
+      if (downloaded) {
+        finishShareAction('share', message);
+      } else {
+        failShareAction('share', message);
+      }
+      showToast(message, downloaded ? 'success' : 'error');
     } catch (error) {
       if (error?.name === 'AbortError') {
+        resetShareActionFeedback();
         return;
       }
 
-      showToast('详情分享卡生成失败，请稍后重试', 'error');
+      const message = '详情分享卡生成失败，请稍后重试';
+      failShareAction('share', message);
+      showToast(message, 'error');
     }
-  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, supportsNativeImageShare, waitForShareCard]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, resetShareActionFeedback, shareTheme, showToast, supportsNativeImageShare, updateShareAction, waitForShareCard]);
 
   const handleDownloadShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -249,9 +298,15 @@ function MobileDashboardView() {
       return;
     }
 
+    if (!beginShareAction('download', '正在生成分享长图...')) {
+      return;
+    }
+
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      showToast('分享卡未准备好，请稍后重试', 'error');
+      const message = '分享卡未准备好，请稍后重试';
+      failShareAction('download', message);
+      showToast(message, 'error');
       return;
     }
 
@@ -259,13 +314,22 @@ function MobileDashboardView() {
       const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
+      updateShareAction('download', '正在保存分享长图...');
       const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
       const downloaded = downloadShareCard(blob, fileName);
-      showToast(downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试', downloaded ? 'success' : 'error');
+      const message = downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试';
+      if (downloaded) {
+        finishShareAction('download', message);
+      } else {
+        failShareAction('download', message);
+      }
+      showToast(message, downloaded ? 'success' : 'error');
     } catch {
-      showToast('详情分享卡生成失败，请稍后重试', 'error');
+      const message = '详情分享卡生成失败，请稍后重试';
+      failShareAction('download', message);
+      showToast(message, 'error');
     }
-  }, [dashboardSharePayload, hasDashboardShareData, shareTheme, showToast, waitForShareCard]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, shareTheme, showToast, updateShareAction, waitForShareCard]);
 
   const handleCopyShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -273,14 +337,22 @@ function MobileDashboardView() {
       return;
     }
 
+    if (!beginShareAction('copy-image', '正在生成待复制图片...')) {
+      return;
+    }
+
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      showToast('分享卡未准备好，请稍后重试', 'error');
+      const message = '分享卡未准备好，请稍后重试';
+      failShareAction('copy-image', message);
+      showToast(message, 'error');
       return;
     }
 
     if (!supportsClipboardImageCopy) {
-      showToast('当前浏览器不支持复制图片，请改用下载', 'warning');
+      const message = '当前浏览器不支持复制图片，请改用下载';
+      failShareAction('copy-image', message);
+      showToast(message, 'warning');
       return;
     }
 
@@ -288,12 +360,21 @@ function MobileDashboardView() {
       const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
       });
+      updateShareAction('copy-image', '正在写入系统剪贴板...');
       const copied = await copyImageBlobToClipboard(blob);
-      showToast(copied ? '详情分享图片已复制' : '复制图片失败，请改用下载', copied ? 'success' : 'error');
+      const message = copied ? '详情分享图片已复制' : '复制图片失败，请改用下载';
+      if (copied) {
+        finishShareAction('copy-image', message);
+      } else {
+        failShareAction('copy-image', message);
+      }
+      showToast(message, copied ? 'success' : 'error');
     } catch {
-      showToast('复制图片失败，请改用下载', 'error');
+      const message = '复制图片失败，请改用下载';
+      failShareAction('copy-image', message);
+      showToast(message, 'error');
     }
-  }, [hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy, waitForShareCard]);
+  }, [beginShareAction, failShareAction, finishShareAction, hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy, updateShareAction, waitForShareCard]);
 
   if (!hasPoolData) {
     return (
@@ -403,11 +484,12 @@ function MobileDashboardView() {
                   <button
                     type="button"
                     onClick={() => setShareTheme('light')}
+                    disabled={isShareActionBusy}
                     className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
                       shareTheme === 'light'
                         ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
                         : 'text-zinc-500 dark:text-zinc-400'
-                    }`}
+                    } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     <Sun size={12} />
                     亮色
@@ -415,11 +497,12 @@ function MobileDashboardView() {
                   <button
                     type="button"
                     onClick={() => setShareTheme('dark')}
+                    disabled={isShareActionBusy}
                     className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
                       shareTheme === 'dark'
                         ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
                         : 'text-zinc-500 dark:text-zinc-400'
-                    }`}
+                    } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     <Moon size={12} />
                     暗色
@@ -431,40 +514,58 @@ function MobileDashboardView() {
                 {supportsNativeImageShare && (
                   <button
                     type="button"
+                    disabled={isShareActionBusy}
                     onClick={() => void handleShareImage()}
-                    className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                    className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                      isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
+                    }`}
                   >
-                    <Share2 size={14} />
+                    {isActionRunning('share') ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
                     {shareImageActionLabel}
                   </button>
                 )}
                 <button
                   type="button"
+                  disabled={isShareActionBusy}
                   onClick={() => void handleDownloadShareImage()}
-                  className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                  className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                    isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
+                  }`}
                 >
-                  <Download size={14} />
+                  {isActionRunning('download') ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                   {downloadImageActionLabel}
                 </button>
                 {supportsClipboardImageCopy && (
                   <button
                     type="button"
+                    disabled={isShareActionBusy}
                     onClick={() => void handleCopyShareImage()}
-                    className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                    className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                      isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
+                    }`}
                   >
-                    <Copy size={14} />
+                    {isActionRunning('copy-image') ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                     {copyImageActionLabel}
                   </button>
                 )}
                 <button
                   type="button"
+                  disabled={isShareActionBusy}
                   onClick={() => void handleCopyShareText()}
-                  className="flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200"
+                  className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                    isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
+                  }`}
                 >
-                  <Copy size={14} />
+                  {isActionRunning('copy-text') ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                   {shareTextActionLabel}
                 </button>
               </div>
+              {shareActionFeedback.phase !== 'idle' && (
+                <ShareActionStatus
+                  feedback={shareActionFeedback}
+                  className="mt-2"
+                />
+              )}
             </div>
           )}
         </div>

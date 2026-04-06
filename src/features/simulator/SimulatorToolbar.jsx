@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Copy, Download, Plus, RefreshCw, Share2, User } from 'lucide-react';
+import { Check, ChevronDown, Copy, Download, Loader2, Plus, RefreshCw, Share2, User } from 'lucide-react';
 import { useHistoryStore } from '../../stores';
 import { RESOURCE_ICON_URLS, RESOURCE_LABELS } from '../../utils/resourceEconomy';
 import PoolGroupCardRail from '../../components/pool/PoolGroupCardRail';
+import ShareActionStatus from '../../components/share/ShareActionStatus';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 
 const ORIGINITE_PURCHASE_PRESETS = [
@@ -11,7 +12,7 @@ const ORIGINITE_PURCHASE_PRESETS = [
   { label: '￥98', amount: 126, bonusLabel: '84+42颗' },
   { label: '￥198', amount: 255, bonusLabel: '170+85颗' },
   { label: '￥328', amount: 423, bonusLabel: '282+141颗' },
-  { label: '￥648', amount: 840, bonusLabel: '560+280颗' }
+  { label: '￥648', amount: 840, bonusLabel: '560+280颗' },
 ];
 
 function formatCompactMetric(value) {
@@ -19,7 +20,7 @@ function formatCompactMetric(value) {
   const absoluteValue = Math.abs(numericValue);
   const formatter = new Intl.NumberFormat('zh-CN', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: Number.isInteger(numericValue) ? 0 : 1
+    maximumFractionDigits: Number.isInteger(numericValue) ? 0 : 1,
   });
 
   if (absoluteValue >= 100000000) {
@@ -36,7 +37,7 @@ function formatCompactMetric(value) {
 function CumulativeChip({ icon, label, value }) {
   const fullValue = new Intl.NumberFormat('zh-CN', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: Number.isInteger(Number(value || 0)) ? 0 : 2
+    maximumFractionDigits: Number.isInteger(Number(value || 0)) ? 0 : 2,
   }).format(Number(value || 0));
 
   return (
@@ -61,20 +62,31 @@ function ResourceChip({
   originiteBalance,
   quickAddPresets,
   resourceKey,
-  value
+  value,
 }) {
   const editor = activeEditor?.resourceKey === resourceKey ? activeEditor : null;
   const label = RESOURCE_LABELS[resourceKey];
   const numericInput = Math.max(0, Math.floor(Number(editor?.value) || 0));
-  const canConvertOriginite = resourceKey === 'jade' && editor?.mode === 'add' && numericInput > 0 && numericInput <= originiteBalance;
+  const canConvertOriginite =
+    resourceKey === 'jade' && editor?.mode === 'add' && numericInput > 0 && numericInput <= originiteBalance;
   const editTitle = `点击直接修改${label}数量`;
   const addTitle = resourceKey === 'jade' ? '源石换玉 / 增加嵌晶玉' : `增加${label}`;
-  const editorTitle = resourceKey === 'jade' && editor?.mode === 'add' ? '源石换玉 / 增加嵌晶玉' : editor?.mode === 'add' ? `增加${label}` : `设为${label}`;
+  const editorTitle =
+    resourceKey === 'jade' && editor?.mode === 'add'
+      ? '源石换玉 / 增加嵌晶玉'
+      : editor?.mode === 'add'
+        ? `增加${label}`
+        : `设为${label}`;
 
   return (
     <div className="relative min-w-[180px]">
       <div className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-2.5 min-w-0">
-        <img src={RESOURCE_ICON_URLS[resourceKey]} alt={label} className="w-7 h-7 object-contain shrink-0" loading="lazy" />
+        <img
+          src={RESOURCE_ICON_URLS[resourceKey]}
+          alt={label}
+          className="w-7 h-7 object-contain shrink-0"
+          loading="lazy"
+        />
         <button
           type="button"
           onClick={() => onOpenEditor(resourceKey, 'set', value)}
@@ -82,7 +94,9 @@ function ResourceChip({
           title={editTitle}
         >
           <span className="block text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500">{label}</span>
-          <span className="block text-sm sm:text-base leading-tight break-all">{Number(value || 0).toLocaleString()}</span>
+          <span className="block text-sm sm:text-base leading-tight break-all">
+            {Number(value || 0).toLocaleString()}
+          </span>
         </button>
         <button
           type="button"
@@ -130,29 +144,30 @@ function ResourceChip({
             </div>
           )}
 
-          {resourceKey === 'originite' && editor.mode === 'add' && Array.isArray(quickAddPresets) && quickAddPresets.length > 0 && (
-            <div className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black/20 px-2 py-2">
-              <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2">
-                游戏内固定档位
+          {resourceKey === 'originite' &&
+            editor.mode === 'add' &&
+            Array.isArray(quickAddPresets) &&
+            quickAddPresets.length > 0 && (
+              <div className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black/20 px-2 py-2">
+                <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2">游戏内固定档位</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {quickAddPresets.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        onAdjustResourceAmount(resourceKey, 'add', preset.amount);
+                        onCloseEditor();
+                      }}
+                      className="border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-endfield-yellow hover:text-endfield-yellow transition-colors"
+                    >
+                      <div className="text-[11px] font-bold">{preset.label}</div>
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">{preset.bonusLabel}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {quickAddPresets.map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      onAdjustResourceAmount(resourceKey, 'add', preset.amount);
-                      onCloseEditor();
-                    }}
-                    className="border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-endfield-yellow hover:text-endfield-yellow transition-colors"
-                  >
-                    <div className="text-[11px] font-bold">{preset.label}</div>
-                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">{preset.bonusLabel}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+            )}
 
           <div className="flex gap-2 mt-3">
             <button
@@ -201,7 +216,9 @@ const SimulatorToolbar = ({
   multipleFreeTen,
   skipAnimation,
   supportsClipboardImageCopy,
-  supportsImageShare
+  supportsImageShare,
+  shareActionBusy,
+  shareActionFeedback,
 }) => {
   const [activeEditor, setActiveEditor] = useState(null);
   const [showInheritAccountDropdown, setShowInheritAccountDropdown] = useState(false);
@@ -209,28 +226,53 @@ const SimulatorToolbar = ({
   const shareMenuRef = useRef(null);
   useHistoryStore((state) => state.history);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
-  const resourceItems = useMemo(() => ([
-    { resourceKey: 'jade', value: Math.max(Number(resourceLedger?.jadeBalance || 0), 0) },
-    { resourceKey: 'originite', value: Math.max(Number(resourceLedger?.originiteBalance || 0), 0) },
-    { resourceKey: 'arsenalQuota', value: Math.max(Number(resourceLedger?.arsenalBalance || 0), 0) }
-  ]), [resourceLedger]);
-  const cumulativeItems = useMemo(() => ([
-    { key: 'jadeSpent', label: '耗玉', value: Number(resourceLedger?.jadeSpent || 0), icon: RESOURCE_ICON_URLS.jade },
-    { key: 'originiteEquivalent', label: '石折玉', value: Number(resourceLedger?.originiteEquivalent || 0), icon: RESOURCE_ICON_URLS.originite },
-    { key: 'arsenalGained', label: '得配额', value: Number(resourceLedger?.arsenalGained || 0), icon: RESOURCE_ICON_URLS.arsenalQuota },
-    { key: 'arsenalSpent', label: '耗配额', value: Number(resourceLedger?.arsenalSpent || 0), icon: RESOURCE_ICON_URLS.arsenalQuota }
-  ]), [resourceLedger]);
-  const selectorGroups = useMemo(() => buildPoolSelectorGroups({
-    pools: simulatorPools,
-    poolPullCounts
-  }), [poolPullCounts, simulatorPools]);
+  const resourceItems = useMemo(
+    () => [
+      { resourceKey: 'jade', value: Math.max(Number(resourceLedger?.jadeBalance || 0), 0) },
+      { resourceKey: 'originite', value: Math.max(Number(resourceLedger?.originiteBalance || 0), 0) },
+      { resourceKey: 'arsenalQuota', value: Math.max(Number(resourceLedger?.arsenalBalance || 0), 0) },
+    ],
+    [resourceLedger]
+  );
+  const cumulativeItems = useMemo(
+    () => [
+      { key: 'jadeSpent', label: '耗玉', value: Number(resourceLedger?.jadeSpent || 0), icon: RESOURCE_ICON_URLS.jade },
+      {
+        key: 'originiteEquivalent',
+        label: '石折玉',
+        value: Number(resourceLedger?.originiteEquivalent || 0),
+        icon: RESOURCE_ICON_URLS.originite,
+      },
+      {
+        key: 'arsenalGained',
+        label: '得配额',
+        value: Number(resourceLedger?.arsenalGained || 0),
+        icon: RESOURCE_ICON_URLS.arsenalQuota,
+      },
+      {
+        key: 'arsenalSpent',
+        label: '耗配额',
+        value: Number(resourceLedger?.arsenalSpent || 0),
+        icon: RESOURCE_ICON_URLS.arsenalQuota,
+      },
+    ],
+    [resourceLedger]
+  );
+  const selectorGroups = useMemo(
+    () =>
+      buildPoolSelectorGroups({
+        pools: simulatorPools,
+        poolPullCounts,
+      }),
+    [poolPullCounts, simulatorPools]
+  );
   const gameAccounts = getGameAccountsFromHistory();
 
   const openEditor = (resourceKey, mode, value) => {
     setActiveEditor({
       resourceKey,
       mode,
-      value: value === '' ? '' : String(Math.max(0, Math.floor(Number(value) || 0)))
+      value: value === '' ? '' : String(Math.max(0, Math.floor(Number(value) || 0))),
     });
   };
 
@@ -253,27 +295,18 @@ const SimulatorToolbar = ({
 
   return (
     <div className="mb-6 px-2 space-y-4">
-      <PoolGroupCardRail
-        groups={selectorGroups}
-        currentSelectionId={currentSimPoolId}
-        onSelectPool={onSwitchPool}
-      />
+      <PoolGroupCardRail groups={selectorGroups} currentSelectionId={currentSimPoolId} onSelectPool={onSwitchPool} />
 
       <div className="flex flex-col gap-2 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end xl:gap-4">
         <div className="order-2 min-w-0 xl:order-1 xl:self-end">
-            <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-2">
-              累计资源
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {cumulativeItems.map((item) => (
-                <CumulativeChip
-                  key={item.key}
-                  icon={item.icon}
-                  label={item.label}
-                  value={item.value}
-                />
-              ))}
-            </div>
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-2">
+            累计资源
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {cumulativeItems.map((item) => (
+              <CumulativeChip key={item.key} icon={item.icon} label={item.label} value={item.value} />
+            ))}
+          </div>
         </div>
 
         <div className="order-1 flex flex-col gap-2 xl:order-2 xl:items-end">
@@ -295,198 +328,227 @@ const SimulatorToolbar = ({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-4">
-        {poolType === 'limited' && (
-          <div
-            onClick={onToggleMultipleFreeTen}
-            className={`
+            {poolType === 'limited' && (
+              <div
+                onClick={onToggleMultipleFreeTen}
+                className={`
               flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
-              ${multipleFreeTen
-                ? 'bg-blue-500/10 border-blue-500 text-blue-500'
-                : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+              ${
+                multipleFreeTen
+                  ? 'bg-blue-500/10 border-blue-500 text-blue-500'
+                  : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
               }
             `}
-            title="多次十连是BUG（划掉）特性哦~"
-          >
-            <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}>
-              {multipleFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
-            </div>
-            <span className="text-xs font-bold uppercase">多次免费十连</span>
-          </div>
-        )}
+                title="多次十连是BUG（划掉）特性哦~"
+              >
+                <div
+                  className={`w-3 h-3 border flex items-center justify-center transition-colors ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}
+                >
+                  {multipleFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
+                </div>
+                <span className="text-xs font-bold uppercase">多次免费十连</span>
+              </div>
+            )}
 
-        <div
-          onClick={onToggleSkipAnimation}
-          className={`
+            <div
+              onClick={onToggleSkipAnimation}
+              className={`
             flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
-            ${skipAnimation
-              ? 'bg-yellow-50 dark:bg-endfield-yellow/10 border-yellow-600 dark:border-endfield-yellow text-yellow-700 dark:text-endfield-yellow'
-              : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+            ${
+              skipAnimation
+                ? 'bg-yellow-50 dark:bg-endfield-yellow/10 border-yellow-600 dark:border-endfield-yellow text-yellow-700 dark:text-endfield-yellow'
+                : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
             }
           `}
-        >
-          <div className={`w-3 h-3 border flex items-center justify-center transition-colors ${skipAnimation ? 'border-yellow-600 dark:border-endfield-yellow bg-yellow-500 dark:bg-endfield-yellow' : 'border-current'}`}>
-            {skipAnimation && <Check size={10} className="text-white dark:text-black" strokeWidth={4} />}
-          </div>
-          <span className="text-xs font-bold uppercase">跳过动画</span>
-        </div>
-
-        <div className="relative">
-          <button
-            onClick={() => {
-              if (gameAccounts.length <= 1) {
-                onInheritRealState(gameAccounts[0] || null);
-                return;
-              }
-
-              setShowInheritAccountDropdown((visible) => !visible);
-            }}
-            className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
-            title="选择一个账号并继承其真实抽卡记录"
-          >
-            <RefreshCw size={14} />
-            <span className="hidden sm:inline">继承账号</span>
-            <span className="sm:hidden">继承</span>
-            {gameAccounts.length > 1 && (
-              <ChevronDown size={12} className={`transition-transform ${showInheritAccountDropdown ? 'rotate-180' : ''}`} />
-            )}
-          </button>
-          {showInheritAccountDropdown && gameAccounts.length > 1 && (
-            <div className="absolute right-0 top-full mt-1 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-50">
-              {gameAccounts.map((account) => (
-                <button
-                  key={account.gameUid}
-                  type="button"
-                  onClick={() => {
-                    onInheritRealState(account);
-                    setShowInheritAccountDropdown(false);
-                  }}
-                  className="w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-600 dark:text-zinc-400"
-                >
-                  <div className="flex items-center gap-2">
-                    <User size={12} className="shrink-0" />
-                    <span className="font-bold text-slate-700 dark:text-zinc-300">{account.nickName}</span>
-                    {account.serverTag && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
-                        {account.serverTag}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
-                </button>
-              ))}
+            >
+              <div
+                className={`w-3 h-3 border flex items-center justify-center transition-colors ${skipAnimation ? 'border-yellow-600 dark:border-endfield-yellow bg-yellow-500 dark:bg-endfield-yellow' : 'border-current'}`}
+              >
+                {skipAnimation && <Check size={10} className="text-white dark:text-black" strokeWidth={4} />}
+              </div>
+              <span className="text-xs font-bold uppercase">跳过动画</span>
             </div>
-          )}
-        </div>
 
-        <div className="relative" ref={shareMenuRef}>
-          <button
-            type="button"
-            onClick={() => setShowShareMenu((visible) => !visible)}
-            className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
-            title="分享模拟统计"
-          >
-            <Share2 size={14} />
-            <span className="hidden sm:inline">分享</span>
-            <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
-          </button>
+            <div className="relative">
+              <button
+                onClick={() => {
+                  if (gameAccounts.length <= 1) {
+                    onInheritRealState(gameAccounts[0] || null);
+                    return;
+                  }
 
-          {showShareMenu && (
-            <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
-              {supportsImageShare && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowShareMenu(false);
-                    onShareImage();
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2"
-                >
-                  <Share2 size={14} />
-                  <span>系统分享图片</span>
-                </button>
+                  setShowInheritAccountDropdown((visible) => !visible);
+                }}
+                className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+                title="选择一个账号并继承其真实抽卡记录"
+              >
+                <RefreshCw size={14} />
+                <span className="hidden sm:inline">继承账号</span>
+                <span className="sm:hidden">继承</span>
+                {gameAccounts.length > 1 && (
+                  <ChevronDown
+                    size={12}
+                    className={`transition-transform ${showInheritAccountDropdown ? 'rotate-180' : ''}`}
+                  />
+                )}
+              </button>
+              {showInheritAccountDropdown && gameAccounts.length > 1 && (
+                <div className="absolute right-0 top-full mt-1 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-50">
+                  {gameAccounts.map((account) => (
+                    <button
+                      key={account.gameUid}
+                      type="button"
+                      onClick={() => {
+                        onInheritRealState(account);
+                        setShowInheritAccountDropdown(false);
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-600 dark:text-zinc-400"
+                    >
+                      <div className="flex items-center gap-2">
+                        <User size={12} className="shrink-0" />
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">{account.nickName}</span>
+                        {account.serverTag && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
+                            {account.serverTag}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
+                    </button>
+                  ))}
+                </div>
               )}
+            </div>
+
+            <div className="relative" ref={shareMenuRef}>
               <button
                 type="button"
-                onClick={() => {
-                  setShowShareMenu(false);
-                  onDownloadImage();
-                }}
-                className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors flex items-center gap-2 ${
-                  supportsImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
+                onClick={() => setShowShareMenu((visible) => !visible)}
+                disabled={shareActionBusy}
+                className={`px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 transition-colors ${
+                  shareActionBusy
+                    ? 'cursor-not-allowed opacity-60'
+                    : 'hover:text-endfield-yellow hover:border-endfield-yellow'
                 }`}
+                title="分享模拟统计"
+              >
+                {shareActionBusy ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                <span className="hidden sm:inline">{shareActionBusy ? '处理中' : '分享'}</span>
+                <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showShareMenu && (
+                <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+                  {supportsImageShare && (
+                    <button
+                      type="button"
+                      disabled={shareActionBusy}
+                      onClick={() => {
+                        setShowShareMenu(false);
+                        onShareImage();
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
+                        shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <Share2 size={14} />
+                      <span>系统分享图片</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={shareActionBusy}
+                    onClick={() => {
+                      setShowShareMenu(false);
+                      onDownloadImage();
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
+                      supportsImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
+                    } ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
+                  >
+                    <Download size={14} />
+                    <span>下载分享卡 PNG</span>
+                  </button>
+                  {supportsClipboardImageCopy && (
+                    <button
+                      type="button"
+                      disabled={shareActionBusy}
+                      onClick={() => {
+                        setShowShareMenu(false);
+                        onCopyImage();
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
+                        shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                      }`}
+                    >
+                      <Copy size={14} />
+                      <span>复制分享图片</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={shareActionBusy}
+                    onClick={() => {
+                      setShowShareMenu(false);
+                      onShareText();
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
+                      shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <Copy size={14} />
+                    <span>复制分享文本</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="relative group">
+              <button
+                className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+                title="导出数据"
               >
                 <Download size={14} />
-                <span>下载分享卡 PNG</span>
+                <span className="hidden sm:inline">导出</span>
+                <ChevronDown size={12} />
               </button>
-              {supportsClipboardImageCopy && (
+
+              <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                 <button
-                  type="button"
-                  onClick={() => {
-                    setShowShareMenu(false);
-                    onCopyImage();
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
+                  onClick={() => onExportData('json')}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
                 >
-                  <Copy size={14} />
-                  <span>复制分享图片</span>
+                  导出为 JSON（可导入）
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowShareMenu(false);
-                  onShareText();
-                }}
-                className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2"
-              >
-                <Copy size={14} />
-                <span>复制分享文本</span>
-              </button>
+                <button
+                  onClick={() => onExportData('csv')}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+                >
+                  导出为 CSV（可导入）
+                </button>
+                <button
+                  onClick={onExportReport}
+                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+                >
+                  导出统计报告
+                </button>
+              </div>
+            </div>
+
+            <button
+              onClick={onReset}
+              className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-red-500 hover:border-red-500 transition-colors"
+              title="重置模拟器"
+            >
+              <RefreshCw size={14} />
+              <span className="hidden sm:inline">重置</span>
+            </button>
+          </div>
+          {shareActionFeedback?.phase !== 'idle' && (
+            <div className="flex justify-end">
+              <ShareActionStatus feedback={shareActionFeedback} compact className="w-full max-w-[320px]" />
             </div>
           )}
-        </div>
-
-        <div className="relative group">
-          <button
-            className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
-            title="导出数据"
-          >
-            <Download size={14} />
-            <span className="hidden sm:inline">导出</span>
-            <ChevronDown size={12} />
-          </button>
-
-          <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-            <button
-              onClick={() => onExportData('json')}
-              className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
-            >
-              导出为 JSON（可导入）
-            </button>
-            <button
-              onClick={() => onExportData('csv')}
-              className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
-            >
-              导出为 CSV（可导入）
-            </button>
-            <button
-              onClick={onExportReport}
-              className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
-            >
-              导出统计报告
-            </button>
-          </div>
-        </div>
-
-        <button
-          onClick={onReset}
-          className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-red-500 hover:border-red-500 transition-colors"
-          title="重置模拟器"
-        >
-          <RefreshCw size={14} />
-          <span className="hidden sm:inline">重置</span>
-        </button>
-          </div>
         </div>
       </div>
     </div>

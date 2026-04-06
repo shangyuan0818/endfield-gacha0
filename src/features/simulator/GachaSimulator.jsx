@@ -39,6 +39,7 @@ const GachaSimulator = () => {
     handleShareImage,
     historyGroups,
     infoBookTenPullAvailable,
+    isShareActionBusy,
     isAnimating,
     lastResults,
     multipleFreeTen,
@@ -50,6 +51,7 @@ const GachaSimulator = () => {
     resetAllPools,
     resetKeepResources,
     resetSettings,
+    shareActionFeedback,
     setDisableOriginitePromptToday,
     setLastResults,
     setMultipleFreeTen,
@@ -103,6 +105,8 @@ const GachaSimulator = () => {
         skipAnimation={skipAnimation}
         supportsClipboardImageCopy={supportsClipboardImageCopy}
         supportsImageShare={supportsNativeImageShare}
+        shareActionBusy={isShareActionBusy}
+        shareActionFeedback={shareActionFeedback}
       />
 
       <div
@@ -135,7 +139,7 @@ const GachaSimulator = () => {
               className="absolute inset-0 opacity-20 pointer-events-none"
               style={{
                 backgroundImage: 'radial-gradient(circle at center, #333 1px, transparent 1px)',
-                backgroundSize: '20px 20px'
+                backgroundSize: '20px 20px',
               }}
             />
 
@@ -152,27 +156,37 @@ const GachaSimulator = () => {
                   onClose={() => setLastResults(null)}
                   supportsClipboardImageCopy={supportsClipboardImageCopy}
                   supportsImageShare={supportsNativeImageShare}
+                  shareActionBusy={isShareActionBusy}
+                  shareActionFeedback={shareActionFeedback}
                 />
               </div>
-            ) : !isAnimating && (
-              <div className="relative z-10 text-center transform transition-all duration-500 animate-fade-in">
-                <div className="w-24 h-24 mx-auto mb-6 border-2 border-endfield-yellow rotate-45 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                  {normalizedSimulatorPoolType === 'limited' && <Star size={40} className="text-endfield-yellow -rotate-45" />}
-                  {normalizedSimulatorPoolType === 'weapon' && <Search size={40} className="text-endfield-yellow -rotate-45" />}
-                  {normalizedSimulatorPoolType === 'standard' && <Layers size={40} className="text-endfield-yellow -rotate-45" />}
-                </div>
+            ) : (
+              !isAnimating && (
+                <div className="relative z-10 text-center transform transition-all duration-500 animate-fade-in">
+                  <div className="w-24 h-24 mx-auto mb-6 border-2 border-endfield-yellow rotate-45 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    {normalizedSimulatorPoolType === 'limited' && (
+                      <Star size={40} className="text-endfield-yellow -rotate-45" />
+                    )}
+                    {normalizedSimulatorPoolType === 'weapon' && (
+                      <Search size={40} className="text-endfield-yellow -rotate-45" />
+                    )}
+                    {normalizedSimulatorPoolType === 'standard' && (
+                      <Layers size={40} className="text-endfield-yellow -rotate-45" />
+                    )}
+                  </div>
 
-                <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">
-                  {normalizedSimulatorPoolType === 'limited'
-                    ? 'LIMITED HEADHUNTING'
-                    : normalizedSimulatorPoolType === 'weapon'
-                      ? 'WEAPON ARSENAL'
-                      : 'STANDARD HEADHUNTING'}
-                </h1>
-                <p className="text-sm font-mono text-endfield-yellow tracking-[0.2em] uppercase opacity-80 bg-black/80 px-2 py-1 rounded inline-block">
-                  Probability Up Event
-                </p>
-              </div>
+                  <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">
+                    {normalizedSimulatorPoolType === 'limited'
+                      ? 'LIMITED HEADHUNTING'
+                      : normalizedSimulatorPoolType === 'weapon'
+                        ? 'WEAPON ARSENAL'
+                        : 'STANDARD HEADHUNTING'}
+                  </h1>
+                  <p className="text-sm font-mono text-endfield-yellow tracking-[0.2em] uppercase opacity-80 bg-black/80 px-2 py-1 rounded inline-block">
+                    Probability Up Event
+                  </p>
+                </div>
+              )
             )}
           </div>
 
@@ -213,29 +227,30 @@ const GachaSimulator = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-red-50 dark:bg-red-900/20">
-              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">
-                重置模拟器
-              </h3>
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">重置模拟器</h3>
             </div>
 
             <div className="px-6 py-6 space-y-4">
-                <p className="text-sm text-slate-600 dark:text-zinc-400">
-                  {resetAllPools
-                    ? '确定要重置所有类型的卡池吗？默认会清空模拟记录、保底与资源。'
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
+                {resetAllPools
+                  ? '确定要重置所有类型的卡池吗？默认会清空模拟记录、保底与资源。'
                   : `确定要重置所有${normalizeSimulatorPoolType(currentSimPool?.type) === 'limited' ? '限定角色池' : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon' ? '武器池' : '常驻池'}吗？默认会清空该类型的模拟记录、保底与资源。`}
-                </p>
+              </p>
 
               <div
                 onClick={() => setResetAllPools(!resetAllPools)}
                 className={`
                   flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
-                  ${resetAllPools
-                    ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
-                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  ${
+                    resetAllPools
+                      ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
+                      : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }
                 `}
               >
-                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetAllPools ? 'border-red-500 bg-red-500' : 'border-current'}`}>
+                <div
+                  className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetAllPools ? 'border-red-500 bg-red-500' : 'border-current'}`}
+                >
                   {resetAllPools && (
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -252,13 +267,16 @@ const GachaSimulator = () => {
                 onClick={() => setResetKeepResources(!resetKeepResources)}
                 className={`
                   flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
-                  ${resetKeepResources
-                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  ${
+                    resetKeepResources
+                      ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 dark:text-emerald-400'
+                      : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }
                 `}
               >
-                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetKeepResources ? 'border-emerald-500 bg-emerald-500' : 'border-current'}`}>
+                <div
+                  className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetKeepResources ? 'border-emerald-500 bg-emerald-500' : 'border-current'}`}
+                >
                   {resetKeepResources && (
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -267,7 +285,9 @@ const GachaSimulator = () => {
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-bold">保留当前资源</div>
-                  <div className="text-xs opacity-75 mt-0.5">只重置抽卡记录、保底与赠送进度，保留嵌晶玉 / 源石 / 武库配额余额</div>
+                  <div className="text-xs opacity-75 mt-0.5">
+                    只重置抽卡记录、保底与赠送进度，保留嵌晶玉 / 源石 / 武库配额余额
+                  </div>
                 </div>
               </div>
 
@@ -275,13 +295,16 @@ const GachaSimulator = () => {
                 onClick={() => setResetSettings(!resetSettings)}
                 className={`
                   flex items-center gap-3 px-4 py-3 cursor-pointer transition-all border select-none
-                  ${resetSettings
-                    ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
-                    : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                  ${
+                    resetSettings
+                      ? 'bg-red-500/10 border-red-500 text-red-600 dark:text-red-400'
+                      : 'bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                   }
                 `}
               >
-                <div className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetSettings ? 'border-red-500 bg-red-500' : 'border-current'}`}>
+                <div
+                  className={`w-4 h-4 border-2 flex items-center justify-center transition-colors ${resetSettings ? 'border-red-500 bg-red-500' : 'border-current'}`}
+                >
                   {resetSettings && (
                     <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />

@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Star, Share2, Download, Copy, User } from 'lucide-react';
+import { X, Star, Share2, Download, Copy, User, Loader2 } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
 import { calculateArsenalQuotaRewardForRarity, RESOURCE_ICON_URLS } from '../../utils/resourceEconomy';
+import ShareActionStatus from '../../components/share/ShareActionStatus';
 
 const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index, poolType }) => {
   // 延迟动画
@@ -19,15 +20,17 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
     borderColor = 'border-orange-500';
     textColor = 'text-orange-600 dark:text-orange-500';
     avatarBg = 'bg-orange-200 dark:bg-orange-800';
-    if (isUp) { // 限定UP
-        borderColor = 'border-yellow-500 dark:border-endfield-yellow';
-        textColor = 'text-yellow-600 dark:text-endfield-yellow';
-        glowClass = 'shadow-[0_0_15px_rgba(255,250,0,0.2)] dark:shadow-[0_0_15px_rgba(255,250,0,0.4)]';
-        avatarBg = 'bg-gradient-to-br from-orange-400 to-pink-500';
-    } else if (isStandard) { // 常驻
-        borderColor = 'border-red-500';
-        textColor = 'text-red-600 dark:text-red-500';
-        avatarBg = 'bg-red-200 dark:bg-red-800';
+    if (isUp) {
+      // 限定UP
+      borderColor = 'border-yellow-500 dark:border-endfield-yellow';
+      textColor = 'text-yellow-600 dark:text-endfield-yellow';
+      glowClass = 'shadow-[0_0_15px_rgba(255,250,0,0.2)] dark:shadow-[0_0_15px_rgba(255,250,0,0.4)]';
+      avatarBg = 'bg-gradient-to-br from-orange-400 to-pink-500';
+    } else if (isStandard) {
+      // 常驻
+      borderColor = 'border-red-500';
+      textColor = 'text-red-600 dark:text-red-500';
+      avatarBg = 'bg-red-200 dark:bg-red-800';
     }
   } else if (rarity === 5) {
     bgColor = 'bg-yellow-50 dark:bg-yellow-500/5';
@@ -57,7 +60,9 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
       </div>
 
       {/* 角色头像 */}
-      <div className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center overflow-hidden mb-2 ${avatarBg}`}>
+      <div
+        className={`w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center overflow-hidden mb-2 ${avatarBg}`}
+      >
         {avatarUrl ? (
           <img
             src={avatarUrl}
@@ -95,12 +100,7 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
 
       {arsenalReward > 0 && (
         <div className="mt-2 flex items-center gap-1.5 text-[11px] md:text-xs font-bold text-blue-600 dark:text-cyan-400 font-mono">
-          <img
-            src={RESOURCE_ICON_URLS.arsenalQuota}
-            alt="武库配额"
-            className="w-5 h-5 object-contain"
-            loading="lazy"
-          />
+          <img src={RESOURCE_ICON_URLS.arsenalQuota} alt="武库配额" className="w-5 h-5 object-contain" loading="lazy" />
           <span>+{arsenalReward.toLocaleString()}</span>
         </div>
       )}
@@ -116,72 +116,105 @@ const SimulatorResults = ({
   onCopyImage,
   poolType,
   supportsClipboardImageCopy,
-  supportsImageShare
+  supportsImageShare,
+  shareActionBusy,
+  shareActionFeedback,
 }) => {
   // 统计本次结果
-  const sixStars = results.filter(r => r.rarity === 6).length;
-  const fiveStars = results.filter(r => r.rarity === 5).length;
+  const sixStars = results.filter((r) => r.rarity === 6).length;
+  const fiveStars = results.filter((r) => r.rarity === 5).length;
   const isSingle = results.length === 1;
+  const activeShareAction = shareActionFeedback?.action;
+  const hasVisibleShareStatus = shareActionFeedback?.phase && shareActionFeedback.phase !== 'idle';
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col h-full py-4">
       {/* 顶部栏 */}
-      <div className="flex items-center justify-between mb-8">
+      <div className={`flex items-center justify-between ${hasVisibleShareStatus ? 'mb-4' : 'mb-8'}`}>
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-white italic tracking-tighter">
             寻访结果
           </h2>
           <div className="flex gap-4 text-sm font-mono text-slate-500 dark:text-zinc-400 mt-2">
-             <span>6★: <span className="text-yellow-600 dark:text-endfield-yellow">{sixStars}</span></span>
-             <span>5★: <span className="text-slate-800 dark:text-white">{fiveStars}</span></span>
+            <span>
+              6★: <span className="text-yellow-600 dark:text-endfield-yellow">{sixStars}</span>
+            </span>
+            <span>
+              5★: <span className="text-slate-800 dark:text-white">{fiveStars}</span>
+            </span>
           </div>
         </div>
         <div className="flex gap-2">
-           {supportsImageShare && (
-             <button
-                type="button"
-                onClick={onShare}
-                className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
-                title="系统分享当前模拟统计"
-             >
-                <Share2 size={20} />
-             </button>
-           )}
-           <button
+          {supportsImageShare && (
+            <button
               type="button"
-              onClick={onDownloadImage}
-              className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
-              title="下载当前模拟统计图片"
-           >
+              onClick={onShare}
+              disabled={shareActionBusy}
+              className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
+                shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
+              }`}
+              title="系统分享当前模拟统计"
+            >
+              {shareActionBusy && activeShareAction === 'share' ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                <Share2 size={20} />
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDownloadImage}
+            disabled={shareActionBusy}
+            className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
+              shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
+            }`}
+            title="下载当前模拟统计图片"
+          >
+            {shareActionBusy && activeShareAction === 'download' ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
               <Download size={20} />
-           </button>
-           {supportsClipboardImageCopy && (
-             <button
-                type="button"
-                onClick={onCopyImage}
-                className="p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white hover:bg-slate-300 dark:hover:bg-zinc-700 transition-colors"
-                title="复制当前模拟统计图片"
-             >
+            )}
+          </button>
+          {supportsClipboardImageCopy && (
+            <button
+              type="button"
+              onClick={onCopyImage}
+              disabled={shareActionBusy}
+              className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
+                shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
+              }`}
+              title="复制当前模拟统计图片"
+            >
+              {shareActionBusy && activeShareAction === 'copy-image' ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
                 <Copy size={20} />
-             </button>
-           )}
-           {/* Close button kept for manual closing if needed, but Confirm button below removed */}
-           <button type="button" onClick={onClose} className="p-2 bg-yellow-500 dark:bg-endfield-yellow text-white dark:text-black hover:bg-yellow-600 dark:hover:bg-yellow-400 transition-colors">
-              <X size={20} />
-           </button>
+              )}
+            </button>
+          )}
+          {/* Close button kept for manual closing if needed, but Confirm button below removed */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 bg-yellow-500 dark:bg-endfield-yellow text-white dark:text-black hover:bg-yellow-600 dark:hover:bg-yellow-400 transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
       </div>
 
+      {hasVisibleShareStatus && <ShareActionStatus feedback={shareActionFeedback} className="mb-4" />}
+
       {/* 结果网格 - 固定高度显示所有内容 */}
-      <div className={`${isSingle ? 'flex justify-center items-center h-full' : 'grid grid-cols-5 gap-3 md:gap-4'} mb-6 flex-1`}>
+      <div
+        className={`${isSingle ? 'flex justify-center items-center h-full' : 'grid grid-cols-5 gap-3 md:gap-4'} mb-6 flex-1`}
+      >
         {results.map((result, index) => (
-           <div key={index} className={isSingle ? 'w-full max-w-xs' : 'w-full'}>
-             <RarityCard
-               {...result}
-               index={index}
-               poolType={poolType}
-             />
-           </div>
+          <div key={index} className={isSingle ? 'w-full max-w-xs' : 'w-full'}>
+            <RarityCard {...result} index={index} poolType={poolType} />
+          </div>
         ))}
       </div>
     </div>
