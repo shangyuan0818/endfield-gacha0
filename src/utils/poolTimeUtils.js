@@ -3,8 +3,8 @@
  * 用于从数据库中获取当前活跃的限定池信息
  */
 
-import { LIMITED_POOL_SCHEDULE } from '../constants';
-import { characterCache } from './characterUtils';
+import { LIMITED_POOL_SCHEDULE } from '../constants/index.js';
+import { characterCache } from './characterUtils.js';
 
 function normalizeRotationLimit(value) {
   if (value === null || value === undefined || value === '') {

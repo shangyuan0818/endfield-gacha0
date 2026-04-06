@@ -76,6 +76,28 @@ const getCurrentUserId = () => {
   }
 };
 
+function getSafeLocalStorage() {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredUiValue(key) {
+  const storage = getSafeLocalStorage();
+  if (!storage) {
+    return null;
+  }
+
+  const saved = storage.getItem(key);
+  if (!saved || saved === 'null' || saved === 'undefined') {
+    return null;
+  }
+
+  return saved;
+}
+
 /**
  * 卡池状态管理 V3
  *
@@ -91,25 +113,10 @@ const usePoolStore = create((set, get) => ({
   pools: [],
 
   // ========== 当前选中卡池（UI 状态，保留 localStorage）==========
-  currentPoolId: (() => {
-    const saved = localStorage.getItem('gacha_current_pool_id');
-    // ⚠️ 修复 DR-A09：localStorage 会将 null 保存为字符串 "null"
-    if (!saved || saved === 'null' || saved === 'undefined') {
-      return null;
-    }
-    return saved;
-  })(),
+  currentPoolId: readStoredUiValue('gacha_current_pool_id'),
 
   // ========== 当前游戏账号（UI 状态，保留 localStorage）==========
-  currentGameUid: (() => {
-    const saved = localStorage.getItem('gacha_current_game_uid');
-    // ⚠️ 修复：localStorage 会将 null 保存为字符串 "null"
-    // 需要显式检查并转换
-    if (!saved || saved === 'null' || saved === 'undefined') {
-      return null;
-    }
-    return saved;
-  })(),
+  currentGameUid: readStoredUiValue('gacha_current_game_uid'),
 
   // ========== 卡池搜索 ==========
   poolSearchQuery: '',
@@ -149,7 +156,7 @@ const usePoolStore = create((set, get) => ({
    */
   switchPool: (poolId) => {
     set({ currentPoolId: poolId });
-    localStorage.setItem('gacha_current_pool_id', poolId);
+    getSafeLocalStorage()?.setItem('gacha_current_pool_id', poolId);
   },
 
   /**
@@ -158,7 +165,7 @@ const usePoolStore = create((set, get) => ({
   switchToPoolGroup: (groupType) => {
     const id = POOL_GROUP_PREFIX + groupType;
     set({ currentPoolId: id });
-    localStorage.setItem('gacha_current_pool_id', id);
+    getSafeLocalStorage()?.setItem('gacha_current_pool_id', id);
   },
 
   /**
@@ -169,10 +176,15 @@ const usePoolStore = create((set, get) => ({
     const normalizedUid = (!gameUid || gameUid === 'null' || gameUid === 'undefined') ? null : gameUid;
     set({ currentGameUid: normalizedUid });
 
+    const storage = getSafeLocalStorage();
+    if (!storage) {
+      return;
+    }
+
     if (normalizedUid === null) {
-      localStorage.removeItem('gacha_current_game_uid');
+      storage.removeItem('gacha_current_game_uid');
     } else {
-      localStorage.setItem('gacha_current_game_uid', normalizedUid);
+      storage.setItem('gacha_current_game_uid', normalizedUid);
     }
   },
 
