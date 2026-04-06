@@ -138,7 +138,8 @@ function drawFinderPattern(modules, functionModules, left, top) {
       const isOuter = dx >= 0 && dx <= 6 && (dy === 0 || dy === 6)
         || dy >= 0 && dy <= 6 && (dx === 0 || dx === 6);
       const isCenter = dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4;
-      setFunctionModule(modules, functionModules, x, y, isOuter || isCenter);
+      const isPatternCell = dx >= 0 && dx <= 6 && dy >= 0 && dy <= 6;
+      setFunctionModule(modules, functionModules, x, y, isPatternCell && (isOuter || isCenter));
     }
   }
 }
@@ -165,6 +166,26 @@ function drawFunctionPatterns(modules, functionModules) {
   }
 
   setFunctionModule(modules, functionModules, 8, QR_SIZE - 8, true);
+  reserveFormatInfo(modules, functionModules);
+}
+
+function reserveFormatInfo(modules, functionModules) {
+  for (let i = 0; i <= 5; i++) {
+    setFunctionModule(modules, functionModules, 8, i, false);
+  }
+  setFunctionModule(modules, functionModules, 8, 7, false);
+  setFunctionModule(modules, functionModules, 8, 8, false);
+  setFunctionModule(modules, functionModules, 7, 8, false);
+  for (let i = 9; i < 15; i++) {
+    setFunctionModule(modules, functionModules, 14 - i, 8, false);
+  }
+
+  for (let i = 0; i < 8; i++) {
+    setFunctionModule(modules, functionModules, QR_SIZE - 1 - i, 8, false);
+  }
+  for (let i = 8; i < 15; i++) {
+    setFunctionModule(modules, functionModules, 8, QR_SIZE - 15 + i, false);
+  }
 }
 
 function drawCodewords(modules, functionModules, codewords) {
