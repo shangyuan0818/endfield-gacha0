@@ -310,6 +310,7 @@ function summarizeGroup(group = []) {
   const offStandardSixStars = sixStars.filter((item) => item?.isStandard === true && !isActuallyLimited(item));
   const primarySixStar = sixStars.length > 0 ? sixStars[sixStars.length - 1] : null;
   const primaryHighRarity = highRarityItems.length > 0 ? highRarityItems[highRarityItems.length - 1] : null;
+  const timestampSource = primarySixStar || primaryHighRarity || group[group.length - 1] || group[0] || null;
 
   return {
     paidCount,
@@ -326,7 +327,7 @@ function summarizeGroup(group = []) {
     primaryHighRarity,
     highRarityItems,
     dropBadges: createDropBadges(highRarityItems),
-    timestamp: group[0]?.timestamp || null
+    timestamp: timestampSource?.timestamp || timestampSource?.gacha_time || null
   };
 }
 

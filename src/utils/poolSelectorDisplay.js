@@ -1,4 +1,4 @@
-import { GROUP_TYPE_LABELS, POOL_GROUP_PREFIX } from '../stores/usePoolStore';
+import { GROUP_TYPE_LABELS, POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
 
 const TYPE_ORDER = ['limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 

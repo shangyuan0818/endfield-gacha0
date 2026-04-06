@@ -28,6 +28,7 @@
     "test:simulator-share": "node scripts/verify-simulator-share.mjs",
     "test:simulator-share:ui": "node scripts/verify-simulator-share-playwright.mjs",
     "test:dashboard-share": "node scripts/verify-dashboard-share.mjs",
+    "test:dashboard-ordering": "node scripts/verify-dashboard-ordering-bugs.mjs",
     "test:target-up-average": "node scripts/verify-target-up-intervals.mjs",
     "test:home-automation-ui": "node scripts/verify-home-and-automation-ui-playwright.mjs",
     "test:info-book-resources": "node scripts/verify-info-book-resource-accounting.mjs",

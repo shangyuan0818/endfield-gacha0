@@ -1,6 +1,73 @@
 import { useMemo } from 'react';
 import useHistoryStore from '../../stores/useHistoryStore.js';
 
+function getHistorySortTimestamp(item) {
+  if (typeof item?.timestamp === 'number') {
+    return item.timestamp;
+  }
+
+  const parsed = new Date(item?.timestamp || item?.gacha_time || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getHistorySeqId(item) {
+  return parseInt(item?.seqId || item?.seq_id || '0', 10) || 0;
+}
+
+function getHistoryStableKey(item) {
+  return String(item?.id || item?.record_id || '');
+}
+
+export function sortHistoryByTimelineAsc(left, right) {
+  const timeDiff = getHistorySortTimestamp(left) - getHistorySortTimestamp(right);
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  const seqDiff = getHistorySeqId(left) - getHistorySeqId(right);
+  if (seqDiff !== 0) {
+    return seqDiff;
+  }
+
+  return getHistoryStableKey(left).localeCompare(getHistoryStableKey(right), 'zh-CN');
+}
+
+export function buildCurrentPoolHistoryWithIndex(normalizedCurrentPoolHistory = []) {
+  return [...normalizedCurrentPoolHistory]
+    .sort(sortHistoryByTimelineAsc)
+    .map((item, index) => ({ ...item, globalIndex: index + 1 }));
+}
+
+export function buildGroupedHistory(currentPoolHistoryWithIndex = []) {
+  const groups = [];
+  const sorted = [...currentPoolHistoryWithIndex].reverse();
+
+  if (sorted.length === 0) {
+    return [];
+  }
+
+  let currentGroup = [sorted[0]];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    const prevTime = getHistorySortTimestamp(prev);
+    const currTime = getHistorySortTimestamp(curr);
+    const timeDiff = Math.abs(currTime - prevTime);
+
+    if (timeDiff <= 2000) {
+      currentGroup.push(curr);
+    } else {
+      groups.push(currentGroup);
+      currentGroup = [curr];
+    }
+  }
+
+  groups.push(currentGroup);
+
+  return groups.map(group => group.reverse());
+}
+
 /**
  * 当前卡池日志分组 Hook
  * 负责为当前卡池历史记录添加序号，并按时间聚合十连展示。
@@ -9,39 +76,11 @@ export function useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory = []) 
   const historyFilter = useHistoryStore(state => state.historyFilter);
 
   const currentPoolHistoryWithIndex = useMemo(() => {
-    return [...normalizedCurrentPoolHistory]
-      .sort((a, b) => a.id - b.id)
-      .map((item, index) => ({ ...item, globalIndex: index + 1 }));
+    return buildCurrentPoolHistoryWithIndex(normalizedCurrentPoolHistory);
   }, [normalizedCurrentPoolHistory]);
 
   const groupedHistory = useMemo(() => {
-    const groups = [];
-    const sorted = [...currentPoolHistoryWithIndex].reverse();
-
-    if (sorted.length === 0) {
-      return [];
-    }
-
-    let currentGroup = [sorted[0]];
-
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const curr = sorted[i];
-      const prevTime = new Date(prev.timestamp).getTime();
-      const currTime = new Date(curr.timestamp).getTime();
-      const timeDiff = Math.abs(currTime - prevTime);
-
-      if (timeDiff <= 2000) {
-        currentGroup.push(curr);
-      } else {
-        groups.push(currentGroup);
-        currentGroup = [curr];
-      }
-    }
-
-    groups.push(currentGroup);
-
-    return groups.map(group => group.reverse());
+    return buildGroupedHistory(currentPoolHistoryWithIndex);
   }, [currentPoolHistoryWithIndex]);
 
   const filteredGroupedHistory = useMemo(() => {

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import useAuthStore from './useAuthStore';
-import { getPreferredPool } from '../utils/poolSelectionUtils';
+import useAuthStore from './useAuthStore.js';
+import { getPreferredPool } from '../utils/poolSelectionUtils.js';
 import {
   POOL_GROUP_PREFIX,
   GROUP_TYPE_LABELS,

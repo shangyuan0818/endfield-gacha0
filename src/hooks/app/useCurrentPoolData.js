@@ -18,6 +18,10 @@ import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
 
+function getPoolId(pool) {
+  return pool?.id || pool?.pool_id || null;
+}
+
 function getHistoryPoolId(item) {
   return item.poolId || item.pool_id || null;
 }
@@ -164,9 +168,15 @@ export function useCurrentPoolData() {
     }
 
     if (isGroupMode) {
-      const groupPoolIds = new Set(selectedPools.map(pool => pool.id));
+      const groupPoolIds = new Set(
+        selectedPools
+          .map(pool => getPoolId(pool))
+          .filter(Boolean)
+      );
 
-      return annotatedAccountHistoryArray.filter(item => groupPoolIds.has(getHistoryPoolId(item)));
+      return annotatedAccountHistoryArray
+        .filter(item => groupPoolIds.has(getHistoryPoolId(item)))
+        .sort(sortByTimeline);
     }
 
     const activePoolId = currentPool?.id || currentPoolId;
@@ -174,12 +184,18 @@ export function useCurrentPoolData() {
       return [];
     }
 
-    return annotatedAccountHistoryArray.filter(item => getHistoryPoolId(item) === activePoolId);
+    return annotatedAccountHistoryArray
+      .filter(item => getHistoryPoolId(item) === activePoolId)
+      .sort(sortByTimeline);
   }, [annotatedAccountHistoryArray, currentPool?.id, currentPoolId, isGroupMode, selectedPools, user?.id]);
 
   const normalizedCurrentPoolHistory = useMemo(() => {
     if (isGroupMode) {
-      const poolMap = new Map(poolsArray.map(pool => [pool.id, pool]));
+      const poolMap = new Map(
+        poolsArray
+          .map(pool => [getPoolId(pool), pool])
+          .filter(([poolId]) => Boolean(poolId))
+      );
 
       return currentPoolHistory.map(item => {
         const pool = poolMap.get(getHistoryPoolId(item));
@@ -204,7 +220,8 @@ export function useCurrentPoolData() {
     const limitedPoolIds = new Set(
       poolsArray
         .filter(pool => LIMITED_POOL_TYPES.has(pool.type))
-        .map(pool => pool.id)
+        .map(pool => getPoolId(pool))
+        .filter(Boolean)
     );
 
     return annotatedAccountHistoryArray

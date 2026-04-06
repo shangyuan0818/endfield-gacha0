@@ -1,4 +1,4 @@
-import { DEFAULT_POOL_ID } from '../constants';
+import { DEFAULT_POOL_ID } from '../constants/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
 
