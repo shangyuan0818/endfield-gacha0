@@ -50,3 +50,13 @@ api/hg-proxy.js
 docs/email-template/twilio_2FA_recovery_code.txt
 .vercel
 .env*.local
+
+# Local Judou Sans source files stay out of version control.
+src/assets/fonts/judou/*.zip
+src/assets/fonts/judou/*.ttf
+!src/assets/fonts/judou/OFL.txt
+
+# Keep only checked-in Judou subsets, not cn-font-split debug artifacts.
+src/generated/fonts/judou/**/index.html
+src/generated/fonts/judou/**/index.proto
+src/generated/fonts/judou/**/reporter.bin

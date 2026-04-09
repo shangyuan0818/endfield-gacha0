@@ -10,12 +10,15 @@
     "npm": ">=10"
   },
   "scripts": {
+    "fonts:prepare": "node scripts/build-font-subsets.mjs",
+    "predev": "npm run fonts:prepare",
     "dev": "vite",
     "dev:backend": "node scripts/run-private-backend.mjs npm-script dev",
     "dev:backend:cn": "node scripts/run-private-backend.mjs npm-script dev:cn",
     "dev:backend:intl": "node scripts/run-private-backend.mjs npm-script dev:intl",
     "dev:proxy": "node scripts/private-proxy-notice.mjs",
     "dev:full": "npm run dev:proxy && npm run dev",
+    "prebuild": "npm run fonts:prepare",
     "build": "vite build",
     "test": "node scripts/run-public-tests.mjs",
     "lint": "eslint .",
@@ -88,6 +91,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",
     "autoprefixer": "^10.4.22",
+    "cn-font-split": "^7.4.1",
     "dotenv": "^17.3.1",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",

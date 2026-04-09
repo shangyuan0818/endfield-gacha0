@@ -1,0 +1,8 @@
+{
+  "version": "judou-sans-se-wasm-v2",
+  "family": "Judou Sans SE UI",
+  "key": "medium",
+  "weight": "500",
+  "sourceFile": "src/assets/fonts/judou/JudouSEHans-Medium.ttf",
+  "sourceHash": "155846f8e4ea5653a00decf52b0bbecdd2d8f9f6380eca2f339f199a322154fe"
+}
