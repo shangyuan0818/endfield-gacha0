@@ -22,7 +22,8 @@
 
 @layer base {
   html {
-    --font-sans: 'Inter', system-ui, sans-serif;
+    /* Chinese UI defaults to Judou Sans SE; English switches via data-locale. */
+    --font-sans: 'Judou Sans SE UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     --font-number: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     font-family: var(--font-sans);
@@ -31,7 +32,7 @@
   }
 
   html[data-locale='en-US'] {
-    --font-sans: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --font-sans: 'Space Grotesk', 'Judou Sans SE UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     --font-number: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   }
