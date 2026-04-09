@@ -182,7 +182,10 @@ const standardText = buildSimulatorShareText(standardPayload);
 assert.match(limitedText, /已脱敏分享卡/);
 assert.match(weaponText, /80抽首轮限定必出：52\/80/);
 assert.match(standardText, /300抽自选进度：211\/300/);
-assert.match(limitedText, /耗玉：68,500/);
+assert.match(limitedText, /耗金玉：68,500（角色池计费）/);
+assert.match(limitedText, /衍质折金玉：913\.3（按当前换算比例）/);
+assert.match(limitedText, /得武库配额：5,200（4★ \/ 5★ \/ 6★ 转化）/);
+assert.match(limitedText, /耗武库配额：1,980（武器池计费）/);
 assert.match(limitedText, new RegExp(SHARE_BRAND_LINK.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
 const serializedPayloads = [

@@ -1,4 +1,5 @@
 import { calculateCurrentProbability } from '../../utils/validators.js';
+import { getAppLocale, getMessage } from '../../i18n/index.js';
 import { normalizeSimulatorPoolType } from './simulatorInheritance.js';
 import { buildCurrentTargetProbabilityInfo } from './simulatorProbability.js';
 
@@ -51,7 +52,7 @@ export function processHistoryGroups(history) {
   return groups.reverse();
 }
 
-export function buildDashboardStats(stats, pityInfo, simulator) {
+export function buildDashboardStats(stats, pityInfo, simulator, locale = getAppLocale()) {
   const normalizedPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const probabilityInfo = calculateCurrentProbability(pityInfo.sixStar.current, normalizedPoolType);
   const simulatorState = simulator?.getState?.() || {};
@@ -87,9 +88,13 @@ export function buildDashboardStats(stats, pityInfo, simulator) {
         : 0
     },
     chartData: [
-      { name: '6星', value: stats.sixStarCount, color: '#FFFA00' },
-      { name: '5星', value: stats.fiveStarCount, color: '#F59E0B' },
-      { name: '4星及以下', value: Math.max(0, stats.totalPulls - stats.sixStarCount - stats.fiveStarCount), color: '#A855F7' }
+      { name: getMessage('simulator.chart.sixStar', {}, locale), value: stats.sixStarCount, color: '#FFFA00' },
+      { name: getMessage('simulator.chart.fiveStar', {}, locale), value: stats.fiveStarCount, color: '#F59E0B' },
+      {
+        name: getMessage('simulator.chart.lowerRarity', {}, locale),
+        value: Math.max(0, stats.totalPulls - stats.sixStarCount - stats.fiveStarCount),
+        color: '#A855F7'
+      }
     ],
     pityStats: {
       history: stats.sixStarHistory.map((item, index) => ({

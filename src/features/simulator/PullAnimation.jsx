@@ -1,6 +1,8 @@
 import React from 'react';
+import { useI18n } from '../../i18n/index.js';
 
 const PullAnimation = () => {
+  const { t } = useI18n();
   return (
     <div className="absolute inset-0 bg-white/90 dark:bg-black/80 backdrop-blur-sm z-30 flex items-center justify-center overflow-hidden">
        {/* 中心聚合动画 */}
@@ -14,7 +16,7 @@ const PullAnimation = () => {
        {/* 文字闪烁 */}
        <div className="relative z-20 text-center">
           <h2 className="text-6xl font-black text-slate-800 dark:text-white italic tracking-tighter animate-pulse mb-4">
-            正在连接...
+            {t('simulator.animation.connecting')}
           </h2>
           <div className="flex justify-center gap-1">
              <div className="w-20 h-1 bg-yellow-500 dark:bg-endfield-yellow animate-[width_1s_ease-in-out_infinite]" />

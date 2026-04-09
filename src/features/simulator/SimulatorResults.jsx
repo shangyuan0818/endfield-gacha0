@@ -1,10 +1,11 @@
 import React from 'react';
 import { X, Star, Share2, Download, Copy, User, Loader2 } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
-import { calculateArsenalQuotaRewardForRarity, RESOURCE_ICON_URLS } from '../../utils/resourceEconomy';
+import { calculateArsenalQuotaRewardForRarity, getLocalizedResourceLabel, RESOURCE_ICON_URLS } from '../../utils/resourceEconomy';
 import ShareActionStatus from '../../components/share/ShareActionStatus';
+import { useI18n } from '../../i18n/index.js';
 
-const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index, poolType }) => {
+const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index, poolType, t, locale }) => {
   // 延迟动画
   const delay = `${index * 100}ms`;
 
@@ -95,12 +96,12 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
 
       {/* 类型标记 */}
       <div className="mt-1 text-[9px] md:text-[10px] font-bold uppercase tracking-wider bg-black/20 px-1.5 py-0.5 rounded text-white/80">
-        {isUp ? 'UP' : isLimited ? 'LIMITED' : isStandard ? 'STANDARD' : 'NORMAL'}
+        {isUp ? 'UP' : isLimited ? t('simulator.results.type.limited') : isStandard ? t('simulator.results.type.standard') : t('simulator.results.type.normal')}
       </div>
 
       {arsenalReward > 0 && (
         <div className="mt-2 flex items-center gap-1.5 text-[11px] md:text-xs font-bold text-blue-600 dark:text-cyan-400 font-mono">
-          <img src={RESOURCE_ICON_URLS.arsenalQuota} alt="武库配额" className="w-5 h-5 object-contain" loading="lazy" />
+          <img src={RESOURCE_ICON_URLS.arsenalQuota} alt={getLocalizedResourceLabel('arsenalQuota', locale)} className="w-5 h-5 object-contain" loading="lazy" />
           <span>+{arsenalReward.toLocaleString()}</span>
         </div>
       )}
@@ -120,6 +121,7 @@ const SimulatorResults = ({
   shareActionBusy,
   shareActionFeedback,
 }) => {
+  const { t, locale } = useI18n();
   // 统计本次结果
   const sixStars = results.filter((r) => r.rarity === 6).length;
   const fiveStars = results.filter((r) => r.rarity === 5).length;
@@ -133,7 +135,7 @@ const SimulatorResults = ({
       <div className={`flex items-center justify-between ${hasVisibleShareStatus ? 'mb-4' : 'mb-8'}`}>
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-800 dark:text-white italic tracking-tighter">
-            寻访结果
+            {t('simulator.results.title')}
           </h2>
           <div className="flex gap-4 text-sm font-mono text-slate-500 dark:text-zinc-400 mt-2">
             <span>
@@ -153,7 +155,7 @@ const SimulatorResults = ({
               className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
                 shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
               }`}
-              title="系统分享当前模拟统计"
+              title={t('simulator.results.shareTitle')}
             >
               {shareActionBusy && activeShareAction === 'share' ? (
                 <Loader2 size={20} className="animate-spin" />
@@ -169,7 +171,7 @@ const SimulatorResults = ({
             className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
               shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
             }`}
-            title="下载当前模拟统计图片"
+            title={t('simulator.results.downloadTitle')}
           >
             {shareActionBusy && activeShareAction === 'download' ? (
               <Loader2 size={20} className="animate-spin" />
@@ -185,7 +187,7 @@ const SimulatorResults = ({
               className={`p-2 bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-white transition-colors ${
                 shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-300 dark:hover:bg-zinc-700'
               }`}
-              title="复制当前模拟统计图片"
+              title={t('simulator.results.copyTitle')}
             >
               {shareActionBusy && activeShareAction === 'copy-image' ? (
                 <Loader2 size={20} className="animate-spin" />
@@ -198,6 +200,7 @@ const SimulatorResults = ({
           <button
             type="button"
             onClick={onClose}
+            title={t('simulator.results.closeTitle')}
             className="p-2 bg-yellow-500 dark:bg-endfield-yellow text-white dark:text-black hover:bg-yellow-600 dark:hover:bg-yellow-400 transition-colors"
           >
             <X size={20} />
@@ -213,7 +216,7 @@ const SimulatorResults = ({
       >
         {results.map((result, index) => (
           <div key={index} className={isSingle ? 'w-full max-w-xs' : 'w-full'}>
-            <RarityCard {...result} index={index} poolType={poolType} />
+            <RarityCard {...result} index={index} poolType={poolType} t={t} locale={locale} />
           </div>
         ))}
       </div>
