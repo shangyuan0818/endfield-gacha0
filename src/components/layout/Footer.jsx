@@ -2,6 +2,7 @@ import React from 'react';
 import { Heart, Code, ExternalLink } from 'lucide-react';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 全局页脚组件
@@ -11,6 +12,7 @@ import { APP_VERSION_LABEL } from '../../constants/appMeta';
 const Footer = React.memo(() => {
   const currentYear = new Date().getFullYear();
   const config = useSiteConfigStore(state => state.config);
+  const { t } = useI18n();
 
   const siteVersion = config.site_version || APP_VERSION_LABEL;
   const authorName = config.author_name || '';
@@ -26,14 +28,14 @@ const Footer = React.memo(() => {
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-zinc-500">
           {/* 版权信息 */}
-          <div className="flex items-center gap-1">
-            <span>终末地抽卡分析器 {siteVersion}</span>
+          <div className="flex items-center justify-center md:justify-start gap-1 flex-wrap text-center md:text-left">
+            <span>{t('app.brand')} {siteVersion}</span>
             <span className="mx-2">|</span>
             <span>&copy; {currentYear}</span>
           </div>
 
           {/* 制作者信息 */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap justify-center">
             {authorName && (
               <a
                 href={authorBilibili || '#'}
@@ -61,11 +63,11 @@ const Footer = React.memo(() => {
 
           {/* 免责声明 + 政策链接 */}
           <div className="text-center md:text-right text-[10px] text-slate-400 dark:text-zinc-600">
-            <div>本工具与游戏官方无关 | 游戏内容版权归 Gryphline / HyperGryph 所有</div>
+            <div>{t('footer.disclaimer')}</div>
             <div className="mt-1 flex items-center justify-center md:justify-end gap-2 flex-wrap">
-              <a href="/privacy" className="hover:text-slate-600 dark:hover:text-zinc-400 transition-colors underline">隐私政策</a>
+              <a href="/privacy" className="hover:text-slate-600 dark:hover:text-zinc-400 transition-colors underline">{t('about.privacyPolicy')}</a>
               <span>|</span>
-              <a href="/terms" className="hover:text-slate-600 dark:hover:text-zinc-400 transition-colors underline">用户协议</a>
+              <a href="/terms" className="hover:text-slate-600 dark:hover:text-zinc-400 transition-colors underline">{t('about.terms')}</a>
               {icpNumber && (
                 <>
                   <span>|</span>

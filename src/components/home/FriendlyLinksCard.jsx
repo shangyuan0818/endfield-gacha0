@@ -1,20 +1,27 @@
 import React from 'react';
 import { ArrowUpRight, BarChart3, Globe, Map } from 'lucide-react';
 import { useJsonConfig } from '../../stores/useSiteConfigStore';
+import { useI18n } from '../../i18n/index.js';
 
 const ICON_MAP = { BarChart3, Map, Globe };
 
 const DEFAULT_FRIENDLY_LINKS = [
-  { title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'BarChart3', label: 'RESOURCE PLANNER' },
-  { title: '地图（国际服可用）', url: 'https://opendfieldmap.cn/', icon: 'Map', label: 'OPEN WORLD MAP' },
-  { title: '终末地地图（笋干）', url: 'https://www.zmdmap.com/', icon: 'Map', label: 'GAME MAP WIKI' },
-  { title: '同样优秀的抽卡记录分析（还有舟本体的）', url: 'https://endgacha.kwer.top/', icon: 'BarChart3', label: 'GACHA ANALYZER' },
-  { title: '剧情检索 (AI精准查询与梗概生成)', url: 'https://endfield.prts.chat/', icon: 'Globe', label: 'STORY SEARCH' },
-  { title: '抽卡规划器', url: 'https://endfield.203.io/', icon: 'BarChart3', label: 'PULL PLANNER' },
+  { id: 'yituliu-calculator', title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'BarChart3', label: 'RESOURCE PLANNER' },
+  { id: 'opendfield-map', title: '地图（国际服可用）', url: 'https://opendfieldmap.cn/', icon: 'Map', label: 'OPEN WORLD MAP' },
+  { id: 'zmdmap', title: '终末地地图（笋干）', url: 'https://www.zmdmap.com/', icon: 'Map', label: 'GAME MAP WIKI' },
+  { id: 'endgacha', title: '同样优秀的抽卡记录分析（还有舟本体的）', url: 'https://endgacha.kwer.top/', icon: 'BarChart3', label: 'GACHA ANALYZER' },
+  { id: 'story-search', title: '剧情检索 (AI精准查询与梗概生成)', url: 'https://endfield.prts.chat/', icon: 'Globe', label: 'STORY SEARCH' },
+  { id: 'pull-planner', title: '抽卡规划器', url: 'https://endfield.203.io/', icon: 'BarChart3', label: 'PULL PLANNER' },
 ];
 
 const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
+  const { t } = useI18n();
   const FRIENDLY_LINKS = useJsonConfig('home_friendly_links', DEFAULT_FRIENDLY_LINKS);
+  const tt = (key, fallback, params = {}) => t(key, params, fallback);
+  const translatedLinks = FRIENDLY_LINKS.map((link) => ({
+    ...link,
+    title: link.id ? tt(`home.friendlyLinks.item.${link.id}.title`, link.title) : link.title,
+  }));
 
   return (
     <div className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden group h-full flex flex-col">
@@ -23,11 +30,11 @@ const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex items-center gap-2 mb-6">
           <div className="w-1.5 h-1.5 bg-blue-500 rounded-sm animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-          <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-[0.2em] uppercase">Friendly Links // 友情链接</h3>
+          <h3 className="text-zinc-500 dark:text-zinc-400 text-xs font-mono tracking-[0.2em] uppercase">{tt('home.friendlyLinks.title', 'Friendly Links // 友情链接')}</h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1">
-          {FRIENDLY_LINKS.map((link) => (
+          {translatedLinks.map((link) => (
             <a
               key={link.url}
               href={link.url}

@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import DesktopDashboardWorkspace from './DesktopDashboardWorkspace';
+import { useI18n } from '../../i18n/index.js';
 
 const HomePage = lazy(() => import('../home/HomePage'));
 const GachaSimulator = lazy(() => import('../../features/simulator/GachaSimulator'));
@@ -41,6 +42,8 @@ export default function DesktopAppRoutes({
   handleExportJSON,
   handleExportCSV
 }) {
+  const { isEnglish } = useI18n();
+  const tt = (zh, en) => (isEnglish ? en : zh);
   const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
 
   return (
@@ -48,7 +51,7 @@ export default function DesktopAppRoutes({
       <Route
         index
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载首页..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载首页...', 'Loading home...')} />}>
             <HomePage />
           </Suspense>
         }
@@ -56,7 +59,7 @@ export default function DesktopAppRoutes({
       <Route
         path="summary"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载统计..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载统计...', 'Loading summary...')} />}>
             <SummaryView />
           </Suspense>
         }
@@ -84,7 +87,7 @@ export default function DesktopAppRoutes({
       <Route
         path="simulator"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载模拟器..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载模拟器...', 'Loading simulator...')} />}>
             <GachaSimulator />
           </Suspense>
         }
@@ -92,7 +95,7 @@ export default function DesktopAppRoutes({
       <Route
         path="timeline-demo"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载时间线 Demo..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载时间线 Demo...', 'Loading timeline demo...')} />}>
             <TimelineConceptDemo />
           </Suspense>
         }
@@ -100,7 +103,7 @@ export default function DesktopAppRoutes({
       <Route
         path="settings"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载设置..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载设置...', 'Loading settings...')} />}>
             <SettingsPanel onDeleteAllData={deleteAllUserData} />
           </Suspense>
         }
@@ -108,7 +111,7 @@ export default function DesktopAppRoutes({
       <Route
         path="about"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载关于页..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载关于页...', 'Loading about...')} />}>
             <AboutPanel />
           </Suspense>
         }
@@ -116,7 +119,7 @@ export default function DesktopAppRoutes({
       <Route
         path="tickets"
         element={
-          <Suspense fallback={<TabPanelFallback label="正在加载工单..." />}>
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载工单...', 'Loading tickets...')} />}>
             <TicketPanel user={user} userRole={userRole} showToast={showToast} />
           </Suspense>
         }
@@ -125,9 +128,9 @@ export default function DesktopAppRoutes({
         path="admin"
         element={
           isResolvingRole ? (
-            <TabPanelFallback label="正在校验管理权限..." />
+            <TabPanelFallback label={tt('正在校验管理权限...', 'Checking admin access...')} />
           ) : isSuperAdmin ? (
-            <Suspense fallback={<TabPanelFallback label="正在加载管理后台..." />}>
+            <Suspense fallback={<TabPanelFallback label={tt('正在加载管理后台...', 'Loading admin panel...')} />}>
               <AdminPanel showToast={showToast} />
             </Suspense>
           ) : (

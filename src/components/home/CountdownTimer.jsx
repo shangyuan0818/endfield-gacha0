@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { ArrowRight, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { characterCache } from '../../utils/characterUtils';
+import { useI18n } from '../../i18n/index.js';
 
 const CountdownTimer = React.memo(function CountdownTimer({
   targetDate,
@@ -17,6 +18,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
   bgImage = null,
   theme = 'default',
 }) {
+  const { t: i18n } = useI18n();
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -119,7 +121,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
             isSmall ? 'text-lg' : 'text-xl sm:text-2xl'
           }`}
         >
-          协议已启动 // 欢迎来到塔罗斯II
+          {i18n('countdown.protocolStarted')}
         </div>
 
         <button
@@ -129,7 +131,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
           }`}
         >
           <span className="text-xl group-hover:rotate-12 transition-transform">🎉</span>
-          <span>庆祝时刻</span>
+          <span>{i18n('countdown.celebrate')}</span>
         </button>
       </div>
     );
@@ -174,7 +176,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
               <div className="flex items-center gap-2 mb-3">
                 <div className={`w-1.5 h-1.5 animate-pulse rounded-sm ${t.accentDot}`}></div>
                 <span className={`${t.accentText} font-mono text-[10px] tracking-[0.2em] uppercase`}>
-                  系统倒计时
+                  {i18n('countdown.system')}
                 </span>
               </div>
             )}
@@ -258,11 +260,11 @@ const CountdownTimer = React.memo(function CountdownTimer({
               : 'flex-1 p-6 md:p-8 flex items-center justify-center md:justify-end gap-2 sm:gap-4 md:gap-6 bg-zinc-50/50 dark:bg-zinc-900/20 backdrop-blur-sm'
           }`}
         >
-          {[
-            { label: '天', value: timeLeft.days, highlight: false },
-            { label: '时', value: timeLeft.hours, highlight: false },
-            { label: '分', value: timeLeft.minutes, highlight: false },
-            { label: '秒', value: timeLeft.seconds, highlight: true },
+          {[ 
+            { label: i18n('countdown.day'), value: timeLeft.days, highlight: false },
+            { label: i18n('countdown.hour'), value: timeLeft.hours, highlight: false },
+            { label: i18n('countdown.minute'), value: timeLeft.minutes, highlight: false },
+            { label: i18n('countdown.second'), value: timeLeft.seconds, highlight: true },
           ].map((item, index) => (
             <React.Fragment key={item.label}>
               {index > 0 && (

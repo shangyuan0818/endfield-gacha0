@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Menu, User } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import AuthModal from '../../AuthModal';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 移动端顶部导航栏
@@ -9,6 +10,7 @@ import AuthModal from '../../AuthModal';
 function MobileHeader({ onMenuClick }) {
   const { user, setUser } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const { t } = useI18n();
 
   const handleAvatarClick = () => {
     if (!user) {
@@ -30,28 +32,28 @@ function MobileHeader({ onMenuClick }) {
           <button
             onClick={onMenuClick}
             className="p-2 -ml-2 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors rounded-none"
-            aria-label="打开菜单"
+            aria-label={t('header.openMenu')}
           >
             <Menu className="w-6 h-6 text-zinc-700 dark:text-zinc-300" />
           </button>
 
           {/* 中间：Logo */}
           <div className="flex-1 flex items-center justify-center gap-2">
-            <span className="text-lg font-bold text-endfield-yellow tracking-wider uppercase drop-shadow-sm">终末地抽卡分析器</span>
+            <span className="text-lg font-bold text-endfield-yellow tracking-wider uppercase drop-shadow-sm">{t('app.brand')}</span>
           </div>
 
           {/* 右侧：用户头像（点击可登录） */}
           <button
             onClick={handleAvatarClick}
             className="p-1 -mr-1 touch-feedback group"
-            aria-label={user ? '用户信息' : '点击登录'}
+            aria-label={user ? t('header.userInfo') : t('header.clickToLogin')}
           >
             {user ? (
               <div className="w-8 h-8 rounded-none bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow group-hover:border-yellow-400 transition-colors shadow-sm">
                 {user.user_metadata?.avatar_url ? (
                   <img
                     src={user.user_metadata.avatar_url}
-                    alt="头像"
+                    alt={t('common.avatar')}
                     className="w-full h-full object-cover"
                   />
                 ) : (

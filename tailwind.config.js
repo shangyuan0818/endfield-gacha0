@@ -18,8 +18,8 @@ export default {
         }
       },
       fontFamily: {
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)'],
+        sans: ['var(--font-sans)'],
       },
       borderRadius: {
         'none': '0px',

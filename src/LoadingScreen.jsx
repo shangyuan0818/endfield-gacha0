@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import OracleCaptchaHub from './components/captcha/OracleCaptchaHub';
 import { warmupApplication } from './services/appWarmupService';
+import { useI18n } from './i18n/index.js';
 
 // 验证码有效期：24小时（毫秒）
 const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
@@ -18,6 +19,7 @@ const LOADING_TEXTS = [
 ];
 
 const LoadingScreen = ({ onComplete }) => {
+  const { t } = useI18n();
   const [stage, setStage] = useState('loading'); // loading | captcha | done
   const [progress, setProgress] = useState(0);
   const [text, setText] = useState('INITIALIZING');
@@ -153,27 +155,29 @@ const LoadingScreen = ({ onComplete }) => {
     <div className={`fixed inset-0 bg-black z-[9999] flex flex-col items-center font-mono text-endfield-yellow ${
       stage === 'captcha' ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden justify-center'
     }`}>
-      {/* 背景网格效果 */}
-      <div
-        className="absolute inset-0 opacity-10 pointer-events-none"
-        style={{
-          backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)',
-          backgroundSize: '40px 40px'
-        }}
-      />
-
-      {/* 装饰性边角 */}
-      <div className="absolute top-8 left-8 w-16 h-16 border-t-2 border-l-2 border-endfield-yellow/50" />
-      <div className="absolute top-8 right-8 w-16 h-16 border-t-2 border-r-2 border-endfield-yellow/50" />
-      <div className="absolute bottom-8 left-8 w-16 h-16 border-b-2 border-l-2 border-endfield-yellow/50" />
-      <div className="absolute bottom-8 right-8 w-16 h-16 border-b-2 border-r-2 border-endfield-yellow/50" />
-
-      {/* 扫描线 */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-yellow-400/5 to-transparent h-4 animate-scan" />
+      {/* 背景与扫描线容器 - absolute 并 overflow-hidden 截断溢出 */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        {/* 背景网格效果 */}
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)',
+            backgroundSize: '40px 40px'
+          }}
+        />
+        {/* 扫描线 */}
+        <div className="absolute left-0 right-0 h-4 bg-gradient-to-b from-transparent via-yellow-400/5 to-transparent animate-scan" />
+      </div>
 
       {/* 阶段1: 加载进度 */}
       {stage === 'loading' && (
         <div className="relative z-10 flex flex-col items-center">
+          {/* 装饰性边角 */}
+          <div className="fixed top-8 left-8 w-16 h-16 border-t-2 border-l-2 border-endfield-yellow/50 pointer-events-none" />
+          <div className="fixed top-8 right-8 w-16 h-16 border-t-2 border-r-2 border-endfield-yellow/50 pointer-events-none" />
+          <div className="fixed bottom-8 left-8 w-16 h-16 border-b-2 border-l-2 border-endfield-yellow/50 pointer-events-none" />
+          <div className="fixed bottom-8 right-8 w-16 h-16 border-b-2 border-r-2 border-endfield-yellow/50 pointer-events-none" />
+          
           {/* Central Logo */}
           <div className="relative z-10 mb-12 animate-pulse">
             <img
@@ -206,10 +210,10 @@ const LoadingScreen = ({ onComplete }) => {
             )}
             {stage === 'loading' && (showLongLoadingHint || (showWarmupHint && progress >= 92)) && (
               <div className="mt-4 max-w-lg rounded-sm border border-endfield-yellow/35 bg-zinc-950/70 px-4 py-3 text-center text-[11px] leading-5 text-zinc-300 shadow-[0_0_24px_rgba(255,204,0,0.08)]">
-                <div>首次加载、强刷新或网络较慢时，系统会先连接数据服务并预载页面资源。</div>
+                <div>{t('loading.hint.firstLoad')}</div>
                 {progress >= 92 && (
                   <div className="mt-1 text-endfield-yellow/90">
-                    当前停留在 92% 附近，通常表示预热仍在进行，这属于正常现象。
+                    {t('loading.hint.warmup')}
                   </div>
                 )}
               </div>
@@ -220,8 +224,8 @@ const LoadingScreen = ({ onComplete }) => {
 
       {/* 阶段2: 验证码 */}
       {stage === 'captcha' && (
-        <div className="relative z-10 flex w-full animate-fadeIn px-4 pt-6 pb-10">
-          <div className="w-full">
+        <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] w-full animate-fadeIn px-4 py-10">
+          <div className="w-full flex justify-center">
             <OracleCaptchaHub onVerified={handleCaptchaVerified} />
           </div>
         </div>
@@ -234,7 +238,7 @@ const LoadingScreen = ({ onComplete }) => {
             ✓ {skipCaptcha ? 'TRUSTED SESSION' : 'VERIFIED'}
           </div>
           <div className="text-gray-400 text-sm">
-            {skipCaptcha ? '身份已验证 · 正在进入系统...' : '身份验证成功 · 正在进入系统...'}
+            {skipCaptcha ? t('loading.done.trusted') : t('loading.done.verified')}
           </div>
         </div>
       )}
