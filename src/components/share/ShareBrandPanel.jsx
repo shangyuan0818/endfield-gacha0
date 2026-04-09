@@ -1,11 +1,10 @@
 import React from 'react';
 import {
   SHARE_BRAND_LINK,
-  SHARE_BRAND_NAME,
-  SHARE_BRAND_TAGLINE,
   SHARE_BRAND_URL,
   buildShareQrCodeDataUrl
 } from '../../utils/shareBranding';
+import { useI18n } from '../../i18n/index.js';
 
 function getThemeTokens(theme) {
   if (theme === 'dark') {
@@ -45,6 +44,7 @@ const ShareBrandPanel = ({
   showChips = true,
   showHeader = true
 }) => {
+  const { t } = useI18n();
   const tokens = getThemeTokens(theme);
   const qrCodeUrl = React.useMemo(
     () => buildShareQrCodeDataUrl(SHARE_BRAND_LINK, {
@@ -72,7 +72,7 @@ const ShareBrandPanel = ({
       {showHeader && (
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
           <div style={{ fontSize: '11px', fontWeight: 900, letterSpacing: '0.18em', color: tokens.textMuted, textTransform: 'uppercase' }}>
-            Scan To Open
+            {t('share.brand.scanHeader')}
           </div>
           <div style={{ width: compact ? '26px' : '36px', height: '3px', background: accentColor }} />
         </div>
@@ -103,7 +103,7 @@ const ShareBrandPanel = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: compact ? '8px' : '12px', alignItems: 'center' }}>
         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div style={{ fontSize: compact ? '16px' : '20px', lineHeight: 1.15, fontWeight: 900, color: tokens.textPrimary }}>
-            {SHARE_BRAND_NAME}
+            {t('share.brand.name')}
           </div>
           <div
             style={{
@@ -118,7 +118,7 @@ const ShareBrandPanel = ({
             {SHARE_BRAND_URL}
           </div>
           <div style={{ fontSize: compact ? '10px' : '12px', lineHeight: 1.35, color: tokens.textMuted }}>
-            {SHARE_BRAND_TAGLINE}
+            {t('share.brand.tagline')}
           </div>
         </div>
 
@@ -136,13 +136,13 @@ const ShareBrandPanel = ({
         >
           <img
             src={qrCodeUrl}
-            alt="终末地抽卡分析器站点二维码"
+            alt={t('share.brand.qrAlt')}
             width={qrSize}
             height={qrSize}
             style={{ width: `${qrSize}px`, height: `${qrSize}px`, display: 'block' }}
           />
           <div style={{ fontSize: compact ? '9px' : '10px', fontWeight: 800, color: tokens.qrLabel, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            扫码直达
+            {t('share.brand.scanCta')}
           </div>
         </div>
       </div>

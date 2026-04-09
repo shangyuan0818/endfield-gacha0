@@ -1,3 +1,5 @@
+import { getAppLocale, getMessage } from '../i18n/index.js';
+
 const JADE_ICON_URL = '/resource-icons/item_diamond.webp';
 const ORIGINITE_ICON_URL = '/resource-icons/item_originium_recharge.webp';
 const ARSENAL_ICON_URL = '/resource-icons/item_gachabyproducts_weapongold.webp';
@@ -9,10 +11,26 @@ export const RESOURCE_ICON_URLS = {
 };
 
 export const RESOURCE_LABELS = {
-  jade: '嵌晶玉',
+  jade: '嵌金玉',
   originite: '衍质源石',
   arsenalQuota: '武库配额'
 };
+
+export function getLocalizedResourceLabel(resourceKey, locale = getAppLocale()) {
+  if (resourceKey === 'jade') {
+    return getMessage('resource.jade', {}, locale);
+  }
+
+  if (resourceKey === 'originite') {
+    return getMessage('resource.originite', {}, locale);
+  }
+
+  if (resourceKey === 'arsenalQuota') {
+    return getMessage('resource.arsenalQuota', {}, locale);
+  }
+
+  return RESOURCE_LABELS[resourceKey] || resourceKey;
+}
 
 export const DEFAULT_RESOURCE_RULES = {
   characterPullJadeCost: 500,
@@ -368,6 +386,7 @@ export function formatOriginiteEquivalent(value) {
 export default {
   RESOURCE_ICON_URLS,
   RESOURCE_LABELS,
+  getLocalizedResourceLabel,
   DEFAULT_RESOURCE_RULES,
   DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
   normalizeResourceSettings,

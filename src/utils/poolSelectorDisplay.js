@@ -1,4 +1,5 @@
-import { GROUP_TYPE_LABELS, POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
+import { getAppLocale, getMessage } from '../i18n/index.js';
+import { POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
 
 const TYPE_ORDER = ['limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 
@@ -21,15 +22,21 @@ export function normalizePoolGroupType(pool) {
   return 'standard';
 }
 
-export function getPoolTypeLabel(groupType) {
-  return GROUP_TYPE_LABELS[groupType] || '其他';
+export function getPoolTypeLabel(groupType, locale = getAppLocale()) {
+  if (groupType === 'limited') return getMessage('pool.group.limited', {}, locale);
+  if (groupType === 'weapon_limited') return getMessage('pool.group.weaponLimited', {}, locale);
+  if (groupType === 'weapon_standard') return getMessage('pool.group.weaponStandard', {}, locale);
+  if (groupType === 'beginner') return getMessage('pool.group.beginner', {}, locale);
+  if (groupType === 'standard') return getMessage('pool.group.standard', {}, locale);
+  if (groupType === 'all') return getMessage('pool.group.all', {}, locale);
+  return getMessage('pool.group.other', {}, locale);
 }
 
 export function getPoolGroupId(groupType) {
   return `${POOL_GROUP_PREFIX}${groupType}`;
 }
 
-export function getPoolTimingMeta(pool, referenceDate = new Date()) {
+export function getPoolTimingMeta(pool, referenceDate = new Date(), locale = getAppLocale()) {
   const now = normalizeDateInput(referenceDate) || new Date();
   const start = normalizeDateInput(pool?.start_time);
   const end = normalizeDateInput(pool?.end_time);
@@ -69,10 +76,10 @@ export function getPoolTimingMeta(pool, referenceDate = new Date()) {
     startsInDays,
     startsInHours,
     remainingLabel: isActive
-      ? `剩 ${remainingDays}天${remainingHours}小时`
+      ? getMessage('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours }, locale)
       : isUpcoming
-        ? `${startsInDays}天${startsInHours}小时后开启`
-        : '已结束',
+        ? getMessage('dashboard.analysis.startsIn', { days: startsInDays, hours: startsInHours }, locale)
+        : getMessage('dashboard.timeline.status.ended', {}, locale),
     orderBucket: isActive ? 0 : isUpcoming ? 1 : 2,
     orderTime: isActive || isUpcoming ? start.getTime() : -start.getTime()
   };
@@ -90,11 +97,11 @@ function matchesQuery(pool, query) {
   return haystacks.some((value) => String(value || '').toLowerCase().includes(normalizedQuery));
 }
 
-function sortPoolsForDisplay(pools, referenceDate) {
+function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {
   return [...pools]
     .map((pool) => ({
       pool,
-      timing: getPoolTimingMeta(pool, referenceDate)
+      timing: getPoolTimingMeta(pool, referenceDate, locale)
     }))
     .sort((left, right) => {
       if (left.timing.orderBucket !== right.timing.orderBucket) {
@@ -111,7 +118,7 @@ function sortPoolsForDisplay(pools, referenceDate) {
         return rightCreated - leftCreated;
       }
 
-      return String(left.pool?.name || '').localeCompare(String(right.pool?.name || ''), 'zh-Hans-CN');
+      return String(left.pool?.name || '').localeCompare(String(right.pool?.name || ''), locale);
     })
     .map(({ pool, timing }) => ({
       ...pool,
@@ -123,7 +130,8 @@ export function buildPoolSelectorGroups({
   pools,
   poolPullCounts = {},
   searchQuery = '',
-  referenceDate = new Date()
+  referenceDate = new Date(),
+  locale = getAppLocale()
 }) {
   const filteredPools = (Array.isArray(pools) ? pools : []).filter((pool) => matchesQuery(pool, searchQuery));
   const grouped = {
@@ -145,7 +153,7 @@ export function buildPoolSelectorGroups({
 
   return TYPE_ORDER
     .map((groupType) => {
-      const orderedPools = sortPoolsForDisplay(grouped[groupType], referenceDate).map((pool) => ({
+      const orderedPools = sortPoolsForDisplay(grouped[groupType], referenceDate, locale).map((pool) => ({
         ...pool,
         pullCount: poolPullCounts[pool.id] || 0
       }));
@@ -155,7 +163,7 @@ export function buildPoolSelectorGroups({
 
       return {
         type: groupType,
-        label: getPoolTypeLabel(groupType),
+        label: getPoolTypeLabel(groupType, locale),
         groupId: getPoolGroupId(groupType),
         totalPulls: orderedPools.reduce((sum, pool) => sum + (pool.pullCount || 0), 0),
         disableCollapse: Boolean(searchQuery?.trim()),

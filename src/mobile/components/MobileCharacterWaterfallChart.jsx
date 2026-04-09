@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { User, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, ChevronDown, ChevronUp } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 移动端可折叠分组
@@ -44,6 +45,8 @@ const MobilePullGroup = ({ title, titleColor, pulls, maxPity, defaultExpanded = 
  * 移动端单次出货行
  */
 const MobilePullRow = ({ pull, maxPity }) => {
+  const { isEnglish } = useI18n();
+  const tt = (zh, en) => (isEnglish ? en : zh);
   const isSixStar = pull.rarity === 6;
   const isLimited = isSixStar && !pull.isStandard;
   const isStandard = isSixStar && pull.isStandard;
@@ -79,7 +82,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
           {pull.name}
         </span>
         <span className="text-[11px] font-mono font-bold px-1 py-0.5 border text-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          赠送
+          {tt('赠送', 'Gift')}
         </span>
       </div>
     );
@@ -118,7 +121,7 @@ const MobilePullRow = ({ pull, maxPity }) => {
         )}
         {pull.isInfoBook && (
           <span className="text-[10px] font-mono font-bold px-1 py-0.5 border text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 shrink-0">
-            情报书
+            {tt('情报书', 'Intel')}
           </span>
         )}
         <span className="text-[11px] font-mono text-zinc-500 dark:text-zinc-500 shrink-0">
@@ -134,6 +137,8 @@ const MobilePullRow = ({ pull, maxPity }) => {
  * 每次出货独立一行，按 pullIndex 顺序排列
  */
 const MobileCharacterWaterfallChart = ({ characterStats }) => {
+  const { isEnglish } = useI18n();
+  const tt = (zh, en) => (isEnglish ? en : zh);
   const { sixStarPulls, fiveStarPulls, maxPity } = useMemo(() => {
     const six = [];
     const five = [];
@@ -180,7 +185,7 @@ const MobileCharacterWaterfallChart = ({ characterStats }) => {
 
   if (characterStats.length === 0) {
     return (
-      <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">暂无记录</p>
+      <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">{tt('暂无记录', 'No records')}</p>
     );
   }
 

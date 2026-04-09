@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { DEFAULT_POOL_ID } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import {
-  GROUP_TYPE_LABELS,
   getPoolGroupType,
   getPoolsForGroupType,
   isPoolGroupId
@@ -14,7 +13,8 @@ import {
 } from '../../utils/historyInfoBook';
 import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
-import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
+import { useI18n } from '../../i18n/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
 
@@ -58,6 +58,7 @@ function matchesCurrentGameUid(item, currentGameUid) {
 }
 
 export function useCurrentPoolData() {
+  const { locale, t } = useI18n();
   const user = useAuthStore(state => state.user);
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -99,7 +100,7 @@ export function useCurrentPoolData() {
   const groupType = isGroupMode ? getPoolGroupType(currentPoolId) : null;
   const selectedPools = useMemo(() => {
     if (isGroupMode) {
-      const orderedGroups = buildPoolSelectorGroups({ pools: poolsArray });
+      const orderedGroups = buildPoolSelectorGroups({ pools: poolsArray, locale });
 
       if (groupType === 'all') {
         return orderedGroups.flatMap((group) => group.pools);
@@ -113,14 +114,14 @@ export function useCurrentPoolData() {
       includeDefaultPool: true
     });
     return preferredPool ? [preferredPool] : [];
-  }, [currentPoolId, groupType, isGroupMode, poolsArray]);
+  }, [currentPoolId, groupType, isGroupMode, locale, poolsArray]);
 
   const currentPool = useMemo(() => {
     if (isGroupMode) {
       if (groupType === 'all') {
         return {
           id: currentPoolId,
-          name: '全部卡池总览',
+          name: t('dashboard.timeline.title.overview'),
           type: 'all',
           isGroupMode: true,
           isAllPoolsOverview: true,
@@ -137,7 +138,7 @@ export function useCurrentPoolData() {
 
       return {
         id: currentPoolId,
-        name: `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
+        name: t('pool.card.allGroupTitle', { label: getPoolTypeLabel(groupType, locale) }),
         type: baseType,
         isGroupMode: true,
         isAllPoolsOverview: false,
@@ -156,11 +157,11 @@ export function useCurrentPoolData() {
 
     return {
       id: DEFAULT_POOL_ID,
-      name: '默认卡池',
+      name: t('simulator.defaultPoolName'),
       type: 'limited',
       locked: false
     };
-  }, [currentPoolId, groupType, isGroupMode, poolsArray]);
+  }, [currentPoolId, groupType, isGroupMode, locale, poolsArray, t]);
 
   const currentPoolHistory = useMemo(() => {
     if (!user?.id) {

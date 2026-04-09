@@ -238,7 +238,9 @@ const fileName = buildDashboardShareCardFileName(payload);
 
 assert.match(shareText, /已脱敏分享卡/);
 assert.match(shareText, /当前 6★ 保底：64\/80/);
-assert.match(shareText, /耗玉：68,500/);
+assert.match(shareText, /耗金玉：68,500（有效抽数换算）/);
+assert.match(shareText, /衍质折金玉：913\.3（按当前换算比例）/);
+assert.match(shareText, /得武库配额：5,200（4★ \/ 5★ 转化）/);
 assert.match(overviewText, /角色池汇总/);
 assert.match(overviewText, /武器池汇总/);
 assert.match(overviewText, /角色池资源/);
