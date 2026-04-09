@@ -1,34 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MessageSquare, Plus, Send, Clock, CheckCircle2, XCircle,
-  ChevronDown, ChevronUp, User, Shield, RefreshCw, Bug,
-  Lightbulb, HelpCircle, Database, MoreHorizontal, X, Smile,
+  MessageSquare, Plus, Send, ChevronDown, ChevronUp, User, Shield, RefreshCw, X, Smile,
   AlertCircle, ChevronLeft
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
 import { getMobilePathForTab } from '../../constants/appRoutes';
-import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
-
-// 工单类型
-const TICKET_TYPES = {
-  bug: { label: 'Bug', icon: Bug, color: 'text-red-500 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' },
-  feature: { label: '建议', icon: Lightbulb, color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800' },
-  question: { label: '咨询', icon: HelpCircle, color: 'text-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' },
-  data_issue: { label: '数据', icon: Database, color: 'text-purple-500 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' },
-  other: { label: '其他', icon: MoreHorizontal, color: 'text-zinc-500 bg-zinc-50 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700' }
-};
-
-// 工单状态
-const TICKET_STATUS = {
-  pending: { label: '待处理', icon: Clock, color: 'text-amber-600 bg-amber-50 dark:bg-amber-900/20' },
-  processing: { label: '处理中', icon: RefreshCw, color: 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' },
-  resolved: { label: '已解决', icon: CheckCircle2, color: 'text-green-600 bg-green-50 dark:bg-green-900/20' },
-  rejected: { label: '已拒绝', icon: XCircle, color: 'text-red-600 bg-red-50 dark:bg-red-900/20' },
-  closed: { label: '已关闭', icon: X, color: 'text-zinc-600 bg-zinc-50 dark:bg-zinc-800' }
-};
+import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
+import { getTicketPriorities, getTicketStatus, getTicketTypes } from '../../components/tickets/constants';
+import { useI18n } from '../../i18n/index.js';
 
 // 常用表情（精简版）
 const EMOJI_LIST = [
@@ -36,12 +18,11 @@ const EMOJI_LIST = [
   '👍', '👎', '👌', '👏', '🙏', '💪', '❤️', '🔥', '✨', '🎉'
 ];
 
-/**
- * 移动端工单视图 - 工业风 (中文)
- */
 function MobileTicketView() {
   const navigate = useNavigate();
   const { user, userRole } = useAuthStore();
+  const { isEnglish, locale, formatDateTime, formatNumber } = useI18n();
+  const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
 
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,11 +48,11 @@ function MobileTicketView() {
           setTableExists(false);
           setTickets([]);
         }
-      } else {
-        setTableExists(true);
-        const profilesMap = await loadPublicProfilesMap((data || []).map(ticket => ticket.user_id));
-        setTickets(attachPublicProfiles(data || [], profilesMap));
       }
+
+      setTableExists(true);
+      const profilesMap = await loadPublicProfilesMap((data || []).map((ticket) => ticket.user_id));
+      setTickets(attachPublicProfiles(data || [], profilesMap));
     } finally {
       setLoading(false);
     }
@@ -86,7 +67,7 @@ function MobileTicketView() {
       .insert({ ...formData, user_id: user.id });
     if (!error) {
       setShowCreate(false);
-      loadTickets();
+      await loadTickets();
     }
   };
 
@@ -95,7 +76,7 @@ function MobileTicketView() {
     const updateData = { status: newStatus, updated_at: new Date().toISOString() };
     if (newStatus === 'resolved') updateData.resolved_by = user.id;
     const { error } = await supabase.from('tickets').update(updateData).eq('id', ticketId);
-    if (!error) loadTickets();
+    if (!error) await loadTickets();
   };
 
   // 过滤
@@ -109,15 +90,16 @@ function MobileTicketView() {
 
   const stats = useMemo(() => ({
     total: tickets.length,
-    pending: tickets.filter(t => t.status === 'pending').length,
-    my: tickets.filter(t => t.user_id === user?.id).length
+    pending: tickets.filter((ticket) => ticket.status === 'pending').length,
+    my: tickets.filter((ticket) => ticket.user_id === user?.id).length
   }), [tickets, user]);
 
   if (!user) {
     return (
       <div className="px-4 py-8 text-center">
         <MessageSquare size={32} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-3" />
-        <p className="text-xs text-zinc-500 uppercase tracking-widest">需要身份验证</p>
+        <p className="text-xs text-zinc-500 uppercase tracking-widest">{tt('请先登录', 'Sign In Required')}</p>
+        <p className="text-[11px] text-zinc-400 mt-2">{tt('登录后才能使用工单系统。', 'Sign in first to use the ticket system.')}</p>
       </div>
     );
   }
@@ -130,38 +112,54 @@ function MobileTicketView() {
         className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 touch-feedback -ml-1 hover:text-endfield-yellow transition-colors"
       >
         <ChevronLeft size={16} />
-        <span className="text-xs font-bold uppercase tracking-wide">返回控制台</span>
+        <span className="text-xs font-bold uppercase tracking-wide">{tt('返回首页', 'Back Home')}</span>
       </button>
 
-      {/* 标题 */}
       <div className="bg-zinc-900 text-white p-4 border-l-4 border-endfield-yellow shadow-md">
         <h1 className="text-lg font-bold flex items-center gap-2 uppercase tracking-wide">
           <MessageSquare size={20} className="text-endfield-yellow" />
-          工单反馈
+          {tt('工单反馈', 'Tickets')}
         </h1>
-        <p className="text-[10px] text-zinc-400 mt-1 font-mono uppercase tracking-widest">
-          Support & Feedback Channel
+        <p className="text-[10px] text-zinc-400 mt-1 font-mono uppercase tracking-widest leading-tight">
+          {userRole === 'super_admin'
+            ? tt('系统管理与用户反馈', 'System Ops & Feedback')
+            : userRole === 'admin'
+              ? tt('用户支持与反馈升级', 'Support & Escalations')
+              : tt('支持与反馈通道', 'Support Channel')}
         </p>
       </div>
 
       <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-3 text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
-        <div>工单适用于 Bug、数据问题、功能建议和一般使用咨询。</div>
-        <div>忘记密码请回登录弹窗使用“账号恢复”；已登录需要删除账号，请到设置页使用“注销账号”。</div>
-        <div>请不要在工单里填写密码；若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
+        <div>{tt('工单适用于 Bug、数据问题、功能建议和一般使用咨询。', 'Use tickets for bugs, data issues, feature requests, and usage questions.')}</div>
+        <div>{tt('忘记密码请回登录弹窗使用“账号恢复”；已登录需要删除账号，请到设置页使用“注销账号”。', 'Use Account Recovery in the login modal if you forgot your password. To delete an account, go to Settings > Delete Account.')}</div>
+        <div>
+          {isEnglish ? (
+            <>
+              Do not put passwords into tickets. If a temporary password is approved, join
+              {' '}
+              <a href={ENGLISH_COMMUNITY_DISCORD_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                Discord
+              </a>
+              {' '}
+              to receive it.
+            </>
+          ) : (
+            <>请不要在工单里填写密码；若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</>
+          )}
+        </div>
       </div>
 
-      {/* 操作栏 */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex gap-1.5 overflow-x-auto">
+      <div className="flex items-start justify-between gap-2">
+        <div className="grid flex-1 grid-cols-2 gap-1.5">
           {[
-            { key: 'all', label: `全部(${stats.total})` },
-            { key: 'my', label: `我的(${stats.my})` },
-            ...(isAdmin ? [{ key: 'pending', label: `待处理(${stats.pending})` }] : [])
-          ].map(f => (
+            { key: 'all', label: `${tt('全部', 'All')} (${formatNumber(stats.total)})` },
+            { key: 'my', label: `${tt('我的', 'Mine')} (${formatNumber(stats.my)})` },
+            ...(isAdmin ? [{ key: 'pending', label: `${tt('待处理', 'Pending')} (${formatNumber(stats.pending)})` }] : [])
+          ].map((f) => (
             <button
               key={f.key}
               onClick={() => setFilter(f.key)}
-              className={`px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border whitespace-nowrap transition-colors ${
+              className={`min-h-[40px] px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border transition-colors whitespace-normal text-center leading-tight ${
                 filter === f.key
                   ? 'bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 border-zinc-800 dark:border-zinc-100'
                   : 'bg-white dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-700'
@@ -175,20 +173,20 @@ function MobileTicketView() {
           <button
             onClick={loadTickets}
             className="p-2 border border-zinc-200 dark:border-zinc-700 text-zinc-500 touch-feedback"
+            title={tt('刷新', 'Refresh')}
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="px-3 py-1.5 bg-endfield-yellow text-black text-[10px] font-bold uppercase tracking-wider touch-feedback flex items-center gap-1"
+            className="min-h-[40px] px-3 py-1.5 bg-endfield-yellow text-black text-[10px] font-bold uppercase tracking-wider touch-feedback flex items-center justify-center gap-1 whitespace-normal text-center leading-tight"
           >
             <Plus size={12} />
-            新建
+            {tt('新建工单', 'New Ticket')}
           </button>
         </div>
       </div>
 
-      {/* 创建表单弹窗 */}
       {showCreate && (
         <CreateForm
           userRole={userRole}
@@ -197,27 +195,30 @@ function MobileTicketView() {
         />
       )}
 
-      {/* 工单列表 */}
       {!tableExists ? (
         <div className="text-center py-8 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
           <AlertCircle size={32} className="mx-auto text-amber-500 mb-3" />
-          <p className="text-xs text-amber-700 dark:text-amber-400 font-mono uppercase">工单功能尚未启用</p>
+          <p className="text-xs text-amber-700 dark:text-amber-400 font-mono uppercase">{tt('工单功能尚未启用', 'Tickets Not Enabled')}</p>
         </div>
       ) : loading ? (
         <div className="text-center py-8">
           <RefreshCw size={20} className="animate-spin mx-auto text-zinc-400 mb-2" />
-          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">加载中...</p>
+          <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">{tt('加载工单中...', 'Loading tickets...')}</p>
         </div>
       ) : filteredTickets.length === 0 ? (
         <div className="text-center py-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
           <MessageSquare size={32} className="mx-auto text-zinc-300 dark:text-zinc-700 mb-3" />
           <p className="text-xs text-zinc-500 font-mono">
-            {filter === 'my' ? '无工单记录' : filter === 'pending' ? '无待处理工单' : '暂无工单'}
+            {filter === 'my'
+              ? tt('无工单记录', 'No tickets from you')
+              : filter === 'pending'
+                ? tt('无待处理工单', 'No pending tickets')
+                : tt('暂无工单', 'No tickets yet')}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredTickets.map(ticket => (
+          {filteredTickets.map((ticket) => (
             <TicketCard
               key={ticket.id}
               ticket={ticket}
@@ -227,21 +228,23 @@ function MobileTicketView() {
               onToggle={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
               onStatusChange={handleStatusChange}
               onReply={loadTickets}
+              locale={locale}
+              formatDateTime={formatDateTime}
             />
           ))}
         </div>
       )}
 
-      {/* 底部留白 */}
       <div className="h-4" />
     </div>
   );
 }
 
-/**
- * 创建工单表单（全屏弹窗）
- */
 function CreateForm({ userRole, onSubmit, onCancel }) {
+  const { isEnglish, locale } = useI18n();
+  const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
+  const ticketTypes = getTicketTypes(locale);
+  const priorityConfig = getTicketPriorities(locale);
   const [formData, setFormData] = useState({
     type: 'question',
     title: '',
@@ -261,11 +264,10 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-zinc-900 w-full max-h-[90vh] overflow-y-auto animate-slide-up border-t border-zinc-200 dark:border-zinc-700 shadow-2xl">
-        {/* 头部 */}
         <div className="sticky top-0 z-10 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
           <h3 className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase tracking-wide text-sm">
             <Plus size={16} className="text-endfield-yellow" />
-            新建工单
+            {tt('新建工单', 'New Ticket')}
           </h3>
           <button onClick={onCancel} className="p-1 touch-feedback">
             <X size={18} className="text-zinc-400" />
@@ -274,100 +276,109 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="border border-blue-200 dark:border-blue-900/40 bg-blue-50/70 dark:bg-blue-950/20 px-3 py-3 text-[11px] text-blue-800 dark:text-blue-300 space-y-1">
-            <div>请提交 Bug、数据异常或功能建议。</div>
-            <div>忘记密码请使用“账号恢复”，不要在工单里填写密码或要求站内直接发密码。</div>
-            <div>若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</div>
+            <div>{tt('请提交 Bug、数据异常或功能建议。', 'Use tickets for bugs, data issues, and feature requests.')}</div>
+            <div>{tt('忘记密码请使用“账号恢复”，不要在工单里填写密码或要求站内直接发密码。', 'Use Account Recovery if you forgot your password. Do not paste passwords into tickets or ask for passwords in-site.')}</div>
+            <div>
+              {isEnglish ? (
+                <>
+                  If a temporary password is approved, join
+                  {' '}
+                  <a href={ENGLISH_COMMUNITY_DISCORD_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                    Discord
+                  </a>
+                  {' '}
+                  to receive it.
+                </>
+              ) : (
+                <>若超管已设置临时密码，请加入 QQ 群 {ACCOUNT_RECOVERY_QQ_GROUP} 线下领取。</>
+              )}
+            </div>
           </div>
 
-          {/* 类型 */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">工单类型</label>
-            <div className="grid grid-cols-5 gap-2">
-              {Object.entries(TICKET_TYPES).map(([key, config]) => {
+            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">{tt('工单类型', 'Ticket Type')}</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {Object.entries(ticketTypes).map(([key, config]) => {
                 const Icon = config.icon;
                 return (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, type: key }))}
-                    className={`p-2 border flex flex-col items-center gap-1 touch-feedback transition-all ${
+                    onClick={() => setFormData((prev) => ({ ...prev, type: key }))}
+                    className={`min-h-[64px] p-2 border flex flex-col items-center justify-center gap-1 touch-feedback transition-all ${
                       formData.type === key
-                        ? config.color + ' border-current'
+                        ? `${config.color} border-current`
                         : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700'
                     }`}
                   >
                     <Icon size={16} />
-                    <span className="text-[9px] font-bold">{config.label}</span>
+                    <span className="text-[10px] font-bold whitespace-normal break-words text-center leading-tight">{config.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* 标题 */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">标题</label>
+            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">{tt('标题', 'Title')}</label>
             <input
               type="text"
               value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="简要描述您的问题..."
+              onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+              placeholder={tt('简要描述您的问题...', 'Summarize the issue briefly...')}
               className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm focus:border-endfield-yellow outline-none"
               maxLength={100}
               required
             />
           </div>
 
-          {/* 内容 */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">详细描述</label>
+            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">{tt('详细描述', 'Details')}</label>
             <textarea
               value={formData.content}
-              onChange={(e) => setFormData(prev => ({ ...prev, content: e.target.value }))}
-              placeholder="请详细描述您遇到的问题或建议..."
+              onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
+              placeholder={tt('请详细描述您遇到的问题或建议...', 'Describe the problem or request in detail...')}
               className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm focus:border-endfield-yellow outline-none min-h-[120px] resize-none"
               maxLength={2000}
               required
             />
             <div className="text-[10px] text-zinc-400 mt-1 text-right font-mono">{formData.content.length}/2000</div>
-            <p className="text-[10px] text-zinc-500 mt-2 font-mono">建议附上账号、卡池、时间范围和复现步骤；不要填写密码或完整访问令牌。</p>
+            <p className="text-[10px] text-zinc-500 mt-2 font-mono">{tt('建议附上账号、卡池、时间范围和复现步骤；不要填写密码或完整访问令牌。', 'Include account, banner, timeframe, and repro steps. Do not paste passwords or full access tokens.')}</p>
           </div>
 
-          {/* 优先级 */}
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">优先级</label>
+            <label className="block text-[10px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">{tt('优先级', 'Priority')}</label>
             <select
               value={formData.priority}
-              onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
+              onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
               className="w-full px-3 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-sm focus:border-endfield-yellow outline-none"
             >
-              <option value="low">低</option>
-              <option value="medium">中</option>
+              <option value="low">{priorityConfig.low.label}</option>
+              <option value="medium">{priorityConfig.medium.label}</option>
               {(userRole === 'admin' || userRole === 'super_admin') && (
                 <>
-                  <option value="high">高</option>
-                  <option value="urgent">紧急</option>
+                  <option value="high">{priorityConfig.high.label}</option>
+                  <option value="urgent">{priorityConfig.urgent.label}</option>
                 </>
               )}
             </select>
           </div>
 
-          {/* 按钮 */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 py-3 text-xs font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 uppercase tracking-wider touch-feedback"
+              className="flex-1 min-h-[44px] py-3 text-xs font-bold text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 uppercase tracking-wider touch-feedback whitespace-normal text-center leading-tight"
             >
-              取消
+              {tt('取消', 'Cancel')}
             </button>
             <button
               type="submit"
               disabled={submitting || !formData.title.trim() || !formData.content.trim()}
-              className="flex-1 py-3 bg-endfield-yellow text-black text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 min-h-[44px] py-3 bg-endfield-yellow text-black text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 flex items-center justify-center gap-2 whitespace-normal text-center leading-tight"
             >
               <Send size={14} />
-              {submitting ? '提交中...' : '提交工单'}
+              {submitting ? tt('提交中...', 'Submitting...') : tt('提交工单', 'Submit Ticket')}
             </button>
           </div>
         </form>
@@ -376,34 +387,33 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
   );
 }
 
-/**
- * 工单卡片
- */
-function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReply }) {
-  const typeConfig = TICKET_TYPES[ticket.type] || TICKET_TYPES.other;
-  const statusConfig = TICKET_STATUS[ticket.status] || TICKET_STATUS.pending;
-  const StatusIcon = statusConfig.icon;
+function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReply, locale, formatDateTime }) {
+  const { isEnglish } = useI18n();
+  const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
+  const ticketTypes = getTicketTypes(locale);
+  const ticketStatus = getTicketStatus(locale);
+  const typeConfig = ticketTypes[ticket.type] || ticketTypes.other;
+  const statusConfig = ticketStatus[ticket.status] || ticketStatus.pending;
   const TypeIcon = typeConfig.icon;
   const isOwner = ticket.user_id === currentUserId;
   const canManage = userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin');
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-      {/* 头部（可点击展开） */}
       <button onClick={onToggle} className="w-full p-3 text-left touch-feedback">
         <div className="flex items-start gap-3">
           <div className={`p-1.5 shrink-0 border ${typeConfig.color}`}>
             <TypeIcon size={14} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate">{ticket.title}</p>
+            <p className="font-bold text-sm text-zinc-800 dark:text-zinc-100 break-words">{ticket.title}</p>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={`text-[9px] px-1.5 py-0.5 font-bold ${statusConfig.color}`}>{statusConfig.label}</span>
               <span className="text-[9px] text-zinc-400 font-mono">
-                {ticket.profiles?.username || '用户'}
+                {ticket.profiles?.username || tt('用户', 'User')}
               </span>
               <span className="text-[9px] text-zinc-400 font-mono">
-                {new Date(ticket.created_at).toLocaleDateString()}
+                {formatDateTime(ticket.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
               </span>
             </div>
           </div>
@@ -416,52 +426,49 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
       {/* 展开内容 */}
       {expanded && (
         <div className="border-t border-zinc-100 dark:border-zinc-800">
-          {/* 工单内容 */}
           <div className="p-3 bg-zinc-50 dark:bg-zinc-950">
             <p className="text-xs text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
               {ticket.content}
             </p>
           </div>
 
-          {/* 管理操作 */}
           {canManage && ticket.status !== 'closed' && (
             <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 flex gap-2 flex-wrap">
               {ticket.status === 'pending' && (
                 <button
                   onClick={() => onStatusChange(ticket.id, 'processing')}
-                  className="px-3 py-1.5 text-[10px] bg-blue-500 text-white font-bold uppercase touch-feedback"
+                  className="px-3 py-1.5 text-[10px] bg-blue-500 text-white font-bold uppercase touch-feedback whitespace-normal text-center leading-tight"
                 >
-                  开始处理
+                  {tt('开始处理', 'Start Review')}
                 </button>
               )}
               {(ticket.status === 'pending' || ticket.status === 'processing') && (
                 <>
                   <button
                     onClick={() => onStatusChange(ticket.id, 'resolved')}
-                    className="px-3 py-1.5 text-[10px] bg-green-500 text-white font-bold uppercase touch-feedback"
+                    className="px-3 py-1.5 text-[10px] bg-green-500 text-white font-bold uppercase touch-feedback whitespace-normal text-center leading-tight"
                   >
-                    已解决
+                    {tt('标记解决', 'Mark Resolved')}
                   </button>
                   <button
                     onClick={() => onStatusChange(ticket.id, 'rejected')}
-                    className="px-3 py-1.5 text-[10px] bg-red-500 text-white font-bold uppercase touch-feedback"
+                    className="px-3 py-1.5 text-[10px] bg-red-500 text-white font-bold uppercase touch-feedback whitespace-normal text-center leading-tight"
                   >
-                    拒绝
+                    {tt('拒绝', 'Reject')}
                   </button>
                 </>
               )}
               <button
                 onClick={() => onStatusChange(ticket.id, 'closed')}
-                className="px-3 py-1.5 text-[10px] bg-zinc-500 text-white font-bold uppercase touch-feedback"
+                className="px-3 py-1.5 text-[10px] bg-zinc-500 text-white font-bold uppercase touch-feedback whitespace-normal text-center leading-tight"
               >
-                关闭
+                {tt('关闭', 'Close')}
               </button>
             </div>
           )}
 
-          {/* 回复区域 */}
           {ticket.status !== 'closed' && (isOwner || canManage) && (
-            <ReplySection ticketId={ticket.id} currentUserId={currentUserId} onReply={onReply} />
+            <ReplySection ticketId={ticket.id} currentUserId={currentUserId} onReply={onReply} formatDateTime={formatDateTime} />
           )}
         </div>
       )}
@@ -469,10 +476,9 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
   );
 }
 
-/**
- * 回复区域（懒加载回复列表 + 输入框）
- */
-function ReplySection({ ticketId, currentUserId, onReply }) {
+function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
+  const { isEnglish } = useI18n();
+  const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const [replies, setReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(true);
   const [replyText, setReplyText] = useState('');
@@ -533,9 +539,8 @@ function ReplySection({ ticketId, currentUserId, onReply }) {
 
   return (
     <div className="border-t border-zinc-100 dark:border-zinc-800">
-      {/* 回复列表 */}
       {loadingReplies ? (
-        <div className="p-3 text-center text-zinc-400 text-[10px] font-mono">加载回复...</div>
+        <div className="p-3 text-center text-zinc-400 text-[10px] font-mono">{tt('加载回复中...', 'Loading replies...')}</div>
       ) : replies.length > 0 ? (
         <div className="divide-y divide-zinc-100 dark:divide-zinc-800 max-h-60 overflow-y-auto">
           {replies.map(reply => (
@@ -549,10 +554,10 @@ function ReplySection({ ticketId, currentUserId, onReply }) {
                     ? <Shield size={10} /> : <User size={10} />}
                 </div>
                 <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400">
-                  {reply.profiles?.username || '用户'}
+                  {reply.profiles?.username || tt('用户', 'User')}
                 </span>
                 <span className="text-[9px] text-zinc-400 font-mono">
-                  {new Date(reply.created_at).toLocaleString()}
+                  {formatDateTime(reply.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
                 </span>
               </div>
               <p className="text-xs text-zinc-600 dark:text-zinc-400 pl-7 whitespace-pre-wrap">
@@ -562,17 +567,16 @@ function ReplySection({ ticketId, currentUserId, onReply }) {
           ))}
         </div>
       ) : (
-        <div className="p-3 text-center text-zinc-400 text-[10px] font-mono">暂无回复</div>
+        <div className="p-3 text-center text-zinc-400 text-[10px] font-mono">{tt('暂无回复', 'No replies yet')}</div>
       )}
 
-      {/* 输入框 */}
       <div className="p-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950">
         <div className="relative">
           <textarea
             ref={textareaRef}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            placeholder="输入回复..."
+            placeholder={tt('输入回复...', 'Write a reply...')}
             className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-xs focus:border-endfield-yellow outline-none min-h-[48px] max-h-[96px] resize-none"
             rows={2}
           />
@@ -593,16 +597,17 @@ function ReplySection({ ticketId, currentUserId, onReply }) {
             type="button"
             onClick={() => setShowEmoji(!showEmoji)}
             className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 touch-feedback"
+            title={tt('插入表情', 'Insert emoji')}
           >
             <Smile size={16} />
           </button>
           <button
             onClick={handleSubmit}
             disabled={!replyText.trim() || submitting}
-            className="px-4 py-1.5 bg-endfield-yellow text-black text-[10px] font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 flex items-center gap-1"
+            className="px-4 py-1.5 bg-endfield-yellow text-black text-[10px] font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 flex items-center gap-1 whitespace-normal text-center leading-tight"
           >
             <Send size={12} />
-            {submitting ? '发送中' : '发送'}
+            {submitting ? tt('发送中...', 'Sending...') : tt('发送', 'Send')}
           </button>
         </div>
       </div>

@@ -1,27 +1,28 @@
 import React, { useMemo } from 'react';
 import { TrendingUp } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 
-function formatAverage(value) {
+function formatAverage(value, t) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
     return '--';
   }
 
-  return `${numericValue.toFixed(2)} 抽`;
+  return `${numericValue.toFixed(2)} ${t('dashboard.unit.pull')}`;
 }
 
-function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
+function buildAverageItems({ stats, poolType, isAllPoolsOverview, t }) {
   const items = [
     {
       id: 'avg-5',
-      label: '5★ 平均',
-      value: formatAverage(stats?.avgPullCost?.[5]),
+      label: t('dashboard.average.avg5'),
+      value: formatAverage(stats?.avgPullCost?.[5], t),
       tone: 'text-amber-600 dark:text-amber-400'
     },
     {
       id: 'avg-6-all',
-      label: '全部 6★',
-      value: formatAverage(stats?.avgPullCost?.['6_all']),
+      label: t('dashboard.average.allSix'),
+      value: formatAverage(stats?.avgPullCost?.['6_all'], t),
       tone: 'text-slate-700 dark:text-zinc-200'
     }
   ];
@@ -29,8 +30,8 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   if (poolType !== 'standard') {
     items.push({
       id: 'avg-6-target',
-      label: isAllPoolsOverview ? '目标 6★' : 'UP 6★',
-      value: formatAverage(stats?.avgPullCost?.[6]),
+      label: isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix'),
+      value: formatAverage(stats?.avgPullCost?.[6], t),
       tone: poolType === 'weapon'
         ? 'text-slate-700 dark:text-zinc-300'
         : 'text-fuchsia-600 dark:text-fuchsia-400'
@@ -40,8 +41,8 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   if (poolType === 'limited' || isAllPoolsOverview) {
     items.push({
       id: 'avg-6-limited',
-      label: '限定 6★',
-      value: formatAverage(stats?.avgPullCost?.['6_limited']),
+      label: t('dashboard.average.limitedSix'),
+      value: formatAverage(stats?.avgPullCost?.['6_limited'], t),
       tone: 'text-violet-600 dark:text-violet-400'
     });
   }
@@ -49,18 +50,19 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   return items;
 }
 
-function buildNote({ stats, poolType, isAllPoolsOverview }) {
-  const baseNote = '口径：排除赠送与免费十连；情报书计入有效抽数。';
+function buildNote({ stats, poolType, isAllPoolsOverview, t }) {
+  const baseNote = t('dashboard.average.noteBase');
   if (poolType === 'standard') {
-    return `${baseNote} 常驻池仅展示 5★ 与全部 6★ 平均。`;
+    return t('dashboard.average.noteStandard', { base: baseNote });
   }
 
+  const targetLabel = isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix');
   if (stats?.sparkCount > 0 && stats?.avgPullCost?.['6_with_spark']) {
-    const sparkAverage = formatAverage(stats.avgPullCost['6_with_spark']);
-    return `${baseNote} ${isAllPoolsOverview ? '目标 6★' : 'UP 6★'}默认不含井；含井口径为 ${sparkAverage}。`;
+    const sparkAverage = formatAverage(stats.avgPullCost['6_with_spark'], t);
+    return t('dashboard.average.noteWithSpark', { base: baseNote, target: targetLabel, value: sparkAverage });
   }
 
-  return `${baseNote} ${isAllPoolsOverview ? '目标 6★' : 'UP 6★'}默认不含井。`;
+  return t('dashboard.average.noteWithoutSpark', { base: baseNote, target: targetLabel });
 }
 
 const AveragePullStatsPanel = ({
@@ -70,23 +72,24 @@ const AveragePullStatsPanel = ({
   compact = false,
   className = ''
 }) => {
+  const { t } = useI18n();
   const totalPulls = Number(stats?.total) || 0;
   const items = useMemo(
-    () => buildAverageItems({ stats, poolType, isAllPoolsOverview }),
-    [isAllPoolsOverview, poolType, stats]
+    () => buildAverageItems({ stats, poolType, isAllPoolsOverview, t }),
+    [isAllPoolsOverview, poolType, stats, t]
   );
 
   if (totalPulls <= 0) {
     return null;
   }
 
-  const note = buildNote({ stats, poolType, isAllPoolsOverview });
+  const note = buildNote({ stats, poolType, isAllPoolsOverview, t });
 
   return (
     <div className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm ${compact ? 'p-4' : 'p-5'} ${className}`.trim()}>
       <div className="flex items-center gap-2 border-b border-zinc-100 pb-2 dark:border-zinc-800">
         <TrendingUp size={16} className="text-slate-400 dark:text-zinc-500" />
-        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">平均出货</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">{t('dashboard.average.title')}</h3>
       </div>
 
       <div className={`mt-4 grid gap-3 ${compact ? 'grid-cols-2' : items.length >= 4 ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2 xl:grid-cols-3'}`}>

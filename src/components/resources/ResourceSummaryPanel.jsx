@@ -1,11 +1,11 @@
 import React from 'react';
 import {
   RESOURCE_ICON_URLS,
-  RESOURCE_LABELS,
   formatOriginiteEquivalent
 } from '../../utils/resourceEconomy';
+import { useI18n } from '../../i18n/index.js';
 
-function formatCompactNumber(value) {
+function formatCompactNumber(value, locale) {
   const numericValue = Number(value) || 0;
   const absoluteValue = Math.abs(numericValue);
 
@@ -13,15 +13,13 @@ function formatCompactNumber(value) {
     return null;
   }
 
-  const units = absoluteValue >= 100000000
-    ? { divisor: 100000000, suffix: '亿' }
-    : { divisor: 10000, suffix: '万' };
-  const compactValue = (numericValue / units.divisor).toFixed(absoluteValue >= units.divisor * 100 ? 0 : 1);
-
-  return `${compactValue.replace(/\.0$/, '')}${units.suffix}`;
+  return new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(numericValue);
 }
 
-function getItems(resources, variant) {
+function getItems(resources, variant, t, formatNumber) {
   if (!resources) {
     return [];
   }
@@ -29,41 +27,44 @@ function getItems(resources, variant) {
   const baseItems = {
     jadeSpent: {
       key: 'jadeSpent',
-      label: `总消耗${RESOURCE_LABELS.jade}`,
+      label: t('dashboard.resources.jadeSpent'),
       rawValue: Number(resources.jadeSpent || 0),
-      fullValue: Number(resources.jadeSpent || 0).toLocaleString(),
+      fullValue: formatNumber(resources.jadeSpent || 0),
       icon: RESOURCE_ICON_URLS.jade,
       tone: 'text-cyan-600 dark:text-cyan-400'
     },
     originiteEquivalent: {
       key: 'originiteEquivalent',
-      label: `${RESOURCE_LABELS.originite}等价`,
+      label: t('dashboard.resources.originiteEquivalent'),
       rawValue: Number(resources.originiteEquivalent || 0),
-      fullValue: formatOriginiteEquivalent(resources.originiteEquivalent || 0),
+      fullValue: formatNumber(Number(formatOriginiteEquivalent(resources.originiteEquivalent || 0)), {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      }),
       icon: RESOURCE_ICON_URLS.originite,
       tone: 'text-amber-600 dark:text-amber-400'
     },
     arsenalGained: {
       key: 'arsenalGained',
-      label: `共获得${RESOURCE_LABELS.arsenalQuota}`,
+      label: t('dashboard.resources.arsenalGained'),
       rawValue: Number(resources.arsenalGained || 0),
-      fullValue: Number(resources.arsenalGained || 0).toLocaleString(),
+      fullValue: formatNumber(resources.arsenalGained || 0),
       icon: RESOURCE_ICON_URLS.arsenalQuota,
       tone: 'text-blue-600 dark:text-blue-400'
     },
     arsenalSpent: {
       key: 'arsenalSpent',
-      label: `总消耗${RESOURCE_LABELS.arsenalQuota}`,
+      label: t('dashboard.resources.arsenalSpent'),
       rawValue: Number(resources.arsenalSpent || 0),
-      fullValue: Number(resources.arsenalSpent || 0).toLocaleString(),
+      fullValue: formatNumber(resources.arsenalSpent || 0),
       icon: RESOURCE_ICON_URLS.arsenalQuota,
       tone: 'text-rose-600 dark:text-rose-400'
     },
     arsenalNet: {
       key: 'arsenalNet',
-      label: `${RESOURCE_LABELS.arsenalQuota}净变动`,
+      label: t('dashboard.resources.arsenalNet'),
       rawValue: Number(resources.arsenalNet || 0),
-      fullValue: Number(resources.arsenalNet || 0).toLocaleString(),
+      fullValue: formatNumber(resources.arsenalNet || 0),
       icon: RESOURCE_ICON_URLS.arsenalQuota,
       tone: Number(resources.arsenalNet || 0) >= 0
         ? 'text-emerald-600 dark:text-emerald-400'
@@ -102,7 +103,8 @@ const ResourceSummaryPanel = ({
   layout = 'grid',
   className = ''
 }) => {
-  const items = getItems(resources, variant);
+  const { locale, t, formatNumber } = useI18n();
+  const items = getItems(resources, variant, t, formatNumber);
 
   if (items.length === 0) {
     return null;
@@ -115,7 +117,7 @@ const ResourceSummaryPanel = ({
       : 'grid-cols-1 md:grid-cols-2';
 
   const renderItem = (item) => {
-    const compactValue = formatCompactNumber(item.rawValue);
+    const compactValue = formatCompactNumber(item.rawValue, locale);
     return (
       <div key={item.key} className="min-w-0 flex items-center gap-3 border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-black/20 px-3 py-3">
         <img src={item.icon} alt={item.label} loading="lazy" className="w-10 h-10 object-contain shrink-0" />

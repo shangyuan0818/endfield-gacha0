@@ -1,13 +1,14 @@
 import React from 'react';
 import { Star, Hexagon, Gift, BookOpen } from 'lucide-react';
-import { RESOURCE_ICON_URLS, RESOURCE_LABELS } from '../../utils/resourceEconomy';
+import { RESOURCE_ICON_URLS, getLocalizedResourceLabel } from '../../utils/resourceEconomy';
+import { useI18n } from '../../i18n/index.js';
 
-function getCostDisplay(cost) {
+function getCostDisplay(cost, t, locale) {
   if (!cost?.resource || !cost?.amount) {
-    return 'FREE';
+    return t('simulator.controls.freeCost');
   }
 
-  const label = cost.resource === 'arsenalQuota' ? RESOURCE_LABELS.arsenalQuota : RESOURCE_LABELS.jade;
+  const label = getLocalizedResourceLabel(cost.resource === 'arsenalQuota' ? 'arsenalQuota' : 'jade', locale);
   return `${Number(cost.amount || 0).toLocaleString()} ${label}`;
 }
 
@@ -46,6 +47,7 @@ const SimulatorControls = ({
   availableFreePulls = 0,
   infoBookTenPullAvailable = false
 }) => {
+  const { t, locale } = useI18n();
   const hasFree = availableFreePulls > 0;
   const hasInfoBook = infoBookTenPullAvailable;
   const singleCostIcon = getCostIcon(singleCost);
@@ -65,7 +67,7 @@ const SimulatorControls = ({
 
           <div className="relative z-10 flex flex-col items-center justify-center h-full">
             <span className="text-sm font-bold text-slate-600 dark:text-zinc-400 uppercase tracking-widest mb-2 group-hover:text-endfield-yellow transition-colors">
-              单次寻访
+              {t('simulator.controls.single')}
             </span>
             <div className="flex items-center gap-2 bg-zinc-200 dark:bg-black/50 px-3 py-1.5 rounded-none border border-zinc-300 dark:border-zinc-700">
               {singleCostIcon ? (
@@ -73,7 +75,7 @@ const SimulatorControls = ({
               ) : (
                 <Hexagon size={14} className="text-endfield-yellow fill-current" />
               )}
-              <span className="text-base font-mono font-bold text-slate-800 dark:text-zinc-200">{getCostDisplay(singleCost)}</span>
+              <span className="text-base font-mono font-bold text-slate-800 dark:text-zinc-200">{getCostDisplay(singleCost, t, locale)}</span>
             </div>
           </div>
         </button>
@@ -98,20 +100,20 @@ const SimulatorControls = ({
           {hasInfoBook && (
             <div className="absolute top-1 right-1 bg-white text-amber-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-sm border border-amber-200 shadow-sm animate-pulse flex items-center gap-1">
               <BookOpen size={10} />
-              情报书
+              {t('simulator.controls.infoBook')}
             </div>
           )}
 
           {!hasInfoBook && hasFree && (
             <div className="absolute top-1 right-1 bg-white text-blue-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-sm border border-blue-200 shadow-sm animate-pulse flex items-center gap-1">
               <Gift size={10} />
-              免费 x{availableFreePulls}
+              {t('simulator.controls.freeCount', { count: availableFreePulls })}
             </div>
           )}
 
           <div className="relative z-10 flex flex-col items-center justify-center h-full">
             <span className={`text-lg font-black uppercase tracking-widest mb-2 flex items-center gap-2 ${hasInfoBook || hasFree ? 'text-white' : 'text-black'}`}>
-              {hasInfoBook ? '情报书十连' : hasFree ? '免费十连' : '十连寻访'}
+              {hasInfoBook ? t('simulator.controls.infoBookTen') : hasFree ? t('simulator.controls.freeTen') : t('simulator.controls.defaultTen')}
               <Star size={16} className={hasInfoBook || hasFree ? 'fill-white' : 'fill-black'} />
             </span>
             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-none border ${
@@ -124,7 +126,7 @@ const SimulatorControls = ({
               ) : (
                 <Hexagon size={14} className={`${hasInfoBook || hasFree ? 'text-white' : 'text-black'} fill-current`} />
               )}
-              <span className={`text-base font-mono font-bold ${hasInfoBook || hasFree ? 'text-white' : 'text-black'}`}>{getCostDisplay(tenCost)}</span>
+              <span className={`text-base font-mono font-bold ${hasInfoBook || hasFree ? 'text-white' : 'text-black'}`}>{getCostDisplay(tenCost, t, locale)}</span>
             </div>
           </div>
         </button>

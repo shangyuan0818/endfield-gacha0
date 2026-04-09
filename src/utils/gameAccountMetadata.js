@@ -261,6 +261,31 @@ export function buildGameAccountServerTag(metadata = {}) {
 export function classifyGameAccountRegionBucket(metadata = {}) {
   const serverTag = buildGameAccountServerTag(metadata);
   if (!serverTag) {
+    const normalized = normalizeGameAccountMetadata(metadata);
+    if (!normalized) {
+      return null;
+    }
+
+    const serverId = (normalized.serverId || '').toLowerCase();
+    const region = (normalized.region || '').toLowerCase();
+    const channelName = (normalized.channelName || '').toLowerCase();
+    const signal = `${serverId} ${region} ${channelName}`;
+
+    if (
+      serverId === '1' ||
+      /(^|[^a-z])(cn|china|mainland)([^a-z]|$)|国服|大陆/.test(signal)
+    ) {
+      return 'cn';
+    }
+
+    if (
+      serverId === '2' ||
+      serverId === '3' ||
+      /intl|international|global|asia|sea|jp|kr|tw|hk|mo|sg|亚服|亚洲|(^|[^a-z])(eu|na|us)([^a-z]|$)|america|欧\/美|欧美|欧服|美服/.test(signal)
+    ) {
+      return 'intl';
+    }
+
     return null;
   }
 

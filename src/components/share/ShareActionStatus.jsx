@@ -1,12 +1,6 @@
 import React from 'react';
 import { AlertCircle, CheckCircle2, Copy, Download, Loader2, Share2 } from 'lucide-react';
-
-const ACTION_LABELS = {
-  share: '系统分享',
-  download: '下载长图',
-  'copy-image': '复制图片',
-  'copy-text': '复制文本',
-};
+import { useI18n } from '../../i18n/index.js';
 
 const ACTION_ICONS = {
   share: Share2,
@@ -17,7 +11,7 @@ const ACTION_ICONS = {
 
 const PHASE_META = {
   running: {
-    label: '处理中',
+    labelKey: 'share.status.phase.running',
     containerClass:
       'border-amber-200 bg-amber-50/90 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-100',
     iconBoxClass: 'border-amber-200 text-amber-700 dark:border-amber-500/40 dark:text-amber-200',
@@ -27,7 +21,7 @@ const PHASE_META = {
     barClass: 'bg-amber-500 dark:bg-amber-300',
   },
   success: {
-    label: '已完成',
+    labelKey: 'share.status.phase.success',
     containerClass:
       'border-emerald-200 bg-emerald-50/90 text-emerald-900 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-100',
     iconBoxClass: 'border-emerald-200 text-emerald-700 dark:border-emerald-500/40 dark:text-emerald-200',
@@ -37,7 +31,7 @@ const PHASE_META = {
     barClass: 'bg-emerald-500 dark:bg-emerald-300',
   },
   error: {
-    label: '失败',
+    labelKey: 'share.status.phase.error',
     containerClass:
       'border-rose-200 bg-rose-50/90 text-rose-900 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-100',
     iconBoxClass: 'border-rose-200 text-rose-700 dark:border-rose-500/40 dark:text-rose-200',
@@ -66,12 +60,21 @@ function PhaseStatusIcon({ phase, size }) {
 }
 
 const ShareActionStatus = ({ feedback, compact = false, className = '' }) => {
+  const { t } = useI18n();
   if (!feedback || feedback.phase === 'idle' || !feedback.message) {
     return null;
   }
 
   const phaseMeta = PHASE_META[feedback.phase] || PHASE_META.running;
-  const actionLabel = ACTION_LABELS[feedback.action] || '分享处理';
+  const actionLabel = feedback.action === 'share'
+    ? t('share.status.action.share')
+    : feedback.action === 'download'
+      ? t('share.status.action.download')
+      : feedback.action === 'copy-image'
+        ? t('share.status.action.copyImage')
+        : feedback.action === 'copy-text'
+          ? t('share.status.action.copyText')
+          : t('share.status.action.default');
   const containerClassName = [
     'rounded-none border shadow-sm',
     compact ? 'px-3 py-2' : 'px-3 py-2.5',
@@ -98,7 +101,7 @@ const ShareActionStatus = ({ feedback, compact = false, className = '' }) => {
               {actionLabel}
             </span>
             <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${phaseMeta.badgeClass}`}>
-              {phaseMeta.label}
+              {t(phaseMeta.labelKey)}
             </span>
           </div>
           <div className={`mt-1 text-xs font-medium leading-5 ${phaseMeta.messageClass}`}>{feedback.message}</div>

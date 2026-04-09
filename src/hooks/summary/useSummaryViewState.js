@@ -1,50 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { RARITY_CONFIG } from '../../constants';
+import { useI18n } from '../../i18n/index.js';
 import { useRankingData } from './useRankingData';
 import { useSummaryStats } from './useSummaryStats';
 
-const SUMMARY_COPY = {
-  desktop: {
-    titleGlobal: '全服数据',
-    titleLocal: '我的数据',
-    subtitleAll: '全部卡池',
-    typeNames: {
-      character: '角色池（限定+常驻）',
-      limited: '限定角色池',
-      weapon: '武器池',
-      standard: '常驻池'
-    }
-  },
-  mobile: {
-    titleGlobal: '全服统计数据',
-    titleLocal: '个人记录',
-    subtitleAll: '全卡池汇总',
-    typeNames: {
-      character: '角色池',
-      limited: '限定池',
-      weapon: '武器池',
-      standard: '常驻池'
-    }
-  }
-};
-
-export const SUMMARY_FILTER_OPTIONS = [
-  { value: 'all', label: '全部' },
-  { value: 'limited', label: '限定' },
-  { value: 'standard', label: '常驻' },
-  { value: 'weapon', label: '武器' }
-];
-
-function generateChartDataFromCounts(counts) {
+function generateChartDataFromCounts(counts, labels) {
   if (!counts) {
     return [];
   }
 
   const rawData = [
-    { name: '6星(限定)', value: counts[6] || counts['6'] || 0, color: RARITY_CONFIG[6].color },
-    { name: '6星(常驻)', value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
-    { name: '5星', value: counts[5] || counts['5'] || 0, color: RARITY_CONFIG[5].color },
-    { name: '4星', value: counts[4] || counts['4'] || 0, color: RARITY_CONFIG[4].color }
+    { key: 'six-limited', name: labels.sixLimited, value: counts[6] || counts['6'] || 0, color: RARITY_CONFIG[6].color },
+    { key: 'six-standard', name: labels.sixStandard, value: counts['6_std'] || 0, color: RARITY_CONFIG['6_std'].color },
+    { key: 'five', name: labels.fiveStar, value: counts[5] || counts['5'] || 0, color: RARITY_CONFIG[5].color },
+    { key: 'four', name: labels.fourStar, value: counts[4] || counts['4'] || 0, color: RARITY_CONFIG[4].color }
   ].filter(item => item.value > 0);
 
   const totalValue = rawData.reduce((sum, item) => sum + item.value, 0);
@@ -53,9 +22,9 @@ function generateChartDataFromCounts(counts) {
     const currentPercent = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
     let minPercent = 0;
 
-    if (item.name.includes('6星')) {
+    if (item.key.startsWith('six')) {
       minPercent = 15;
-    } else if (item.name.includes('5星')) {
+    } else if (item.key === 'five') {
       minPercent = 20;
     }
 
@@ -127,10 +96,34 @@ export function useSummaryViewState({
   fetchGlobalStats,
   variant = 'desktop'
 }) {
+  const { locale, t } = useI18n();
+  const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const [dataSource, setDataSource] = useState('global');
   const [poolTypeFilter, setPoolTypeFilter] = useState('all');
 
-  const copy = SUMMARY_COPY[variant] || SUMMARY_COPY.desktop;
+  const copy = useMemo(() => ({
+    titleGlobal: tt('summary.source.global', '全服数据'),
+    titleLocal: tt('summary.source.local', '我的数据'),
+    subtitleAll: tt('summary.scope.all', '全部卡池'),
+    typeNames: {
+      character: tt('summary.scope.character', '角色池（限定+常驻）'),
+      limited: tt('summary.scope.limited', '限定角色池'),
+      weapon: tt('summary.scope.weapon', '武器池'),
+      standard: tt('summary.scope.standard', '常驻池')
+    }
+  }), [locale, t, variant]);
+  const filterOptions = useMemo(() => ([
+    { value: 'all', label: tt('summary.filter.all', '全部') },
+    { value: 'limited', label: tt('summary.filter.limited', '限定') },
+    { value: 'standard', label: tt('summary.filter.standard', '常驻') },
+    { value: 'weapon', label: tt('summary.filter.weapon', '武器') }
+  ]), [locale, t]);
+  const chartLabels = useMemo(() => ({
+    sixLimited: tt('summary.chart.sixLimited', '6★ (限定)'),
+    sixStandard: tt('summary.chart.sixStandard', '6★ (常驻)'),
+    fiveStar: tt('summary.chart.fiveStar', '5★'),
+    fourStar: tt('summary.chart.fourStar', '4★')
+  }), [locale, t]);
   const isGlobalSource = dataSource === 'global';
 
   const { characterRanking, rankingLoading, userRanking, userRankingLoading } = useRankingData(dataSource, user);
@@ -210,7 +203,7 @@ export function useSummaryViewState({
       avgPityUp: typeData.avgPityTarget || typeData.avgPityUp || null,
       counts: typeData.counts,
       distribution: typeData.distribution,
-      chartData: typeData.chartData,
+      chartData: generateChartDataFromCounts(typeData.counts, chartLabels),
       totalUsers: baseStats.totalUsers,
       totalContributors: baseStats.totalContributors,
       contributorsByRegion: baseStats.contributorsByRegion || null,
@@ -218,7 +211,7 @@ export function useSummaryViewState({
       resources: typeData.resources || null,
       meta: baseStats.meta || null
     };
-  }, [copy, globalStats, isGlobalSource, localStats, poolTypeFilter]);
+  }, [chartLabels, copy, globalStats, isGlobalSource, localStats, poolTypeFilter]);
 
   const chartDisplayData = useMemo(() => {
     const baseStats = isGlobalSource ? globalStats : localStats;
@@ -234,10 +227,10 @@ export function useSummaryViewState({
       }
 
       const typeTitles = {
-        character: '角色池',
-        limited: '限定池',
-        weapon: '武器池',
-        standard: '常驻池'
+        character: tt('summary.scope.character', '角色池（限定+常驻）'),
+        limited: tt('summary.scope.limited', '限定角色池'),
+        weapon: tt('summary.scope.weapon', '武器池'),
+        standard: tt('summary.scope.standard', '常驻池')
       };
       const typeColors = {
         character: 'rainbow-text',
@@ -260,7 +253,7 @@ export function useSummaryViewState({
           data: {
             ...typeData,
             distributionVariant: typeDistributionVariants[poolTypeFilter] || 'character',
-            chartData: typeData.chartData || generateChartDataFromCounts(typeData.counts)
+            chartData: generateChartDataFromCounts(typeData.counts, chartLabels)
           }
         }]
       };
@@ -279,8 +272,8 @@ export function useSummaryViewState({
       isGlobal: isGlobalSource,
       charts: [
         {
-          title: '角色池',
-          subtitle: '限定 + 常驻',
+          title: tt('summary.section.characterBannerData', '角色池数据'),
+          subtitle: tt('summary.section.characterBannerSubtitle', '限定 + 常驻'),
           color: 'text-violet-500',
           data: {
             ...(baseStats.byType?.character || {
@@ -288,23 +281,24 @@ export function useSummaryViewState({
               six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
               counts: characterCounts,
               distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
-              chartData: generateChartDataFromCounts(characterCounts)
+              chartData: generateChartDataFromCounts(characterCounts, chartLabels)
             }),
-            distributionVariant: 'character'
+            distributionVariant: 'character',
+            chartData: generateChartDataFromCounts((baseStats.byType?.character || {}).counts || characterCounts, chartLabels)
           }
         },
         {
-          title: '武器池',
+          title: tt('summary.section.weaponBannerData', '武器池数据'),
           color: 'text-slate-500',
           data: {
             ...(baseStats.byType?.weapon || { total: 0, six: 0, counts: {}, distribution: [] }),
             distributionVariant: 'weapon',
-            chartData: baseStats.byType?.weapon?.chartData || generateChartDataFromCounts(baseStats.byType?.weapon?.counts)
+            chartData: generateChartDataFromCounts(baseStats.byType?.weapon?.counts, chartLabels)
           }
         }
       ]
     };
-  }, [globalStats, isGlobalSource, localStats, poolTypeFilter]);
+  }, [chartLabels, globalStats, isGlobalSource, localStats, poolTypeFilter, locale, t]);
 
   return {
     dataSource,
@@ -317,7 +311,7 @@ export function useSummaryViewState({
     chartDisplayData,
     ranking,
     isRankingLoading,
-    filterOptions: SUMMARY_FILTER_OPTIONS
+    filterOptions
   };
 }
 

@@ -1,6 +1,11 @@
 import React, { forwardRef } from 'react';
 import ShareBrandPanel from '../share/ShareBrandPanel';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
+import {
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_WIDTH,
+  SHARE_FONT_MONO,
+  SHARE_FONT_SANS
+} from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 
 function getThemeTokens(theme = 'light') {
@@ -53,7 +58,7 @@ const styles = {
     background: 'linear-gradient(140deg, #fcfbf7 0%, #f6f2e9 52%, #eef3f8 100%)',
     color: '#18181b',
     padding: '20px',
-    fontFamily: '"Microsoft YaHei UI", "Segoe UI", sans-serif',
+    fontFamily: SHARE_FONT_SANS,
     border: '2px solid #d4d4d8',
     display: 'flex',
     flexDirection: 'column',
@@ -192,7 +197,8 @@ const styles = {
     fontSize: '18px',
     lineHeight: 1.1,
     fontWeight: 900,
-    color: '#18181b'
+    color: '#18181b',
+    fontFamily: SHARE_FONT_MONO
   },
   metricPillHint: {
     fontSize: '11px',
@@ -235,7 +241,8 @@ const styles = {
     fontSize: '28px',
     lineHeight: 1,
     fontWeight: 900,
-    color: '#111827'
+    color: '#111827',
+    fontFamily: SHARE_FONT_MONO
   },
   statHint: {
     fontSize: '13px',
@@ -277,7 +284,8 @@ const styles = {
     fontSize: '21px',
     lineHeight: 1,
     fontWeight: 900,
-    color: '#18181b'
+    color: '#18181b',
+    fontFamily: SHARE_FONT_MONO
   },
   averageNote: {
     marginTop: '8px',
@@ -301,7 +309,8 @@ const styles = {
     fontSize: '23px',
     lineHeight: 1,
     fontWeight: 900,
-    color: '#111827'
+    color: '#111827',
+    fontFamily: SHARE_FONT_MONO
   },
   timelineWrap: {
     position: 'relative',
@@ -327,7 +336,8 @@ const styles = {
     padding: '8px 10px',
     fontSize: '12px',
     color: '#52525b',
-    fontWeight: 700
+    fontWeight: 700,
+    fontFamily: SHARE_FONT_MONO
   },
   sectionCard: {
     border: '1px solid #d4d4d8',
@@ -354,7 +364,8 @@ const styles = {
     marginTop: 0,
     fontSize: '16px',
     fontWeight: 900,
-    color: '#18181b'
+    color: '#18181b',
+    fontFamily: SHARE_FONT_MONO
   },
   entryRow: {
     display: 'flex',

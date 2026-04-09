@@ -1,13 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { useI18n } from '../../i18n/index.js';
 
 function normalizeFriendlyError(error, fallback) {
   return error?.message || fallback;
 }
 
 export default function ResetPasswordPage() {
+  const { isEnglish } = useI18n();
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -16,6 +18,7 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [recoveryReady, setRecoveryReady] = useState(false);
+  const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
 
   const passwordMismatch = useMemo(() => (
     confirmPassword.length > 0 && password !== confirmPassword
@@ -27,7 +30,7 @@ export default function ResetPasswordPage() {
     async function checkRecoverySession() {
       if (!supabase) {
         if (active) {
-          setError('当前环境未启用认证服务，无法重置密码。');
+          setError(tt('当前环境未启用认证服务，无法重置密码。', 'Auth service is unavailable in this environment, so password reset cannot continue.'));
           setCheckingSession(false);
         }
         return;
@@ -50,7 +53,7 @@ export default function ResetPasswordPage() {
           setError('');
         } else {
           setRecoveryReady(false);
-          setError('重置链接无效、已过期，或当前未进入密码重置流程。');
+          setError(tt('重置链接无效、已过期，或当前未进入密码重置流程。', 'This reset link is invalid, expired, or the recovery flow was not started.'));
         }
       } catch (sessionError) {
         if (!active) {
@@ -58,7 +61,7 @@ export default function ResetPasswordPage() {
         }
 
         setRecoveryReady(false);
-        setError(normalizeFriendlyError(sessionError, '无法验证重置链接，请重新申请密码重置邮件。'));
+        setError(normalizeFriendlyError(sessionError, tt('无法验证重置链接，请重新申请密码重置邮件。', 'Unable to verify the reset link. Request a new password reset email and try again.')));
       } finally {
         if (active) {
           setCheckingSession(false);
@@ -71,22 +74,22 @@ export default function ResetPasswordPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [tt]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!supabase) {
-      setError('当前环境未启用认证服务，无法重置密码。');
+      setError(tt('当前环境未启用认证服务，无法重置密码。', 'Auth service is unavailable in this environment, so password reset cannot continue.'));
       return;
     }
 
     if (password.length < 6) {
-      setError('密码至少需要 6 位字符。');
+      setError(tt('密码至少需要 6 位字符。', 'Password must be at least 6 characters.'));
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致。');
+      setError(tt('两次输入的密码不一致。', 'The passwords do not match.'));
       return;
     }
 
@@ -103,12 +106,12 @@ export default function ResetPasswordPage() {
         throw updateError;
       }
 
-      setSuccess('密码已更新。3 秒后将返回首页，您也可以立即手动跳转。');
+      setSuccess(tt('密码已更新。3 秒后将返回首页，您也可以立即手动跳转。', 'Password updated. You will return to the home page in 3 seconds, or you can jump back immediately.'));
       window.setTimeout(() => {
         navigate('/', { replace: true });
       }, 3000);
     } catch (updateError) {
-      setError(normalizeFriendlyError(updateError, '密码更新失败，请重新打开重置邮件中的链接。'));
+      setError(normalizeFriendlyError(updateError, tt('密码更新失败，请重新打开重置邮件中的链接。', 'Failed to update the password. Reopen the link from the reset email and try again.')));
     } finally {
       setSubmitting(false);
     }
@@ -123,8 +126,8 @@ export default function ResetPasswordPage() {
               <KeyRound size={20} />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-wide">重置密码</h1>
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">Password Recovery</p>
+              <h1 className="text-lg font-bold tracking-wide">{tt('重置密码', 'Reset Password')}</h1>
+              <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">{tt('密码找回', 'Password Recovery')}</p>
             </div>
           </div>
         </div>
@@ -133,7 +136,7 @@ export default function ResetPasswordPage() {
           {checkingSession ? (
             <div className="flex items-center gap-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-4 py-4 text-sm text-zinc-600 dark:text-zinc-300">
               <Loader2 size={16} className="animate-spin" />
-              正在验证重置链接...
+              {tt('正在验证重置链接...', 'Verifying the reset link...')}
             </div>
           ) : (
             <>
@@ -154,13 +157,13 @@ export default function ResetPasswordPage() {
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                    新密码
+                    {tt('新密码', 'New Password')}
                   </label>
                   <input
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="至少 6 位字符"
+                    placeholder={tt('至少 6 位字符', 'At least 6 characters')}
                     disabled={!recoveryReady || submitting}
                     className="w-full border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-endfield-yellow dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                   />
@@ -168,18 +171,18 @@ export default function ResetPasswordPage() {
 
                 <div className="space-y-2">
                   <label className="block text-xs font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                    确认新密码
+                    {tt('确认新密码', 'Confirm New Password')}
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="再次输入新密码"
+                    placeholder={tt('再次输入新密码', 'Enter the new password again')}
                     disabled={!recoveryReady || submitting}
                     className="w-full border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-endfield-yellow dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                   />
                   {passwordMismatch && (
-                    <p className="text-xs text-red-600 dark:text-red-400">两次输入的密码不一致。</p>
+                    <p className="text-xs text-red-600 dark:text-red-400">{tt('两次输入的密码不一致。', 'The passwords do not match.')}</p>
                   )}
                 </div>
 
@@ -188,19 +191,19 @@ export default function ResetPasswordPage() {
                   disabled={!recoveryReady || submitting || passwordMismatch}
                   className="w-full bg-endfield-yellow px-4 py-3 text-sm font-bold uppercase tracking-[0.18em] text-black transition hover:bg-yellow-400 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500"
                 >
-                  {submitting ? '提交中...' : '更新密码'}
+                  {submitting ? tt('提交中...', 'Submitting...') : tt('更新密码', 'Update Password')}
                 </button>
               </form>
 
               <div className="border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                链接失效时，请返回登录弹窗重新发送密码重置邮件。
+                {tt('链接失效时，请返回登录弹窗重新发送密码重置邮件。', 'If the link expires, return to the login modal and request a new password reset email.')}
               </div>
 
               <Link
                 to="/"
                 className="inline-flex text-xs font-bold uppercase tracking-[0.18em] text-zinc-600 transition hover:text-endfield-yellow dark:text-zinc-300"
               >
-                返回首页
+                {tt('返回首页', 'Back to Home')}
               </Link>
             </>
           )}

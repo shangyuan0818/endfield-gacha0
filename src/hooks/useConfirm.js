@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
+import { useI18n } from '../i18n/index.js';
 
 /**
  * 确认对话框 Hook
  * @returns {{confirmState: Object, confirm: Function, handleConfirm: Function, handleCancel: Function}}
  */
 export const useConfirm = () => {
+  const { t } = useI18n();
   const [confirmState, setConfirmState] = useState({
     isOpen: false,
     title: '',
@@ -19,15 +21,15 @@ export const useConfirm = () => {
     return new Promise((resolve) => {
       setConfirmState({
         isOpen: true,
-        title: options.title || '确认',
+        title: options.title || t('common.confirm'),
         message: options.message || '',
-        confirmText: options.confirmText || '确认',
-        cancelText: options.cancelText || '取消',
+        confirmText: options.confirmText || t('common.confirm'),
+        cancelText: options.cancelText || t('common.cancel'),
         type: options.type || 'warning',
         resolve
       });
     });
-  }, []);
+  }, [t]);
 
   const handleConfirm = () => {
     confirmState.resolve?.(true);

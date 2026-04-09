@@ -22,9 +22,18 @@
 
 @layer base {
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+    --font-number: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+    font-family: var(--font-sans);
     background-color: #f4f4f5;
     color: #18181b;
+  }
+
+  html[data-locale='en-US'] {
+    --font-sans: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+    --font-number: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   }
 
   html.dark {
@@ -34,8 +43,21 @@
   }
 
   body {
+    font-family: var(--font-sans);
     transition-property: background-color, color, border-color;
     transition-duration: 300ms;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  .tabular-nums {
+    font-family: var(--font-number);
+    font-variant-numeric: tabular-nums;
   }
 
   /* Custom Scrollbar */

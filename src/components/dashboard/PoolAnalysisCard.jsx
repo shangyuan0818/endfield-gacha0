@@ -5,12 +5,13 @@ import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { calculateCurrentProbability } from '../../utils';
 import AveragePullStatsPanel from './AveragePullStatsPanel';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 卡池时间信息组件 - 实时更新 (内部组件)
  * @param {Object} props.currentPool - 当前查看的卡池对象
  */
-const PoolTimeInfo = ({ currentPool }) => {
+const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
   const pools = usePoolStore(state => state.pools);
   const poolsArray = Array.isArray(pools) ? pools : Object.values(pools || {});
   const [tick, setTick] = useState(0);
@@ -60,9 +61,13 @@ const PoolTimeInfo = ({ currentPool }) => {
   const startDate = new Date(poolInfo.startDate);
   const endDate = poolInfo.endDate instanceof Date ? poolInfo.endDate : new Date(poolInfo.endDate);
 
-  const formatDate = (date) => {
-    return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:00`;
-  };
+  const formatDate = (date) => formatDateTime(date, {
+    includeYear: false,
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   const isExpired = poolInfo.isExpired;
   const remainingDays = poolInfo.remainingDays ?? 0;
@@ -75,24 +80,33 @@ const PoolTimeInfo = ({ currentPool }) => {
       <Clock size={10} />
       <span className="flex items-center gap-1">
         {isNotStarted ? (
-          <span className="text-slate-400">即将开始</span>
+          <span className="text-slate-400">{t('dashboard.analysis.upcoming')}</span>
         ) : isExpired ? (
-          <span className="text-red-400">已结束</span>
+          <span className="text-red-400">{t('dashboard.analysis.ended')}</span>
         ) : (
-          <span className="text-green-600 dark:text-green-400">UP中</span>
+          <span className="text-green-600 dark:text-green-400">{t('dashboard.analysis.active')}</span>
         )}
       </span>
       <span className="text-slate-300 dark:text-zinc-700">|</span>
       <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
       <span className="text-slate-300 dark:text-zinc-700">|</span>
       {isNotStarted ? (
-        <span className="text-blue-500">{poolInfo.startsIn}天{poolInfo.startsInHours}小时后开始</span>
+        <span className="text-blue-500">
+          {t('dashboard.analysis.startsIn', {
+            days: poolInfo.startsIn ?? 0,
+            hours: poolInfo.startsInHours ?? 0,
+          })}
+        </span>
       ) : isExpired ? (
-        <span className="text-red-500 font-medium">已结束</span>
+        <span className="text-red-500 font-medium">{t('dashboard.analysis.ended')}</span>
       ) : isEndingSoon ? (
-        <span className="text-amber-500 font-medium animate-pulse">剩 {remainingDays}天{remainingHours}小时</span>
+        <span className="text-amber-500 font-medium animate-pulse">
+          {t('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours })}
+        </span>
       ) : (
-        <span className="text-green-500">剩 {remainingDays}天{remainingHours}小时</span>
+        <span className="text-green-500">
+          {t('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours })}
+        </span>
       )}
     </div>
   );
@@ -134,7 +148,7 @@ const StatCard = ({ label, value, subValue, footer, progress, progressColor, ext
 /**
  * 武器池赠送进度组件
  */
-const WeaponGifts = ({ stats }) => {
+const WeaponGifts = ({ stats, t }) => {
   // 计算下一档赠送阈值
   const giftThresholds = [100, 180, 260, 340, 420, 500];
   let nextWeaponGift = 0;
@@ -159,9 +173,9 @@ const WeaponGifts = ({ stats }) => {
       <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-red-500 flex flex-col gap-2">
           <div className="flex justify-between items-center">
               <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold flex items-center gap-2">
-                  下一档赠送
+                  {t('dashboard.analysis.nextGift')}
                   <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${nextWeaponGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
-                    {nextWeaponGiftType === 'limited' ? '限定' : '常驻'}
+                    {nextWeaponGiftType === 'limited' ? t('dashboard.analysis.limitedShort') : t('dashboard.analysis.standardShort')}
                   </span>
               </span>
               <span className="text-xs font-mono text-slate-600 dark:text-zinc-400">{stats.total} / {nextWeaponGift}</span>
@@ -171,9 +185,13 @@ const WeaponGifts = ({ stats }) => {
                   style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}></div>
           </div>
           <div className="flex gap-3 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">
-              <span>已获得:</span>
-              <span className="text-red-600 dark:text-red-400 font-medium">{stats.gifts?.standardCount || 0} 常驻</span>
-              <span className="text-blue-600 dark:text-cyan-400 font-medium">{stats.gifts?.limitedCount || 0} 限定</span>
+              <span>{t('dashboard.analysis.obtainedSummary')}</span>
+              <span className="text-red-600 dark:text-red-400 font-medium">
+                {stats.gifts?.standardCount || 0} {t('dashboard.analysis.standardShort')}
+              </span>
+              <span className="text-blue-600 dark:text-cyan-400 font-medium">
+                {stats.gifts?.limitedCount || 0} {t('dashboard.analysis.limitedShort')}
+              </span>
           </div>
       </div>
   );
@@ -183,6 +201,7 @@ const WeaponGifts = ({ stats }) => {
  * 卡池分析卡片 (Dashboard Version)
  */
 const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFirstN, hasReceivedFreeTen, hasMergedAccountView = false }) => {
+  const { t, formatDateTime } = useI18n();
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
@@ -208,6 +227,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
     : isWeapon 
       ? 'bg-slate-500' 
       : 'bg-yellow-500';
+  const analysisTitle = isWeapon
+    ? t('dashboard.analysis.title.weapon')
+    : isLimited
+      ? t('dashboard.analysis.title.limited')
+      : t('dashboard.analysis.title.standard');
 
   const validPullCount = checkLimitedInFirstN?.validPullCount || stats.total;
 
@@ -221,12 +245,12 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         <div className="flex justify-between items-start">
            <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-2 uppercase tracking-wide">
              <Calculator size={20} className={accentColor} />
-             {isWeapon ? '武器池分析' : isLimited ? '限定池分析' : '常驻池分析'}
+             {analysisTitle}
            </h3>
            {/* UP角色显示 */}
            {currentPool.up_character && (
              <div className="text-right">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">UP 角色</div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">{t('dashboard.pool.upCharacter')}</div>
                 <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{currentPool.up_character}</div>
              </div>
            )}
@@ -234,12 +258,12 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         
         <div className="mt-2">
            <div className="flex items-center gap-2">
-             <span className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-medium">当前卡池:</span>
+             <span className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-medium">{t('dashboard.analysis.currentPool')}</span>
              <span className={`text-xs font-bold ${accentColor} uppercase`}>{currentPool.name}</span>
            </div>
            
            {/* 时间信息只在限定池显示 */}
-           {isLimited && <PoolTimeInfo currentPool={currentPool} />}
+           {isLimited && <PoolTimeInfo currentPool={currentPool} t={t} formatDateTime={formatDateTime} />}
         </div>
       </div>
 
@@ -251,17 +275,19 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
           const displayPity = pityState.displayPity6;
           return (
             <StatCard
-               label={`6星保底 (${maxPity})`}
+               label={t('dashboard.analysis.pity6', { max: maxPity })}
                value={Math.max(maxPity - displayPity, 0)}
-               subValue="抽"
+               subValue={t('dashboard.unit.pull')}
                progress={(displayPity / maxPity) * 100}
                progressColor={progressClass}
-               warning={currentProbabilityInfo?.hasSoftPity && currentProbabilityInfo?.isInSoftPity ? `概率UP ${(currentProbabilityInfo.probability * 100).toFixed(1)}%` : null}
+               warning={currentProbabilityInfo?.hasSoftPity && currentProbabilityInfo?.isInSoftPity
+                 ? t('dashboard.analysis.rateBoost', { percent: (currentProbabilityInfo.probability * 100).toFixed(1) })
+                 : null}
                footer={
                  <>
-                    <span>当前垫刀: {displayPity}</span>
+                    <span>{t('dashboard.analysis.currentPity', { count: displayPity })}</span>
                     {pityState.isInherited6 && (
-                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
+                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> {t('dashboard.analysis.crossPoolCarry')}</span>
                     )}
                  </>
                }
@@ -273,16 +299,16 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
           const displayPity5 = pityState.displayPity5;
           return (
             <StatCard
-               label="5星保底 (10)"
+               label={t('dashboard.analysis.pity5')}
                value={Math.max(10 - displayPity5, 0)}
-               subValue="抽"
+               subValue={t('dashboard.unit.pull')}
                progress={(displayPity5 / 10) * 100}
                progressColor="bg-amber-500"
                footer={
                  <>
-                    <span>当前垫刀: {displayPity5}</span>
+                    <span>{t('dashboard.analysis.currentPity', { count: displayPity5 })}</span>
                     {pityState.isInherited5 && (
-                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> 含跨池继承</span>
+                      <span className="text-purple-600 dark:text-purple-400 flex items-center gap-1"><Sparkles size={10}/> {t('dashboard.analysis.crossPoolCarry')}</span>
                     )}
                  </>
                }
@@ -292,7 +318,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
       </div>
       ) : (
         <div className="mb-4 border border-dashed border-zinc-200 bg-zinc-50 px-4 py-4 text-sm text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          当前为多账号汇总视图。6★ / 5★ 当前保底、软保底概率提示仅在单账号上下文中有确定语义，因此这里已隐藏。
+          {t('dashboard.analysis.mergedViewNote')}
         </div>
       )}
 
@@ -301,15 +327,23 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         <div className="grid grid-cols-1 gap-4 mb-6">
            {/* 不歪率 */}
            <StatCard
-             label="不歪率"
-             extraLabel={isLimited ? "免十不计" : null}
+             label={t('dashboard.analysis.winRate')}
+             extraLabel={isLimited ? t('dashboard.analysis.freeTenExcluded') : null}
              value={stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
              progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
              progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
              footer={
                stats.sixStarCount > 0
-                 ? <span className="truncate">UP: {stats.upSixStarCount} / 歪常驻: {stats.offStandardCount ?? (stats.sixStarCount - stats.upSixStarCount)} / 歪限定: {stats.offLimitedCount ?? 0}</span>
-                 : '暂无6星数据'
+                 ? (
+                   <span className="truncate">
+                     {t('dashboard.analysis.winRateBreakdown', {
+                       up: stats.upSixStarCount,
+                       offStandard: stats.offStandardCount ?? (stats.sixStarCount - stats.upSixStarCount),
+                       offLimited: stats.offLimitedCount ?? 0,
+                     })}
+                   </span>
+                 )
+                 : t('dashboard.analysis.noSixStarData')
              }
            />
         </div>
@@ -317,13 +351,13 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
 
       <AveragePullStatsPanel
         stats={stats}
-        normalizedPoolType={pityState.normalizedType}
+        poolType={pityState.normalizedType}
         className="mb-6"
       />
 
       {/* 特殊进度列表 (Technical List Style) */}
       <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-zinc-800">
-         <div className="text-[11px] uppercase text-slate-600 dark:text-zinc-400 font-bold tracking-wider mb-2">特殊机制进度</div>
+         <div className="text-[11px] uppercase text-slate-600 dark:text-zinc-400 font-bold tracking-wider mb-2">{t('dashboard.analysis.specialProgress')}</div>
          
          {/* 限定池特殊进度 */}
          {isLimited && (
@@ -331,9 +365,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {/* 免费十连 */}
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-blue-500 flex flex-col gap-2">
                <div className="flex justify-between items-center">
-                 <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">免费十连 (仅一次)</span>
+                 <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.freeTenOnce')}</span>
                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                   {hasReceivedFreeTen ? '已领取' : '0 / 1'}
+                   {hasReceivedFreeTen ? t('dashboard.analysis.claimed') : '0 / 1'}
                  </span>
                </div>
                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
@@ -341,9 +375,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                       style={{width: `${hasReceivedFreeTen ? 100 : 0}%`}}></div>
                </div>
                <div className="flex justify-between items-center">
-                 <span className="text-[11px] text-slate-600 dark:text-zinc-400">不计入保底次数</span>
+                 <span className="text-[11px] text-slate-600 dark:text-zinc-400">{t('dashboard.analysis.notCountPity')}</span>
                  {hasReceivedFreeTen && (
-                   <span className="text-[11px] text-green-600 dark:text-green-400 font-bold">已完成</span>
+                   <span className="text-[11px] text-green-600 dark:text-green-400 font-bold">{t('dashboard.analysis.completed')}</span>
                  )}
                </div>
              </div>
@@ -351,9 +385,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {/* 120 Spark */}
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-green-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">必出限定 (120抽)</span>
+                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.guaranteedLimited120')}</span>
                   <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                    {checkLimitedInFirstN?.firstLimitedIndex120 > 0 ? '已达成' : `${Math.min(validPullCount, 120)} / 120`}
+                    {checkLimitedInFirstN?.firstLimitedIndex120 > 0 ? t('dashboard.analysis.reached') : `${Math.min(validPullCount, 120)} / 120`}
                   </span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
@@ -365,20 +399,24 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {/* 240 Potential */}
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-purple-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">赠送角色潜能 (每240抽)</span>
+                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.potential240')}</span>
                   <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total % 240} / 240</span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
                   <div className="h-full bg-purple-500" style={{width: `${((stats.total % 240) / 240) * 100}%`}}></div>
                 </div>
-                {Math.floor(stats.total / 240) > 0 && <div className="text-right text-[11px] text-purple-600 dark:text-purple-400 font-bold">已获得: {Math.floor(stats.total / 240)}</div>}
+                {Math.floor(stats.total / 240) > 0 && (
+                  <div className="text-right text-[11px] text-purple-600 dark:text-purple-400 font-bold">
+                    {t('dashboard.analysis.obtained', { count: Math.floor(stats.total / 240) })}
+                  </div>
+                )}
              </div>
 
              {/* 60 Info Book */}
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-cyan-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold flex items-center gap-1"><FileText size={12}/> 寻访情报书 (60抽)</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.hasInfoBook ? '已达成' : `${Math.min(stats.total, 60)} / 60`}</span>
+                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold flex items-center gap-1"><FileText size={12}/> {t('dashboard.analysis.infoBook60')}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 60)} / 60`}</span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
                   <div className={`h-full ${stats.hasInfoBook ? 'bg-green-500' : 'bg-cyan-500'}`} 
@@ -394,9 +432,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {/* 80 Spark */}
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-slate-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">首轮限定必出 (80抽)</span>
+                   <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.guaranteedWeapon80')}</span>
                    <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                     {checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? '已达成' : `${Math.min(stats.total, 80)} / 80`}
+                     {checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 80)} / 80`}
                    </span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
@@ -406,7 +444,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              </div>
              
              {/* 武器赠送 */}
-             {currentPool.isLimitedWeapon !== false && <WeaponGifts stats={stats} />}
+             {currentPool.isLimitedWeapon !== false && <WeaponGifts stats={stats} t={t} />}
            </>
          )}
 
@@ -414,7 +452,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
          {isStandard && (
             <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-green-500 flex flex-col gap-2">
                <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">首次赠送自选 (300抽)</span>
+                  <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.firstSelector300')}</span>
                   <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
                </div>
                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">

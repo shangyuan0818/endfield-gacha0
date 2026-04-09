@@ -1,5 +1,6 @@
 import React from 'react';
 import { RefreshCw, User, Star, Trophy } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 import { characterCache } from '../../utils/characterUtils';
 
 /**
@@ -8,6 +9,9 @@ import { characterCache } from '../../utils/characterUtils';
  * FEAT-010 增强：支持 UP/歪出分类、常驻池 TOP5
  */
 const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false, denseFlatLayout = false }) => {
+  const { t } = useI18n();
+  const tt = (key, fallback, params = {}) => t(key, params, fallback);
+
   // 根据 poolType 获取对应的排名数据
   const getRankingData = () => {
     if (!ranking) return { sixStarUp: [], sixStarOff: [], sixStar: [], fiveStar: [] };
@@ -60,7 +64,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
     return (
       <div className="flex items-center justify-center h-full text-zinc-400 text-xs">
         <RefreshCw size={14} className="animate-spin mr-2" />
-        加载排名...
+        {tt('summary.loading.ranking', '加载排名...')}
       </div>
     );
   }
@@ -83,7 +87,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
   if (!hasVisibleData()) {
     return (
       <div className="flex items-center justify-center h-full text-zinc-400 text-xs italic">
-        暂无排名数据
+        {tt('summary.ranking.empty', '暂无排名数据')}
       </div>
     );
   }
@@ -114,10 +118,10 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                 <div
                   key={char.name}
                   className={`flex items-center gap-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-sm min-w-0 ${
-                    denseFlatLayout ? 'px-2 py-1 max-w-[9.5rem]' : 'px-2 py-1.5'
+                    denseFlatLayout ? 'px-2 py-1 flex-1 min-w-[140px]' : 'px-2 py-1.5 w-full sm:w-auto'
                   }`}
                 >
-                  <span className={`${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm`}>#{rank}</span>
+                  <span className={`${badgeBg} text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm shrink-0`}>#{rank}</span>
                   <div className={`rounded-sm bg-zinc-100 dark:bg-zinc-800 border ${borderColor} overflow-hidden flex-shrink-0 ${denseFlatLayout ? 'w-6 h-6' : 'w-7 h-7'}`}>
                     {avatarUrl ? (
                       <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
@@ -127,8 +131,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                       </div>
                     )}
                   </div>
-                  <span className={`font-medium text-slate-700 dark:text-zinc-300 truncate ${denseFlatLayout ? 'text-[11px] leading-tight max-w-[5rem]' : 'text-xs max-w-[5rem]'}`}>{char.name}</span>
-                  <span className={`font-mono text-zinc-400 ${denseFlatLayout ? 'text-[9px] leading-none' : 'text-[10px]'}`}>×{char.count}</span>
+                  <span className={`font-medium text-slate-700 dark:text-zinc-300 truncate min-w-0 flex-1 ${denseFlatLayout ? 'text-[11px] leading-tight' : 'text-xs'}`} title={char.name}>{char.name}</span>
+                  <span className={`font-mono text-zinc-400 shrink-0 ${denseFlatLayout ? 'text-[9px] leading-none' : 'text-[10px]'}`}>×{char.count}</span>
                 </div>
               );
             })}
@@ -234,39 +238,39 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
     <div className="space-y-2 h-full flex flex-col">
       <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-2 shrink-0">
         <Trophy size={12} />
-        <span>{title || '出货排名'}</span>
+        <span>{title || tt('summary.ranking.title', '出货排名')}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-8 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 content-start">
         {poolType === 'all' ? (
           <>
             {/* 限定池：UP六星 */}
-            {isSectionVisible('limitedUp') && renderRankingRow(ranking.limited?.sixStarUp || ranking.limited?.sixStar, 6, '限定池 UP 6★', 'limited', 5)}
+            {isSectionVisible('limitedUp') && renderRankingRow(ranking.limited?.sixStarUp || ranking.limited?.sixStar, 6, tt('summary.ranking.limitedUpSix', '限定池 UP 6★'), 'limited', 5)}
             {/* 限定池：歪出六星 */}
-            {isSectionVisible('limitedOff') && renderRankingRow(ranking.limited?.sixStarOff, 6, '限定池 歪出 6★', 'limited', 5)}
+            {isSectionVisible('limitedOff') && renderRankingRow(ranking.limited?.sixStarOff, 6, tt('summary.ranking.limitedOffSix', '限定池 歪出 6★'), 'limited', 5)}
             {/* 常驻池六星 - TOP5 */}
-            {isSectionVisible('standard') && renderRankingRow(ranking.standard?.sixStar, 6, '常驻池 6★', 'standard', 5)}
+            {isSectionVisible('standard') && renderRankingRow(ranking.standard?.sixStar, 6, tt('summary.ranking.standardSix', '常驻池 6★'), 'standard', 5)}
             {/* 限定池5星 */}
-            {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, '限定池 5★', 'limited', 5)}
+            {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, tt('summary.ranking.limitedFive', '限定池 5★'), 'limited', 5)}
             {/* 常驻池5星 */}
-            {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, '常驻池 5★', 'standard', 5)}
+            {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, tt('summary.ranking.standardFive', '常驻池 5★'), 'standard', 5)}
           </>
         ) : poolType === 'limited' ? (
           <>
-            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, '限定池 UP 6★', poolType, 5)}
-            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, '限定池 歪出 6★', poolType, 5)}
-            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '限定池 5★', poolType)}
+            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, tt('summary.ranking.limitedUpSix', '限定池 UP 6★'), poolType, 5)}
+            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, tt('summary.ranking.limitedOffSix', '限定池 歪出 6★'), poolType, 5)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, tt('summary.ranking.limitedFive', '限定池 5★'), poolType)}
           </>
         ) : poolType === 'standard' ? (
           <>
-            {isSectionVisible('standard') && renderRankingRow(rankData.sixStar, 6, '常驻池 6★', poolType, 5)}
-            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '常驻池 5★', poolType)}
+            {isSectionVisible('standard') && renderRankingRow(rankData.sixStar, 6, tt('summary.ranking.standardSix', '常驻池 6★'), poolType, 5)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, tt('summary.ranking.standardFive', '常驻池 5★'), poolType)}
           </>
         ) : poolType === 'weapon' ? (
           <>
-            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, '武器池 UP 6★', poolType)}
-            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, '武器池 歪出 6★', poolType)}
-            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, '武器池 5★', poolType)}
+            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, tt('summary.ranking.weaponUpSix', '武器池 UP 6★'), poolType)}
+            {isSectionVisible('limitedOff') && renderRankingRow(rankData.sixStarOff, 6, tt('summary.ranking.weaponOffSix', '武器池 歪出 6★'), poolType)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, tt('summary.ranking.weaponFive', '武器池 5★'), poolType)}
           </>
         ) : null}
       </div>

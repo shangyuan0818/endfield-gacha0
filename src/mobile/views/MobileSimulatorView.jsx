@@ -3,6 +3,7 @@ import { Monitor, Gamepad2, ArrowRight, Sparkles, Terminal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom';
 import { useDeviceDetection } from '../../hooks/useDeviceDetection';
 import { getDesktopPathForTab } from '../../constants/appRoutes';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 移动端模拟器视图 - 引导用户切换到桌面端
@@ -11,6 +12,7 @@ import { getDesktopPathForTab } from '../../constants/appRoutes';
 function MobileSimulatorView() {
   const navigate = useNavigate();
   const { setPreference } = useDeviceDetection();
+  const { t } = useI18n();
 
   const handleSwitchToDesktop = () => {
     setPreference('desktop');
@@ -28,9 +30,9 @@ function MobileSimulatorView() {
         <div className="flex justify-between items-center mb-6 border-b border-zinc-700 pb-4">
            <div className="flex items-center gap-2 text-endfield-yellow">
               <Terminal size={18} />
-              <span className="text-xs font-bold uppercase tracking-widest">系统提示</span>
+              <span className="text-xs font-bold uppercase tracking-widest">{t('simulator.mobile.notice')}</span>
            </div>
-           <span className="text-[10px] text-zinc-500">需切换至桌面端</span>
+           <span className="text-[10px] text-zinc-500">{t('simulator.mobile.desktopRequired')}</span>
         </div>
 
         {/* 主要内容 */}
@@ -41,25 +43,25 @@ function MobileSimulatorView() {
            </div>
            
            <h1 className="text-lg font-bold text-white mb-2 uppercase tracking-wide">
-             抽卡模拟
+             {t('simulator.mobile.title')}
            </h1>
            <p className="text-xs text-zinc-400 leading-relaxed max-w-[240px] mx-auto">
-             模拟器目前仅提供桌面端完整体验，移动端暂不支持概率引擎、视觉演出与导出。
+             {t('simulator.mobile.desc')}
            </p>
         </div>
 
         {/* 功能列表 */}
         <div className="space-y-2 mb-8 relative z-10">
            {[
-             "概率引擎",
-             "视觉演出",
-             "库存管理",
-             "数据导出"
+             t('simulator.mobile.feature.probability'),
+             t('simulator.mobile.feature.visual'),
+             t('simulator.mobile.feature.inventory'),
+             t('simulator.mobile.feature.export')
            ].map((item, i) => (
              <div key={i} className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase">
                 <div className="w-1.5 h-1.5 bg-zinc-600" />
                 <span>{item}</span>
-                <span className="ml-auto text-endfield-yellow">[需桌面端]</span>
+                <span className="ml-auto text-endfield-yellow">{t('simulator.mobile.desktopOnly')}</span>
              </div>
            ))}
         </div>
@@ -70,12 +72,12 @@ function MobileSimulatorView() {
           className="w-full flex items-center justify-center gap-2 py-3 bg-endfield-yellow text-black text-xs font-bold uppercase tracking-widest hover:bg-yellow-400 transition-colors touch-feedback relative z-10"
         >
           <Monitor size={14} />
-          切换到桌面端
+          {t('simulator.mobile.switch')}
           <ArrowRight size={14} />
         </button>
 
         <p className="mt-4 text-[9px] text-zinc-600 text-center uppercase tracking-wider relative z-10">
-          也可在设置中手动切换
+          {t('simulator.mobile.switchHint')}
         </p>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { calculateCurrentProbability } from './index.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { SHARE_BRAND_LINK } from './shareBranding.js';
+import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
 
 const DASHBOARD_SHARE_FILE_PREFIX = '终末地卡池分析分享卡';
 
@@ -36,44 +37,47 @@ function formatRate(value) {
   return `${numericValue.toFixed(1)}%`;
 }
 
-function getPoolTypeLabel(poolType) {
+function getPoolTypeLabel(poolType, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (poolType === 'weapon') {
-    return '武器池';
+    return english ? 'Weapon Banner' : '武器池';
   }
 
   if (poolType === 'standard') {
-    return '常驻池';
+    return english ? 'Standard Banner' : '常驻池';
   }
 
-  return '限定池';
+  return english ? 'Limited Banner' : '限定池';
 }
 
-function getOverviewFilterLabel(filter) {
+function getOverviewFilterLabel(filter, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (filter === 'limited') {
-    return '限定池';
+    return english ? 'Limited Banner' : '限定池';
   }
 
   if (filter === 'weapon') {
-    return '武器池';
+    return english ? 'Weapon Banner' : '武器池';
   }
 
   if (filter === 'standard') {
-    return '常驻池';
+    return english ? 'Standard Banner' : '常驻池';
   }
 
-  return '全部卡池';
+  return english ? 'All Banners' : '全部卡池';
 }
 
-function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
+function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAppLocale() }) {
+  const english = isEnglishLocale(locale);
   const items = [
     {
       id: 'avg-5',
-      label: '5★ 平均',
+      label: english ? '5★ Avg' : '5★ 平均',
       value: formatAverage(stats?.avgPullCost?.[5])
     },
     {
       id: 'avg-6-all',
-      label: '全部 6★',
+      label: english ? 'All 6★' : '全部 6★',
       value: formatAverage(stats?.avgPullCost?.['6_all'])
     }
   ];
@@ -81,7 +85,7 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   if (poolType !== 'standard') {
     items.push({
       id: 'avg-6-target',
-      label: isAllPoolsOverview ? '目标 6★' : 'UP 6★',
+      label: isAllPoolsOverview ? (english ? 'Target 6★' : '目标 6★') : (english ? 'UP 6★' : 'UP 6★'),
       value: formatAverage(stats?.avgPullCost?.[6])
     });
   }
@@ -89,7 +93,7 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   if (poolType === 'limited' || isAllPoolsOverview) {
     items.push({
       id: 'avg-6-limited',
-      label: '限定 6★',
+      label: english ? 'Limited 6★' : '限定 6★',
       value: formatAverage(stats?.avgPullCost?.['6_limited'])
     });
   }
@@ -97,7 +101,8 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview }) {
   return items;
 }
 
-function buildSplitSummaryGroups(overviewSplitStats) {
+function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!overviewSplitStats) {
     return null;
   }
@@ -105,26 +110,29 @@ function buildSplitSummaryGroups(overviewSplitStats) {
   return [
     {
       id: 'character',
-      label: '角色池汇总',
+      label: english ? 'Character Banner Summary' : '角色池汇总',
       items: buildSummaryItems({
         stats: overviewSplitStats.character,
         poolType: 'limited',
-        isAllPoolsOverview: true
+        isAllPoolsOverview: true,
+        locale
       })
     },
     {
       id: 'weapon',
-      label: '武器池汇总',
+      label: english ? 'Weapon Banner Summary' : '武器池汇总',
       items: buildSummaryItems({
         stats: overviewSplitStats.weapon,
         poolType: 'weapon',
-        isAllPoolsOverview: true
+        isAllPoolsOverview: true,
+        locale
       })
     }
   ];
 }
 
-function buildSplitAverageGroups(overviewSplitStats) {
+function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!overviewSplitStats) {
     return null;
   }
@@ -132,31 +140,34 @@ function buildSplitAverageGroups(overviewSplitStats) {
   return [
     {
       id: 'character',
-      label: '角色池平均',
+      label: english ? 'Character Banner Avg' : '角色池平均',
       items: buildAverageItems({
         stats: overviewSplitStats.character,
         poolType: 'limited',
-        isAllPoolsOverview: true
+        isAllPoolsOverview: true,
+        locale
       })
     },
     {
       id: 'weapon',
-      label: '武器池平均',
+      label: english ? 'Weapon Banner Avg' : '武器池平均',
       items: buildAverageItems({
         stats: overviewSplitStats.weapon,
         poolType: 'weapon',
-        isAllPoolsOverview: true
+        isAllPoolsOverview: true,
+        locale
       })
     }
   ];
 }
 
-function buildSummaryItems({ stats, poolType, isAllPoolsOverview }) {
+function buildSummaryItems({ stats, poolType, isAllPoolsOverview, locale = getAppLocale() }) {
+  const english = isEnglishLocale(locale);
   const items = [
     {
       id: 'total-pulls',
-      label: '总抽数',
-      value: normalizeNumber(stats?.total).toLocaleString(),
+      label: english ? 'Total Pulls' : '总抽数',
+      value: formatAppNumber(normalizeNumber(stats?.total), locale),
       hint: 'PULLS'
     }
   ];
@@ -165,21 +176,21 @@ function buildSummaryItems({ stats, poolType, isAllPoolsOverview }) {
     items.push(
       {
         id: 'six-star-total',
-        label: '6★ 总数',
-        value: normalizeNumber(stats?.totalSixStar || stats?.counts?.['6_std']).toLocaleString(),
-        hint: '常驻池全部 6★'
+        label: english ? '6★ Total' : '6★ 总数',
+        value: formatAppNumber(normalizeNumber(stats?.totalSixStar || stats?.counts?.['6_std']), locale),
+        hint: english ? 'All 6★ from standard banner' : '常驻池全部 6★'
       },
       {
         id: 'five-star-count',
-        label: '5★ 总数',
-        value: normalizeNumber(stats?.counts?.[5]).toLocaleString(),
-        hint: '高稀有节点'
+        label: english ? '5★ Total' : '5★ 总数',
+        value: formatAppNumber(normalizeNumber(stats?.counts?.[5]), locale),
+        hint: english ? 'High-rarity drops' : '高稀有节点'
       },
       {
         id: 'four-star-count',
-        label: '4★ 总数',
-        value: normalizeNumber(stats?.counts?.[4]).toLocaleString(),
-        hint: '基础产出'
+        label: english ? '4★ Total' : '4★ 总数',
+        value: formatAppNumber(normalizeNumber(stats?.counts?.[4]), locale),
+        hint: english ? 'Base output' : '基础产出'
       }
     );
     return items;
@@ -188,43 +199,48 @@ function buildSummaryItems({ stats, poolType, isAllPoolsOverview }) {
   items.push(
     {
       id: 'target-six',
-      label: isAllPoolsOverview ? '目标 6★' : 'UP 6★',
-      value: normalizeNumber(stats?.counts?.[6]).toLocaleString(),
-      hint: poolType === 'weapon' ? '限定武器命中数' : '限定角色命中数'
+      label: isAllPoolsOverview ? (english ? 'Target 6★' : '目标 6★') : (english ? 'UP 6★' : 'UP 6★'),
+      value: formatAppNumber(normalizeNumber(stats?.counts?.[6]), locale),
+      hint: poolType === 'weapon'
+        ? (english ? 'Target weapon hits' : '限定武器命中数')
+        : (english ? 'Target character hits' : '限定角色命中数')
     },
     {
       id: 'off-six',
-      label: isAllPoolsOverview ? '常驻 / 偏移 6★' : '常驻 / 歪 6★',
-      value: normalizeNumber(stats?.counts?.['6_std']).toLocaleString(),
-      hint: '非目标 6★'
+      label: isAllPoolsOverview
+        ? (english ? 'Standard / Offset 6★' : '常驻 / 偏移 6★')
+        : (english ? 'Standard / Off-target 6★' : '常驻 / 歪 6★'),
+      value: formatAppNumber(normalizeNumber(stats?.counts?.['6_std']), locale),
+      hint: english ? 'Non-target 6★' : '非目标 6★'
     },
     {
       id: 'five-star-count',
-      label: '5★ 总数',
-      value: normalizeNumber(stats?.counts?.[5]).toLocaleString(),
-      hint: '高稀有节点'
+      label: english ? '5★ Total' : '5★ 总数',
+      value: formatAppNumber(normalizeNumber(stats?.counts?.[5]), locale),
+      hint: english ? 'High-rarity drops' : '高稀有节点'
     },
     {
       id: 'four-star-count',
-      label: '4★ 总数',
-      value: normalizeNumber(stats?.counts?.[4]).toLocaleString(),
-      hint: '基础产出'
+      label: english ? '4★ Total' : '4★ 总数',
+      value: formatAppNumber(normalizeNumber(stats?.counts?.[4]), locale),
+      hint: english ? 'Base output' : '基础产出'
     }
   );
 
   if (normalizeNumber(stats?.totalSixStar) > 0) {
     items.push({
       id: 'win-rate',
-      label: '不歪率',
+      label: english ? 'Target Rate' : '不歪率',
       value: formatRate(stats?.winRate),
-      hint: '目标 6★ / 全部 6★'
+      hint: english ? 'Target 6★ / All 6★' : '目标 6★ / 全部 6★'
     });
   }
 
   return items;
 }
 
-function buildResourceItems(resources, poolType) {
+function buildResourceItems(resources, poolType, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!resources) {
     return [];
   }
@@ -236,21 +252,21 @@ function buildResourceItems(resources, poolType) {
     items.push(
       {
         id: 'jade-spent',
-        label: '耗玉',
-        value: normalizeNumber(resources.jadeSpent).toLocaleString(),
-        hint: '有效抽数换算'
+        label: english ? 'Oroberyl Spent' : '耗金玉',
+        value: formatAppNumber(normalizeNumber(resources.jadeSpent), locale),
+        hint: english ? 'Paid pulls only' : '有效抽数换算'
       },
       {
         id: 'originite-equivalent',
-        label: '石折玉',
+        label: english ? 'Origeometry Equivalent' : '衍质折金玉',
         value: formatOriginiteEquivalent(resources.originiteEquivalent || 0),
-        hint: '按当前换算比例'
+        hint: english ? 'Current conversion rate' : '按当前换算比例'
       },
       {
         id: 'arsenal-gained',
-        label: '得配额',
-        value: normalizeNumber(resources.arsenalGained).toLocaleString(),
-        hint: '4★ / 5★ 转化'
+        label: english ? 'Arsenal Tickets Gained' : '得武库配额',
+        value: formatAppNumber(normalizeNumber(resources.arsenalGained), locale),
+        hint: english ? 'Converted from 4★ / 5★' : '4★ / 5★ 转化'
       }
     );
   }
@@ -258,16 +274,17 @@ function buildResourceItems(resources, poolType) {
   if (normalizedPoolType === 'weapon' || normalizedPoolType === 'all') {
     items.push({
       id: 'arsenal-spent',
-      label: '耗配额',
-      value: normalizeNumber(resources.arsenalSpent).toLocaleString(),
-      hint: '武器池计费'
+      label: english ? 'Arsenal Tickets Spent' : '耗武库配额',
+      value: formatAppNumber(normalizeNumber(resources.arsenalSpent), locale),
+      hint: english ? 'Weapon banner cost' : '武器池计费'
     });
   }
 
   return items;
 }
 
-function buildSplitResourceGroups(overviewSplitStats) {
+function buildSplitResourceGroups(overviewSplitStats, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!overviewSplitStats) {
     return null;
   }
@@ -275,13 +292,13 @@ function buildSplitResourceGroups(overviewSplitStats) {
   return [
     {
       id: 'character',
-      label: '角色池资源',
-      items: buildResourceItems(overviewSplitStats.character?.resourceSummary, 'limited')
+      label: english ? 'Character Banner Resources' : '角色池资源',
+      items: buildResourceItems(overviewSplitStats.character?.resourceSummary, 'limited', locale)
     },
     {
       id: 'weapon',
-      label: '武器池资源',
-      items: buildResourceItems(overviewSplitStats.weapon?.resourceSummary, 'weapon')
+      label: english ? 'Weapon Banner Resources' : '武器池资源',
+      items: buildResourceItems(overviewSplitStats.weapon?.resourceSummary, 'weapon', locale)
     }
   ].filter((group) => group.items.length > 0);
 }
@@ -320,17 +337,18 @@ export function buildDashboardSharePayload({
   analysisPity = null,
   sections = [],
   overviewSplitStats = null
-} = {}) {
+} = {}, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   const scopeLabel = isAllPoolsOverview
-    ? '全部卡池总览'
+    ? (english ? 'All Banner Overview' : '全部卡池总览')
     : isGroupMode
-      ? '池组总览'
-      : '卡池详情';
-  const poolName = currentPool?.name || '未选择卡池';
-  const overviewFilterLabel = isAllPoolsOverview ? getOverviewFilterLabel(overviewPoolFilter) : null;
+      ? (english ? 'Group Overview' : '池组总览')
+      : (english ? 'Pool Details' : '卡池详情');
+  const poolName = currentPool?.name || (english ? 'No pool selected' : '未选择卡池');
+  const overviewFilterLabel = isAllPoolsOverview ? getOverviewFilterLabel(overviewPoolFilter, locale) : null;
   const periodLabel = sections.length === 1
-    ? sections[0]?.period || '长期开放'
-    : `${sections.length} 个卡池阶段`;
+    ? sections[0]?.period || (english ? 'Always available' : '长期开放')
+    : (english ? `${sections.length} banner stages` : `${sections.length} 个卡池阶段`);
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
 
   return {
@@ -338,8 +356,8 @@ export function buildDashboardSharePayload({
     poolName,
     poolType: normalizedPoolType || 'standard',
     poolTypeLabel: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? '角色池 + 武器池'
-      : getPoolTypeLabel(normalizedPoolType),
+      ? (english ? 'Character + Weapon Banners' : '角色池 + 武器池')
+      : getPoolTypeLabel(normalizedPoolType, locale),
     overviewFilterLabel,
     featured: currentPool?.up_character || currentPool?.upCharacter || null,
     periodLabel,
@@ -347,49 +365,50 @@ export function buildDashboardSharePayload({
     totalSections: sections.length,
     hasMergedAccountView,
     summaryGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitSummaryGroups(overviewSplitStats)
+      ? buildSplitSummaryGroups(overviewSplitStats, locale)
       : null,
     averageGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitAverageGroups(overviewSplitStats)
+      ? buildSplitAverageGroups(overviewSplitStats, locale)
       : null,
     resourceGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitResourceGroups(overviewSplitStats)
+      ? buildSplitResourceGroups(overviewSplitStats, locale)
       : null,
-    summaryItems: buildSummaryItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
-    averageItems: buildAverageItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview }),
+    summaryItems: buildSummaryItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview, locale }),
+    averageItems: buildAverageItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview, locale }),
     resourceItems: buildResourceItems(
       stats?.resourceSummary,
-      isAllPoolsOverview && overviewPoolFilter === 'all' ? 'all' : normalizedPoolType
+      isAllPoolsOverview && overviewPoolFilter === 'all' ? 'all' : normalizedPoolType,
+      locale
     ),
     pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }),
     notes: hasMergedAccountView
-      ? '当前为多账号汇总视图，当前保底与软保底概率已隐藏。'
-      : '已脱敏分享卡，不含账号、UID、时间戳与原始抽卡明细。'
+      ? getMessage('share.dashboard.noteMerged', {}, locale)
+      : getMessage('share.dashboard.noteDesensitized', {}, locale)
   };
 }
 
-export function buildDashboardShareText(payload) {
+export function buildDashboardShareText(payload, locale = getAppLocale()) {
   if (!payload) {
     return '';
   }
 
   const lines = [
-    `【终末地${payload.scopeLabel}分享】`,
-    '已脱敏分享卡',
+    getMessage('share.dashboard.scope', { scope: payload.scopeLabel }, locale),
+    getMessage('share.card.desensitized', {}, locale),
     '',
-    `当前视图：${payload.scopeLabel}`,
-    `卡池：${payload.poolName}`,
-    `池型：${payload.poolTypeLabel}`,
-    `阶段数：${payload.totalSections}`,
-    `时间线节点：${payload.totalNodes}`
+    getMessage('share.dashboard.currentView', { value: payload.scopeLabel }, locale),
+    getMessage('share.dashboard.pool', { value: payload.poolName }, locale),
+    getMessage('share.dashboard.poolType', { value: payload.poolTypeLabel }, locale),
+    getMessage('share.dashboard.sections', { value: payload.totalSections }, locale),
+    getMessage('share.dashboard.nodes', { value: payload.totalNodes }, locale)
   ];
 
-  if (payload.overviewFilterLabel && payload.overviewFilterLabel !== '全部卡池') {
-    lines.push(`筛选：${payload.overviewFilterLabel}`);
+  if (payload.overviewFilterLabel && payload.overviewFilterLabel !== getOverviewFilterLabel('all', locale)) {
+    lines.push(getMessage('share.dashboard.filter', { value: payload.overviewFilterLabel }, locale));
   }
 
   if (payload.featured) {
-    lines.push(`当前目标：${payload.featured}`);
+    lines.push(getMessage('share.dashboard.target', { value: payload.featured }, locale));
   }
 
   if (Array.isArray(payload.summaryGroups) && payload.summaryGroups.length > 0) {
@@ -432,16 +451,16 @@ export function buildDashboardShareText(payload) {
   }
 
   if (payload.pitySummary) {
-    lines.push(`当前 6★ 保底：${payload.pitySummary.current6}/${payload.pitySummary.max6}`);
-    lines.push(`当前 5★ 保底：${payload.pitySummary.current5}/${payload.pitySummary.max5}`);
+    lines.push(getMessage('share.dashboard.currentPity6', { value: `${payload.pitySummary.current6}/${payload.pitySummary.max6}` }, locale));
+    lines.push(getMessage('share.dashboard.currentPity5', { value: `${payload.pitySummary.current5}/${payload.pitySummary.max5}` }, locale));
     if (payload.pitySummary.probabilityHint) {
       lines.push(payload.pitySummary.probabilityHint);
     }
   }
 
   lines.push('');
-  lines.push('来自终末地抽卡分析器');
-  lines.push(`网站：${SHARE_BRAND_LINK}`);
+  lines.push(getMessage('share.dashboard.from', {}, locale));
+  lines.push(getMessage('share.site', { value: SHARE_BRAND_LINK }, locale));
   lines.push(payload.notes);
 
   return lines.join('\n');

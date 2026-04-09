@@ -4,7 +4,7 @@ import {
   ChevronDown, Star, Layers, Swords, User, Lock, Check, Upload, Search, X
 } from 'lucide-react';
 import { usePoolStore, useHistoryStore, useAuthStore } from '../../stores';
-import { isPoolGroupId, POOL_GROUP_PREFIX, GROUP_TYPE_LABELS } from '../../stores/usePoolStore';
+import { isPoolGroupId, POOL_GROUP_PREFIX } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 import {
   formatFreshnessAbsolute,
@@ -13,8 +13,9 @@ import {
   getLatestHistoryTimestampMs
 } from '../../utils/dataFreshness.js';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
-import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { getMobilePathForTab } from '../../constants/appRoutes';
+import { useI18n } from '../../i18n/index.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -35,6 +36,7 @@ function getFreshnessToneClasses(tone) {
  * 参考桌面端 PoolSelector.jsx 实现
  */
 function MobilePoolSelector() {
+  const { t, locale, formatNumber } = useI18n();
   const navigate = useNavigate();
   // Store 状态
   const pools = usePoolStore(state => state.pools);
@@ -98,7 +100,9 @@ function MobilePoolSelector() {
       const groupType = currentPoolId.slice(POOL_GROUP_PREFIX.length);
       return {
         id: currentPoolId,
-        name: groupType === 'all' ? '全部卡池总览' : `全部${GROUP_TYPE_LABELS[groupType] || ''}池`,
+        name: groupType === 'all'
+          ? t('pool.selector.allOverview')
+          : t('pool.card.allGroupTitle', { label: getPoolTypeLabel(groupType, locale) }),
         isGroupMode: true,
         isAllPoolsOverview: groupType === 'all',
         type: groupType
@@ -108,7 +112,7 @@ function MobilePoolSelector() {
       preferredPoolId: currentPoolId,
       includeDefaultPool: true
     });
-  }, [currentPoolId, pools, selectorPools]);
+  }, [currentPoolId, locale, pools, selectorPools, t]);
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
@@ -128,9 +132,10 @@ function MobilePoolSelector() {
     return buildPoolSelectorGroups({
       pools: selectorPools,
       poolPullCounts,
-      searchQuery
+      searchQuery,
+      locale,
     });
-  }, [poolPullCounts, searchQuery, selectorPools]);
+  }, [locale, poolPullCounts, searchQuery, selectorPools]);
 
   // 统计
   const totalPools = pools?.length || 0;
@@ -157,8 +162,15 @@ function MobilePoolSelector() {
   }, [currentPoolId, currentViewLatestRecordAt, filteredHistory]);
 
   const currentPoolFreshnessLabel = selectedPool?.isGroupMode
-    ? '当前筛选'
-    : `当前卡池 · ${selectedPool?.name || '未选择'}`;
+    ? t('pool.selector.currentFilter')
+    : t('pool.selector.currentBanner', { name: selectedPool?.name || t('common.unknown') });
+
+  const totalPart = visiblePools !== totalPools ? `/${formatNumber(totalPools)}` : '';
+  const summaryLabel = t('pool.selector.summary', {
+    visible: formatNumber(visiblePools),
+    totalPart,
+    pulls: formatNumber(totalPulls)
+  });
 
   useEffect(() => {
     if (gameAccounts.length === 1) {
@@ -252,11 +264,11 @@ function MobilePoolSelector() {
             className="flex items-center gap-2 px-3 py-2 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wider transition-all touch-feedback"
           >
             <Upload size={14} />
-            导入
+            {t('pool.selector.import')}
           </button>
         ) : (
           <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-            [ 请登录以导入 ]
+            {t('pool.selector.loginToImport')}
           </div>
         )}
 
@@ -270,7 +282,7 @@ function MobilePoolSelector() {
               <div className="flex items-center gap-2 min-w-0">
                 <User size={14} className="text-zinc-500 dark:text-zinc-400 shrink-0" />
                 <span className="text-zinc-700 dark:text-zinc-300 truncate">
-                  {currentAccount?.nickName || '全部账号'}
+                  {currentAccount?.nickName || t('pool.selector.allAccounts')}
                 </span>
                 {currentAccount?.serverTag && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
@@ -292,7 +304,7 @@ function MobilePoolSelector() {
                       : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                   }`}
                 >
-                  全部账号
+                  {t('pool.selector.allAccounts')}
                 </button>
 
                 {/* 账号列表 */}
@@ -319,10 +331,15 @@ function MobilePoolSelector() {
                       )}
                     </div>
                     <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-                      UID: {account.gameUid} · {account.recordCount} 条记录
+                      {t('pool.selector.accountRecordCount', {
+                        uid: account.gameUid,
+                        count: formatNumber(account.recordCount || 0)
+                      })}
                     </div>
                     <div className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
-                      上次导入: {formatFreshnessRelative(account.lastImportedAt, '时间未知')}
+                      {t('settings.lastImport', {
+                        value: formatFreshnessRelative(account.lastImportedAt, t('common.timeUnknown'), locale)
+                      })}
                     </div>
                   </button>
                 ))}
@@ -333,11 +350,7 @@ function MobilePoolSelector() {
 
         {/* 统计信息 */}
         <div className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
-          <span className="text-zinc-700 dark:text-zinc-300 font-bold">{visiblePools}</span>
-          {visiblePools !== totalPools && (
-            <span className="text-zinc-400 dark:text-zinc-500">/{totalPools}</span>
-          )} 池 /
-          <span className="text-zinc-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> 抽
+          {summaryLabel}
         </div>
       </div>
 
@@ -347,40 +360,56 @@ function MobilePoolSelector() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
-                  账号数据状态
+                  {t('pool.selector.accountStatus')}
                 </div>
-                <div className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-                  {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : '多账号总览'}
+                <div className="mt-1 text-sm font-bold leading-tight text-zinc-800 dark:text-zinc-100 break-words">
+                  {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : t('pool.selector.multiAccountOverview')}
                 </div>
               </div>
               <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentAccount?.lastImportedAt))}`}>
-                {currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, '导入时间未知') : '切换账号可查看'}
+                {currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}
               </span>
             </div>
-            <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 font-mono break-words">
               {currentAccount
-                ? `上次导入: ${formatFreshnessAbsolute(currentAccount.lastImportedAt)}`
-                : '当前正在汇总多个账号，导入时间请按账号分别查看。'}
+                ? t('pool.selector.meta.imported', {
+                    value: formatFreshnessAbsolute(currentAccount.lastImportedAt, null, locale, { includeYear: false })
+                  })
+                : t('pool.selector.multiAccountDetail')}
             </div>
+            {currentAccount?.latestRecordAt ? (
+              <div className="mt-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500 font-mono break-words">
+                {t('pool.selector.meta.latestRecord', {
+                  value: formatFreshnessAbsolute(currentAccount.latestRecordAt, null, locale, { includeYear: false })
+                })}
+              </div>
+            ) : null}
           </div>
 
           <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
-                  卡池数据状态
+                  {t('pool.selector.poolStatus')}
                 </div>
-                <div className="mt-1 text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
+                <div className="mt-1 text-sm font-bold leading-tight text-zinc-800 dark:text-zinc-100 break-words">
                   {currentPoolFreshnessLabel}
                 </div>
               </div>
               <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}>
-                {formatFreshnessRelative(currentPoolLatestRecordAt, '暂无记录')}
+                {formatFreshnessRelative(currentPoolLatestRecordAt, t('pool.selector.noRecords'), locale)}
               </span>
             </div>
-            <div className="mt-2 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-              最新记录: {formatFreshnessAbsolute(currentPoolLatestRecordAt)}
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 font-mono break-words">
+              {t('pool.selector.meta.latestRecord', {
+                value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false })
+              })}
             </div>
+            {!selectedPool?.isGroupMode && selectedPool?.id ? (
+              <div className="mt-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500 font-mono break-words">
+                {t('pool.selector.currentPullsShort', { count: formatNumber(poolPullCounts[selectedPool.id] || 0) })}
+              </div>
+            ) : null}
           </div>
         </div>
       )}
@@ -388,7 +417,7 @@ function MobilePoolSelector() {
       {/* 卡池选择器 */}
       {(!pools || pools.length === 0) ? (
         <div className="text-sm text-zinc-500 font-mono text-center py-4 border border-dashed border-zinc-200 dark:border-zinc-800">
-          {user ? '暂无卡池数据，请导入' : '暂无卡池数据'}
+          {user ? t('pool.selector.noPoolDataImport') : t('pool.selector.noPoolData')}
         </div>
       ) : (
         <div className="relative" ref={poolDropdownRef}>
@@ -409,7 +438,7 @@ function MobilePoolSelector() {
             {/* 卡池信息 */}
             <div className="flex-1 min-w-0 text-left">
               <div className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-                {selectedPool?.name || '选择卡池'}
+                {selectedPool?.name || t('pool.selector.selectPool')}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
                 {selectedPool?.up_character && (
@@ -418,7 +447,7 @@ function MobilePoolSelector() {
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
                   </>
                 )}
-                <span>{pullCount} 抽</span>
+                <span>{t('pool.card.pulls', { count: formatNumber(pullCount) })}</span>
               </div>
             </div>
 
@@ -445,10 +474,10 @@ function MobilePoolSelector() {
                             ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
                             : 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
                         }`}
-                        title={hideZeroPullPools ? '当前会隐藏零抽数卡池' : '当前会显示零抽数卡池'}
+                        title={hideZeroPullPools ? t('pool.selector.hideZeroTitle') : t('pool.selector.showZeroTitle')}
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
-                        <span>{hideZeroPullPools ? '隐藏零抽卡池' : '显示零抽卡池'}</span>
+                        <span>{hideZeroPullPools ? t('pool.selector.hideZeroLabel') : t('pool.selector.showZeroLabel')}</span>
                       </button>
                     )}
 
@@ -459,7 +488,7 @@ function MobilePoolSelector() {
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          placeholder="搜索卡池..."
+                          placeholder={t('pool.selector.searchPlaceholder')}
                           className="w-full pl-8 pr-8 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:border-endfield-yellow outline-none text-zinc-700 dark:text-zinc-300 font-mono"
                         />
                         {searchQuery && (
@@ -496,10 +525,10 @@ function MobilePoolSelector() {
                           <div className={`text-sm font-medium ${
                             currentPoolId === allOverviewId ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'
                           }`}>
-                            全部卡池总览
+                            {t('pool.selector.allOverview')}
                           </div>
                           <div className="text-[10px] text-zinc-400 font-mono">
-                            {visiblePools} 池 · {totalPulls} 抽
+                            {t('pool.card.groupStats', { pools: formatNumber(visiblePools), pulls: formatNumber(totalPulls) })}
                           </div>
                         </div>
                         {currentPoolId === allOverviewId && <Check size={16} className="text-endfield-yellow flex-shrink-0" />}
@@ -539,10 +568,10 @@ function MobilePoolSelector() {
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium ${isGroupSelected ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>
-                                全部{group.label}池
+                                {t('pool.card.allGroupTitle', { label: group.label })}
                               </div>
                               <div className="text-[10px] text-zinc-400 font-mono">
-                                {group.pools.length} 池 · {totalGroupPulls} 抽
+                                {t('pool.card.groupStats', { pools: formatNumber(group.pools.length), pulls: formatNumber(totalGroupPulls) })}
                               </div>
                             </div>
                             {isGroupSelected && <Check size={16} className="text-endfield-yellow flex-shrink-0" />}
@@ -582,7 +611,7 @@ function MobilePoolSelector() {
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
                                 {pool.up_character && <span>UP: {pool.up_character}</span>}
-                                <span>{count} 抽</span>
+                                <span>{t('pool.card.pulls', { count: formatNumber(count) })}</span>
                               </div>
                             </div>
 
@@ -598,7 +627,7 @@ function MobilePoolSelector() {
                   </>
                 ) : (
                   <div className="py-8 text-center text-sm text-zinc-400 font-mono">
-                    {searchQuery ? '未找到匹配的卡池' : '暂无卡池'}
+                    {searchQuery ? t('pool.selector.noMatches') : t('pool.selector.noBanners')}
                   </div>
                 )}
               </div>

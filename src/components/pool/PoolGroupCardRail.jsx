@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronDown, Layers, Lock, Star, Swords, User } from 'lucide-react';
 import { getPoolTimingMeta, getSelectorVisiblePools } from '../../utils/poolSelectorDisplay';
+import { useI18n } from '../../i18n/index.js';
 
 const TYPE_CONFIG = {
   limited: { icon: Star, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/20' },
@@ -10,7 +11,7 @@ const TYPE_CONFIG = {
   weapon_standard: { icon: Swords, color: 'text-zinc-500 dark:text-zinc-400', bg: 'bg-zinc-100 dark:bg-zinc-800' }
 };
 
-function GroupLabel({ groupType, label, collapsed, onToggle }) {
+function GroupLabel({ groupType, label, collapsed, onToggle, t }) {
   const accentClass = groupType === 'limited'
     ? 'bg-orange-500 text-orange-600 dark:text-orange-400'
     : groupType === 'weapon_limited'
@@ -26,7 +27,7 @@ function GroupLabel({ groupType, label, collapsed, onToggle }) {
       type="button"
       onClick={onToggle}
       className="flex-shrink-0 flex flex-col items-center justify-end h-full pb-3 group"
-      title={collapsed ? `展开${label}` : `折叠${label}`}
+      title={collapsed ? t('pool.card.groupToggleExpand', { label }) : t('pool.card.groupToggleCollapse', { label })}
     >
       <div className="flex flex-col items-center gap-1.5" style={{ writingMode: 'vertical-rl' }}>
         <span className={`w-1 h-6 flex-shrink-0 ${accentClass.split(' ')[0]}`} style={{ writingMode: 'horizontal-tb' }} />
@@ -43,9 +44,11 @@ function GroupLabel({ groupType, label, collapsed, onToggle }) {
   );
 }
 
-function GroupCard({ group, isSelected, onClick, interactive }) {
+function GroupCard({ group, isSelected, onClick, interactive, locale, t }) {
   const config = TYPE_CONFIG[group.type] || TYPE_CONFIG.standard;
   const TypeIcon = config.icon;
+  const formattedPoolCount = new Intl.NumberFormat(locale).format(group.pools.length);
+  const formattedPullCount = new Intl.NumberFormat(locale).format(group.totalPulls || 0);
 
   return (
     <div
@@ -63,16 +66,18 @@ function GroupCard({ group, isSelected, onClick, interactive }) {
         <TypeIcon size={12} className={config.color} />
       </div>
       <div className={`text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
-        全部{group.label}池
+        {t('pool.card.allGroupTitle', { label: group.label })}
       </div>
       <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {group.pools.length} 池 · {group.totalPulls} 抽
+        {t('pool.card.groupStats', { pools: formattedPoolCount, pulls: formattedPullCount })}
       </div>
     </div>
   );
 }
 
-function CollapseCard({ count, expanded, onClick }) {
+function CollapseCard({ count, expanded, onClick, locale, t }) {
+  const formattedCount = new Intl.NumberFormat(locale).format(count);
+
   return (
     <button
       type="button"
@@ -80,20 +85,23 @@ function CollapseCard({ count, expanded, onClick }) {
       className="relative flex-shrink-0 w-36 p-3 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-endfield-yellow hover:text-endfield-yellow transition-colors text-left"
     >
       <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
-        {expanded ? '收起旧池' : '展开旧池'}
+        {expanded ? t('pool.card.collapseOld') : t('pool.card.expandOld')}
       </div>
       <div className="mt-2 text-sm font-bold text-slate-700 dark:text-zinc-200">
-        {expanded ? '保留最新顺序' : `还有 ${count} 池`}
+        {expanded ? t('pool.card.keepLatest') : t('pool.card.hasMore', { count: formattedCount })}
       </div>
       <div className="mt-1 flex items-center gap-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
         <ChevronDown size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        {expanded ? '点击收起' : '点击展开'}
+        {expanded ? t('pool.card.clickCollapse') : t('pool.card.clickExpand')}
       </div>
     </button>
   );
 }
 
-function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick }) {
+function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick, locale, t }) {
+  const formattedPoolCount = new Intl.NumberFormat(locale).format(totalPools);
+  const formattedPullCount = new Intl.NumberFormat(locale).format(totalPulls);
+
   return (
     <button
       type="button"
@@ -114,21 +122,22 @@ function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick }) {
         {title}
       </div>
       <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {totalPools} 池 · {totalPulls} 抽
+        {t('pool.card.groupStats', { pools: formattedPoolCount, pulls: formattedPullCount })}
       </div>
       <div className="mt-2 text-[11px] text-slate-500 dark:text-zinc-500">
-        跨类型时间线总览
+        {t('pool.card.overviewDesc')}
       </div>
     </button>
   );
 }
 
-function PoolCard({ pool, isSelected, onClick }) {
+function PoolCard({ pool, isSelected, onClick, locale, t }) {
   const groupType = pool.selectorGroupType || 'standard';
   const config = TYPE_CONFIG[groupType] || TYPE_CONFIG.standard;
   const TypeIcon = config.icon;
   const isActive = pool.selectorTiming?.isActive;
   const remainingLabel = pool.selectorTiming?.remainingLabel;
+  const formattedPullCount = new Intl.NumberFormat(locale).format(pool.pullCount || 0);
 
   return (
     <div
@@ -156,7 +165,7 @@ function PoolCard({ pool, isSelected, onClick }) {
       {isActive && (
         <div className="absolute top-2 right-2 flex items-center gap-1 border border-amber-600/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:border-yellow-500/60 dark:bg-yellow-500/10 dark:text-endfield-yellow">
           <span className="w-1.5 h-1.5 rounded-full bg-endfield-yellow animate-pulse" />
-          当前UP
+          {t('pool.card.currentUp')}
         </div>
       )}
 
@@ -166,7 +175,7 @@ function PoolCard({ pool, isSelected, onClick }) {
 
       {pool.up_character && (
         <div className="text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
-          <span className="text-slate-600 dark:text-zinc-300">UP:</span> {pool.up_character}
+          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {pool.up_character}
           {isActive && remainingLabel ? <span className="font-semibold text-amber-700 dark:text-endfield-yellow"> · {remainingLabel}</span> : null}
         </div>
       )}
@@ -176,7 +185,7 @@ function PoolCard({ pool, isSelected, onClick }) {
       )}
 
       <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {pool.pullCount || 0} 抽
+        {t('pool.card.pulls', { count: formattedPullCount })}
       </div>
     </div>
   );
@@ -193,6 +202,7 @@ const PoolGroupCardRail = ({
   collapsibleTypes = ['limited'],
   className = ''
 }) => {
+  const { t, locale } = useI18n();
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [collapsedGroupTypes, setCollapsedGroupTypes] = useState(() => new Set());
   const [tick, setTick] = useState(0);
@@ -209,7 +219,7 @@ const PoolGroupCardRail = ({
     ...group,
     pools: group.pools.map((pool) => ({
       ...pool,
-      selectorTiming: getPoolTimingMeta(pool)
+      selectorTiming: getPoolTimingMeta(pool, new Date(), locale)
     }))
   }));
 
@@ -227,6 +237,8 @@ const PoolGroupCardRail = ({
             totalPulls={leadingOverview.totalPulls}
             isSelected={leadingOverview.isSelected}
             onClick={leadingOverview.onClick}
+            locale={locale}
+            t={t}
           />
         ) : null}
 
@@ -268,6 +280,7 @@ const PoolGroupCardRail = ({
                 groupType={group.type}
                 label={group.label}
                 collapsed={isGroupCollapsed}
+                t={t}
                 onToggle={() => {
                   setCollapsedGroupTypes((current) => {
                     const next = new Set(current);
@@ -287,6 +300,8 @@ const PoolGroupCardRail = ({
                   isSelected={currentSelectionId === group.groupId}
                   interactive={typeof onSelectGroup === 'function'}
                   onClick={() => onSelectGroup?.(group.type)}
+                  locale={locale}
+                  t={t}
                 />
               ) : null}
 
@@ -296,6 +311,8 @@ const PoolGroupCardRail = ({
                   pool={{ ...pool, selectorGroupType: group.type }}
                   isSelected={currentSelectionId === pool.id}
                   onClick={() => onSelectPool?.(pool.id)}
+                  locale={locale}
+                  t={t}
                 />
               ))}
 
@@ -305,6 +322,8 @@ const PoolGroupCardRail = ({
                   pool={{ ...pool, selectorGroupType: group.type }}
                   isSelected={currentSelectionId === pool.id}
                   onClick={() => onSelectPool?.(pool.id)}
+                  locale={locale}
+                  t={t}
                 />
               ))}
 
@@ -312,6 +331,8 @@ const PoolGroupCardRail = ({
                 <CollapseCard
                   count={hiddenPools.length}
                   expanded={false}
+                  locale={locale}
+                  t={t}
                   onClick={() => {
                     setExpandedGroups((current) => {
                       const next = new Set(current);
@@ -328,6 +349,8 @@ const PoolGroupCardRail = ({
                   pool={{ ...pool, selectorGroupType: group.type }}
                   isSelected={currentSelectionId === pool.id}
                   onClick={() => onSelectPool?.(pool.id)}
+                  locale={locale}
+                  t={t}
                 />
               ))}
 
@@ -335,6 +358,8 @@ const PoolGroupCardRail = ({
                 <CollapseCard
                   count={hiddenPools.length}
                   expanded={true}
+                  locale={locale}
+                  t={t}
                   onClick={() => {
                     setExpandedGroups((current) => {
                       const next = new Set(current);

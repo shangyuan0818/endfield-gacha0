@@ -4,13 +4,14 @@ import {
   buildDashboardTimelineSections,
   countDashboardTimelineNodes
 } from '../../utils/dashboardTimelineSections.js';
+import { useI18n } from '../../i18n/index.js';
 
-function formatAverage(value) {
+function formatAverage(value, t) {
   if (!Number.isFinite(value)) {
     return '--';
   }
 
-  return `${value.toFixed(1)} 抽`;
+  return `${value.toFixed(1)} ${t('dashboard.unit.pull')}`;
 }
 
 function getTimelineTone(type) {
@@ -37,32 +38,32 @@ function getTimelineTone(type) {
   };
 }
 
-function getSectionTypeLabel(type) {
+function getSectionTypeLabel(type, t) {
   if (type === 'weapon') {
-    return '武器池';
+    return t('dashboard.timeline.section.weapon');
   }
 
   if (type === 'standard') {
-    return '常驻角色池';
+    return t('dashboard.timeline.section.standard');
   }
 
-  return '限定角色池';
+  return t('dashboard.timeline.section.limited');
 }
 
-function getStatusText(status) {
+function getStatusText(status, t) {
   if (!status?.isTimed) {
-    return '长期开放';
+    return t('dashboard.timeline.status.alwaysOn');
   }
 
   if (status.isActive) {
-    return status.remainingLabel || '进行中';
+    return status.remainingLabel || t('dashboard.timeline.status.active');
   }
 
   if (status.isUpcoming) {
-    return status.remainingLabel || '即将开启';
+    return status.remainingLabel || t('dashboard.timeline.status.upcoming');
   }
 
-  return '已结束';
+  return t('dashboard.timeline.status.ended');
 }
 
 function getLeadBadge(entry, featured) {
@@ -100,10 +101,10 @@ function getEntryBarClass(sectionType, entry) {
   return 'rainbow-progress';
 }
 
-function getStampConfig(entry, sectionType) {
+function getStampConfig(entry, sectionType, t) {
   if (entry.stageKind === 'gift') {
     return {
-      label: '免',
+      label: t('dashboard.timeline.badge.free'),
       className: 'border-emerald-400 bg-emerald-50 text-emerald-700 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-300'
     };
   }
@@ -118,7 +119,7 @@ function getStampConfig(entry, sectionType) {
   if (entry.stageKind === 'offStandard' || entry.stageKind === 'offLimited') {
     if (sectionType === 'limited' || sectionType === 'weapon') {
       return {
-        label: '歪',
+        label: t('dashboard.timeline.badge.offrate'),
         className: 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-500/70 dark:bg-rose-500/10 dark:text-rose-400'
       };
     }
@@ -128,7 +129,7 @@ function getStampConfig(entry, sectionType) {
     }
 
     return {
-      label: '歪',
+      label: t('dashboard.timeline.badge.offrate'),
       className: 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-500/70 dark:bg-rose-500/10 dark:text-rose-400'
     };
   }
@@ -142,7 +143,7 @@ function getStampConfig(entry, sectionType) {
 
   if (entry.isCurrentStage) {
     return {
-      label: '进',
+      label: t('dashboard.timeline.badge.progress'),
       className: 'border-zinc-300 bg-zinc-50 text-zinc-700 dark:border-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300'
     };
   }
@@ -150,7 +151,7 @@ function getStampConfig(entry, sectionType) {
   return null;
 }
 
-function StagePortrait({ entry, featured, compact = false }) {
+function StagePortrait({ entry, featured, compact = false, t }) {
   const leadBadge = getLeadBadge(entry, featured);
   const isSixStar = leadBadge.rarity >= 6;
   const portraitTone = isSixStar
@@ -173,7 +174,7 @@ function StagePortrait({ entry, featured, compact = false }) {
         </div>
       )}
       <div className="absolute top-0 right-0 bg-zinc-900 px-1 py-[1px] text-[8px] font-bold leading-none text-white dark:bg-zinc-100 dark:text-zinc-900">
-        {leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : '阶段'}
+        {leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : t('dashboard.timeline.badge.stage')}
       </div>
     </div>
   );
@@ -214,9 +215,9 @@ function MetricItem({ label, value }) {
   );
 }
 
-function TimelineStageCard({ entry, sectionType, featured }) {
+function TimelineStageCard({ entry, sectionType, featured, t }) {
   const compact = entry.stageKind === 'fiveStar';
-  const stamp = getStampConfig(entry, sectionType);
+  const stamp = getStampConfig(entry, sectionType, t);
   const widthPercent = Math.max(
     compact ? 10 : 12,
     Math.min(100, (entry.pulls / Math.max(entry.targetPulls || 1, 1)) * 100)
@@ -225,7 +226,7 @@ function TimelineStageCard({ entry, sectionType, featured }) {
   return (
     <div className="relative flex gap-3 sm:gap-5 group">
       <div className={`flex flex-col items-center shrink-0 relative z-10 ${compact ? 'w-10 sm:w-12' : 'w-12 sm:w-16'}`}>
-        <StagePortrait entry={entry} featured={featured} compact={compact} />
+        <StagePortrait entry={entry} featured={featured} compact={compact} t={t} />
         <span className={`mt-2 font-black font-mono text-zinc-500 dark:text-zinc-400 ${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'}`}>
           {entry.dateLabel}
         </span>
@@ -251,7 +252,7 @@ function TimelineStageCard({ entry, sectionType, featured }) {
             </div>
             <div className={`absolute inset-y-0 left-2 sm:left-3 flex items-center font-black font-mono tracking-tight text-zinc-900 dark:text-zinc-100 ${compact ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'}`}>
               {entry.pulls}
-              <span className={`ml-0.5 font-bold ${compact ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm'}`}>抽</span>
+              <span className={`ml-0.5 font-bold ${compact ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm'}`}>{t('dashboard.unit.pull')}</span>
             </div>
           </div>
 
@@ -274,10 +275,10 @@ function TimelineStageCard({ entry, sectionType, featured }) {
   );
 }
 
-function TimelineSectionCard({ section, isOverview, embedded }) {
+function TimelineSectionCard({ section, isOverview, embedded, t }) {
   const tone = getTimelineTone(section.type);
   const pityValue = section.hidePityState
-    ? '多账号'
+    ? t('dashboard.timeline.multiAccount')
     : `${section.currentPity} / ${section.currentPity5}`;
 
   return (
@@ -290,7 +291,7 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
             <div className="flex flex-wrap items-center gap-2">
               <h3 className={`${embedded ? 'text-base' : 'text-lg'} font-bold tracking-tight text-slate-900 dark:text-zinc-100`}>{section.title}</h3>
               <span className={`inline-flex border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${tone.chip}`}>
-                {getSectionTypeLabel(section.type)}
+                {getSectionTypeLabel(section.type, t)}
               </span>
               {section.featured && (
                 <span className={`inline-flex border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${tone.chip}`}>
@@ -299,7 +300,7 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
               )}
               {isOverview && (
                 <span className="border border-zinc-200 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                  总览
+                  {t('dashboard.timeline.overview')}
                 </span>
               )}
             </div>
@@ -307,17 +308,17 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
               <span>{section.period}</span>
               <span className="text-zinc-300 dark:text-zinc-700">|</span>
-              <span className={tone.accent}>{getStatusText(section.status)}</span>
+              <span className={tone.accent}>{getStatusText(section.status, t)}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <MetricItem label="合计" value={`${section.totalPulls} 抽`} />
-            <MetricItem label="垫刀" value={pityValue} />
-            <MetricItem label="平均 6★" value={formatAverage(section.avgSixStarPulls)} />
+            <MetricItem label={t('dashboard.timeline.metric.total')} value={t('dashboard.unit.pulls', { count: section.totalPulls })} />
+            <MetricItem label={t('dashboard.timeline.metric.pity')} value={pityValue} />
+            <MetricItem label={t('dashboard.timeline.metric.avgSix')} value={formatAverage(section.avgSixStarPulls, t)} />
             <MetricItem
-              label={section.type === 'standard' ? '平均 5★' : '平均 UP'}
-              value={section.type === 'standard' ? formatAverage(section.avgFiveStarPulls) : formatAverage(section.avgUpPulls)}
+              label={section.type === 'standard' ? t('dashboard.timeline.metric.avgFive') : t('dashboard.timeline.metric.avgUp')}
+              value={section.type === 'standard' ? formatAverage(section.avgFiveStarPulls, t) : formatAverage(section.avgUpPulls, t)}
             />
           </div>
         </div>
@@ -326,7 +327,7 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
       <div className={embedded ? 'p-4' : 'p-5'}>
         {section.entries.length === 0 ? (
           <div className="border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
-            暂无可展示的时间线节点
+            {t('dashboard.timeline.noStageNodes')}
           </div>
         ) : (
           <div className="space-y-0">
@@ -336,6 +337,7 @@ function TimelineSectionCard({ section, isOverview, embedded }) {
                 entry={entry}
                 sectionType={section.type}
                 featured={section.featured}
+                t={t}
               />
             ))}
           </div>
@@ -359,6 +361,7 @@ const PoolTimelinePanel = ({
   hasMergedAccountView = false,
   embedded = false
 }) => {
+  const { t, locale } = useI18n();
   const sections = useMemo(() => {
     return buildDashboardTimelineSections({
       currentPool,
@@ -371,28 +374,29 @@ const PoolTimelinePanel = ({
       analysisPity,
       overviewAnalysisPityMap,
       overviewPoolFilter,
-      hasMergedAccountView
+      hasMergedAccountView,
+      locale
     });
-  }, [analysisPity, currentPool, currentPoolHistory, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
+  }, [analysisPity, currentPool, currentPoolHistory, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
 
   const totalNodes = countDashboardTimelineNodes(sections);
   const title = isAllPoolsOverview
-    ? '全部卡池总览'
+    ? t('dashboard.timeline.title.overview')
     : isGroupMode
-      ? `${currentPool?.name || '池组'}时间线`
-      : '卡池时间线视图';
+      ? t('dashboard.timeline.title.group', { name: currentPool?.name || t('dashboard.timeline.overview') })
+      : t('dashboard.timeline.title.single');
   const subtitle = isAllPoolsOverview
-    ? '跨类型串联回顾不同卡池的推进、偏移和赠送节点。'
+    ? t('dashboard.timeline.subtitle.overview')
     : isGroupMode
-      ? '按同类池顺序串联回顾每一期的重要节点。'
-      : '将当前卡池的重要节点按阶段整理，便于和保底分析联动阅读。';
+      ? t('dashboard.timeline.subtitle.group')
+      : t('dashboard.timeline.subtitle.single');
 
   return (
     <div className={embedded ? 'space-y-4' : 'space-y-4 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900'}>
       <div className={`flex flex-col gap-3 ${embedded ? 'pb-1' : 'border-b border-zinc-100 pb-4 dark:border-zinc-800'} lg:flex-row lg:items-end lg:justify-between`}>
         {!embedded ? (
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-500">Timeline View</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-500">{t('dashboard.timeline.header')}</div>
             <div className="mt-1 flex items-center gap-2">
               <Layers size={18} className="text-slate-400 dark:text-zinc-500" />
               <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-zinc-100">{title}</h2>
@@ -401,31 +405,31 @@ const PoolTimelinePanel = ({
           </div>
         ) : (
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">时间线模式</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">{t('dashboard.timeline.mode')}</div>
             <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-500">{subtitle}</p>
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="border border-zinc-200 px-3 py-1.5 text-xs font-mono text-slate-600 dark:border-zinc-800 dark:text-zinc-400">
-            <span className="font-bold text-slate-800 dark:text-zinc-200">{sections.length}</span> 个阶段卡池
+            {t('dashboard.unit.stagePoolCount', { count: sections.length })}
           </div>
           <div className="border border-zinc-200 px-3 py-1.5 text-xs font-mono text-slate-600 dark:border-zinc-800 dark:text-zinc-400">
-            <span className="font-bold text-slate-800 dark:text-zinc-200">{totalNodes}</span> 个时间节点
+            {t('dashboard.unit.timelineNodeCount', { count: totalNodes })}
           </div>
         </div>
       </div>
 
       {hasMergedAccountView && (
         <div className="border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] font-mono text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-          当前为多账号汇总视图。时间线保留阶段回顾，但已隐藏“当前推进 / 当前垫刀”这类账号独立状态。
+          {t('dashboard.timeline.mergedViewNote')}
         </div>
       )}
 
       <div className="space-y-4">
         {sections.length === 0 ? (
           <div className="border border-dashed border-zinc-200 px-4 py-10 text-center text-sm text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
-            当前选择下暂无可展示的时间线数据
+            {t('dashboard.timeline.noSelection')}
           </div>
         ) : (
           sections.map((section) => (
@@ -434,6 +438,7 @@ const PoolTimelinePanel = ({
               section={section}
               isOverview={isGroupMode}
               embedded={embedded}
+              t={t}
             />
           ))
         )}

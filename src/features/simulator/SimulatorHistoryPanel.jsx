@@ -1,5 +1,6 @@
 import { ChevronDown, History } from 'lucide-react';
 import CharacterStats from './CharacterStats';
+import { useI18n } from '../../i18n/index.js';
 
 const SimulatorHistoryPanel = ({
   expandedTenPulls,
@@ -7,20 +8,23 @@ const SimulatorHistoryPanel = ({
   onToggleTenPull,
   poolType,
   pullHistory
-}) => (
+}) => {
+  const { t } = useI18n();
+
+  return (
   <div className="flex flex-col gap-4">
     <div className="flex flex-col h-[400px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-slate-50 dark:bg-zinc-950">
         <h3 className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-          <History size={14} /> 抽卡记录
+          <History size={14} /> {t('simulator.history.title')}
         </h3>
-        <span className="text-xs font-mono text-slate-400">共 {pullHistory.length} 抽</span>
+        <span className="text-xs font-mono text-slate-400">{t('simulator.history.totalPulls', { count: pullHistory.length })}</span>
       </div>
       <div className="flex-1 overflow-y-auto p-0 scrollbar-thin min-h-0">
         {pullHistory.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-zinc-600 opacity-50 p-8">
             <div className="w-12 h-1 bg-zinc-700 mb-2 rotate-45" />
-            <p className="text-xs">暂无数据</p>
+            <p className="text-xs">{t('simulator.history.empty')}</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -42,15 +46,15 @@ const SimulatorHistoryPanel = ({
                       <div className="w-1 h-6 shrink-0 bg-blue-500" />
                       <div className="flex-1 min-w-0 text-left">
                         <div className="text-xs font-bold text-blue-500 flex items-center gap-2">
-                          <span>十连</span>
+                          <span>{t('simulator.history.tenPull')}</span>
                           {isInfoBookPull && (
                             <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded border border-amber-200 dark:border-amber-700">
-                              情报书
+                              {t('simulator.history.infoBook')}
                             </span>
                           )}
                           {isFreePull && (
                             <span className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded border border-blue-200 dark:border-blue-700">
-                              免费
+                              {t('simulator.history.free')}
                             </span>
                           )}
                           {hasHighRarity && (
@@ -62,9 +66,9 @@ const SimulatorHistoryPanel = ({
                           )}
                         </div>
                         <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono">
-                          第 {group.startPullNumber} - {group.startPullNumber + 9} 抽
-                          {isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">（计入保底 · 不消耗玉）</span>}
-                          {isFreePull && <span className="ml-2 text-blue-500">（不计入保底）</span>}
+                          {t('simulator.history.range', { start: group.startPullNumber, end: group.startPullNumber + 9 })}
+                          {isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">{t('simulator.history.infoBookRangeNote')}</span>}
+                          {isFreePull && <span className="ml-2 text-blue-500">{t('simulator.history.freeRangeNote')}</span>}
                         </div>
                       </div>
                       <ChevronDown size={14} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -81,11 +85,11 @@ const SimulatorHistoryPanel = ({
                             if (record.isUp) {
                               rarityColor = 'text-endfield-yellow bg-black/90 px-1 rounded-sm inline-block';
                               bgColor = 'bg-endfield-yellow';
-                              rarityLabel = 'UP 6★';
+                              rarityLabel = t('simulator.history.upSix');
                             } else {
                               rarityColor = 'text-red-400';
                               bgColor = 'bg-red-500';
-                              rarityLabel = '常驻 6★';
+                              rarityLabel = t('simulator.history.standardSix');
                             }
                           } else if (record.rarity === 5) {
                             rarityColor = 'text-amber-400';
@@ -103,12 +107,12 @@ const SimulatorHistoryPanel = ({
                                   <span>{rarityLabel}</span>
                                   {record.isInfoBookPull && (
                                     <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-bold rounded border border-amber-200 dark:border-amber-700">
-                                      情报书
+                                      {t('simulator.history.infoBook')}
                                     </span>
                                   )}
                                   {record.isFreePull && (
                                     <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[9px] font-bold rounded border border-blue-200 dark:border-blue-700">
-                                      免费
+                                      {t('simulator.history.free')}
                                     </span>
                                   )}
                                   {record.characterName && (
@@ -136,11 +140,11 @@ const SimulatorHistoryPanel = ({
                 if (record.isUp) {
                   rarityColor = 'text-endfield-yellow';
                   bgColor = 'bg-endfield-yellow';
-                  rarityLabel = 'UP 6★';
+                  rarityLabel = t('simulator.history.upSix');
                 } else {
                   rarityColor = 'text-red-400';
                   bgColor = 'bg-red-500';
-                  rarityLabel = '常驻 6★';
+                  rarityLabel = t('simulator.history.standardSix');
                 }
               } else if (record.rarity === 5) {
                 rarityColor = 'text-amber-400';
@@ -158,12 +162,12 @@ const SimulatorHistoryPanel = ({
                       <span>{rarityLabel}</span>
                       {record.isInfoBookPull && (
                         <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-[9px] font-bold rounded border border-amber-200 dark:border-amber-700">
-                          情报书
+                          {t('simulator.history.infoBook')}
                         </span>
                       )}
                       {record.isFreePull && (
                         <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-[9px] font-bold rounded border border-blue-200 dark:border-blue-700">
-                          免费
+                          {t('simulator.history.free')}
                         </span>
                       )}
                       {record.characterName && (
@@ -173,9 +177,9 @@ const SimulatorHistoryPanel = ({
                       )}
                     </div>
                     <div className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono">
-                      第 {record.pullNumber} 抽
-                      {record.isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">（情报书）</span>}
-                      {record.isFreePull && <span className="ml-2 text-blue-500">（免费）</span>}
+                      {t('simulator.history.singlePull', { count: record.pullNumber })}
+                      {record.isInfoBookPull && <span className="ml-2 text-amber-600 dark:text-amber-400">{t('simulator.history.infoBookSingleNote')}</span>}
+                      {record.isFreePull && <span className="ml-2 text-blue-500">{t('simulator.history.freeSingleNote')}</span>}
                     </div>
                   </div>
                 </div>
@@ -191,6 +195,7 @@ const SimulatorHistoryPanel = ({
       poolType={poolType}
     />
   </div>
-);
+  );
+};
 
 export default SimulatorHistoryPanel;

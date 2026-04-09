@@ -1,12 +1,14 @@
 import React, { useMemo } from 'react';
 import { TrendingUp, User, Star } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 角色出货统计组件
  * 显示5星及以上角色的出货情况
  */
 const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
+  const { t } = useI18n();
   // 计算角色出货统计
   const characterStats = useMemo(() => {
     const characters = new Map();
@@ -14,7 +16,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
     // 统计每个角色的出货情况
     pullHistory.forEach(item => {
       if (item.rarity >= 5) {
-        const name = item.characterName || `${item.rarity}星角色`;
+        const name = item.characterName || t('simulator.characterStats.fallbackRarity', { rarity: item.rarity });
         if (name) {
           const existing = characters.get(name);
           if (existing) {
@@ -56,7 +58,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
         // 4. 最后是5星
         return b.rarity - a.rarity;
       });
-  }, [pullHistory]);
+  }, [pullHistory, t]);
 
   // 计算总出货数量
   const totalCharacterCount = useMemo(() => {
@@ -69,10 +71,10 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
 
       <div className="flex items-center gap-2 px-4 py-3 shrink-0">
         <TrendingUp size={16} className="text-orange-500" />
-        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300">角色出货</h3>
+        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300">{t('simulator.characterStats.title')}</h3>
         {totalCharacterCount > 0 && (
           <span className="text-[10px] text-slate-400 dark:text-zinc-500 ml-auto">
-            共 {totalCharacterCount} 个
+            {t('simulator.characterStats.totalCount', { count: totalCharacterCount })}
           </span>
         )}
       </div>
@@ -80,7 +82,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
       <div className="flex-1 overflow-y-auto px-4 pb-3 min-h-0 scrollbar-thin">{characterStats.length === 0 ? (
         <div className="text-center py-4 text-slate-400 dark:text-zinc-500 text-sm">
           <User size={20} className="mx-auto mb-1 opacity-50" />
-          <p className="text-[10px]">暂无数据</p>
+          <p className="text-[10px]">{t('simulator.characterStats.empty')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-2">
@@ -163,12 +165,12 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {char.infoBookCount > 0 && (
                         <span className="px-1 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700">
-                          情报书×{char.infoBookCount}
+                          {t('simulator.characterStats.infoBookCount', { count: char.infoBookCount })}
                         </span>
                       )}
                       {char.freeCount > 0 && (
                         <span className="px-1 py-0.5 text-[9px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-700">
-                          免费×{char.freeCount}
+                          {t('simulator.characterStats.freeCount', { count: char.freeCount })}
                         </span>
                       )}
                     </div>

@@ -93,6 +93,7 @@ function buildImportedHistoryRecords({
     const isStandard = normalizeIsStandard(record, poolType, upCharacter);
 
     const resolvedServerId = String(userInfo?.serverId || '1');
+    const resolvedRegion = resolvedServerId === '1' ? 'cn' : 'intl';
 
     return {
       id: numericId,
@@ -111,7 +112,7 @@ function buildImportedHistoryRecords({
       gameUid: userInfo?.gameUid || userInfo?.hgUid || null,
       nickName: userInfo?.nickName || null,
       serverId: resolvedServerId,
-      region: resolvedServerId === '1' ? '国服' : 'intl',
+      region: resolvedRegion,
       timestamp: record.timestamp,
       created_at: new Date().toISOString(),
     };

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Send, Smile } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 
 const EMOJI_LIST = [
   '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂',
@@ -59,8 +60,10 @@ function EmojiPicker({ onClose, onSelect }) {
 }
 
 export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
+  const { isEnglish } = useI18n();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef(null);
+  const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
 
   const handleEmojiSelect = (emoji) => {
     const textarea = textareaRef.current;
@@ -94,7 +97,7 @@ export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
           ref={textareaRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="输入回复内容... (Ctrl+Enter 发送)"
+          placeholder={tt('输入回复内容... (Ctrl+Enter 发送)', 'Write a reply... (Ctrl+Enter to send)')}
           className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px] max-h-[120px] resize-y"
           onKeyDown={handleKeyDown}
           rows={2}
@@ -105,7 +108,7 @@ export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
               type="button"
               onClick={() => setShowEmojiPicker((prev) => !prev)}
               className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-sm transition-colors"
-              title="插入表情"
+              title={tt('插入表情', 'Insert emoji')}
             >
               <Smile size={18} />
             </button>
@@ -119,10 +122,10 @@ export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
           <button
             onClick={onSubmit}
             disabled={!value.trim() || submitting}
-            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50 flex items-center gap-2 text-sm"
+            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50 flex items-center gap-2 text-sm whitespace-normal text-center leading-tight"
           >
             <Send size={14} />
-            {submitting ? '发送中...' : '发送'}
+            {submitting ? tt('发送中...', 'Sending...') : tt('发送', 'Send')}
           </button>
         </div>
       </div>
