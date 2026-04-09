@@ -1,5 +1,6 @@
 import { CheckCircle, User } from 'lucide-react';
 import { getPoolName } from '../importShared';
+import { useI18n } from '../../../i18n/index.js';
 
 export default function OfficialImportSuccessView({
   importSummary,
@@ -7,6 +8,8 @@ export default function OfficialImportSuccessView({
   onConfirm,
   onReset
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-6">
       {userInfo && (
@@ -39,7 +42,7 @@ export default function OfficialImportSuccessView({
       <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-500/20 p-4 transition-colors">
         <div className="flex items-center gap-2 mb-4">
           <CheckCircle className="text-green-600 dark:text-green-500" size={16} />
-          <span className="text-green-600 dark:text-green-500 font-bold text-sm">数据获取成功</span>
+          <span className="text-green-600 dark:text-green-500 font-bold text-sm">{t('import.complete')}</span>
         </div>
 
         <div className="grid grid-cols-4 gap-2">
@@ -59,14 +62,14 @@ export default function OfficialImportSuccessView({
         </div>
 
         <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50 transition-colors">
-          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase mb-2">卡池分布</p>
+          <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase mb-2">{t('import.official.poolDistribution')}</p>
           <div className="flex flex-wrap gap-2">
             {Object.entries(importSummary.byPoolType || importSummary.byPool).map(([pool, count]) => (
               <span
                 key={pool}
                 className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 px-2 py-1 text-xs text-slate-500 dark:text-zinc-400 font-mono transition-colors"
               >
-                {getPoolName(pool)}: <span className="text-slate-800 dark:text-white">{count}</span>
+                {getPoolName(pool, t)}: <span className="text-slate-800 dark:text-white">{count}</span>
               </span>
             ))}
           </div>
@@ -74,7 +77,7 @@ export default function OfficialImportSuccessView({
 
         {importSummary.sixStars && importSummary.sixStars.length > 0 && (
           <div className="mt-4">
-            <p className="text-[10px] text-amber-600/70 dark:text-yellow-500/70 font-mono uppercase mb-2">获得的6星</p>
+            <p className="text-[10px] text-amber-600/70 dark:text-yellow-500/70 font-mono uppercase mb-2">{t('import.official.sixStarDrops')}</p>
             <div className="flex flex-wrap gap-2">
               {importSummary.sixStars.map((record, index) => (
                 <span
@@ -95,13 +98,13 @@ export default function OfficialImportSuccessView({
           onClick={onReset}
           className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
         >
-          重新获取
+          {t('import.continue')}
         </button>
         <button
           onClick={onConfirm}
           className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors"
         >
-          确认并保存
+          {t('common.confirm')}
         </button>
       </div>
     </div>

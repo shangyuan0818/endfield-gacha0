@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient';
 import { getSimpleFriendlyError } from './utils/errorMessages';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
+import { useI18n } from './i18n/index.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,6 +17,7 @@ function createEmptyRecoveryForm(requestType = '') {
 }
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
+  const { isEnglish } = useI18n();
   const {
     agreedToTerms,
     confirmPassword,
@@ -46,6 +48,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     switchToLoginWithEmail,
     switchToRegisterWithEmail,
   } = useAuthModalState();
+  const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const [forgotPasswordStatus, setForgotPasswordStatus] = React.useState(null);
   const [recoveryRequestForm, setRecoveryRequestForm] = React.useState(() => createEmptyRecoveryForm());
   const [recoveryRequestLoading, setRecoveryRequestLoading] = React.useState(false);
@@ -65,6 +68,48 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       resetRecoveryRequestState();
     }
   }, [mode, resetRecoveryRequestState]);
+
+  const getLocalizedAuthError = React.useCallback((err) => {
+    const rawMessage = String(err?.message || err || '').trim();
+    const lowerMessage = rawMessage.toLowerCase();
+
+    if (!rawMessage) {
+      return tt('操作失败，请稍后重试', 'Request failed. Please try again later.');
+    }
+
+    if (lowerMessage.includes('invalid login credentials') || lowerMessage.includes('invalid_credentials')) {
+      return tt('邮箱或密码错误，请检查后重试。', 'Incorrect email or password. Check your credentials and try again.');
+    }
+
+    if (lowerMessage.includes('email not confirmed')) {
+      return tt('邮箱尚未验证，请先完成邮箱验证。', 'Your email is not confirmed yet. Finish email verification first.');
+    }
+
+    if (lowerMessage.includes('already registered') || lowerMessage.includes('user already exists')) {
+      return tt('该邮箱已被注册。', 'This email is already registered.');
+    }
+
+    if (lowerMessage.includes('sending confirmation') || lowerMessage.includes('confirmation email')) {
+      return tt('邮件服务暂时不可用，请稍后再试。', 'Email delivery is unavailable right now. Please try again later.');
+    }
+
+    if (lowerMessage.includes('unable to validate email')) {
+      return tt('无法验证邮箱地址，请检查后重试。', 'Unable to validate this email address. Check it and try again.');
+    }
+
+    if (lowerMessage.includes('failed to fetch') || lowerMessage.includes('network request failed')) {
+      return tt('网络连接失败，请检查网络后重试。', 'Network request failed. Check your connection and try again.');
+    }
+
+    if (lowerMessage.includes('auth admin not configured')) {
+      return tt(
+        '当前环境未启用安全的账号恢复流程，请联系管理员协助处理。',
+        'Secure account recovery is not enabled in this environment. Contact an administrator.'
+      );
+    }
+
+    return isEnglish ? rawMessage : getSimpleFriendlyError(err);
+  }, [isEnglish, tt]);
 
   if (!isOpen) return null;
 
@@ -116,14 +161,20 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     const payload = await response.json().catch(() => null);
     if (!response.ok || payload?.success !== true) {
       if (response.status === 429 && payload?.retry_after) {
-        throw new Error(`查询过于频繁，请 ${Math.ceil(payload.retry_after / 60)} 分钟后再试`);
+        throw new Error(tt(
+          `查询过于频繁，请 ${Math.ceil(payload.retry_after / 60)} 分钟后再试`,
+          `Too many checks. Try again in ${Math.ceil(payload.retry_after / 60)} minute(s).`
+        ));
       }
 
       if (payload?.error === 'Auth admin not configured') {
-        throw new Error('当前环境未启用安全的账号恢复流程，请联系管理员协助处理。');
+        throw new Error(tt(
+          '当前环境未启用安全的账号恢复流程，请联系管理员协助处理。',
+          'Secure account recovery is not enabled in this environment. Contact an administrator.'
+        ));
       }
 
-      throw new Error(payload?.error || '无法检查账号状态，请稍后重试');
+      throw new Error(payload?.error || tt('无法检查账号状态，请稍后重试', 'Unable to check account status right now. Try again later.'));
     }
 
     return payload;
@@ -141,18 +192,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     const result = await response.json().catch(() => null);
     if (!response.ok || result?.success !== true) {
       if (response.status === 409) {
-        throw new Error('该邮箱已有待处理的恢复申请，请勿重复提交。');
+        throw new Error(tt('该邮箱已有待处理的恢复申请，请勿重复提交。', 'A pending recovery request already exists for this email.'));
       }
 
       if (response.status === 404) {
-        throw new Error('该邮箱尚未注册，请先注册。');
+        throw new Error(tt('该邮箱尚未注册，请先注册。', 'This email is not registered yet. Please sign up first.'));
       }
 
       if (response.status === 429 && result?.retry_after) {
-        throw new Error(`提交过于频繁，请 ${Math.ceil(result.retry_after / 60)} 分钟后再试`);
+        throw new Error(tt(
+          `提交过于频繁，请 ${Math.ceil(result.retry_after / 60)} 分钟后再试`,
+          `Too many submissions. Try again in ${Math.ceil(result.retry_after / 60)} minute(s).`
+        ));
       }
 
-      throw new Error(result?.error || '提交账号恢复申请失败，请稍后重试');
+      throw new Error(result?.error || tt('提交账号恢复申请失败，请稍后重试', 'Failed to submit the recovery request. Try again later.'));
     }
 
     return result.data;
@@ -167,7 +221,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const rateLimitResult = await checkRateLimit('login');
       if (!rateLimitResult.allowed) {
         const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 30;
-        setError(`登录尝试过于频繁，请 ${retryAfter} 分钟后再试`);
+        setError(tt(
+          `登录尝试过于频繁，请 ${retryAfter} 分钟后再试`,
+          `Too many sign-in attempts. Try again in ${retryAfter} minute(s).`
+        ));
         setLoading(false);
         return;
       }
@@ -182,7 +239,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       onAuthSuccess(data.user);
       onClose();
     } catch (err) {
-      setError(getSimpleFriendlyError(err));
+      setError(getLocalizedAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -197,7 +254,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     resetRecoveryRequestState();
 
     if (!EMAIL_REGEX.test(email)) {
-      setError('请输入有效的邮箱地址');
+      setError(tt('请输入有效的邮箱地址', 'Enter a valid email address.'));
       setLoading(false);
       return;
     }
@@ -206,7 +263,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const rateLimitResult = await checkRateLimit('password_reset');
       if (!rateLimitResult.allowed) {
         const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
-        setError(`请求过于频繁，请 ${retryAfter} 分钟后再试`);
+        setError(tt(
+          `请求过于频繁，请 ${retryAfter} 分钟后再试`,
+          `Too many requests. Try again in ${retryAfter} minute(s).`
+        ));
         setLoading(false);
         return;
       }
@@ -215,7 +275,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       setForgotPasswordStatus(accountStatus.registered ? 'registered' : 'unregistered');
       setResendCooldown(30);
     } catch (err) {
-      setError(getSimpleFriendlyError(err));
+      setError(getLocalizedAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -228,25 +288,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setMessage('');
 
     if (!EMAIL_REGEX.test(email)) {
-      setError('请输入有效的邮箱地址');
+      setError(tt('请输入有效的邮箱地址', 'Enter a valid email address.'));
       setLoading(false);
       return;
     }
 
     if (password.length < 6) {
-      setError('密码至少需要 6 位字符');
+      setError(tt('密码至少需要 6 位字符', 'Password must be at least 6 characters.'));
       setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError(tt('两次输入的密码不一致', 'The passwords do not match.'));
       setLoading(false);
       return;
     }
 
     if (!agreedToTerms) {
-      setError('请阅读并同意隐私政策和用户协议');
+      setError(tt('请阅读并同意隐私政策和用户协议', 'Read and accept the Privacy Policy and Terms first.'));
       setLoading(false);
       return;
     }
@@ -255,7 +315,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const rateLimitResult = await checkRateLimit('register');
       if (!rateLimitResult.allowed) {
         const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
-        setError(`注册尝试过于频繁，请 ${retryAfter} 分钟后再试`);
+        setError(tt(
+          `注册尝试过于频繁，请 ${retryAfter} 分钟后再试`,
+          `Too many sign-up attempts. Try again in ${retryAfter} minute(s).`
+        ));
         setLoading(false);
         return;
       }
@@ -279,7 +342,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           authError.message.toLowerCase().includes('email already exists') ||
           authError.status === 422
         ) {
-          setError('该邮箱已被注册');
+          setError(tt('该邮箱已被注册', 'This email is already registered.'));
           setShowDuplicateEmailPrompt(true);
           return;
         }
@@ -291,25 +354,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           onAuthSuccess(data.user);
           onClose();
         } else {
-          setMessage('注册成功！请直接登录。');
+          setMessage(tt('注册成功！请直接登录。', 'Registration complete. You can sign in now.'));
         }
       }
     } catch (err) {
-      let errorMessage = '注册失败，请重试';
+      let errorMessage = tt('注册失败，请重试', 'Sign-up failed. Please try again.');
 
       if (err.message.includes('Invalid email')) {
-        errorMessage = '邮箱格式不正确';
+        errorMessage = tt('邮箱格式不正确', 'The email format is invalid.');
       } else if (err.message.includes('Password should be at least')) {
-        errorMessage = '密码长度不足，至少需要 6 位字符';
+        errorMessage = tt('密码长度不足，至少需要 6 位字符', 'Password is too short. Use at least 6 characters.');
       } else if (err.message.includes('Unable to validate email')) {
-        errorMessage = '无法验证邮箱地址，请检查邮箱是否正确';
+        errorMessage = tt('无法验证邮箱地址，请检查邮箱是否正确', 'Unable to validate this email address. Check it and try again.');
       } else if (
         err.message.toLowerCase().includes('sending confirmation') ||
         err.message.toLowerCase().includes('confirmation email')
       ) {
-        errorMessage = '邮件服务暂时不可用，请稍后再试或联系管理员';
+        errorMessage = tt('邮件服务暂时不可用，请稍后再试或联系管理员', 'Email delivery is unavailable. Try again later or contact an administrator.');
       } else if (err.message) {
-        errorMessage = err.message;
+        errorMessage = isEnglish ? err.message : err.message;
       }
 
       setError(errorMessage);
@@ -370,13 +433,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setRecoveryRequestSuccess(null);
 
     if (!EMAIL_REGEX.test(email)) {
-      setRecoveryRequestError('请输入有效的邮箱地址');
+      setRecoveryRequestError(tt('请输入有效的邮箱地址', 'Enter a valid email address.'));
       setRecoveryRequestLoading(false);
       return;
     }
 
     if (!recoveryRequestForm.requestType) {
-      setRecoveryRequestError('请选择恢复申请类型');
+      setRecoveryRequestError(tt('请选择恢复申请类型', 'Select a recovery request type.'));
       setRecoveryRequestLoading(false);
       return;
     }
@@ -389,14 +452,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       .filter((claim) => claim.gameUid || claim.nickName);
 
     if (normalizedClaims.length === 0) {
-      setRecoveryRequestError('请至少填写一组 UID 和昵称作为身份核验信息');
+      setRecoveryRequestError(tt('请至少填写一组 UID 和昵称作为身份核验信息', 'Add at least one UID and nickname pair for verification.'));
       setRecoveryRequestLoading(false);
       return;
     }
 
     const hasIncompleteClaim = normalizedClaims.some((claim) => !claim.gameUid || !claim.nickName);
     if (hasIncompleteClaim) {
-      setRecoveryRequestError('每组核验信息都需要同时填写 UID 和昵称');
+      setRecoveryRequestError(tt('每组核验信息都需要同时填写 UID 和昵称', 'Each verification clue needs both UID and nickname.'));
       setRecoveryRequestLoading(false);
       return;
     }
@@ -416,7 +479,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       });
       setRecoveryRequestError('');
     } catch (err) {
-      setRecoveryRequestError(getSimpleFriendlyError(err));
+      setRecoveryRequestError(getLocalizedAuthError(err));
     } finally {
       setRecoveryRequestLoading(false);
     }

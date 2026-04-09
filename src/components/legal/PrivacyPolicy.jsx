@@ -1,23 +1,44 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
+import { useI18n } from '../../i18n/index.js';
+import PrivacyPolicyEnglishContent from './PrivacyPolicyEnglishContent';
 
 /**
  * 隐私政策页面
  */
 export default function PrivacyPolicy() {
+  const { isEnglish, t } = useI18n();
+
+  useEffect(() => {
+    document.title = isEnglish
+      ? 'Privacy Policy | Endfield Gacha Analyzer'
+      : '隐私政策 | 终末地抽卡分析器';
+
+    return () => {
+      document.title = t('app.documentTitle');
+    };
+  }, [isEnglish, t]);
+
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-slate-800 dark:text-zinc-200">
       <div className="max-w-3xl mx-auto px-6 py-12">
         <a href="/" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors mb-8">
           <ArrowLeft size={16} />
-          返回首页
+          {isEnglish ? 'Back to Home' : '返回首页'}
         </a>
 
-        <h1 className="text-2xl font-bold mb-2">隐私政策</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月21日</p>
-
-        <div className="space-y-6 text-sm leading-relaxed">
+        {isEnglish ? (
+          <>
+            <h1 className="text-2xl font-bold mb-2">Privacy Policy</h1>
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">Last updated: March 21, 2026</p>
+            <PrivacyPolicyEnglishContent />
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold mb-2">隐私政策</h1>
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月21日</p>
+            <div className="space-y-6 text-sm leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold mb-2">一、引言</h2>
             <p>终末地抽卡分析器（以下简称"本工具"）是一款非官方的第三方抽卡数据分析工具，与游戏官方无关。我们重视您的隐私保护，本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的个人信息。</p>
@@ -110,7 +131,9 @@ export default function PrivacyPolicy() {
               <li>GitHub Issues</li>
             </ul>
           </section>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

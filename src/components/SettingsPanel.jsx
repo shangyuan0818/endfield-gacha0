@@ -4,6 +4,7 @@ import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Sma
 import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
+import LocaleSwitcher from './common/LocaleSwitcher.jsx';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
 import { deleteOwnAccount } from '../services/selfAccountService';
@@ -13,6 +14,7 @@ import {
   formatFreshnessRelative,
   getFreshnessTone
 } from '../utils/dataFreshness.js';
+import { useI18n } from '../i18n/index.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -28,6 +30,7 @@ function getFreshnessToneClasses(tone) {
 }
 
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
@@ -57,6 +60,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const deletePhrase = t('settings.deletePhrase');
+  const deleteAccountPhrase = t('settings.deleteAccountPhrase');
 
   // 统计当前用户创建的数据（过滤掉其他用户的数据）
   const myPools = useMemo(() => {
@@ -74,7 +79,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const gameAccounts = useMemo(() => getGameAccountsFromHistory(), [getGameAccountsFromHistory, history]);
 
   const handleDeleteAllData = async () => {
-    if (deleteConfirmText !== '确认删除') return;
+    if (deleteConfirmText !== deletePhrase) return;
     setDeleteLoading(true);
     try {
       await onDeleteAllData();
@@ -94,17 +99,17 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
   const handleDeleteAccount = async () => {
     if (!user) {
-      setDeleteAccountError('当前未登录，无法注销账号');
+      setDeleteAccountError(t('settings.error.notLoggedInDeleteAccount'));
       return;
     }
 
-    if (deleteAccountConfirmText !== '确认注销账号') {
-      setDeleteAccountError('请输入“确认注销账号”后再继续');
+    if (deleteAccountConfirmText !== deleteAccountPhrase) {
+      setDeleteAccountError(t('settings.error.confirmDeleteAccount'));
       return;
     }
 
     if (deleteAccountPassword.length < 6) {
-      setDeleteAccountError('请输入当前密码以继续');
+      setDeleteAccountError(t('settings.error.currentPasswordRequired'));
       return;
     }
 
@@ -114,7 +119,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
     try {
       await deleteOwnAccount(deleteAccountPassword);
-      setDeleteAccountSuccess('账号已注销，正在清理本地会话并返回首页。');
+      setDeleteAccountSuccess(t('settings.success.deleteAccount'));
 
       await finalizeDeletedAccountSession({
         loadPublicPools,
@@ -127,7 +132,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
       navigate('/', { replace: true });
     } catch (error) {
-      setDeleteAccountError(error.message || '注销账号失败，请稍后重试');
+      setDeleteAccountError(error.message || t('settings.error.deleteAccountFailed'));
     } finally {
       setDeleteAccountLoading(false);
     }
@@ -142,17 +147,17 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
   const handlePasswordReset = async () => {
     if (!user) {
-      setPasswordError('当前未登录，无法修改密码');
+      setPasswordError(t('settings.error.notLoggedInPassword'));
       return;
     }
 
     if (newPassword.length < 6) {
-      setPasswordError('密码至少需要 6 位字符');
+      setPasswordError(t('settings.error.passwordTooShort'));
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('两次输入的密码不一致');
+      setPasswordError(t('settings.error.passwordMismatch'));
       return;
     }
 
@@ -167,13 +172,13 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
       if (error) throw error;
 
-      setPasswordSuccess('密码已更新。下次登录请使用新密码。');
+      setPasswordSuccess(t('settings.success.passwordUpdated'));
       setTimeout(() => {
         setShowPasswordModal(false);
         resetPasswordModalState();
       }, 2000);
     } catch (error) {
-      setPasswordError(error.message || '修改失败，请重试');
+      setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
     } finally {
       setPasswordLoading(false);
     }
@@ -182,11 +187,11 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
-        return { label: '超级管理员', color: 'bg-red-100 text-red-600 border-red-200', desc: '拥有所有权限，可管理用户与站点内容' };
+        return { label: t('settings.role.super_admin.label'), color: 'bg-red-100 text-red-600 border-red-200', desc: t('settings.role.super_admin.desc') };
       case 'admin':
-        return { label: '管理员', color: 'bg-green-100 text-green-600 border-green-200', desc: '可录入和编辑抽卡数据' };
+        return { label: t('settings.role.admin.label'), color: 'bg-green-100 text-green-600 border-green-200', desc: t('settings.role.admin.desc') };
       default:
-        return { label: '普通用户', color: 'bg-slate-100 text-slate-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', desc: '可查看与同步个人数据，录入共享内容需管理员权限' };
+        return { label: t('settings.role.user.label'), color: 'bg-slate-100 text-slate-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800', desc: t('settings.role.user.desc') };
     }
   };
 
@@ -198,9 +203,9 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       <div className="bg-gradient-to-r from-zinc-800 to-zinc-900 p-6 text-white border-l-4 border-endfield-yellow">
         <h2 className="text-2xl font-bold flex items-center gap-3 font-mono tracking-tighter">
           <Settings size={28} />
-          系统设置
+          {t('settings.pageTitle')}
         </h2>
-        <p className="text-zinc-400 mt-1 text-xs tracking-widest uppercase">管理账户与系统偏好</p>
+        <p className="text-zinc-400 mt-1 text-xs tracking-widest uppercase">{t('settings.pageSubtitle')}</p>
       </div>
 
       {/* 账户信息 */}
@@ -210,17 +215,17 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
         
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
           <User size={20} className="text-zinc-600 dark:text-zinc-400" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">账户信息</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">{t('settings.accountSection')}</h3>
         </div>
         <div className="p-6 space-y-4 relative z-10">
           {user ? (
             <>
               <div className="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">邮箱</span>
+                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">{t('settings.email')}</span>
                 <span className="font-bold text-zinc-800 dark:text-zinc-200 font-mono tracking-wide">{user.email}</span>
               </div>
               <div className="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-800">
-                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">权限</span>
+                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">{t('settings.role')}</span>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 text-xs font-bold border rounded-sm font-mono ${roleInfo.color}`}>
                     {roleInfo.label}
@@ -233,7 +238,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 </p>
               </div>
               <div className="flex items-center justify-between py-3">
-                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">安全</span>
+                <span className="text-zinc-500 dark:text-zinc-400 text-sm font-mono">{t('settings.security')}</span>
                 <button
                   onClick={() => {
                     resetPasswordModalState();
@@ -242,14 +247,14 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                   className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow/10 hover:bg-endfield-yellow text-amber-700 dark:text-endfield-yellow hover:text-black border border-endfield-yellow/50 text-xs font-bold tracking-wider transition-all uppercase rounded-sm"
                 >
                   <Lock size={14} />
-                  修改密码
+                  {t('settings.changePassword')}
                 </button>
               </div>
             </>
           ) : (
             <div className="text-center py-8 text-slate-400 dark:text-zinc-500">
               <User size={48} className="mx-auto mb-3 opacity-50" />
-              <p className="font-mono text-sm">请登录以查看账户信息</p>
+              <p className="font-mono text-sm">{t('settings.loginRequired')}</p>
             </div>
           )}
         </div>
@@ -262,7 +267,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
           <Moon size={20} className="text-zinc-600 dark:text-zinc-400" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">外观设置</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">{t('settings.appearanceSection')}</h3>
         </div>
         <div className="p-6 relative z-10">
           <div className="grid grid-cols-3 gap-3">
@@ -275,7 +280,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               }`}
             >
               <Sun size={24} className={`mx-auto mb-2 ${themeMode === 'light' ? 'text-yellow-600' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
-              <span className="text-xs font-bold font-mono uppercase">浅色</span>
+              <span className="text-xs font-bold font-mono uppercase">{t('settings.theme.light')}</span>
             </button>
             <button
               onClick={() => setThemeMode('dark')}
@@ -286,7 +291,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               }`}
             >
               <Moon size={24} className={`mx-auto mb-2 ${themeMode === 'dark' ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
-              <span className="text-xs font-bold font-mono uppercase">深色</span>
+              <span className="text-xs font-bold font-mono uppercase">{t('settings.theme.dark')}</span>
             </button>
             <button
               onClick={() => setThemeMode('system')}
@@ -297,9 +302,21 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               }`}
             >
               <Monitor size={24} className={`mx-auto mb-2 ${themeMode === 'system' ? 'text-black dark:text-white' : 'text-zinc-400 group-hover:text-zinc-600'}`} />
-              <span className="text-xs font-bold font-mono uppercase">跟随系统</span>
+              <span className="text-xs font-bold font-mono uppercase">{t('settings.theme.system')}</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden relative">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
+        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
+          <Monitor size={20} className="text-zinc-600 dark:text-zinc-400" />
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">{t('settings.languageSection')}</h3>
+        </div>
+        <div className="p-6 relative z-10 space-y-3">
+          <p className="text-xs text-zinc-500 dark:text-zinc-500 font-mono">{t('language.description')}</p>
+          <LocaleSwitcher />
         </div>
       </div>
 
@@ -310,14 +327,14 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
         <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
           <Smartphone size={20} className="text-zinc-600 dark:text-zinc-400" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">平台切换</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">{t('settings.platformSection')}</h3>
         </div>
         <div className="p-6 relative z-10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">移动端视图</p>
+              <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">{t('settings.platformTitle')}</p>
               <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                切换到移动端界面，适合手机和平板使用。
+                {t('settings.platformDesc')}
               </p>
             </div>
             <PlatformSwitcher className="rounded-sm" />
@@ -333,7 +350,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-950/50 flex items-center gap-2 relative z-10">
             <Trash2 size={20} className="text-zinc-600 dark:text-zinc-400" />
-            <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">数据管理</h3>
+            <h3 className="font-bold text-zinc-700 dark:text-zinc-200 uppercase tracking-wide text-sm">{t('settings.dataSection')}</h3>
           </div>
           <div className="p-6 space-y-4 relative z-10">
             {/* 数据统计 */}
@@ -341,21 +358,21 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               <div className="p-4 bg-slate-50/50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 relative group overflow-hidden">
                 <div className="absolute top-0 right-0 w-8 h-8 bg-zinc-200 dark:bg-zinc-800 transform rotate-45 translate-x-4 -translate-y-4 group-hover:bg-endfield-yellow transition-colors"></div>
                 <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100">{userPoolCount}</div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-500 uppercase tracking-wider font-bold">创建的卡池</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-500 uppercase tracking-wider font-bold">{t('settings.createdPools')}</div>
               </div>
               <div className="p-4 bg-slate-50/50 dark:bg-zinc-950/50 border border-zinc-200 dark:border-zinc-800 relative group overflow-hidden">
                 <div className="absolute top-0 right-0 w-8 h-8 bg-zinc-200 dark:bg-zinc-800 transform rotate-45 translate-x-4 -translate-y-4 group-hover:bg-endfield-yellow transition-colors"></div>
                 <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100">{userHistoryCount}</div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-500 uppercase tracking-wider font-bold">抽卡记录</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-500 uppercase tracking-wider font-bold">{t('settings.historyRecords')}</div>
               </div>
             </div>
 
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">导入新鲜度</p>
+                  <p className="font-bold text-sm text-zinc-700 dark:text-zinc-300">{t('settings.importFreshnessTitle')}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    查看各账号上次导入时间，以及当前数据停留到哪条记录。
+                    {t('settings.importFreshnessDesc')}
                   </p>
                 </div>
               </div>
@@ -382,28 +399,28 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                             )}
                             {currentGameUid === account.gameUid && (
                               <span className="px-1.5 py-0.5 text-[10px] font-bold bg-endfield-yellow/15 text-amber-700 dark:text-endfield-yellow">
-                                当前账号
+                                {t('settings.currentAccount')}
                               </span>
                             )}
                           </div>
                           <div className="mt-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-500">
-                            UID: {account.gameUid} · {account.recordCount} 条记录
+                            {t('settings.uidRecordCount', { uid: account.gameUid, count: account.recordCount })}
                           </div>
                         </div>
                         <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(account.lastImportedAt))}`}>
-                          {formatFreshnessRelative(account.lastImportedAt, '导入时间未知')}
+                          {formatFreshnessRelative(account.lastImportedAt, t('common.importTimeUnknown'))}
                         </span>
                       </div>
                       <div className="mt-3 grid gap-2 md:grid-cols-2 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                        <div>上次导入: {formatFreshnessAbsolute(account.lastImportedAt)}</div>
-                        <div>最新记录: {formatFreshnessAbsolute(account.latestRecordAt)}</div>
+                        <div>{t('settings.lastImport', { value: formatFreshnessAbsolute(account.lastImportedAt, t('common.unknown')) })}</div>
+                        <div>{t('settings.latestRecord', { value: formatFreshnessAbsolute(account.latestRecordAt, t('common.unknown')) })}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="mt-4 border border-dashed border-zinc-200 dark:border-zinc-800 px-4 py-3 text-xs font-mono text-zinc-500 dark:text-zinc-500">
-                  暂无可用的账号导入记录。
+                  {t('settings.noImportedAccounts')}
                 </div>
               )}
             </div>
@@ -412,9 +429,9 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-sm text-red-600 dark:text-red-400">危险区域 // 删除我的抽卡数据</p>
+                  <p className="font-bold text-sm text-red-600 dark:text-red-400">{t('settings.deleteDataTitle')}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    仅删除当前账号的抽卡记录与自建卡池，不删除账号本身。
+                    {t('settings.deleteDataDesc')}
                   </p>
                 </div>
                 <button
@@ -423,7 +440,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                   className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 border border-red-200 dark:border-red-800/50 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:border-zinc-200 dark:disabled:border-zinc-800 disabled:text-zinc-400 text-red-600 dark:text-red-400 text-xs font-bold tracking-wider transition-colors disabled:cursor-not-allowed rounded-sm uppercase"
                 >
                   <Trash2 size={14} />
-                  删除我的数据
+                  {t('settings.deleteMyData')}
                 </button>
               </div>
             </div>
@@ -431,9 +448,9 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-sm text-red-700 dark:text-red-400">危险区域 // 注销当前账号</p>
+                  <p className="font-bold text-sm text-red-700 dark:text-red-400">{t('settings.deleteAccountTitle')}</p>
                   <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-1 font-mono">
-                    删除账号、抽卡记录、自建卡池与本人名下工单。该操作不可撤销，管理员账号不支持自助注销。
+                    {t('settings.deleteAccountDesc')}
                   </p>
                 </div>
                 <button
@@ -445,12 +462,12 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                   className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 border border-red-700 disabled:bg-zinc-100 dark:disabled:bg-zinc-900 disabled:border-zinc-200 dark:disabled:border-zinc-800 disabled:text-zinc-400 text-white text-xs font-bold tracking-wider transition-colors disabled:cursor-not-allowed rounded-sm uppercase"
                 >
                   <Trash2 size={14} />
-                  注销账号
+                  {t('settings.confirmDeleteAccountAction')}
                 </button>
               </div>
               {(userRole === 'admin' || userRole === 'super_admin') && (
                 <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-500 font-mono">
-                  管理员账号请使用超管流程删除，不提供自助注销。
+                  {t('settings.adminDeleteAccountHint')}
                 </p>
               )}
             </div>
@@ -465,7 +482,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                 <Lock size={18} />
-                修改密码
+                {t('settings.passwordModalTitle')}
               </h3>
               <button
                 onClick={() => {
@@ -494,29 +511,29 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                    新密码
+                    {t('settings.newPassword')}
                   </label>
                   <input
                     type="password"
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="至少 6 位字符"
+                    placeholder={t('settings.newPasswordPlaceholder')}
                     className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                    确认新密码
+                    {t('settings.confirmNewPassword')}
                   </label>
                   <input
                     type="password"
                     value={confirmNewPassword}
                     onChange={(event) => setConfirmNewPassword(event.target.value)}
-                    placeholder="再次输入新密码"
+                    placeholder={t('settings.confirmNewPasswordPlaceholder')}
                     className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none"
                   />
                   {confirmNewPassword && newPassword !== confirmNewPassword && (
-                    <p className="mt-2 text-xs text-red-500">两次输入的密码不一致。</p>
+                    <p className="mt-2 text-xs text-red-500">{t('settings.passwordMismatchInline')}</p>
                   )}
                 </div>
               </div>
@@ -526,7 +543,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 disabled={passwordLoading || !!passwordSuccess}
                 className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold uppercase tracking-wider py-3 rounded-none transition-colors disabled:cursor-not-allowed"
               >
-                {passwordLoading ? '修改中...' : passwordSuccess ? '已更新' : '更新密码'}
+                {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : t('settings.passwordUpdateAction')}
               </button>
             </div>
           </div>
@@ -539,10 +556,10 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-950/30">
               <h3 className="text-lg font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
                 <AlertTriangle size={20} />
-                注销当前账号
+                {t('settings.deleteAccountModalTitle')}
               </h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-2">
-                此操作会删除当前账号本身，以及其名下的抽卡记录、自建卡池与工单记录。删除后无法恢复。
+                {t('settings.deleteAccountModalDesc')}
               </p>
             </div>
             <div className="p-6 space-y-4">
@@ -559,35 +576,35 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               )}
 
               <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/40 p-4 text-sm text-red-700 dark:text-red-300 space-y-1">
-                <p>• 当前账号将被永久删除</p>
-                <p>• 该账号名下的抽卡记录、自建卡池、工单与工单回复会一起删除</p>
-                <p>• 后续重新计算的全服统计不再继续包含这些抽卡记录</p>
-                <p>• 已导出的文件或已分享到站外的图片 / 文本不会被远程回收</p>
-                <p>• 删除后如需重新使用，请重新注册</p>
+                <p>• {t('settings.deleteAccountWarning1')}</p>
+                <p>• {t('settings.deleteAccountWarning2')}</p>
+                <p>• {t('settings.deleteAccountWarning3')}</p>
+                <p>• {t('settings.deleteAccountWarning4')}</p>
+                <p>• {t('settings.deleteAccountWarning5')}</p>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                  当前密码
+                  {t('settings.currentPassword')}
                 </label>
                 <input
                   type="password"
                   value={deleteAccountPassword}
                   onChange={(event) => setDeleteAccountPassword(event.target.value)}
-                  placeholder="输入当前密码以确认身份"
+                  placeholder={t('settings.currentPasswordPlaceholder')}
                   className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                  确认短语
+                  {t('settings.confirmPhrase')}
                 </label>
                 <input
                   type="text"
                   value={deleteAccountConfirmText}
                   onChange={(event) => setDeleteAccountConfirmText(event.target.value)}
-                  placeholder='请输入“确认注销账号”'
+                  placeholder={t('settings.confirmDeleteAccountPlaceholder')}
                   className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                 />
               </div>
@@ -600,14 +617,14 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteAccountLoading || deleteAccountSuccess || deleteAccountConfirmText !== '确认注销账号'}
+                disabled={deleteAccountLoading || deleteAccountSuccess || deleteAccountConfirmText !== deleteAccountPhrase}
                 className="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
               >
-                {deleteAccountLoading ? '注销中...' : deleteAccountSuccess ? '已注销' : '确认注销账号'}
+                {deleteAccountLoading ? t('settings.deleteAccountProgress') : deleteAccountSuccess ? t('settings.deleteAccountDone') : t('settings.confirmDeleteAccountAction')}
               </button>
             </div>
           </div>
@@ -622,27 +639,27 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 rounded-sm flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle size={32} />
               </div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">危险操作确认</h3>
+              <h3 className="text-lg font-bold text-slate-800 dark:text-zinc-100 mb-2">{t('settings.deleteDataModalTitle')}</h3>
               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                您即将删除当前账号的<span className="text-red-500 font-bold">抽卡数据</span>，包括：
+                {t('settings.deleteDataModalIntro')}
               </p>
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 rounded-none mb-4 text-left">
                 <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
-                  <li>• {userPoolCount} 个我创建的卡池</li>
-                  <li>• {userHistoryCount} 条我的抽卡记录</li>
+                  <li>• {userPoolCount} {t('settings.createdPools')}</li>
+                  <li>• {userHistoryCount} {t('settings.historyRecords')}</li>
                 </ul>
               </div>
               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                您的账号不会被删除，公开共享卡池也会保留。
+                {t('settings.deleteDataModalKeepAccount')}
               </p>
               <p className="text-sm text-slate-500 dark:text-zinc-500 mb-4">
-                此操作<span className="text-red-500 font-bold">无法撤销</span>！请输入"确认删除"以继续：
+                {t('settings.deleteDataModalFinal')}
               </p>
               <input
                 type="text"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder='输入"确认删除"'
+                placeholder={t('settings.deleteDataPlaceholder')}
                 className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none mb-4"
               />
             </div>
@@ -654,14 +671,14 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 }}
                 className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-200 dark:hover:bg-zinc-800 rounded-none transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleDeleteAllData}
-                disabled={deleteConfirmText !== '确认删除' || deleteLoading}
+                disabled={deleteConfirmText !== deletePhrase || deleteLoading}
                 className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed rounded-none shadow-sm transition-all"
               >
-                {deleteLoading ? '删除中...' : '删除我的数据'}
+                {deleteLoading ? t('settings.deleteDataProgress') : t('settings.deleteDataAction')}
               </button>
             </div>
           </div>

@@ -14,16 +14,17 @@ import { assignBatchIds, calculatePity, generateImportSummary } from '../../util
 import { buildGameAccountServerTag } from '../../utils/gameAccountMetadata';
 import { getGlobalQueue } from '../../utils/requestQueue';
 import { ImportStatus } from './importShared';
+import { useI18n } from '../../i18n/index.js';
 
-function normalizeImportError(err) {
-  let errorMessage = err.message || 'Unknown Error';
+function normalizeImportError(err, t) {
+  let errorMessage = err.message || t('import.error.unknown');
 
   if (err instanceof ServerConnectionError) {
-    errorMessage = `服务器连接异常: ${err.message}`;
+    errorMessage = t('import.error.serverConnection', { message: err.message });
   } else if (err instanceof RiskControlError) {
-    errorMessage = '触发频率限制，请稍候再试。';
+    errorMessage = t('import.error.riskControl');
   } else if (err instanceof AuthChainError) {
-    errorMessage = `认证失败: ${err.message}`;
+    errorMessage = t('import.error.authFailed', { message: err.message });
   }
 
   return errorMessage;
@@ -46,8 +47,18 @@ function getAlternateSource(source) {
   return source === 'intl' ? 'cn' : 'intl';
 }
 
-function getSourceDisplayName(source) {
-  return source === 'intl' ? '国际服' : '国服';
+function getSourceDisplayName(source, t) {
+  return source === 'intl' ? t('import.source.intl.label') : t('import.source.cn.label');
+}
+
+function getLocalizedUnknown(t) {
+  return typeof t === 'function' ? t('common.unknown') : '未知';
+}
+
+function getServerRegionLabel(serverId, t) {
+  return String(serverId || '1') === '1'
+    ? getSourceDisplayName('cn', t)
+    : getSourceDisplayName('intl', t);
 }
 
 function parseTokenInput(input) {
@@ -70,26 +81,27 @@ function parseTokenInput(input) {
 
 function validateToken(token) {
   const trimmed = token.trim();
-  if (!trimmed) return { valid: false, error: '请输入Token' };
+  if (!trimmed) return { valid: false, error: null };
 
   if (trimmed.length !== 24) {
-    return { valid: false, error: `Token长度错误：期望24位，实际${trimmed.length}位` };
+    return { valid: false, error: { key: 'import.error.tokenLength', params: { length: trimmed.length } } };
   }
 
   if (!/^[a-zA-Z0-9+/=]+$/.test(trimmed)) {
-    return { valid: false, error: 'Token格式错误：包含不支持的字符' };
+    return { valid: false, error: { key: 'import.error.tokenFormat' } };
   }
 
   return { valid: true, token: trimmed };
 }
 
-function buildPreviewRecords(records, serverId) {
+function buildPreviewRecords(records, serverId, t) {
   const resolvedServerId = String(serverId || '1');
+  const unknownLabel = getLocalizedUnknown(t);
   const convertedRecords = records.map((record) => {
     const poolType = record._poolType || 'unknown';
     return {
-      name: record.charName || record.weaponName || '未知',
-      character_name: record.charName || record.weaponName || '未知',
+      name: record.charName || record.weaponName || unknownLabel,
+      character_name: record.charName || record.weaponName || unknownLabel,
       item_id: record.charId || record.weaponId || '',
       rarity: record.rarity,
       timestamp: parseInt(record.gachaTs, 10),
@@ -102,7 +114,7 @@ function buildPreviewRecords(records, serverId) {
       seqId: record.seqId,
       recordType: record.charId ? 'character' : 'weapon',
       serverId: resolvedServerId,
-      serverRegion: resolvedServerId === '1' ? '国服' : 'intl',
+      serverRegion: getServerRegionLabel(resolvedServerId, t),
     };
   });
 
@@ -124,6 +136,7 @@ function buildPreviewRecords(records, serverId) {
 }
 
 export function useOfficialImportController({ onImportComplete, onFetchStatusChange, onSourceSwitch, userId, source = 'cn' }) {
+  const { t } = useI18n();
   const [tokenInput, setTokenInput] = useState('');
   const [status, setStatus] = useState(ImportStatus.IDLE);
   const [progress, setProgress] = useState(0);
@@ -190,7 +203,10 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           nextRetryIn: data.nextRetryIn,
           reason: data.reason
         });
-        setStatusMessage(`网络不稳定，正在重试 (${data.currentRetry}/${data.maxRetries})...`);
+        setStatusMessage(t('import.official.networkRetry', {
+          current: data.currentRetry,
+          total: data.maxRetries,
+        }));
         return;
       }
 
@@ -204,7 +220,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       clearInterval(interval);
       queue.removeListener(handleQueueEvent);
     };
-  }, [source, status]);
+  }, [source, status, t]);
 
   const handleInputChange = useCallback((event) => {
     const rawInput = event.target.value;
@@ -293,7 +309,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
             if (cancelRef.current) return;
             setStatus(update.progress >= 80 ? ImportStatus.PROCESSING : ImportStatus.FETCHING);
             setProgress(update.progress || 0);
-            setStatusMessage(update.message || '正在导入数据...');
+            setStatusMessage(update.message || t('import.official.importingData'));
           },
           source
         );
@@ -336,11 +352,11 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         });
         setProgress(100);
         setStatus(ImportStatus.SUCCESS);
-        setStatusMessage('后端导入完成');
+        setStatusMessage(t('import.official.backendDone'));
         return;
       }
 
-      setStatusMessage(`正在获取 ${account.channelName} 访问凭证...`);
+      setStatusMessage(t('import.official.fetchingToken', { channel: account.channelName }));
       const authResult = await executeAuthChainForAccount(token, account, (message) => {
         if (!cancelRef.current) {
           setStatusMessage(message);
@@ -350,7 +366,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       if (cancelRef.current) return;
 
       const { u8Token } = authResult;
-      setStatusMessage(`正在获取 ${account.channelName} 抽卡记录...`);
+      setStatusMessage(t('import.official.fetchingRecords', { channel: account.channelName }));
       setProgress(40);
 
       let records;
@@ -376,7 +392,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           source
         );
       } catch {
-        setStatusMessage('并发获取失败，切换到串行模式...');
+        setStatusMessage(t('import.official.concurrentFallback'));
         records = await fetchAllGachaRecords(u8Token, (message) => {
           if (!cancelRef.current) {
             setStatusMessage(message);
@@ -388,24 +404,24 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
 
       setStatus(ImportStatus.PROCESSING);
       setProgress(95);
-      setStatusMessage('正在处理数据...');
+      setStatusMessage(t('import.official.processingData'));
 
-      const processedRecords = buildPreviewRecords(records, account.serverId);
+      const processedRecords = buildPreviewRecords(records, account.serverId, t);
       const summary = generateImportSummary(processedRecords);
 
       setFetchedRecords(processedRecords);
       setImportSummary(summary);
       setProgress(100);
       setStatus(ImportStatus.SUCCESS);
-      setStatusMessage('数据准备就绪');
+      setStatusMessage(t('import.official.ready'));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[OfficialAPIImport] 导入失败:', err);
       if (cancelRef.current) return;
-      setError(normalizeImportError(err));
+      setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);
     }
-  }, [availableAccounts, onImportComplete, source, tokenInput, userId]);
+  }, [availableAccounts, onImportComplete, source, t, tokenInput, userId]);
 
   const tryFetchAccountsWithSource = useCallback(async (token, targetSource) => {
     return fetchAccountsList(token, (message) => {
@@ -419,7 +435,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
   const handleImport = useCallback(async () => {
     const validation = validateToken(tokenInput);
     if (!validation.valid) {
-      setError(validation.error);
+      setError(validation.error ? t(validation.error.key, validation.error.params) : t('import.error.emptyToken'));
       setStatus(ImportStatus.ERROR);
       return;
     }
@@ -439,7 +455,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     let accountsResult;
 
     try {
-      setStatusMessage('正在验证token...');
+      setStatusMessage(t('import.official.validatingToken'));
       setProgress(10);
 
       accountsResult = await tryFetchAccountsWithSource(validation.token, source);
@@ -450,17 +466,21 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       if (!shouldTryAlternate) {
         // eslint-disable-next-line no-console
         console.error('[OfficialAPIImport] 导入失败:', firstErr);
-        setError(normalizeImportError(firstErr));
+        setError(normalizeImportError(firstErr, t));
         setStatus(ImportStatus.ERROR);
         return;
       }
 
       const altSource = getAlternateSource(source);
-      const altName = getSourceDisplayName(altSource);
-      const curName = getSourceDisplayName(source);
+      const altName = getSourceDisplayName(altSource, t);
+      const curName = getSourceDisplayName(source, t);
 
       setSourceSwitchInfo({ from: source, to: altSource, countdown: 3 });
-      setStatusMessage(`${curName}验证失败，检测到可能是${altName} Token，3 秒后自动切换...`);
+      setStatusMessage(t('import.official.switchSuggestion', {
+        current: curName,
+        target: altName,
+        seconds: 3,
+      }));
       setProgress(5);
 
       try {
@@ -473,7 +493,11 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
               return;
             }
             setSourceSwitchInfo(prev => prev ? { ...prev, countdown: remaining } : null);
-            setStatusMessage(`${curName}验证失败，检测到可能是${altName} Token，${remaining} 秒后自动切换...`);
+            setStatusMessage(t('import.official.switchSuggestion', {
+              current: curName,
+              target: altName,
+              seconds: remaining,
+            }));
             if (remaining <= 0) {
               resolve();
             } else {
@@ -488,7 +512,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
 
       if (cancelRef.current) return;
 
-      setStatusMessage(`已切换到${altName}，正在重新验证...`);
+      setStatusMessage(t('import.official.switchConfirmed', { target: altName }));
       setProgress(10);
       effectiveSource = altSource;
 
@@ -501,7 +525,12 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         console.error('[OfficialAPIImport] 双服验证均失败:', secondErr);
         if (cancelRef.current) return;
         setSourceSwitchInfo(null);
-        setError(`${curName}和${altName}验证均失败，请确认 Token 是否有效。\n${curName}: ${normalizeImportError(firstErr)}\n${altName}: ${normalizeImportError(secondErr)}`);
+        setError(t('import.error.doubleSourceFailed', {
+          current: curName,
+          target: altName,
+          currentError: normalizeImportError(firstErr, t),
+          targetError: normalizeImportError(secondErr, t),
+        }));
         setStatus(ImportStatus.ERROR);
         return;
       }
@@ -522,7 +551,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       if (normalizedAccounts.length > 1) {
         setStatus(ImportStatus.ACCOUNT_SELECTION);
         setProgress(25);
-        setStatusMessage('请选择要导入的账号');
+        setStatusMessage(t('import.official.selectedAccount'));
         return;
       }
 
@@ -531,10 +560,10 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       // eslint-disable-next-line no-console
       console.error('[OfficialAPIImport] 导入失败:', err);
       if (cancelRef.current) return;
-      setError(normalizeImportError(err));
+      setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);
     }
-  }, [continueImportWithAccount, onSourceSwitch, source, tokenInput, tryFetchAccountsWithSource]);
+  }, [continueImportWithAccount, onSourceSwitch, source, t, tokenInput, tryFetchAccountsWithSource]);
 
   const handleAccountSelect = useCallback(async (account) => {
     await continueImportWithAccount(appToken, account);

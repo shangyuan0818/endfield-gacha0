@@ -16,7 +16,8 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
-import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
+import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
+import { useI18n } from '../../i18n/index.js';
 
 export default function AuthModalView({
   agreedToTerms,
@@ -59,8 +60,12 @@ export default function AuthModalView({
   submitDisabled,
   username,
 }) {
+  const { isEnglish } = useI18n();
+  const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const recoveryRequestTypeLabel =
-    recoveryRequestForm.requestType === 'delete_account' ? '注销旧账号' : '申请人工恢复';
+    recoveryRequestForm.requestType === 'delete_account'
+      ? tt('注销旧账号', 'Delete Old Account')
+      : tt('申请人工恢复', 'Manual Recovery');
 
   return (
     <div
@@ -68,7 +73,7 @@ export default function AuthModalView({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-md overflow-hidden animate-scale-up border border-zinc-200 dark:border-zinc-800"
+        className="bg-white dark:bg-zinc-900 rounded-none shadow-2xl w-full max-w-lg overflow-hidden animate-scale-up border border-zinc-200 dark:border-zinc-800"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="relative bg-gradient-to-r from-zinc-900 to-zinc-800 dark:from-zinc-950 dark:to-zinc-900 text-white p-6 border-b-4 border-endfield-yellow">
@@ -101,18 +106,27 @@ export default function AuthModalView({
                     <KeyRound size={20} className="text-black" />}
               </div>
               <div>
-                <h2 className="text-xl font-bold tracking-tight font-mono">
+                <h2 className="text-lg sm:text-xl font-bold tracking-tight font-mono">
                   {mode === 'login' ? 'SIGN IN' : mode === 'register' ? 'REGISTER' : 'ACCOUNT RECOVERY'}
                 </h2>
-                <p className="text-zinc-400 text-xs uppercase tracking-widest">
-                  {mode === 'login' ? '登录账户' : mode === 'register' ? '创建新账户' : '账号恢复'}
+                <p className="text-zinc-400 text-xs uppercase tracking-widest leading-tight">
+                  {mode === 'login'
+                    ? tt('登录账户', 'Account Access')
+                    : mode === 'register'
+                      ? tt('创建新账户', 'Create Account')
+                      : tt('账号恢复', 'Recovery Flow')}
                 </p>
               </div>
             </div>
-            <p className="text-zinc-300 text-sm mt-3">
-              {mode === 'login' ? '登录以同步你的抽卡数据到云端' :
-                mode === 'register' ? '注册后可多设备同步数据' :
-                  '输入邮箱地址，先检查该账号是否已注册。当前版本未启用邮件找回，已注册账号只能提交人工恢复申请。'}
+            <p className="text-zinc-300 text-sm mt-3 leading-relaxed">
+              {mode === 'login'
+                ? tt('登录以同步你的抽卡数据到云端', 'Sign in to sync your pull history to the cloud.')
+                : mode === 'register'
+                  ? tt('注册后可多设备同步数据', 'Create an account to sync across devices.')
+                  : tt(
+                    '输入邮箱地址，先检查该账号是否已注册。当前版本未启用邮件找回，已注册账号只能提交人工恢复申请。',
+                    'Enter your email first. We will check whether the account exists before showing the available recovery options.'
+                  )}
             </p>
           </div>
         </div>
@@ -143,17 +157,19 @@ export default function AuthModalView({
                 <AlertCircle size={20} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-amber-800 dark:text-amber-300 font-medium mb-2">
-                    该邮箱已被注册
+                    {tt('该邮箱已被注册', 'This Email Is Already Registered')}
                   </p>
                   <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
-                    邮箱 <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5">{email}</span> 已经注册过账号。
+                    {tt('邮箱 ', 'The address ')}
+                    <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5 break-all">{email}</span>
+                    {tt(' 已经注册过账号。', ' already has an account.')}
                   </p>
                   <button
                     type="button"
                     onClick={onSwitchToLoginWithEmail}
-                    className="w-full bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
+                    className="w-full min-h-[44px] bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm whitespace-normal text-center leading-tight"
                   >
-                    使用此邮箱登录
+                    {tt('使用此邮箱登录', 'Sign In Instead')}
                   </button>
                 </div>
               </div>
@@ -163,7 +179,7 @@ export default function AuthModalView({
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                用户名 <span className="text-slate-400 dark:text-zinc-600 font-normal">(可选)</span>
+                {tt('用户名', 'Username')} <span className="text-slate-400 dark:text-zinc-600 font-normal">{tt('(可选)', '(Optional)')}</span>
               </label>
               <div className="relative">
                 <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
@@ -171,7 +187,7 @@ export default function AuthModalView({
                   type="text"
                   value={username}
                   onChange={onUsernameChange}
-                  placeholder="显示名称"
+                  placeholder={tt('显示名称', 'Display name')}
                   className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
                 />
               </div>
@@ -180,7 +196,7 @@ export default function AuthModalView({
 
           <div>
             <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-              邮箱地址
+              {tt('邮箱地址', 'Email Address')}
             </label>
             <div className="relative">
               <Mail
@@ -205,7 +221,7 @@ export default function AuthModalView({
             {email && !emailValid && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
                 <AlertCircle size={12} />
-                请输入有效的邮箱地址
+                {tt('请输入有效的邮箱地址', 'Enter a valid email address.')}
               </p>
             )}
             {mode === 'register' && emailValid && emailDomainError && (
@@ -222,48 +238,70 @@ export default function AuthModalView({
                 <CheckCircle2 size={20} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-emerald-800 dark:text-emerald-300 font-medium mb-2">
-                    该邮箱已注册
+                    {tt('该邮箱已注册', 'This Email Is Registered')}
                   </p>
                   <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
-                    当前版本未启用邮件找回，也不允许仅凭邮箱直接修改密码。若你还有已登录设备，请直接前往“设置 &gt; 修改密码”；若完全无法登录，可提交人工恢复或旧账号注销申请。
+                    {tt(
+                      '当前版本未启用邮件找回，也不允许仅凭邮箱直接修改密码。若你还有已登录设备，请直接前往“设置 > 修改密码”；若完全无法登录，可提交人工恢复或旧账号注销申请。',
+                      'Email reset is not enabled in this build. If you still have a signed-in device, go to Settings > Change Password. Otherwise, submit a manual recovery or account deletion request.'
+                    )}
                   </p>
                   <div className="mb-3 border border-emerald-200 dark:border-emerald-800 bg-white/70 dark:bg-black/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
-                    若超管核验通过并为你设置了临时密码，请加入 QQ 群
-                    {' '}
-                    <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
-                    {' '}
-                    获取临时密码，并在登录后立即到设置页修改密码。
+                    {isEnglish ? (
+                      <>
+                        If a temporary password has been approved, join
+                        {' '}
+                        <a
+                          href={ENGLISH_COMMUNITY_DISCORD_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-bold underline underline-offset-2"
+                        >
+                          Discord
+                        </a>
+                        {' '}
+                        to receive it, then change your password in Settings right after signing in.
+                      </>
+                    ) : (
+                      <>
+                        若超管核验通过并为你设置了临时密码，请加入 QQ 群
+                        {' '}
+                        <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
+                        {' '}
+                        获取临时密码，并在登录后立即到设置页修改密码。
+                      </>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => onOpenRecoveryRequest('password_reset')}
-                      className={`px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
+                      className={`min-h-[52px] px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors whitespace-normal text-center leading-tight ${
                         recoveryRequestForm.requestType === 'password_reset'
                           ? 'bg-endfield-yellow text-black'
                           : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700'
                       }`}
                     >
-                      申请人工恢复
+                      {tt('申请人工恢复', 'Manual Recovery')}
                     </button>
                     <button
                       type="button"
                       onClick={() => onOpenRecoveryRequest('delete_account')}
-                      className={`px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
+                      className={`min-h-[52px] px-3 py-2 text-sm font-bold uppercase tracking-wider transition-colors whitespace-normal text-center leading-tight ${
                         recoveryRequestForm.requestType === 'delete_account'
                           ? 'bg-red-600 text-white'
                           : 'bg-white text-red-600 border border-red-300 hover:bg-red-50 dark:bg-transparent dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20'
                       }`}
                     >
-                      申请注销旧账号
+                      {tt('申请注销旧账号', 'Delete Old Account')}
                     </button>
                   </div>
                   <button
                     type="button"
                     onClick={onSwitchToLoginWithEmail}
-                    className="w-full mt-2 bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
+                    className="w-full mt-2 min-h-[44px] bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm whitespace-normal text-center leading-tight"
                   >
-                    返回登录
+                    {tt('返回登录', 'Back to Sign In')}
                   </button>
                 </div>
               </div>
@@ -279,7 +317,10 @@ export default function AuthModalView({
                     {recoveryRequestTypeLabel}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-                    请尽量填写你曾上传过的 UID 和游戏内昵称。当前版本没有邮件和匿名站内回传，申请只会进入超管审核队列。
+                    {tt(
+                      '请尽量填写你曾上传过的 UID 和游戏内昵称。当前版本没有邮件和匿名站内回传，申请只会进入超管审核队列。',
+                      'Add the UID and in-game names you have uploaded before. Requests go into the super-admin review queue only; there is no email or anonymous in-site reply flow yet.'
+                    )}
                   </p>
                 </div>
                 <button
@@ -287,7 +328,7 @@ export default function AuthModalView({
                   onClick={onCloseRecoveryRequest}
                   className="text-xs text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors"
                 >
-                  收起
+                  {tt('收起', 'Collapse')}
                 </button>
               </div>
 
@@ -296,16 +337,38 @@ export default function AuthModalView({
                   <div className="flex items-start gap-2">
                     <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-medium">恢复申请已提交</div>
+                      <div className="font-medium">{tt('恢复申请已提交', 'Request Submitted')}</div>
                       <div className="mt-1">
-                        超管会根据你填写的 UID、昵称和说明进行人工核验。当前系统不会向未登录用户发放自动重置入口。
+                        {tt(
+                          '超管会根据你填写的 UID、昵称和说明进行人工核验。当前系统不会向未登录用户发放自动重置入口。',
+                          'A super admin will verify the UID, nickname, and notes you provided. Automatic reset links are not sent to signed-out users.'
+                        )}
                       </div>
                       <div className="mt-2">
-                        若超管核验通过并已重置密码，请加入 QQ 群
-                        {' '}
-                        <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
-                        {' '}
-                        获取临时密码。
+                        {isEnglish ? (
+                          <>
+                            If the request is approved and the password is reset, join
+                            {' '}
+                            <a
+                              href={ENGLISH_COMMUNITY_DISCORD_URL}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-bold underline underline-offset-2"
+                            >
+                              Discord
+                            </a>
+                            {' '}
+                            to receive the temporary password.
+                          </>
+                        ) : (
+                          <>
+                            若超管核验通过并已重置密码，请加入 QQ 群
+                            {' '}
+                            <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
+                            {' '}
+                            获取临时密码。
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -321,7 +384,7 @@ export default function AuthModalView({
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                  你曾上传过几个账号
+                  {tt('你曾上传过几个账号', 'How Many Accounts Have You Uploaded')}
                 </label>
                 <input
                   type="number"
@@ -336,7 +399,7 @@ export default function AuthModalView({
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
-                    身份核验信息
+                    {tt('身份核验信息', 'Verification Clues')}
                   </label>
                   <button
                     type="button"
@@ -344,7 +407,7 @@ export default function AuthModalView({
                     className="text-xs font-bold uppercase tracking-wider text-endfield-yellow hover:text-yellow-500 flex items-center gap-1"
                   >
                     <Plus size={12} />
-                    新增一组
+                    {tt('新增一组', 'Add Clue')}
                   </button>
                 </div>
 
@@ -352,7 +415,7 @@ export default function AuthModalView({
                   <div key={`claim-${index}`} className="border border-zinc-200 dark:border-zinc-700 p-3 space-y-3 bg-slate-50 dark:bg-zinc-950">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">
-                        账号线索 {index + 1}
+                        {tt(`账号线索 ${index + 1}`, `Clue ${index + 1}`)}
                       </span>
                       {recoveryRequestForm.verificationClaims.length > 1 && (
                         <button
@@ -361,7 +424,7 @@ export default function AuthModalView({
                           className="text-xs text-red-500 hover:text-red-400 flex items-center gap-1"
                         >
                           <Trash2 size={12} />
-                          删除
+                          {tt('删除', 'Remove')}
                         </button>
                       )}
                     </div>
@@ -370,14 +433,14 @@ export default function AuthModalView({
                         type="text"
                         value={claim.gameUid}
                         onChange={(event) => onRecoveryClaimChange(index, 'gameUid', event.target.value)}
-                        placeholder="游戏 UID"
+                        placeholder={tt('游戏 UID', 'Game UID')}
                         className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
                       />
                       <input
                         type="text"
                         value={claim.nickName}
                         onChange={(event) => onRecoveryClaimChange(index, 'nickName', event.target.value)}
-                        placeholder="游戏内昵称"
+                        placeholder={tt('游戏内昵称', 'In-game Name')}
                         className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
                       />
                     </div>
@@ -387,15 +450,15 @@ export default function AuthModalView({
 
               <div>
                 <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                  补充说明
+                  {tt('补充说明', 'Additional Notes')}
                 </label>
                 <textarea
                   value={recoveryRequestForm.note}
                   onChange={onRecoveryNoteChange}
                   placeholder={
                     recoveryRequestForm.requestType === 'delete_account'
-                      ? '请说明为什么需要注销旧账号，以及你后续是否会重新注册。'
-                      : '可补充上传时间、常用卡池、历史角色或其他只有你本人知道的信息。'
+                      ? tt('请说明为什么需要注销旧账号，以及你后续是否会重新注册。', 'Explain why the old account should be deleted and whether you plan to sign up again.')
+                      : tt('可补充上传时间、常用卡池、历史角色或其他只有你本人知道的信息。', 'Add upload timing, common banners, past characters, or any details that only you should know.')
                   }
                   className="w-full min-h-[100px] px-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-950 text-slate-800 dark:text-zinc-100 outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
                 />
@@ -405,14 +468,14 @@ export default function AuthModalView({
                 type="button"
                 onClick={onSubmitRecoveryRequest}
                 disabled={recoveryRequestLoading}
-                className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors"
+                className="w-full min-h-[48px] bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors whitespace-normal text-center leading-tight"
               >
                 {recoveryRequestLoading ? (
                   <Loader2 size={18} className="animate-spin" />
                 ) : (
                   <FileSearch size={18} />
                 )}
-                提交{recoveryRequestTypeLabel}
+                {tt(`提交${recoveryRequestTypeLabel}`, 'Submit Request')}
               </button>
             </div>
           )}
@@ -423,17 +486,19 @@ export default function AuthModalView({
                 <AlertCircle size={20} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-amber-800 dark:text-amber-300 font-medium mb-2">
-                    该邮箱尚未注册
+                    {tt('该邮箱尚未注册', 'This Email Is Not Registered')}
                   </p>
                   <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
-                    邮箱 <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5">{email}</span> 目前没有对应账号，请先注册后再使用云同步功能。
+                    {tt('邮箱 ', 'The address ')}
+                    <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5 break-all">{email}</span>
+                    {tt(' 目前没有对应账号，请先注册后再使用云同步功能。', ' is not registered yet. Create an account first to use cloud sync.')}
                   </p>
                   <button
                     type="button"
                     onClick={onSwitchToRegisterWithEmail}
-                    className="w-full bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm"
+                    className="w-full min-h-[44px] bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm whitespace-normal text-center leading-tight"
                   >
-                    使用此邮箱注册
+                    {tt('使用此邮箱注册', 'Create Account')}
                   </button>
                 </div>
               </div>
@@ -443,7 +508,7 @@ export default function AuthModalView({
           {mode !== 'forgotPassword' && (
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                密码
+                {tt('密码', 'Password')}
               </label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
@@ -451,7 +516,7 @@ export default function AuthModalView({
                   type="password"
                   value={password}
                   onChange={onPasswordChange}
-                  placeholder={mode === 'register' ? '至少 6 位字符' : '输入密码'}
+                  placeholder={mode === 'register' ? tt('至少 6 位字符', 'At least 6 characters') : tt('输入密码', 'Enter password')}
                   required
                   minLength={mode === 'register' ? 6 : undefined}
                   className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
@@ -464,7 +529,7 @@ export default function AuthModalView({
                     onClick={onSwitchToForgotPassword}
                     className="text-xs text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors"
                   >
-                    账号恢复
+                    {tt('账号恢复', 'Account Recovery')}
                   </button>
                 </div>
               )}
@@ -491,12 +556,12 @@ export default function AuthModalView({
                             : 'text-green-500'
                       }`}
                     >
-                      {password.length < 6 ? '弱' : password.length < 10 ? '中' : '强'}
+                      {password.length < 6 ? tt('弱', 'Weak') : password.length < 10 ? tt('中', 'Medium') : tt('强', 'Strong')}
                     </span>
                   </div>
                   {password.length < 6 && (
                     <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-                      至少需要 6 位字符
+                      {tt('至少需要 6 位字符', 'Use at least 6 characters.')}
                     </p>
                   )}
                 </div>
@@ -507,7 +572,7 @@ export default function AuthModalView({
           {mode === 'register' && (
             <div>
               <label className="block text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">
-                确认密码
+                {tt('确认密码', 'Confirm Password')}
               </label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
@@ -515,7 +580,7 @@ export default function AuthModalView({
                   type="password"
                   value={confirmPassword}
                   onChange={onConfirmPasswordChange}
-                  placeholder="再次输入密码"
+                  placeholder={tt('再次输入密码', 'Enter password again')}
                   required
                   className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
                 />
@@ -523,13 +588,13 @@ export default function AuthModalView({
               {confirmPassword && password !== confirmPassword && (
                 <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
                   <AlertCircle size={12} />
-                  两次输入的密码不一致
+                  {tt('两次输入的密码不一致', 'The passwords do not match.')}
                 </p>
               )}
               {confirmPassword && password === confirmPassword && password.length >= 6 && (
                 <p className="text-xs text-green-500 dark:text-green-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} />
-                  密码一致
+                  {tt('密码一致', 'Passwords match')}
                 </p>
               )}
             </div>
@@ -544,10 +609,10 @@ export default function AuthModalView({
                 className="mt-0.5 accent-endfield-yellow"
               />
               <span className="text-xs text-slate-500 dark:text-zinc-500">
-                我已阅读并同意
-                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">隐私政策</a>
-                和
-                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">用户协议</a>
+                {tt('我已阅读并同意', 'I have read and agree to the')}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">{tt('隐私政策', 'Privacy Policy')}</a>
+                {tt('和', 'and')}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline mx-0.5">{tt('用户协议', 'Terms of Service')}</a>
               </span>
             </label>
           )}
@@ -555,29 +620,29 @@ export default function AuthModalView({
           <button
             type="submit"
             disabled={submitDisabled}
-            className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6"
+            className="w-full min-h-[48px] bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors shadow-lg mt-6 whitespace-normal text-center leading-tight"
           >
             {loading ? (
               <Loader2 size={20} className="animate-spin" />
             ) : mode === 'login' ? (
               <>
                 <LogIn size={20} />
-                登录
+                {tt('登录', 'Sign In')}
               </>
             ) : mode === 'register' ? (
               <>
                 <UserPlus size={20} />
-                注册
+                {tt('注册', 'Register')}
               </>
             ) : resendCooldown > 0 ? (
               <>
                 <RefreshCw size={20} />
-                {resendCooldown}秒后可重新检查
+                {tt(`${resendCooldown}秒后可重新检查`, `Retry in ${resendCooldown}s`)}
               </>
             ) : (
               <>
                 <KeyRound size={20} />
-                检查账号状态
+                {tt('检查账号状态', 'Check Account')}
               </>
             )}
           </button>
@@ -587,24 +652,24 @@ export default function AuthModalView({
           <p className="text-slate-500 dark:text-zinc-500 text-sm">
             {mode === 'login' ? (
               <>
-                还没有账户？{' '}
+                {tt('还没有账户？', "Don't have an account?")}{' '}
                 <button
                   type="button"
                   onClick={() => onSwitchMode('register')}
                   className="text-endfield-yellow hover:text-yellow-500 font-bold uppercase text-xs tracking-wider"
                 >
-                  立即注册
+                  {tt('立即注册', 'Register')}
                 </button>
               </>
             ) : mode === 'register' ? (
               <>
-                已有账户？{' '}
+                {tt('已有账户？', 'Already have an account?')}{' '}
                 <button
                   type="button"
                   onClick={() => onSwitchMode('login')}
                   className="text-endfield-yellow hover:text-yellow-500 font-bold uppercase text-xs tracking-wider"
                 >
-                  登录
+                  {tt('登录', 'Sign In')}
                 </button>
               </>
             ) : (
@@ -614,7 +679,7 @@ export default function AuthModalView({
                 className="text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors text-sm flex items-center gap-1 mx-auto"
               >
                 <ArrowLeft size={14} />
-                返回登录
+                {tt('返回登录', 'Back to Sign In')}
               </button>
             )}
           </p>

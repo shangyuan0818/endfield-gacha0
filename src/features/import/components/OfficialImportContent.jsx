@@ -11,13 +11,15 @@ import {
   Loader2
 } from 'lucide-react';
 import { ImportStatus } from '../importStatus';
+import { getPoolName } from '../importShared';
+import { useI18n } from '../../../i18n/index.js';
 
-const FetchProgressBar = ({ progress, message }) => (
+const FetchProgressBar = ({ progress, message, t }) => (
   <div className="w-full">
     <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors">
       <span className="flex items-center gap-2">
         <RefreshCw size={10} className="animate-spin text-amber-500 dark:text-yellow-500" />
-        正在获取数据
+        {t('import.official.fetching')}
       </span>
       <span>{progress}%</span>
     </div>
@@ -33,7 +35,7 @@ const FetchProgressBar = ({ progress, message }) => (
   </div>
 );
 
-const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
+const QueueStatusDisplay = ({ queueStatus, retryInfo, t }) => {
   if (!queueStatus && !retryInfo) return null;
 
   return (
@@ -44,24 +46,24 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
           {queueStatus && (
             <div className="text-xs font-mono">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-slate-700 dark:text-zinc-300 font-semibold">请求队列状态</span>
+                <span className="text-slate-700 dark:text-zinc-300 font-semibold">{t('import.official.queueStatus')}</span>
                 {queueStatus.isProcessing && (
                   <Loader2 size={12} className="animate-spin text-amber-500 dark:text-yellow-500" />
                 )}
               </div>
               <div className="grid grid-cols-2 gap-2 text-[10px]">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-zinc-400">队列长度:</span>
+                  <span className="text-slate-500 dark:text-zinc-400">{t('import.official.queueLength')}</span>
                   <span className="text-slate-700 dark:text-zinc-200 font-semibold">{queueStatus.queueLength}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-zinc-400">活动请求:</span>
+                  <span className="text-slate-500 dark:text-zinc-400">{t('import.official.activeRequests')}</span>
                   <span className="text-slate-700 dark:text-zinc-200 font-semibold">{queueStatus.activeRequests || 0}</span>
                 </div>
               </div>
               {queueStatus.oldestTaskAge > 0 && (
                 <div className="mt-1 text-[10px] text-slate-500 dark:text-zinc-400">
-                  最早任务等待: {Math.round(queueStatus.oldestTaskAge / 1000)}秒
+                  {t('import.official.oldestTaskAge', { seconds: Math.round(queueStatus.oldestTaskAge / 1000) })}
                 </div>
               )}
             </div>
@@ -71,26 +73,26 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
             <div className="text-xs font-mono border-t border-slate-300 dark:border-zinc-600 pt-2">
               <div className="flex items-center gap-2 mb-1">
                 <RefreshCw size={12} className="text-orange-500 dark:text-orange-400" />
-                <span className="text-slate-700 dark:text-zinc-300 font-semibold">正在重试</span>
+                <span className="text-slate-700 dark:text-zinc-300 font-semibold">{t('import.official.retrying')}</span>
               </div>
               <div className="text-[10px] space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-zinc-400">重试次数:</span>
+                  <span className="text-slate-500 dark:text-zinc-400">{t('import.official.retryCount')}</span>
                   <span className="text-orange-600 dark:text-orange-400 font-semibold">
                     {retryInfo.currentRetry}/{retryInfo.maxRetries}
                   </span>
                 </div>
                 {retryInfo.nextRetryIn && (
                   <div className="flex justify-between">
-                    <span className="text-slate-500 dark:text-zinc-400">下次重试:</span>
+                    <span className="text-slate-500 dark:text-zinc-400">{t('import.official.nextRetry')}</span>
                     <span className="text-slate-700 dark:text-zinc-200 font-semibold">
-                      {Math.round(retryInfo.nextRetryIn / 1000)}秒后
+                      {Math.round(retryInfo.nextRetryIn / 1000)}s
                     </span>
                   </div>
                 )}
                 {retryInfo.reason && (
                   <div className="mt-1 text-orange-600 dark:text-orange-400">
-                    原因: {retryInfo.reason}
+                    {t('import.official.retryReason', { reason: retryInfo.reason })}
                   </div>
                 )}
               </div>
@@ -100,45 +102,6 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo }) => {
       </div>
     </div>
   );
-};
-
-function getPoolName(poolType) {
-  const nameMap = {
-    limited_character: '限定角色',
-    standard: '常驻',
-    beginner: '新手',
-    limited_weapon: '武器',
-    unknown: '未知'
-  };
-  return nameMap[poolType] || poolType;
-}
-
-const IMPORT_SOURCE_OPTIONS = [
-  { key: 'cn', label: '国服', description: '官服 / B服' },
-  { key: 'intl', label: '国际服', description: '亚服 / 欧/美服' }
-];
-
-const IMPORT_SOURCE_GUIDES = {
-  cn: {
-    bindingTitle: '登录官网并绑定',
-    bindingDesc: '官服与B服均需在此绑定终末地角色：',
-    bindingUrl: 'https://user.hypergryph.com/bindCharacters?game=endfield',
-    bindingHost: 'user.hypergryph.com',
-    tokenTitle: '获取数据内容',
-    tokenDesc: '在新标签页打开链接，建议复制页面显示的完整内容，或仅复制 content 字段的值：',
-    tokenUrl: 'https://web-api.hypergryph.com/account/info/hg',
-    tokenHost: 'web-api.hypergryph.com'
-  },
-  intl: {
-    bindingTitle: '登录充值中心',
-    bindingDesc: '请先登录国际服充值中心，确保角色列表可见：',
-    bindingUrl: 'https://topup.gryphline.com/endfield',
-    bindingHost: 'topup.gryphline.com',
-    tokenTitle: '获取认证内容',
-    tokenDesc: '登录后在新标签页打开链接，复制页面显示的完整内容，或仅复制 content 字段的值：',
-    tokenUrl: 'https://web-api.gryphline.com/cookie_store/account_token',
-    tokenHost: 'web-api.gryphline.com'
-  }
 };
 
 function getAccountAccent(account = {}) {
@@ -192,8 +155,36 @@ export default function OfficialImportContent({
   onReset,
   onConfirmImport
 }) {
+  const { t } = useI18n();
+  const IMPORT_SOURCE_OPTIONS = [
+    { key: 'cn', label: t('import.source.cn.label'), description: t('import.source.cn.description') },
+    { key: 'intl', label: t('import.source.intl.label'), description: t('import.source.intl.description') }
+  ];
+  const IMPORT_SOURCE_GUIDES = {
+    cn: {
+      bindingTitle: t('import.source.cn.bindingTitle'),
+      bindingDesc: t('import.source.cn.bindingDesc'),
+      bindingUrl: 'https://user.hypergryph.com/bindCharacters?game=endfield',
+      bindingHost: 'user.hypergryph.com',
+      tokenTitle: t('import.source.cn.tokenTitle'),
+      tokenDesc: t('import.source.cn.tokenDesc'),
+      tokenUrl: 'https://web-api.hypergryph.com/account/info/hg',
+      tokenHost: 'web-api.hypergryph.com'
+    },
+    intl: {
+      bindingTitle: t('import.source.intl.bindingTitle'),
+      bindingDesc: t('import.source.intl.bindingDesc'),
+      bindingUrl: 'https://topup.gryphline.com/endfield',
+      bindingHost: 'topup.gryphline.com',
+      tokenTitle: t('import.source.intl.tokenTitle'),
+      tokenDesc: t('import.source.intl.tokenDesc'),
+      tokenUrl: 'https://web-api.gryphline.com/cookie_store/account_token',
+      tokenHost: 'web-api.gryphline.com'
+    }
+  };
   const guide = IMPORT_SOURCE_GUIDES[source] || IMPORT_SOURCE_GUIDES.cn;
   const userInfoAccent = userInfo ? getAccountAccent(userInfo) : null;
+  const switchCountdown = sourceSwitchInfo?.countdown > 0 ? ` (${sourceSwitchInfo.countdown}s)` : '';
 
   return (
     <div className="space-y-6">
@@ -201,7 +192,7 @@ export default function OfficialImportContent({
         <div className="bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 transition-colors">
           <div className="mb-4">
             <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-2">
-              区服来源
+              {t('import.official.sourceLabel')}
             </div>
             <div className="grid grid-cols-2 gap-2">
               {IMPORT_SOURCE_OPTIONS.map((option) => (
@@ -224,7 +215,7 @@ export default function OfficialImportContent({
 
           <h3 className="text-slate-800 dark:text-zinc-300 text-sm font-bold flex items-center gap-2 mb-4">
             <HelpCircle size={14} className="text-amber-600 dark:text-yellow-500" />
-            快速指南
+            {t('import.official.quickGuide')}
           </h3>
 
           <div className="space-y-4 pt-2 text-xs text-slate-500 dark:text-zinc-400 font-mono">
@@ -251,15 +242,15 @@ export default function OfficialImportContent({
             <div className="flex gap-3">
               <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">3</div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">粘贴至下方</p>
-                <p className="text-slate-500 dark:text-zinc-500 mb-2">将复制的内容粘贴在下方输入框中：</p>
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{t('import.official.pasteTitle')}</p>
+                <p className="text-slate-500 dark:text-zinc-500 mb-2">{t('import.official.pasteDesc')}</p>
                 <div className="bg-slate-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-700 p-2 text-[10px] font-mono rounded-sm leading-relaxed transition-colors">
                   <span className="text-slate-500 dark:text-zinc-500">{'{'}</span><br />
                   <span className="text-slate-500 dark:text-zinc-500 ml-2">"code": 0,</span><br />
                   <span className="text-slate-500 dark:text-zinc-500 ml-2">"data": {'{'}</span><br />
                   <span className="text-purple-600 dark:text-purple-400 ml-4">"content"</span><span className="text-slate-500 dark:text-zinc-500">: </span>
                   <span className="text-green-600 dark:text-green-400">"AbCdEf123456789012345678"</span><br />
-                  <span className="text-slate-500 dark:text-zinc-500 ml-2">{'}'}</span><span className="text-slate-400 dark:text-zinc-600 ml-2">// ← 复制引号内的24位字符</span><br />
+                  <span className="text-slate-500 dark:text-zinc-500 ml-2">{'}'}</span><span className="text-slate-400 dark:text-zinc-600 ml-2">{t('import.official.copyHint')}</span><br />
                   <span className="text-slate-500 dark:text-zinc-500">{'}'}</span>
                 </div>
               </div>
@@ -272,24 +263,24 @@ export default function OfficialImportContent({
         <div className="space-y-4">
           <div className="relative">
             <label className="block text-[10px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-2">
-              身份认证 Token
+              {t('import.official.tokenLabel')}
             </label>
             <input
               type="text"
               value={tokenInput}
               onChange={onTokenChange}
               className="w-full bg-white dark:bg-black/30 border border-zinc-300 dark:border-zinc-700 p-4 font-mono text-center text-lg text-slate-800 dark:text-white focus:border-amber-500 dark:focus:border-yellow-500 focus:outline-none transition-colors placeholder:text-slate-400 dark:placeholder:text-zinc-700"
-              placeholder={`粘贴${source === 'intl' ? '国际服' : '国服'}24位Token或完整JSON`}
+              placeholder={t('import.official.tokenPlaceholder', { region: source === 'intl' ? t('import.source.intl.label') : t('import.source.cn.label') })}
             />
             <div className="absolute right-3 top-[38px] text-[10px] text-slate-400 dark:text-zinc-600 font-mono pointer-events-none">
-              {tokenInput.trim().length} 字符
+              {tokenInput.trim().length} chars
             </div>
           </div>
 
           {autoDetected && tokenInput.length === 24 && (
             <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-500 font-mono bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/30 px-3 py-2 transition-colors">
               <CheckCircle size={14} />
-              <span>已从JSON中自动提取Token</span>
+              <span>{t('import.official.autoDetected')}</span>
             </div>
           )}
 
@@ -298,7 +289,7 @@ export default function OfficialImportContent({
             disabled={!tokenInput.trim()}
             className="w-full bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 disabled:opacity-50 disabled:hover:bg-amber-500 dark:disabled:hover:bg-yellow-500 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2 group"
           >
-            开始导入
+            {t('import.official.start')}
             <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
@@ -309,10 +300,10 @@ export default function OfficialImportContent({
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 transition-colors">
             <div className="flex items-center gap-2 mb-3">
               <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">检测到多个游戏账号</span>
+              <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">{t('import.official.multipleAccounts')}</span>
             </div>
             <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono mb-4">
-              请选择要导入抽卡记录的账号：
+              {t('import.official.selectAccount')}
             </p>
 
             <div className="space-y-2">
@@ -349,29 +340,31 @@ export default function OfficialImportContent({
             onClick={onReset}
             className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
           >
-            [ 取消并返回 ]
+            {t('import.official.cancelAndBack')}
           </button>
         </div>
       )}
 
       {(status === ImportStatus.AUTHENTICATING || status === ImportStatus.FETCHING || status === ImportStatus.PROCESSING) && (
         <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
-          <FetchProgressBar progress={progress} message={statusMessage} />
+          <FetchProgressBar progress={progress} message={statusMessage} t={t} />
           {sourceSwitchInfo && (
             <div className="mt-3 flex items-center gap-2 text-xs font-mono bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sky-700 dark:text-sky-400 transition-colors">
               <RefreshCw size={12} className="animate-spin" />
               <span>
-                正在自动切换到{sourceSwitchInfo.to === 'intl' ? '国际服' : '国服'}
-                {sourceSwitchInfo.countdown > 0 && `（${sourceSwitchInfo.countdown}s）`}
+                {t('import.official.switching', {
+                  target: sourceSwitchInfo.to === 'intl' ? t('import.source.intl.label') : t('import.source.cn.label'),
+                  countdown: switchCountdown
+                })}
               </span>
             </div>
           )}
-          <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} />
+          <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} t={t} />
           <button
             onClick={onCancel}
             className="mt-6 w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
           >
-            [ 取消操作 ]
+            {t('import.official.cancelOperation')}
           </button>
         </div>
       )}
@@ -381,7 +374,7 @@ export default function OfficialImportContent({
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 p-4 flex gap-3 transition-colors">
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 shrink-0" />
             <div>
-              <h4 className="text-red-600 dark:text-red-500 font-bold text-sm mb-1">导入失败</h4>
+              <h4 className="text-red-600 dark:text-red-500 font-bold text-sm mb-1">{t('import.official.failure')}</h4>
               <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">{error}</p>
             </div>
           </div>
@@ -389,7 +382,7 @@ export default function OfficialImportContent({
             onClick={onReset}
             className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
           >
-            重试
+            {t('common.retry')}
           </button>
         </div>
       )}
@@ -418,7 +411,7 @@ export default function OfficialImportContent({
           <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-500/20 p-4 transition-colors">
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle className="text-green-600 dark:text-green-500" size={16} />
-              <span className="text-green-600 dark:text-green-500 font-bold text-sm">数据获取成功</span>
+              <span className="text-green-600 dark:text-green-500 font-bold text-sm">{t('import.official.fetchSuccess')}</span>
             </div>
 
             <div className="grid grid-cols-4 gap-2">
@@ -438,14 +431,14 @@ export default function OfficialImportContent({
             </div>
 
             <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50 transition-colors">
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase mb-2">卡池分布</p>
+              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase mb-2">{t('import.official.poolDistribution')}</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(importSummary.byPoolType || importSummary.byPool).map(([pool, count]) => (
                   <span
                     key={pool}
                     className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 px-2 py-1 text-xs text-slate-500 dark:text-zinc-400 font-mono transition-colors"
                   >
-                    {getPoolName(pool)}: <span className="text-slate-800 dark:text-white">{count}</span>
+                    {getPoolName(pool, t)}: <span className="text-slate-800 dark:text-white">{count}</span>
                   </span>
                 ))}
               </div>
@@ -453,7 +446,7 @@ export default function OfficialImportContent({
 
             {importSummary.sixStars && importSummary.sixStars.length > 0 && (
               <div className="mt-4">
-                <p className="text-[10px] text-amber-600/70 dark:text-yellow-500/70 font-mono uppercase mb-2">获得的6星</p>
+                <p className="text-[10px] text-amber-600/70 dark:text-yellow-500/70 font-mono uppercase mb-2">{t('import.official.sixStarDrops')}</p>
                 <div className="flex flex-wrap gap-2">
                   {importSummary.sixStars.map((record, index) => (
                     <span
@@ -474,13 +467,13 @@ export default function OfficialImportContent({
               onClick={onReset}
               className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
             >
-              重新获取
+              {t('import.official.refetch')}
             </button>
             <button
               onClick={onConfirmImport}
               className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors"
             >
-              确认并保存
+              {t('import.official.confirmSave')}
             </button>
           </div>
         </div>

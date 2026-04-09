@@ -2,6 +2,7 @@ import {
   getHistoryRecordTimestampMs,
   normalizeMetadataTimestamp
 } from './gameAccountMetadata.js';
+import { formatAppDateTime, getAppLocale, getMessage } from '../i18n/index.js';
 
 function parseTimestampMs(value) {
   const normalized = normalizeMetadataTimestamp(value);
@@ -29,21 +30,24 @@ export function getLatestHistoryTimestampMs(records = []) {
   return latestTimestamp;
 }
 
-export function formatFreshnessAbsolute(value, fallback = '未知') {
+export function formatFreshnessAbsolute(value, fallback = null, locale = getAppLocale(), options = {}) {
   const timestamp = parseTimestampMs(value);
   if (!timestamp) {
-    return fallback;
+    return fallback ?? getMessage('common.unknown', {}, locale);
   }
 
-  return new Date(timestamp).toLocaleString('zh-CN', {
-    hour12: false
-  });
+  return formatAppDateTime(
+    timestamp,
+    locale,
+    { hour12: false, ...options },
+    fallback ?? getMessage('common.unknown', {}, locale)
+  );
 }
 
-export function formatFreshnessRelative(value, unknownLabel = '时间未知') {
+export function formatFreshnessRelative(value, unknownLabel = null, locale = getAppLocale()) {
   const timestamp = parseTimestampMs(value);
   if (!timestamp) {
-    return unknownLabel;
+    return unknownLabel ?? getMessage('common.timeUnknown', {}, locale);
   }
 
   const delta = Math.max(0, Date.now() - timestamp);
@@ -52,28 +56,27 @@ export function formatFreshnessRelative(value, unknownLabel = '时间未知') {
   const day = 24 * hour;
   const month = 30 * day;
   const year = 365 * day;
-
   if (delta < minute) {
-    return '刚刚更新';
+    return getMessage('common.justUpdated', {}, locale);
   }
 
   if (delta < hour) {
-    return `${Math.floor(delta / minute)} 分钟未更新`;
+    return getMessage('common.minutesStale', { count: Math.floor(delta / minute) }, locale);
   }
 
   if (delta < day) {
-    return `${Math.floor(delta / hour)} 小时未更新`;
+    return getMessage('common.hoursStale', { count: Math.floor(delta / hour) }, locale);
   }
 
   if (delta < month) {
-    return `${Math.floor(delta / day)} 天未更新`;
+    return getMessage('common.daysStale', { count: Math.floor(delta / day) }, locale);
   }
 
   if (delta < year) {
-    return `${Math.floor(delta / month)} 个月未更新`;
+    return getMessage('common.monthsStale', { count: Math.floor(delta / month) }, locale);
   }
 
-  return `${Math.floor(delta / year)} 年未更新`;
+  return getMessage('common.yearsStale', { count: Math.floor(delta / year) }, locale);
 }
 
 export function getFreshnessTone(value) {
