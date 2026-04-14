@@ -9,6 +9,7 @@ import { preloadPublicBootstrap } from './services/bootstrapService'
 import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 import { appLogger } from './utils/appLogger.js'
 import { prepareFreshNavigation } from './utils/serviceWorkerRecovery.js'
+import { I18nProvider } from './i18n/index.js'
 
 function syncDeviceRedirect() {
   const preference = localStorage.getItem('platform-preference');
@@ -46,9 +47,11 @@ async function bootstrapApp() {
 
   createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <AppRouter />
-      </BrowserRouter>
+      <I18nProvider>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <AppRouter />
+        </BrowserRouter>
+      </I18nProvider>
       <Analytics />
     </StrictMode>,
   );

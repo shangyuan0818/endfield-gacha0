@@ -1,22 +1,43 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
+import TermsOfServiceEnglishContent from './TermsOfServiceEnglishContent';
 
 /**
  * 用户服务协议页面
  */
 export default function TermsOfService() {
+  const { isEnglish, t } = useI18n();
+
+  useEffect(() => {
+    document.title = isEnglish
+      ? 'Terms of Service | Endfield Gacha Analyzer'
+      : '用户服务协议 | 终末地抽卡分析器';
+
+    return () => {
+      document.title = t('app.documentTitle');
+    };
+  }, [isEnglish, t]);
+
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-slate-800 dark:text-zinc-200">
       <div className="max-w-3xl mx-auto px-6 py-12">
         <a href="/" className="inline-flex items-center gap-1 text-sm text-slate-500 dark:text-zinc-500 hover:text-endfield-yellow transition-colors mb-8">
           <ArrowLeft size={16} />
-          返回首页
+          {isEnglish ? 'Back to Home' : '返回首页'}
         </a>
 
-        <h1 className="text-2xl font-bold mb-2">用户服务协议</h1>
-        <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年2月23日</p>
-
-        <div className="space-y-6 text-sm leading-relaxed">
+        {isEnglish ? (
+          <>
+            <h1 className="text-2xl font-bold mb-2">Terms of Service</h1>
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">Last updated: February 23, 2026</p>
+            <TermsOfServiceEnglishContent />
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold mb-2">用户服务协议</h1>
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年2月23日</p>
+            <div className="space-y-6 text-sm leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold mb-2">一、协议范围</h2>
             <p>本协议是您与终末地抽卡分析器（以下简称"本工具"）之间关于使用本工具服务的法律协议。注册或使用本工具即表示您已阅读、理解并同意受本协议约束。</p>
@@ -99,7 +120,9 @@ export default function TermsOfService() {
               <li>GitHub Issues</li>
             </ul>
           </section>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

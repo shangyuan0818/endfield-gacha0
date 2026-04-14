@@ -2,6 +2,7 @@ import {
   buildOverviewTimelineSections,
   buildSinglePoolTimelineSection
 } from './poolTimelineView.js';
+import { getAppLocale } from '../i18n/index.js';
 
 function getOverviewPoolFilterType(pool) {
   if (pool?.type === 'weapon' || pool?.type === 'limited_weapon') {
@@ -34,7 +35,8 @@ export function buildDashboardTimelineSections({
   analysisPity = null,
   overviewAnalysisPityMap = null,
   overviewPoolFilter = 'all',
-  hasMergedAccountView = false
+  hasMergedAccountView = false,
+  locale = getAppLocale()
 }) {
   if (isGroupMode) {
     const visiblePools = isAllPoolsOverview
@@ -45,7 +47,8 @@ export function buildDashboardTimelineSections({
       pools: visiblePools,
       history: currentPoolHistory,
       analysisPityByPoolId: overviewAnalysisPityMap,
-      disablePityState: hasMergedAccountView
+      disablePityState: hasMergedAccountView,
+      locale
     });
   }
 
@@ -56,7 +59,8 @@ export function buildDashboardTimelineSections({
     currentPityOverride: hasMergedAccountView ? null : (analysisPity?.displayPity6 ?? effectivePity?.pity6),
     currentPity5Override: hasMergedAccountView ? null : (analysisPity?.displayPity5 ?? effectivePity?.pity5),
     currentTargetPullsOverride: analysisPity?.maxPity6,
-    disablePityState: hasMergedAccountView
+    disablePityState: hasMergedAccountView,
+    locale
   });
 
   return section ? [section] : [];
@@ -65,4 +69,3 @@ export function buildDashboardTimelineSections({
 export function countDashboardTimelineNodes(sections = []) {
   return sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
 }
-

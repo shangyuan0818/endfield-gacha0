@@ -14,6 +14,7 @@ import {
 } from '../../utils/dataFreshness.js';
 import { isPoolGroupId } from '../../stores/usePoolStore';
 import { getDesktopPathForTab } from '../../constants/appRoutes';
+import { useI18n } from '../../i18n/index.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -38,25 +39,25 @@ function CompactFreshnessCard({
   fallback = false
 }) {
   return (
-    <div className="min-w-[220px] flex-1 border border-zinc-200 bg-white/70 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/70">
+    <div className="min-w-0 border border-zinc-200 bg-white/80 px-3.5 py-3 dark:border-zinc-800 dark:bg-zinc-900/80">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-zinc-500">
+        <div className="min-w-0 space-y-1">
+          <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-zinc-500">
             {label}
           </div>
-          <div className="mt-1 truncate text-xs font-bold text-slate-800 dark:text-zinc-100">
+          <div className="text-sm font-bold leading-tight text-slate-800 dark:text-zinc-100 break-words">
             {title}
           </div>
-          <div className="mt-1 truncate text-[11px] font-mono text-slate-500 dark:text-zinc-400">
+          <div className="text-[11px] leading-tight font-mono text-slate-500 dark:text-zinc-400 break-words">
             {metaText}
           </div>
           {detailText && (
-            <div className="truncate text-[10px] font-mono text-slate-400 dark:text-zinc-500">
+            <div className="text-[10px] leading-tight font-mono text-slate-400 dark:text-zinc-500 break-words">
               {detailText}
             </div>
           )}
         </div>
-        <span className={`shrink-0 px-2 py-1 text-[10px] font-bold border ${getFreshnessToneClasses(tone)} ${fallback ? 'opacity-80' : ''}`}>
+        <span className={`mt-0.5 shrink-0 px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(tone)} ${fallback ? 'opacity-80' : ''}`}>
           {badgeText}
         </span>
       </div>
@@ -69,6 +70,7 @@ function CompactFreshnessCard({
  * 卡池管理功能已移至管理页面，仅超管可操作
  */
 const PoolSelector = () => {
+  const { t, locale, formatNumber } = useI18n();
   const navigate = useNavigate();
   // 从 stores 获取状态
   const pools = usePoolStore(state => state.pools);
@@ -129,9 +131,10 @@ const PoolSelector = () => {
     return buildPoolSelectorGroups({
       pools: selectorPools,
       poolPullCounts,
-      searchQuery
+      searchQuery,
+      locale,
     });
-  }, [poolPullCounts, searchQuery, selectorPools]);
+  }, [locale, poolPullCounts, searchQuery, selectorPools]);
 
   const totalPools = pools.length;
   const visiblePools = selectorPools.length;
@@ -179,8 +182,15 @@ const PoolSelector = () => {
   }, [currentPoolId, currentViewLatestRecordAt, filteredHistory]);
 
   const currentPoolFreshnessLabel = currentPool
-    ? `当前卡池 · ${currentPool.name}`
-    : '当前筛选';
+    ? t('pool.selector.currentBanner', { name: currentPool.name })
+    : t('pool.selector.currentFilter');
+
+  const totalPart = visiblePools !== totalPools ? `/${formatNumber(totalPools)}` : '';
+  const summaryLabel = t('pool.selector.summary', {
+    visible: formatNumber(visiblePools),
+    totalPart,
+    pulls: formatNumber(totalPulls)
+  });
 
   useEffect(() => {
     if (gameAccounts.length === 1) {
@@ -224,11 +234,11 @@ const PoolSelector = () => {
               className="flex items-center gap-2 px-4 py-2 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wider transition-all"
             >
               <Upload size={14} />
-              导入数据
+              {t('pool.selector.import')}
             </button>
           ) : (
             <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
-              [ 请登录以导入数据 ]
+              {t('pool.selector.loginToImport')}
             </div>
           )}
 
@@ -241,7 +251,7 @@ const PoolSelector = () => {
               >
                 <User size={14} className="text-slate-500 dark:text-zinc-400" />
                 <span className="text-slate-700 dark:text-zinc-300">
-                  {gameAccounts.find(a => a.gameUid === currentGameUid)?.nickName || '全部账号'}
+                  {gameAccounts.find(a => a.gameUid === currentGameUid)?.nickName || t('pool.selector.allAccounts')}
                 </span>
                 {gameAccounts.find(a => a.gameUid === currentGameUid)?.serverTag && (
                   <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
@@ -262,7 +272,7 @@ const PoolSelector = () => {
                       !currentGameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
                     }`}
                   >
-                    全部账号
+                    {t('pool.selector.allAccounts')}
                   </button>
                   {gameAccounts.map(account => (
                     <button
@@ -283,9 +293,16 @@ const PoolSelector = () => {
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
+                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        {t('pool.selector.accountRecordCount', {
+                          uid: account.gameUid,
+                          count: formatNumber(account.recordCount || 0)
+                        })}
+                      </div>
                       <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
-                        上次导入: {formatFreshnessRelative(account.lastImportedAt, '时间未知')}
+                        {t('settings.lastImport', {
+                          value: formatFreshnessRelative(account.lastImportedAt, t('common.timeUnknown'), locale)
+                        })}
                       </div>
                     </button>
                   ))}
@@ -295,35 +312,36 @@ const PoolSelector = () => {
           )}
         </div>
 
-        {(currentAccount || gameAccounts.length > 1 || currentPoolLatestRecordAt) && (
-          <div className="flex min-w-[320px] flex-1 flex-wrap items-center gap-3">
-            <CompactFreshnessCard
-              label="账号数据"
-              title={currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : '多账号总览'}
-              badgeText={currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, '导入时间未知') : '切换账号'}
-              metaText={currentAccount
-                ? `上次导入 ${formatFreshnessAbsolute(currentAccount.lastImportedAt)}`
-                : '导入时间请按账号分别查看'}
-              detailText={currentAccount?.latestRecordAt ? `最新记录 ${formatFreshnessAbsolute(currentAccount.latestRecordAt)}` : null}
-              tone={getFreshnessTone(currentAccount?.lastImportedAt)}
-              fallback={!currentAccount}
-            />
-
-            <CompactFreshnessCard
-              label="卡池数据"
-              title={currentPoolFreshnessLabel}
-              badgeText={formatFreshnessRelative(currentPoolLatestRecordAt, '暂无记录')}
-              metaText={`最新记录 ${formatFreshnessAbsolute(currentPoolLatestRecordAt)}`}
-              detailText={currentPool ? `当前抽数 ${poolPullCounts[currentPool.id] || 0} 抽` : null}
-              tone={getFreshnessTone(currentPoolLatestRecordAt)}
-            />
-          </div>
-        )}
-
         {/* 搜索与统计 */}
         <div className="ml-auto flex items-center gap-4">
-          {/* 搜索 */}
+          {/* 数据新鲜度与搜索 */}
           <div className="flex items-center gap-3">
+            {/* 账号与卡池数据状态 (紧凑版) */}
+            <div className="hidden md:flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-800 pr-3">
+              {(currentAccount || gameAccounts.length > 1) && (
+                <div
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(currentAccount?.lastImportedAt))}`}
+                  title={currentAccount
+                    ? `${currentAccount.nickName} · ${t('pool.selector.meta.imported', { value: formatFreshnessAbsolute(currentAccount.lastImportedAt, null, locale, { includeYear: false }) })}`
+                    : t('pool.selector.switchAccountHint')}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${!currentAccount ? 'bg-zinc-400' : getFreshnessTone(currentAccount.lastImportedAt) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(currentAccount.lastImportedAt) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className="hidden xl:inline font-bold tracking-widest uppercase">{t('pool.selector.accountStatus', 'ACCOUNT')}:</span>
+                  <span>{currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}</span>
+                </div>
+              )}
+              {currentPoolLatestRecordAt && (
+                <div
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}
+                  title={`${currentPoolFreshnessLabel} · ${t('pool.selector.meta.latestRecord', { value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false }) })}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${getFreshnessTone(currentPoolLatestRecordAt) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(currentPoolLatestRecordAt) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className="hidden xl:inline font-bold tracking-widest uppercase">{t('pool.selector.poolStatus', 'POOL')}:</span>
+                  <span>{formatFreshnessRelative(currentPoolLatestRecordAt, t('pool.selector.noRecords'), locale)}</span>
+                </div>
+              )}
+            </div>
+
             {zeroPullPoolCount > 0 && (
               <button
                 type="button"
@@ -333,10 +351,10 @@ const PoolSelector = () => {
                     ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
                     : 'border-zinc-200 bg-white text-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
                 }`}
-                title={hideZeroPullPools ? '当前会隐藏零抽数卡池' : '当前会显示零抽数卡池'}
+                title={hideZeroPullPools ? t('pool.selector.hideZeroTitle') : t('pool.selector.showZeroTitle')}
               >
                 <span className={`h-2 w-2 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
-                <span>{hideZeroPullPools ? '隐藏零抽卡池' : '显示零抽卡池'}</span>
+                <span>{hideZeroPullPools ? t('pool.selector.hideZeroLabel') : t('pool.selector.showZeroLabel')}</span>
               </button>
             )}
 
@@ -347,7 +365,7 @@ const PoolSelector = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="SEARCH POOLS..."
+                  placeholder={t('pool.selector.searchPlaceholder')}
                   className="w-40 pl-8 pr-8 py-1.5 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-700 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-700 transition-colors"
                 />
                 {searchQuery && (
@@ -364,11 +382,7 @@ const PoolSelector = () => {
 
           {/* 统计 */}
           <div className="text-xs font-mono text-slate-500 dark:text-zinc-400">
-            <span className="text-slate-700 dark:text-zinc-300 font-bold">{visiblePools}</span>
-            {visiblePools !== totalPools && (
-              <span className="text-slate-400 dark:text-zinc-500">/{totalPools}</span>
-            )} POOLS /
-            <span className="text-slate-700 dark:text-zinc-300 font-bold ml-1">{totalPulls}</span> PULLS
+            {summaryLabel}
           </div>
         </div>
       </div>
@@ -382,7 +396,7 @@ const PoolSelector = () => {
           onSelectPool={switchPool}
           showGroupOverviewCards={showOverviewOptions}
           leadingOverview={showOverviewOptions ? {
-            title: '全部卡池总览',
+            title: t('pool.selector.allOverview'),
             totalPools: visiblePools,
             totalPulls,
             isSelected: currentPoolId === allOverviewId,
@@ -392,7 +406,7 @@ const PoolSelector = () => {
       ) : (
         <div className="text-center py-12 border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
           <div className="text-slate-400 dark:text-zinc-500 text-sm font-mono">
-            {searchQuery ? 'NO MATCHES FOUND' : (user ? 'NO DATA • IMPORT TO START' : 'NO DATA')}
+            {searchQuery ? t('pool.selector.noMatches') : (user ? t('pool.selector.noPoolDataImport') : t('pool.selector.noPoolData'))}
           </div>
         </div>
       )}

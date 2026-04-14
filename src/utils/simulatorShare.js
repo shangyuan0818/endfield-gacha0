@@ -5,6 +5,7 @@ import {
   SHARE_CARD_WIDTH
 } from './shareBranding.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
+import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
 
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
 const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
@@ -32,19 +33,21 @@ function roundAverage(value) {
   return parsed > 0 ? parsed.toFixed(2) : '0.00';
 }
 
-function getPoolTypeLabel(poolType) {
+function getPoolTypeLabel(poolType, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (poolType === 'limited') {
-    return '限定寻访';
+    return english ? 'Limited Banner' : '限定寻访';
   }
 
   if (poolType === 'weapon') {
-    return '武器寻访';
+    return english ? 'Weapon Banner' : '武器寻访';
   }
 
-  return '常驻寻访';
+  return english ? 'Standard Banner' : '常驻寻访';
 }
 
-function buildResourceItems(resources) {
+function buildResourceItems(resources, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!resources) {
     return [];
   }
@@ -52,32 +55,33 @@ function buildResourceItems(resources) {
   return [
     {
       id: 'jade-spent',
-      label: '耗玉',
-      value: normalizeNumber(resources.jadeSpent).toLocaleString(),
-      hint: '角色池计费'
+      label: english ? 'Oroberyl Spent' : '耗金玉',
+      value: formatAppNumber(normalizeNumber(resources.jadeSpent), locale),
+      hint: english ? 'Character banner cost' : '角色池计费'
     },
     {
       id: 'originite-equivalent',
-      label: '石折玉',
+      label: english ? 'Origeometry Equivalent' : '衍质折金玉',
       value: formatOriginiteEquivalent(resources.originiteEquivalent || 0),
-      hint: '按当前换算比例'
+      hint: english ? 'Current conversion rate' : '按当前换算比例'
     },
     {
       id: 'arsenal-gained',
-      label: '得配额',
-      value: normalizeNumber(resources.arsenalGained).toLocaleString(),
-      hint: '4★ / 5★ / 6★ 转化'
+      label: english ? 'Arsenal Tickets Gained' : '得武库配额',
+      value: formatAppNumber(normalizeNumber(resources.arsenalGained), locale),
+      hint: english ? 'Converted from 4★ / 5★ / 6★' : '4★ / 5★ / 6★ 转化'
     },
     {
       id: 'arsenal-spent',
-      label: '耗配额',
-      value: normalizeNumber(resources.arsenalSpent).toLocaleString(),
-      hint: '武器池计费'
+      label: english ? 'Arsenal Tickets Spent' : '耗武库配额',
+      value: formatAppNumber(normalizeNumber(resources.arsenalSpent), locale),
+      hint: english ? 'Weapon banner cost' : '武器池计费'
     }
   ];
 }
 
-function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee) {
+function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (poolType === 'limited') {
     const current = Math.min(
       normalizeNumber(pityInfoWithGuarantee?.guaranteedUp?.current, totalPulls),
@@ -86,11 +90,11 @@ function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee) {
     const achieved = Boolean(pityInfoWithGuarantee?.guaranteedUp?.hasReceived);
 
     return {
-      label: '120抽必出限定',
+      label: english ? 'Limited guaranteed within 120 pulls' : '120抽必出限定',
       current,
       target: 120,
       achieved,
-      summary: achieved ? '已达成' : `${current}/120`,
+      summary: achieved ? (english ? 'Completed' : '已达成') : `${current}/120`,
     };
   }
 
@@ -102,11 +106,11 @@ function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee) {
     const achieved = Boolean(pityInfoWithGuarantee?.guaranteedUp?.hasReceived);
 
     return {
-      label: '80抽首轮限定必出',
+      label: english ? 'First-round limited guaranteed within 80 pulls' : '80抽首轮限定必出',
       current,
       target: 80,
       achieved,
-      summary: achieved ? '已达成' : `${current}/80`,
+      summary: achieved ? (english ? 'Completed' : '已达成') : `${current}/80`,
     };
   }
 
@@ -114,11 +118,11 @@ function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee) {
   const achieved = totalPulls >= 300;
 
   return {
-    label: '300抽自选进度',
+    label: english ? '300-pull selector progress' : '300抽自选进度',
     current,
     target: 300,
     achieved,
-    summary: achieved ? '已达成' : `${current}/300`,
+    summary: achieved ? (english ? 'Completed' : '已达成') : `${current}/300`,
   };
 }
 
@@ -127,7 +131,7 @@ export function buildSimulatorSharePayload({
   dashboardStats,
   pityInfoWithGuarantee,
   resourceLedger,
-} = {}) {
+} = {}, locale = getAppLocale()) {
   const poolType = currentPoolObj?.type || 'limited';
   const totalPulls = normalizeNumber(dashboardStats?.total);
   const sixStarCount = normalizeNumber(dashboardStats?.sixStarCount);
@@ -141,8 +145,8 @@ export function buildSimulatorSharePayload({
 
   return {
     poolType,
-    poolTypeLabel: getPoolTypeLabel(poolType),
-    poolName: currentPoolObj?.name || '未选择卡池',
+    poolTypeLabel: getPoolTypeLabel(poolType, locale),
+    poolName: currentPoolObj?.name || (isEnglishLocale(locale) ? 'No pool selected' : '未选择卡池'),
     upCharacter: currentPoolObj?.up_character || null,
     totalPulls,
     sixStarCount,
@@ -154,40 +158,41 @@ export function buildSimulatorSharePayload({
     avgPullsPerSixStar,
     currentPity6: normalizeNumber(dashboardStats?.currentPity),
     currentPity5: normalizeNumber(dashboardStats?.currentPity5),
-    guaranteeProgress: buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee),
-    resourceItems: buildResourceItems(resourceLedger),
+    guaranteeProgress: buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee, locale),
+    resourceItems: buildResourceItems(resourceLedger, locale),
   };
 }
 
-export function buildSimulatorShareText(payload) {
+export function buildSimulatorShareText(payload, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
   if (!payload) {
     return '';
   }
 
   const lines = [
-    `【终末地${payload.poolTypeLabel}模拟分享】`,
-    '已脱敏分享卡',
+    getMessage('share.simulator.scope', { scope: payload.poolTypeLabel }, locale),
+    getMessage('share.card.desensitized', {}, locale),
     '',
-    `当前卡池：${payload.poolName}`,
-    `总抽数：${payload.totalPulls}`,
-    `6星：${payload.sixStarCount}（${payload.sixStarRate}%）`,
-    `5星：${payload.fiveStarCount}（${payload.fiveStarRate}%）`,
+    `${english ? 'Pool' : '当前卡池'}：${payload.poolName}`,
+    `${english ? 'Total Pulls' : '总抽数'}：${payload.totalPulls}`,
+    `6★：${payload.sixStarCount} (${payload.sixStarRate}%)`,
+    `5★：${payload.fiveStarCount} (${payload.fiveStarRate}%)`,
   ];
 
   if (payload.upCharacter) {
-    lines.push(`当前UP：${payload.upCharacter}`);
+    lines.push(`${english ? 'Current UP' : '当前UP'}：${payload.upCharacter}`);
   }
 
   if (payload.upSixStarCount !== null) {
-    lines.push(`UP 6星：${payload.upSixStarCount}`);
+    lines.push(`UP 6★：${payload.upSixStarCount}`);
   }
 
   if (payload.winRate !== null) {
-    lines.push(`不歪率：${payload.winRate}%`);
+    lines.push(`${english ? 'Target Rate' : '不歪率'}：${payload.winRate}%`);
   }
 
-  lines.push(`平均出货：${payload.avgPullsPerSixStar} 抽/${payload.poolType === 'standard' ? '6★' : 'UP'}`);
-  lines.push(`当前保底：6星 ${payload.currentPity6} / 5星 ${payload.currentPity5}`);
+  lines.push(`${english ? 'Average' : '平均出货'}：${payload.avgPullsPerSixStar} ${english ? `pulls/${payload.poolType === 'standard' ? '6★' : 'UP'}` : `抽/${payload.poolType === 'standard' ? '6★' : 'UP'}`}`);
+  lines.push(`${english ? 'Current Pity' : '当前保底'}：6★ ${payload.currentPity6} / 5★ ${payload.currentPity5}`);
   lines.push(`${payload.guaranteeProgress.label}：${payload.guaranteeProgress.summary}`);
 
   if (Array.isArray(payload.resourceItems) && payload.resourceItems.length > 0) {
@@ -197,9 +202,9 @@ export function buildSimulatorShareText(payload) {
   }
 
   lines.push('');
-  lines.push('来自终末地抽卡分析器模拟器');
-  lines.push(`网站：${SHARE_BRAND_LINK}`);
-  lines.push('不含账号、UID、时间戳与逐抽资源流水');
+  lines.push(getMessage('share.simulator.from', {}, locale));
+  lines.push(getMessage('share.site', { value: SHARE_BRAND_LINK }, locale));
+  lines.push(getMessage('share.simulator.noteDesensitized', {}, locale));
 
   return lines.join('\n');
 }
@@ -513,10 +518,10 @@ export async function shareImageFile(file, options = {}) {
   return true;
 }
 
-export async function shareSimulatorShareCardFile(file, payload) {
+export async function shareSimulatorShareCardFile(file, payload, locale = getAppLocale()) {
   return shareImageFile(file, {
-    title: `${payload.poolTypeLabel}模拟分享`,
-    text: buildSimulatorShareText(payload),
+    title: getMessage('share.simulator.scope', { scope: payload.poolTypeLabel }, locale),
+    text: buildSimulatorShareText(payload, locale),
   });
 }
 

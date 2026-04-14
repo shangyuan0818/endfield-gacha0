@@ -1,7 +1,13 @@
 import React, { forwardRef, useMemo } from 'react';
 import ShareBrandPanel from '../../components/share/ShareBrandPanel';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '../../utils/shareBranding';
+import {
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_WIDTH,
+  SHARE_FONT_MONO,
+  SHARE_FONT_SANS
+} from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
+import { useI18n } from '../../i18n/index.js';
 
 const cardStyles = {
   root: {
@@ -14,7 +20,7 @@ const cardStyles = {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    fontFamily: '"Microsoft YaHei UI", "Segoe UI", sans-serif',
+    fontFamily: SHARE_FONT_SANS,
     border: '2px solid #27272a',
     position: 'relative',
     overflow: 'hidden',
@@ -160,6 +166,7 @@ const cardStyles = {
     lineHeight: 1.1,
     fontWeight: 800,
     color: '#fafafa',
+    fontFamily: SHARE_FONT_MONO,
   },
   statPillHint: {
     fontSize: '11px',
@@ -195,6 +202,7 @@ const cardStyles = {
     lineHeight: 1,
     fontWeight: 800,
     color: '#fafafa',
+    fontFamily: SHARE_FONT_MONO,
   },
   metricSub: {
     fontSize: '15px',
@@ -227,6 +235,7 @@ const cardStyles = {
     fontSize: '22px',
     color: '#fafafa',
     fontWeight: 800,
+    fontFamily: SHARE_FONT_MONO,
   },
   footerHint: {
     fontSize: '13px',
@@ -272,6 +281,7 @@ const cardStyles = {
     fontSize: '12px',
     fontWeight: 700,
     color: '#d4d4d8',
+    fontFamily: SHARE_FONT_MONO,
   },
   timelineSection: {
     border: '1px solid #27272a',
@@ -440,16 +450,16 @@ function getAccentColor(poolType) {
   return '#facc15';
 }
 
-function getPoolTypeChipLabel(poolType) {
+function getPoolTypeChipLabel(poolType, t) {
   if (poolType === 'weapon') {
-    return '武器池';
+    return t('dashboard.timeline.section.weapon');
   }
 
   if (poolType === 'standard') {
-    return '常驻角色池';
+    return t('dashboard.timeline.section.standard');
   }
 
-  return '限定角色池';
+  return t('dashboard.timeline.section.limited');
 }
 
 function getLeadBadge(entry, featured) {
@@ -480,13 +490,13 @@ function getTimelineBarColor(sectionType, entry) {
   return '#facc15';
 }
 
-function formatAveragePulls(value) {
+function formatAveragePulls(value, locale, t) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
     return '--';
   }
 
-  return `${numericValue.toFixed(1)} 抽`;
+  return `${numericValue.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${t('simulator.analysis.pullUnit')}`;
 }
 
 function getResourceIcon(itemId) {
@@ -530,34 +540,35 @@ function StatPill({ item, accentColor }) {
 }
 
 const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sections = [] }, ref) {
+  const { t, locale } = useI18n();
   const accentColor = getAccentColor(payload?.poolType);
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
   const brandChips = [
-    '已脱敏分享卡',
-    payload?.poolTypeLabel || '模拟器',
-    payload?.poolName || '未选择卡池'
+    t('share.card.desensitized'),
+    payload?.poolTypeLabel || t('simulator.shareCard.defaultTitle'),
+    payload?.poolName || t('simulator.toast.noSelection')
   ].filter(Boolean);
   const statRows = useMemo(() => {
-    const upLabel = payload?.poolType === 'standard' ? payload?.guaranteeProgress?.label : 'UP 结果';
+    const upLabel = payload?.poolType === 'standard' ? payload?.guaranteeProgress?.label : t('simulator.shareCard.upResult');
     const upValue = payload?.poolType === 'standard'
       ? payload?.guaranteeProgress?.summary
       : payload?.upSixStarCount !== null
         ? `${payload?.upSixStarCount} / ${payload?.sixStarCount}`
         : '--';
     const upSub = payload?.poolType === 'standard'
-      ? '常驻池保底节点'
+      ? t('simulator.shareCard.standardGuarantee')
       : payload?.winRate !== null
-        ? `不歪率 ${payload?.winRate}%`
-        : '当前池型无 UP 统计';
+        ? `${t('dashboard.analysis.winRate')} ${payload?.winRate}%`
+        : t('simulator.shareCard.noUpStats');
     const averageHint = payload?.poolType === 'standard'
-      ? '按全部 6★ 间隔统计'
-      : '按目标 UP 6★ 间隔统计';
+      ? t('simulator.shareCard.averageHintStandard')
+      : t('simulator.shareCard.averageHintUp');
 
     const combinedPity = {
       id: 'current-pity',
-      label: '当前保底',
+      label: t('simulator.shareCard.currentPity'),
       value: `${payload?.currentPity6 ?? 0}/${payload?.currentPity5 ?? 0}`,
-      hint: '6★ / 5★',
+      hint: t('simulator.shareCard.pityHint'),
       accent: true,
     };
 
@@ -565,22 +576,22 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
       [
         {
           id: 'total-pulls',
-          label: '总抽数',
+          label: t('dashboard.timeline.metric.total'),
           value: payload?.totalPulls ?? 0,
-          hint: `当前卡池：${payload?.poolName || '未选择卡池'}`,
+          hint: `${t('dashboard.analysis.currentPool')} ${payload?.poolName || t('simulator.toast.noSelection')}`,
           accent: true,
         },
         {
           id: 'six-star',
           label: '6★',
           value: payload?.sixStarCount ?? 0,
-          hint: `出率 ${payload?.sixStarRate || '0.00'}%`,
+          hint: `${t('dashboard.overview.ratio', { percent: payload?.sixStarRate || '0.00' })}`,
         },
         {
           id: 'five-star',
           label: '5★',
           value: payload?.fiveStarCount ?? 0,
-          hint: `出率 ${payload?.fiveStarRate || '0.00'}%`,
+          hint: `${t('dashboard.overview.ratio', { percent: payload?.fiveStarRate || '0.00' })}`,
         },
         {
           id: 'up-result',
@@ -595,15 +606,15 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
         },
         {
           id: 'avg-six',
-          label: '平均出货',
-          value: payload?.avgPullsPerSixStar ? `${payload.avgPullsPerSixStar} 抽` : '--',
+          label: t('simulator.shareCard.averagePulls'),
+          value: payload?.avgPullsPerSixStar ? `${payload.avgPullsPerSixStar} ${t('simulator.analysis.pullUnit')}` : '--',
           hint: averageHint,
         },
         {
           id: 'guarantee',
-          label: payload?.guaranteeProgress?.label || '保底节点',
+          label: payload?.guaranteeProgress?.label || t('simulator.shareCard.standardGuarantee'),
           value: payload?.guaranteeProgress?.summary || '0/0',
-          hint: payload?.guaranteeProgress?.achieved ? '当前节点已完成' : '当前节点推进中',
+          hint: payload?.guaranteeProgress?.achieved ? t('simulator.shareCard.nodeCompleted') : t('simulator.shareCard.nodeProgressing'),
           accent: true,
         },
       ],
@@ -612,7 +623,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
         icon: getResourceIcon(item.id)
       }))
     ];
-  }, [payload]);
+  }, [payload, t]);
 
   return (
     <div ref={ref} style={{ ...cardStyles.root, height: 'auto', minHeight: `${SHARE_CARD_HEIGHT}px` }}>
@@ -623,11 +634,11 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
       <div style={cardStyles.header}>
         <div style={cardStyles.titleBlock}>
           <div style={cardStyles.eyebrow}>ENDFIELD GACHA ANALYZER</div>
-          <div style={cardStyles.title}>{payload?.poolTypeLabel || '模拟分享卡'}</div>
+          <div style={cardStyles.title}>{payload?.poolTypeLabel || t('simulator.shareCard.defaultTitle')}</div>
           <div style={cardStyles.subTitle}>
             {payload?.upCharacter
-              ? `当前 UP：${payload.upCharacter}`
-              : '当前卡池统计快照'}
+              ? `${t('pool.card.currentUp')}: ${payload.upCharacter}`
+              : t('simulator.shareCard.snapshotSubtitle')}
           </div>
         </div>
 
@@ -641,7 +652,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
       </div>
 
       <div style={cardStyles.statsPanel}>
-        <div style={cardStyles.statsPanelTitle}>核心统计</div>
+        <div style={cardStyles.statsPanelTitle}>{t('simulator.shareCard.coreStats')}</div>
         <div style={cardStyles.statsRows}>
           {statRows.filter((row) => Array.isArray(row) && row.length > 0).map((row, rowIndex) => (
             <div key={`stats-row-${rowIndex}`} style={cardStyles.statsRow}>
@@ -657,12 +668,12 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
         <div style={cardStyles.timelineWrap}>
           <div style={cardStyles.timelineHeader}>
             <div>
-              <div style={cardStyles.eyebrow}>TIMELINE SNAPSHOT</div>
-              <div style={{ ...cardStyles.metricSub, fontSize: '18px' }}>完整整合当前模拟时间线</div>
+              <div style={cardStyles.eyebrow}>{t('dashboard.timeline.header')}</div>
+              <div style={{ ...cardStyles.metricSub, fontSize: '18px' }}>{t('dashboard.timeline.subtitle.single')}</div>
             </div>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <div style={cardStyles.timelineCount}>{sections.length} 个阶段卡池</div>
-              <div style={cardStyles.timelineCount}>{totalNodes} 个时间节点</div>
+              <div style={cardStyles.timelineCount}>{t('simulator.shareCard.stagePools', { count: new Intl.NumberFormat(locale).format(sections.length) })}</div>
+              <div style={cardStyles.timelineCount}>{t('simulator.shareCard.timelineNodes', { count: new Intl.NumberFormat(locale).format(totalNodes) })}</div>
             </div>
           </div>
 
@@ -673,21 +684,21 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                 <div style={cardStyles.timelineSectionMeta}>
                   <span>{section.period}</span>
                   <span>·</span>
-                  <span>{getPoolTypeChipLabel(section.type || payload?.poolType)}</span>
+                  <span>{getPoolTypeChipLabel(section.type || payload?.poolType, t)}</span>
                   <span>·</span>
-                  <span>{section.featured || payload?.upCharacter || '当前目标'}</span>
+                  <span>{section.featured || payload?.upCharacter || t('simulator.shareCard.currentTarget')}</span>
                   <span>·</span>
-                  <span>合计 {section.totalPulls} 抽</span>
+                  <span>{t('dashboard.timeline.metric.total')} {new Intl.NumberFormat(locale).format(section.totalPulls)} {t('simulator.analysis.pullUnit')}</span>
                   <span>·</span>
-                  <span>垫刀 {section.hidePityState ? '多账号' : `${section.currentPity}/${section.currentPity5}`}</span>
+                  <span>{t('dashboard.timeline.metric.pity')} {section.hidePityState ? t('dashboard.timeline.multiAccount') : `${section.currentPity}/${section.currentPity5}`}</span>
                   <span>·</span>
-                  <span>平均 6★ {formatAveragePulls(section.avgSixStarPulls)}</span>
+                  <span>{t('dashboard.timeline.metric.avgSix')} {formatAveragePulls(section.avgSixStarPulls, locale, t)}</span>
                   <span>·</span>
                   <span>
-                    {section.type === 'standard' ? '平均 5★' : '平均 UP'}{' '}
+                    {section.type === 'standard' ? t('dashboard.timeline.metric.avgFive') : t('dashboard.timeline.metric.avgUp')}{' '}
                     {section.type === 'standard'
-                      ? formatAveragePulls(section.avgFiveStarPulls)
-                      : formatAveragePulls(section.avgUpPulls)}
+                      ? formatAveragePulls(section.avgFiveStarPulls, locale, t)
+                      : formatAveragePulls(section.avgUpPulls, locale, t)}
                   </span>
                 </div>
               </div>
@@ -704,7 +715,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                         ) : (
                           <span style={cardStyles.timelinePortraitFallback}>{leadBadge.label?.slice(0, 1) || '?'}</span>
                         )}
-                        <span style={cardStyles.timelinePortraitBadge}>{leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : '阶段'}</span>
+                        <span style={cardStyles.timelinePortraitBadge}>{leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : t('dashboard.timeline.badge.stage')}</span>
                       </div>
                       <span style={cardStyles.timelineDate}>{entry.dateLabel}</span>
                     </div>
@@ -724,7 +735,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                         />
                         <div style={cardStyles.timelineBarValue}>
                           {entry.pulls}
-                          <span style={{ marginLeft: '4px', fontSize: '12px', fontWeight: 700 }}>抽</span>
+                          <span style={{ marginLeft: '4px', fontSize: '12px', fontWeight: 700 }}>{t('simulator.analysis.pullUnit')}</span>
                         </div>
                       </div>
                       {entry.dropBadges?.length > 0 && (
@@ -756,8 +767,8 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
 
       <div style={cardStyles.legal}>
         <div style={cardStyles.legalTextWrap}>
-          <span>本分享卡仅保留模拟器汇总统计与资源消耗摘要，不含账号、UID、时间戳与逐抽明细。</span>
-          <span>扫码或访问站点即可继续分析；分享卡仅限本地生成，不创建公共链接。</span>
+          <span>{t('share.simulator.noteDesensitized')}</span>
+          <span>{t('simulator.shareCard.localOnly')}</span>
         </div>
         <ShareBrandPanel
           theme="dark"

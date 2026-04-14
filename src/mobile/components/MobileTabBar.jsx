@@ -2,14 +2,7 @@ import React from 'react';
 import { Home, PieChart, LayoutDashboard, Sparkles, Settings } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getMobilePathForTab, getMobileTabFromPath } from '../../constants/appRoutes';
-
-const tabs = [
-  { id: 'home', label: '首页', icon: Home },
-  { id: 'summary', label: '统计', icon: PieChart },
-  { id: 'dashboard', label: '卡池', icon: LayoutDashboard },
-  { id: 'simulator', label: '模拟', icon: Sparkles },
-  { id: 'settings', label: '设置', icon: Settings },
-];
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 移动端底部 Tab 栏
@@ -18,6 +11,14 @@ function MobileTabBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const activeTab = getMobileTabFromPath(location.pathname);
+  const { t } = useI18n();
+  const tabs = [
+    { id: 'home', label: t('nav.home'), icon: Home },
+    { id: 'summary', label: t('nav.summary'), icon: PieChart },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'simulator', label: t('nav.simulator'), icon: Sparkles },
+    { id: 'settings', label: t('nav.settings'), icon: Settings },
+  ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-slate-50/95 dark:bg-zinc-950/95 backdrop-blur-md border-t border-zinc-200 dark:border-zinc-800 mobile-tab-bar transition-colors duration-300">

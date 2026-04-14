@@ -3,6 +3,7 @@ import { Monitor, Smartphone } from 'lucide-react';
 import {
   resolvePlatformPath
 } from '../../constants/appRoutes';
+import { useI18n } from '../../i18n/index.js';
 
 const PLATFORM_PREFERENCE_KEY = 'platform-preference';
 
@@ -11,6 +12,7 @@ const PLATFORM_PREFERENCE_KEY = 'platform-preference';
  * 使用 window.location.href 强制刷新，避免 SPA 路由状态不同步
  */
 function PlatformSwitcher({ variant = 'button', className = '' }) {
+  const { t } = useI18n();
   const currentPlatform = window.location.pathname.startsWith('/m') ? 'mobile' : 'desktop';
 
   const resolveTargetPath = (targetPlatform) => {
@@ -35,12 +37,12 @@ function PlatformSwitcher({ variant = 'button', className = '' }) {
         {currentPlatform === 'mobile' ? (
           <>
             <Monitor className="w-5 h-5 text-zinc-500" />
-            <span className="text-zinc-700 dark:text-zinc-300">切换到桌面版</span>
+            <span className="text-zinc-700 dark:text-zinc-300">{t('platform.switchToDesktop')}</span>
           </>
         ) : (
           <>
             <Smartphone className="w-5 h-5 text-zinc-500" />
-            <span className="text-zinc-700 dark:text-zinc-300">切换到移动版</span>
+            <span className="text-zinc-700 dark:text-zinc-300">{t('platform.switchToMobile')}</span>
           </>
         )}
       </button>
@@ -55,12 +57,12 @@ function PlatformSwitcher({ variant = 'button', className = '' }) {
       {currentPlatform === 'mobile' ? (
         <>
           <Monitor className="w-4 h-4" />
-          <span>桌面版</span>
+          <span>{t('platform.desktopShort')}</span>
         </>
       ) : (
         <>
           <Smartphone className="w-4 h-4" />
-          <span>移动版</span>
+          <span>{t('platform.mobileShort')}</span>
         </>
       )}
     </button>

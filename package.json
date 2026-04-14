@@ -103,6 +103,7 @@
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.17",
     "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vite-plugin-webfont-dl": "^3.12.0"
   }
 }

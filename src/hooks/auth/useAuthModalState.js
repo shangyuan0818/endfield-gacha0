@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useI18n } from '../../i18n/index.js';
 
 const MAINSTREAM_EMAIL_DOMAINS = [
   'gmail.com', 'googlemail.com',
@@ -35,14 +36,14 @@ const CORPORATE_EMAIL_PATTERNS = [
   'mihoyo.com', 'hypergryph.com', 'grfrline.com',
 ];
 
-const validateEmailDomain = (email) => {
+const validateEmailDomain = (email, isEnglish = false) => {
   if (!email || !email.includes('@')) {
-    return { valid: false, reason: '邮箱格式不正确' };
+    return { valid: false, reason: isEnglish ? 'Enter a valid email address.' : '邮箱格式不正确' };
   }
 
   const domain = email.split('@')[1]?.toLowerCase();
   if (!domain) {
-    return { valid: false, reason: '邮箱格式不正确' };
+    return { valid: false, reason: isEnglish ? 'Enter a valid email address.' : '邮箱格式不正确' };
   }
 
   if (MAINSTREAM_EMAIL_DOMAINS.includes(domain)) {
@@ -59,7 +60,9 @@ const validateEmailDomain = (email) => {
 
   return {
     valid: false,
-    reason: '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、知名论坛/社区邮箱或企业邮箱注册',
+    reason: isEnglish
+      ? 'Use a mainstream provider, well-known community mailbox, or company email to register.'
+      : '请使用主流邮箱服务商（如 Gmail、Outlook、QQ邮箱、163邮箱等）、知名论坛/社区邮箱或企业邮箱注册',
   };
 };
 
@@ -70,6 +73,7 @@ const validateEmail = (email) => {
 };
 
 export function useAuthModalState() {
+  const { isEnglish } = useI18n();
   const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -101,7 +105,7 @@ export function useAuthModalState() {
     setShowDuplicateEmailPrompt(false);
 
     if (mode === 'register' && newEmail && validateEmail(newEmail)) {
-      const domainResult = validateEmailDomain(newEmail);
+      const domainResult = validateEmailDomain(newEmail, isEnglish);
       setEmailDomainError(domainResult.valid ? '' : domainResult.reason);
       return;
     }
@@ -157,7 +161,7 @@ export function useAuthModalState() {
     setEmailValid(validateEmail(nextEmail));
 
     if (nextEmail && validateEmail(nextEmail)) {
-      const domainResult = validateEmailDomain(nextEmail);
+      const domainResult = validateEmailDomain(nextEmail, isEnglish);
       setEmailDomainError(domainResult.valid ? '' : domainResult.reason);
     }
   };

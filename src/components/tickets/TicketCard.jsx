@@ -3,7 +3,8 @@ import { ChevronDown, ChevronUp, Clock, RefreshCw, Shield, User } from 'lucide-r
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
 import ReplyInput from './ReplyInput';
-import { PRIORITY_CONFIG, TICKET_STATUS, TICKET_TYPES } from './constants';
+import { getTicketPriorities, getTicketStatus, getTicketTypes } from './constants';
+import { useI18n } from '../../i18n/index.js';
 
 export default function TicketCard({
   ticket,
@@ -15,14 +16,19 @@ export default function TicketCard({
   expanded,
   onToggle
 }) {
+  const { isEnglish, locale, formatDateTime } = useI18n();
   const [replyContent, setReplyContent] = useState('');
   const [replies, setReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [submittingReply, setSubmittingReply] = useState(false);
+  const ticketTypes = getTicketTypes(locale);
+  const ticketStatus = getTicketStatus(locale);
+  const priorityConfigMap = getTicketPriorities(locale);
+  const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
 
-  const typeConfig = TICKET_TYPES[ticket.type] || TICKET_TYPES.other;
-  const statusConfig = TICKET_STATUS[ticket.status] || TICKET_STATUS.pending;
-  const priorityConfig = PRIORITY_CONFIG[ticket.priority] || PRIORITY_CONFIG.medium;
+  const typeConfig = ticketTypes[ticket.type] || ticketTypes.other;
+  const statusConfig = ticketStatus[ticket.status] || ticketStatus.pending;
+  const priorityConfig = priorityConfigMap[ticket.priority] || priorityConfigMap.medium;
   const isOwner = ticket.user_id === currentUserId;
   const canManage = userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin');
 
@@ -41,11 +47,11 @@ export default function TicketCard({
       const profilesMap = await loadPublicProfilesMap(rows.map((reply) => reply.user_id));
       setReplies(attachPublicProfiles(rows, profilesMap));
     } catch (error) {
-      showToast?.(`加载回复失败：${error.message}`, 'error');
+      showToast?.(`${tt('加载回复失败', 'Failed to load replies')}: ${error.message}`, 'error');
     } finally {
       setLoadingReplies(false);
     }
-  }, [showToast, ticket.id]);
+  }, [showToast, ticket.id, tt]);
 
   useEffect(() => {
     if (expanded && replies.length === 0) {
@@ -53,7 +59,7 @@ export default function TicketCard({
     }
   }, [expanded, loadReplies, replies.length]);
 
-  const handleSubmitReply = async () => {
+  const handleSubmitReply = useCallback(async () => {
     if (!replyContent.trim()) return;
 
     setSubmittingReply(true);
@@ -72,11 +78,11 @@ export default function TicketCard({
       await loadReplies();
       await onReply?.();
     } catch (error) {
-      showToast?.(`发送回复失败：${error.message}`, 'error');
+      showToast?.(`${tt('发送回复失败', 'Failed to send reply')}: ${error.message}`, 'error');
     } finally {
       setSubmittingReply(false);
     }
-  };
+  }, [currentUserId, loadReplies, onReply, replyContent, showToast, ticket.id, tt]);
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden">
@@ -91,7 +97,7 @@ export default function TicketCard({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
-              <h4 className="font-medium text-slate-800 dark:text-zinc-100 truncate">{ticket.title}</h4>
+              <h4 className="font-medium text-slate-800 dark:text-zinc-100 break-words">{ticket.title}</h4>
               <span className={`text-xs px-2 py-0.5 rounded-sm ${statusConfig.color}`}>{statusConfig.label}</span>
               <span className={`text-xs px-2 py-0.5 rounded-sm ${priorityConfig.color}`}>{priorityConfig.label}</span>
             </div>
@@ -106,28 +112,31 @@ export default function TicketCard({
                     ticket.profiles?.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
                 </div>
                 <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-                  {ticket.profiles?.username || '未知用户'}
+                  {ticket.profiles?.username || tt('未知用户', 'Unknown User')}
                 </span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                   ticket.profiles?.role === 'super_admin' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
                   ticket.profiles?.role === 'admin' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400' :
                   'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400'
                 }`}>
-                  {ticket.profiles?.role === 'super_admin' ? '超管' :
-                    ticket.profiles?.role === 'admin' ? '管理员' : '用户'}
+                  {ticket.profiles?.role === 'super_admin'
+                    ? tt('超管', 'Super Admin')
+                    : ticket.profiles?.role === 'admin'
+                      ? tt('管理员', 'Admin')
+                      : tt('用户', 'User')}
                 </span>
               </div>
             </div>
 
-            <div className="text-xs text-slate-500 dark:text-zinc-500 flex items-center gap-3">
+            <div className="text-xs text-slate-500 dark:text-zinc-500 flex flex-wrap items-center gap-3">
               <span className="flex items-center gap-1">
                 <Clock size={12} />
-                {new Date(ticket.created_at).toLocaleString()}
+                {formatDateTime(ticket.created_at, { hour12: false })}
               </span>
               {ticket.target_role === 'super_admin' && (
                 <span className="flex items-center gap-1 text-purple-500">
                   <Shield size={12} />
-                  发送给超管
+                  {tt('发送给超管', 'Escalated to Super Admin')}
                 </span>
               )}
             </div>
@@ -150,32 +159,32 @@ export default function TicketCard({
               {ticket.status === 'pending' && (
                 <button
                   onClick={() => onStatusChange(ticket.id, 'processing')}
-                  className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-none transition-colors"
+                  className="px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-none transition-colors whitespace-normal text-center leading-tight"
                 >
-                  开始处理
+                  {tt('开始处理', 'Start Review')}
                 </button>
               )}
               {(ticket.status === 'pending' || ticket.status === 'processing') && (
                 <>
                   <button
                     onClick={() => onStatusChange(ticket.id, 'resolved')}
-                    className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded-none transition-colors"
+                    className="px-3 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded-none transition-colors whitespace-normal text-center leading-tight"
                   >
-                    标记解决
+                    {tt('标记解决', 'Mark Resolved')}
                   </button>
                   <button
                     onClick={() => onStatusChange(ticket.id, 'rejected')}
-                    className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-none transition-colors"
+                    className="px-3 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded-none transition-colors whitespace-normal text-center leading-tight"
                   >
-                    拒绝
+                    {tt('拒绝', 'Reject')}
                   </button>
                 </>
               )}
               <button
                 onClick={() => onStatusChange(ticket.id, 'closed')}
-                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-none transition-colors"
+                className="px-3 py-1.5 text-xs bg-slate-500 hover:bg-slate-600 text-white rounded-none transition-colors whitespace-normal text-center leading-tight"
               >
-                关闭
+                {tt('关闭', 'Close')}
               </button>
             </div>
           )}
@@ -184,7 +193,7 @@ export default function TicketCard({
             {loadingReplies ? (
               <div className="p-4 text-center text-slate-400">
                 <RefreshCw size={16} className="animate-spin inline mr-2" />
-                加载回复中...
+                {tt('加载回复中...', 'Loading replies...')}
               </div>
             ) : replies.length > 0 ? (
               <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -199,16 +208,16 @@ export default function TicketCard({
                           reply.profiles?.role === 'admin' ? <Shield size={12} /> : <User size={12} />}
                       </div>
                       <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                        {reply.profiles?.username || '用户'}
+                        {reply.profiles?.username || tt('用户', 'User')}
                       </span>
-                      <span className="text-xs text-slate-400">{new Date(reply.created_at).toLocaleString()}</span>
+                      <span className="text-xs text-slate-400">{formatDateTime(reply.created_at, { hour12: false })}</span>
                     </div>
                     <p className="text-sm text-slate-600 dark:text-zinc-400 pl-8 whitespace-pre-wrap">{reply.content}</p>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="p-4 text-center text-slate-400 text-sm">暂无回复</div>
+              <div className="p-4 text-center text-slate-400 text-sm">{tt('暂无回复', 'No replies yet')}</div>
             )}
           </div>
 

@@ -16,6 +16,7 @@ import MobileAdminView from '../views/MobileAdminView';
 import MobileTicketView from '../views/MobileTicketView';
 import useAuthStore from '../../stores/useAuthStore';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 移动端主布局
@@ -24,10 +25,12 @@ function MobileLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, userRole, authResolved } = useAuthStore();
+  const { isEnglish } = useI18n();
   const activeTab = getMobileTabFromPath(location.pathname);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const isSuperAdmin = userRole === 'super_admin';
   const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
+  const tt = (zh, en) => (isEnglish ? en : zh);
 
   useScrollToHighlight();
 
@@ -57,7 +60,7 @@ function MobileLayout() {
               isResolvingRole ? (
                 <div className="px-4 py-8">
                   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 text-sm text-slate-500 dark:text-zinc-400">
-                    正在校验管理权限...
+                    {tt('正在校验管理权限...', 'Checking admin access...')}
                   </div>
                 </div>
               ) : isSuperAdmin ? (

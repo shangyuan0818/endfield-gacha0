@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 确认对话框组件
@@ -15,6 +16,7 @@ const ConfirmDialog = React.memo(({
   type = 'warning',
   children
 }) => {
+  const { t } = useI18n();
   if (!isOpen) return null;
 
   const iconBg = {
@@ -50,13 +52,13 @@ const ConfirmDialog = React.memo(({
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:text-zinc-100 hover:bg-slate-200 rounded-none transition-colors"
           >
-            {cancelText || '取消'}
+            {cancelText || t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}
             className={`px-4 py-2 text-sm font-bold text-white ${confirmBtnClass[type]} rounded-none shadow-sm transition-all`}
           >
-            {confirmText || '确认'}
+            {confirmText || t('common.confirm')}
           </button>
         </div>
       </div>

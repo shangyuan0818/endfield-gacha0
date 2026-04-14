@@ -22,7 +22,7 @@ import GuideCard from './GuideCard';
 import PoolMechanicsCard from './PoolMechanicsCard';
 import RoadmapCard from './RoadmapCard';
 import HomeRotationScheduleCard from './RotationScheduleCard';
-import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
+import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import {
   STORAGE_KEYS,
   getHomeCollapseState,
@@ -31,12 +31,15 @@ import {
   setHomeCollapseState
 } from '../../utils';
 import { useAppStore, useAuthStore } from '../../stores';
+import { useI18n } from '../../i18n/index.js';
 
 const HomePage = React.memo(() => {
+  const { t, isEnglish } = useI18n();
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const pools = usePoolStore((state) => state.pools);
+  const communityLinkLabel = ENGLISH_COMMUNITY_DISCORD_URL.replace(/^https?:\/\//u, '');
 
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
 
@@ -65,27 +68,31 @@ const HomePage = React.memo(() => {
       const end = new Date(pool.endDate);
       const isActive = now >= start && now < end;
 
-      return {
-        ...pool,
-        targetDate: isActive ? pool.endDate : pool.startDate,
-        title: isActive ? `${pool.name} 池结束倒计时` : `${pool.name} 池开启倒计时`,
-        subTitle: isActive ? `Current Banner Ending // ${pool.name}` : `Next Banner Starting // ${pool.name}`,
-        isActive
+        return {
+          ...pool,
+          targetDate: isActive ? pool.endDate : pool.startDate,
+          title: isActive
+            ? t('home.poolEndingCountdown', { name: pool.name })
+            : t('home.poolStartingCountdown', { name: pool.name }),
+          subTitle: isActive
+            ? t('home.poolEndingSubtitle', { name: pool.name })
+            : t('home.poolStartingSubtitle', { name: pool.name }),
+          isActive
+        };
       };
-    };
 
     let main = activeIndex !== -1 ? getPoolData(activeIndex) : null;
 
-    if (!main) {
-      main = {
-        targetDate: '2026-04-15T12:00:00+08:00',
-        title: '下个版本倒计时',
-        subTitle: 'Waiting for Next Version'
-      };
-    }
+      if (!main) {
+        main = {
+          targetDate: '2026-04-15T12:00:00+08:00',
+          title: t('home.nextVersionCountdown'),
+          subTitle: t('home.nextVersionWaiting')
+        };
+      }
 
     return { main };
-  }, [poolSchedule, now]);
+  }, [poolSchedule, now, t]);
 
   const initialCollapseState = getHomeCollapseState();
   const latestAnnouncement = announcements[0];
@@ -179,16 +186,16 @@ const HomePage = React.memo(() => {
             <h2 className="text-2xl font-bold mb-2 flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-3">
                 <BarChart3 size={28} />
-                <span>终末地抽卡分析器</span>
+                <span>{t('app.brand')}</span>
               </div>
             </h2>
             <p className="text-sm text-indigo-100">
-              记录您的抽卡历程，分析出货规律，为后续规划提供参考
+              {t('home.heroSubtitle')}
             </p>
             {!user && (
               <p className="text-xs mt-2 flex items-center gap-1 text-indigo-200">
                 <ArrowRight size={12} />
-                登录后可录入数据并同步到云端
+                {t('home.loginHint')}
               </p>
             )}
           </div>
@@ -198,7 +205,7 @@ const HomePage = React.memo(() => {
               onClick={handleCelebrationClick}
               className="group flex items-center gap-3 px-4 py-2 rounded-full transition-all cursor-pointer border bg-yellow-500/10 hover:bg-yellow-500/20 border-yellow-500/50 text-endfield-yellow"
             >
-              <span className="text-sm font-bold font-mono tracking-wide">恭喜终末地公测！</span>
+              <span className="text-sm font-bold font-mono tracking-wide">{t('home.celebration')}</span>
               <div className="p-1.5 rounded-full transition-colors bg-yellow-500/20 group-hover:bg-yellow-500 group-hover:text-black text-yellow-500">
                 <Sparkles size={16} className="animate-pulse" />
               </div>
@@ -211,7 +218,7 @@ const HomePage = React.memo(() => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.6fr)_320px] gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800/50 rounded-none overflow-hidden shadow-sm">
           <div className="px-4 py-3 flex items-start gap-3">
             <div className="p-2 bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-500 shrink-0">
@@ -219,11 +226,11 @@ const HomePage = React.memo(() => {
             </div>
             <div>
               <h3 className="text-sm font-bold text-green-800 dark:text-green-400 mb-1">
-                安全与隐私声明
+                {t('home.securityTitle')}
               </h3>
               <div className="text-xs text-green-700 dark:text-green-500/80 leading-relaxed space-y-1">
-                <p>本站不会读取本地文件或执行系统级操作。前端主逻辑运行在浏览器内；站点配置、云同步、账号恢复与公开统计等能力会通过 Supabase、Edge Functions、`/api/bootstrap` 与可选私有代理配合完成。</p>
-                <p>如你仍对凭证安全有顾虑，获取数据后请<strong>退出游戏网页登录</strong>。重新登录会刷新凭证，旧 Token 会随之失效。</p>
+                <p>{t('home.securityCopy1')}</p>
+                <p>{t('home.securityCopy2')}</p>
               </div>
             </div>
           </div>
@@ -236,14 +243,26 @@ const HomePage = React.memo(() => {
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-white mb-1">
-                欢迎加入 QQ 群 ~
+                {t('home.communityTitle')}
               </h3>
               <div className="text-xs text-zinc-300 leading-relaxed space-y-2">
-                <p>账号恢复、临时密码领取和使用问题请都统一在 QQ 群处理~</p>
-                <div className="border border-zinc-700 bg-zinc-950/80 px-3 py-2 font-mono text-base tracking-wider text-endfield-yellow">
-                  {ACCOUNT_RECOVERY_QQ_GROUP}
-                </div>
-                <p className="text-zinc-400">欢迎加群吹水，倒卖和提意见喵~ 账号恢复的临时密码请加群后私信群主~</p>
+                <p>{t('home.communityCopy1')}</p>
+                {isEnglish ? (
+                  <a
+                    href={ENGLISH_COMMUNITY_DISCORD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t('home.communityOpenLink')}
+                    className="block border border-zinc-700 bg-zinc-950/80 px-3 py-2 font-mono text-sm tracking-wide text-endfield-yellow break-all transition-colors hover:border-endfield-yellow/50 hover:text-white"
+                  >
+                    {communityLinkLabel}
+                  </a>
+                ) : (
+                  <div className="border border-zinc-700 bg-zinc-950/80 px-3 py-2 font-mono text-base tracking-wider text-endfield-yellow">
+                    {ACCOUNT_RECOVERY_QQ_GROUP}
+                  </div>
+                )}
+                <p className="text-zinc-400">{t('home.communityCopy2')}</p>
               </div>
             </div>
           </div>
@@ -267,9 +286,9 @@ const HomePage = React.memo(() => {
                       </span>
                     )}
                   </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">站点公告</span>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">{t('home.siteAnnouncement')}</span>
                       <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncement.title}</h3>
                       {isAnnouncementNew && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
@@ -298,12 +317,12 @@ const HomePage = React.memo(() => {
                   <div className="p-2 bg-amber-100/70 dark:bg-amber-900/20 text-amber-500 dark:text-amber-500 shrink-0">
                     <Bell size={18} />
                   </div>
-                  <div className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">游戏公告</span>
-                      <h3 className="font-bold text-amber-700 dark:text-amber-400">来自终末地官网</h3>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">{t('home.gameAnnouncement')}</span>
+                      <h3 className="font-bold text-amber-700 dark:text-amber-400">{t('home.fromOfficialSite')}</h3>
                     </div>
-                    <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">自动抓取 · LLM 整理摘要</p>
+                    <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">{t('home.autoSummary')}</p>
                   </div>
                 </div>
                 <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />
@@ -340,9 +359,9 @@ const HomePage = React.memo(() => {
             <div className="shrink-0 min-h-32">
               <CountdownTimer
                 targetDate="2026-04-15T12:00:00+08:00"
-                title="下个版本倒计时"
-                subTitle="下个版本发布"
-                customEndedContent={<span>版本已上线</span>}
+                title={t('home.nextVersionCountdown')}
+                subTitle={t('home.nextVersionRelease')}
+                customEndedContent={<span>{t('home.versionLaunched')}</span>}
                 size="small"
               />
             </div>

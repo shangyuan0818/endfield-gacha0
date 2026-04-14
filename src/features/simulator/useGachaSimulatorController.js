@@ -52,6 +52,7 @@ import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsBySta
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
+import { useI18n } from '../../i18n/index.js';
 
 const getWeaponPoolRules = (pool) =>
   pool?.isLimitedWeapon !== false
@@ -79,6 +80,7 @@ function normalizeStoredPoolId(value) {
 }
 
 export function useGachaSimulatorController() {
+  const { t, locale } = useI18n();
   const currentUserId = useAuthStore((state) => state.user?.id || null);
   const history = useHistoryStore((state) => state.history);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
@@ -258,6 +260,21 @@ export function useGachaSimulatorController() {
     [simulatorPools, currentSimPoolId]
   );
   const currentPoolType = normalizeSimulatorPoolType(currentSimPool?.type || 'limited');
+  const getLocalizedSimulatorPoolTypeName = useCallback(
+    (poolType) => {
+      const normalizedType = normalizeSimulatorPoolType(poolType || 'limited');
+      if (normalizedType === 'weapon') {
+        return t('simulator.poolTypeName.weapon');
+      }
+
+      if (normalizedType === 'standard') {
+        return t('simulator.poolTypeName.standard');
+      }
+
+      return t('simulator.poolTypeName.limited');
+    },
+    [t]
+  );
   const allSimulatorStates = useMemo(
     () =>
       simulatorPools.map((pool) => {
@@ -314,11 +331,11 @@ export function useGachaSimulatorController() {
   const getPullDisabledReason = useCallback(
     (cost, canAfford) => {
       if (isAnimating) {
-        return '正在播放寻访动画';
+        return t('simulator.toast.animating');
       }
 
       if (!poolCharactersList) {
-        return '正在同步卡池数据';
+        return t('simulator.toast.syncingPool');
       }
 
       if (canAfford) {
@@ -330,16 +347,16 @@ export function useGachaSimulatorController() {
           Number(cost.amount || 0) - Math.max(Number(resourceLedger?.arsenalBalance || 0), 0),
           0
         );
-        return `武库配额不足，还差 ${shortfall.toLocaleString()} 配额`;
+        return t('simulator.toast.arsenalShortfall', { count: shortfall.toLocaleString(locale) });
       }
 
       const shortfall = Math.max(
         Number(cost?.amount || 0) - Math.max(Number(resourceLedger?.availableJadeBudget || 0), 0),
         0
       );
-      return `嵌晶玉与衍质源石不足，还差 ${shortfall.toLocaleString()} 嵌晶玉等价`;
+      return t('simulator.toast.fullJadeShortfall', { count: shortfall.toLocaleString(locale) });
     },
-    [isAnimating, poolCharactersList, resourceLedger]
+    [isAnimating, locale, poolCharactersList, resourceLedger, t]
   );
   const singlePullDisabledReason = getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
   const tenPullDisabledReason = getPullDisabledReason(currentPullCosts.ten, canAffordTenPull);
@@ -645,7 +662,7 @@ export function useGachaSimulatorController() {
           if (mode === 'convertOriginite') {
             const currentOriginiteBalance = Math.max(Number(resourceLedger?.originiteBalance || 0), 0);
             if (normalizedAmount > currentOriginiteBalance) {
-              showToastMessage(`可用衍质源石不足，当前仅剩 ${currentOriginiteBalance.toLocaleString()} 颗`);
+              showToastMessage(t('simulator.toast.availableOriginiteShortfall', { count: currentOriginiteBalance.toLocaleString(locale) }));
               return normalized;
             }
 
@@ -695,7 +712,7 @@ export function useGachaSimulatorController() {
         return normalized;
       });
     },
-    [resourceLedger, showToastMessage]
+    [locale, resourceLedger, showToastMessage, t]
   );
 
   const executeResolvedPull = useCallback(
@@ -739,10 +756,10 @@ export function useGachaSimulatorController() {
 
           setInfoBookTenPullAvailable(false);
           results = simulator.pullInfoBookTen();
-          showToastMessage('使用情报书十连！（计入保底）');
+          showToastMessage(t('simulator.toast.infoBookTenUsed'));
         } else if (isFreePull) {
           results = simulator.pullFreeTen();
-          showToastMessage('使用免费十连！（不计入保底）');
+          showToastMessage(t('simulator.toast.freeTenUsed'));
         } else {
           results = simulator.pullTen();
         }
@@ -759,6 +776,7 @@ export function useGachaSimulatorController() {
       showToastMessage,
       simulator,
       skipAnimation,
+      t,
     ]
   );
 
@@ -806,10 +824,10 @@ export function useGachaSimulatorController() {
       if (!canAffordSimulatorPull(resourceLedger, pullCost)) {
         if (pullCost.resource === 'arsenalQuota') {
           const shortfall = Math.max(pullCost.amount - Math.max(resourceLedger.arsenalBalance, 0), 0);
-          showToastMessage(`武库配额不足，还差 ${shortfall.toLocaleString()} 配额`);
+          showToastMessage(t('simulator.toast.arsenalShortfall', { count: shortfall.toLocaleString(locale) }));
         } else {
           const shortfall = Math.max(pullCost.amount - Math.max(resourceLedger.availableJadeBudget, 0), 0);
-          showToastMessage(`资源不足，还差 ${shortfall.toLocaleString()} 嵌晶玉等价`);
+          showToastMessage(t('simulator.toast.resourceShortfall', { count: shortfall.toLocaleString(locale) }));
         }
         return;
       }
@@ -823,7 +841,7 @@ export function useGachaSimulatorController() {
         });
 
         if (conversionPlan.canConvert && conversionPlan.originiteNeeded > 0) {
-          const actionLabel = type === 'ten' ? '十连寻访' : '单次寻访';
+          const actionLabel = type === 'ten' ? t('simulator.toast.action.ten') : t('simulator.toast.action.single');
           const suppressToday = localStorage.getItem(ORIGINITE_PROMPT_SUPPRESS_KEY) === getTodayPromptKey();
 
           if (!suppressToday) {
@@ -833,9 +851,11 @@ export function useGachaSimulatorController() {
               isInfoBookPull,
               isFreePull,
               conversionPlan,
-              message: `当前嵌晶玉不足。\n继续 ${actionLabel} 需要额外消耗 ${conversionPlan.originiteNeeded.toLocaleString()} 颗衍质源石，兑换 ${(
-                conversionPlan.originiteNeeded * conversionPlan.rate
-              ).toLocaleString()} 嵌晶玉。`,
+              message: t('simulator.toast.originiteConfirmMessage', {
+                actionLabel,
+                originite: conversionPlan.originiteNeeded.toLocaleString(locale),
+                jade: (conversionPlan.originiteNeeded * conversionPlan.rate).toLocaleString(locale),
+              }),
             });
             return;
           }
@@ -853,10 +873,12 @@ export function useGachaSimulatorController() {
       currentPullCosts.settings,
       infoBookTenPullAvailable,
       isAnimating,
+      locale,
       resourceLedger,
       executeResolvedPull,
       showToastMessage,
       simulator.poolType,
+      t,
     ]
   );
 
@@ -867,7 +889,7 @@ export function useGachaSimulatorController() {
   const handleInheritRealState = useCallback(
     (selectedAccount = null) => {
       if (!currentSimPoolId || !currentSimPool) {
-        showToastMessage('当前没有可继承的模拟卡池');
+        showToastMessage(t('simulator.toast.noInheritablePool'));
         return;
       }
 
@@ -880,7 +902,7 @@ export function useGachaSimulatorController() {
       const selectedAccountName = resolvedAccount?.nickName || resolvedAccount?.nick_name || selectedGameUid;
 
       if (!selectedGameUid) {
-        showToastMessage('请选择一个具体账号后再继承');
+        showToastMessage(t('simulator.toast.selectAccount'));
         return;
       }
 
@@ -899,7 +921,7 @@ export function useGachaSimulatorController() {
       });
 
       if (!inheritedSnapshot.hasAnyData) {
-        showToastMessage(`${selectedAccountName} 没有可继承的真实记录`);
+        showToastMessage(t('simulator.toast.noRealHistory', { name: selectedAccountName }));
         return;
       }
 
@@ -947,7 +969,7 @@ export function useGachaSimulatorController() {
 
       if (selectedGameUid !== currentGameUid) {
         switchGameAccount(selectedGameUid);
-        showToastMessage(`已继承 ${selectedAccountName} 的全部模拟卡池`);
+        showToastMessage(t('simulator.toast.inheritAllSuccess', { name: selectedAccountName }));
         return;
       }
 
@@ -977,7 +999,7 @@ export function useGachaSimulatorController() {
       setStats(nextSimulator.getStatistics());
       setPityInfo(nextSimulator.getPityInfo());
       setPullHistory(nextSimulator.getState().pullHistory || []);
-      showToastMessage(`已继承 ${selectedAccountName} 的全部模拟卡池`);
+      showToastMessage(t('simulator.toast.inheritAllSuccess', { name: selectedAccountName }));
     },
     [
       currentGameUid,
@@ -991,8 +1013,9 @@ export function useGachaSimulatorController() {
       resourceSettings,
       simulatorPools,
       showToastMessage,
-      switchGameAccount,
       resolvePoolTargetName,
+      switchGameAccount,
+      t,
     ]
   );
 
@@ -1012,7 +1035,7 @@ export function useGachaSimulatorController() {
       });
       clearSharedPityState(simulatorStorageScope);
       clearInfoBookState(simulatorStorageScope);
-      resetMessage = '已重置所有类型的卡池';
+      resetMessage = t('simulator.toast.resetAllSuccess');
     } else {
       const type = normalizeSimulatorPoolType(currentSimPool?.type || 'limited');
       simulatorPools
@@ -1026,8 +1049,9 @@ export function useGachaSimulatorController() {
         clearInfoBookState(simulatorStorageScope);
       }
 
-      const typeName = type === 'limited' ? '限定角色池' : type === 'weapon' ? '武器池' : '常驻池';
-      resetMessage = `已重置所有${typeName}`;
+      resetMessage = t('simulator.toast.resetTypeSuccess', {
+        typeName: getLocalizedSimulatorPoolTypeName(type),
+      });
     }
 
     simulator.reset();
@@ -1058,10 +1082,13 @@ export function useGachaSimulatorController() {
     }
 
     closeResetDialog();
-    showToastMessage(resetKeepResources ? `${resetMessage}，当前资源已保留` : resetMessage);
+    showToastMessage(
+      resetKeepResources ? `${resetMessage}${t('simulator.toast.resetKeepResources')}` : resetMessage
+    );
   }, [
     closeResetDialog,
     currentSimPool?.type,
+    getLocalizedSimulatorPoolTypeName,
     resetAllPools,
     resetKeepResources,
     resetSettings,
@@ -1069,6 +1096,7 @@ export function useGachaSimulatorController() {
     simulator,
     simulatorPools,
     simulatorStorageScope,
+    t,
   ]);
 
   const switchPool = useCallback(
@@ -1136,7 +1164,7 @@ export function useGachaSimulatorController() {
             },
             simulatorStorageScope
           );
-          showToastMessage('情报书已激活！可使用情报书十连');
+          showToastMessage(t('simulator.toast.infoBookActivated'));
           nextSimulator.updateState({
             infoBookTenPullAvailable: true,
           });
@@ -1172,11 +1200,15 @@ export function useGachaSimulatorController() {
       simulator,
       simulatorPools,
       simulatorStorageScope,
+      t,
     ]
   );
 
   const historyGroups = useMemo(() => processHistoryGroups(pullHistory), [pullHistory]);
-  const dashboardStats = useMemo(() => buildDashboardStats(stats, pityInfo, simulator), [stats, pityInfo, simulator]);
+  const dashboardStats = useMemo(
+    () => buildDashboardStats(stats, pityInfo, simulator, locale),
+    [locale, pityInfo, simulator, stats]
+  );
   const pityInfoWithGuarantee = useMemo(() => buildPityInfoWithGuarantee(stats, simulator), [stats, simulator]);
   const currentSharePity6 = pityInfo?.sixStar?.current;
   const currentSharePity5 = pityInfo?.fiveStar?.current;
@@ -1184,10 +1216,10 @@ export function useGachaSimulatorController() {
     () => ({
       type: normalizeSimulatorPoolType(simulator.poolType),
       isLimitedWeapon: currentSimPool?.isLimitedWeapon !== false,
-      name: currentSimPool?.name || '未选择',
+      name: currentSimPool?.name || t('simulator.toast.noSelection'),
       up_character: currentSimPool?.up_character,
     }),
-    [currentSimPool?.isLimitedWeapon, currentSimPool?.name, currentSimPool?.up_character, simulator.poolType]
+    [currentSimPool?.isLimitedWeapon, currentSimPool?.name, currentSimPool?.up_character, simulator.poolType, t]
   );
   const sharePayload = useMemo(
     () =>
@@ -1196,8 +1228,8 @@ export function useGachaSimulatorController() {
         dashboardStats,
         pityInfoWithGuarantee,
         resourceLedger,
-      }),
-    [currentPoolObj, dashboardStats, pityInfoWithGuarantee, resourceLedger]
+      }, locale),
+    [currentPoolObj, dashboardStats, locale, pityInfoWithGuarantee, resourceLedger]
   );
   const shareTimelineSections = useMemo(() => {
     const section = buildSinglePoolTimelineSection({
@@ -1210,10 +1242,11 @@ export function useGachaSimulatorController() {
       history: pullHistory,
       currentPityOverride: currentSharePity6,
       currentPity5Override: currentSharePity5,
+      locale,
     });
 
     return section ? [section] : [];
-  }, [currentPoolObj, currentSimPoolId, currentSharePity5, currentSharePity6, pullHistory]);
+  }, [currentPoolObj, currentSimPoolId, currentSharePity5, currentSharePity6, locale, pullHistory]);
   const supportsNativeImageShare = useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
       return false;
@@ -1240,27 +1273,27 @@ export function useGachaSimulatorController() {
 
   const handleExportReport = useCallback(() => {
     downloadAnalysisReport(stats, pityInfo, currentPoolType);
-    showToastMessage('分析报告已导出');
-  }, [currentPoolType, pityInfo, showToastMessage, stats]);
+    showToastMessage(t('simulator.toast.exportReport'));
+  }, [currentPoolType, pityInfo, showToastMessage, stats, t]);
 
   const handleExportData = useCallback(
     (format) => {
-      const poolName = currentSimPool?.name || '模拟池';
+      const poolName = currentSimPool?.name || t('simulator.defaultPoolName');
       downloadSimulatorData(simulator.getState().pullHistory, currentSimPoolId, poolName, currentPoolType, format);
-      showToastMessage(`已导出${format.toUpperCase()}格式数据`);
+      showToastMessage(t('simulator.toast.exportData', { format: format.toUpperCase() }));
     },
-    [currentPoolType, currentSimPool?.name, currentSimPoolId, showToastMessage, simulator]
+    [currentPoolType, currentSimPool?.name, currentSimPoolId, showToastMessage, simulator, t]
   );
 
   const handleCopyShareText = useCallback(async () => {
-    if (!beginShareAction('copy-text', '正在复制分享文本...')) {
+    if (!beginShareAction('copy-text', t('simulator.share.progress.copyText'))) {
       return;
     }
 
     try {
-      const shareText = buildSimulatorShareText(sharePayload);
+      const shareText = buildSimulatorShareText(sharePayload, locale);
       const success = await copyToClipboard(shareText);
-      const message = success ? '分享文本已复制' : '分享文本复制失败，请手动重试';
+      const message = success ? t('simulator.share.copyTextSuccess') : t('simulator.share.copyTextFailure');
       if (success) {
         finishShareAction('copy-text', message);
       } else {
@@ -1268,20 +1301,20 @@ export function useGachaSimulatorController() {
       }
       showToastMessage(message);
     } catch {
-      const message = '分享文本复制失败，请手动重试';
+      const message = t('simulator.share.copyTextFailure');
       failShareAction('copy-text', message);
       showToastMessage(message);
     }
-  }, [beginShareAction, failShareAction, finishShareAction, sharePayload, showToastMessage]);
+  }, [beginShareAction, failShareAction, finishShareAction, locale, sharePayload, showToastMessage, t]);
 
   const handleShareImage = useCallback(
     async (shareCardNode) => {
-      if (!beginShareAction('share', '正在生成分享图片...')) {
+      if (!beginShareAction('share', t('simulator.share.progress.generateImage'))) {
         return;
       }
 
       if (!shareCardNode) {
-        const message = '分享卡未准备好，请稍后重试';
+        const message = t('simulator.share.notReady');
         failShareAction('share', message);
         showToastMessage(message);
         return;
@@ -1293,17 +1326,17 @@ export function useGachaSimulatorController() {
         const canUseNativeShare = canNativeShareSimulatorFile(file);
 
         if (supportsNativeImageShare && canUseNativeShare) {
-          updateShareAction('share', '正在调起系统分享...');
-          await shareSimulatorShareCardFile(file, sharePayload);
-          const message = '系统分享已打开';
+          updateShareAction('share', t('simulator.share.progress.openSystemShare'));
+          await shareSimulatorShareCardFile(file, sharePayload, locale);
+          const message = t('simulator.share.systemOpened');
           finishShareAction('share', message);
           showToastMessage(message);
           return;
         }
 
-        updateShareAction('share', '正在下载分享图片...');
+        updateShareAction('share', t('simulator.share.progress.downloadImage'));
         const downloaded = downloadSimulatorShareCard(blob, sharePayload);
-        const message = downloaded ? '系统分享不可用，已改为下载分享卡' : '分享卡下载失败，请稍后重试';
+        const message = downloaded ? t('simulator.share.systemUnavailableDownloaded') : t('simulator.share.downloadFailure');
         if (downloaded) {
           finishShareAction('share', message);
         } else {
@@ -1317,7 +1350,7 @@ export function useGachaSimulatorController() {
         }
 
         appLogger.error('[GachaSimulator] share card generation failed:', error);
-        const message = '分享卡生成失败，请稍后重试';
+        const message = t('simulator.share.generateFailure');
         failShareAction('share', message);
         showToastMessage(message);
       }
@@ -1326,22 +1359,24 @@ export function useGachaSimulatorController() {
       beginShareAction,
       failShareAction,
       finishShareAction,
+      locale,
       resetShareActionFeedback,
       sharePayload,
       showToastMessage,
       supportsNativeImageShare,
+      t,
       updateShareAction,
     ]
   );
 
   const handleDownloadShareImage = useCallback(
     async (shareCardNode) => {
-      if (!beginShareAction('download', '正在生成分享长图...')) {
+      if (!beginShareAction('download', t('simulator.share.progress.generateLongImage'))) {
         return;
       }
 
       if (!shareCardNode) {
-        const message = '分享卡未准备好，请稍后重试';
+        const message = t('simulator.share.notReady');
         failShareAction('download', message);
         showToastMessage(message);
         return;
@@ -1349,9 +1384,9 @@ export function useGachaSimulatorController() {
 
       try {
         const blob = await renderSimulatorShareCardToBlob(shareCardNode);
-        updateShareAction('download', '正在保存分享长图...');
+        updateShareAction('download', t('simulator.share.progress.saveLongImage'));
         const downloaded = downloadSimulatorShareCard(blob, sharePayload);
-        const message = downloaded ? '分享卡已下载' : '分享卡下载失败，请稍后重试';
+        const message = downloaded ? t('simulator.share.downloadSuccess') : t('simulator.share.downloadFailure');
         if (downloaded) {
           finishShareAction('download', message);
         } else {
@@ -1359,29 +1394,29 @@ export function useGachaSimulatorController() {
         }
         showToastMessage(message);
       } catch {
-        const message = '分享卡生成失败，请稍后重试';
+        const message = t('simulator.share.generateFailure');
         failShareAction('download', message);
         showToastMessage(message);
       }
     },
-    [beginShareAction, failShareAction, finishShareAction, sharePayload, showToastMessage, updateShareAction]
+    [beginShareAction, failShareAction, finishShareAction, sharePayload, showToastMessage, t, updateShareAction]
   );
 
   const handleCopyShareImage = useCallback(
     async (shareCardNode) => {
-      if (!beginShareAction('copy-image', '正在生成待复制图片...')) {
+      if (!beginShareAction('copy-image', t('simulator.share.progress.generateCopyImage'))) {
         return;
       }
 
       if (!shareCardNode) {
-        const message = '分享卡未准备好，请稍后重试';
+        const message = t('simulator.share.notReady');
         failShareAction('copy-image', message);
         showToastMessage(message);
         return;
       }
 
       if (!supportsClipboardImageCopy) {
-        const message = '当前浏览器不支持复制图片，请改用下载';
+        const message = t('simulator.share.browserCopyUnsupported');
         failShareAction('copy-image', message);
         showToastMessage(message);
         return;
@@ -1389,9 +1424,9 @@ export function useGachaSimulatorController() {
 
       try {
         const blob = await renderSimulatorShareCardToBlob(shareCardNode);
-        updateShareAction('copy-image', '正在写入系统剪贴板...');
+        updateShareAction('copy-image', t('simulator.share.progress.writeClipboard'));
         const copied = await copyImageBlobToClipboard(blob);
-        const message = copied ? '分享图片已复制' : '复制图片失败，请改用下载';
+        const message = copied ? t('simulator.share.copyImageSuccess') : t('simulator.share.copyImageFailure');
         if (copied) {
           finishShareAction('copy-image', message);
         } else {
@@ -1399,7 +1434,7 @@ export function useGachaSimulatorController() {
         }
         showToastMessage(message);
       } catch {
-        const message = '复制图片失败，请改用下载';
+        const message = t('simulator.share.copyImageFailure');
         failShareAction('copy-image', message);
         showToastMessage(message);
       }
@@ -1410,6 +1445,7 @@ export function useGachaSimulatorController() {
       finishShareAction,
       showToastMessage,
       supportsClipboardImageCopy,
+      t,
       updateShareAction,
     ]
   );

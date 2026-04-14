@@ -150,6 +150,37 @@ async function main() {
     '免费十连节点应保留整组结果摘要，而不是在 6★ 处切段',
   );
 
+  const simulatorStyleSection = buildSinglePoolTimelineSection({
+    pool: {
+      id: 'sim-pool-lev',
+      name: '熔火灼痕 [模拟]',
+      type: 'limited',
+      up_character: '莱万汀',
+    },
+    history: [
+      {
+        pullNumber: 1,
+        rarity: 6,
+        isUp: true,
+        characterName: '莱万汀',
+        timestamp: '2026-02-06T12:00:00+08:00',
+      },
+    ],
+    currentPityOverride: 0,
+    currentPity5Override: 0,
+  });
+
+  assert.equal(
+    simulatorStyleSection.entries[0].leadBadge.label,
+    '莱万汀',
+    '模拟器分享时间线应兼容 characterName 字段，不能回退成“未知目标”',
+  );
+  assert.match(
+    simulatorStyleSection.entries[0].resultSummary,
+    /莱万汀/,
+    '模拟器分享时间线摘要应展示模拟器历史里的具体角色名',
+  );
+
   console.log('dashboard ordering verification passed');
 }
 

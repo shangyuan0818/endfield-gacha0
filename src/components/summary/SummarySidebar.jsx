@@ -1,5 +1,6 @@
 import React from 'react';
 import { Cloud, Layers, Search, Star, User } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 import SidebarItem from './SidebarItem';
 
 export default function SummarySidebar({
@@ -10,12 +11,15 @@ export default function SummarySidebar({
   globalStats,
   localStats,
 }) {
+  const { t } = useI18n();
+  const tt = (key, fallback, params = {}) => t(key, params, fallback);
+
   return (
     <div className="w-56 flex-shrink-0">
       <div className="bg-zinc-900 border border-zinc-800 sticky top-4">
         <div className="border-b border-zinc-800">
           <SidebarItem
-            label="全服数据"
+            label={tt('summary.source.global', '全服数据')}
             icon={Cloud}
             isActive={dataSource === 'global' && poolTypeFilter === 'all'}
             onClick={() => {
@@ -27,7 +31,7 @@ export default function SummarySidebar({
           {dataSource === 'global' && (
             <div className="bg-zinc-950">
               <SidebarItem
-                label="限定池"
+                label={tt('summary.scope.limited', '限定角色池')}
                 icon={Star}
                 indent
                 isActive={poolTypeFilter === 'limited'}
@@ -38,7 +42,7 @@ export default function SummarySidebar({
                 count={globalStats?.byType?.limited?.total}
               />
               <SidebarItem
-                label="常驻池"
+                label={tt('summary.scope.standard', '常驻池')}
                 icon={Layers}
                 indent
                 isActive={poolTypeFilter === 'standard'}
@@ -49,7 +53,7 @@ export default function SummarySidebar({
                 count={globalStats?.byType?.standard?.total}
               />
               <SidebarItem
-                label="武器池"
+                label={tt('summary.scope.weapon', '武器池')}
                 icon={Search}
                 indent
                 isActive={poolTypeFilter === 'weapon'}
@@ -65,7 +69,7 @@ export default function SummarySidebar({
 
         <div>
           <SidebarItem
-            label="我的数据"
+            label={tt('summary.source.local', '我的数据')}
             icon={User}
             isActive={dataSource === 'local' && poolTypeFilter === 'all'}
             onClick={() => {
@@ -77,7 +81,7 @@ export default function SummarySidebar({
           {dataSource === 'local' && (
             <div className="bg-zinc-950">
               <SidebarItem
-                label="限定池"
+                label={tt('summary.scope.limited', '限定角色池')}
                 icon={Star}
                 indent
                 isActive={poolTypeFilter === 'limited'}
@@ -88,7 +92,7 @@ export default function SummarySidebar({
                 count={localStats.byType.limited.total}
               />
               <SidebarItem
-                label="常驻池"
+                label={tt('summary.scope.standard', '常驻池')}
                 icon={Layers}
                 indent
                 isActive={poolTypeFilter === 'standard'}
@@ -99,7 +103,7 @@ export default function SummarySidebar({
                 count={localStats.byType.standard.total}
               />
               <SidebarItem
-                label="武器池"
+                label={tt('summary.scope.weapon', '武器池')}
                 icon={Search}
                 indent
                 isActive={poolTypeFilter === 'weapon'}

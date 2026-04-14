@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import SimpleMarkdown from '../SimpleMarkdown';
+import { useI18n } from '../../i18n/index.js';
 
 const AnnouncementContent = React.memo(function AnnouncementContent({ content }) {
+  const { t } = useI18n();
   const scrollRef = useRef(null);
   const [showScrollHint, setShowScrollHint] = useState(true);
   const [canScroll, setCanScroll] = useState(false);
@@ -55,7 +57,7 @@ const AnnouncementContent = React.memo(function AnnouncementContent({ content })
           >
             <div className="flex items-center gap-1 text-amber-500 dark:text-amber-400 text-xs animate-bounce">
               <ChevronDown size={14} />
-              <span className="font-medium">向下滚动查看更多</span>
+              <span className="font-medium">{t('home.announcement.scrollMore')}</span>
             </div>
           </div>
         )}

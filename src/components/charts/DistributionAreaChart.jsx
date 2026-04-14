@@ -1,23 +1,9 @@
 import React from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from 'recharts';
 import { RARITY_CONFIG } from '../../constants';
+import { useI18n } from '../../i18n/index.js';
 
 const DEFAULT_MARGIN = { top: 10, right: 10, left: -20, bottom: 0 };
-
-const DISTRIBUTION_LABELS = {
-  character: {
-    limited: 'UP',
-    standard: '歪'
-  },
-  weapon: {
-    limited: '目标',
-    standard: '偏移'
-  },
-  standard: {
-    limited: '限定',
-    standard: '常驻'
-  }
-};
 
 function getTooltipStyle(isDark, tooltipStyle) {
   if (tooltipStyle) {
@@ -32,8 +18,11 @@ function getTooltipStyle(isDark, tooltipStyle) {
   };
 }
 
-function getSeriesLabels(variant) {
-  return DISTRIBUTION_LABELS[variant] || DISTRIBUTION_LABELS.character;
+function getSeriesLabels(variant, t) {
+  return {
+    limited: t(`chart.distribution.${variant}.limited`, {}, t('chart.distribution.character.limited', {}, 'UP')),
+    standard: t(`chart.distribution.${variant}.standard`, {}, t('chart.distribution.character.standard', {}, '歪'))
+  };
 }
 
 const DistributionAreaChart = ({
@@ -43,10 +32,11 @@ const DistributionAreaChart = ({
   variant = 'character',
   margin = DEFAULT_MARGIN
 }) => {
+  const { t } = useI18n();
   const gradientId = React.useId().replace(/:/g, '');
   const axisColor = isDark ? '#71717a' : '#a1a1aa';
   const tooltipBorder = isDark ? 'rgba(255,255,255,0.16)' : 'rgba(24,24,27,0.12)';
-  const labels = getSeriesLabels(variant);
+  const labels = getSeriesLabels(variant, t);
 
   return (
     <div className="h-full w-full">
@@ -85,9 +75,17 @@ const DistributionAreaChart = ({
               const total = Array.isArray(payload)
                 ? payload.reduce((sum, item) => sum + (Number(item?.value) || 0), 0)
                 : 0;
-              return `${label} 抽区间 · 共 ${total} 个`;
+              return t('chart.distribution.tooltip.range', {
+                range: label,
+                count: total
+              }, `${label} 抽区间 · 共 ${total} 个`);
             }}
-            formatter={(value, name) => [`${Number(value) || 0} 个`, name]}
+            formatter={(value, name) => [
+              t('chart.distribution.tooltip.count', {
+                count: Number(value) || 0
+              }, `${Number(value) || 0} 个`),
+              name
+            ]}
           />
           <Area
             type="linear"

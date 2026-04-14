@@ -52,6 +52,7 @@ import {
 } from '../../utils/simulatorShare';
 import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
+import { useI18n } from '../../i18n/index.js';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -108,14 +109,14 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
   </div>
 );
 
-const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-zinc-100' }) => (
+const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-zinc-100', unitLabel = 'PULLS' }) => (
   <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
     <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent" />
     <div className="relative z-10">
       <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">{title}</h3>
       <div className={`text-4xl font-black font-mono flex items-baseline gap-2 ${accentClass}`}>
         {value}
-        <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
+        <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{unitLabel}</span>
       </div>
     </div>
     <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500">
@@ -129,6 +130,7 @@ const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-
  */
 const DashboardView = ({ showToast }) => {
   const { isDark } = useTheme();
+  const { t, formatNumber, isEnglish, locale } = useI18n();
   const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
   const [showShareMenu, setShowShareMenu] = React.useState(false);
   const [shareTheme, setShareTheme] = React.useState(() => {
@@ -176,6 +178,62 @@ const DashboardView = ({ showToast }) => {
     dashboardResourceSummary,
     resourceSummaryVariant,
   } = useDashboardViewState();
+  const allOverviewFilterOptions = React.useMemo(
+    () => ALL_OVERVIEW_FILTER_OPTIONS.map((option) => ({
+      ...option,
+      label: t(`dashboard.overview.filter.${option.id}`),
+    })),
+    [t]
+  );
+  const pullUnitLabel = isEnglish ? 'PULLS' : t('dashboard.unit.pull');
+  const characterPoolLabel = isEnglish ? 'Character Banner' : '角色池';
+  const weaponPoolLabel = isEnglish ? 'Weapon Banner' : '武器池';
+  const standardSixLabel = isEnglish ? 'Standard 6★' : '常驻6★';
+  const crossBannerSummary = isEnglish ? 'Cross-banner summary' : '跨卡池汇总';
+  const offrateShort = isEnglish ? 'Off-rate' : '歪';
+  const totalPullBannerTitle = isGroupMode
+    ? (isEnglish ? `${currentPool?.name || ''} Total Pulls` : `${currentPool?.name || ''}总投入`)
+    : (isEnglish ? 'Current Banner Total Pulls' : '当前卡池总投入');
+  const primarySixStarLabel = isAllPoolsOverview
+    ? t('dashboard.overview.targetSixStar')
+    : normalizedPoolType === 'weapon'
+      ? t('dashboard.overview.upSixStar')
+      : t('dashboard.average.limitedSix');
+  const secondarySixStarLabel = isAllPoolsOverview
+    ? t('dashboard.overview.offrateSixStar')
+    : standardSixLabel;
+  const resourceSummaryTitle = isGroupMode
+    ? t('dashboard.resources.groupTitle', { name: currentPool?.name || '' })
+    : t('dashboard.resources.title');
+  const formatPercentValue = React.useCallback(
+    (value) =>
+      formatNumber(value, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+    [formatNumber]
+  );
+  const localizeChartData = React.useCallback((items = [], primaryLabel, secondaryLabel) => (
+    items.map((item) => {
+      if (item?.name === '6星(限定)' || item?.name === '6星(目标)') {
+        return { ...item, name: primaryLabel };
+      }
+
+      if (item?.name === '6星(常驻)' || item?.name === '6星(常驻/偏移)') {
+        return { ...item, name: secondaryLabel };
+      }
+
+      if (item?.name === '5星') {
+        return { ...item, name: '5★' };
+      }
+
+      if (item?.name === '4星') {
+        return { ...item, name: '4★' };
+      }
+
+      return item;
+    })
+  ), []);
 
   const allOverviewFilterPoolIds = React.useMemo(() => {
     if (!isAllPoolsOverview || allOverviewPoolFilter === 'all') {
@@ -244,6 +302,7 @@ const DashboardView = ({ showToast }) => {
         overviewAnalysisPityMap,
         overviewPoolFilter: allOverviewPoolFilter,
         hasMergedAccountView,
+        locale,
       }),
     [
       allOverviewPoolFilter,
@@ -254,6 +313,7 @@ const DashboardView = ({ showToast }) => {
       hasMergedAccountView,
       isAllPoolsOverview,
       isGroupMode,
+      locale,
       normalizedPoolHistory,
       overviewAnalysisPityMap,
       selectedPools,
@@ -343,26 +403,26 @@ const DashboardView = ({ showToast }) => {
   const shareTriggerLabel =
     shareActionFeedback.phase === 'running'
       ? activeShareAction === 'download'
-        ? '正在下载'
+        ? t('dashboard.share.trigger.downloading')
         : activeShareAction === 'copy-image' || activeShareAction === 'copy-text'
-          ? '正在复制'
-          : '正在分享'
-      : '分享出货';
+          ? t('dashboard.share.trigger.copying')
+          : t('dashboard.share.trigger.sharing')
+      : t('dashboard.share.trigger.idle');
 
   const handleCopyShareText = React.useCallback(async () => {
     if (!hasDashboardShareData) {
-      showToast?.('当前没有可分享的详情数据', 'warning');
+      showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
 
-    if (!beginShareAction('copy-text', '正在复制分享文本...')) {
+    if (!beginShareAction('copy-text', t('dashboard.share.progress.copyText'))) {
       return;
     }
 
     try {
       const shareText = buildDashboardShareText(dashboardSharePayload);
       const success = await copyToClipboard(shareText);
-      const message = success ? '详情分享文本已复制' : '分享文本复制失败，请手动重试';
+      const message = success ? t('dashboard.share.copyTextSuccess') : t('dashboard.share.copyTextFailure');
       if (success) {
         finishShareAction('copy-text', message);
       } else {
@@ -370,11 +430,11 @@ const DashboardView = ({ showToast }) => {
       }
       showToast?.(message, success ? 'success' : 'error');
     } catch {
-      const message = '分享文本复制失败，请手动重试';
+      const message = t('dashboard.share.copyTextFailure');
       failShareAction('copy-text', message);
       showToast?.(message, 'error');
     }
-  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, showToast]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, showToast, t]);
 
   const waitForShareCard = React.useCallback(async () => {
     if (shareCardRef.current) return shareCardRef.current;
@@ -384,17 +444,17 @@ const DashboardView = ({ showToast }) => {
 
   const handleShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
-      showToast?.('当前没有可分享的详情数据', 'warning');
+      showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
 
-    if (!beginShareAction('share', '正在生成分享图片...')) {
+    if (!beginShareAction('share', t('dashboard.share.progress.generateImage'))) {
       return;
     }
 
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      const message = '分享卡未准备好，请稍后重试';
+      const message = t('dashboard.share.notReady');
       failShareAction('share', message);
       showToast?.(message, 'error');
       return;
@@ -408,20 +468,20 @@ const DashboardView = ({ showToast }) => {
       const file = buildShareFile(blob, fileName);
 
       if (file && supportsNativeImageShare && canNativeShareFile(file)) {
-        updateShareAction('share', '正在调起系统分享...');
+        updateShareAction('share', t('dashboard.share.progress.openSystemShare'));
         await shareImageFile(file, {
-          title: `${dashboardSharePayload.scopeLabel}分享`,
+          title: t('share.dashboard.scope', { scope: dashboardSharePayload.scopeLabel }),
           text: buildDashboardShareText(dashboardSharePayload),
         });
-        const message = '系统分享已打开';
+        const message = t('dashboard.share.systemOpened');
         finishShareAction('share', message);
         showToast?.(message, 'success');
         return;
       }
 
-      updateShareAction('share', '正在下载分享长图...');
+      updateShareAction('share', t('dashboard.share.progress.downloadImage'));
       const downloaded = downloadShareCard(blob, fileName);
-      const message = downloaded ? '系统分享不可用，已改为下载详情分享卡' : '分享卡下载失败，请稍后重试';
+      const message = downloaded ? t('dashboard.share.systemUnavailableDownloaded') : t('dashboard.share.downloadFailure');
       if (downloaded) {
         finishShareAction('share', message);
       } else {
@@ -435,7 +495,7 @@ const DashboardView = ({ showToast }) => {
       }
 
       console.error('[DashboardView] share card generation failed:', error);
-      const message = '详情分享卡生成失败，请稍后重试';
+      const message = t('dashboard.share.generateFailure');
       failShareAction('share', message);
       showToast?.(message, 'error');
     }
@@ -449,23 +509,24 @@ const DashboardView = ({ showToast }) => {
     shareTheme,
     showToast,
     supportsNativeImageShare,
+    t,
     updateShareAction,
     waitForShareCard,
   ]);
 
   const handleDownloadShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
-      showToast?.('当前没有可分享的详情数据', 'warning');
+      showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
 
-    if (!beginShareAction('download', '正在生成分享长图...')) {
+    if (!beginShareAction('download', t('dashboard.share.progress.generateImage'))) {
       return;
     }
 
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      const message = '分享卡未准备好，请稍后重试';
+      const message = t('dashboard.share.notReady');
       failShareAction('download', message);
       showToast?.(message, 'error');
       return;
@@ -475,10 +536,10 @@ const DashboardView = ({ showToast }) => {
       const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
       });
-      updateShareAction('download', '正在保存分享长图...');
+      updateShareAction('download', t('dashboard.share.progress.saveImage'));
       const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
       const downloaded = downloadShareCard(blob, fileName);
-      const message = downloaded ? '详情分享卡已下载' : '分享卡下载失败，请稍后重试';
+      const message = downloaded ? t('dashboard.share.downloadSuccess') : t('dashboard.share.downloadFailure');
       if (downloaded) {
         finishShareAction('download', message);
       } else {
@@ -486,7 +547,7 @@ const DashboardView = ({ showToast }) => {
       }
       showToast?.(message, downloaded ? 'success' : 'error');
     } catch {
-      const message = '详情分享卡生成失败，请稍后重试';
+      const message = t('dashboard.share.generateFailure');
       failShareAction('download', message);
       showToast?.(message, 'error');
     }
@@ -498,30 +559,31 @@ const DashboardView = ({ showToast }) => {
     hasDashboardShareData,
     shareTheme,
     showToast,
+    t,
     updateShareAction,
     waitForShareCard,
   ]);
 
   const handleCopyShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
-      showToast?.('当前没有可分享的详情数据', 'warning');
+      showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
 
-    if (!beginShareAction('copy-image', '正在生成待复制图片...')) {
+    if (!beginShareAction('copy-image', t('dashboard.share.progress.generateCopyImage'))) {
       return;
     }
 
     const cardNode = await waitForShareCard();
     if (!cardNode) {
-      const message = '分享卡未准备好，请稍后重试';
+      const message = t('dashboard.share.notReady');
       failShareAction('copy-image', message);
       showToast?.(message, 'error');
       return;
     }
 
     if (!supportsClipboardImageCopy) {
-      const message = '当前浏览器不支持复制图片，请改用下载';
+      const message = t('dashboard.share.browserCopyUnsupported');
       failShareAction('copy-image', message);
       showToast?.(message, 'warning');
       return;
@@ -531,9 +593,9 @@ const DashboardView = ({ showToast }) => {
       const blob = await renderShareCardToBlob(cardNode, {
         backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
       });
-      updateShareAction('copy-image', '正在写入系统剪贴板...');
+      updateShareAction('copy-image', t('dashboard.share.progress.writeClipboard'));
       const copied = await copyImageBlobToClipboard(blob);
-      const message = copied ? '详情分享图片已复制' : '复制图片失败，请改用下载';
+      const message = copied ? t('dashboard.share.copyImageSuccess') : t('dashboard.share.copyImageFailure');
       if (copied) {
         finishShareAction('copy-image', message);
       } else {
@@ -541,7 +603,7 @@ const DashboardView = ({ showToast }) => {
       }
       showToast?.(message, copied ? 'success' : 'error');
     } catch {
-      const message = '复制图片失败，请改用下载';
+      const message = t('dashboard.share.copyImageFailure');
       failShareAction('copy-image', message);
       showToast?.(message, 'error');
     }
@@ -553,6 +615,7 @@ const DashboardView = ({ showToast }) => {
     shareTheme,
     showToast,
     supportsClipboardImageCopy,
+    t,
     updateShareAction,
     waitForShareCard,
   ]);
@@ -581,11 +644,9 @@ const DashboardView = ({ showToast }) => {
             <div className="w-16 h-16 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <Upload size={28} className="text-zinc-400 dark:text-zinc-500" />
             </div>
-            <h3 className="font-bold text-lg text-slate-700 dark:text-zinc-300 mb-2">开始记录您的抽卡数据</h3>
+            <h3 className="font-bold text-lg text-slate-700 dark:text-zinc-300 mb-2">{t('dashboard.empty.startRecordTitle')}</h3>
             <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-md mx-auto">
-              点击上方的「导入数据」按钮，通过官方 API 导入您的抽卡记录。
-              <br />
-              导入后即可查看详细的统计分析。
+              {t('dashboard.empty.startRecordBody')}
             </p>
           </div>
         )}
@@ -643,69 +704,85 @@ const DashboardView = ({ showToast }) => {
             <>
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <OverviewBanner
-                  title="全部卡池总投入 · 角色池"
-                  value={splitOverviewStats.character.total}
+                  title={t('dashboard.overview.characterTotal')}
+                  value={formatNumber(splitOverviewStats.character.total)}
                   accentClass="rainbow-text"
+                  unitLabel={pullUnitLabel}
                 />
                 <OverviewBanner
-                  title="全部卡池总投入 · 武器池"
-                  value={splitOverviewStats.weapon.total}
+                  title={t('dashboard.overview.weaponTotal')}
+                  value={formatNumber(splitOverviewStats.weapon.total)}
                   accentClass="text-amber-600 dark:text-amber-400"
+                  unitLabel={pullUnitLabel}
                 />
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">
-                    角色池统计
+                    {t('dashboard.overview.characterStats')}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <StatBox
-                      title="目标6星"
+                      title={t('dashboard.overview.targetSixStar')}
                       value={splitOverviewStats.character.counts[6]}
                       subValue={
                         splitOverviewStats.character.totalSixStar > 0
-                          ? `占全部6★ ${((splitOverviewStats.character.counts[6] / splitOverviewStats.character.totalSixStar) * 100).toFixed(1)}%`
-                          : '暂无6★'
+                          ? t('dashboard.overview.allSixRate', {
+                            percent: formatPercentValue((splitOverviewStats.character.counts[6] / splitOverviewStats.character.totalSixStar) * 100),
+                          })
+                          : t('dashboard.empty.noSixStarData')
                       }
                       colorClass="rainbow-text"
                       icon={Star}
                       isAnimated
                     />
                     <StatBox
-                      title="常驻/偏移6星"
+                      title={t('dashboard.overview.offrateSixStar')}
                       value={splitOverviewStats.character.counts['6_std']}
-                      subValue="角色池汇总"
+                      subValue={t('dashboard.overview.characterSummary')}
                       colorClass="text-red-600 dark:text-red-400"
                       icon={Star}
                     />
                     <StatBox
-                      title="5星总数"
+                      title={t('dashboard.overview.fiveStarTotal')}
                       value={splitOverviewStats.character.counts[5]}
-                      subValue={`占比 ${(splitOverviewStats.character.total > 0 ? (splitOverviewStats.character.counts[5] / splitOverviewStats.character.total) * 100 : 0).toFixed(1)}%`}
+                      subValue={t('dashboard.overview.ratio', {
+                        percent: formatPercentValue(
+                          splitOverviewStats.character.total > 0
+                            ? (splitOverviewStats.character.counts[5] / splitOverviewStats.character.total) * 100
+                            : 0
+                        ),
+                      })}
                       colorClass="text-amber-600 dark:text-amber-400"
                       icon={Star}
                     />
                     <StatBox
-                      title="4星总数"
+                      title={t('dashboard.overview.fourStarTotal')}
                       value={splitOverviewStats.character.counts[4]}
-                      subValue={`占比 ${(splitOverviewStats.character.total > 0 ? (splitOverviewStats.character.counts[4] / splitOverviewStats.character.total) * 100 : 0).toFixed(1)}%`}
+                      subValue={t('dashboard.overview.ratio', {
+                        percent: formatPercentValue(
+                          splitOverviewStats.character.total > 0
+                            ? (splitOverviewStats.character.counts[4] / splitOverviewStats.character.total) * 100
+                            : 0
+                        ),
+                      })}
                       colorClass="text-purple-600 dark:text-purple-400"
                       icon={Star}
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <StatBox
-                      title="目标6星占比"
+                      title={t('dashboard.overview.targetSixStarRate')}
                       value={`${splitOverviewStats.character.winRate}%`}
                       subValue={`${splitOverviewStats.character.counts[6] || 0}/${splitOverviewStats.character.totalSixStar || 0}`}
                       colorClass="text-green-600 dark:text-green-400"
                       icon={TrendingUp}
                     />
                     <StatBox
-                      title="全部6星"
+                      title={t('dashboard.overview.allSixStar')}
                       value={splitOverviewStats.character.totalSixStar}
-                      subValue={`总抽数 ${splitOverviewStats.character.total}`}
+                      subValue={t('dashboard.pool.totalPulls', { count: splitOverviewStats.character.total })}
                       colorClass="text-slate-700 dark:text-zinc-200"
                       icon={Star}
                     />
@@ -714,54 +791,68 @@ const DashboardView = ({ showToast }) => {
 
                 <div className="space-y-4">
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">
-                    武器池统计
+                    {t('dashboard.overview.weaponStats')}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <StatBox
-                      title="UP6星"
+                      title={t('dashboard.overview.upSixStar')}
                       value={splitOverviewStats.weapon.counts[6]}
                       subValue={
                         splitOverviewStats.weapon.totalSixStar > 0
-                          ? `占全部6★ ${((splitOverviewStats.weapon.counts[6] / splitOverviewStats.weapon.totalSixStar) * 100).toFixed(1)}%`
-                          : '暂无6★'
+                          ? t('dashboard.overview.allSixRate', {
+                            percent: formatPercentValue((splitOverviewStats.weapon.counts[6] / splitOverviewStats.weapon.totalSixStar) * 100),
+                          })
+                          : t('dashboard.empty.noSixStarData')
                       }
                       colorClass="text-amber-600 dark:text-amber-400"
                       icon={Star}
                     />
                     <StatBox
-                      title="常驻/偏移6星"
+                      title={t('dashboard.overview.offrateSixStar')}
                       value={splitOverviewStats.weapon.counts['6_std']}
-                      subValue="武器池汇总"
+                      subValue={t('dashboard.overview.weaponSummary')}
                       colorClass="text-red-600 dark:text-red-400"
                       icon={Star}
                     />
                     <StatBox
-                      title="5星总数"
+                      title={t('dashboard.overview.fiveStarTotal')}
                       value={splitOverviewStats.weapon.counts[5]}
-                      subValue={`占比 ${(splitOverviewStats.weapon.total > 0 ? (splitOverviewStats.weapon.counts[5] / splitOverviewStats.weapon.total) * 100 : 0).toFixed(1)}%`}
+                      subValue={t('dashboard.overview.ratio', {
+                        percent: formatPercentValue(
+                          splitOverviewStats.weapon.total > 0
+                            ? (splitOverviewStats.weapon.counts[5] / splitOverviewStats.weapon.total) * 100
+                            : 0
+                        ),
+                      })}
                       colorClass="text-amber-600 dark:text-amber-400"
                       icon={Star}
                     />
                     <StatBox
-                      title="4星总数"
+                      title={t('dashboard.overview.fourStarTotal')}
                       value={splitOverviewStats.weapon.counts[4]}
-                      subValue={`占比 ${(splitOverviewStats.weapon.total > 0 ? (splitOverviewStats.weapon.counts[4] / splitOverviewStats.weapon.total) * 100 : 0).toFixed(1)}%`}
+                      subValue={t('dashboard.overview.ratio', {
+                        percent: formatPercentValue(
+                          splitOverviewStats.weapon.total > 0
+                            ? (splitOverviewStats.weapon.counts[4] / splitOverviewStats.weapon.total) * 100
+                            : 0
+                        ),
+                      })}
                       colorClass="text-purple-600 dark:text-purple-400"
                       icon={Star}
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <StatBox
-                      title="UP6星占比"
+                      title={t('dashboard.overview.upSixStarRate')}
                       value={`${splitOverviewStats.weapon.winRate}%`}
                       subValue={`${splitOverviewStats.weapon.counts[6] || 0}/${splitOverviewStats.weapon.totalSixStar || 0}`}
                       colorClass="text-green-600 dark:text-green-400"
                       icon={TrendingUp}
                     />
                     <StatBox
-                      title="全部6星"
+                      title={t('dashboard.overview.allSixStar')}
                       value={splitOverviewStats.weapon.totalSixStar}
-                      subValue={`总抽数 ${splitOverviewStats.weapon.total}`}
+                      subValue={t('dashboard.pool.totalPulls', { count: splitOverviewStats.weapon.total })}
                       colorClass="text-slate-700 dark:text-zinc-200"
                       icon={Star}
                     />
@@ -780,14 +871,14 @@ const DashboardView = ({ showToast }) => {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <ResourceSummaryPanel
-                  title="角色池资源统计"
+                  title={t('dashboard.resources.groupTitle', { name: characterPoolLabel })}
                   resources={splitOverviewStats.character.resourceSummary}
                   variant="character"
                   stacked={true}
                   className="bg-white dark:bg-zinc-900 shadow-sm"
                 />
                 <ResourceSummaryPanel
-                  title="武器池资源统计"
+                  title={t('dashboard.resources.groupTitle', { name: weaponPoolLabel })}
                   resources={splitOverviewStats.weapon.resourceSummary}
                   variant="weapon"
                   stacked={true}
@@ -797,8 +888,18 @@ const DashboardView = ({ showToast }) => {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {[
-                  { key: 'character', title: '角色池', stats: splitOverviewStats.character },
-                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon },
+                  {
+                    key: 'character',
+                    title: characterPoolLabel,
+                    stats: splitOverviewStats.character,
+                    primaryLabel: t('dashboard.overview.targetSixStar'),
+                  },
+                  {
+                    key: 'weapon',
+                    title: weaponPoolLabel,
+                    stats: splitOverviewStats.weapon,
+                    primaryLabel: t('dashboard.overview.upSixStar'),
+                  },
                 ].map((group) => (
                   <div
                     key={`pie-${group.key}`}
@@ -807,20 +908,20 @@ const DashboardView = ({ showToast }) => {
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                         <PieChartIcon size={16} />
-                        分布概览 · {group.title}
+                        {t('dashboard.chart.distributionGroup', { name: group.title })}
                       </h3>
                     </div>
                     <div className="h-64 w-full">
                       {group.stats.total === 0 ? (
                         <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">
-                          暂无数据
+                          {t('dashboard.empty.noChartData')}
                         </div>
                       ) : (
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <RainbowGradientDefs />
                             <Pie
-                              data={group.stats.chartData}
+                              data={localizeChartData(group.stats.chartData, group.primaryLabel, t('dashboard.overview.offrateSixStar'))}
                               cx="50%"
                               cy="50%"
                               innerRadius={60}
@@ -828,7 +929,7 @@ const DashboardView = ({ showToast }) => {
                               paddingAngle={2}
                               dataKey="displayValue"
                             >
-                              {group.stats.chartData.map((entry, index) => (
+                              {localizeChartData(group.stats.chartData, group.primaryLabel, t('dashboard.overview.offrateSixStar')).map((entry, index) => (
                                 <Cell key={`cell-${group.key}-${index}`} fill={entry.color} stroke="none" />
                               ))}
                             </Pie>
@@ -857,8 +958,8 @@ const DashboardView = ({ showToast }) => {
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 {[
-                  { key: 'character', title: '角色池', stats: splitOverviewStats.character },
-                  { key: 'weapon', title: '武器池', stats: splitOverviewStats.weapon },
+                  { key: 'character', title: characterPoolLabel, stats: splitOverviewStats.character },
+                  { key: 'weapon', title: weaponPoolLabel, stats: splitOverviewStats.weapon },
                 ].map((group) => (
                   <div
                     key={`bar-${group.key}`}
@@ -867,13 +968,13 @@ const DashboardView = ({ showToast }) => {
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                         <TrendingUp size={16} />
-                        出货趋势 · {group.title}
+                        {t('dashboard.chart.trendGroup', { name: group.title })}
                       </h3>
                     </div>
                     <div className="h-64 w-full">
                       {group.stats.pityStats.history.length === 0 ? (
                         <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">
-                          暂无6星记录
+                          {t('dashboard.empty.noSixStarHistory')}
                         </div>
                       ) : (
                         <DistributionAreaChart
@@ -895,11 +996,11 @@ const DashboardView = ({ showToast }) => {
                 <div className="absolute right-0 top-0 h-full w-32 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent"></div>
                 <div className="relative z-10">
                   <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">
-                    {isGroupMode ? `${currentPool.name}总投入` : '当前卡池总投入'}
+                    {totalPullBannerTitle}
                   </h3>
                   <div className="text-4xl font-black font-mono text-slate-800 dark:text-zinc-100 flex items-baseline gap-2">
-                    {stats.total}
-                    <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">PULLS</span>
+                    {formatNumber(stats.total)}
+                    <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{pullUnitLabel}</span>
                   </div>
                 </div>
                 <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500 group-hover:bg-slate-200 dark:group-hover:bg-zinc-700 transition-colors">
@@ -913,22 +1014,28 @@ const DashboardView = ({ showToast }) => {
               >
                 {normalizedPoolType !== 'standard' && (
                   <StatBox
-                    title={isAllPoolsOverview ? '目标6星' : '限定6星'}
+                    title={primarySixStarLabel}
                     value={stats.counts[6]}
                     subValue={(() => {
                       if (isAllPoolsOverview) {
                         return stats.totalSixStar > 0
-                          ? `占全部6★ ${((stats.counts[6] / stats.totalSixStar) * 100).toFixed(1)}%`
-                          : '暂无6★';
+                          ? t('dashboard.overview.allSixRate', {
+                            percent: formatPercentValue((stats.counts[6] / stats.totalSixStar) * 100),
+                          })
+                          : t('dashboard.empty.noSixStarData');
                       }
-                      if (isGroupMode) return `不歪率 ${stats.winRate}%`;
+                      if (isGroupMode) {
+                        return `${t('dashboard.analysis.winRate')} ${stats.winRate}%`;
+                      }
                       let bonusCount = 0;
                       if (normalizedPoolType === 'limited') {
                         bonusCount = Math.floor(stats.total / 240);
                       } else if (normalizedPoolType === 'weapon') {
                         if (stats.total >= 180) bonusCount = 1 + Math.floor((stats.total - 180) / 160);
                       }
-                      return bonusCount > 0 ? `含赠送 ${bonusCount}` : `占比 ${stats.winRate}%`;
+                      return bonusCount > 0
+                        ? (isEnglish ? `Includes ${bonusCount} bonus` : `含赠送 ${bonusCount}`)
+                        : t('dashboard.overview.ratio', { percent: formatPercentValue(stats.winRate) });
                     })()}
                     colorClass={normalizedPoolType === 'limited' ? 'rainbow-text' : 'text-slate-700 dark:text-zinc-300'}
                     icon={Star}
@@ -936,29 +1043,33 @@ const DashboardView = ({ showToast }) => {
                   />
                 )}
                 <StatBox
-                  title={isAllPoolsOverview ? '常驻/偏移6星' : '常驻6星'}
+                  title={secondarySixStarLabel}
                   value={stats.counts['6_std']}
                   subValue={
                     isAllPoolsOverview
-                      ? '跨卡池汇总'
+                      ? crossBannerSummary
                       : normalizedPoolType === 'standard' && stats.total >= 300
-                        ? '含赠送 1'
-                        : '歪'
+                        ? (isEnglish ? 'Includes 1 bonus' : '含赠送 1')
+                        : offrateShort
                   }
                   colorClass="text-red-600 dark:text-red-400"
                   icon={Star}
                 />
                 <StatBox
-                  title="5星总数"
+                  title={t('dashboard.overview.fiveStarTotal')}
                   value={stats.counts[5]}
-                  subValue={`占比 ${(stats.total > 0 ? (stats.counts[5] / stats.total) * 100 : 0).toFixed(1)}%`}
+                  subValue={t('dashboard.overview.ratio', {
+                    percent: formatPercentValue(stats.total > 0 ? (stats.counts[5] / stats.total) * 100 : 0),
+                  })}
                   colorClass="text-amber-600 dark:text-amber-400"
                   icon={Star}
                 />
                 <StatBox
-                  title="4星总数"
+                  title={t('dashboard.overview.fourStarTotal')}
                   value={stats.counts[4]}
-                  subValue={`占比 ${(stats.total > 0 ? (stats.counts[4] / stats.total) * 100 : 0).toFixed(1)}%`}
+                  subValue={t('dashboard.overview.ratio', {
+                    percent: formatPercentValue(stats.total > 0 ? (stats.counts[4] / stats.total) * 100 : 0),
+                  })}
                   colorClass="text-purple-600 dark:text-purple-400"
                   icon={Star}
                 />
@@ -967,16 +1078,16 @@ const DashboardView = ({ showToast }) => {
               {isGroupMode && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <StatBox
-                    title={isAllPoolsOverview ? '目标6星占比' : '不歪率'}
+                    title={isAllPoolsOverview ? t('dashboard.overview.targetSixStarRate') : t('dashboard.analysis.winRate')}
                     value={`${stats.winRate}%`}
                     subValue={`${stats.upSixStarCount || 0}/${stats.sixStarCount || 0}`}
                     colorClass="text-green-600 dark:text-green-400"
                     icon={TrendingUp}
                   />
                   <StatBox
-                    title={isAllPoolsOverview ? '目标6星' : '限定6星'}
+                    title={primarySixStarLabel}
                     value={stats.counts[6] ?? 0}
-                    subValue={`常驻6星 ${stats.counts['6_std'] ?? 0}`}
+                    subValue={isEnglish ? `Standard 6★ ${stats.counts['6_std'] ?? 0}` : `常驻6星 ${stats.counts['6_std'] ?? 0}`}
                     colorClass={normalizedPoolType === 'weapon' ? 'text-slate-700 dark:text-zinc-300' : 'rainbow-text'}
                     icon={Star}
                     isAnimated={normalizedPoolType !== 'weapon' && !isAllPoolsOverview}
@@ -994,7 +1105,7 @@ const DashboardView = ({ showToast }) => {
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 <ResourceSummaryPanel
-                  title={isGroupMode ? `${currentPool.name}资源统计` : '资源统计'}
+                  title={resourceSummaryTitle}
                   resources={dashboardResourceSummary}
                   variant={resourceSummaryVariant}
                   stacked={true}
@@ -1004,20 +1115,20 @@ const DashboardView = ({ showToast }) => {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                       <PieChartIcon size={16} />
-                      分布概览
+                      {t('dashboard.chart.distribution')}
                     </h3>
                   </div>
                   <div className="h-64 w-full">
                     {stats.total === 0 ? (
                       <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">
-                        暂无数据
+                        {t('dashboard.empty.noChartData')}
                       </div>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <RainbowGradientDefs />
                           <Pie
-                            data={stats.chartData}
+                            data={localizeChartData(stats.chartData, primarySixStarLabel, secondarySixStarLabel)}
                             cx="50%"
                             cy="50%"
                             innerRadius={60}
@@ -1025,7 +1136,7 @@ const DashboardView = ({ showToast }) => {
                             paddingAngle={2}
                             dataKey="displayValue"
                           >
-                            {stats.chartData.map((entry, index) => (
+                            {localizeChartData(stats.chartData, primarySixStarLabel, secondarySixStarLabel).map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                             ))}
                           </Pie>
@@ -1054,13 +1165,13 @@ const DashboardView = ({ showToast }) => {
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
                       <TrendingUp size={16} />
-                      出货趋势
+                      {t('dashboard.chart.trend')}
                     </h3>
                   </div>
                   <div className="h-64 w-full">
                     {stats.pityStats.history.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-slate-300 dark:text-zinc-700 text-sm">
-                        暂无6星记录
+                        {t('dashboard.empty.noSixStarHistory')}
                       </div>
                     ) : (
                       <DistributionAreaChart
@@ -1081,7 +1192,7 @@ const DashboardView = ({ showToast }) => {
             <div className="flex items-center gap-2 mb-4 border-b border-zinc-100 dark:border-zinc-800 pb-2">
               <User size={18} className="text-slate-400 dark:text-zinc-500" />
               <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
-                角色出货统计
+                {t('dashboard.chart.characterStats')}
               </h3>
               <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                 {/* 视图切换按钮组 */}
@@ -1096,7 +1207,7 @@ const DashboardView = ({ showToast }) => {
                       }`}
                     >
                       <LayoutGrid size={14} />
-                      卡片
+                      {t('dashboard.view.card')}
                     </button>
                     <button
                       onClick={() => setCharViewMode('waterfall')}
@@ -1107,7 +1218,7 @@ const DashboardView = ({ showToast }) => {
                       }`}
                     >
                       <BarChart3 size={14} />
-                      时间线
+                      {t('dashboard.view.timeline')}
                     </button>
                   </div>
                 )}
@@ -1136,7 +1247,7 @@ const DashboardView = ({ showToast }) => {
                       <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
                         <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
                           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
-                            分享主题
+                            {t('dashboard.share.theme')}
                           </div>
                           <div className="mt-2 flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
                             <button
@@ -1149,7 +1260,7 @@ const DashboardView = ({ showToast }) => {
                                   : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                               } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                             >
-                              亮色
+                              {t('settings.theme.light')}
                             </button>
                             <button
                               type="button"
@@ -1161,7 +1272,7 @@ const DashboardView = ({ showToast }) => {
                                   : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                               } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                             >
-                              暗色
+                              {t('settings.theme.dark')}
                             </button>
                           </div>
                         </div>
@@ -1180,7 +1291,7 @@ const DashboardView = ({ showToast }) => {
                             }`}
                           >
                             <Share2 size={14} />
-                            <span>系统分享图片</span>
+                            <span>{t('dashboard.share.systemImage')}</span>
                           </button>
                         )}
                         <button
@@ -1195,7 +1306,7 @@ const DashboardView = ({ showToast }) => {
                           } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                         >
                           <Download size={14} />
-                          <span>下载分享长图</span>
+                          <span>{t('dashboard.share.downloadImage')}</span>
                         </button>
                         {supportsClipboardImageCopy && (
                           <button
@@ -1212,7 +1323,7 @@ const DashboardView = ({ showToast }) => {
                             }`}
                           >
                             <Copy size={14} />
-                            <span>复制分享图片</span>
+                            <span>{t('dashboard.share.copyImage')}</span>
                           </button>
                         )}
                         <button
@@ -1229,7 +1340,7 @@ const DashboardView = ({ showToast }) => {
                           }`}
                         >
                           <Copy size={14} />
-                          <span>复制分享文本</span>
+                          <span>{t('dashboard.share.copyText')}</span>
                         </button>
                       </div>
                     )}
@@ -1244,7 +1355,7 @@ const DashboardView = ({ showToast }) => {
                 )}
                 {isAllPoolsOverview && (
                   <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
-                    {ALL_OVERVIEW_FILTER_OPTIONS.map((option) => (
+                    {allOverviewFilterOptions.map((option) => (
                       <button
                         key={option.id}
                         onClick={() => setAllOverviewPoolFilter(option.id)}
@@ -1261,7 +1372,7 @@ const DashboardView = ({ showToast }) => {
                 )}
                 {visibleTotalCharacterCount > 0 && (
                   <span className="text-xs text-slate-400 dark:text-zinc-500 font-mono">
-                    Total: {visibleTotalCharacterCount}
+                    {t('dashboard.totalCharacters', { count: visibleTotalCharacterCount })}
                   </span>
                 )}
               </div>
@@ -1283,7 +1394,7 @@ const DashboardView = ({ showToast }) => {
                 embedded={true}
               />
             ) : visibleCharacterStats.length === 0 ? (
-              <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">暂无5星及以上记录</div>
+              <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">{t('dashboard.empty.noHighRarityRecords')}</div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {visibleCharacterStats.map((char) => {
@@ -1299,12 +1410,15 @@ const DashboardView = ({ showToast }) => {
                     const isInfoBook = char.infoBookFlags?.[i] === true;
 
                     if (isFree) {
-                      return { type: 'free', text: '免费' };
+                      return { type: 'free', text: isEnglish ? 'Free' : '免费' };
                     }
 
                     if (pity) {
                       // 显示 保底计数(#总抽数位置)
-                      return { type: isInfoBook ? 'infoBook' : 'normal', text: `${pity}抽(#${idx})` };
+                      return {
+                        type: isInfoBook ? 'infoBook' : 'normal',
+                        text: isEnglish ? `${pity} pulls (#${idx})` : `${pity}抽(#${idx})`,
+                      };
                     } else {
                       // 没有保底数据时只显示总抽数位置
                       return { type: isInfoBook ? 'infoBook' : 'normal', text: `#${idx}` };
@@ -1407,7 +1521,7 @@ const DashboardView = ({ showToast }) => {
                                   <span className="text-blue-500 font-bold">{part.text}</span>
                                 ) : part.type === 'infoBook' ? (
                                   <span className="text-amber-600 dark:text-amber-400 font-bold">
-                                    情报书 {part.text}
+                                    {isEnglish ? `Intel ${part.text}` : `情报书 ${part.text}`}
                                   </span>
                                 ) : (
                                   <span className="text-slate-400 dark:text-zinc-600">{part.text}</span>
@@ -1424,12 +1538,12 @@ const DashboardView = ({ showToast }) => {
                           <div className="flex items-center gap-1.5">
                             {char.infoBookCount > 0 && (
                               <div className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                                情报书×{char.infoBookCount}
+                                {isEnglish ? `Intel×${char.infoBookCount}` : `情报书×${char.infoBookCount}`}
                               </div>
                             )}
                             {char.freeCount > 0 && (
                               <div className="text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                                免费×{char.freeCount}
+                                {isEnglish ? `Free×${char.freeCount}` : `免费×${char.freeCount}`}
                               </div>
                             )}
                             <div

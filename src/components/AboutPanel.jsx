@@ -14,12 +14,12 @@ import {
   Globe,
 } from 'lucide-react';
 import { APP_VERSION } from '../constants/appMeta';
-import useSiteConfigStore from '../stores/useSiteConfigStore';
-import { useJsonConfig } from '../stores/useSiteConfigStore';
+import useSiteConfigStore, { useJsonConfig } from '../stores/useSiteConfigStore';
+import { useI18n } from '../i18n/index.js';
 
 const ICON_MAP = { Star, Calculator, BarChart3, Cloud, Download, Shield, Globe };
 
-const DEFAULT_FEATURES = [
+const DEFAULT_FEATURES_ZH = [
   { icon: 'Star', label: '卡池管理', desc: '限定/常驻/武器池' },
   { icon: 'Calculator', label: '抽卡模拟', desc: '真实概率 + 机制复刻' },
   { icon: 'BarChart3', label: '欧非分析', desc: '不歪率/平均出货' },
@@ -28,14 +28,38 @@ const DEFAULT_FEATURES = [
   { icon: 'Shield', label: '全球统计', desc: '"急"按钮实时同步' },
 ];
 
-const DEFAULT_DISCLAIMER = '非官方工具。与 Gryphline / HyperGryph 无关。';
+const DEFAULT_DISCLAIMER_ZH = '非官方工具。与 Gryphline / HyperGryph 无关。';
 
 /**
  * 关于面板组件
  */
 const AboutPanel = React.memo(() => {
-  const features = useJsonConfig('about_features', DEFAULT_FEATURES);
-  const disclaimer = useSiteConfigStore(s => s.getConfig('about_disclaimer', DEFAULT_DISCLAIMER));
+  const { t } = useI18n();
+  const config = useSiteConfigStore(s => s.config);
+  const rawFeatures = useJsonConfig('about_features', null);
+  const rawDisclaimer = useSiteConfigStore(s => s.getConfig('about_disclaimer', DEFAULT_DISCLAIMER_ZH));
+  const authorName = config.author_name || '蘑菇菌__';
+  const authorBilibili = config.author_bilibili || 'https://space.bilibili.com/14932613';
+  const githubUrl = config.github_url || 'https://github.com/MoguJunn/endfield-gacha';
+  const buildInfo = config.build_info || 'Build 2026';
+  const buildVersion = String(buildInfo).replace(/^Build\s*/i, '').trim();
+  const features = React.useMemo(() => {
+    if (Array.isArray(rawFeatures) && JSON.stringify(rawFeatures) !== JSON.stringify(DEFAULT_FEATURES_ZH)) {
+      return rawFeatures;
+    }
+
+    return [
+      { icon: 'Star', label: t('about.feature.pool.label'), desc: t('about.feature.pool.desc') },
+      { icon: 'Calculator', label: t('about.feature.simulator.label'), desc: t('about.feature.simulator.desc') },
+      { icon: 'BarChart3', label: t('about.feature.analytics.label'), desc: t('about.feature.analytics.desc') },
+      { icon: 'Cloud', label: t('about.feature.sync.label'), desc: t('about.feature.sync.desc') },
+      { icon: 'Download', label: t('about.feature.import.label'), desc: t('about.feature.import.desc') },
+      { icon: 'Shield', label: t('about.feature.global.label'), desc: t('about.feature.global.desc') },
+    ];
+  }, [rawFeatures, t]);
+  const disclaimer = rawDisclaimer && rawDisclaimer !== DEFAULT_DISCLAIMER_ZH
+    ? rawDisclaimer
+    : t('about.disclaimer');
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -47,12 +71,12 @@ const AboutPanel = React.memo(() => {
         <div className="relative z-10">
           <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 mb-2">
             <BarChart3 size={32} className="text-endfield-yellow" />
-            终末地抽卡分析器
+            {t('app.brand')}
           </h2>
-          <p className="text-zinc-400 text-sm tracking-widest uppercase">/ 记录你的每一次命运邂逅</p>
+          <p className="text-zinc-400 text-sm tracking-widest uppercase">{t('about.desktopSubtitle')}</p>
           <div className="mt-6 flex items-center gap-4">
-            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">版本 {APP_VERSION}</span>
-            <span className="text-zinc-500 text-xs font-mono">构建于 2026</span>
+            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">{t('about.versionLabel', { value: APP_VERSION })}</span>
+            <span className="text-zinc-500 text-xs font-mono">{t('about.buildLabel', { value: buildVersion })}</span>
           </div>
         </div>
       </div>
@@ -61,7 +85,7 @@ const AboutPanel = React.memo(() => {
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
           <Heart size={18} className="text-pink-500" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">Credits // 制作团队</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">{t('about.teamSection')}</h3>
         </div>
         <div className="p-6">
           {/* 主要作者 */}
@@ -70,7 +94,7 @@ const AboutPanel = React.memo(() => {
               <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center overflow-hidden border border-zinc-300 dark:border-zinc-600">
                 <img
                   src="/avatar.png"
-                  alt="蘑菇菌__"
+                  alt={authorName}
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -78,12 +102,12 @@ const AboutPanel = React.memo(() => {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">蘑菇菌__</h4>
-                <span className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-500 uppercase tracking-wider border border-zinc-200 dark:border-zinc-700">项目负责人</span>
+                <h4 className="text-lg font-bold text-zinc-800 dark:text-zinc-100">{authorName}</h4>
+                <span className="px-1.5 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-[10px] text-zinc-500 uppercase tracking-wider border border-zinc-200 dark:border-zinc-700">{t('about.leadBadge')}</span>
               </div>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 font-mono">发起人 & 产品设计</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-3 font-mono">{t('about.leadDesc')}</p>
               <a
-                href="https://space.bilibili.com/14932613"
+                href={authorBilibili}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-50 dark:bg-pink-900/10 text-pink-600 dark:text-pink-400 text-xs font-bold hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors"
@@ -100,7 +124,7 @@ const AboutPanel = React.memo(() => {
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-6">
             <p className="text-xs font-bold text-zinc-500 dark:text-zinc-500 mb-4 flex items-center gap-2 uppercase tracking-wider">
               <Bot size={14} />
-              AI 联合开发 // 智能协作单元
+              {t('about.aiSection')}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Claude */}
@@ -118,7 +142,7 @@ const AboutPanel = React.memo(() => {
                     </div>
                     <p className="text-xs text-zinc-500 mt-1 font-mono">ANTHROPIC</p>
                     <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                      核心架构设计、逻辑处理、后端集成
+                      {t('about.ai.claudeSummary')}
                     </p>
                   </div>
                 </div>
@@ -139,7 +163,7 @@ const AboutPanel = React.memo(() => {
                     </div>
                     <p className="text-xs text-zinc-500 mt-1 font-mono">GOOGLE</p>
                     <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                      UI/UX 设计、视觉优化、前端逻辑
+                      {t('about.ai.geminiSummary')}
                     </p>
                   </div>
                 </div>
@@ -162,7 +186,7 @@ const AboutPanel = React.memo(() => {
                     </div>
                     <p className="text-xs text-zinc-500 mt-1 font-mono">OPENAI</p>
                     <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                      代码实现、问题定位、回归验证
+                      {t('about.ai.codexSummary')}
                     </p>
                   </div>
                 </div>
@@ -176,7 +200,7 @@ const AboutPanel = React.memo(() => {
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
           <Sparkles size={18} className="text-amber-500" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">Features // 核心功能</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">{t('about.featuresSection')}</h3>
         </div>
         <div className="p-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -198,7 +222,7 @@ const AboutPanel = React.memo(() => {
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex items-center gap-2">
           <Code size={18} className="text-zinc-500" />
-          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">Open Source // 开源仓库</h3>
+          <h3 className="font-bold text-zinc-700 dark:text-zinc-200 tracking-wide uppercase text-sm">{t('about.openSourceSection')}</h3>
         </div>
         <div className="p-6">
           <div className="flex items-center justify-between p-5 bg-zinc-900 text-white">
@@ -209,17 +233,17 @@ const AboutPanel = React.memo(() => {
                 </svg>
               </div>
               <div>
-                <h4 className="font-bold text-lg tracking-tight">GITHUB 代码仓库</h4>
-                <p className="text-xs text-zinc-400 font-mono mt-1">MoguJunn/endfield-gacha</p>
+                <h4 className="font-bold text-lg tracking-tight">{t('about.openSourceRepo')}</h4>
+                <p className="text-xs text-zinc-400 font-mono mt-1">{githubUrl.replace('https://github.com/', '')}</p>
               </div>
             </div>
             <a
-              href="https://github.com/MoguJunn/endfield-gacha"
+              href={githubUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 px-4 py-2 bg-white text-black text-xs font-bold uppercase tracking-wider hover:bg-zinc-200 transition-colors"
             >
-              查看源码
+              {t('about.openSourceViewSource')}
               <ExternalLink size={12} />
             </a>
           </div>

@@ -58,7 +58,7 @@ export function createInitialState(poolType = 'limited_character') {
     hasReceivedSelectGift: false,       // 是否已领取自选赠送（常驻池：300抽，仅1次）
 
     // 资源
-    syntheticJade: 0,                   // 合成玉
+    syntheticJade: 0,                   // 嵌金玉
     pullTickets: 0,                     // 寻访凭证
 
     // 历史记录

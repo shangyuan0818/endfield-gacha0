@@ -10,8 +10,10 @@ import SimulatorToolbar from './SimulatorToolbar';
 import SimulatorHistoryPanel from './SimulatorHistoryPanel';
 import { normalizeSimulatorPoolType } from './simulatorInheritance';
 import { useGachaSimulatorController } from './useGachaSimulatorController';
+import { useI18n } from '../../i18n/index.js';
 
 const GachaSimulator = () => {
+  const { t } = useI18n();
   const {
     adjustResourceAmount,
     availableFreePulls,
@@ -78,6 +80,11 @@ const GachaSimulator = () => {
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const shareCardRef = useRef(null);
+  const currentTypeName = normalizeSimulatorPoolType(currentSimPool?.type) === 'limited'
+    ? t('dashboard.pool.type.limited')
+    : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon'
+      ? t('dashboard.pool.type.weapon')
+      : t('dashboard.pool.type.standard');
 
   return (
     <div className="flex flex-col h-full text-slate-800 dark:text-zinc-100 font-sans max-w-7xl mx-auto w-full">
@@ -177,13 +184,13 @@ const GachaSimulator = () => {
 
                   <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">
                     {normalizedSimulatorPoolType === 'limited'
-                      ? 'LIMITED HEADHUNTING'
+                      ? t('simulator.hero.limited')
                       : normalizedSimulatorPoolType === 'weapon'
-                        ? 'WEAPON ARSENAL'
-                        : 'STANDARD HEADHUNTING'}
+                        ? t('simulator.hero.weapon')
+                        : t('simulator.hero.standard')}
                   </h1>
                   <p className="text-sm font-mono text-endfield-yellow tracking-[0.2em] uppercase opacity-80 bg-black/80 px-2 py-1 rounded inline-block">
-                    Probability Up Event
+                    {t('simulator.hero.subtitle')}
                   </p>
                 </div>
               )
@@ -227,14 +234,14 @@ const GachaSimulator = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-200 dark:border-zinc-800 shadow-2xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-red-50 dark:bg-red-900/20">
-              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">重置模拟器</h3>
+              <h3 className="text-lg font-bold text-red-600 dark:text-red-400 uppercase tracking-wide">{t('simulator.reset.title')}</h3>
             </div>
 
             <div className="px-6 py-6 space-y-4">
               <p className="text-sm text-slate-600 dark:text-zinc-400">
                 {resetAllPools
-                  ? '确定要重置所有类型的卡池吗？默认会清空模拟记录、保底与资源。'
-                  : `确定要重置所有${normalizeSimulatorPoolType(currentSimPool?.type) === 'limited' ? '限定角色池' : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon' ? '武器池' : '常驻池'}吗？默认会清空该类型的模拟记录、保底与资源。`}
+                  ? t('simulator.reset.confirmAll')
+                  : t('simulator.reset.confirmType', { typeName: currentTypeName })}
               </p>
 
               <div
@@ -258,8 +265,8 @@ const GachaSimulator = () => {
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-bold">重置所有类型的卡池</div>
-                  <div className="text-xs opacity-75 mt-0.5">清空限定、武器、常驻所有类型的卡池数据</div>
+                  <div className="text-sm font-bold">{t('simulator.reset.optionAllTitle')}</div>
+                  <div className="text-xs opacity-75 mt-0.5">{t('simulator.reset.optionAllDesc')}</div>
                 </div>
               </div>
 
@@ -284,10 +291,8 @@ const GachaSimulator = () => {
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-bold">保留当前资源</div>
-                  <div className="text-xs opacity-75 mt-0.5">
-                    只重置抽卡记录、保底与赠送进度，保留嵌晶玉 / 源石 / 武库配额余额
-                  </div>
+                  <div className="text-sm font-bold">{t('simulator.reset.keepResourcesTitle')}</div>
+                  <div className="text-xs opacity-75 mt-0.5">{t('simulator.reset.keepResourcesDesc')}</div>
                 </div>
               </div>
 
@@ -312,8 +317,8 @@ const GachaSimulator = () => {
                   )}
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-bold">重置开关设置</div>
-                  <div className="text-xs opacity-75 mt-0.5">恢复"跳过动画"和"多次免费十连"为默认状态</div>
+                  <div className="text-sm font-bold">{t('simulator.reset.resetSettingsTitle')}</div>
+                  <div className="text-xs opacity-75 mt-0.5">{t('simulator.reset.resetSettingsDesc')}</div>
                 </div>
               </div>
             </div>
@@ -323,13 +328,13 @@ const GachaSimulator = () => {
                 onClick={closeResetDialog}
                 className="px-4 py-2 text-sm font-bold text-slate-600 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-zinc-200 transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={confirmReset}
                 className="px-4 py-2 text-sm font-bold bg-red-500 hover:bg-red-600 text-white transition-colors"
               >
-                确认重置
+                {t('simulator.reset.confirmAction')}
               </button>
             </div>
           </div>
@@ -338,10 +343,10 @@ const GachaSimulator = () => {
 
       <ConfirmDialog
         isOpen={Boolean(showOriginitePrompt)}
-        title="确认源石换玉"
+        title={t('simulator.originitePrompt.title')}
         message={showOriginitePrompt?.message}
-        confirmText="继续寻访"
-        cancelText="暂不兑换"
+        confirmText={t('simulator.originitePrompt.confirm')}
+        cancelText={t('simulator.originitePrompt.cancel')}
         type="warning"
         onConfirm={() => confirmOriginiteConversionPrompt()}
         onCancel={closeOriginiteConversionPrompt}
@@ -353,7 +358,7 @@ const GachaSimulator = () => {
             onChange={(event) => setDisableOriginitePromptToday(event.target.checked)}
             className="accent-amber-500"
           />
-          今日访问不再提示
+          {t('simulator.originitePrompt.skipToday')}
         </label>
       </ConfirmDialog>
 

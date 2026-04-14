@@ -15,6 +15,8 @@ import {
   prepareOfficialImportPersistenceData,
 } from './importPersistence.js';
 import OfficialAPIImport from './OfficialAPIImport';
+import { getPoolName } from './importShared.js';
+import { useI18n } from '../../i18n/index.js';
 
 /**
  * 导入状态枚举
@@ -29,7 +31,7 @@ const ImportStatus = {
 /**
  * 导入进度条组件 (Technical Style)
  */
-const ImportProgressBar = ({ progress, status, message }) => {
+const ImportProgressBar = ({ progress, status, message, t }) => {
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors">
@@ -37,12 +39,12 @@ const ImportProgressBar = ({ progress, status, message }) => {
           {status === ImportStatus.SAVING ? (
             <>
               <Save size={10} className="animate-pulse text-blue-600 dark:text-blue-500" />
-              正在保存到云端
+              {t('import.progress.saving')}
             </>
           ) : (
             <>
               <RefreshCw size={10} className="animate-spin text-amber-500 dark:text-yellow-500" />
-              处理中
+              {t('import.progress.processing')}
             </>
           )}
         </span>
@@ -65,6 +67,7 @@ const ImportProgressBar = ({ progress, status, message }) => {
  * ImportManager 组件 V3
  */
 export default function ImportManager({ isOpen, onClose, onImportComplete }) {
+  const { t, formatNumber } = useI18n();
   const [importStatus, setImportStatus] = useState(ImportStatus.IDLE);
   const [importResult, setImportResult] = useState(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -167,7 +170,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   const handleAPIImportComplete = useCallback(async (result) => {
     if (!result?.success) {
       setImportStatus(ImportStatus.ERROR);
-      setErrorMessage(result?.error || '导入失败');
+      setErrorMessage(result?.error || t('import.errorTitle'));
       return;
     }
 
@@ -227,13 +230,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
     if (!result.records || result.records.length === 0) {
       setImportStatus(ImportStatus.ERROR);
-      setErrorMessage('没有获取到任何记录');
+      setErrorMessage(t('import.noRecords'));
       return;
     }
 
     if (!user) {
       setImportStatus(ImportStatus.ERROR);
-      setErrorMessage('请先登录后再导入数据');
+      setErrorMessage(t('import.loginFirst'));
       return;
     }
 
@@ -311,9 +314,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     } catch (error) {
       console.error('[ImportManager] 保存数据失败:', error);
       setImportStatus(ImportStatus.ERROR);
-      setErrorMessage(error.message || '保存数据失败');
+      setErrorMessage(error.message || t('import.errorTitle'));
     }
-  }, [currentPoolId, getExistingSeqIds, loadCloudData, persistImportedAccountMetadata, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, user]);
+  }, [currentPoolId, getExistingSeqIds, loadCloudData, persistImportedAccountMetadata, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, t, user]);
 
   const handleReset = useCallback(() => {
     setImportStatus(ImportStatus.IDLE);
@@ -348,13 +351,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between z-10 transition-colors">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider">导入抽卡记录</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider">{t('import.title')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowGuide(!showGuide)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-yellow-500 transition-colors"
-              title="帮助"
+              title={t('header.helpTitle')}
             >
               <HelpCircle className="w-5 h-5" />
             </button>
@@ -378,7 +381,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">1</span>
-                 <span>登录获取Token</span>
+                 <span>{t('import.step.token')}</span>
               </div>
               <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
               {/* 步骤2：正在获取数据时亮起 */}
@@ -388,7 +391,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">2</span>
-                 <span>获取数据</span>
+                 <span>{t('import.step.fetch')}</span>
               </div>
               <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
               {/* 步骤3：保存中或成功时亮起 */}
@@ -398,7 +401,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
                  <span className="w-5 h-5 flex items-center justify-center border border-current">3</span>
-                 <span>保存同步</span>
+                 <span>{t('import.step.save')}</span>
               </div>
            </div>
         </div>
@@ -409,10 +412,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
             <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-4 transition-colors">
               <div className="flex items-center gap-2 text-red-600 dark:text-red-500 mb-2">
                 <AlertCircle className="w-5 h-5" />
-                <span className="font-bold">需要登录</span>
+                <span className="font-bold">{t('import.needLogin')}</span>
               </div>
               <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">
-                请先登录账号以启用云端同步功能。
+                {t('import.needLoginDesc')}
               </p>
             </div>
           )}
@@ -421,11 +424,11 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {showGuide && (
             <div className="mb-6 bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 font-mono transition-colors">
               <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2">
-                <HelpCircle size={14}/> 使用指南
+                <HelpCircle size={14}/> {t('import.guideTitle')}
               </h3>
-              <p>1. 登录鹰角网络通行证。</p>
-              <p>2. 获取专用的访问 Token。</p>
-              <p>3. 系统将自动获取并在本地处理数据，最后加密上传至您的云端存档。</p>
+              <p>{t('import.guideStep1')}</p>
+              <p>{t('import.guideStep2')}</p>
+              <p>{t('import.guideStep3')}</p>
             </div>
           )}
 
@@ -433,9 +436,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {importStatus === ImportStatus.SAVING && (
             <div className="space-y-4 py-8">
               <ImportProgressBar 
-                progress={(saveProgress.current / saveProgress.total) * 100} 
+                progress={saveProgress.total > 0 ? (saveProgress.current / saveProgress.total) * 100 : 0}
                 status={ImportStatus.SAVING}
-                message={`正在保存记录: ${saveProgress.current} / ${saveProgress.total}`}
+                message={t('import.progress.saveMessage', { current: saveProgress.current, total: saveProgress.total })}
+                t={t}
               />
             </div>
           )}
@@ -449,47 +453,47 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                     <CheckCircle className="w-8 h-8" />
                   </div>
                 </div>
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">导入完成</h3>
-                <p className="text-slate-500 dark:text-zinc-500 text-xs font-mono uppercase">数据已成功同步至云端</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">{t('import.complete')}</h3>
+                <p className="text-slate-500 dark:text-zinc-500 text-xs font-mono uppercase">{t('import.completeDesc')}</p>
               </div>
 
               {/* 统计网格 */}
               <div className="grid grid-cols-3 gap-1">
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">总数</p>
-                  <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">{importResult.summary?.total || 0}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.total')}</p>
+                  <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">{formatNumber(importResult.summary?.total || 0)}</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">新增</p>
-                  <p className="text-xl font-bold text-green-600 dark:text-green-500 mt-1">{importResult.summary?.newRecords || 0}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.new')}</p>
+                  <p className="text-xl font-bold text-green-600 dark:text-green-500 mt-1">{formatNumber(importResult.summary?.newRecords || 0)}</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">跳过</p>
-                  <p className="text-xl font-bold text-slate-500 dark:text-zinc-500 mt-1">{importResult.summary?.duplicates || 0}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.skipped')}</p>
+                  <p className="text-xl font-bold text-slate-500 dark:text-zinc-500 mt-1">{formatNumber(importResult.summary?.duplicates || 0)}</p>
                 </div>
               </div>
 
               {((importResult.summary?.partialPools?.length || 0) > 0 || (importResult.summary?.failedPools?.length || 0) > 0) && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 space-y-2 transition-colors">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">部分卡池未完整获取</p>
+                      <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
+                      <div>
+                      <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">{t('import.partialTitle')}</p>
                       <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">
-                        已导入能获取到的记录，但仍建议稍后重试一次官方导入以补齐遗漏数据。
+                        {t('import.partialDesc')}
                       </p>
                     </div>
                   </div>
 
                   {(importResult.summary?.partialPools || []).map(pool => (
                     <div key={`partial-${pool.poolType || pool.type}`} className="text-xs font-mono text-slate-600 dark:text-zinc-400">
-                      部分成功: {pool.poolType || pool.type} · {pool.records || 0} 条 · {pool.error || 'partial'}
+                      {t('import.partialSuccess')}: {getPoolName(pool.poolType || pool.type, t)} · {pool.records || 0} · {pool.error || t('import.partialFallback')}
                     </div>
                   ))}
 
                   {(importResult.summary?.failedPools || []).map(pool => (
                     <div key={`failed-${pool.poolType || pool.type}`} className="text-xs font-mono text-red-600 dark:text-red-400">
-                      获取失败: {pool.poolType || pool.type} · {pool.error || 'failed'}
+                      {t('import.partialFailed')}: {getPoolName(pool.poolType || pool.type, t)} · {pool.error || t('import.failedFallback')}
                     </div>
                   ))}
                 </div>
@@ -500,8 +504,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 flex items-start gap-3 transition-colors">
                   <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">新数据已同步到当前会话</p>
-                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">点击下方按钮可直接跳转到卡池详情页查看，无需刷新整页。</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">{t('import.newDataSynced')}</p>
+                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">{t('import.newDataSyncedDesc')}</p>
                   </div>
                 </div>
               )}
@@ -512,7 +516,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   onClick={handleReset}
                   className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
                 >
-                  继续导入
+                  {t('import.continue')}
                 </button>
                 {importResult.summary?.newRecords > 0 ? (
                   <button
@@ -520,14 +524,14 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                     className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2"
                   >
                     <RefreshCw className="w-4 h-4" />
-                    查看已导入数据
+                    {t('import.viewData')}
                   </button>
                 ) : (
                   <button
                     onClick={handleClose}
                     className="flex-1 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-600 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
                   >
-                    关闭
+                    {t('common.close')}
                   </button>
                 )}
               </div>
@@ -540,7 +544,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 p-4 flex items-start gap-3 transition-colors">
                 <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5" />
                 <div>
-                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1">导入失败</h4>
+                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1">{t('import.errorTitle')}</h4>
                   <p className="text-slate-600 dark:text-zinc-400 text-sm font-mono break-all">{errorMessage}</p>
                 </div>
               </div>
@@ -548,7 +552,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                 onClick={handleReset}
                 className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
               >
-                重试
+                {t('common.retry')}
               </button>
             </div>
           )}

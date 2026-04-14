@@ -17,6 +17,7 @@ import {
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
 import { getMobilePathForTab } from '../../constants/appRoutes';
+import { useI18n } from '../../i18n/index.js';
 
 function MobileAboutSectionHeader({ title, icon }) {
   const IconComponent = icon;
@@ -35,6 +36,7 @@ function MobileAboutSectionHeader({ title, icon }) {
  */
 function MobileAboutView() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const config = useSiteConfigStore(state => state.config);
 
   const siteVersion = config.site_version || APP_VERSION_LABEL;
@@ -46,6 +48,14 @@ function MobileAboutView() {
   const icpUrl = config.icp_url || 'https://beian.miit.gov.cn/';
   const policeNumber = config.police_number || '';
   const policeUrl = config.police_url || 'https://www.beian.gov.cn/';
+  const features = [
+    { Icon: Star, label: t('about.feature.pool.label'), desc: t('about.feature.pool.desc') },
+    { Icon: Calculator, label: t('about.feature.simulator.label'), desc: t('about.feature.simulator.desc') },
+    { Icon: BarChart3, label: t('about.feature.analytics.label'), desc: t('about.feature.analytics.desc') },
+    { Icon: Cloud, label: t('about.feature.sync.label'), desc: t('about.feature.sync.desc') },
+    { Icon: Download, label: t('about.feature.import.label'), desc: t('about.feature.import.desc') },
+    { Icon: Shield, label: t('about.feature.global.label'), desc: t('about.feature.global.desc') },
+  ];
 
   return (
     <div className="px-4 py-4 space-y-4">
@@ -55,7 +65,7 @@ function MobileAboutView() {
         className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 touch-feedback -ml-1 hover:text-endfield-yellow transition-colors"
       >
         <ChevronLeft size={16} />
-        <span className="text-xs font-bold uppercase tracking-wide">返回控制台</span>
+        <span className="text-xs font-bold uppercase tracking-wide">{t('about.backToConsole')}</span>
       </button>
 
       {/* 页面标题 */}
@@ -64,9 +74,9 @@ function MobileAboutView() {
         <div className="relative z-10">
           <h1 className="text-lg font-black tracking-tight flex items-center gap-2 mb-2 uppercase">
             <BarChart3 size={20} className="text-endfield-yellow" />
-            终末地抽卡分析器
+            {t('app.brand')}
           </h1>
-          <p className="text-zinc-500 text-[10px] tracking-[0.2em] uppercase font-mono">/ 终末地项目分析工具</p>
+          <p className="text-zinc-500 text-[10px] tracking-[0.2em] uppercase font-mono">{t('about.mobileSubtitle')}</p>
           <div className="mt-4 flex items-center gap-3">
             <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">{siteVersion}</span>
             <span className="text-zinc-600 text-[10px] font-mono uppercase">{buildInfo}</span>
@@ -76,7 +86,7 @@ function MobileAboutView() {
 
       {/* 作者信息 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <MobileAboutSectionHeader title="项目团队" icon={Heart} />
+        <MobileAboutSectionHeader title={t('about.teamSection')} icon={Heart} />
         <div className="p-4">
           {/* 主要作者 */}
           {authorName && (
@@ -95,9 +105,9 @@ function MobileAboutView() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <h4 className="font-bold text-zinc-800 dark:text-zinc-100 uppercase text-sm">{authorName}</h4>
-                  <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-[9px] text-zinc-600 dark:text-zinc-300 uppercase tracking-wider font-bold">负责人</span>
+                  <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-[9px] text-zinc-600 dark:text-zinc-300 uppercase tracking-wider font-bold">{t('about.leadBadge')}</span>
                 </div>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2 font-mono uppercase">产品设计与开发</p>
+                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2 font-mono uppercase">{t('about.leadDesc')}</p>
                 {authorBilibili && (
                   <a
                     href={authorBilibili}
@@ -116,7 +126,7 @@ function MobileAboutView() {
           <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
             <p className="text-[10px] font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider font-mono">
               <Bot size={12} />
-              AI 协作单元
+              {t('about.aiSection')}
             </p>
             <div className="space-y-3">
               {/* Claude */}
@@ -130,7 +140,7 @@ function MobileAboutView() {
                       <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Claude</h5>
                       <span className="text-[9px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 font-mono font-bold">OPUS</span>
                     </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">架构与逻辑</p>
+                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.claudeFocus')}</p>
                   </div>
                 </div>
               </div>
@@ -146,7 +156,7 @@ function MobileAboutView() {
                       <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Gemini</h5>
                       <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 font-mono font-bold">1.5 PRO</span>
                     </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">界面与前端</p>
+                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.geminiFocus')}</p>
                   </div>
                 </div>
               </div>
@@ -166,7 +176,7 @@ function MobileAboutView() {
                       <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Codex</h5>
                       <span className="text-[9px] bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 px-1.5 py-0.5 font-mono font-bold">GPT-5</span>
                     </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">OpenAI / 实现与验证</p>
+                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.codexFocus')}</p>
                   </div>
                 </div>
               </div>
@@ -177,19 +187,12 @@ function MobileAboutView() {
 
       {/* 功能特性 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <MobileAboutSectionHeader title="核心功能" icon={Sparkles} />
+        <MobileAboutSectionHeader title={t('about.featuresSection')} icon={Sparkles} />
         <div className="p-4">
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: Star, label: '卡池管理', desc: '限定/武器/常驻' },
-              { icon: Calculator, label: '模拟抽卡', desc: '真实概率' },
-              { icon: BarChart3, label: '数据分析', desc: '保底/不歪率统计' },
-              { icon: Cloud, label: '云端同步', desc: '数据持久化' },
-              { icon: Download, label: '数据导入', desc: '官方接口支持' },
-              { icon: Shield, label: '全服统计', desc: '实时数据' },
-            ].map((feature, idx) => (
+            {features.map((feature, idx) => (
               <div key={idx} className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700 group hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-                <feature.icon size={16} className="text-zinc-400 mb-2 group-hover:text-endfield-yellow transition-colors" />
+                <feature.Icon size={16} className="text-zinc-400 mb-2 group-hover:text-endfield-yellow transition-colors" />
                 <h4 className="font-bold text-zinc-700 dark:text-zinc-300 text-[10px] mb-0.5 uppercase tracking-wide">{feature.label}</h4>
                 <p className="text-[9px] text-zinc-500 font-mono">{feature.desc}</p>
               </div>
@@ -201,7 +204,7 @@ function MobileAboutView() {
       {/* 开源项目 */}
       {githubUrl && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-          <MobileAboutSectionHeader title="开源项目" icon={Code} />
+          <MobileAboutSectionHeader title={t('about.openSourceSection')} icon={Code} />
           <div className="p-4">
             <div className="flex items-center justify-between p-4 bg-zinc-900 text-white border border-zinc-700">
               <div className="flex items-center gap-3">
@@ -220,7 +223,7 @@ function MobileAboutView() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 px-3 py-1.5 bg-white text-black text-[10px] font-bold uppercase tracking-wider touch-feedback shrink-0 hover:bg-zinc-200 transition-colors"
               >
-                查看
+                {t('about.openSourceView')}
                 <ExternalLink size={10} />
               </a>
             </div>
@@ -231,12 +234,12 @@ function MobileAboutView() {
       {/* 免责声明 */}
       <div className="text-center py-4 border-t border-zinc-200 dark:border-zinc-800">
         <p className="text-[9px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest font-mono">
-          非官方工具。与 GRYPHLINE 无关。
+          {t('about.disclaimer')}
         </p>
         <div className="mt-2 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
-          <a href="/privacy" className="underline">隐私政策</a>
+          <a href="/privacy" className="underline">{t('about.privacyPolicy')}</a>
           <span>|</span>
-          <a href="/terms" className="underline">用户协议</a>
+          <a href="/terms" className="underline">{t('about.terms')}</a>
         </div>
         {(icpNumber || policeNumber) && (
           <div className="mt-1 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">

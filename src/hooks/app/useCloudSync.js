@@ -17,6 +17,7 @@ import {
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
+import { getMessage } from '../../i18n/index.js';
 
 async function loadLatestVisiblePools(options = {}) {
   const { preferBootstrap = false } = options;
@@ -185,16 +186,16 @@ export function useCloudSync({ showToast }) {
             switch (inferredType) {
               case 'limited_character':
               case 'limited':
-                return '限定角色池';
+                return getMessage('cloudSync.placeholder.limitedCharacterBanner');
               case 'standard':
-                return '基础寻访';
+                return getMessage('cloudSync.placeholder.standardBanner');
               case 'beginner':
-                return '启程寻访';
+                return getMessage('cloudSync.placeholder.beginnerBanner');
               case 'limited_weapon':
               case 'weapon':
-                return '武器池';
+                return getMessage('cloudSync.placeholder.weaponBanner');
               default:
-                return pid || '未知卡池';
+                return pid || getMessage('cloudSync.placeholder.unknownBanner');
             }
           })();
           return {
@@ -293,15 +294,15 @@ export function useCloudSync({ showToast }) {
       const errorMessage = error.message || '';
       if (errorMessage.includes('policy') || errorMessage.includes('violates row-level security')) {
         showToast(
-          '该卡池已被锁定，只有超级管理员可以修改数据',
+          getMessage('cloudSync.error.lockedData'),
           'error',
-          '权限不足'
+          getMessage('cloudSync.error.permissionTitle')
         );
       } else {
         showToast(
-          `保存失败: ${errorMessage.substring(0, 100)}`,
+          getMessage('cloudSync.error.saveFailed', { message: errorMessage.substring(0, 100) }),
           'error',
-          '同步错误'
+          getMessage('cloudSync.error.syncTitle')
         );
       }
 
@@ -325,7 +326,7 @@ export function useCloudSync({ showToast }) {
       return true;
     } catch (error) {
       setSyncError(error.message);
-      showToast(`删除失败: ${error.message}`, 'error');
+      showToast(getMessage('cloudSync.error.deleteHistoryFailed', { message: error.message }), 'error');
       return false;
     }
   }, [setSyncError, showToast, user]);
@@ -345,7 +346,7 @@ export function useCloudSync({ showToast }) {
       return true;
     } catch (error) {
       setSyncError(error.message);
-      showToast(`删除卡池记录失败: ${error.message}`, 'error');
+      showToast(getMessage('cloudSync.error.deletePoolHistoryFailed', { message: error.message }), 'error');
       return false;
     }
   }, [setSyncError, showToast, user]);
@@ -365,7 +366,7 @@ export function useCloudSync({ showToast }) {
       return true;
     } catch (error) {
       setSyncError(error.message);
-      showToast(`删除卡池失败: ${error.message}`, 'error');
+      showToast(getMessage('cloudSync.error.deletePoolFailed', { message: error.message }), 'error');
       return false;
     }
   }, [setSyncError, showToast, user]);
@@ -427,7 +428,7 @@ export function useCloudSync({ showToast }) {
   // 手动同步数据到云端（设置页面使用）
   const syncToCloud = useCallback(async () => {
     if (!user) {
-      showToast('请先登录', 'warning');
+      showToast(getMessage('cloudSync.error.loginRequired'), 'warning');
       return;
     }
 
@@ -456,14 +457,20 @@ export function useCloudSync({ showToast }) {
         syncedHistory += batch.length;
       }
 
-      let message = `同步完成：${syncedPools} 个卡池，${syncedHistory} 条记录`;
+      let message = getMessage('cloudSync.success.syncCompleted', {
+        pools: syncedPools,
+        records: syncedHistory,
+      });
       if (skippedPools > 0 || skippedHistory > 0) {
-        message += `（跳过其他用户数据：${skippedPools} 卡池，${skippedHistory} 记录）`;
+        message += getMessage('cloudSync.success.syncSkipped', {
+          pools: skippedPools,
+          records: skippedHistory,
+        });
       }
       setLastSyncAt(new Date().toISOString());
       showToast(message, 'success');
     } catch (error) {
-      showToast('同步失败: ' + error.message, 'error');
+      showToast(getMessage('cloudSync.error.syncFailed', { message: error.message }), 'error');
     } finally {
       setSyncing(false);
     }
