@@ -80,8 +80,8 @@ const SpringPreviewCard = () => {
                   <div className="absolute top-0 right-1/4 w-12 h-full bg-[#aedc5f] mix-blend-multiply skew-x-12 opacity-80"></div>
                   <div className="absolute bottom-0 left-1/4 w-8 h-full bg-[#7cb324] mix-blend-multiply -skew-x-12 opacity-60"></div>
                   
-                  <h1 className="text-6xl sm:text-7xl font-black text-[#1a1f16] tracking-tighter" style={serifDisplayStyle}>
-                      春晓时
+                  <h1 className={`${isEnglish ? 'text-4xl sm:text-5xl' : 'text-6xl sm:text-7xl'} font-black text-[#1a1f16] tracking-tighter`} style={serifDisplayStyle}>
+                      {isEnglish ? 'WAKE OF SPRING' : '春晓时'}
                   </h1>
               </div>
               

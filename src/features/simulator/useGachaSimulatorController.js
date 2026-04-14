@@ -1200,6 +1200,7 @@ export function useGachaSimulatorController() {
       simulator,
       simulatorPools,
       simulatorStorageScope,
+      t,
     ]
   );
 

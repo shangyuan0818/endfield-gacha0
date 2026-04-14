@@ -14,8 +14,7 @@ import {
   Globe,
 } from 'lucide-react';
 import { APP_VERSION } from '../constants/appMeta';
-import useSiteConfigStore from '../stores/useSiteConfigStore';
-import { useJsonConfig } from '../stores/useSiteConfigStore';
+import useSiteConfigStore, { useJsonConfig } from '../stores/useSiteConfigStore';
 import { useI18n } from '../i18n/index.js';
 
 const ICON_MAP = { Star, Calculator, BarChart3, Cloud, Download, Shield, Globe };
