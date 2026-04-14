@@ -2,13 +2,15 @@ import React, { useMemo } from 'react';
 import { TrendingUp, User, Star } from 'lucide-react';
 import { characterCache } from '../../utils/characterUtils';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityName } from '../../utils/gameDataI18n.js';
 
 /**
  * 角色出货统计组件
  * 显示5星及以上角色的出货情况
  */
 const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const entityType = _poolType === 'weapon' || _poolType === 'limited_weapon' ? 'weapon' : 'character';
   // 计算角色出货统计
   const characterStats = useMemo(() => {
     const characters = new Map();
@@ -58,7 +60,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
         // 4. 最后是5星
         return b.rarity - a.rarity;
       });
-  }, [pullHistory, t]);
+  }, [locale, pullHistory, t]);
 
   // 计算总出货数量
   const totalCharacterCount = useMemo(() => {
@@ -117,12 +119,13 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                   {(() => {
                     const charData = characterCache.searchByName(char.name, false);
                     const avatarUrl = charData?.avatar_url;
+                    const localizedName = localizeEntityName(char.name, { locale, type: entityType }) || char.name;
 
                     if (avatarUrl) {
                       return (
                         <img
                           src={avatarUrl}
-                          alt={char.name}
+                          alt={localizedName}
                           className="w-full h-full object-cover"
                           onError={(e) => {
                             e.target.style.display = 'none';
@@ -149,7 +152,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                         ? 'text-red-700 dark:text-red-300'
                         : 'text-amber-700 dark:text-amber-300'
                   }`}>
-                    {char.name}
+                    {localizeEntityName(char.name, { locale, type: entityType }) || char.name}
                   </div>
                   <div className="flex items-center gap-0.5">
                     {Array.from({ length: char.rarity }).map((_, i) => (

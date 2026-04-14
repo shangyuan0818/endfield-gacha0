@@ -1,4 +1,5 @@
 import React from 'react';
+import { MobileGlassPanel } from './ux/MobilePrimitives.jsx';
 
 /**
  * 移动端保底进度条（纵向布局）
@@ -21,16 +22,16 @@ function MobilePityProgress({ current, max, label, color = 'yellow', showPercent
   };
 
   return (
-    <div className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+    <MobileGlassPanel compact>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
-        <span className="text-sm text-zinc-500 dark:text-zinc-400">
+        <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">{label}</span>
+        <span className="text-sm text-slate-500 dark:text-zinc-500">
           {current} / {max}
         </span>
       </div>
 
       {/* 进度条 */}
-      <div className={`h-3 ${bgClasses[color]} overflow-hidden`}>
+      <div className={`h-3 ${bgClasses[color]} overflow-hidden rounded-full`}>
         <div
           className={`h-full transition-all duration-300 ${colorClasses[color]}`}
           style={{ width: `${percentage}%` }}
@@ -38,11 +39,11 @@ function MobilePityProgress({ current, max, label, color = 'yellow', showPercent
       </div>
 
       {showPercentage && (
-        <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 text-right">
+        <p className="mt-1 text-right text-xs text-slate-500 dark:text-zinc-500">
           {percentage.toFixed(1)}%
         </p>
       )}
-    </div>
+    </MobileGlassPanel>
   );
 }
 

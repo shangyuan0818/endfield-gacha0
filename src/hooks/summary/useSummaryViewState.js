@@ -88,18 +88,23 @@ function getAveragePity(typeData) {
   return '-';
 }
 
+export const SUMMARY_FILTER_OPTIONS = ['all', 'limited', 'standard', 'weapon'];
+
 export function useSummaryViewState({
   history,
   pools,
   user,
   globalStats,
   fetchGlobalStats,
-  variant = 'desktop'
+  variant = 'desktop',
+  initialDataSource = 'global',
+  lockedDataSource = null,
+  initialPoolTypeFilter = 'all'
 }) {
   const { locale, t } = useI18n();
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
-  const [dataSource, setDataSource] = useState('global');
-  const [poolTypeFilter, setPoolTypeFilter] = useState('all');
+  const [dataSource, setDataSourceState] = useState(() => lockedDataSource || initialDataSource);
+  const [poolTypeFilter, setPoolTypeFilter] = useState(() => initialPoolTypeFilter);
 
   const copy = useMemo(() => ({
     titleGlobal: tt('summary.source.global', '全服数据'),
@@ -112,12 +117,12 @@ export function useSummaryViewState({
       standard: tt('summary.scope.standard', '常驻池')
     }
   }), [locale, t, variant]);
-  const filterOptions = useMemo(() => ([
-    { value: 'all', label: tt('summary.filter.all', '全部') },
-    { value: 'limited', label: tt('summary.filter.limited', '限定') },
-    { value: 'standard', label: tt('summary.filter.standard', '常驻') },
-    { value: 'weapon', label: tt('summary.filter.weapon', '武器') }
-  ]), [locale, t]);
+  const filterOptions = useMemo(() => (
+    SUMMARY_FILTER_OPTIONS.map((value) => ({
+      value,
+      label: tt(`summary.filter.${value}`, value)
+    }))
+  ), [locale, t]);
   const chartLabels = useMemo(() => ({
     sixLimited: tt('summary.chart.sixLimited', '6★ (限定)'),
     sixStandard: tt('summary.chart.sixStandard', '6★ (常驻)'),
@@ -128,6 +133,18 @@ export function useSummaryViewState({
 
   const { characterRanking, rankingLoading, userRanking, userRankingLoading } = useRankingData(dataSource, user);
   const localStats = useSummaryStats(history, pools, user);
+
+  useEffect(() => {
+    if (!lockedDataSource) {
+      return;
+    }
+
+    setDataSourceState(lockedDataSource);
+  }, [lockedDataSource]);
+
+  useEffect(() => {
+    setPoolTypeFilter(initialPoolTypeFilter);
+  }, [initialPoolTypeFilter]);
 
   useEffect(() => {
     if (!isGlobalSource || !fetchGlobalStats) {
@@ -299,6 +316,16 @@ export function useSummaryViewState({
       ]
     };
   }, [chartLabels, globalStats, isGlobalSource, localStats, poolTypeFilter, locale, t]);
+
+  const setDataSource = useMemo(() => {
+    if (lockedDataSource) {
+      return () => {};
+    }
+
+    return (nextSource) => {
+      setDataSourceState(nextSource);
+    };
+  }, [lockedDataSource]);
 
   return {
     dataSource,

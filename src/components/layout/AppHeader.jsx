@@ -9,10 +9,14 @@ import { useI18n } from '../../i18n/index.js';
 
 const NavTab = ({ id, label, showDot, onClick, className = '', activeTab, setActiveTab }) => {
   const isActive = activeTab === id;
+  const fallbackClick = typeof setActiveTab === 'function'
+    ? () => setActiveTab(id)
+    : undefined;
+
   return (
     <NotificationBadge showDot={showDot} className="h-full flex shrink-0">
       <button
-        onClick={onClick || (() => setActiveTab(id))}
+        onClick={onClick || fallbackClick}
         className={`h-full px-4 sm:px-5 flex items-center text-xs sm:text-sm font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300 relative group ${
           isActive 
             ? 'text-amber-600 dark:text-endfield-yellow' 
@@ -51,6 +55,11 @@ export default function AppHeader({
 }) {
   const isSuperAdmin = userRole === 'super_admin';
   const { t } = useI18n();
+  const handleTabChange = (tab) => {
+    if (typeof setActiveTab === 'function') {
+      setActiveTab(tab);
+    }
+  };
 
   return (
     <div className="bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-40 shadow-sm transition-colors duration-300">
@@ -64,7 +73,7 @@ export default function AppHeader({
           <div className="flex items-center gap-3 pr-4 sm:pr-6 relative h-full">
             <div 
               className="w-8 h-8 sm:w-9 sm:h-9 bg-endfield-yellow flex items-center justify-center rounded-sm shadow-sm dark:shadow-[0_0_12px_rgba(255,204,0,0.3)] shrink-0 cursor-pointer hover:scale-105 transition-transform" 
-              onClick={() => setActiveTab('home')}
+              onClick={() => handleTabChange('home')}
             >
               <BarChart3 className="text-black w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2.5} />
             </div>
@@ -92,25 +101,29 @@ export default function AppHeader({
             id="home" 
             label={t('nav.home')} 
             showDot={hasNewAnnouncement}
-            onClick={() => {
-              setActiveTab('home');
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+              onClick={() => {
+              handleTabChange('home');
               if (hasNewAnnouncement) {
                 markAsViewed(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED);
                 setHasNewAnnouncement(false);
               }
             }}
           />
-          <NavTab id="summary" label={t('nav.summary')} />
-          <NavTab id="dashboard" label={t('nav.dashboard')} />
-          <NavTab id="simulator" label={t('nav.simulator')} />
+          <NavTab id="summary" label={t('nav.summary')} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="dashboard" label={t('nav.dashboard')} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <NavTab id="simulator" label={t('nav.simulator')} activeTab={activeTab} setActiveTab={setActiveTab} />
           
           {isSuperAdmin && (
             <NavTab 
               id="admin" 
               label={t('nav.admin')} 
               className="!text-red-600 dark:!text-red-500" 
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
               onClick={() => {
-                setActiveTab('admin');
+                handleTabChange('admin');
                 markAsViewed(STORAGE_KEYS.ADMIN_LAST_VIEWED);
               }}
             />
@@ -131,7 +144,7 @@ export default function AppHeader({
               <NotificationBadge count={unreadTicketsCount}>
                 <button
                   onClick={() => {
-                    setActiveTab('tickets');
+                    handleTabChange('tickets');
                     markAsViewed(STORAGE_KEYS.TICKETS_LAST_VIEWED);
                     setUnreadTicketsCount(0);
                   }}
@@ -148,7 +161,7 @@ export default function AppHeader({
              )}
 
              <button
-                onClick={() => setActiveTab('settings')}
+                onClick={() => handleTabChange('settings')}
                 className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-sm transition-all duration-200 ${
                   activeTab === 'settings'
                     ? 'bg-amber-50 dark:bg-endfield-yellow/10 text-amber-600 dark:text-endfield-yellow border border-amber-200 dark:border-endfield-yellow/30 shadow-[0_0_10px_rgba(255,204,0,0.1)]'
@@ -160,7 +173,7 @@ export default function AppHeader({
               </button>
               
               <button
-                onClick={() => setActiveTab('about')}
+                onClick={() => handleTabChange('about')}
                 className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-sm transition-all duration-200 ${
                   activeTab === 'about'
                     ? 'bg-zinc-100 dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-200 border border-zinc-300 dark:border-zinc-600'
@@ -182,7 +195,7 @@ export default function AppHeader({
                       {user.user_metadata?.username || user.email?.split('@')[0]}
                     </span>
                     <span className="text-[9px] text-amber-600 dark:text-endfield-yellow uppercase tracking-[0.15em] font-mono leading-tight mt-0.5">
-                      {(userRole === 'super_admin' || userRole === 'admin') ? 'Admin' : 'Endmin'}
+                      {userRole === 'super_admin' ? 'SUPER-ENDMIN' : userRole === 'admin' ? 'ENDMIN' : 'GUEST'}
                     </span>
                   </div>
                   <button

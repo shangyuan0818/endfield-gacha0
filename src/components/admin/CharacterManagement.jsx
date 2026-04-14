@@ -11,11 +11,17 @@ import { Search, Plus, Edit2, Trash2, RefreshCw, User, Swords, Package, External
 import { useCharacters } from '../../hooks/admin/useCharacters';
 import { CharacterTable, CharacterEditDialog, BatchEditDialog, SklandImageImportDialog } from './characters';
 import { CURRENT_SYNC_SOURCE_LABEL, SKLAND_CATALOG_URLS } from '../../constants/adminImageSources';
+import useSiteConfigStore, { useJsonConfig } from '../../stores/useSiteConfigStore';
+import { ENTITY_LOCALIZATION_CONFIG_KEY, localizeEntityName } from '../../utils/gameDataI18n.js';
+
+const EMPTY_LOCALIZATION_CONFIG = {};
 
 /**
  * 角色管理组件
  */
 const CharacterManagement = ({ showToast }) => {
+  const entityLocalizationConfig = useJsonConfig(ENTITY_LOCALIZATION_CONFIG_KEY, EMPTY_LOCALIZATION_CONFIG);
+  const [localizedNameEnOverride, setLocalizedNameEnOverride] = React.useState('');
   const {
     // 数据状态
     characters,
@@ -89,6 +95,81 @@ const CharacterManagement = ({ showToast }) => {
     // 同步操作
     handleSyncFromAPI
   } = useCharacters({ showToast });
+
+  const getStoredEnglishOverride = React.useCallback((characterLike) => {
+    if (!characterLike || !entityLocalizationConfig || typeof entityLocalizationConfig !== 'object') {
+      return '';
+    }
+
+    const keys = [characterLike.id, characterLike.name].filter(Boolean);
+    for (const key of keys) {
+      const entry = entityLocalizationConfig[key];
+      if (entry && typeof entry === 'object' && typeof entry['en-US'] === 'string') {
+        return entry['en-US'].trim();
+      }
+    }
+
+    return '';
+  }, [entityLocalizationConfig]);
+
+  React.useEffect(() => {
+    if (!showEditDialog) {
+      setLocalizedNameEnOverride('');
+      return;
+    }
+
+    const currentOverride = getStoredEnglishOverride(editingCharacter);
+    setLocalizedNameEnOverride(currentOverride);
+  }, [editingCharacter, getStoredEnglishOverride, showEditDialog]);
+
+  const localizedNameEnPreview = React.useMemo(() => {
+    const manualValue = localizedNameEnOverride.trim();
+    if (manualValue) {
+      return manualValue;
+    }
+
+    return localizeEntityName(characterForm.name, {
+      locale: 'en-US',
+      type: characterForm.type
+    });
+  }, [characterForm.name, characterForm.type, localizedNameEnOverride]);
+
+  const handleSaveCharacterWithLocalization = React.useCallback(async () => {
+    const result = await saveCharacter();
+    if (!result?.success || !result.characterData) {
+      return;
+    }
+
+    const nextConfig = {
+      ...(entityLocalizationConfig && typeof entityLocalizationConfig === 'object' ? entityLocalizationConfig : {})
+    };
+    const overrideValue = localizedNameEnOverride.trim();
+    delete nextConfig[result.characterData.name];
+
+    if (overrideValue) {
+      nextConfig[result.characterData.id] = {
+        type: result.characterData.type,
+        name: result.characterData.name,
+        'zh-CN': result.characterData.name,
+        'en-US': overrideValue
+      };
+    } else {
+      delete nextConfig[result.characterData.id];
+    }
+
+    const success = await useSiteConfigStore.getState().updateConfig(
+      ENTITY_LOCALIZATION_CONFIG_KEY,
+      JSON.stringify(nextConfig, null, 2),
+      {
+        label: '角色/武器名称本地化',
+        category: 'content',
+      }
+    );
+
+    if (!success) {
+      showToast?.('角色已保存，但英文名本地化覆盖保存失败', 'warning');
+    }
+  }, [entityLocalizationConfig, localizedNameEnOverride, saveCharacter, showToast]);
 
   if (loading) {
     return (
@@ -254,6 +335,7 @@ const CharacterManagement = ({ showToast }) => {
       ) : (
         <CharacterTable
           characters={filteredCharacters}
+          getEnglishName={(character) => localizeEntityName(character.name, { locale: 'en-US', type: character.type })}
           selectedIds={selectedIds}
           isAllSelected={isAllSelected}
           actionLoading={actionLoading}
@@ -269,21 +351,24 @@ const CharacterManagement = ({ showToast }) => {
       )}
 
       {/* 编辑对话框 */}
-      <CharacterEditDialog
-        show={showEditDialog}
-        editingCharacter={editingCharacter}
-        characterForm={characterForm}
-        setCharacterForm={setCharacterForm}
-        onCharacterIdChange={handleCharacterIdChange}
-        onCharacterNameChange={handleCharacterNameChange}
+        <CharacterEditDialog
+          show={showEditDialog}
+          editingCharacter={editingCharacter}
+          characterForm={characterForm}
+          localizedNameEnOverride={localizedNameEnOverride}
+          localizedNameEnPreview={localizedNameEnPreview}
+          onLocalizedNameEnChange={setLocalizedNameEnOverride}
+          setCharacterForm={setCharacterForm}
+          onCharacterIdChange={handleCharacterIdChange}
+          onCharacterNameChange={handleCharacterNameChange}
         onCharacterTypeChange={handleCharacterTypeChange}
         aliasInput={aliasInput}
         setAliasInput={setAliasInput}
         actionLoading={actionLoading}
-        onSave={saveCharacter}
-        onClose={resetForm}
-        onAddAlias={addAlias}
-        onRemoveAlias={removeAlias}
+          onSave={handleSaveCharacterWithLocalization}
+          onClose={resetForm}
+          onAddAlias={addAlias}
+          onRemoveAlias={removeAlias}
       />
 
       {/* 批量编辑对话框 */}

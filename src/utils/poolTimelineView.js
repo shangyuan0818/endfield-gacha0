@@ -11,6 +11,7 @@ import {
   WEAPON_POOL_RULES
 } from '../constants/index.js';
 import { getAppLocale, isEnglishLocale } from '../i18n/index.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from './gameDataI18n.js';
 
 function normalizePoolType(type) {
   if (type === 'limited_character') return 'limited';
@@ -80,7 +81,7 @@ function formatPeriod(pool, locale = getAppLocale()) {
 }
 
 function getItemName(item, locale = getAppLocale()) {
-  return item?.item_name || item?.character_name || item?.characterName || item?.name || (isEnglishLocale(locale) ? 'Unknown target' : '未知目标');
+  return localizeHistoryItemName(item, { locale });
 }
 
 function formatPrimaryDropLabel(item, fallback = null, locale = getAppLocale()) {
@@ -97,7 +98,7 @@ function getAvatarUrl(name) {
 }
 
 function isActuallyLimited(item) {
-  const characterName = getItemName(item);
+  const characterName = item?.item_name || item?.character_name || item?.characterName || item?.name || '';
   return Boolean(characterCache.searchByName(characterName, false)?.is_limited);
 }
 
@@ -117,7 +118,7 @@ function createDropBadges(items, locale = getAppLocale()) {
       label,
       rarity: Number(item?.rarity) || 0,
       count: 1,
-      avatarUrl: getAvatarUrl(label)
+      avatarUrl: getAvatarUrl(item?.item_name || item?.character_name || item?.characterName || item?.name)
     });
   });
 
@@ -151,7 +152,7 @@ function createLeadBadge(item, fallbackLabel = '?', locale = getAppLocale()) {
     label,
     rarity: Number(item?.rarity) || 0,
     count: 1,
-    avatarUrl: getAvatarUrl(label)
+    avatarUrl: getAvatarUrl(item?.item_name || item?.character_name || item?.characterName || item?.name)
   };
 }
 
@@ -481,7 +482,11 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
       : (english ? 'No new high-rarity milestone has formed in the current stage.' : '当前阶段尚未形成新的高稀有节点'),
     metaSummary: null,
     tags: [english ? 'Current' : '当前'],
-    leadBadge: createLeadBadge(null, pool?.up_character || pool?.upCharacter || '?', locale),
+    leadBadge: createLeadBadge(
+      null,
+      localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+      locale
+    ),
     dropBadges: supportBadges
   };
 }
@@ -516,7 +521,11 @@ function buildStageEntries({
         resultSummary: milestone.resultSummary,
         metaSummary: null,
         tags: milestone.tags,
-        leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?', locale),
+        leadBadge: milestone.leadBadge || createLeadBadge(
+          summary.primaryHighRarity,
+          localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+          locale
+        ),
         dropBadges: createDropBadges(summary.highRarityItems, locale)
       });
       return;
@@ -542,7 +551,11 @@ function buildStageEntries({
       resultSummary: milestone.resultSummary,
       metaSummary: null,
       tags: milestone.tags,
-      leadBadge: milestone.leadBadge || createLeadBadge(summary.primaryHighRarity, pool?.up_character || pool?.upCharacter || '?', locale),
+      leadBadge: milestone.leadBadge || createLeadBadge(
+        summary.primaryHighRarity,
+        localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+        locale
+      ),
       dropBadges: createDropBadges(mergedSupportItems, locale)
     });
     pendingPaidCount = 0;
@@ -593,9 +606,9 @@ function buildTimelineSection({
 
   return {
     id: pool?.id || 'pool-timeline',
-    title: pool?.name || (isEnglishLocale(locale) ? 'Unknown Banner' : '未知卡池'),
+    title: localizePoolName(pool, { locale }) || (isEnglishLocale(locale) ? 'Unknown Banner' : '未知卡池'),
     type: normalizedType,
-    featured: pool?.up_character || pool?.upCharacter || null,
+    featured: localizePoolFeaturedName(pool, { locale }) || null,
     period: formatPeriod(pool, locale),
     status: timing,
     totalPulls: metrics.totalPulls,

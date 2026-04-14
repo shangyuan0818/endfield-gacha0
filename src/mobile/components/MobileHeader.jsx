@@ -1,84 +1,192 @@
-import React, { useState } from 'react';
-import { Menu, User } from 'lucide-react';
-import useAuthStore from '../../stores/useAuthStore';
-import AuthModal from '../../AuthModal';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Menu, Moon, Radio, Sun, User } from 'lucide-react';
 import { useI18n } from '../../i18n/index.js';
+import { useTheme } from '../../contexts/ThemeContext';
+import { usePoolStore, useHistoryStore } from '../../stores';
+import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
+import { formatFreshnessRelative, getFreshnessTone } from '../../utils/dataFreshness.js';
+import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 
-/**
- * 移动端顶部导航栏
- */
-function MobileHeader({ onMenuClick }) {
-  const { user, setUser } = useAuthStore();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const { t } = useI18n();
-
-  const handleAvatarClick = () => {
-    if (!user) {
-      setShowAuthModal(true);
-    }
-    // 已登录用户点击头像可以后续扩展为打开用户菜单
-  };
-
-  const handleAuthSuccess = (newUser) => {
-    setUser(newUser);
-    setShowAuthModal(false);
-  };
-
-  return (
-    <>
-      <header className="fixed top-0 left-0 right-0 z-40 bg-slate-50/90 dark:bg-zinc-950/90 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 safe-area-top transition-colors duration-300">
-        <div className="flex items-center justify-between h-14 px-4 max-w-7xl mx-auto">
-          {/* 左侧：汉堡菜单 */}
-          <button
-            onClick={onMenuClick}
-            className="p-2 -ml-2 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors rounded-none"
-            aria-label={t('header.openMenu')}
-          >
-            <Menu className="w-6 h-6 text-zinc-700 dark:text-zinc-300" />
-          </button>
-
-          {/* 中间：Logo */}
-          <div className="flex-1 flex items-center justify-center gap-2">
-            <span className="text-lg font-bold text-endfield-yellow tracking-wider uppercase drop-shadow-sm">{t('app.brand')}</span>
-          </div>
-
-          {/* 右侧：用户头像（点击可登录） */}
-          <button
-            onClick={handleAvatarClick}
-            className="p-1 -mr-1 touch-feedback group"
-            aria-label={user ? t('header.userInfo') : t('header.clickToLogin')}
-          >
-            {user ? (
-              <div className="w-8 h-8 rounded-none bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow group-hover:border-yellow-400 transition-colors shadow-sm">
-                {user.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt={t('common.avatar')}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-bold text-black font-mono">
-                    {(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="w-8 h-8 rounded-none bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center group-hover:bg-zinc-300 dark:group-hover:bg-zinc-700 transition-colors">
-                <User className="w-4 h-4 text-zinc-500" />
-              </div>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* 登录弹窗 */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
-    </>
-  );
+function cx(...classes) {
+  return classes.filter(Boolean).join(' ');
 }
 
-export default MobileHeader;
+function freshnessToneClass(tone) {
+  switch (tone) {
+    case 'fresh':
+      return 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+    case 'notice':
+      return 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+    case 'stale':
+      return 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300';
+    default:
+      return 'border-zinc-200 bg-zinc-50 text-slate-500 dark:border-white/8 dark:bg-white/6 dark:text-zinc-400';
+  }
+}
+
+export default function MobileHeader({ onMenuClick, activeTab }) {
+  const { t, locale } = useI18n();
+  const { setThemeMode } = useTheme();
+  const menuRef = useRef(null);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+
+  const currentGameUid = usePoolStore((state) => state.currentGameUid);
+  const switchGameAccount = usePoolStore((state) => state.switchGameAccount);
+  const history = useHistoryStore((state) => state.history);
+  const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
+
+  const gameAccounts = useMemo(() => {
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
+
+  const currentAccount = useMemo(() => {
+    if (currentGameUid) {
+      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    }
+    if (gameAccounts.length === 1) {
+      return gameAccounts[0];
+    }
+    return null;
+  }, [currentGameUid, gameAccounts]);
+
+  const showAccountSwitcher = activeTab === 'details' || activeTab === 'overview';
+  const canSwitchAccount = showAccountSwitcher && gameAccounts.length > 0;
+  const accountLabel = currentAccount
+    ? `${currentAccount.serverTag ? `${currentAccount.serverTag} · ` : ''}${currentAccount.nickName}`
+    : t('pool.selector.allAccounts');
+
+  const toggleTheme = () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    setThemeMode(isDark ? 'light' : 'dark');
+  };
+
+  useEffect(() => {
+    setShowAccountMenu(false);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!showAccountMenu) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowAccountMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [showAccountMenu]);
+
+  return (
+    <header ref={menuRef} className="mobile-ux-topbar relative h-14 flex items-center justify-between px-4 shrink-0 z-40 safe-area-top transition-colors duration-300">
+      <button
+        onClick={onMenuClick}
+        className="p-2 -ml-2 text-slate-700 dark:text-zinc-300 hover:text-slate-900 dark:hover:text-white transition-colors touch-feedback"
+        aria-label={t('header.openMenu')}
+      >
+        <Menu size={20} />
+      </button>
+
+      {showAccountSwitcher ? (
+        <div className="flex flex-1 justify-center">
+          <button
+            type="button"
+            onClick={() => canSwitchAccount && setShowAccountMenu((value) => !value)}
+            className="mobile-ux-account-chip flex max-w-[240px] items-center gap-2 px-3 py-1.5"
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${currentAccount ? 'bg-amber-400 dark:bg-ef-yellow shadow-[0_0_10px_rgba(255,204,0,0.45)]' : 'bg-zinc-500'}`} />
+            <span className="truncate text-[11px] font-bold text-slate-700 dark:text-zinc-200">
+              {accountLabel}
+            </span>
+            {canSwitchAccount ? <ChevronDown size={12} className={cx('shrink-0 text-slate-500 dark:text-zinc-400 transition-transform', showAccountMenu ? 'rotate-180' : '')} /> : null}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-1 justify-center">
+          <div className="mobile-ux-brand-chip flex items-center justify-center gap-2 px-3 py-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400 dark:bg-ef-yellow shadow-[0_0_10px_rgba(255,204,0,0.5)]" />
+          <Radio className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-ef-yellow/80" />
+            <span className="truncate text-[10px] font-bold uppercase tracking-[0.24em] text-slate-700 dark:text-zinc-200">
+            G.ANALYZER
+          </span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 shrink-0">
+        <LocaleSwitcher variant="header" />
+        <button
+          onClick={toggleTheme}
+          className="w-8 h-8 flex items-center justify-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 text-slate-500 dark:text-zinc-500 hover:text-slate-800 dark:hover:text-white transition-colors touch-feedback"
+          aria-label="Toggle Theme"
+        >
+          <Sun size={14} className="hidden dark:block" />
+          <Moon size={14} className="block dark:hidden" />
+        </button>
+      </div>
+
+      {showAccountMenu && canSwitchAccount ? (
+        <div className="mobile-ux-dropdown absolute left-4 right-4 top-[calc(100%+0.5rem)] z-50 overflow-hidden">
+          <div className="border-b border-zinc-200/80 bg-zinc-50/90 px-4 py-3 dark:border-white/8 dark:bg-white/[0.03]">
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">
+              {t('pool.selector.switchAccountHint')}
+            </div>
+          </div>
+          <div className="max-h-[50vh] overflow-y-auto p-3">
+            <button
+              type="button"
+              onClick={() => {
+                switchGameAccount(null);
+                setShowAccountMenu(false);
+              }}
+              className={cx(
+                'mb-2 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
+                !currentGameUid
+                  ? 'border-endfield-yellow/30 bg-endfield-yellow/10 text-slate-900 dark:text-endfield-yellow'
+                  : 'border-zinc-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300'
+              )}
+            >
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold">{t('pool.selector.allAccounts')}</div>
+                <div className="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-500">{t('pool.selector.multiAccountOverview')}</div>
+              </div>
+            </button>
+            {gameAccounts.map((account) => (
+              <button
+                key={account.gameUid}
+                type="button"
+                onClick={() => {
+                  switchGameAccount(account.gameUid);
+                  setShowAccountMenu(false);
+                }}
+                className={cx(
+                  'mb-2 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left last:mb-0',
+                  currentGameUid === account.gameUid
+                    ? 'border-endfield-yellow/30 bg-endfield-yellow/10 text-slate-900 dark:text-endfield-yellow'
+                    : 'border-zinc-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300'
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-100 text-slate-500 dark:border-zinc-800 dark:bg-[#111] dark:text-zinc-500">
+                    <User size={13} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-[11px] font-bold">
+                      {account.serverTag ? `${account.serverTag} · ${account.nickName}` : account.nickName}
+                    </div>
+                    <div className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-zinc-500">{account.gameUid}</div>
+                  </div>
+                </div>
+                <span className={cx('shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]', freshnessToneClass(getFreshnessTone(getAccountLastImportTimestamp(account))))}>
+                  {formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.importTimeUnknown'), locale)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </header>
+  );
+}

@@ -180,10 +180,10 @@ function StagePortrait({ entry, featured, compact = false, t }) {
   );
 }
 
-function StageBadge({ badge, compact = false }) {
+function StageBadge({ badge, compact = false, mobile = false }) {
   const isSixStar = badge.rarity >= 6;
   return (
-    <div className={`flex items-center gap-1.5 border border-zinc-200 bg-white p-0.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 ${compact ? 'pr-1.5' : 'pr-2'}`}>
+    <div className={`flex items-center gap-1.5 p-0.5 ${mobile ? 'mobile-ux-card-chip' : 'border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900'} ${compact ? 'pr-1.5' : 'pr-2'}`}>
       <div className={`relative flex items-center justify-center overflow-hidden font-black ${compact ? 'h-5 w-5 text-[9px]' : 'h-6 w-6 text-[10px]'} ${isSixStar ? 'bg-yellow-400/80 text-yellow-900 dark:bg-yellow-500/80' : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200'}`}>
         {badge.avatarUrl ? (
           <img
@@ -206,16 +206,16 @@ function StageBadge({ badge, compact = false }) {
   );
 }
 
-function MetricItem({ label, value }) {
+function MetricItem({ label, value, mobile = false }) {
   return (
-    <div className="min-w-0 border-l border-zinc-200 pl-3 dark:border-zinc-800">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-black font-mono text-slate-800 dark:text-zinc-100">{value}</div>
+      <div className={`min-w-0 border-l pl-3 ${mobile ? 'border-zinc-200 dark:border-zinc-800' : 'border-zinc-200 dark:border-zinc-800'}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-wider ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-slate-500 dark:text-zinc-500'}`}>{label}</div>
+      <div className={`mt-1 text-sm font-black font-mono ${mobile ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-800 dark:text-zinc-100'}`}>{value}</div>
     </div>
   );
 }
 
-function TimelineStageCard({ entry, sectionType, featured, t }) {
+function TimelineStageCard({ entry, sectionType, featured, t, mobile = false }) {
   const compact = entry.stageKind === 'fiveStar';
   const stamp = getStampConfig(entry, sectionType, t);
   const widthPercent = Math.max(
@@ -227,30 +227,30 @@ function TimelineStageCard({ entry, sectionType, featured, t }) {
     <div className="relative flex gap-3 sm:gap-5 group">
       <div className={`flex flex-col items-center shrink-0 relative z-10 ${compact ? 'w-10 sm:w-12' : 'w-12 sm:w-16'}`}>
         <StagePortrait entry={entry} featured={featured} compact={compact} t={t} />
-        <span className={`mt-2 font-black font-mono text-zinc-500 dark:text-zinc-400 ${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'}`}>
+        <span className={`mt-2 font-black font-mono ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'} ${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'}`}>
           {entry.dateLabel}
         </span>
       </div>
 
-      <div className={`flex-1 min-w-0 border-b border-zinc-100 dark:border-zinc-800/60 group-last:border-0 group-last:pb-0 ${compact ? 'pb-4 sm:pb-5' : 'pb-6 sm:pb-8'}`}>
-        <div className={`flex items-center gap-2 ${compact ? 'mb-1.5 sm:mb-2' : 'mb-2 sm:mb-3'}`}>
-          <span className={`border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400 font-bold uppercase ${compact ? 'px-1.5 py-0.5 text-[8px] sm:text-[9px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'}`}>
+      <div className={`flex-1 min-w-0 border-b ${mobile ? 'border-zinc-200/90 dark:border-zinc-800/70' : 'border-zinc-100 dark:border-zinc-800/60'} group-last:border-0 group-last:pb-0 ${compact ? 'pb-4 sm:pb-5' : 'pb-6 sm:pb-8'}`}>
+        <div className={`flex items-start gap-2 ${compact ? 'mb-1.5 sm:mb-2' : 'mb-2 sm:mb-3'}`}>
+          <span className={`${mobile ? 'mobile-ux-card-chip text-slate-500 dark:text-zinc-400' : 'border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400'} font-bold uppercase ${compact ? 'px-1.5 py-0.5 text-[8px] sm:text-[9px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'}`}>
             {entry.stageLabel}
           </span>
-          <span className={`truncate font-bold text-zinc-700 dark:text-zinc-300 ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
+          <span className={`min-w-0 break-words font-bold leading-snug ${mobile ? 'text-slate-700 dark:text-zinc-200' : 'text-zinc-700 dark:text-zinc-300'} ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
             {entry.resultSummary}
           </span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <div className={`relative flex-1 overflow-hidden border border-zinc-200 bg-zinc-100 dark:border-zinc-700/50 dark:bg-zinc-800/50 shadow-sm ${compact ? 'h-6 sm:h-7 max-w-[70%] sm:max-w-[60%]' : 'h-8 sm:h-10 max-w-[90%] sm:max-w-[85%]'}`}>
+          <div className={`relative flex-1 overflow-hidden ${mobile ? 'rounded-2xl bg-zinc-100/90 dark:bg-zinc-950/75' : 'border border-zinc-200 bg-zinc-100 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-800/50'} ${compact ? 'h-6 sm:h-7 max-w-[70%] sm:max-w-[60%]' : 'h-8 sm:h-10 max-w-[90%] sm:max-w-[85%]'}`}>
             <div
               className={`absolute inset-y-0 left-0 ${getEntryBarClass(sectionType, entry)}`}
               style={{ width: `${widthPercent}%` }}
             >
               <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent_100%)] bg-[length:12px_12px]" />
             </div>
-            <div className={`absolute inset-y-0 left-2 sm:left-3 flex items-center font-black font-mono tracking-tight text-zinc-900 dark:text-zinc-100 ${compact ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'}`}>
+            <div className={`absolute inset-y-0 left-2 sm:left-3 flex items-center font-black font-mono tracking-tight ${mobile ? 'text-slate-900 dark:text-zinc-100' : 'text-zinc-900 dark:text-zinc-100'} ${compact ? 'text-sm sm:text-base' : 'text-lg sm:text-xl'}`}>
               {entry.pulls}
               <span className={`ml-0.5 font-bold ${compact ? 'text-[10px] sm:text-xs' : 'text-xs sm:text-sm'}`}>{t('dashboard.unit.pull')}</span>
             </div>
@@ -266,7 +266,7 @@ function TimelineStageCard({ entry, sectionType, featured, t }) {
         {entry.dropBadges.length > 0 && (
           <div className={`mt-2.5 sm:mt-3 flex flex-wrap ${compact ? 'gap-1.5' : 'gap-1.5 sm:gap-2'}`}>
             {entry.dropBadges.map((badge) => (
-              <StageBadge key={`${entry.id}-${badge.label}`} badge={badge} compact={compact} />
+              <StageBadge key={`${entry.id}-${badge.label}`} badge={badge} compact={compact} mobile={mobile} />
             ))}
           </div>
         )}
@@ -275,21 +275,21 @@ function TimelineStageCard({ entry, sectionType, featured, t }) {
   );
 }
 
-function TimelineSectionCard({ section, isOverview, embedded, t }) {
+function TimelineSectionCard({ section, isOverview, embedded, t, mobile = false }) {
   const tone = getTimelineTone(section.type);
   const pityValue = section.hidePityState
     ? t('dashboard.timeline.multiAccount')
     : `${section.currentPity} / ${section.currentPity5}`;
 
   return (
-    <div className="relative overflow-hidden border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <div className={`relative overflow-hidden ${mobile ? (embedded ? 'mobile-ux-card-inset' : 'mobile-ux-soft-card mobile-ux-soft-card--muted') : 'rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900'}`}>
       <div className={`absolute left-0 top-0 h-1 w-full ${tone.rail}`} />
 
-      <div className={`border-b border-zinc-100 dark:border-zinc-800 ${embedded ? 'p-4' : 'p-5'}`}>
+      <div className={`border-b ${mobile ? 'border-zinc-200/90 dark:border-zinc-800' : 'border-zinc-100 dark:border-zinc-800'} ${mobile ? (embedded ? 'p-3.5' : 'p-4') : (embedded ? 'p-4' : 'p-5')}`}>
         <div className="relative flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className={`${embedded ? 'text-base' : 'text-lg'} font-bold tracking-tight text-slate-900 dark:text-zinc-100`}>{section.title}</h3>
+              <h3 className={`${embedded ? 'text-base' : 'text-lg'} font-bold tracking-tight ${mobile ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-900 dark:text-zinc-100'}`}>{section.title}</h3>
               <span className={`inline-flex border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${tone.chip}`}>
                 {getSectionTypeLabel(section.type, t)}
               </span>
@@ -299,34 +299,35 @@ function TimelineSectionCard({ section, isOverview, embedded, t }) {
                 </span>
               )}
               {isOverview && (
-                <span className="border border-zinc-200 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                <span className={`border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.18em] ${mobile ? 'border-zinc-200 text-slate-500 dark:border-zinc-700 dark:text-zinc-400' : 'border-zinc-200 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400'}`}>
                   {t('dashboard.timeline.overview')}
                 </span>
               )}
             </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+            <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-mono ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
               <span>{section.period}</span>
-              <span className="text-zinc-300 dark:text-zinc-700">|</span>
+              <span className={mobile ? 'text-zinc-300 dark:text-zinc-700' : 'text-zinc-300 dark:text-zinc-700'}>|</span>
               <span className={tone.accent}>{getStatusText(section.status, t)}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <MetricItem label={t('dashboard.timeline.metric.total')} value={t('dashboard.unit.pulls', { count: section.totalPulls })} />
-            <MetricItem label={t('dashboard.timeline.metric.pity')} value={pityValue} />
-            <MetricItem label={t('dashboard.timeline.metric.avgSix')} value={formatAverage(section.avgSixStarPulls, t)} />
+            <MetricItem label={t('dashboard.timeline.metric.total')} value={t('dashboard.unit.pulls', { count: section.totalPulls })} mobile={mobile} />
+            <MetricItem label={t('dashboard.timeline.metric.pity')} value={pityValue} mobile={mobile} />
+            <MetricItem label={t('dashboard.timeline.metric.avgSix')} value={formatAverage(section.avgSixStarPulls, t)} mobile={mobile} />
             <MetricItem
               label={section.type === 'standard' ? t('dashboard.timeline.metric.avgFive') : t('dashboard.timeline.metric.avgUp')}
               value={section.type === 'standard' ? formatAverage(section.avgFiveStarPulls, t) : formatAverage(section.avgUpPulls, t)}
+              mobile={mobile}
             />
           </div>
         </div>
       </div>
 
-      <div className={embedded ? 'p-4' : 'p-5'}>
+      <div className={mobile ? (embedded ? 'p-3.5' : 'p-4') : (embedded ? 'p-4' : 'p-5')}>
         {section.entries.length === 0 ? (
-          <div className="border border-dashed border-zinc-200 px-4 py-8 text-center text-sm text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+          <div className={`border border-dashed px-4 py-8 text-center text-sm ${mobile ? 'rounded-2xl border-zinc-200 bg-zinc-50/70 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/45 dark:text-zinc-500' : 'border-zinc-200 text-slate-400 dark:border-zinc-800 dark:text-zinc-500'}`}>
             {t('dashboard.timeline.noStageNodes')}
           </div>
         ) : (
@@ -338,6 +339,7 @@ function TimelineSectionCard({ section, isOverview, embedded, t }) {
                 sectionType={section.type}
                 featured={section.featured}
                 t={t}
+                mobile={mobile}
               />
             ))}
           </div>
@@ -359,7 +361,8 @@ const PoolTimelinePanel = ({
   overviewAnalysisPityMap = null,
   overviewPoolFilter = 'all',
   hasMergedAccountView = false,
-  embedded = false
+  embedded = false,
+  mobile = false
 }) => {
   const { t, locale } = useI18n();
   const sections = useMemo(() => {
@@ -392,43 +395,43 @@ const PoolTimelinePanel = ({
       : t('dashboard.timeline.subtitle.single');
 
   return (
-    <div className={embedded ? 'space-y-4' : 'space-y-4 border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900'}>
-      <div className={`flex flex-col gap-3 ${embedded ? 'pb-1' : 'border-b border-zinc-100 pb-4 dark:border-zinc-800'} lg:flex-row lg:items-end lg:justify-between`}>
+    <div className={embedded ? 'space-y-3.5' : `space-y-4 ${mobile ? 'mobile-ux-card p-4' : 'border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900'}`}>
+      <div className={`flex flex-col gap-3 ${embedded ? 'pb-1' : `${mobile ? 'border-b border-zinc-200/90 pb-4 dark:border-zinc-800' : 'border-b border-zinc-100 pb-4 dark:border-zinc-800'}`} lg:flex-row lg:items-end lg:justify-between`}>
         {!embedded ? (
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-zinc-500">{t('dashboard.timeline.header')}</div>
+            <div className={`text-[10px] font-bold uppercase tracking-[0.2em] ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-slate-500 dark:text-zinc-500'}`}>{t('dashboard.timeline.header')}</div>
             <div className="mt-1 flex items-center gap-2">
-              <Layers size={18} className="text-slate-400 dark:text-zinc-500" />
-              <h2 className="text-xl font-black tracking-tight text-slate-800 dark:text-zinc-100">{title}</h2>
+              <Layers size={18} className={mobile ? 'text-slate-400 dark:text-zinc-500' : 'text-slate-400 dark:text-zinc-500'} />
+              <h2 className={`text-xl font-black tracking-tight ${mobile ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-800 dark:text-zinc-100'}`}>{title}</h2>
             </div>
-            <p className="mt-2 max-w-3xl text-sm text-slate-500 dark:text-zinc-400">{subtitle}</p>
+            <p className={`mt-2 max-w-3xl text-sm ${mobile ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-500 dark:text-zinc-400'}`}>{subtitle}</p>
           </div>
         ) : (
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">{t('dashboard.timeline.mode')}</div>
-            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-500">{subtitle}</p>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500">{t('dashboard.timeline.mode')}</div>
+            <p className={`mt-1 text-[11px] ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-500'}`}>{subtitle}</p>
           </div>
         )}
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="border border-zinc-200 px-3 py-1.5 text-xs font-mono text-slate-600 dark:border-zinc-800 dark:text-zinc-400">
+          <div className={`border px-3 py-1.5 text-xs font-mono ${mobile ? 'rounded-xl border-zinc-200 bg-zinc-50 text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400' : 'border-zinc-200 text-slate-600 dark:border-zinc-800 dark:text-zinc-400'}`}>
             {t('dashboard.unit.stagePoolCount', { count: sections.length })}
           </div>
-          <div className="border border-zinc-200 px-3 py-1.5 text-xs font-mono text-slate-600 dark:border-zinc-800 dark:text-zinc-400">
+          <div className={`border px-3 py-1.5 text-xs font-mono ${mobile ? 'rounded-xl border-zinc-200 bg-zinc-50 text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400' : 'border-zinc-200 text-slate-600 dark:border-zinc-800 dark:text-zinc-400'}`}>
             {t('dashboard.unit.timelineNodeCount', { count: totalNodes })}
           </div>
         </div>
       </div>
 
       {hasMergedAccountView && (
-        <div className="border border-dashed border-zinc-200 bg-zinc-50 px-3 py-2 text-[11px] font-mono text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+        <div className={`border border-dashed px-3 py-2 text-[11px] font-mono ${mobile ? 'rounded-2xl border-zinc-200 bg-zinc-50/85 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500' : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400'}`}>
           {t('dashboard.timeline.mergedViewNote')}
         </div>
       )}
 
       <div className="space-y-4">
         {sections.length === 0 ? (
-          <div className="border border-dashed border-zinc-200 px-4 py-10 text-center text-sm text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+          <div className={`border border-dashed px-4 py-10 text-center text-sm ${mobile ? 'rounded-2xl border-zinc-200 bg-zinc-50/85 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500' : 'border-zinc-200 text-slate-400 dark:border-zinc-800 dark:text-zinc-500'}`}>
             {t('dashboard.timeline.noSelection')}
           </div>
         ) : (
@@ -439,6 +442,7 @@ const PoolTimelinePanel = ({
               isOverview={isGroupMode}
               embedded={embedded}
               t={t}
+              mobile={mobile}
             />
           ))
         )}

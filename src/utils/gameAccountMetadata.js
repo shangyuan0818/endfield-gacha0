@@ -20,6 +20,17 @@ export function normalizeMetadataTimestamp(value) {
     return null;
   }
 
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    const numericValue = value < 1e12 ? value * 1000 : value;
+    return new Date(numericValue).toISOString();
+  }
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    const numericValue = numeric < 1e12 ? numeric * 1000 : numeric;
+    return new Date(numericValue).toISOString();
+  }
+
   const parsed = new Date(value).getTime();
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return null;
@@ -29,13 +40,18 @@ export function normalizeMetadataTimestamp(value) {
 }
 
 export function getHistoryRecordGameUid(record) {
-  return normalizeString(record?.game_uid || record?.gameUid);
+  return normalizeString(record?.game_uid || record?.gameUid || record?.hg_uid || record?.hgUid);
 }
 
 export function getHistoryRecordTimestampMs(record) {
-  const raw = record?.timestamp;
+  const raw = record?.timestamp ?? record?.gacha_time ?? record?.created_at;
   if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
-    return raw;
+    return raw < 1e12 ? raw * 1000 : raw;
+  }
+
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return numeric < 1e12 ? numeric * 1000 : numeric;
   }
 
   const parsed = new Date(raw || 0).getTime();
@@ -43,7 +59,7 @@ export function getHistoryRecordTimestampMs(record) {
 }
 
 export function normalizeGameAccountMetadata(metadata = {}) {
-  const gameUid = normalizeString(metadata.gameUid || metadata.game_uid);
+  const gameUid = normalizeString(metadata.gameUid || metadata.game_uid || metadata.hgUid || metadata.hg_uid);
   if (!gameUid) {
     return null;
   }

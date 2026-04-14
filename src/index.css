@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 @theme {
+  /* ef-* theme colors for mobile */
+  --color-ef-light: #f4f4f5;
+  --color-ef-light-card: #ffffff;
+  --color-ef-dark: #0a0a0a;
+  --color-ef-card: #141414;
+
   /* Updated to #FFFA00 per user request */
   --color-endfield-yellow: #FFFA00; 
   --color-endfield-dark: #0A0A0A;
@@ -698,6 +704,469 @@
     padding-bottom: calc(env(safe-area-inset-bottom, 0) + 4rem);
   }
 
+  .mobile-ux-shell {
+    min-height: 100dvh;
+    background:
+      radial-gradient(circle at top, rgba(255, 250, 0, 0.08), transparent 32%),
+      linear-gradient(180deg, rgba(20, 20, 20, 0.96) 0%, rgba(10, 10, 10, 1) 100%);
+    color: #fff;
+  }
+
+  .mobile-ux-shell::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.6;
+    z-index: 0;
+  }
+
+  .mobile-ux-page {
+    position: relative;
+    z-index: 1;
+    height: calc(100dvh - (3.75rem + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px) + 5rem));
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    padding: 0 1rem calc(env(safe-area-inset-bottom, 0px) + 5rem);
+  }
+
+  .mobile-ux-page-content {
+    padding-bottom: 1.5rem;
+  }
+
+  @keyframes mobile-slide-up {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes mobile-slide-right {
+    from {
+      transform: translateX(-18px);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .mobile-ux-page--up {
+    animation: mobile-slide-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .mobile-ux-page--right {
+    animation: mobile-slide-right 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .mobile-ux-sticky {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    margin: 0 -1rem 1rem;
+    padding: 1.5rem 1rem 1rem;
+    background: rgba(10, 10, 10, 0.88);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .mobile-ux-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: #FFFA00;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  .mobile-ux-title {
+    margin-top: 0.45rem;
+    font-size: clamp(1.35rem, 5.8vw, 1.625rem);
+    line-height: 1.02;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    color: #fff;
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-ux-subtitle {
+    margin-top: 0.5rem;
+    max-width: 32rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #a1a1aa;
+  }
+
+  .mobile-glass-panel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.2rem;
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 16px 34px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(16px);
+  }
+
+  .dark .mobile-glass-panel {
+    border-color: rgba(39, 39, 42, 0.92);
+    background: rgba(20, 20, 20, 0.82);
+    box-shadow:
+      0 18px 42px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 28%);
+  }
+
+  .mobile-ux-card,
+  .mobile-glass-panel,
+  .mobile-ux-soft-card,
+  .mobile-ux-dropdown,
+  .mobile-ux-modal-card,
+  .mobile-ux-input {
+    border-radius: 1.2rem;
+  }
+
+  .mobile-ux-card {
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow:
+      0 14px 32px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(16px);
+  }
+
+  .dark .mobile-ux-card {
+    border-color: rgba(39, 39, 42, 0.92);
+    background: rgba(20, 20, 20, 0.82);
+    box-shadow:
+      0 18px 40px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-ux-card-inset {
+    border-radius: 1.05rem;
+    border: 1px solid rgba(228, 228, 231, 0.82);
+    background: rgba(244, 244, 245, 0.82);
+  }
+
+  .dark .mobile-ux-card-inset {
+    border-color: rgba(39, 39, 42, 0.86);
+    background: rgba(24, 24, 27, 0.56);
+  }
+
+  .mobile-ux-card-chip {
+    border-radius: 0.9rem;
+    border: 1px solid rgba(228, 228, 231, 0.92);
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .dark .mobile-ux-card-chip {
+    border-color: rgba(39, 39, 42, 0.88);
+    background: rgba(24, 24, 27, 0.72);
+  }
+
+  .mobile-ux-soft-card {
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow:
+      0 14px 32px rgba(15, 23, 42, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  .dark .mobile-ux-soft-card {
+    border: 1px solid rgba(39, 39, 42, 0.92);
+    background: rgba(24, 24, 27, 0.74);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  }
+
+  .mobile-ux-soft-card--muted {
+    background: rgba(244, 244, 245, 0.9);
+  }
+
+  .dark .mobile-ux-soft-card--muted {
+    background: rgba(24, 24, 27, 0.62);
+  }
+
+  .mobile-ux-soft-card--danger {
+    border-color: rgba(244, 114, 182, 0.35);
+    background: rgba(255, 241, 242, 0.92);
+  }
+
+  .dark .mobile-ux-soft-card--danger {
+    border-color: rgba(190, 24, 93, 0.26);
+    background: rgba(136, 19, 55, 0.24);
+  }
+
+  .mobile-ux-soft-card--warning {
+    border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(255, 251, 235, 0.94);
+  }
+
+  .dark .mobile-ux-soft-card--warning {
+    border-color: rgba(180, 83, 9, 0.3);
+    background: rgba(120, 53, 15, 0.28);
+  }
+
+  .mobile-ux-soft-card--info {
+    border-color: rgba(96, 165, 250, 0.35);
+    background: rgba(239, 246, 255, 0.94);
+  }
+
+  .dark .mobile-ux-soft-card--info {
+    border-color: rgba(37, 99, 235, 0.26);
+    background: rgba(23, 37, 84, 0.44);
+  }
+
+  .mobile-ux-soft-card--success {
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(240, 253, 244, 0.94);
+  }
+
+  .dark .mobile-ux-soft-card--success {
+    border-color: rgba(22, 163, 74, 0.28);
+    background: rgba(20, 83, 45, 0.38);
+  }
+
+  .mobile-ux-dropdown {
+    border-radius: 1.2rem;
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-ux-input {
+    width: 100%;
+    border-radius: 1.05rem;
+    border: 1px solid rgba(212, 212, 216, 0.9);
+    background: rgba(255, 255, 255, 0.9);
+    color: #18181b;
+    outline: none;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .mobile-ux-input::placeholder {
+    color: #71717a;
+  }
+
+  .mobile-ux-input:focus {
+    border-color: rgba(255, 250, 0, 0.45);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 0 0 1px rgba(255, 250, 0, 0.15);
+  }
+
+  .mobile-ux-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.68);
+    backdrop-filter: blur(12px);
+  }
+
+  .mobile-ux-modal-card {
+    width: 100%;
+    max-width: 24rem;
+    overflow: hidden;
+    border-radius: 1.35rem;
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background:
+      radial-gradient(circle at top right, rgba(255, 250, 0, 0.12), transparent 34%),
+      rgba(255, 255, 255, 0.96);
+    box-shadow: 0 32px 64px rgba(15, 23, 42, 0.22);
+  }
+
+  .dark .mobile-ux-modal-card {
+    border-color: rgba(255, 255, 255, 0.08);
+    background:
+      radial-gradient(circle at top right, rgba(255, 250, 0, 0.08), transparent 34%),
+      rgba(12, 12, 12, 0.96);
+    box-shadow: 0 32px 64px rgba(0, 0, 0, 0.45);
+  }
+
+  .mobile-ux-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid rgba(228, 228, 231, 0.9);
+    background: rgba(244, 244, 245, 0.9);
+    padding: 1rem 1.1rem;
+  }
+
+  .dark .mobile-ux-modal-header {
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .mobile-ux-modal-footer {
+    display: flex;
+    gap: 0.5rem;
+    border-top: 1px solid rgba(228, 228, 231, 0.9);
+    background: rgba(244, 244, 245, 0.85);
+    padding: 0.9rem 1rem;
+  }
+
+  .dark .mobile-ux-modal-footer {
+    border-top-color: rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .mobile-action-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    padding: 0.7rem 1rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  }
+
+  .mobile-pill-tabs {
+    display: inline-flex;
+    width: 100%;
+    gap: 0.25rem;
+    padding: 0.25rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-pill-tabs--compact {
+    width: auto;
+  }
+
+  .mobile-pill-tab {
+    flex: 1;
+    min-width: 0;
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.69rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    text-transform: uppercase;
+    transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .mobile-pill-tab--active {
+    background: #18181b;
+    color: #fff;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .mobile-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .mobile-ux-snap-rail {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+    scroll-snap-type: x mandatory;
+  }
+
+  .mobile-ux-snap-card {
+    scroll-snap-align: start;
+  }
+
+  .mobile-ux-tabbar {
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(228, 228, 231, 0.95);
+    box-shadow: 0 -10px 40px rgba(15, 23, 42, 0.12);
+  }
+
+  .mobile-ux-topbar {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(18px);
+    border-bottom: 1px solid rgba(228, 228, 231, 0.95);
+  }
+
+  .mobile-ux-account-chip,
+  .mobile-ux-brand-chip {
+    border-radius: 9999px;
+    border: 1px solid rgba(228, 228, 231, 0.95);
+    background: rgba(255, 255, 255, 0.88);
+    padding: 0.35rem 0.8rem;
+    backdrop-filter: blur(12px);
+  }
+
+  .dark .mobile-ux-dropdown {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(10, 10, 10, 0.92);
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.35);
+  }
+
+  .dark .mobile-ux-input {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f4f4f5;
+  }
+
+  .dark .mobile-ux-input:focus {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .dark .mobile-ux-tabbar {
+    background: rgba(10, 10, 10, 0.95);
+    border-top-color: rgba(39, 39, 42, 0.92);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .dark .mobile-ux-topbar {
+    background: rgba(10, 10, 10, 0.95);
+    border-bottom-color: rgba(63, 63, 70, 0.5);
+  }
+
+  .dark .mobile-ux-account-chip,
+  .dark .mobile-ux-brand-chip {
+    border-color: rgba(63, 63, 70, 0.75);
+    background: rgba(24, 24, 27, 0.92);
+  }
+
+  .mobile-ux-shell :where(.card-panel) {
+    border-radius: 1.1rem;
+    overflow: hidden;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+
   /* 移动端滑入动画 */
   @keyframes slide-up {
     from {
@@ -812,3 +1281,16 @@
     touch-action: manipulation;
   }
 }
+  .dark .mobile-pill-tabs {
+    border-color: rgba(39, 39, 42, 0.92);
+    background: rgba(24, 24, 27, 0.88);
+  }
+
+  .dark .mobile-pill-tab {
+    color: #71717a;
+  }
+
+  .dark .mobile-pill-tab--active {
+    background: #27272a;
+    color: #fff;
+  }

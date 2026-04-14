@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import { executeSupabaseMutation } from '../services/supabaseRequest';
-import { getBootstrapSiteConfig } from '../services/bootstrapService';
-import { supabase } from '../supabaseClient';
-import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta';
+import { executeSupabaseMutation } from '../services/supabaseRequest.js';
+import { getBootstrapSiteConfig } from '../services/bootstrapService.js';
+import { supabase } from '../supabaseClient.js';
+import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta.js';
 
 const SITE_CONFIG_SNAPSHOT_KEY = 'site_config_snapshot_v1';
 
@@ -128,18 +128,30 @@ const useSiteConfigStore = create((set, get) => ({
   /**
    * 管理员更新配置项
    */
-  updateConfig: async (key, value) => {
+  updateConfig: async (key, value, meta = {}) => {
     if (!supabase) return false;
     try {
-      const { error } = await executeSupabaseMutation(
-        () => supabase
+      const existingValue = Object.prototype.hasOwnProperty.call(get().config, key);
+      const request = existingValue
+        ? () => supabase
           .from('site_config')
           .update({ value, updated_at: new Date().toISOString() })
-          .eq('key', key),
-        {
-          label: 'update site config'
-        }
-      );
+          .eq('key', key)
+        : () => supabase
+          .from('site_config')
+          .upsert({
+            key,
+            value,
+            label: meta.label || key,
+            category: meta.category || 'general',
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'key'
+          });
+
+      const { error } = await executeSupabaseMutation(request, {
+        label: existingValue ? 'update site config' : 'upsert site config'
+      });
 
       if (error) throw error;
 

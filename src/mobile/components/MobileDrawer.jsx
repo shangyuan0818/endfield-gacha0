@@ -1,235 +1,174 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { X, Sun, Moon, Monitor, MessageSquare, Shield, Info, LogOut, User, LogIn } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import useAuthStore from '../../stores/useAuthStore';
-import PlatformSwitcher from '../../components/common/PlatformSwitcher';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Home, User, ListFilter, Globe, Gamepad2, MessageSquare, Settings, Info, Shield, LogOut, ChevronDown, X, LogIn } from 'lucide-react';
+import PlatformSwitcher from '../../components/common/PlatformSwitcher.jsx';
 import AuthModal from '../../AuthModal';
-import { useTheme } from '../../contexts/ThemeContext';
-import { getMobilePathForTab } from '../../constants/appRoutes';
-import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
+import useAuthStore from '../../stores/useAuthStore';
+import usePoolStore from '../../stores/usePoolStore';
+import useHistoryStore from '../../stores/useHistoryStore';
 import { useI18n } from '../../i18n/index.js';
 
-/**
- * 移动端侧边抽屉菜单
- */
-function MobileDrawer({ isOpen, onClose }) {
-  const { themeMode, setThemeMode } = useTheme();
+// eslint-disable-next-line no-unused-vars
+function DrawerNavButton({ icon: Icon, label, active = false, tone = 'default', onClick, trailing = null }) {
+  const toneClass = tone === 'danger'
+    ? 'text-rose-600 dark:text-red-400 hover:bg-rose-50 dark:hover:bg-red-500/10'
+    : active
+      ? 'text-amber-600 dark:text-ef-yellow bg-amber-500/10 dark:bg-amber-400 dark:bg-ef-yellow/10'
+      : 'text-slate-600 dark:text-zinc-400 hover:bg-zinc-100 dark:bg-zinc-900 hover:text-slate-900 dark:text-white';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`touch-feedback mx-3 my-1 px-4 py-3 rounded-lg flex w-[calc(100%-1.5rem)] items-center justify-between text-sm font-medium transition-colors ${toneClass}`}
+    >
+      <span className="flex items-center gap-4">
+        <Icon size={18} className="shrink-0" />
+        <span className="truncate">{label}</span>
+      </span>
+      {trailing}
+    </button>
+  );
+}
+
+function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
   const { user, signOut, userRole, setUser } = useAuthStore();
+  const currentGameUid = usePoolStore((state) => state.currentGameUid);
+  const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const { t } = useI18n();
-  const navigate = useNavigate();
-  const isSuperAdmin = userRole === 'super_admin';
   const drawerRef = useRef(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const isSuperAdmin = userRole === 'super_admin';
+  
+  const accounts = getGameAccountsFromHistory();
+  const currentAccount = useMemo(() => {
+    if (currentGameUid) {
+      return accounts.find((account) => account.gameUid === currentGameUid) || null;
+    }
+    return accounts[0] || null;
+  }, [accounts, currentGameUid]);
 
-  // 点击外部关闭
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (isOpen && drawerRef.current && !drawerRef.current.contains(e.target)) {
+    const handlePointerDown = (event) => {
+      if (isOpen && drawerRef.current && !drawerRef.current.contains(event.target)) {
         onClose();
       }
     };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
     };
   }, [isOpen, onClose]);
 
-  // 禁止背景滚动
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
   }, [isOpen]);
 
-  const handleSignOut = async () => {
-    await signOut();
+  if (!isOpen) return null;
+
+  const jumpTo = (tab) => {
+    setActiveTab(tab);
     onClose();
   };
 
-  const handleAdminClick = () => {
-    navigate(getMobilePathForTab('admin'));
-    onClose();
-  };
-
-  const handleAboutClick = () => {
-    navigate(getMobilePathForTab('about'));
-    onClose();
-  };
-
-  const handleFeedbackClick = () => {
-    navigate(getMobilePathForTab('tickets'));
-    onClose();
-  };
-
-  const handleLoginClick = () => {
-    setShowAuthModal(true);
-  };
-
-  const handleAuthSuccess = (newUser) => {
-    setUser(newUser);
+  const handleAuthSuccess = (nextUser) => {
+    setUser(nextUser);
     setShowAuthModal(false);
   };
 
-  if (!isOpen) return null;
-
-  const themeOptions = [
-    { value: 'system', label: t('settings.theme.system'), icon: Monitor },
-    { value: 'light', label: t('settings.theme.light'), icon: Sun },
-    { value: 'dark', label: t('settings.theme.dark'), icon: Moon },
-  ];
-
   return (
-    <div className="fixed inset-0 z-50">
-      {/* 遮罩层 */}
-      <div className="absolute inset-0 bg-black/50 animate-overlay-fade-in" />
-
-      {/* 抽屉内容 */}
-      <div
+    <div className="fixed inset-0 z-50 flex">
+      <div className="absolute inset-0 bg-white/80 dark:bg-black/80 backdrop-blur-sm transition-opacity animate-overlay-fade-in" onClick={onClose} />
+      
+      <aside
         ref={drawerRef}
-        className="absolute left-0 top-0 bottom-0 w-72 bg-slate-50 dark:bg-zinc-950 animate-slide-in-left safe-area-top safe-area-bottom shadow-2xl border-r border-zinc-200 dark:border-zinc-800"
+        className="relative w-[85%] max-w-[320px] h-full bg-ef-light dark:bg-ef-dark border-r border-zinc-200 dark:border-zinc-800 flex flex-col animate-slide-in-left shadow-2xl safe-area-top safe-area-bottom"
       >
-        {/* 头部 */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-100/50 dark:bg-zinc-900/50">
-          <span className="text-lg font-bold text-endfield-yellow tracking-wider uppercase">{t('app.brand')}</span>
-          <button onClick={onClose} className="p-2 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors rounded-none">
-            <X className="w-5 h-5 text-zinc-500" />
-          </button>
-        </div>
-
-        {/* 用户信息 */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
-          {user ? (
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-none bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow shadow-sm">
-                {user.user_metadata?.avatar_url ? (
-                  <img
-                    src={user.user_metadata.avatar_url}
-                    alt={t('common.avatar')}
-                    className="w-full h-full object-cover"
-                  />
+        <div className="p-6 border-b border-zinc-200 dark:border-zinc-800/50 bg-gradient-to-b from-zinc-100 dark:from-zinc-900 to-transparent shrink-0">
+          <div className="flex items-center justify-between mb-6">
+            <div className="font-mono font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow">G.ANALYZER</div>
+            <button onClick={onClose} className="p-2 text-slate-500 dark:text-zinc-500 hover:text-slate-900 dark:text-white transition-colors touch-feedback">
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm p-3 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 text-slate-900 flex items-center justify-center font-bold text-lg border-2 border-amber-500 dark:border-ef-yellow shadow-sm dark:shadow-[0_0_10px_rgba(255,250,0,0.3)] shrink-0">
+                {user?.user_metadata?.avatar_url ? (
+                  <img src={user.user_metadata.avatar_url} alt={t('common.avatar')} className="h-full w-full rounded-full object-cover" />
                 ) : (
-                  <span className="text-xl font-bold text-black font-mono">
-                    {(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}
-                  </span>
+                  (user?.user_metadata?.full_name || user?.email || '?')[0].toUpperCase()
                 )}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate font-mono">
-                  {user.user_metadata?.full_name || t('header.userInfo')}
-                </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate font-mono mt-0.5">
-                  {user.email}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-none bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 flex items-center justify-center">
-                  <User className="w-6 h-6 text-zinc-500" />
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-sm text-slate-900 dark:text-white truncate flex items-center flex-wrap gap-1">
+                  <span className="truncate max-w-[100px]">{currentAccount?.nickName || user?.user_metadata?.full_name || t('nav.guest')}</span>
+                  {currentAccount?.serverTag && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-500/50 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded ml-1 shrink-0">{currentAccount.serverTag}</span>}
                 </div>
-                <p className="text-zinc-500 font-bold text-sm">{t('import.needLogin')}</p>
+                <div className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5 truncate">
+                  {currentAccount?.gameUid ? `UID: ${currentAccount.gameUid}` : (user?.email || t('header.guestMode'))}
+                </div>
               </div>
-              <button
-                onClick={handleLoginClick}
-                className="flex items-center gap-2 px-4 py-2 bg-endfield-yellow text-black text-xs font-bold uppercase tracking-wider touch-feedback hover:bg-yellow-400 transition-colors rounded-none"
-              >
-                <LogIn size={14} />
-                {t('nav.login')}
-              </button>
             </div>
-          )}
-        </div>
-
-        {/* 主题切换 */}
-        <div className="p-4 border-b border-zinc-200 dark:border-zinc-800">
-          <p className="text-xs font-bold text-zinc-400 dark:text-zinc-500 mb-3 uppercase tracking-wider">{t('settings.appearanceSection')}</p>
-          <div className="flex gap-2">
-            {themeOptions.map((option) => {
-              const Icon = option.icon;
-              const isActive = themeMode === option.value;
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setThemeMode(option.value)}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2 px-2 touch-feedback border transition-all rounded-none ${
-                    isActive
-                      ? 'bg-endfield-yellow text-black border-endfield-yellow shadow-sm'
-                      : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-[10px] font-bold uppercase">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-4">
-            <LocaleSwitcher />
+            {!user ? (
+               <button onClick={() => setShowAuthModal(true)} className="p-1.5 ml-2 rounded-full bg-amber-100 dark:bg-ef-yellow/20 text-amber-600 dark:text-ef-yellow touch-feedback shrink-0">
+                 <LogIn size={16} />
+               </button>
+            ) : null}
           </div>
         </div>
 
-        {/* 菜单项 */}
-        <div className="py-2">
-          {/* 工单反馈 */}
-          <button
-            onClick={handleFeedbackClick}
-            className="group flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all border-l-2 border-transparent hover:border-endfield-yellow"
-          >
-            <MessageSquare className="w-5 h-5 text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors" />
-            <span className="text-zinc-600 dark:text-zinc-400 font-medium group-hover:text-zinc-900 dark:group-hover:text-zinc-100">{t('nav.tickets')}</span>
-          </button>
+        <div className="flex-1 overflow-y-auto py-2 scroll-smooth">
+          <div className="px-6 py-2 text-[10px] font-bold tracking-widest text-slate-400 dark:text-zinc-600 mt-2 uppercase">{t('drawer.section.main')}</div>
+          
+          <DrawerNavButton icon={Home} label={t('nav.home')} active={activeTab === 'home'} onClick={() => jumpTo('home')} />
+          <DrawerNavButton icon={User} label={t('nav.overview')} active={activeTab === 'overview'} onClick={() => jumpTo('overview')} />
+          <DrawerNavButton icon={ListFilter} label={t('nav.details')} active={activeTab === 'details'} onClick={() => jumpTo('details')} />
+          <DrawerNavButton icon={Globe} label={t('nav.stats')} active={activeTab === 'stats'} onClick={() => jumpTo('stats')} />
+          <DrawerNavButton icon={Gamepad2} label={t('nav.simulator')} active={activeTab === 'simulator'} onClick={() => jumpTo('simulator')} />
 
-          {/* 管理面板（仅超管可见） */}
+          <div className="px-6 py-2 text-[10px] font-bold tracking-widest text-slate-400 dark:text-zinc-600 mt-4 uppercase">{t('drawer.section.system')}</div>
+          
+          <DrawerNavButton icon={MessageSquare} label={t('nav.tickets')} active={activeTab === 'tickets'} onClick={() => jumpTo('tickets')} />
+          <DrawerNavButton icon={Settings} label={t('nav.settings')} active={activeTab === 'settings'} onClick={() => jumpTo('settings')} />
+          <DrawerNavButton icon={Info} label={t('nav.about')} active={activeTab === 'about'} onClick={() => jumpTo('about')} />
+          
           {isSuperAdmin && (
-            <button
-              onClick={handleAdminClick}
-              className="group flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all border-l-2 border-transparent hover:border-endfield-yellow"
-            >
-              <Shield className="w-5 h-5 text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors" />
-              <span className="text-zinc-600 dark:text-zinc-400 font-medium group-hover:text-zinc-900 dark:group-hover:text-zinc-100">{t('nav.admin')}</span>
-            </button>
+            <DrawerNavButton
+              icon={Shield}
+              label={t('nav.admin')}
+              active={activeTab === 'admin'}
+              onClick={() => jumpTo('admin')}
+              trailing={<span className="text-[9px] border border-red-500/30 bg-red-500/10 px-1 py-0.5 rounded text-red-500 font-bold">ADMIN</span>}
+            />
           )}
 
-          {/* 关于 */}
-          <button
-            onClick={handleAboutClick}
-            className="group flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-all border-l-2 border-transparent hover:border-endfield-yellow"
-          >
-            <Info className="w-5 h-5 text-zinc-400 group-hover:text-zinc-800 dark:group-hover:text-zinc-200 transition-colors" />
-            <span className="text-zinc-600 dark:text-zinc-400 font-medium group-hover:text-zinc-900 dark:group-hover:text-zinc-100">{t('nav.about')}</span>
-          </button>
-
-          {/* 平台切换 */}
-          <div className="px-4 py-2">
-             <PlatformSwitcher variant="menu-item" />
+          <div className="px-6 py-2 text-[10px] font-bold tracking-widest text-slate-400 dark:text-zinc-600 mt-4 uppercase">{t('drawer.section.platform')}</div>
+          <div className="mx-6 my-1">
+            <PlatformSwitcher variant="menu-item" className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-1 bg-white/50 dark:bg-black/20" />
           </div>
         </div>
 
-        {/* 底部：退出登录 */}
-        {user && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-zinc-200 dark:border-zinc-800 safe-area-bottom">
-            <button
-            onClick={handleSignOut}
-            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>{t('nav.logout')}</span>
-          </button>
-        </div>
-        )}
-      </div>
+        {user ? (
+          <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-white/50 dark:bg-zinc-950/50 shrink-0">
+            <DrawerNavButton
+              icon={LogOut}
+              label={t('nav.logout')}
+              tone="danger"
+              onClick={async () => {
+                await signOut();
+                onClose();
+              }}
+            />
+          </div>
+        ) : null}
+      </aside>
 
-      {/* 登录弹窗 */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}

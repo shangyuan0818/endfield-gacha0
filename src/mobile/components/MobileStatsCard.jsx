@@ -1,4 +1,5 @@
 import React from 'react';
+import { MobileGlassPanel } from './ux/MobilePrimitives.jsx';
 
 /**
  * 移动端统计卡片
@@ -14,22 +15,22 @@ function MobileStatsCard({ title, value, subtitle, icon: Icon, color = 'yellow',
   };
 
   return (
-    <div className={`p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 ${className}`}>
+    <MobileGlassPanel compact className={className}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</p>
+          <p className="mb-1 text-sm text-slate-500 dark:text-zinc-500">{title}</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-zinc-100">{value}</p>
           {subtitle && (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">{subtitle}</p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-zinc-500">{subtitle}</p>
           )}
         </div>
         {Icon && (
-          <div className={`p-2 border ${colorClasses[color]}`}>
+          <div className={`rounded-[0.9rem] p-2 border ${colorClasses[color]}`}>
             <Icon className="w-5 h-5" />
           </div>
         )}
       </div>
-    </div>
+    </MobileGlassPanel>
   );
 }
 

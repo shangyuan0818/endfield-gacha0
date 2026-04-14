@@ -4,6 +4,8 @@ import { useHistoryStore, useAuthStore, usePoolStore } from '../../stores';
 import { useCurrentPoolData, useCurrentPoolGroupedHistory } from '../../hooks';
 import BatchCard from '../BatchCard';
 import { isPoolGroupId } from '../../stores/usePoolStore';
+import { useI18n } from '../../i18n/index.js';
+import { localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 记录列表组件
@@ -16,6 +18,7 @@ const RecordsView = ({
   onExportJSON,
   onExportCSV
 }) => {
+  const { locale } = useI18n();
   // 从 stores 获取状态
   const historyFilter = useHistoryStore(state => state.historyFilter);
   const visibleHistoryCount = useHistoryStore(state => state.visibleHistoryCount);
@@ -70,7 +73,7 @@ const RecordsView = ({
   };
 
   // 当前卡池名称
-  const currentPoolName = currentPool?.name || '未知卡池';
+  const currentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || '未知卡池';
   const poolOptions = useMemo(
     () => [...(Array.isArray(pools) ? pools : [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN')),
     [pools]
@@ -231,10 +234,10 @@ const RecordsView = ({
                         >
                           <option value="">请选择卡池</option>
                           {poolOptions.map(pool => (
-                            <option key={pool.id} value={pool.id}>
-                              {pool.name}
-                            </option>
-                          ))}
+                          <option key={pool.id} value={pool.id}>
+                              {localizePoolName(pool, { locale }) || pool.name}
+                          </option>
+                        ))}
                         </select>
                       )}
                     </div>

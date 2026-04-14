@@ -12,7 +12,7 @@ function canPersistForceRefreshState() {
     window.localStorage.setItem(probeKey, '1')
     window.localStorage.removeItem(probeKey)
     return true
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -20,7 +20,7 @@ function canPersistForceRefreshState() {
 function readLocalStorage(key) {
   try {
     return window.localStorage.getItem(key)
-  } catch (error) {
+  } catch {
     return null
   }
 }
@@ -29,7 +29,7 @@ function writeLocalStorage(key, value) {
   try {
     window.localStorage.setItem(key, value)
     return true
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -43,7 +43,7 @@ function isLegacyScope(scopeUrl) {
   try {
     const scopePath = new URL(scopeUrl).pathname
     return scopePath === '/' || scopePath === '/m/' || scopePath.startsWith('/m/')
-  } catch (error) {
+  } catch {
     return true
   }
 }

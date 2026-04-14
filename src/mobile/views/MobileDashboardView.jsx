@@ -2,7 +2,7 @@ import React from 'react';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
-  BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon, Loader2
+  BarChart3, LayoutGrid, Share2, Copy, Download, Sun, Moon, Loader2, Database, RotateCcw, ChevronDown
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { useDashboardViewState, useToast } from '../../hooks';
@@ -10,7 +10,7 @@ import { RARITY_CONFIG } from '../../constants';
 import { useTheme } from '../../contexts/ThemeContext';
 import { DistributionAreaChart, RainbowGradientDefs } from '../../components/charts';
 import MobileChartContainer from '../components/MobileChartContainer';
-import MobilePoolSelector from '../components/MobilePoolSelector';
+import MobilePoolRailSelector from '../components/MobilePoolRailSelector';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel';
 import AveragePullStatsPanel from '../../components/dashboard/AveragePullStatsPanel';
 import PoolTimelinePanel from '../../components/dashboard/PoolTimelinePanel';
@@ -38,6 +38,11 @@ import {
 import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
+import { compareHistoryTimelineDesc } from '../../utils/historyTimelineSort.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
+import {
+  MobileStatusBadge
+} from '../components/ux/MobilePrimitives.jsx';
 
 const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
 
@@ -58,9 +63,10 @@ function getDistributionVariant(poolType) {
  */
 function MobileDashboardView() {
   const { isDark } = useTheme();
-  const { t, formatNumber, isEnglish, locale } = useI18n();
+  const { t, formatNumber, isEnglish, locale, formatDateTime } = useI18n();
   const { toasts, showToast, removeToast } = useToast();
   const shareCardRef = React.useRef(null);
+  const [showDetailedLogs, setShowDetailedLogs] = React.useState(false);
   const {
     feedback: shareActionFeedback,
     isBusy: isShareActionBusy,
@@ -105,8 +111,18 @@ function MobileDashboardView() {
     weaponGifts,
     currentUpPool,
     getProgressClass,
-    getCharacterAvatar
+    getCharacterAvatar,
+    dashboardResourceSummary,
+    resourceSummaryVariant
   } = useDashboardViewState();
+  const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
+  const localizedCurrentUpName = React.useMemo(
+    () => localizeEntityName(currentPool?.up_character || '', {
+      locale,
+      type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+    }),
+    [currentPool?.up_character, locale, normalizedPoolType]
+  );
   const displayPity6 = isLimited ? effectivePity.pity6 : stats.currentPity;
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
     ? calculateCurrentProbability(displayPity6, normalizedPoolType)
@@ -150,6 +166,19 @@ function MobileDashboardView() {
       selectedPools
     });
   }, [isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
+  const detailedLogEntries = React.useMemo(() => (
+    [...(normalizedPoolHistory || [])]
+      .sort(compareHistoryTimelineDesc)
+      .map((item, index) => ({
+        id: item.id || `${item.poolId || item.pool_id || 'pool'}-${index}`,
+        name: localizeHistoryItemName(item, { locale, fallback: t('common.unknown') }),
+        rarity: Number(item.rarity || 0),
+        dateLabel: formatDateTime(item.timestamp || item.created_at, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', includeYear: false }, t('common.timeUnknown')),
+        pity: item.pity ?? item.pity_count ?? item.pityCount ?? item.pull_count ?? item.pullCount ?? null,
+        isUp: !(item.isStandard ?? item.is_standard ?? false),
+        isFree: item.isFree === true || item.is_free === true
+      }))
+  ), [formatDateTime, locale, normalizedPoolHistory, t]);
   const dashboardSharePayload = React.useMemo(() => buildDashboardSharePayload({
     currentPool,
     normalizedPoolType,
@@ -199,7 +228,7 @@ function MobileDashboardView() {
   const copyImageActionLabel = isActionRunning('copy-image') ? t('dashboard.share.trigger.copying') : t('dashboard.share.copyImage');
   const shareTextActionLabel = isActionRunning('copy-text') ? t('dashboard.share.trigger.copying') : t('dashboard.share.copyText');
   const resourceSummaryTitle = isGroupMode
-    ? t('dashboard.resources.groupTitle', { name: currentPool?.name || '' })
+    ? t('dashboard.resources.groupTitle', { name: localizedCurrentPoolName || '' })
     : t('dashboard.resources.title');
   const primarySixStarLabel = isAllPoolsOverview
     ? t('dashboard.overview.targetSixStar')
@@ -213,6 +242,7 @@ function MobileDashboardView() {
     : normalizedPoolType === 'standard'
       ? extraSixLabel
       : standardSixLabel;
+  const poolRailShellClass = 'sticky top-0 z-20 overflow-visible border-b border-zinc-200 dark:border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card px-4 pt-4 pb-2 shrink-0';
   const localizeChartData = React.useCallback((items = [], primaryLabel, secondaryLabel) => (
     items.map((item) => {
       if (item?.name === '6星(限定)' || item?.name === '6星(目标)') {
@@ -413,15 +443,14 @@ function MobileDashboardView() {
 
   if (!hasPoolData) {
     return (
-      <div className="px-4 py-4 space-y-4">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 flex items-center justify-between rounded-none shadow-sm">
-          <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">{t('dashboard.pool.target')}</span>
-          <MobilePoolSelector />
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark flex flex-col px-4 pb-[calc(env(safe-area-inset-bottom,0px)+7.5rem)] space-y-3">
+        <div className={poolRailShellClass}>
+          <MobilePoolRailSelector />
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-8 text-center rounded-none shadow-sm">
-          <Calculator size={48} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-          <p className="text-zinc-500 dark:text-zinc-400">
+        <div className="mobile-ux-card mx-4 p-8 text-center">
+          <Calculator size={48} className="mx-auto mb-4 text-slate-700 dark:text-zinc-300 dark:text-zinc-700" />
+          <p className="text-slate-500 dark:text-zinc-500 dark:text-slate-600 dark:text-zinc-400">
             {user ? t('dashboard.empty.importOrCreatePool') : t('dashboard.empty.loginToStart')}
           </p>
         </div>
@@ -431,17 +460,20 @@ function MobileDashboardView() {
 
   if (!currentPool) {
     return (
-      <div className="px-4 py-8">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-8 text-center rounded-none shadow-sm">
-          <Calculator size={48} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-          <p className="text-zinc-500 dark:text-zinc-400">{t('dashboard.empty.selectOrCreatePool')}</p>
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark flex flex-col px-4 pb-[calc(env(safe-area-inset-bottom,0px)+7.5rem)] space-y-3">
+        <div className={poolRailShellClass}>
+          <MobilePoolRailSelector />
+        </div>
+        <div className="mobile-ux-card mx-4 p-8 text-center">
+          <Calculator size={48} className="mx-auto mb-4 text-slate-700 dark:text-zinc-300 dark:text-zinc-700" />
+          <p className="text-slate-500 dark:text-zinc-500 dark:text-slate-600 dark:text-zinc-400">{t('dashboard.empty.selectOrCreatePool')}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-4 space-y-4">
+    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark flex flex-col pb-[calc(env(safe-area-inset-bottom,0px)+7.5rem)] [&>*]:shrink-0">
       {hasDashboardShareData && (
         <div
           aria-hidden="true"
@@ -449,84 +481,76 @@ function MobileDashboardView() {
             position: 'fixed',
             left: '-200vw',
             top: 0,
+            width: '1200px',
             opacity: 0,
+            visibility: 'hidden',
             pointerEvents: 'none',
           }}
         >
           <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={shareTheme} />
         </div>
       )}
-      {/* 卡池选择器 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 flex items-center justify-between rounded-none shadow-sm">
-        <span className="text-xs text-zinc-500 font-bold uppercase tracking-wider">{t('dashboard.pool.target')}</span>
-        <MobilePoolSelector />
+      <div className={poolRailShellClass}>
+        <MobilePoolRailSelector />
       </div>
 
-      {/* 卡池标题卡片 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden rounded-none shadow-md">
-        <div className={`h-1.5 w-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-500' : 'bg-amber-500'}`} />
-        <div className="p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-none border border-current ${
-                isLimited ? 'text-fuchsia-600 dark:text-fuchsia-400 bg-fuchsia-50 dark:bg-fuchsia-900/10' :
-                isWeapon ? 'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/10' :
-                'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10'
-              }`}>
-                {isWeapon ? <Swords size={20} /> : isLimited ? <Star size={20} /> : <Layers size={20} />}
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-tight">
-                  {currentPool.name}
-                </h1>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono flex items-center gap-2">
-                  <span className="px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 font-bold">
-                    {isLimited ? t('dashboard.pool.type.limited') : isWeapon ? t('dashboard.pool.type.weapon') : t('dashboard.pool.type.standard')}
-                  </span>
-                  <span>{t('dashboard.pool.totalPulls', { count: formatNumber(stats.total) })}</span>
-                </p>
-              </div>
-            </div>
-
-            {currentPool.up_character && (
-              <div className="text-right bg-zinc-50 dark:bg-zinc-800/50 p-1.5 border border-zinc-100 dark:border-zinc-700">
-                <div className="text-[11px] text-zinc-400 uppercase font-mono mb-0.5">{t('dashboard.pool.upCharacter')}</div>
-                <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 uppercase">
-                  {currentPool.up_character}
+      <div className="mobile-ux-card relative mb-4 mx-4 mt-4 overflow-hidden border-pink-500/30">
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-pink-500 to-orange-500"></div>
+        <div className="p-4 relative z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-3">
+                <div className={`mobile-ux-card-inset p-2.5 ${
+                  isLimited ? 'border-fuchsia-500/25 bg-pink-500/10 text-pink-600 dark:text-pink-400' :
+                  isWeapon ? 'border-slate-500/25 bg-slate-500/10 text-slate-600 dark:text-slate-300' :
+                  'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300'
+                }`}>
+                  {isWeapon ? <Swords size={18} /> : isLimited ? <Star size={18} /> : <Layers size={18} />}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-black text-slate-900 dark:text-white">{localizedCurrentPoolName}</h2>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">
+                    <MobileStatusBadge>{isLimited ? t('dashboard.pool.type.limited') : isWeapon ? t('dashboard.pool.type.weapon') : t('dashboard.pool.type.standard')}</MobileStatusBadge>
+                    <span className="tabular-nums">{formatNumber(stats.total)} {pullUnitLabel}</span>
+                  </div>
                 </div>
               </div>
-            )}
+              {isLimited ? (
+                <div className="mobile-ux-card-inset mt-3 flex items-center gap-2 border-endfield-yellow/10 bg-endfield-yellow/10 px-3 py-2 text-[11px] text-slate-700 dark:text-zinc-300">
+                  <Clock size={12} className="text-endfield-yellow" />
+                  <span className="font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.pool.status')}</span>
+                  <span className="tabular-nums text-slate-900 dark:text-white">
+                    {t('dashboard.pool.remainingTime', {
+                      days: currentUpPool.remainingDays || 0,
+                      hours: currentUpPool.remainingHours || 0,
+                    })}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {localizedCurrentUpName ? (
+              <div className="mobile-ux-card-inset shrink-0 px-3 py-2 text-right">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.pool.upCharacter')}</div>
+                <div className="mt-1 text-sm font-black text-slate-900 dark:text-white">{localizedCurrentUpName}</div>
+              </div>
+            ) : null}
           </div>
 
-          {isLimited && (
-            <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500 font-mono bg-zinc-50 dark:bg-zinc-900/50 p-2 border-l-2 border-endfield-yellow">
-              <Clock size={10} className="text-endfield-yellow" />
-              <span className="text-zinc-700 dark:text-zinc-300 font-bold uppercase">{t('dashboard.pool.status')}</span>
-              <span className="text-zinc-300 dark:text-zinc-700">|</span>
-              <span className="uppercase">
-                {t('dashboard.pool.remainingTime', {
-                  days: currentUpPool.remainingDays || 0,
-                  hours: currentUpPool.remainingHours || 0,
-                })}
-              </span>
-            </div>
-          )}
-
-          {hasDashboardShareData && (
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center justify-between gap-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2">
-                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-                  {t('dashboard.share.theme')}
+          {hasDashboardShareData ? (
+            <div className="mt-4 border-t border-zinc-200 dark:border-zinc-800 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.share.theme')}</div>
+                  <div className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400">{t('dashboard.share.copyText')}</div>
                 </div>
-                <div className="flex border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                <div className="flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-200 dark:bg-zinc-800">
                   <button
                     type="button"
                     onClick={() => setShareTheme('light')}
                     disabled={isShareActionBusy}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                      shareTheme === 'light'
-                        ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
-                        : 'text-zinc-500 dark:text-zinc-400'
+                    className={`flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold ${
+                      shareTheme === 'light' ? 'bg-white/14 text-slate-900 dark:text-white' : 'text-slate-500 dark:text-zinc-500'
                     } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     <Sun size={12} />
@@ -536,10 +560,8 @@ function MobileDashboardView() {
                     type="button"
                     onClick={() => setShareTheme('dark')}
                     disabled={isShareActionBusy}
-                    className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold transition-colors ${
-                      shareTheme === 'dark'
-                        ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
-                        : 'text-zinc-500 dark:text-zinc-400'
+                    className={`flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold ${
+                      shareTheme === 'dark' ? 'bg-white/14 text-slate-900 dark:text-white' : 'text-slate-500 dark:text-zinc-500'
                     } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
                   >
                     <Moon size={12} />
@@ -547,50 +569,49 @@ function MobileDashboardView() {
                   </button>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {supportsNativeImageShare && (
+              <div className={`mt-4 grid gap-2 ${supportsNativeImageShare || supportsClipboardImageCopy ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {supportsNativeImageShare ? (
                   <button
                     type="button"
                     disabled={isShareActionBusy}
                     onClick={() => void handleShareImage()}
-                    className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                    className={`mobile-ux-card-inset flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-900 dark:text-zinc-100 ${
                       isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
                     }`}
                   >
                     {isActionRunning('share') ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
                     {shareImageActionLabel}
                   </button>
-                )}
+                ) : null}
                 <button
                   type="button"
                   disabled={isShareActionBusy}
                   onClick={() => void handleDownloadShareImage()}
-                  className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                  className={`mobile-ux-card-inset flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-900 dark:text-zinc-100 ${
                     isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
                   {isActionRunning('download') ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                   {downloadImageActionLabel}
                 </button>
-                {supportsClipboardImageCopy && (
+                {supportsClipboardImageCopy ? (
                   <button
                     type="button"
                     disabled={isShareActionBusy}
                     onClick={() => void handleCopyShareImage()}
-                    className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                    className={`mobile-ux-card-inset flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-900 dark:text-zinc-100 ${
                       isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
                     }`}
                   >
                     {isActionRunning('copy-image') ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                     {copyImageActionLabel}
                   </button>
-                )}
+                ) : null}
                 <button
                   type="button"
                   disabled={isShareActionBusy}
                   onClick={() => void handleCopyShareText()}
-                  className={`flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-xs font-bold text-zinc-700 dark:text-zinc-200 ${
+                  className={`mobile-ux-card-inset flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-900 dark:text-zinc-100 ${
                     isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
                   }`}
                 >
@@ -598,72 +619,61 @@ function MobileDashboardView() {
                   {shareTextActionLabel}
                 </button>
               </div>
-              {shareActionFeedback.phase !== 'idle' && (
-                <ShareActionStatus
-                  feedback={shareActionFeedback}
-                  className="mt-2"
-                />
-              )}
+
+              {shareActionFeedback.phase !== 'idle' ? (
+                <ShareActionStatus feedback={shareActionFeedback} className="mt-3" />
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
-
-      {/* 总投入 Banner */}
-      <div className="bg-zinc-900 text-white border-l-4 border-endfield-yellow p-4 flex items-center justify-between rounded-none shadow-md relative overflow-hidden group">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:10px_10px]" />
-        
-        <div className="relative z-10">
-          <h3 className="text-[10px] text-endfield-yellow font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
-             <Calculator size={10} /> {t('dashboard.resources.totalInvested')}
-          </h3>
-          <div className="text-4xl font-black font-mono flex items-baseline gap-2">
-            {formatNumber(stats.total)}
-            <span className="text-xs font-bold text-zinc-500">{pullUnitLabel}</span>
-          </div>
-        </div>
-        <div className="relative z-10 h-12 w-12 bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-500">
-          <Layers size={24} />
-        </div>
+      {/* Total Resources Input */}
+      <div className="mobile-ux-card mx-4 mb-4 flex items-center gap-3 border-l-4 border-amber-500 px-3 py-3 text-amber-600 dark:border-ef-yellow dark:text-ef-yellow">
+          <Database size={14} />
+          <span className="text-xs font-bold tracking-widest">{t('dashboard.resources.totalInvested')}</span>
+          <span className="ml-auto text-2xl font-black font-mono">{stats.total}</span>
+          <span className="text-xs text-slate-500 dark:text-zinc-500">{t('dashboard.unit.pull')}</span>
+          <div className="mobile-ux-card-chip ml-1 flex h-8 w-8 items-center justify-center text-slate-500 dark:text-zinc-500"><Layers size={16}/></div>
       </div>
 
       <ResourceSummaryPanel
         title={resourceSummaryTitle}
-        resources={stats.resourceSummary}
-        variant={isWeapon ? 'weapon' : 'character'}
+        resources={dashboardResourceSummary}
+        variant={resourceSummaryVariant}
         compact={true}
-        className="rounded-none"
+        mobile={true}
+        className="mx-4 mb-4"
       />
 
       {/* 保底进度（聚合模式下隐藏） */}
       {!isGroupMode && !hasMergedAccountView && (
-      <div className="grid grid-cols-2 gap-3">
+      <div className="mx-4 mb-4 grid grid-cols-2 gap-2">
         {/* 6星保底 */}
         {(() => {
           const displayPity = displayPity6;
           return (
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none relative">
+            <div className="mobile-ux-soft-card relative p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide">{t('dashboard.analysis.pity6', { max: maxPity })}</span>
+                <span className="text-[10px] text-slate-500 dark:text-zinc-500 uppercase font-bold tracking-wide">{t('dashboard.analysis.pity6', { max: maxPity })}</span>
                 {currentProbabilityInfo?.hasSoftPity && currentProbabilityInfo?.isInSoftPity && (
-                  <span className="text-[11px] px-1 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-mono font-bold animate-pulse">
+                  <span className="animate-pulse rounded-full bg-red-500/15 px-1.5 py-0.5 text-[11px] font-mono font-bold text-red-300">
                     {t('dashboard.analysis.rateBoost', { percent: (currentProbabilityInfo.probability * 100).toFixed(0) })}
                   </span>
                 )}
               </div>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
+                <span className="text-3xl font-bold font-mono text-slate-900 dark:text-zinc-100">
                   {Math.max(maxPity - displayPity, 0)}
                 </span>
-                <span className="text-[10px] text-zinc-400 uppercase">{t('dashboard.unit.remaining')}</span>
+                <span className="text-[10px] text-slate-600 dark:text-zinc-400 uppercase">{t('dashboard.unit.remaining')}</span>
               </div>
-              <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                 <div
                   className={`h-full transition-all ${getProgressClass()}`}
                   style={{ width: `${(displayPity / maxPity) * 100}%` }}
                 />
               </div>
-               <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
+               <div className="mt-1.5 flex justify-between text-[10px] text-slate-500 dark:text-zinc-500 font-mono">
                  <span>{t('dashboard.analysis.currentPity', { count: displayPity })}{effectivePity?.isInherited && isLimited ? ` (${t('dashboard.analysis.crossPoolCarry')})` : ''}</span>
                  <span>{t('dashboard.unit.limit', { count: maxPity })}</span>
                </div>
@@ -675,21 +685,21 @@ function MobileDashboardView() {
         {(() => {
           const displayPity5 = isLimited ? effectivePity.pity5 : stats.currentPity5;
           return (
-            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
-              <div className="text-[10px] text-zinc-500 dark:text-zinc-400 uppercase font-bold tracking-wide mb-2">{t('dashboard.analysis.pity5')}</div>
+            <div className="mobile-ux-soft-card p-3">
+              <div className="mb-2 text-[10px] text-slate-500 dark:text-zinc-500 uppercase font-bold tracking-wide">{t('dashboard.analysis.pity5')}</div>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-3xl font-bold font-mono text-zinc-800 dark:text-zinc-100">
+                <span className="text-3xl font-bold font-mono text-slate-900 dark:text-zinc-100">
                   {Math.max(10 - displayPity5, 0)}
                 </span>
-                <span className="text-[10px] text-zinc-400 uppercase">{t('dashboard.unit.remaining')}</span>
+                <span className="text-[10px] text-slate-600 dark:text-zinc-400 uppercase">{t('dashboard.unit.remaining')}</span>
               </div>
-              <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                 <div
                   className="h-full bg-amber-500 transition-all"
                   style={{ width: `${(displayPity5 / 10) * 100}%` }}
                 />
               </div>
-               <div className="mt-1.5 flex justify-between text-[10px] text-zinc-500 font-mono">
+               <div className="mt-1.5 flex justify-between text-[10px] text-slate-500 dark:text-zinc-500 font-mono">
                  <span>{t('dashboard.analysis.currentPity', { count: displayPity5 })}{effectivePity?.isInherited && isLimited ? ` (${t('dashboard.analysis.crossPoolCarry')})` : ''}</span>
                  <span>{t('dashboard.unit.limit', { count: 10 })}</span>
                </div>
@@ -700,43 +710,43 @@ function MobileDashboardView() {
       )}
 
       {!isGroupMode && hasMergedAccountView && (
-        <div className="bg-white dark:bg-zinc-900 border border-dashed border-zinc-200 dark:border-zinc-800 p-3 text-xs text-zinc-500 dark:text-zinc-400 rounded-none shadow-sm">
+        <div className="mobile-ux-card-inset mx-4 border border-dashed border-zinc-200 bg-zinc-50/85 p-3 text-xs text-slate-500 shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-500">
           {t('dashboard.analysis.mergedViewNote')}
         </div>
       )}
 
       {/* 核心数据网格 */}
-      <div className={`grid ${normalizedPoolType !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+      <div className={`mx-4 mb-4 grid ${normalizedPoolType !== 'standard' ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
         {normalizedPoolType !== 'standard' && (
-          <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-            <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">{primarySixStarLabel}</div>
-            <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-zinc-300'}`}>
+          <div className="mobile-ux-card-inset py-3 text-center">
+            <div className="text-[11px] text-slate-600 dark:text-zinc-400 uppercase font-bold tracking-tight mb-1">{primarySixStarLabel}</div>
+            <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-slate-700 dark:text-zinc-300'}`}>
               {stats.counts[6]}
             </div>
           </div>
         )}
-        <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">{secondarySixStarLabel}</div>
+        <div className="mobile-ux-card-inset py-3 text-center">
+          <div className="text-[11px] text-slate-600 dark:text-zinc-400 uppercase font-bold tracking-tight mb-1">{secondarySixStarLabel}</div>
           <div className="text-xl font-bold font-mono text-red-600 dark:text-red-400">{stats.counts['6_std']}</div>
         </div>
-        <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">5★</div>
+        <div className="mobile-ux-card-inset py-3 text-center">
+          <div className="text-[11px] text-slate-600 dark:text-zinc-400 uppercase font-bold tracking-tight mb-1">5★</div>
           <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">{stats.counts[5]}</div>
         </div>
-        <div className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-2 text-center rounded-none group hover:border-zinc-300 dark:hover:border-zinc-600 transition-colors">
-          <div className="text-[11px] text-zinc-400 uppercase font-bold tracking-tight mb-1">4★</div>
+        <div className="mobile-ux-card-inset py-3 text-center">
+          <div className="text-[11px] text-slate-600 dark:text-zinc-400 uppercase font-bold tracking-tight mb-1">4★</div>
           <div className="text-xl font-bold font-mono text-purple-600 dark:text-purple-400">{stats.counts[4]}</div>
         </div>
       </div>
 
       {/* 图表：分布概览 + 出货分布 */}
       {stats.total > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {/* 饼图 - 分布概览 */}
-          <MobileChartContainer title={t('dashboard.chart.distribution')} defaultExpanded={true} className="rounded-none">
+          <MobileChartContainer title={t('dashboard.chart.distribution')} defaultExpanded={true} className="mb-4 mx-4">
             <div className="h-52 w-full pt-2">
               {stats.chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
                   <PieChart>
                     <RainbowGradientDefs />
                     <Pie
@@ -757,7 +767,7 @@ function MobileDashboardView() {
                       contentStyle={{
                         backgroundColor: isDark ? '#18181b' : '#fff',
                         border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
-                        borderRadius: 0,
+                        borderRadius: 16,
                         fontSize: 12,
                       }}
                       itemStyle={{ color: isDark ? '#e4e4e7' : '#27272a' }}
@@ -765,19 +775,19 @@ function MobileDashboardView() {
                     <Legend
                       verticalAlign="bottom"
                       iconSize={8}
-                      formatter={(value) => <span className="text-[11px] text-zinc-500 dark:text-zinc-400 ml-1">{value}</span>}
+                      formatter={(value) => <span className="text-[11px] text-slate-500 dark:text-zinc-500 dark:text-slate-600 dark:text-zinc-400 ml-1">{value}</span>}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-zinc-300 dark:text-zinc-700 text-sm">{t('dashboard.empty.noChartData')}</div>
+                <div className="h-full flex items-center justify-center text-slate-700 dark:text-zinc-300 dark:text-zinc-700 text-sm">{t('dashboard.empty.noChartData')}</div>
               )}
             </div>
           </MobileChartContainer>
 
           {/* 面积图 - 6星出货趋势 */}
           {stats.pityStats.history.length > 0 && (
-            <MobileChartContainer title={t('dashboard.chart.trend')} defaultExpanded={true} className="rounded-none">
+            <MobileChartContainer title={t('dashboard.chart.trend')} defaultExpanded={true} className="mb-4 mx-4">
               <div className="h-48 w-full pt-2">
                 <DistributionAreaChart
                   data={stats.pityStats.distribution}
@@ -786,7 +796,7 @@ function MobileDashboardView() {
                   tooltipStyle={{
                     backgroundColor: isDark ? '#18181b' : '#fff',
                     border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
-                    borderRadius: 0,
+                    borderRadius: 16,
                     fontSize: 12,
                   }}
                   margin={{ top: 5, right: 5, left: -25, bottom: 0 }}
@@ -799,23 +809,23 @@ function MobileDashboardView() {
 
       {/* 不歪率和平均出货（限定/武器池） */}
       {(isLimited || isWeapon) && (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="mx-4 mb-4 grid grid-cols-1 gap-2">
           {/* 不歪率 */}
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 rounded-none">
-            <div className="text-[10px] text-zinc-400 uppercase font-bold mb-2 flex justify-between">
+          <div className="mobile-ux-soft-card p-3">
+            <div className="text-[10px] text-slate-600 dark:text-zinc-400 uppercase font-bold mb-2 flex justify-between">
               <span>{t('dashboard.analysis.winRate')}</span>
-              {isLimited && <span className="text-[11px] text-zinc-300">({t('dashboard.analysis.freeTenExcluded')})</span>}
+              {isLimited && <span className="text-[11px] text-slate-700 dark:text-zinc-300">({t('dashboard.analysis.freeTenExcluded')})</span>}
             </div>
-            <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100 mb-2">
+            <div className="mb-2 text-2xl font-bold font-mono text-slate-900 dark:text-zinc-100">
               {stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
             </div>
-            <div className="h-1 bg-zinc-100 dark:bg-zinc-800 overflow-hidden w-full mb-2">
+            <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
                 className={`h-full ${isLimited ? 'rainbow-progress' : 'bg-blue-500'}`}
                 style={{ width: `${parseFloat(stats.winRate) || 0}%` }}
               />
             </div>
-            <div className="flex justify-between text-[11px] text-zinc-500 font-mono uppercase">
+            <div className="flex justify-between text-[11px] text-slate-500 dark:text-zinc-500 font-mono uppercase">
               <span>{primarySixStarLabel}: {stats.counts[6]}</span>
               <span>{isEnglish ? 'Off-rate' : '歪'}: {stats.counts['6_std']}</span>
             </div>
@@ -828,42 +838,43 @@ function MobileDashboardView() {
         poolType={normalizedPoolType}
         isAllPoolsOverview={isAllPoolsOverview}
         compact={true}
-        className="rounded-none"
+        mobile={true}
+        className="mx-4 mb-4"
       />
 
       {/* 特殊机制进度（聚合模式下隐藏） */}
       {!isGroupMode && (
-      <MobileChartContainer title={t('dashboard.analysis.specialProgress')} defaultExpanded={true} className="rounded-none">
+      <MobileChartContainer title={t('dashboard.analysis.specialProgress')} defaultExpanded={true} className="mb-4 mx-4">
         <div className="space-y-3 pt-2">
           {/* 限定池特殊进度 */}
           {isLimited && (
             <>
               {/* 免费十连 */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-blue-500 rounded-none">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--info p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{t('dashboard.analysis.freeTenOnce')}</span>
-                  <span className="text-xs font-mono text-zinc-500">
+                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.freeTenOnce')}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
                     {hasReceivedFreeTen ? t('dashboard.analysis.claimed') : '0 / 1'}
                   </span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${hasReceivedFreeTen ? 'bg-green-500' : 'bg-blue-500'}`}
                     style={{ width: hasReceivedFreeTen ? '100%' : '0%' }}
                   />
                 </div>
-                <div className="mt-1 text-[11px] text-zinc-400 font-mono">{t('dashboard.analysis.notCountPity')}</div>
+                <div className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">{t('dashboard.analysis.notCountPity')}</div>
               </div>
 
               {/* 120必出限定 */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-green-500 rounded-none">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--success p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{t('dashboard.analysis.guaranteedLimited120')}</span>
-                  <span className="text-xs font-mono text-zinc-500">
+                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.guaranteedLimited120')}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
                     {checkLimitedInFirstN.firstLimitedIndex120 > 0 ? t('dashboard.analysis.reached') : `${Math.min(checkLimitedInFirstN.validPullCount, 120)} / 120`}
                   </span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${checkLimitedInFirstN.firstLimitedIndex120 > 0 ? 'bg-green-500' : 'rainbow-progress'}`}
                     style={{ width: checkLimitedInFirstN.firstLimitedIndex120 > 0 ? '100%' : `${Math.min((checkLimitedInFirstN.validPullCount / 120) * 100, 100)}%` }}
@@ -872,12 +883,12 @@ function MobileDashboardView() {
               </div>
 
               {/* 240赠送潜能 */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-purple-500 rounded-none">
+              <div className="mobile-ux-soft-card p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{t('dashboard.analysis.potential240')}</span>
-                  <span className="text-xs font-mono text-zinc-500">{stats.total % 240} / 240</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.potential240')}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total % 240} / 240</span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div className="h-full bg-purple-500" style={{ width: `${((stats.total % 240) / 240) * 100}%` }} />
                 </div>
                 {Math.floor(stats.total / 240) > 0 && (
@@ -888,16 +899,16 @@ function MobileDashboardView() {
               </div>
 
               {/* 情报书 */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-cyan-500 rounded-none">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--info p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-1">
+                  <span className="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-zinc-200">
                     <FileText size={12} /> {t('dashboard.analysis.infoBook60')}
                   </span>
-                  <span className="text-xs font-mono text-zinc-500">
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
                     {stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 60)} / 60`}
                   </span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${stats.hasInfoBook ? 'bg-green-500' : 'bg-cyan-500'}`}
                     style={{ width: stats.hasInfoBook ? '100%' : `${Math.min((stats.total / 60) * 100, 100)}%` }}
@@ -911,14 +922,14 @@ function MobileDashboardView() {
           {isWeapon && (
             <>
               {/* 80必出限定 */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-slate-500 rounded-none">
+              <div className="mobile-ux-soft-card p-3">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{t('dashboard.analysis.guaranteedWeapon80')}</span>
-                  <span className="text-xs font-mono text-zinc-500">
+                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.guaranteedWeapon80')}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
                     {checkLimitedInFirstN.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 80)} / 80`}
                   </span>
                 </div>
-                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${checkLimitedInFirstN.firstLimitedIndex80 > 0 ? 'bg-green-500' : 'bg-slate-500'}`}
                     style={{ width: checkLimitedInFirstN.firstLimitedIndex80 > 0 ? '100%' : `${Math.min((stats.total / 80) * 100, 100)}%` }}
@@ -928,23 +939,23 @@ function MobileDashboardView() {
 
               {/* 武器赠送 */}
               {weaponGifts && (
-                <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-red-500 rounded-none">
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--danger p-3">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase">
+                    <span className="flex items-center gap-2 text-xs font-bold uppercase text-slate-700 dark:text-zinc-200">
                       {t('dashboard.analysis.nextGift')}
-                      <span className={`px-1 py-0.5 text-[11px] font-bold text-white ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
+                      <span className={`px-1 py-0.5 text-[11px] font-bold text-slate-900 dark:text-white ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-bg' : 'bg-red-500'}`}>
                         {weaponGifts.nextGiftType === 'limited' ? t('dashboard.analysis.limitedShort') : t('dashboard.analysis.standardShort')}
                       </span>
                     </span>
-                    <span className="text-xs font-mono text-zinc-500">{stats.total} / {weaponGifts.nextGift}</span>
+                    <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total} / {weaponGifts.nextGift}</span>
                   </div>
-                  <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                     <div
                       className={`h-full ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-500'}`}
                       style={{ width: `${Math.min((stats.total / weaponGifts.nextGift) * 100, 100)}%` }}
                     />
                   </div>
-                  <div className="mt-1 flex gap-3 text-[11px] text-zinc-500 font-mono uppercase">
+                  <div className="mt-1 flex gap-3 text-[11px] text-slate-500 dark:text-zinc-500 font-mono uppercase">
                     <span>{t('dashboard.analysis.obtainedSummary')}</span>
                     <span className="text-red-600 dark:text-red-400 font-medium">{weaponGifts.standardCount} {t('dashboard.analysis.standardShort')}</span>
                     <span className="text-cyan-600 dark:text-cyan-400 font-medium">{weaponGifts.limitedCount} {t('dashboard.analysis.limitedShort')}</span>
@@ -956,12 +967,12 @@ function MobileDashboardView() {
 
           {/* 常驻池特殊进度 */}
           {isStandard && (
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border-l-2 border-amber-500 rounded-none">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--warning p-3">
                 <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">{t('dashboard.analysis.firstSelector300')}</span>
-                <span className="text-xs font-mono text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.firstSelector300')}</span>
+                <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
               </div>
-              <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 overflow-hidden w-full">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                 <div
                   className={`h-full ${stats.total >= 300 ? 'bg-green-500' : 'bg-amber-500'}`}
                   style={{ width: `${Math.min((stats.total / 300) * 100, 100)}%` }}
@@ -977,15 +988,15 @@ function MobileDashboardView() {
       <MobileChartContainer
         title={t('dashboard.chart.characterStatsCount', { count: characterStats.length })}
         defaultExpanded={characterStats.length > 0 || normalizedPoolHistory.length > 0}
-        className="rounded-none"
+        className="mb-4 mx-4"
         headerRight={(characterStats.length > 0 || normalizedPoolHistory.length > 0) ? (
-          <div className="flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
+          <div className="flex overflow-hidden rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
             <button
               onClick={() => setCharViewMode('card')}
               className={`flex items-center gap-1 px-3 py-2 text-[11px] font-medium transition-colors ${
                 charViewMode === 'card'
-                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
-                  : 'text-zinc-400 dark:text-zinc-500'
+                  ? 'border-r border-zinc-200 bg-white text-slate-900 shadow-sm dark:border-zinc-700 dark:bg-white/10 dark:text-zinc-100'
+                  : 'text-slate-500 dark:text-zinc-500'
               }`}
             >
               <LayoutGrid size={14} />
@@ -995,8 +1006,8 @@ function MobileDashboardView() {
               onClick={() => setCharViewMode('waterfall')}
               className={`flex items-center gap-1 px-3 py-2 text-[11px] font-medium transition-colors ${
                 charViewMode === 'waterfall'
-                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200'
-                  : 'text-zinc-400 dark:text-zinc-500'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-white/10 dark:text-zinc-100'
+                  : 'text-slate-500 dark:text-zinc-500'
               }`}
             >
               <BarChart3 size={14} />
@@ -1021,6 +1032,7 @@ function MobileDashboardView() {
                 overviewPoolFilter="all"
                 hasMergedAccountView={hasMergedAccountView}
                 embedded={true}
+                mobile={true}
               />
             </div>
           ) : (
@@ -1030,6 +1042,10 @@ function MobileDashboardView() {
               const isLimitedChar = isSixStar && !char.isStandard;
               const isStandardChar = isSixStar && char.isStandard;
               const avatarUrl = getCharacterAvatar(char.name);
+              const localizedCharacterName = localizeEntityName(char.name, {
+                locale,
+                type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+              });
 
               // 生成出货抽数描述
               const pullInfoParts = char.pullIndices.map((idx, i) => {
@@ -1043,12 +1059,12 @@ function MobileDashboardView() {
               return (
                 <div
                   key={char.name}
-                  className={`relative flex items-center gap-3 p-2 border transition-all hover:bg-zinc-50 dark:hover:bg-zinc-800/50 ${
+                  className={`relative flex items-center gap-3 rounded-[1rem] p-2 border transition-all hover:bg-zinc-100 dark:hover:bg-zinc-700 ${
                     isLimitedChar
-                      ? 'bg-zinc-50 dark:bg-zinc-900/50 border-orange-200 dark:border-orange-900/30'
+                      ? 'bg-orange-500/6 border-orange-400/20'
                       : isStandardChar
-                        ? 'bg-white dark:bg-zinc-900 border-red-100 dark:border-red-900/20'
-                        : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800'
+                        ? 'bg-red-500/6 border-red-400/18'
+                        : 'bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-800'
                   }`}
                 >
                   {/* 左侧颜色条 */}
@@ -1057,15 +1073,15 @@ function MobileDashboardView() {
                   }`} />
 
                   {/* 头像 */}
-                  <div className={`ml-2 w-10 h-10 rounded-none flex items-center justify-center shrink-0 overflow-hidden border ${
+                  <div className={`ml-2 flex h-10 w-10 items-center justify-center shrink-0 overflow-hidden rounded-[0.95rem] border ${
                     isLimitedChar
-                      ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-br from-orange-400 to-pink-500 text-white'
+                      ? 'border-orange-300 dark:border-orange-700 bg-gradient-to-br from-orange-400 to-pink-500 text-slate-900 dark:text-white'
                       : isStandardChar
                         ? 'border-red-200 dark:border-red-800 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300'
                         : 'border-amber-200 dark:border-amber-800 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-300'
                   }`}>
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt={char.name} loading="lazy" className="w-full h-full object-cover" />
+                      <img src={avatarUrl} alt={localizedCharacterName} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <User size={18} />
                     )}
@@ -1075,9 +1091,9 @@ function MobileDashboardView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-bold truncate uppercase tracking-tight ${
-                        isLimitedChar ? 'text-zinc-800 dark:text-zinc-200' : 'text-zinc-700 dark:text-zinc-400'
+                        isLimitedChar ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-700 dark:text-zinc-300'
                       }`}>
-                        {char.name}
+                        {localizedCharacterName}
                       </span>
                       <div className="flex gap-0.5">
                         {Array.from({ length: char.rarity }).map((_, i) => (
@@ -1085,7 +1101,7 @@ function MobileDashboardView() {
                         ))}
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 truncate">
+                    <div className="text-[10px] font-mono text-slate-600 dark:text-zinc-400 dark:text-slate-500 dark:text-zinc-500 truncate">
                       {pullInfoParts.map((part, i) => (
                         <span key={i}>
                           {part.type === 'free' ? (
@@ -1109,14 +1125,14 @@ function MobileDashboardView() {
                       </div>
                     )}
                     {char.freeCount > 0 && (
-                      <div className="text-[10px] font-mono font-bold px-1.5 py-0.5 border bg-blue-50 dark:bg-blue-900/20 border-blue-200 text-blue-600 dark:text-blue-400">
+                      <div className="rounded-full border border-blue-400/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-300">
                         {isEnglish ? `Free×${char.freeCount}` : `免×${char.freeCount}`}
                       </div>
                     )}
                     <div className={`text-xs font-mono font-bold px-1.5 py-0.5 border ${
                       isLimitedChar ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 text-orange-600 dark:text-orange-400' :
                       isStandardChar ? 'bg-red-50 dark:bg-red-900/10 border-red-200 text-red-600 dark:text-red-400' :
-                      'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 text-zinc-500'
+                      'rounded-full bg-white/6 border-white/10 text-slate-600 dark:text-zinc-400'
                     }`}>
                       x{char.count}
                     </div>
@@ -1141,15 +1157,65 @@ function MobileDashboardView() {
               overviewPoolFilter="all"
               hasMergedAccountView={hasMergedAccountView}
               embedded={true}
+              mobile={true}
             />
           </div>
         ) : (
-          <p className="text-xs text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">{t('dashboard.empty.noHighRarityRecords')}</p>
+          <p className="text-xs text-slate-600 dark:text-zinc-400 font-mono text-center py-4 uppercase tracking-widest">{t('dashboard.empty.noHighRarityRecords')}</p>
         )}
       </MobileChartContainer>
+      {/* 详细日志 Accordion */}
+      <div className="mobile-ux-card relative z-10 mt-8 mx-4 mb-40 scroll-mb-40 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowDetailedLogs((value) => !value)}
+          className="relative z-10 flex w-full scroll-mb-40 items-center justify-between border-b border-zinc-200/90 bg-zinc-50/85 p-4 text-slate-700 transition-colors hover:text-slate-900 dark:border-zinc-800 dark:bg-zinc-900/45 dark:text-zinc-300 dark:hover:text-white"
+        >
+          <div className="flex min-h-7 items-center gap-2 text-[12px] font-black tracking-[0.08em]">
+            <RotateCcw size={14} /> {t('dashboard.logs')}
+          </div>
+          <ChevronDown size={14} className={`transition-transform ${showDetailedLogs ? 'rotate-180' : ''}`} />
+        </button>
+        {showDetailedLogs ? (
+          <div className="relative z-10 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+            {detailedLogEntries.length > 0 ? (
+              <div className="space-y-2">
+                {detailedLogEntries.map((entry) => (
+                  <div key={entry.id} className="mobile-ux-card-inset flex items-center gap-3 px-3 py-2.5 text-left">
+                    <div className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border font-mono text-xs font-black ${
+                      entry.rarity >= 6
+                        ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300'
+                        : entry.rarity === 5
+                          ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-500/40 dark:bg-violet-500/10 dark:text-violet-300'
+                          : 'border-zinc-200 bg-white text-slate-500 dark:border-zinc-800 dark:bg-[#111] dark:text-zinc-400'
+                    }`}>
+                      {entry.rarity > 0 ? `${entry.rarity}★` : '--'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-slate-900 dark:text-white break-words">
+                        {entry.name}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500 dark:text-zinc-500">
+                        <span>{entry.dateLabel}</span>
+                        {entry.pity !== null ? <span>{t('dashboard.analysis.currentPity', { count: entry.pity })}</span> : null}
+                        {entry.isFree ? <span className="text-blue-600 dark:text-blue-400">{t('dashboard.timeline.badge.free', {}, '免费')}</span> : null}
+                        {!entry.isFree && entry.rarity >= 6 ? <span className={entry.isUp ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>{entry.isUp ? 'UP' : t('dashboard.timeline.badge.offrate', {}, '歪')}</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[1rem] border border-dashed border-zinc-200 bg-zinc-50/80 px-3 py-4 text-center text-[11px] font-mono text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-500">
+                {t('dashboard.logsEmpty', {}, isEnglish ? 'No detailed logs yet.' : '暂无详细日志。')}
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
 
       {/* 底部留白 */}
-      <div className="h-4" />
+      <div className="h-20" />
 
       <Toast toasts={toasts} onRemove={removeToast} />
     </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Save, X, Edit2, Settings, Globe, Scale, Link, FileText, AlertTriangle } from 'lucide-react';
 import useSiteConfigStore from '../../../stores/useSiteConfigStore';
 import { supabase } from '../../../supabaseClient';
+import { ENTITY_LOCALIZATION_CONFIG_KEY, POOL_LOCALIZATION_CONFIG_KEY } from '../../../utils/gameDataI18n.js';
 
 const CATEGORY_META = {
   legal: { label: '法律合规', icon: Scale, color: 'text-red-600 dark:text-red-400' },
@@ -10,6 +11,34 @@ const CATEGORY_META = {
   alert: { label: '系统提醒', icon: AlertTriangle, color: 'text-orange-600 dark:text-orange-400' },
   general: { label: '通用配置', icon: Globe, color: 'text-zinc-600 dark:text-zinc-400' },
 };
+
+const VIRTUAL_CONFIG_ITEMS = [
+  {
+    key: POOL_LOCALIZATION_CONFIG_KEY,
+    label: '卡池名称本地化',
+    category: 'content',
+    value: JSON.stringify({
+      'pool-id-or-name': {
+        'en-US': 'Banner Name',
+      }
+    }, null, 2),
+    description: '按卡池 ID 或原始中文名维护手动本地化名称。角色名和武器名不在这里维护。'
+  },
+  {
+    key: ENTITY_LOCALIZATION_CONFIG_KEY,
+    label: '角色/武器名称本地化',
+    category: 'content',
+    value: JSON.stringify({
+      'char_or_weapon_id': {
+        type: 'character',
+        name: '洛茜',
+        'zh-CN': '洛茜',
+        'en-US': 'Rossi'
+      }
+    }, null, 2),
+    description: '用于覆盖 Warfarin 默认词条映射，优先按角色/武器 ID 生效。'
+  }
+];
 
 function EditableConfigItem({ item, isJsonField, editValue, setEditValue, onSave, onCancel, saving }) {
   const jsonError = useMemo(() => {
@@ -130,7 +159,16 @@ const SiteConfigPanel = ({ showToast }) => {
           .order('category', { ascending: true });
 
         if (!error && data) {
-          setConfigItems(data);
+          const mergedItems = [...data];
+          VIRTUAL_CONFIG_ITEMS.forEach((virtualItem) => {
+            if (!mergedItems.some((item) => item.key === virtualItem.key)) {
+              mergedItems.push({
+                ...virtualItem,
+                updated_at: null,
+              });
+            }
+          });
+          setConfigItems(mergedItems);
         }
       } catch {
         // 静默
@@ -155,7 +193,11 @@ const SiteConfigPanel = ({ showToast }) => {
     if (!editingKey) return;
     setSaving(true);
     try {
-      const success = await useSiteConfigStore.getState().updateConfig(editingKey, editValue);
+      const currentItem = configItems.find((item) => item.key === editingKey);
+      const success = await useSiteConfigStore.getState().updateConfig(editingKey, editValue, {
+        label: currentItem?.label,
+        category: currentItem?.category,
+      });
       if (success) {
         setConfigItems(prev => prev.map(item =>
           item.key === editingKey ? { ...item, value: editValue, updated_at: new Date().toISOString() } : item
@@ -240,9 +282,16 @@ const SiteConfigPanel = ({ showToast }) => {
                             <code className="text-[10px] px-1 py-0.5 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 rounded font-mono">{item.key}</code>
                           </div>
                           {isJsonField ? (
-                            <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono truncate max-w-full">
-                              {item.value ? `JSON (${item.value.length} 字符)` : '(空)'}
-                            </p>
+                            <>
+                              <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono truncate max-w-full">
+                                {item.value ? `JSON (${item.value.length} 字符)` : '(空)'}
+                              </p>
+                              {item.description ? (
+                                <p className="mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-zinc-500">
+                                  {item.description}
+                                </p>
+                              ) : null}
+                            </>
                           ) : (
                             <p className="text-sm text-slate-600 dark:text-zinc-400 truncate font-mono">{item.value || '(空)'}</p>
                           )}

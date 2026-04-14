@@ -1,14 +1,9 @@
 import { useMemo } from 'react';
 import useHistoryStore from '../../stores/useHistoryStore.js';
-
-function getHistorySortTimestamp(item) {
-  if (typeof item?.timestamp === 'number') {
-    return item.timestamp;
-  }
-
-  const parsed = new Date(item?.timestamp || item?.gacha_time || 0).getTime();
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+import {
+  compareHistoryTimelineAsc,
+  getHistoryTimelineTimestampMs,
+} from '../../utils/historyTimelineSort.js';
 
 function getHistorySeqId(item) {
   return parseInt(item?.seqId || item?.seq_id || '0', 10) || 0;
@@ -19,7 +14,7 @@ function getHistoryStableKey(item) {
 }
 
 export function sortHistoryByTimelineAsc(left, right) {
-  const timeDiff = getHistorySortTimestamp(left) - getHistorySortTimestamp(right);
+  const timeDiff = compareHistoryTimelineAsc(left, right);
   if (timeDiff !== 0) {
     return timeDiff;
   }
@@ -51,8 +46,8 @@ export function buildGroupedHistory(currentPoolHistoryWithIndex = []) {
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     const curr = sorted[i];
-    const prevTime = getHistorySortTimestamp(prev);
-    const currTime = getHistorySortTimestamp(curr);
+    const prevTime = getHistoryTimelineTimestampMs(prev);
+    const currTime = getHistoryTimelineTimestampMs(curr);
     const timeDiff = Math.abs(currTime - prevTime);
 
     if (timeDiff <= 2000) {

@@ -4,7 +4,6 @@ import { WEAPON_POOL_RULES } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import { loadAllPoolsForCatalog, loadVisiblePools, mergePoolCollections } from '../../services/poolReadService';
-import { supabase } from '../../supabaseClient';
 import {
   buildSimulatorStorageScope,
   getSimulatorCurrentPoolStorageKey,
@@ -50,6 +49,7 @@ import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './s
 import { characterCache } from '../../utils/characterUtils';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
+import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
@@ -371,57 +371,31 @@ export function useGachaSimulatorController() {
     const loadPoolCharacters = async () => {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
       const upCharName = currentSimPool.up_character;
+      const realPoolId = currentSimPool.id.replace(/^sim_/, '');
+      const roster = await fetchPoolRosterBuckets(realPoolId, {
+        expectedType,
+        currentUpName: upCharName
+      });
+
+      if (roster) {
+        if (!cancelled) {
+          setPoolCharactersList({
+            up: roster.up,
+            offBanner: roster.offBanner,
+            fiveStar: roster.items.filter((item) => item.rarity === 5),
+            fourStar: roster.items.filter((item) => item.rarity === 4),
+          });
+        }
+        return;
+      }
+
+      appLogger.info('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
       const lists = {
         up: [],
         offBanner: [],
         fiveStar: [],
         fourStar: [],
       };
-      const realPoolId = currentSimPool.id.replace(/^sim_/, '');
-
-      const { data, error } = await supabase
-        .from('pool_characters')
-        .select(
-          `
-          character_id,
-          is_up,
-          characters (
-            id,
-            name,
-            rarity,
-            type,
-            is_limited
-          )
-        `
-        )
-        .eq('pool_id', realPoolId);
-
-      if (!error && data && data.length > 0) {
-        data.forEach((item) => {
-          const character = item.characters;
-          if (!character || character.type !== expectedType) {
-            return;
-          }
-
-          const isActuallyUp = upCharName && character.name === upCharName;
-          if (isActuallyUp) {
-            lists.up.push(character);
-          } else if (character.rarity === 6) {
-            lists.offBanner.push(character);
-          } else if (character.rarity === 5) {
-            lists.fiveStar.push(character);
-          } else if (character.rarity === 4) {
-            lists.fourStar.push(character);
-          }
-        });
-
-        if (!cancelled) {
-          setPoolCharactersList(lists);
-        }
-        return;
-      }
-
-      appLogger.info('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
 
       const allCharacters = characterCache.getAll({ type: expectedType });
       if (!Array.isArray(allCharacters) || allCharacters.length === 0) {

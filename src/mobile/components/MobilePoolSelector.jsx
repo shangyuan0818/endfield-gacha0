@@ -12,21 +12,24 @@ import {
   getFreshnessTone,
   getLatestHistoryTimestampMs
 } from '../../utils/dataFreshness.js';
+import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
+import { MobileGlassPanel, MobileStatusBadge } from './ux/MobilePrimitives.jsx';
+import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
     case 'fresh':
-      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+      return 'border-emerald-500/30 bg-emerald-500/12 text-emerald-300';
     case 'notice':
-      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+      return 'border-amber-500/30 bg-amber-500/12 text-amber-300';
     case 'stale':
-      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+      return 'border-red-500/30 bg-red-500/12 text-red-300';
     default:
-      return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+      return 'border-white/8 bg-white/[0.03] text-zinc-400';
   }
 }
 
@@ -113,6 +116,18 @@ function MobilePoolSelector() {
       includeDefaultPool: true
     });
   }, [currentPoolId, locale, pools, selectorPools, t]);
+  const selectedPoolDisplayName = selectedPool?.displayName
+    || localizePoolName(selectedPool, { locale })
+    || selectedPool?.name
+    || t('pool.selector.selectPool');
+  const selectedPoolDisplayUp = selectedPool?.displayUpCharacter
+    || localizeEntityName(selectedPool?.up_character || selectedPool?.upCharacter || '', {
+      locale,
+      type: selectedPool?.type === 'weapon' ? 'weapon' : 'character'
+    })
+    || selectedPool?.up_character
+    || selectedPool?.upCharacter
+    || '';
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
@@ -163,7 +178,7 @@ function MobilePoolSelector() {
 
   const currentPoolFreshnessLabel = selectedPool?.isGroupMode
     ? t('pool.selector.currentFilter')
-    : t('pool.selector.currentBanner', { name: selectedPool?.name || t('common.unknown') });
+    : t('pool.selector.currentBanner', { name: selectedPoolDisplayName || t('common.unknown') });
 
   const totalPart = visiblePools !== totalPools ? `/${formatNumber(totalPools)}` : '';
   const summaryLabel = t('pool.selector.summary', {
@@ -241,10 +256,10 @@ function MobilePoolSelector() {
     if (poolType === 'limited_weapon') poolType = 'weapon';
 
     const configs = {
-      limited: { icon: Star, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/20' },
-      standard: { icon: Layers, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/20' },
-      weapon: { icon: Swords, color: 'text-slate-600 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-zinc-800' },
-      beginner: { icon: User, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/20' }
+      limited: { icon: Star, color: 'text-orange-300', bg: 'bg-orange-500/12' },
+      standard: { icon: Layers, color: 'text-amber-300', bg: 'bg-amber-500/12' },
+      weapon: { icon: Swords, color: 'text-slate-300', bg: 'bg-slate-500/12' },
+      beginner: { icon: User, color: 'text-emerald-300', bg: 'bg-emerald-500/12' }
     };
     return configs[poolType] || configs.standard;
   };
@@ -261,13 +276,13 @@ function MobilePoolSelector() {
         {user ? (
           <button
             onClick={() => setShowImportManager(true)}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wider transition-all touch-feedback"
+            className="flex items-center gap-2 rounded-full bg-endfield-yellow px-3 py-2 text-xs font-bold uppercase tracking-wider text-black transition-all touch-feedback hover:bg-yellow-300"
           >
             <Upload size={14} />
             {t('pool.selector.import')}
           </button>
         ) : (
-          <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+          <div className="text-[10px] text-zinc-500 font-mono">
             {t('pool.selector.loginToImport')}
           </div>
         )}
@@ -277,31 +292,31 @@ function MobilePoolSelector() {
           <div className="relative flex-1" ref={accountDropdownRef}>
             <button
               onClick={() => setIsAccountOpen(!isAccountOpen)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-xs font-mono transition-colors touch-feedback"
+              className="w-full flex items-center justify-between gap-2 rounded-[1rem] border border-white/8 bg-white/[0.04] px-3 py-2 text-xs font-mono transition-colors touch-feedback hover:border-white/14 hover:bg-white/[0.06]"
             >
               <div className="flex items-center gap-2 min-w-0">
-                <User size={14} className="text-zinc-500 dark:text-zinc-400 shrink-0" />
-                <span className="text-zinc-700 dark:text-zinc-300 truncate">
+                <User size={14} className="text-zinc-500 shrink-0" />
+                <span className="text-zinc-200 truncate">
                   {currentAccount?.nickName || t('pool.selector.allAccounts')}
                 </span>
                 {currentAccount?.serverTag && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                  <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
                     {currentAccount.serverTag}
                   </span>
                 )}
               </div>
-              <ChevronDown size={12} className={`text-zinc-400 transition-transform shrink-0 ${isAccountOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown size={12} className={`text-zinc-500 transition-transform shrink-0 ${isAccountOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isAccountOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg z-50 max-h-60 overflow-y-auto animate-scale-up">
+              <div className="mobile-ux-dropdown absolute top-full left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto animate-scale-up">
                 {/* 全部账号 */}
                 <button
                   onClick={() => handleSelectAccount(null)}
                   className={`w-full px-3 py-2.5 text-left text-xs font-mono transition-colors touch-feedback ${
                     !currentGameUid
                       ? 'bg-endfield-yellow/10 text-endfield-yellow font-bold'
-                      : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                      : 'text-zinc-400 hover:bg-white/5'
                   }`}
                 >
                   {t('pool.selector.allAccounts')}
@@ -315,30 +330,30 @@ function MobilePoolSelector() {
                     className={`w-full px-3 py-2.5 text-left transition-colors touch-feedback ${
                       currentGameUid === account.gameUid
                         ? 'bg-endfield-yellow/10'
-                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                        : 'hover:bg-white/5'
                     }`}
                     >
                     <div className="flex items-center gap-2">
                       <div className={`text-xs font-bold ${
-                        currentGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-700 dark:text-zinc-300'
+                        currentGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-200'
                       }`}>
                         {account.nickName}
                       </div>
                       {account.serverTag && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                        <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
                           {account.serverTag}
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                    <div className="text-[10px] text-zinc-500 font-mono">
                       {t('pool.selector.accountRecordCount', {
                         uid: account.gameUid,
                         count: formatNumber(account.recordCount || 0)
                       })}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                    <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">
                       {t('settings.lastImport', {
-                        value: formatFreshnessRelative(account.lastImportedAt, t('common.timeUnknown'), locale)
+                        value: formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.timeUnknown'), locale)
                       })}
                     </div>
                   </button>
@@ -349,74 +364,72 @@ function MobilePoolSelector() {
         )}
 
         {/* 统计信息 */}
-        <div className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500 whitespace-nowrap">
-          {summaryLabel}
-        </div>
+        <MobileStatusBadge className="shrink-0 whitespace-nowrap">{summaryLabel}</MobileStatusBadge>
       </div>
 
       {(currentAccount || gameAccounts.length > 1 || currentPoolLatestRecordAt) && (
         <div className="grid gap-2">
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
+          <MobileGlassPanel compact>
+            <div className="flex flex-col items-start gap-2">
               <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                   {t('pool.selector.accountStatus')}
                 </div>
-                <div className="mt-1 text-sm font-bold leading-tight text-zinc-800 dark:text-zinc-100 break-words">
+                <div className="mt-1 text-sm font-bold leading-tight text-zinc-100 break-words">
                   {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : t('pool.selector.multiAccountOverview')}
                 </div>
               </div>
-              <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentAccount?.lastImportedAt))}`}>
-                {currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}
+              <span className={`self-start px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}>
+                {currentAccount ? formatFreshnessRelative(getAccountLastImportTimestamp(currentAccount), t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}
               </span>
             </div>
-            <div className="mt-2 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 font-mono break-words">
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 font-mono break-words">
               {currentAccount
                 ? t('pool.selector.meta.imported', {
-                    value: formatFreshnessAbsolute(currentAccount.lastImportedAt, null, locale, { includeYear: false })
+                    value: formatFreshnessAbsolute(getAccountLastImportTimestamp(currentAccount), null, locale, { includeYear: false })
                   })
                 : t('pool.selector.multiAccountDetail')}
             </div>
             {currentAccount?.latestRecordAt ? (
-              <div className="mt-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500 font-mono break-words">
+              <div className="mt-1 text-[10px] leading-tight text-zinc-500 font-mono break-words">
                 {t('pool.selector.meta.latestRecord', {
                   value: formatFreshnessAbsolute(currentAccount.latestRecordAt, null, locale, { includeYear: false })
                 })}
               </div>
             ) : null}
-          </div>
+          </MobileGlassPanel>
 
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-2.5">
-            <div className="flex items-center justify-between gap-3">
+          <MobileGlassPanel compact>
+            <div className="flex flex-col items-start gap-2">
               <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
                   {t('pool.selector.poolStatus')}
                 </div>
-                <div className="mt-1 text-sm font-bold leading-tight text-zinc-800 dark:text-zinc-100 break-words">
+                <div className="mt-1 text-sm font-bold leading-tight text-zinc-100 break-words">
                   {currentPoolFreshnessLabel}
                 </div>
               </div>
-              <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}>
+              <span className={`self-start px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}>
                 {formatFreshnessRelative(currentPoolLatestRecordAt, t('pool.selector.noRecords'), locale)}
               </span>
             </div>
-            <div className="mt-2 text-[10px] leading-tight text-zinc-500 dark:text-zinc-400 font-mono break-words">
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 font-mono break-words">
               {t('pool.selector.meta.latestRecord', {
                 value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false })
               })}
             </div>
             {!selectedPool?.isGroupMode && selectedPool?.id ? (
-              <div className="mt-1 text-[10px] leading-tight text-zinc-400 dark:text-zinc-500 font-mono break-words">
+              <div className="mt-1 text-[10px] leading-tight text-zinc-500 font-mono break-words">
                 {t('pool.selector.currentPullsShort', { count: formatNumber(poolPullCounts[selectedPool.id] || 0) })}
               </div>
             ) : null}
-          </div>
+          </MobileGlassPanel>
         </div>
       )}
 
       {/* 卡池选择器 */}
       {(!pools || pools.length === 0) ? (
-        <div className="text-sm text-zinc-500 font-mono text-center py-4 border border-dashed border-zinc-200 dark:border-zinc-800">
+        <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.03] py-4 text-center text-sm font-mono text-zinc-500">
           {user ? t('pool.selector.noPoolDataImport') : t('pool.selector.noPoolData')}
         </div>
       ) : (
@@ -426,24 +439,24 @@ function MobilePoolSelector() {
             onClick={() => setIsPoolOpen(!isPoolOpen)}
             className={`w-full flex items-center gap-3 p-3 border transition-all touch-feedback ${
               isPoolOpen
-                ? 'border-endfield-yellow bg-endfield-yellow/5'
-                : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900'
+                ? 'rounded-[1rem] border-endfield-yellow bg-endfield-yellow/5'
+                : 'rounded-[1rem] border-white/8 bg-white/[0.04] hover:border-white/14'
             }`}
           >
             {/* 类型图标 */}
-            <div className={`p-2 ${config?.bg}`}>
+            <div className={`rounded-[0.9rem] p-2 ${config?.bg}`}>
               <TypeIcon size={18} className={config?.color} />
             </div>
 
             {/* 卡池信息 */}
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-sm font-bold text-zinc-800 dark:text-zinc-100 truncate">
-                {selectedPool?.name || t('pool.selector.selectPool')}
+              <div className="text-sm font-bold text-zinc-100 truncate">
+                {selectedPoolDisplayName}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
-                {selectedPool?.up_character && (
+                {selectedPoolDisplayUp && (
                   <>
-                    <span>UP: {selectedPool.up_character}</span>
+                    <span>UP: {selectedPoolDisplayUp}</span>
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
                   </>
                 )}
@@ -460,10 +473,10 @@ function MobilePoolSelector() {
 
           {/* 下拉列表 */}
           {isPoolOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-lg z-50 max-h-80 overflow-hidden animate-scale-up">
+            <div className="mobile-ux-dropdown absolute top-full left-0 right-0 mt-2 z-50 max-h-80 overflow-hidden animate-scale-up">
               {/* 搜索框（卡池较多时显示） */}
               {(totalPools > 5 || zeroPullPoolCount > 0) && (
-                <div className="sticky top-0 p-2 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-zinc-800">
+                <div className="sticky top-0 border-b border-white/8 bg-black/90 p-2 backdrop-blur-xl">
                   <div className="flex items-center gap-2">
                     {zeroPullPoolCount > 0 && (
                       <button
@@ -471,8 +484,8 @@ function MobilePoolSelector() {
                         onClick={() => setHideZeroPullPools((value) => !value)}
                         className={`flex items-center gap-1.5 px-2 py-2 border text-[10px] font-mono whitespace-nowrap transition-colors ${
                           hideZeroPullPools
-                            ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
-                            : 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
+                            ? 'rounded-full border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
+                            : 'rounded-full border-white/8 bg-white/[0.03] text-zinc-400'
                         }`}
                         title={hideZeroPullPools ? t('pool.selector.hideZeroTitle') : t('pool.selector.showZeroTitle')}
                       >
@@ -489,7 +502,7 @@ function MobilePoolSelector() {
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder={t('pool.selector.searchPlaceholder')}
-                          className="w-full pl-8 pr-8 py-2 text-xs bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 focus:border-endfield-yellow outline-none text-zinc-700 dark:text-zinc-300 font-mono"
+                          className="mobile-ux-input py-2 pl-8 pr-8 text-xs font-mono"
                         />
                         {searchQuery && (
                           <button
@@ -515,15 +528,15 @@ function MobilePoolSelector() {
                         className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors touch-feedback border-b border-dashed border-zinc-100 dark:border-zinc-800 ${
                           currentPoolId === allOverviewId
                             ? 'bg-endfield-yellow/10 border-l-2 border-l-endfield-yellow'
-                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 border-l-2 border-l-transparent'
+                            : 'hover:bg-white/5 border-l-2 border-l-transparent'
                         }`}
                       >
-                        <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800">
+                        <div className="rounded-[0.85rem] bg-white/6 p-1.5">
                           <Layers size={14} className="text-zinc-500" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-medium ${
-                            currentPoolId === allOverviewId ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'
+                            currentPoolId === allOverviewId ? 'text-zinc-100' : 'text-zinc-300'
                           }`}>
                             {t('pool.selector.allOverview')}
                           </div>
@@ -538,7 +551,7 @@ function MobilePoolSelector() {
                     {sortedPoolsWithGroups.map((group) => (
                       <div key={group.type}>
                       {/* 分组标题 */}
-                      <div className="sticky top-0 px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-100 dark:border-zinc-800">
+                      <div className="sticky top-0 border-b border-white/8 bg-black/88 px-3 py-2 backdrop-blur-xl">
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${
                           group.type === 'limited' ? 'text-orange-500' :
                           group.type.includes('weapon') ? 'text-slate-500' :
@@ -560,14 +573,14 @@ function MobilePoolSelector() {
                             className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors touch-feedback border-b border-dashed border-zinc-100 dark:border-zinc-800 ${
                               isGroupSelected
                                 ? 'bg-endfield-yellow/10 border-l-2 border-l-endfield-yellow'
-                                : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 border-l-2 border-l-transparent'
+                                : 'hover:bg-white/5 border-l-2 border-l-transparent'
                             }`}
                           >
-                            <div className="p-1.5 bg-zinc-100 dark:bg-zinc-800">
+                            <div className="rounded-[0.85rem] bg-white/6 p-1.5">
                               <Layers size={14} className="text-zinc-500" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className={`text-sm font-medium ${isGroupSelected ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                              <div className={`text-sm font-medium ${isGroupSelected ? 'text-zinc-100' : 'text-zinc-300'}`}>
                                 {t('pool.card.allGroupTitle', { label: group.label })}
                               </div>
                               <div className="text-[10px] text-zinc-400 font-mono">
@@ -593,24 +606,31 @@ function MobilePoolSelector() {
                             className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors touch-feedback ${
                               isSelected
                                 ? 'bg-endfield-yellow/10 border-l-2 border-endfield-yellow'
-                                : 'hover:bg-zinc-50 dark:hover:bg-zinc-800 border-l-2 border-transparent'
+                                : 'hover:bg-white/5 border-l-2 border-transparent'
                             }`}
                           >
                             {/* 类型图标 */}
-                            <div className={`p-1.5 ${poolConfig.bg}`}>
+                            <div className={`rounded-[0.85rem] p-1.5 ${poolConfig.bg}`}>
                               <PoolIcon size={14} className={poolConfig.color} />
                             </div>
 
                             {/* 卡池信息 */}
                             <div className="flex-1 min-w-0">
                               <div className={`text-sm font-medium truncate ${
-                                isSelected ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'
+                                isSelected ? 'text-zinc-100' : 'text-zinc-300'
                               }`}>
-                                {pool.name}
+                                {pool.displayName || localizePoolName(pool, { locale }) || pool.name}
                                 {pool.locked && <Lock size={10} className="inline ml-1 text-amber-500" />}
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
-                                {pool.up_character && <span>UP: {pool.up_character}</span>}
+                                {(pool.displayUpCharacter || pool.up_character || pool.upCharacter) && (
+                                  <span>
+                                    UP: {pool.displayUpCharacter || localizeEntityName(pool.up_character || pool.upCharacter || '', {
+                                      locale,
+                                      type: pool.type === 'weapon' ? 'weapon' : 'character'
+                                    }) || pool.up_character || pool.upCharacter}
+                                  </span>
+                                )}
                                 <span>{t('pool.card.pulls', { count: formatNumber(count) })}</span>
                               </div>
                             </div>
@@ -626,7 +646,7 @@ function MobilePoolSelector() {
                     ))}
                   </>
                 ) : (
-                  <div className="py-8 text-center text-sm text-zinc-400 font-mono">
+                  <div className="py-8 text-center text-sm text-zinc-500 font-mono">
                     {searchQuery ? t('pool.selector.noMatches') : t('pool.selector.noBanners')}
                   </div>
                 )}

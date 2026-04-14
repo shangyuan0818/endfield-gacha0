@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { User, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { useI18n } from '../../i18n/index.js';
 import { characterCache } from '../../utils/characterUtils';
+import { localizeEntityName } from '../../utils/gameDataI18n.js';
 
 /**
  * 可折叠分组
@@ -44,12 +46,14 @@ const PullGroup = ({ title, titleColor, pulls, maxPity, defaultExpanded = true }
  * 单次出货行
  */
 const PullRow = ({ pull, maxPity }) => {
+  const { locale, t } = useI18n();
   const isSixStar = pull.rarity === 6;
   const isLimited = isSixStar && !pull.isStandard;
   const isStandard = isSixStar && pull.isStandard;
 
   const charData = characterCache.searchByName(pull.name, false);
   const avatarUrl = charData?.avatar_url;
+  const localizedName = pull.localizedName || localizeEntityName(pull.name, { locale, type: 'character' }) || pull.name;
 
   const barClass = isLimited ? 'rainbow-bg' : isStandard ? 'bg-red-500' : 'bg-amber-400';
 
@@ -70,16 +74,16 @@ const PullRow = ({ pull, maxPity }) => {
       <div className="flex items-center gap-3 h-7">
         <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden shrink-0 ${avatarBgClass}`}>
           {avatarUrl ? (
-            <img src={avatarUrl} alt={pull.name} loading="lazy" className="w-full h-full object-cover" />
+            <img src={avatarUrl} alt={localizedName} loading="lazy" className="w-full h-full object-cover" />
           ) : (
             <User size={14} />
           )}
         </div>
         <span className={`text-xs font-bold truncate w-20 shrink-0 ${isLimited ? 'text-slate-800 dark:text-zinc-200' : 'text-slate-600 dark:text-zinc-400'}`}>
-          {pull.name}
+          {localizedName}
         </span>
         <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 border text-blue-500 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
-          赠送
+          {t('dashboard.timeline.badge.free', {}, '免费')}
         </span>
       </div>
     );
@@ -93,14 +97,14 @@ const PullRow = ({ pull, maxPity }) => {
       {/* 头像 */}
       <div className={`w-7 h-7 rounded-full flex items-center justify-center overflow-hidden shrink-0 ${avatarBgClass}`}>
         {avatarUrl ? (
-          <img src={avatarUrl} alt={pull.name} loading="lazy" className="w-full h-full object-cover" />
+          <img src={avatarUrl} alt={localizedName} loading="lazy" className="w-full h-full object-cover" />
         ) : (
           <User size={14} />
         )}
       </div>
       {/* 角色名 */}
       <span className={`text-xs font-bold truncate w-20 shrink-0 ${isLimited ? 'text-slate-800 dark:text-zinc-200' : 'text-slate-600 dark:text-zinc-400'}`}>
-        {pull.name}
+        {localizedName}
       </span>
       {/* 条形图 */}
       <div className="flex-1 flex items-center gap-2 min-w-0">
@@ -122,7 +126,7 @@ const PullRow = ({ pull, maxPity }) => {
         )}
         {pull.isInfoBook && (
           <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 border text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800 shrink-0">
-            情报书
+            {t('dashboard.timeline.badge.infoBook', {}, '情报书')}
           </span>
         )}
         <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-500 shrink-0">
@@ -138,6 +142,7 @@ const PullRow = ({ pull, maxPity }) => {
  * 每次出货独立一行，按 pullIndex 顺序排列
  */
 const CharacterWaterfallChart = ({ characterStats }) => {
+  const { locale, t } = useI18n();
   // 将 characterStats 展开为逐次出货的扁平列表，按 pullIndex 排序
   const { sixStarPulls, fiveStarPulls, maxPity } = useMemo(() => {
     const six = [];
@@ -157,6 +162,7 @@ const CharacterWaterfallChart = ({ characterStats }) => {
 
         const entry = {
           name: char.name,
+          localizedName: localizeEntityName(char.name, { locale, type: 'character' }) || char.name,
           rarity: char.rarity,
           isStandard: char.isStandard,
           isLimited: char.isLimited,
@@ -181,12 +187,12 @@ const CharacterWaterfallChart = ({ characterStats }) => {
     five.sort(sortByIndex);
 
     return { sixStarPulls: six, fiveStarPulls: five, maxPity: max || 80 };
-  }, [characterStats]);
+  }, [characterStats, locale]);
 
   if (characterStats.length === 0) {
     return (
       <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">
-        暂无5星及以上记录
+        {t('dashboard.timeline.empty', {}, '暂无5星及以上记录')}
       </div>
     );
   }

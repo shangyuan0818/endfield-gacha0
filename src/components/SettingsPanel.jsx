@@ -14,6 +14,7 @@ import {
   formatFreshnessRelative,
   getFreshnessTone
 } from '../utils/dataFreshness.js';
+import { getAccountLastImportTimestamp } from '../utils/accountFreshness.js';
 import { useI18n } from '../i18n/index.js';
 
 function getFreshnessToneClasses(tone) {
@@ -350,8 +351,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                           </div>
                           <div className="text-[10px] font-mono text-zinc-500 mt-0.5">UID: {account.gameUid}</div>
                         </div>
-                        <div className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-sm whitespace-nowrap shrink-0 ${getFreshnessToneClasses(getFreshnessTone(account.lastImportedAt))}`}>
-                          {formatFreshnessRelative(account.lastImportedAt, t('common.importTimeUnknown'), locale)}
+                        <div className={`px-1.5 py-0.5 text-[9px] font-bold border rounded-sm whitespace-nowrap shrink-0 ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(account)))}`}>
+                          {formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.importTimeUnknown'), locale)}
                         </div>
                       </div>
                       

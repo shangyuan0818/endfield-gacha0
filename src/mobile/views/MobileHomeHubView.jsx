@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Bell, Calendar, ChevronRight, Globe, Layers, Radio, Shield, Sparkles, Star, Users, BarChart3, Map, BarChart2 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, Calendar, ChevronRight, Clock3, Globe, Info, Layers, Radio, Shield, Sparkles, Star, Swords, Users, BarChart3, Map, BarChart2 } from 'lucide-react';
+import AnnouncementContent from '../../components/home/AnnouncementContent';
+import GameAnnouncementFeed from '../../components/home/GameAnnouncementFeed';
+import { APP_VERSION } from '../../constants/appMeta';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';
 import useSiteConfigStore, { useJsonConfig } from '../../stores/useSiteConfigStore';
 import { useI18n } from '../../i18n/index.js';
 import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import SpringPreviewCard from '../../components/home/SpringPreviewCard';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
-
 
 const DEFAULT_LINKS = [
   { id: 'yituliu-calculator', title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'bar-chart-2' }, 
@@ -79,8 +81,15 @@ function normalizeRoadmapStatus(status) {
   return 'planned';
 }
 
-export default function MobileHomePageView() {
-  const navigate = useNavigate();
+function BackButton({ label, onClick }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={label} className="touch-feedback inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 transition-colors">
+      <ArrowLeft size={16} />
+    </button>
+  );
+}
+
+export default function MobileHomeHubView() {
   const { t, isEnglish, locale, formatDateTime } = useI18n();
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
@@ -90,13 +99,12 @@ export default function MobileHomePageView() {
   const links = useJsonConfig('home_friendly_links', DEFAULT_LINKS);
   const roadmap = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP);
   const [now, setNow] = useState(new Date());
-  const heroSlogan = t(
-    'home.mobile.heroLead',
-    {},
-    isEnglish
-      ? 'Open-source, free, and synced across devices for Endfield gacha history analysis.'
-      : '开源、免费、多端同步的终末地抽卡记录分析工具'
-  );
+  const [activeView, setActiveView] = useState('home');
+  const heroSlogan = (() => {
+    const fallback = '记录抽卡历程，查看卡池分析、统计汇总与模拟器数据。';
+    const raw = getConfig('home_hero_slogan', fallback);
+    return raw === fallback ? t('home.heroSubtitle') : raw;
+  })();
   const qqGroup = getConfig('qq_group_number', ACCOUNT_RECOVERY_QQ_GROUP);
   const communityLabel = ENGLISH_COMMUNITY_DISCORD_URL.replace(/^https?:\/\//u, '');
 
@@ -145,7 +153,7 @@ export default function MobileHomePageView() {
     }) || countdown?.name || t('common.unknown')
   ), [countdown?.name, countdown?.poolData?.type, locale, t]);
 
-  const rotationPreview = useMemo(() => {
+    const rotationPreview = useMemo(() => {
     const sorted = [...schedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     if (!sorted.length) return [];
     let index = sorted.findIndex((pool) => now >= new Date(pool.startDate) && now < new Date(pool.endDate));
@@ -172,63 +180,96 @@ export default function MobileHomePageView() {
     });
   }, [isEnglish, locale, now, schedule]);
 
-  const nextVersionCountdown = useMemo(() => {
-    const targetPool = [...schedule]
-      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
-      .find((pool) => new Date(pool.startDate) > now);
+  if (activeView === 'announcements') {
+    return (
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full">
+         <div className="py-4 flex items-center gap-3 sticky top-0 bg-white/90 dark:bg-ef-dark/90 backdrop-blur-md z-20 border-b border-zinc-200 dark:border-zinc-800/50 -mx-4 px-4 mb-4">
+            <BackButton onClick={() => setActiveView('home')} />
+            <h1 className="text-xl font-black tracking-widest text-slate-900 dark:text-white">{t('home.siteAnnouncement')}</h1>
+         </div>
+         {latestAnnouncement ? (
+          <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-r from-amber-50 dark:from-amber-950/20 to-transparent p-4 mb-4 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
+              <span className="px-2 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold">{t('home.siteAnnouncement')}</span>
+              {latestAnnouncement.version ? <span className="px-2 py-0.5 rounded-sm bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-bold font-mono">v{latestAnnouncement.version}</span> : null}
+            </div>
+            <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{latestAnnouncement.title}</div>
+            <div className="text-[11px] text-slate-500 dark:text-zinc-500 mb-4">{formatDateTime(latestAnnouncement.updated_at || latestAnnouncement.created_at, { includeYear: false }, t('common.timeUnknown'))}</div>
+            <div className="pt-4 border-t border-amber-200 dark:border-amber-800/30 text-sm text-slate-700 dark:text-zinc-300 prose prose-invert max-w-none">
+              <AnnouncementContent content={latestAnnouncement.content} />
+            </div>
+          </div>
+        ) : (
+          <div className="text-sm text-slate-400 dark:text-zinc-500 text-center py-10">{t('announcement.empty')}</div>
+        )}
+        <div className="rounded-xl border border-orange-200 dark:border-orange-800/30 bg-gradient-to-r from-orange-50 dark:from-orange-950/20 to-transparent p-4 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+              <span className="px-2 py-0.5 rounded-sm bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 text-[10px] font-bold">{t('home.gameAnnouncement')}</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('home.fromOfficialSite')}</span>
+          </div>
+          <div className="border-t border-orange-200 dark:border-orange-800/30 pt-4">
+             <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={12} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-    if (!targetPool) {
-      return null;
-    }
+  if (activeView === 'mechanics') {
+    return (
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full">
+         <div className="py-4 flex items-center gap-3 sticky top-0 bg-white/90 dark:bg-ef-dark/90 backdrop-blur-md z-20 border-b border-zinc-200 dark:border-zinc-800/50 -mx-4 px-4 mb-4">
+            <BackButton onClick={() => setActiveView('home')} />
+            <h1 className="text-xl font-black tracking-widest text-slate-900 dark:text-white">{isEnglish ? 'Mechanics' : '卡池机制'}</h1>
+         </div>
+         {/* Simple display for mechanics */}
+         <div className="text-sm text-slate-500 dark:text-zinc-400 p-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg text-center">
+            [Mechanics view ported from demo]
+         </div>
+      </div>
+    );
+  }
 
-    const diff = Math.max(0, new Date(targetPool.startDate).getTime() - now.getTime());
-    return {
-      pool: targetPool,
-      days: Math.floor(diff / (1000 * 60 * 60 * 24)),
-      hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-    };
-  }, [now, schedule]);
-  const localizedNextVersionName = useMemo(() => (
-    localizeEntityName(nextVersionCountdown?.pool?.name, {
-      locale,
-      type: nextVersionCountdown?.pool?.poolData?.type === 'weapon' ? 'weapon' : 'character'
-    })
-      || localizePoolName(nextVersionCountdown?.pool?.poolData || nextVersionCountdown?.pool, { locale })
-      || nextVersionCountdown?.pool?.name
-      || t('common.unknown')
-  ), [locale, nextVersionCountdown?.pool, t]);
-
-  const featureLinks = [
-    {
-      key: 'mechanics',
-      title: t('home.mobile.mechanicsTitle', {}, isEnglish ? 'Pool Mechanics' : '卡池机制'),
-      subtitle: t('home.mobile.subpageMechanicsSubtitle'),
-      icon: Layers,
-      path: '/m/mechanics'
-    },
-    {
-      key: 'roadmap',
-      title: t('home.mobile.roadmapTitle', {}, isEnglish ? 'Roadmap' : '开发路线图'),
-      subtitle: isEnglish
-        ? `${roadmapCounts.inProgress} in progress · ${roadmapCounts.planned} planned`
-        : `${roadmapCounts.inProgress} 项进行中 · ${roadmapCounts.planned} 项计划中`,
-      icon: Sparkles,
-      path: '/m/roadmap'
-    }
-  ];
+  if (activeView === 'roadmap') {
+     return (
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full">
+         <div className="py-4 flex items-center gap-3 sticky top-0 bg-white/90 dark:bg-ef-dark/90 backdrop-blur-md z-20 border-b border-zinc-200 dark:border-zinc-800/50 -mx-4 px-4 mb-4">
+            <BackButton onClick={() => setActiveView('home')} />
+            <h1 className="text-xl font-black tracking-widest text-slate-900 dark:text-white">{isEnglish ? 'Roadmap' : '开发路线图'}</h1>
+         </div>
+         {/* Simple display for roadmap */}
+         <div className="text-sm text-slate-500 dark:text-zinc-400 p-4 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg text-center">
+            [Roadmap view ported from demo]
+         </div>
+      </div>
+     )
+  }
 
   return (
-    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-24 slide-up-enter scroll-smooth w-full">
+    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full">
+      {/* Header */}
+      <div className="py-6 flex justify-between items-center sticky top-0 bg-white/90 dark:bg-ef-dark/90 backdrop-blur-md z-20 border-b border-zinc-200 dark:border-zinc-800/50 -mx-4 px-4 mb-4">
+          <h1 className="text-2xl font-black tracking-widest text-slate-900 dark:text-white">{isEnglish ? 'Endfield Analyzer' : t('app.brand')}</h1>
+          <button onClick={() => setActiveView('announcements')} className="w-9 h-9 rounded-full bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm flex items-center justify-center text-slate-700 dark:text-zinc-300 hover:text-amber-600 dark:text-ef-yellow transition-colors">
+              <Bell size={16} />
+              {latestAnnouncement && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>}
+          </button>
+      </div>
+
+      {/* Spring Preview Card */}
+      <div className="mb-6 mx-[-0.5rem]">
+          <SpringPreviewCard />
+      </div>
+
       {/* Hero Banner */}
       <div className="rounded-xl p-5 mb-4 border-l-4 border-amber-500 dark:border-ef-yellow bg-gradient-to-r from-zinc-100 dark:from-zinc-800 to-white dark:to-zinc-950 relative overflow-hidden shadow-lg">
           <div className="relative z-10">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                   <BarChart3 size={20} className="text-amber-600 dark:text-ef-yellow" />
-                  Endfield Gacha Analyzer
+                  {isEnglish ? 'Endfield Gacha Analyzer' : t('app.brand')}
               </h2>
               <p className="text-[11px] text-slate-600 dark:text-zinc-400 mb-3 leading-relaxed">{heroSlogan}</p>
-              <p className="text-[10px] text-blue-700 dark:text-blue-300 flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded inline-flex"><ArrowUpRight size={10} /> {user ? t('home.mobile.loggedIn') : t('home.mobile.loginCollabHint')}</p>
+              <p className="text-[10px] text-blue-700 dark:text-blue-300 flex items-center gap-1 bg-blue-100 dark:bg-blue-900/30 px-2 py-1 rounded inline-flex"><ArrowUpRight size={10} /> {user ? t('home.mobile.loggedIn') : t('home.loginHint')}</p>
           </div>
           <Star size={120} className="absolute -right-6 -bottom-6 text-slate-900 dark:text-white opacity-[0.03]" />
       </div>
@@ -257,7 +298,7 @@ export default function MobileHomePageView() {
 
       {/* Announcements */}
       <div className="mb-6 space-y-2">
-          <div onClick={() => navigate('/m/announcements')} className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-r from-amber-100 dark:from-amber-950/40 to-transparent flex items-center justify-between p-3 cursor-pointer">
+          <div onClick={() => setActiveView('announcements')} className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-r from-amber-100 dark:from-amber-950/40 to-transparent flex items-center justify-between p-3 cursor-pointer">
               <div className="flex items-center gap-2 w-full pr-2">
                   <div className="relative">
                       <Bell size={16} className="text-amber-500 shrink-0" />
@@ -268,7 +309,7 @@ export default function MobileHomePageView() {
               </div>
               <ChevronRight size={14} className="text-amber-500/50 shrink-0" />
           </div>
-          <div onClick={() => navigate('/m/announcements')} className="rounded-xl border border-orange-200 dark:border-orange-800/30 bg-gradient-to-r from-orange-100 dark:from-orange-950/20 to-transparent flex items-center justify-between p-3 cursor-pointer">
+          <div onClick={() => setActiveView('announcements')} className="rounded-xl border border-orange-200 dark:border-orange-800/30 bg-gradient-to-r from-orange-100 dark:from-orange-950/20 to-transparent flex items-center justify-between p-3 cursor-pointer">
               <div className="flex items-center gap-2 w-full pr-2">
                   <Radio size={16} className="text-orange-500 shrink-0" />
                   <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
@@ -276,29 +317,6 @@ export default function MobileHomePageView() {
               </div>
               <ChevronRight size={14} className="text-slate-400 dark:text-zinc-600 shrink-0" />
           </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {featureLinks.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => navigate(item.path)}
-              className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-3 text-left shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 text-slate-700 dark:text-zinc-300">
-                  <Icon size={15} />
-                </div>
-                <ChevronRight size={14} className="mt-1 shrink-0 text-slate-400 dark:text-zinc-600" />
-              </div>
-              <div className="mt-3 text-xs font-bold text-slate-900 dark:text-white">{item.title}</div>
-              <div className="mt-1 text-[10px] leading-relaxed text-slate-500 dark:text-zinc-500">{item.subtitle}</div>
-            </button>
-          );
-        })}
       </div>
 
       {/* System Countdown */}
@@ -314,7 +332,7 @@ export default function MobileHomePageView() {
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="text-[9px] font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 dark:bg-ef-yellow animate-pulse"></span>{t('countdown.system')}</div>
               <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white italic tracking-tighter mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
-              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-4 tracking-widest">{countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
+              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-4 tracking-widest">{countdown.active ? 'ENDING COUNTDOWN' : 'STARTING COUNTDOWN'}</p>
               <div className="flex items-baseline gap-1 font-mono font-bold text-4xl tracking-tighter">
                   <span className="text-slate-900 dark:text-white">{String(countdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
@@ -327,10 +345,8 @@ export default function MobileHomePageView() {
       {/* Pool Schedule Placeholder */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-6">
           <div className="flex justify-between items-center mb-3">
-              <h3 className="text-sm font-bold tracking-widest text-slate-900 dark:text-white flex items-center gap-2"><Calendar size={14}/> {t('home.mobile.calendarTitle')}</h3>
-              <button type="button" onClick={() => navigate('/m/details')} className="text-slate-400 dark:text-zinc-600">
-                <ChevronRight size={14} />
-              </button>
+              <h3 className="text-sm font-bold tracking-widest text-slate-900 dark:text-white flex items-center gap-2"><Calendar size={14}/> {t('home.rotation.title')}</h3>
+              <ChevronRight size={14} className="text-slate-400 dark:text-zinc-600"/>
           </div>
           <div className="space-y-3">
             {rotationPreview.length > 0 ? rotationPreview.map((pool) => (
@@ -341,29 +357,29 @@ export default function MobileHomePageView() {
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${pool.active ? 'bg-green-500/20 text-green-700 dark:text-green-400' : (pool.ended ? 'bg-zinc-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-500' : 'bg-blue-500/20 text-blue-700 dark:text-blue-300')}`}>{pool.label}</span>
               </div>
             )) : (
-              <div className="text-xs text-zinc-500">{t('home.mobile.rotationEmpty')}</div>
+              <div className="text-xs text-zinc-500">{t('home.mobile.rotationEmpty', {}, isEnglish ? 'No scheduled rotation data yet.' : '暂无可展示的轮换计划。')}</div>
             )}
           </div>
       </div>
 
       {/* Next Version Countdown */}
-      {nextVersionCountdown ? (
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{t('countdown.system')}</div>
-            <h3 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mb-3 uppercase">{t('home.mobile.nextVersionTitle')}</h3>
-            <div className="flex items-baseline gap-1 font-mono font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
-                <span>{String(nextVersionCountdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
-                <span>{String(nextVersionCountdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
-                <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+      <div onClick={() => setActiveView('roadmap')} className="cursor-pointer rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{isEnglish ? 'SYSTEM UPGRADE' : '功能升级'}</div>
+          <h3 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mb-3 uppercase">{t('home.roadmap.title')}</h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800/50">
+               <Sparkles size={12} /> {roadmapCounts.inProgress} {t('home.roadmap.status.inProgress', {}, '进行中')}
             </div>
-            <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500">{localizedNextVersionName}</div>
-        </div>
-      ) : null}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest border border-zinc-200 dark:border-zinc-800">
+               {roadmapCounts.planned} {t('home.roadmap.status.planned', {}, '计划中')}
+            </div>
+          </div>
+      </div>
 
       {/* Friendly Links */}
       <div className="mb-6">
           <div className="flex items-center gap-2 mb-3 text-[10px] font-bold tracking-[0.1em] text-blue-700 dark:text-blue-400 uppercase">
-              <div className="w-1.5 h-1.5 bg-blue-500"></div> {isEnglish ? 'FRIENDLY LINKS // Friendly Links' : `FRIENDLY LINKS // ${t('home.friendlyLinks.title', {}, '友情链接')}`}
+              <div className="w-1.5 h-1.5 bg-blue-500"></div> FRIENDLY LINKS // {t('home.friendlyLinks.title', {}, '友情链接')}
           </div>
           <div className="grid grid-cols-2 gap-2">
               {translatedLinks.slice(0, 6).map((link, i) => (

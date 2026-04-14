@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useI18n } from '../../i18n/index.js';
-import { SPRING_PREVIEW_CN_LIVE_URL, SPRING_PREVIEW_EN_YOUTUBE_URL } from '../../constants/community';
 
 // SVG Bamboo Leaf Component
 const BambooLeaf = ({ className }) => (
@@ -11,36 +10,59 @@ const BambooLeaf = ({ className }) => (
 
 const SpringPreviewCard = () => {
   const { isEnglish } = useI18n();
-  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const serifDisplayStyle = { fontFamily: '"Noto Serif SC", serif' };
-  const previewLink = isEnglish ? SPRING_PREVIEW_EN_YOUTUBE_URL : SPRING_PREVIEW_CN_LIVE_URL;
-
-  useEffect(() => {
-    const targetDate = new Date('2026-04-11T19:30:00+08:00').getTime();
-    
-    const timer = setInterval(() => {
-        const now = new Date().getTime();
-        const distance = targetDate - now;
-
-        if (distance < 0) {
-            clearInterval(timer);
-            return;
-        }
-
-        setTimeLeft({
-            days: Math.floor(distance / (1000 * 60 * 60 * 24)),
-            hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-            minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-            seconds: Math.floor((distance % (1000 * 60)) / 1000)
-        });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const pad = (num) => String(num).padStart(2, '0');
 
   const topoPattern = `url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23ffffff' fill-opacity='0.15' fill-rule='evenodd'/%3E%3C/svg%3E")`;
+
+  const announcementsCN = [
+    {
+      title: '1. 月卡焕新与赠礼活动',
+      desc: null,
+      items: [
+        '新版本开放后，月卡的每日奖励将追加【理智消耗许可】×4。',
+        '「春晓时」版本前瞻特别节目播出之日至版本更新前领取的月卡每日奖励，将在新版开启首日补发对应【理智消耗许可】。',
+        '在「全面测试」至「春晓时」版本更新前购买过月卡的管理员，将在新版本首日获得【理智消耗许可】×120补偿。',
+        '「焕新月卡赠礼」活动：版本开启后至5月18日，每日登录可领取【嵌晶玉】×200、【应急理智加强剂】×1和【理智消耗许可】×4，最多可领30次（总计嵌晶玉×6000等）。',
+      ]
+    },
+    {
+      title: '2. 「辉光庆典」特殊寻访开放',
+      desc: '2026年5月14日开启。全部可能出现的6星干员为：莱万汀/洁尔佩塔/艾尔黛拉/骏卫。保底独立计算，80次必得6星干员。',
+      items: [
+        '每1次寻访或加急招募额外获得【保障配额】×1。',
+        '累计寻访30次，额外获得10次加急招募（即1次免费十连，仅本次寻访生效）。',
+        '累计寻访60次，额外获得【基础寻访凭证】×10。',
+        '累计寻访120次，额外获得【流光庆时调用凭证】×1（自选当期6星）。',
+        '每累计寻访240次，额外获得【流光庆时信物补给】×1（自选当期6星信物）。',
+      ]
+    }
+  ];
+
+  const announcementsEN = [
+    {
+      title: '1. Monthly Pass Revamp & Tribute Event',
+      desc: null,
+      items: [
+        'After the new version goes live, Monthly Pass daily rewards will include an additional [Sanity Usage Permit]×4.',
+        'From the date of the [At the Wake of Spring] Version Preview Special Program broadcast (Apr. 11) until the version update and maintenance, Endministrators who claim their Monthly Pass daily rewards during this period will be sent the corresponding number of [Sanity Usage Permits] via in-game mail on the first day of the new version.',
+        'For those who purchased a Monthly Pass before the [At the Wake of Spring] version update and maintenance, a one-time grant of [Sanity Usage Permit]×120 will be sent via in-game mail on the first day of the new version.',
+        'Additionally, the [At the Wake of Spring] version will feature a special [Pristine Monthly Pass Tribute] event. From the launch of the [At the Wake of Spring] version until May 18, 2026 at 04:00 (server time), you can log in daily to claim [Oroberyl]×200, [Emergency Sanity Booster]×1, and [Sanity Usage Permit]×4.',
+      ]
+    },
+    {
+      title: '2. [Fest of Brilliance] Special Headhunting Open',
+      desc: 'The [Fest of Brilliance] Special Headhunting will begin on May 14, 2026. 6★ operators that may appear in this Special Headhunting include: Laevatain/Gilberta/Ardelia/Pogranichnik. A 5★ or better operator is guaranteed within 10 headhunting attempts; a 6★ operator is guaranteed within 80 headhunting attempts.',
+      items: [
+        'Each headhunting or Urgent Recruitment attempt gives a bonus [Bond Quota]×1.',
+        'After performing 30 headhunting attempts, you will receive 10 bonus Urgent Recruitment attempts (which count as 1 free 10x headhunting attempt).',
+        'Perform a total of 60 headhunting attempts to additionally receive [Basic HH Permit]×10.',
+        'Perform a total of 120 headhunting attempts to receive a bonus [Shimmering Moment Designation Permit]×1.',
+        'For every 240 headhunting attempts performed, you will receive a bonus [Shimmering Moment Token Supply]×1.',
+      ]
+    }
+  ];
+
+  const announcements = isEnglish ? announcementsEN : announcementsCN;
 
   return (
     <div 
@@ -64,10 +86,10 @@ const SpringPreviewCard = () => {
       <BambooLeaf className="w-40 h-40 bottom-10 right-32 rotate-[80deg] opacity-30" />
 
       {/* Main Content Wrapper */}
-      <div className="relative inset-0 flex flex-row items-center justify-center gap-4 sm:gap-8 px-4 py-8 z-20 w-full">
+      <div className="relative inset-0 flex flex-col md:flex-row items-center justify-start gap-4 md:gap-2 lg:gap-8 px-4 py-6 z-20 w-full">
           
           {/* Left Side: Title */}
-          <div className="flex flex-col items-start relative scale-90 sm:scale-100 origin-right">
+          <div className="flex flex-col items-start relative origin-left shrink-0 scale-75 xl:scale-90 -mr-16 md:-mr-12 lg:-mr-8 xl:-mr-4">
               {/* Red Stamp */}
               <div className="absolute -left-12 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-2 border-[#e02424] flex items-center justify-center text-[#e02424] text-xs font-bold rotate-[-15deg] opacity-80 z-30 bg-[#c3e870]/20 backdrop-blur-sm" style={serifDisplayStyle}>
                   武陵
@@ -80,96 +102,67 @@ const SpringPreviewCard = () => {
                   <div className="absolute top-0 right-1/4 w-12 h-full bg-[#aedc5f] mix-blend-multiply skew-x-12 opacity-80"></div>
                   <div className="absolute bottom-0 left-1/4 w-8 h-full bg-[#7cb324] mix-blend-multiply -skew-x-12 opacity-60"></div>
                   
-                  <h1 className={`${isEnglish ? 'text-4xl sm:text-5xl' : 'text-6xl sm:text-7xl'} font-black text-[#1a1f16] tracking-tighter`} style={serifDisplayStyle}>
-                      {isEnglish ? 'WAKE OF SPRING' : '春晓时'}
+                  <h1 className={`${isEnglish ? 'text-3xl sm:text-4xl' : 'text-5xl sm:text-6xl'} font-black text-[#1a1f16] tracking-tighter`} style={serifDisplayStyle}>
+                      {isEnglish ? (
+                        <>
+                          WAKE OF<br />SPRING
+                        </>
+                      ) : '春晓时'}
                   </h1>
               </div>
               
               <div className="flex items-center gap-2 mt-4 text-[#1a1f16] font-mono text-[10px] font-bold tracking-[0.3em] whitespace-nowrap">
                   <div className="w-1.5 h-1.5 bg-[#1a1f16]"></div>
-                  AT THE WAKE OF SPRING
+                  NEW VERSION CHANGES
                   <div className="w-1.5 h-1.5 bg-[#1a1f16]"></div>
               </div>
           </div>
 
-          {/* Divider Line */}
-          <div className="w-[2px] h-24 bg-[#e02424] opacity-80 shrink-0 shadow-[0_0_8px_rgba(224,36,36,0.6)]"></div>
+          {/* Divider Line (Visible on md+) */}
+          <div className="hidden md:block w-[2px] self-stretch my-4 bg-[#e02424] opacity-80 shrink-0 shadow-[0_0_8px_rgba(224,36,36,0.6)]"></div>
 
-          {/* Right Side: Countdown */}
-          <div className="flex flex-col scale-90 sm:scale-100 origin-left">
-              <div className="flex justify-between items-end mb-2 border-b-2 border-[#1a1f16]/30 pb-1 w-full gap-4">
-                  <div className={`${isEnglish ? 'text-sm sm:text-base' : 'text-xl'} font-bold text-[#1a1f16] tracking-widest whitespace-nowrap drop-shadow-sm`} style={serifDisplayStyle}>{isEnglish ? 'SPECIAL PREVIEW PROGRAM' : '前瞻特别节目'}</div>
-                  <div className="text-right">
-                      <div className="text-[10px] text-[#1a1f16]/80 font-bold whitespace-nowrap">{isEnglish ? 'START TIME' : '开启时间'}</div>
-                      <div className="text-sm font-black text-[#1a1f16] whitespace-nowrap">{isEnglish ? 'APR 11' : '4月11日'}</div>
+          {/* Right Side: Announcements */}
+          <div className="flex flex-col flex-1 h-full min-h-[220px] max-h-[300px] overflow-y-auto pr-2 overflow-x-hidden text-[#1a1f16] bg-white/40 backdrop-blur-md border border-white/60 p-4 rounded-sm shadow-[0_8px_32px_rgba(164,216,82,0.4)]">
+              <div className="flex justify-between items-end mb-3 border-b-2 border-[#1a1f16]/30 pb-1 w-full gap-4">
+                  <div className="text-lg font-bold text-[#1a1f16] tracking-widest whitespace-nowrap drop-shadow-sm" style={serifDisplayStyle}>
+                      {isEnglish ? 'VERSION HIGHLIGHTS' : '新版本变化'}
                   </div>
               </div>
-
-              <div className="relative bg-white/40 backdrop-blur-md border border-white/60 px-6 py-3 shadow-[0_8px_32px_rgba(164,216,82,0.4)] mt-2">
-                  {/* Tech decorations */}
-                  <div className="absolute top-2 right-2 w-2 h-2 rounded-full border-2 border-[#e02424]"></div>
-                  <div className="absolute -bottom-3 left-2 flex gap-1 items-center bg-white/50 backdrop-blur-sm p-1 rounded-sm">
-                      <div className="w-3 h-3 border border-[#1a1f16]/40"></div>
-                      <div className="w-3 h-3 border border-[#1a1f16]/40 bg-white"></div>
-                      <div className="w-4 h-4 border border-[#e02424] flex items-center justify-center text-[8px] font-bold text-[#e02424] bg-white">园</div>
+              
+              <div className="space-y-4">
+                {announcements.map((block, i) => (
+                  <div key={i} className="text-sm">
+                    <h3 className="font-bold text-[#1a1f16] mb-1 text-sm tracking-wide">{block.title}</h3>
+                    {block.desc && (
+                      <p className="text-[#1a1f16]/80 text-xs mb-2 leading-relaxed">{block.desc}</p>
+                    )}
+                    <ul className="space-y-1.5 pl-1">
+                      {block.items.map((item, j) => (
+                        <li key={j} className="flex gap-2 text-xs text-[#1a1f16]/90 leading-relaxed items-start">
+                          <span className="shrink-0 mt-1.5 w-1 h-1 bg-[#e02424] rounded-full"></span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="absolute -bottom-2 right-4 flex items-center gap-1">
-                      <div className="w-12 h-[2px] bg-[#1a1f16]/30"></div>
-                      <div className="w-2 h-2 rounded-full border-2 border-[#e02424]"></div>
-                      <div className="w-4 h-[2px] bg-[#1a1f16]/30"></div>
-                  </div>
-
-                  {/* Numbers */}
-                  <div className="flex items-baseline gap-0.5 sm:gap-1 text-4xl sm:text-5xl font-black text-[#1a1f16] tracking-tighter tabular-nums" style={serifDisplayStyle}>
-                      <span className="min-w-[1em] text-center inline-block" style={{ textShadow: '2px 2px 0px rgba(162, 213, 78, 0.5), -1px -1px 0px rgba(255, 255, 255, 0.8)' }}>
-                          {timeLeft.days}
-                      </span>
-                      <span className="text-base sm:text-lg text-[#7cb324] font-black tracking-widest relative -top-0.5 pr-0.5" style={{ ...serifDisplayStyle, textShadow: 'none' }}>{isEnglish ? 'D' : '天'}</span>
-                      
-                      <span className="min-w-[1.2em] text-center inline-block" style={{ textShadow: '2px 2px 0px rgba(162, 213, 78, 0.5), -1px -1px 0px rgba(255, 255, 255, 0.8)' }}>
-                          {pad(timeLeft.hours)}
-                      </span>
-                      <span className="text-base sm:text-lg text-[#7cb324] font-black tracking-widest relative -top-0.5" style={{ ...serifDisplayStyle, textShadow: 'none' }}>{isEnglish ? 'H' : '时'}</span>
-                      
-                      <span className="text-xl sm:text-2xl text-[#7cb324] animate-pulse relative -top-1 sm:-top-2 drop-shadow-md mx-0.5" aria-hidden="true">:</span>
-                      
-                      <span className="min-w-[1.2em] text-center inline-block" style={{ textShadow: '2px 2px 0px rgba(162, 213, 78, 0.5), -1px -1px 0px rgba(255, 255, 255, 0.8)' }}>
-                          {pad(timeLeft.minutes)}
-                      </span>
-                      <span className="text-base sm:text-lg text-[#7cb324] font-black tracking-widest relative -top-0.5" style={{ ...serifDisplayStyle, textShadow: 'none' }}>{isEnglish ? 'M' : '分'}</span>
-                      
-                      <span className="min-w-[1.2em] text-center inline-block text-2xl sm:text-3xl text-[#1a1f16]/60 ml-1" style={{ textShadow: 'none' }}>
-                          {pad(timeLeft.seconds)}
-                      </span>
-                  </div>
+                ))}
               </div>
           </div>
       </div>
-
-      {/* Bottom Small Logo */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-80 z-10">
-          <div className="flex gap-1 mb-1">
-              <div className="w-1.5 h-1.5 bg-white rotate-45 opacity-60"></div>
-              <div className="w-2 h-2 bg-white rotate-45"></div>
-              <div className="w-1.5 h-1.5 bg-white rotate-45 opacity-60"></div>
-          </div>
-          <div className="text-[8px] font-mono font-bold tracking-[0.2em] text-[#1a1f16] drop-shadow-sm">ARKNIGHTS: ENDFIELD</div>
-          <div className="mt-1 w-3 h-3 border border-[#e02424] text-[#e02424] text-[6px] flex items-center justify-center bg-white/50 backdrop-blur-sm" style={serifDisplayStyle}>{isEnglish ? 'AR' : '璧'}</div>
-      </div>
-
-      {/* Action Button Overlay (Hover State) */}
-      <a
-        href={previewLink}
-        target="_blank"
-        rel="noopener noreferrer"
-        aria-label={isEnglish ? 'Watch Live' : '前往直播间'}
-        className="absolute inset-0 z-30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-[#1a1f16]/40 backdrop-blur-sm"
-      >
-          <div className="px-8 py-4 bg-[#e2f5b8] border-2 border-[#7cb324] text-[#7cb324] font-bold font-mono tracking-widest text-xl hover:bg-white hover:scale-105 transition-all shadow-[0_0_40px_rgba(164,216,82,0.8)] flex items-center gap-3">
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              {isEnglish ? 'WATCH LIVE' : '前往直播间'}
-          </div>
-      </a>
+      
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(26, 31, 22, 0.3);
+          border-radius: 4px;
+        }
+      `}</style>
     </div>
   );
 };

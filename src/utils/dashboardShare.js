@@ -2,6 +2,7 @@ import { calculateCurrentProbability } from './index.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { SHARE_BRAND_LINK } from './shareBranding.js';
 import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
+import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
 
 const DASHBOARD_SHARE_FILE_PREFIX = '终末地卡池分析分享卡';
 
@@ -19,13 +20,15 @@ function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function formatAverage(value) {
+function formatAverage(value, locale = getAppLocale()) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
     return '--';
   }
 
-  return `${numericValue.toFixed(2)} 抽`;
+  return isEnglishLocale(locale)
+    ? `${numericValue.toFixed(2)} pulls`
+    : `${numericValue.toFixed(2)} 抽`;
 }
 
 function formatRate(value) {
@@ -73,12 +76,12 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAp
     {
       id: 'avg-5',
       label: english ? '5★ Avg' : '5★ 平均',
-      value: formatAverage(stats?.avgPullCost?.[5])
+      value: formatAverage(stats?.avgPullCost?.[5], locale)
     },
     {
       id: 'avg-6-all',
       label: english ? 'All 6★' : '全部 6★',
-      value: formatAverage(stats?.avgPullCost?.['6_all'])
+      value: formatAverage(stats?.avgPullCost?.['6_all'], locale)
     }
   ];
 
@@ -86,7 +89,7 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAp
     items.push({
       id: 'avg-6-target',
       label: isAllPoolsOverview ? (english ? 'Target 6★' : '目标 6★') : (english ? 'UP 6★' : 'UP 6★'),
-      value: formatAverage(stats?.avgPullCost?.[6])
+      value: formatAverage(stats?.avgPullCost?.[6], locale)
     });
   }
 
@@ -94,7 +97,7 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAp
     items.push({
       id: 'avg-6-limited',
       label: english ? 'Limited 6★' : '限定 6★',
-      value: formatAverage(stats?.avgPullCost?.['6_limited'])
+      value: formatAverage(stats?.avgPullCost?.['6_limited'], locale)
     });
   }
 
@@ -344,7 +347,9 @@ export function buildDashboardSharePayload({
     : isGroupMode
       ? (english ? 'Group Overview' : '池组总览')
       : (english ? 'Pool Details' : '卡池详情');
-  const poolName = currentPool?.name || (english ? 'No pool selected' : '未选择卡池');
+  const poolName = currentPool
+    ? localizePoolName(currentPool, { locale })
+    : (english ? 'No pool selected' : '未选择卡池');
   const overviewFilterLabel = isAllPoolsOverview ? getOverviewFilterLabel(overviewPoolFilter, locale) : null;
   const periodLabel = sections.length === 1
     ? sections[0]?.period || (english ? 'Always available' : '长期开放')
@@ -359,7 +364,10 @@ export function buildDashboardSharePayload({
       ? (english ? 'Character + Weapon Banners' : '角色池 + 武器池')
       : getPoolTypeLabel(normalizedPoolType, locale),
     overviewFilterLabel,
-    featured: currentPool?.up_character || currentPool?.upCharacter || null,
+    featured: localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || null, {
+      locale,
+      type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+    }) || null,
     periodLabel,
     totalNodes,
     totalSections: sections.length,

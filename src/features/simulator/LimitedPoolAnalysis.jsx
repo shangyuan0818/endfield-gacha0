@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calculator, FileText, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 限定池分析组件
@@ -149,6 +150,11 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
       maximumFractionDigits: Number.isInteger(val) ? 0 : 1,
     });
   };
+  const localizedCurrentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || '-';
+  const localizedUpCharacter = localizeEntityName(currentPool?.up_character || '', {
+    locale,
+    type: isWeapon ? 'weapon' : 'character'
+  });
 
   return (
     <div className="bg-white dark:bg-endfield-dark border border-zinc-200 dark:border-endfield-border p-6 relative overflow-hidden">
@@ -168,13 +174,13 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
           </h3>
           <div className="flex items-center gap-2 mt-1">
              <span className="text-xs text-slate-500 dark:text-endfield-muted uppercase">{t('dashboard.analysis.currentPool')}</span>
-             <span className={`text-xs font-bold ${accentColor} uppercase`}>{currentPool.name}</span>
+             <span className={`text-xs font-bold ${accentColor} uppercase`}>{localizedCurrentPoolName}</span>
           </div>
         </div>
-        {isLimited && currentPool.up_character && (
+        {(isLimited || isWeapon) && localizedUpCharacter && (
            <div className="text-right">
              <div className="text-[10px] text-slate-500 dark:text-endfield-muted uppercase">{t('pool.card.currentUp')}</div>
-             <div className="text-sm font-bold text-slate-800 dark:text-endfield-text">{currentPool.up_character}</div>
+             <div className="text-sm font-bold text-slate-800 dark:text-endfield-text">{localizedUpCharacter}</div>
            </div>
         )}
       </div>

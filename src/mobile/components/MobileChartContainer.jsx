@@ -8,22 +8,22 @@ function MobileChartContainer({ title, children, defaultExpanded = true, classNa
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   return (
-    <div className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 ${className}`}>
+    <div className={`mobile-ux-card overflow-hidden ${className}`}>
       {/* 标题栏 */}
       <div className="flex items-center w-full px-4 py-3">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center justify-between flex-1 touch-feedback"
+          className="flex min-h-7 items-center justify-between flex-1 touch-feedback"
         >
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
+          <span className="text-[12px] font-black tracking-[0.08em] text-slate-700 dark:text-zinc-300">{title}</span>
         </button>
         <div className="flex items-center gap-2">
           {headerRight}
-          <button onClick={() => setIsExpanded(!isExpanded)} className="touch-feedback">
+          <button onClick={() => setIsExpanded(!isExpanded)} className="touch-feedback rounded-full p-1 text-slate-500 transition-colors hover:text-slate-900 dark:text-zinc-500 dark:hover:text-zinc-200">
             {isExpanded ? (
-              <ChevronUp className="w-5 h-5 text-zinc-400" />
+              <ChevronUp className="w-4 h-4" />
             ) : (
-              <ChevronDown className="w-5 h-5 text-zinc-400" />
+              <ChevronDown className="w-4 h-4" />
             )}
           </button>
         </div>
@@ -31,7 +31,7 @@ function MobileChartContainer({ title, children, defaultExpanded = true, classNa
 
       {/* 图表内容 */}
       {isExpanded && (
-        <div className="px-4 pb-4 animate-fade-in-fast">
+        <div className="border-t border-zinc-200 px-4 pb-4 animate-fade-in-fast dark:border-zinc-800">
           {children}
         </div>
       )}

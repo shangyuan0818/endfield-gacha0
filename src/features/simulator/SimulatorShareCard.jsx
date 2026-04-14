@@ -3,8 +3,7 @@ import ShareBrandPanel from '../../components/share/ShareBrandPanel';
 import {
   SHARE_CARD_HEIGHT,
   SHARE_CARD_WIDTH,
-  SHARE_FONT_MONO,
-  SHARE_FONT_SANS
+  getResolvedShareFontVariables
 } from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 import { useI18n } from '../../i18n/index.js';
@@ -20,7 +19,7 @@ const cardStyles = {
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'space-between',
-    fontFamily: SHARE_FONT_SANS,
+    fontFamily: 'var(--share-font-sans)',
     border: '2px solid #27272a',
     position: 'relative',
     overflow: 'hidden',
@@ -166,7 +165,7 @@ const cardStyles = {
     lineHeight: 1.1,
     fontWeight: 800,
     color: '#fafafa',
-    fontFamily: SHARE_FONT_MONO,
+    fontFamily: 'var(--share-font-mono)',
   },
   statPillHint: {
     fontSize: '11px',
@@ -202,7 +201,7 @@ const cardStyles = {
     lineHeight: 1,
     fontWeight: 800,
     color: '#fafafa',
-    fontFamily: SHARE_FONT_MONO,
+    fontFamily: 'var(--share-font-mono)',
   },
   metricSub: {
     fontSize: '15px',
@@ -235,7 +234,7 @@ const cardStyles = {
     fontSize: '22px',
     color: '#fafafa',
     fontWeight: 800,
-    fontFamily: SHARE_FONT_MONO,
+    fontFamily: 'var(--share-font-mono)',
   },
   footerHint: {
     fontSize: '13px',
@@ -281,7 +280,7 @@ const cardStyles = {
     fontSize: '12px',
     fontWeight: 700,
     color: '#d4d4d8',
-    fontFamily: SHARE_FONT_MONO,
+    fontFamily: 'var(--share-font-mono)',
   },
   timelineSection: {
     border: '1px solid #27272a',
@@ -626,7 +625,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
   }, [payload, t]);
 
   return (
-    <div ref={ref} style={{ ...cardStyles.root, height: 'auto', minHeight: `${SHARE_CARD_HEIGHT}px` }}>
+    <div ref={ref} style={{ ...cardStyles.root, ...getResolvedShareFontVariables(), height: 'auto', minHeight: `${SHARE_CARD_HEIGHT}px` }}>
       <div style={cardStyles.backgroundDecor} />
       <div style={cardStyles.backgroundPanel} />
       <div style={cardStyles.backgroundEdge} />

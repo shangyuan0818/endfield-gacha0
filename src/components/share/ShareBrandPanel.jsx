@@ -66,6 +66,7 @@ const ShareBrandPanel = ({
         flexDirection: 'column',
         gap: compact ? '7px' : '10px',
         minWidth: compact ? '208px' : '220px',
+        fontFamily: 'var(--share-font-sans, var(--font-sans))',
         ...style
       }}
     >
@@ -112,7 +113,8 @@ const ShareBrandPanel = ({
               fontWeight: 800,
               letterSpacing: compact ? '0.01em' : '0.03em',
               color: accentColor,
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              fontFamily: 'var(--share-font-mono, var(--font-mono))'
             }}
           >
             {SHARE_BRAND_URL}

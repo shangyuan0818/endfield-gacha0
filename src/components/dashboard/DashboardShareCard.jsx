@@ -3,10 +3,10 @@ import ShareBrandPanel from '../share/ShareBrandPanel';
 import {
   SHARE_CARD_HEIGHT,
   SHARE_CARD_WIDTH,
-  SHARE_FONT_MONO,
-  SHARE_FONT_SANS
+  getResolvedShareFontVariables
 } from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
+import { useI18n } from '../../i18n/index.js';
 
 function getThemeTokens(theme = 'light') {
   if (theme === 'dark') {
@@ -58,7 +58,7 @@ const styles = {
     background: 'linear-gradient(140deg, #fcfbf7 0%, #f6f2e9 52%, #eef3f8 100%)',
     color: '#18181b',
     padding: '20px',
-    fontFamily: SHARE_FONT_SANS,
+    fontFamily: 'var(--share-font-sans)',
     border: '2px solid #d4d4d8',
     display: 'flex',
     flexDirection: 'column',
@@ -198,7 +198,7 @@ const styles = {
     lineHeight: 1.1,
     fontWeight: 900,
     color: '#18181b',
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   metricPillHint: {
     fontSize: '11px',
@@ -242,7 +242,7 @@ const styles = {
     lineHeight: 1,
     fontWeight: 900,
     color: '#111827',
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   statHint: {
     fontSize: '13px',
@@ -285,7 +285,7 @@ const styles = {
     lineHeight: 1,
     fontWeight: 900,
     color: '#18181b',
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   averageNote: {
     marginTop: '8px',
@@ -310,7 +310,7 @@ const styles = {
     lineHeight: 1,
     fontWeight: 900,
     color: '#111827',
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   timelineWrap: {
     position: 'relative',
@@ -337,7 +337,7 @@ const styles = {
     fontSize: '12px',
     color: '#52525b',
     fontWeight: 700,
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   sectionCard: {
     border: '1px solid #d4d4d8',
@@ -365,7 +365,7 @@ const styles = {
     fontSize: '16px',
     fontWeight: 900,
     color: '#18181b',
-    fontFamily: SHARE_FONT_MONO
+    fontFamily: 'var(--share-font-mono)'
   },
   entryRow: {
     display: 'flex',
@@ -558,16 +558,16 @@ function getSectionTone(type) {
   };
 }
 
-function getSectionTypeLabel(type) {
+function getSectionTypeLabel(type, tt) {
   if (type === 'weapon') {
-    return '武器池';
+    return tt('dashboard.shareCard.sectionType.weapon', 'Weapon Banner');
   }
 
   if (type === 'standard') {
-    return '常驻角色池';
+    return tt('dashboard.shareCard.sectionType.standard', 'Standard Character Banner');
   }
 
-  return '限定角色池';
+  return tt('dashboard.shareCard.sectionType.limited', 'Limited Character Banner');
 }
 
 function getBarColor(entry, sectionType) {
@@ -594,9 +594,9 @@ function getBarColor(entry, sectionType) {
   return '#d946ef';
 }
 
-function getStamp(entry, sectionType) {
+function getStamp(entry, sectionType, tt) {
   if (entry.stageKind === 'gift') {
-    return { label: '免', color: '#34d399', bg: '#ecfdf5' };
+    return { label: tt('dashboard.shareCard.stamp.free', 'FREE'), color: '#34d399', bg: '#ecfdf5' };
   }
 
   if (entry.stageKind === 'up') {
@@ -608,34 +608,34 @@ function getStamp(entry, sectionType) {
       return null;
     }
 
-    return { label: '歪', color: '#fb7185', bg: '#fff1f2' };
+    return { label: tt('dashboard.shareCard.stamp.offrate', 'OFF'), color: '#fb7185', bg: '#fff1f2' };
   }
 
   if (entry.isCurrentStage) {
-    return { label: '进', color: '#52525b', bg: '#fafafa' };
+    return { label: tt('dashboard.shareCard.stamp.progress', 'LIVE'), color: '#52525b', bg: '#fafafa' };
   }
 
   return null;
 }
 
-function formatAverage(value) {
+function formatAverage(value, tt) {
   if (!Number.isFinite(Number(value))) {
     return '--';
   }
 
-  return `${Number(value).toFixed(1)} 抽`;
+  return tt('dashboard.shareCard.averageValue', '{value} pulls', { value: Number(value).toFixed(1) });
 }
 
-function buildCombinedPityItem(pitySummary) {
+function buildCombinedPityItem(pitySummary, tt) {
   if (!pitySummary) {
     return null;
   }
 
   return {
     id: 'current-pity',
-    label: '当前保底',
+    label: tt('dashboard.shareCard.currentPity', 'Current Pity'),
     value: `${pitySummary.current6}/${pitySummary.current5}`,
-    hint: '6★ / 5★',
+    hint: tt('dashboard.shareCard.pityHint', '6★ / 5★'),
     accent: true
   };
 }
@@ -673,10 +673,10 @@ function withResourceIcons(items = []) {
   }));
 }
 
-function buildCompactRows({ poolType, summaryItems = [], averageItems = [], resourceItems = [], pitySummary = null }) {
+function buildCompactRows({ poolType, summaryItems = [], averageItems = [], resourceItems = [], pitySummary = null, tt }) {
   const summaryMap = indexItems(summaryItems);
   const averageMap = indexItems(averageItems);
-  const pityItem = buildCombinedPityItem(pitySummary);
+  const pityItem = buildCombinedPityItem(pitySummary, tt);
 
   if (poolType === 'standard') {
     return [
@@ -703,20 +703,20 @@ function buildCompactRows({ poolType, summaryItems = [], averageItems = [], reso
   ];
 }
 
-function getStatusText(status) {
+function getStatusText(status, tt) {
   if (!status?.isTimed) {
-    return '长期开放';
+    return tt('dashboard.shareCard.status.permanent', 'Always available');
   }
 
   if (status.isActive) {
-    return status.remainingLabel || '进行中';
+    return status.remainingLabel || tt('dashboard.shareCard.status.active', 'Live');
   }
 
   if (status.isUpcoming) {
-    return status.remainingLabel || '即将开启';
+    return status.remainingLabel || tt('dashboard.shareCard.status.upcoming', 'Upcoming');
   }
 
-  return '已结束';
+  return tt('dashboard.shareCard.status.ended', 'Ended');
 }
 
 function CompactMetricPill({ item, tokens, accentColor }) {
@@ -769,20 +769,20 @@ function CompactMetricBlock({ title, rows = [], tokens, accentColor }) {
   );
 }
 
-function TimelineEntry({ entry, section, tokens }) {
+function TimelineEntry({ entry, section, tokens, tt }) {
   const scaleBase = Math.max(Number(section.scaleMax) || 1, 1);
   const widthPercent = Math.max(12, Math.min(100, ((entry.pulls || 0) / scaleBase) * 100));
   const fillColor = getBarColor(entry, section.type);
-  const stamp = getStamp(entry, section.type);
+  const stamp = getStamp(entry, section.type, tt);
   const leadBadge = entry.leadBadge || entry.dropBadges?.[0] || { label: '?', rarity: 0 };
 
   return (
     <div style={{ ...styles.entryRow, borderTopColor: tokens.subtleBorder }}>
       <div style={{ width: '80px', flexShrink: 0 }}>
-        <div style={{ ...styles.portrait, borderColor: tokens.border, background: tokens.panelMutedBackground, overflow: 'hidden' }}>
-          <div style={{ ...styles.portraitRarity, background: tokens.rarityBadgeBackground, color: tokens.rarityBadgeText }}>
-            {leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : '阶段'}
-          </div>
+          <div style={{ ...styles.portrait, borderColor: tokens.border, background: tokens.panelMutedBackground, overflow: 'hidden' }}>
+            <div style={{ ...styles.portraitRarity, background: tokens.rarityBadgeBackground, color: tokens.rarityBadgeText }}>
+              {leadBadge.rarity > 0 ? `${leadBadge.rarity}★` : tt('dashboard.shareCard.stage', 'Stage')}
+            </div>
           {leadBadge.avatarUrl ? (
             <img
               src={leadBadge.avatarUrl}
@@ -815,7 +815,7 @@ function TimelineEntry({ entry, section, tokens }) {
             </div>
             <div style={{ ...styles.barValue, color: tokens.textPrimary }}>
               {entry.pulls}
-              <span style={{ marginLeft: '4px', fontSize: '12px', fontWeight: 700 }}>抽</span>
+              <span style={{ marginLeft: '4px', fontSize: '12px', fontWeight: 700 }}>{tt('dashboard.shareCard.pullUnit', 'pulls')}</span>
             </div>
           </div>
 
@@ -861,12 +861,14 @@ function TimelineEntry({ entry, section, tokens }) {
   );
 }
 
-function TimelineSection({ section, tokens }) {
+function TimelineSection({ section, tokens, tt }) {
   const tone = getSectionTone(section.type);
-  const secondaryLabel = section.type === 'standard' ? '平均 5★' : '平均 UP';
+  const secondaryLabel = section.type === 'standard'
+    ? tt('dashboard.shareCard.averageFive', 'Average 5★')
+    : tt('dashboard.shareCard.averageUp', 'Average UP');
   const secondaryValue = section.type === 'standard'
-    ? formatAverage(section.avgFiveStarPulls)
-    : formatAverage(section.avgUpPulls);
+    ? formatAverage(section.avgFiveStarPulls, tt)
+    : formatAverage(section.avgUpPulls, tt);
 
   return (
     <div style={{ ...styles.sectionCard, borderColor: tokens.border, background: tokens.panelBackground }}>
@@ -886,7 +888,7 @@ function TimelineSection({ section, tokens }) {
                   background: tone.soft
                 }}
               >
-                {getSectionTypeLabel(section.type)}
+                {getSectionTypeLabel(section.type, tt)}
               </div>
               {section.featured && (
                 <div
@@ -906,24 +908,24 @@ function TimelineSection({ section, tokens }) {
             <div style={{ ...styles.subtitle, marginTop: '6px', color: tokens.textSecondary }}>
               <span>{section.period}</span>
               <span>|</span>
-              <span style={{ color: tone.accent }}>{getStatusText(section.status)}</span>
+              <span style={{ color: tone.accent }}>{getStatusText(section.status, tt)}</span>
             </div>
           </div>
 
           <div style={styles.sectionMeta}>
             <div style={styles.metricCell}>
-              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>合计</div>
-              <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>{section.totalPulls} 抽</div>
+              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{tt('dashboard.shareCard.totalPulls', 'Total')}</div>
+              <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>{tt('dashboard.shareCard.totalPullsValue', '{value} pulls', { value: section.totalPulls })}</div>
             </div>
             <div style={styles.metricCell}>
-              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>垫刀</div>
+              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{tt('dashboard.shareCard.currentPityShort', 'Pity')}</div>
               <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>
-                {section.hidePityState ? '多账号' : `${section.currentPity} / ${section.currentPity5}`}
+                {section.hidePityState ? tt('dashboard.shareCard.multiAccount', 'Merged') : `${section.currentPity} / ${section.currentPity5}`}
               </div>
             </div>
             <div style={styles.metricCell}>
-              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>平均 6★</div>
-              <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>{formatAverage(section.avgSixStarPulls)}</div>
+              <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{tt('dashboard.shareCard.averageSix', 'Average 6★')}</div>
+              <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>{formatAverage(section.avgSixStarPulls, tt)}</div>
             </div>
             <div style={styles.metricCell}>
               <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{secondaryLabel}</div>
@@ -933,7 +935,7 @@ function TimelineSection({ section, tokens }) {
         </div>
 
         {section.entries.map((entry) => (
-          <TimelineEntry key={entry.id} entry={entry} section={section} tokens={tokens} />
+          <TimelineEntry key={entry.id} entry={entry} section={section} tokens={tokens} tt={tt} />
         ))}
       </div>
     </div>
@@ -941,12 +943,20 @@ function TimelineSection({ section, tokens }) {
 }
 
 const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sections = [], theme = 'light' }, ref) {
+  const { t } = useI18n();
+  const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const tokens = getThemeTokens(theme);
   const brandChips = [
-    '已脱敏分享卡',
-    theme === 'dark' ? '暗色主题' : '亮色主题',
-    payload?.overviewFilterLabel && payload.overviewFilterLabel !== '全部卡池' ? `筛选 ${payload.overviewFilterLabel}` : null,
-    payload?.featured ? `目标 ${payload.featured}` : null
+    tt('share.card.desensitized', 'Desensitized share card'),
+    theme === 'dark'
+      ? tt('dashboard.shareCard.theme.dark', 'Dark Theme')
+      : tt('dashboard.shareCard.theme.light', 'Light Theme'),
+    payload?.overviewFilterLabel && payload.overviewFilterLabel !== tt('dashboard.shareCard.filterAll', 'All Banners')
+      ? tt('dashboard.shareCard.filterChip', 'Filter {value}', { value: payload.overviewFilterLabel })
+      : null,
+    payload?.featured
+      ? tt('dashboard.shareCard.targetChip', 'Target {value}', { value: payload.featured })
+      : null
   ].filter(Boolean);
   const accentColor = getSectionTone(payload?.poolType).accent;
   const averageGroupMap = new Map((payload?.averageGroups || []).map((group) => [group.id, group.items]));
@@ -959,25 +969,27 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           poolType: group.id === 'weapon' ? 'weapon' : 'limited',
           summaryItems: group.items,
           averageItems: averageGroupMap.get(group.id) || [],
-          resourceItems: resourceGroupMap.get(group.id) || []
+          resourceItems: resourceGroupMap.get(group.id) || [],
+          tt
         })
       }))
     : [
         {
           id: 'overall',
-          title: payload?.scopeLabel || '核心统计',
+          title: payload?.scopeLabel || tt('dashboard.shareCard.defaultScope', 'Core Stats'),
           rows: buildCompactRows({
             poolType: payload?.poolType,
             summaryItems: payload?.summaryItems || [],
             averageItems: payload?.averageItems || [],
             resourceItems: payload?.resourceItems || [],
-            pitySummary: payload?.pitySummary
+            pitySummary: payload?.pitySummary,
+            tt
           })
         }
       ];
 
   return (
-    <div ref={ref} style={{ ...styles.root, background: tokens.rootBackground, borderColor: tokens.border, color: tokens.textPrimary }}>
+    <div ref={ref} style={{ ...styles.root, ...getResolvedShareFontVariables(), background: tokens.rootBackground, borderColor: tokens.border, color: tokens.textPrimary }}>
       <div
         style={{
           ...styles.grid,
@@ -988,13 +1000,13 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
       <div style={{ ...styles.header, borderBottomColor: tokens.border }}>
         <div style={styles.titleWrap}>
           <div style={{ ...styles.eyebrow, color: tokens.textMuted }}>ENDFIELD GACHA ANALYZER</div>
-          <div style={{ ...styles.title, color: tokens.textPrimary }}>{payload?.poolName || '卡池详情分享'}</div>
+          <div style={{ ...styles.title, color: tokens.textPrimary }}>{payload?.poolName || tt('dashboard.shareCard.defaultTitle', 'Banner Detail Share')}</div>
           <div style={{ ...styles.subtitle, color: tokens.textSecondary }}>
-            <span>{payload?.scopeLabel || '卡池详情'}</span>
+            <span>{payload?.scopeLabel || tt('dashboard.shareCard.defaultView', 'Banner Details')}</span>
             <span>|</span>
-            <span>{payload?.poolTypeLabel || '卡池'}</span>
+            <span>{payload?.poolTypeLabel || tt('dashboard.shareCard.defaultPoolType', 'Banner')}</span>
             <span>|</span>
-            <span>{payload?.periodLabel || '长期开放'}</span>
+            <span>{payload?.periodLabel || tt('dashboard.shareCard.status.permanent', 'Always available')}</span>
           </div>
         </div>
 
@@ -1018,7 +1030,7 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
       </div>
 
       <div>
-        <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>核心统计</div>
+        <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{tt('dashboard.shareCard.coreStats', 'Core Stats')}</div>
         <div style={{ ...(compactBlocks.length > 1 ? styles.compactStatsGrid : {}), marginTop: '10px' }}>
           {compactBlocks.map((block) => (
             <CompactMetricBlock
@@ -1031,33 +1043,37 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           ))}
         </div>
         <div style={{ ...styles.compactNote, marginTop: '10px', color: tokens.textMuted }}>
-          口径：排除赠送与免费十连；情报书计入有效抽数。
+          {tt('dashboard.shareCard.methodology', 'Method: excludes gift nodes and free ten-pulls; intel books still count as valid pulls.')}
         </div>
       </div>
 
       <div style={styles.timelineWrap}>
         <div style={styles.timelineHeader}>
           <div>
-            <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>时间线视图</div>
+            <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{tt('dashboard.shareCard.timelineTitle', 'Timeline View')}</div>
             <div style={{ marginTop: '6px', fontSize: '14px', color: tokens.textSecondary, fontWeight: 600 }}>
-              完整整合当前页面的时间线阶段回顾。
+              {tt('dashboard.shareCard.timelineSubtitle', 'A complete stage-by-stage recap of the current timeline view.')}
             </div>
           </div>
           <div style={styles.counts}>
-            <div style={{ ...styles.countBox, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textSecondary }}>{payload?.totalSections || 0} 个阶段卡池</div>
-            <div style={{ ...styles.countBox, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textSecondary }}>{payload?.totalNodes || 0} 个时间节点</div>
+            <div style={{ ...styles.countBox, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textSecondary }}>
+              {tt('dashboard.shareCard.stagePools', '{count} stages', { count: payload?.totalSections || 0 })}
+            </div>
+            <div style={{ ...styles.countBox, borderColor: tokens.border, background: tokens.panelBackground, color: tokens.textSecondary }}>
+              {tt('dashboard.shareCard.timelineNodes', '{count} nodes', { count: payload?.totalNodes || 0 })}
+            </div>
           </div>
         </div>
 
         {sections.map((section) => (
-          <TimelineSection key={section.id} section={section} tokens={tokens} />
+          <TimelineSection key={section.id} section={section} tokens={tokens} tt={tt} />
         ))}
       </div>
 
       <div style={{ ...styles.footer, borderTopColor: tokens.border, color: tokens.footerText }}>
         <div style={styles.footerTextWrap}>
-          <span>{payload?.notes || '已脱敏分享卡，不含账号、UID、时间戳与原始抽卡明细。'}</span>
-          <span>扫码或访问站点即可直接查看完整功能；分享卡仅在本地生成，不创建公共链接。</span>
+          <span>{payload?.notes || tt('share.dashboard.noteDesensitized', 'Desensitized share card. No account, UID, timestamp, or raw pull details included.')}</span>
+          <span>{tt('dashboard.shareCard.localOnly', 'Scan or open the site to continue the full analysis. This card is generated locally only and does not create a public link.')}</span>
         </div>
         <ShareBrandPanel
           theme={theme}
