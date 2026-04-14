@@ -20,6 +20,23 @@ function sortByPriority(records) {
   });
 }
 
+function sortGameAnnouncements(records) {
+  return records.slice().sort((a, b) => {
+    const publishedDiff = new Date(b?.published_at || b?.updated_at || b?.created_at || 0)
+      - new Date(a?.published_at || a?.updated_at || a?.created_at || 0);
+    if (publishedDiff !== 0) {
+      return publishedDiff;
+    }
+
+    const priorityDiff = (Number(b?.priority) || 0) - (Number(a?.priority) || 0);
+    if (priorityDiff !== 0) {
+      return priorityDiff;
+    }
+
+    return String(b?.source_id || '').localeCompare(String(a?.source_id || ''));
+  });
+}
+
 async function loadAnnouncementsFromDb() {
   if (!supabase) return null;
   const { data, error } = await executeSupabaseRead(
@@ -40,6 +57,25 @@ async function loadAnnouncementsFromLocal() {
   });
   if (!resp.ok) return [];
   return resp.json();
+}
+
+async function loadOfficialAnnouncementsFeed() {
+  const resp = await fetchWithTimeout('/api/automation-feed?job=official-announcements', undefined, {
+    label: 'load official announcements feed',
+    timeoutMs: 20000,
+    retries: 1,
+  });
+
+  if (!resp.ok) {
+    throw new Error(`official announcements feed returned ${resp.status}`);
+  }
+
+  const payload = await resp.json();
+  if (payload?.success !== true || !Array.isArray(payload?.records)) {
+    throw new Error(payload?.error || 'invalid official announcements feed payload');
+  }
+
+  return payload.records;
 }
 
 export function useNotificationBadges() {
@@ -64,13 +100,21 @@ export function useNotificationBadges() {
       } catch {
         allRecords = [];
       }
+
+      let gameRecords;
+      try {
+        gameRecords = await loadOfficialAnnouncementsFeed();
+      } catch {
+        gameRecords = allRecords.filter(isGameAnnouncement);
+      }
+
       if (cancelled) return;
 
       const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
-      const gameRecords = sortByPriority(allRecords.filter(isGameAnnouncement));
+      const sortedGameRecords = sortGameAnnouncements(gameRecords);
 
       setAnnouncements(siteRecords);
-      setGameAnnouncements(gameRecords);
+      setGameAnnouncements(sortedGameRecords);
 
       if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
         setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
