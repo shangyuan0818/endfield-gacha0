@@ -16,6 +16,7 @@ import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPane
 import { getMobilePathForTab } from '../../constants/appRoutes.js';
 import { useI18n } from '../../i18n/index.js';
 import { MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
+import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 function getFreshnessToneClasses(tone) {
@@ -195,11 +196,60 @@ function MobileOverviewView() {
   const sparkCount = limitedRanking.sparkCount ?? limitedStats.sparkCount ?? limitedStats.pityList?.filter((item) => item.isSpark).length ?? 0;
   const limitedTotalSix = Number(upHits) + Number(offStandardHits) + Number(offLimitedHits);
   const onRate = limitedTotalSix > 0 ? `${((Number(upHits) / limitedTotalSix) * 100).toFixed(1)}%` : '0.0%';
+  const averageSixValue = useMemo(() => {
+    const limitedPool = currentStats?.byType?.limited || {};
+    const standardPool = currentStats?.byType?.standard || {};
+    const limitedSix = Number(limitedPool.six || 0);
+    const standardSix = Number(standardPool.six || 0);
+    const totalSix = limitedSix + standardSix;
+
+    if (totalSix <= 0) {
+      return null;
+    }
+
+    const limitedAvgExcludingFree = Number(limitedPool.avgPityExcludingFree);
+    const standardAvgExcludingFree = Number(standardPool.avgPityExcludingFree || standardPool.avgPity);
+
+    if (Number.isFinite(limitedAvgExcludingFree) && limitedAvgExcludingFree > 0) {
+      const weightedExcludingFree = (
+        limitedAvgExcludingFree * limitedSix
+        + (Number.isFinite(standardAvgExcludingFree) ? standardAvgExcludingFree : 0) * standardSix
+      ) / totalSix;
+      return Number.isFinite(weightedExcludingFree) ? weightedExcludingFree : null;
+    }
+
+    const limitedAvg = Number(limitedPool.avgPity);
+    const standardAvg = Number(standardPool.avgPity);
+    const weighted = (
+      (Number.isFinite(limitedAvg) ? limitedAvg : 0) * limitedSix
+      + (Number.isFinite(standardAvg) ? standardAvg : 0) * standardSix
+    ) / totalSix;
+
+    return Number.isFinite(weighted) ? weighted : null;
+  }, [currentStats]);
+  const averageUpValue = useMemo(() => {
+    const rawValue = currentStats?.byType?.character?.avgPityUp ?? currentStats?.byType?.limited?.avgPityUp;
+    const numeric = Number(rawValue);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+  }, [currentStats]);
   const displayPity = isLimited ? effectivePity?.pity6 : stats?.currentPity;
   const pityLimit = isWeapon ? 40 : 80;
   const pityProgress = Math.min(100, Math.max(0, ((Number(displayPity) || 0) / pityLimit) * 100));
   const currentAccountLastImportAt = getAccountLastImportTimestamp(currentAccount);
   const accountTone = getFreshnessTone(currentAccountLastImportAt || currentAccount?.latestRecordAt);
+
+  if (!user) {
+    return (
+      <MobileAuthRequiredView
+        animation="up"
+        eyebrow={t('nav.overview')}
+        title={t('nav.overview')}
+        description={locale === 'en-US'
+          ? 'Sign in to load your account overview, rarity breakdown, and recent 6-star drops.'
+          : '登录后才能加载个人总览、稀有度分布和近期六星记录。'}
+      />
+    );
+  }
 
   return (
     <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full">
@@ -268,14 +318,14 @@ function MobileOverviewView() {
                     <div>
                         <div className="text-slate-500 dark:text-zinc-500 text-[10px] font-bold tracking-widest mb-1">{t('summary.chart.avgSix')}</div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{(currentStats?.averages?.['6'] || 0).toFixed(1)}</span>
+                            <span className="text-2xl font-black text-slate-900 dark:text-white font-mono">{averageSixValue === null ? '-' : averageSixValue.toFixed(1)}</span>
                             <span className="text-[10px] text-slate-500 dark:text-zinc-500">{t('overview.unit.pullsPerItem')}</span>
                         </div>
                     </div>
                     <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/50">
                         <div className="text-slate-500 dark:text-zinc-500 text-[10px] font-bold tracking-widest mb-1">{t('summary.chart.avgUp')}</div>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-lg font-black text-orange-600 dark:text-orange-400 font-mono">{(currentStats?.averages?.['6_up'] || 0).toFixed(1)}</span>
+                            <span className="text-lg font-black text-orange-600 dark:text-orange-400 font-mono">{averageUpValue === null ? '-' : averageUpValue.toFixed(1)}</span>
                             <span className="text-[9px] text-slate-500 dark:text-zinc-500">{t('overview.unit.pullsPerUp')}</span>
                         </div>
                     </div>

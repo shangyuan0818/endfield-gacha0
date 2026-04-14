@@ -85,6 +85,49 @@ function MobileStatsView() {
   const limitedTotalSix = Number(upHits) + Number(offStandardHits) + Number(offLimitedHits);
   const onRate = limitedTotalSix > 0 ? `${((Number(upHits) / limitedTotalSix) * 100).toFixed(1)}%` : '0.0%';
   const loading = globalStatsLoading || !currentStats;
+  const formatAverageValue = React.useCallback((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0 ? numeric.toFixed(1) : '-';
+  }, []);
+  const getPoolAverageSixValue = React.useCallback((poolStats) => {
+    const avgExcludingFree = Number(poolStats?.avgPityExcludingFree);
+    if (Number.isFinite(avgExcludingFree) && avgExcludingFree > 0) {
+      return avgExcludingFree;
+    }
+
+    const avgWithFree = Number(poolStats?.avgPity);
+    return Number.isFinite(avgWithFree) && avgWithFree > 0 ? avgWithFree : null;
+  }, []);
+  const combinedCharacterAverageSix = React.useMemo(() => {
+    const limitedPool = currentStats?.byType?.limited || {};
+    const standardPool = currentStats?.byType?.standard || {};
+    const limitedSix = Number(limitedPool.six || 0);
+    const standardSix = Number(standardPool.six || 0);
+    const totalSix = limitedSix + standardSix;
+
+    if (totalSix <= 0) {
+      return null;
+    }
+
+    const limitedAvgExcludingFree = Number(limitedPool.avgPityExcludingFree);
+    const standardAvgExcludingFree = Number(standardPool.avgPityExcludingFree || standardPool.avgPity);
+    if (Number.isFinite(limitedAvgExcludingFree) && limitedAvgExcludingFree > 0) {
+      const weightedExcludingFree = (
+        limitedAvgExcludingFree * limitedSix
+        + (Number.isFinite(standardAvgExcludingFree) ? standardAvgExcludingFree : 0) * standardSix
+      ) / totalSix;
+      return Number.isFinite(weightedExcludingFree) ? weightedExcludingFree : null;
+    }
+
+    const limitedAvg = Number(limitedPool.avgPity);
+    const standardAvg = Number(standardPool.avgPity);
+    const weighted = (
+      (Number.isFinite(limitedAvg) ? limitedAvg : 0) * limitedSix
+      + (Number.isFinite(standardAvg) ? standardAvg : 0) * standardSix
+    ) / totalSix;
+
+    return Number.isFinite(weighted) ? weighted : null;
+  }, [currentStats]);
 
   return (
     <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full flex flex-col pb-20">
@@ -221,24 +264,24 @@ function MobileStatsView() {
                             <div className="space-y-0.5">
                                 <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('stats.avgSix')}</div>
                                 <div className="text-lg font-bold font-mono text-indigo-500">
-                                   {((currentStats?.byType?.limited?.six || 0) + (currentStats?.byType?.standard?.six || 0)) > 0 ? (((currentStats?.byType?.limited?.total || 0) + (currentStats?.byType?.standard?.total || 0)) / ((currentStats?.byType?.limited?.six || 0) + (currentStats?.byType?.standard?.six || 0))).toFixed(1) : '0.0'}
+                                   {formatAverageValue(combinedCharacterAverageSix)}
                                 </div>
                             </div>
                             <div className="space-y-0.5">
                                 <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('stats.avgTarget')}</div>
-                                <div className="text-lg font-bold font-mono text-emerald-500">{(currentStats?.byType?.limited?.avgPityUp || 0).toFixed(1)}</div>
+                                <div className="text-lg font-bold font-mono text-emerald-500">{formatAverageValue(currentStats?.byType?.character?.avgPityUp || currentStats?.byType?.limited?.avgPityUp)}</div>
                             </div>
                         </div>
                         <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2 text-[10px] font-mono">
                             <div className="flex items-center gap-2 text-slate-600 dark:text-zinc-400">
                                 <span className="w-1.5 h-1.5 bg-emerald-500/50 rounded-sm"></span>  
                                 <span>{t('home.poolMechanics.cards.limited.title')}: {formatNumber(currentStats?.byType?.limited?.total || 0)}</span>
-                                <span className="ml-auto text-emerald-600 dark:text-emerald-500">{(currentStats?.byType?.limited?.avgPity || 0).toFixed(1)} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
+                                <span className="ml-auto text-emerald-600 dark:text-emerald-500">{formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.limited))} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
                             </div>
                             <div className="flex items-center gap-2 text-slate-600 dark:text-zinc-400">
                                 <span className="w-1.5 h-1.5 bg-indigo-500/50 rounded-sm"></span>   
                                 <span>{t('home.poolMechanics.cards.standard.title')}: {formatNumber(currentStats?.byType?.standard?.total || 0)}</span>
-                                <span className="ml-auto text-indigo-600 dark:text-indigo-400">{(currentStats?.byType?.standard?.avgPity || 0).toFixed(1)} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
+                                <span className="ml-auto text-indigo-600 dark:text-indigo-400">{formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.standard))} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
                             </div>
                         </div>
                     </div>
@@ -273,8 +316,8 @@ function MobileStatsView() {
                         subtitle={t('stats.totalPullsSubtitle')}
                         total={formatNumber(currentStats?.byType?.[poolTypeFilter]?.total || 0)}
                         six={formatNumber(currentStats?.byType?.[poolTypeFilter]?.six || 0)}
-                        avgPity={(currentStats?.byType?.[poolTypeFilter]?.avgPity || 0).toFixed(1)}
-                        avgPityUp={(currentStats?.byType?.[poolTypeFilter]?.avgPityUp || 0).toFixed(1)}
+                        avgPity={formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.[poolTypeFilter]))}
+                        avgPityUp={formatAverageValue(currentStats?.byType?.[poolTypeFilter]?.avgPityUp)}
                         accent="text-white"
                     />
                 </div>
