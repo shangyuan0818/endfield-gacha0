@@ -296,23 +296,13 @@ const SimulatorToolbar = ({
   }, [showShareMenu]);
 
   return (
-    <div className="mb-6 px-2 space-y-4">
+    <div className="mb-6 px-2 space-y-5">
       <PoolGroupCardRail groups={selectorGroups} currentSelectionId={currentSimPoolId} onSelectPool={onSwitchPool} />
 
-      <div className="flex flex-col gap-2 xl:grid xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end xl:gap-4">
-        <div className="order-2 min-w-0 xl:order-1 xl:self-end">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-2">
-            {t('simulator.toolbar.cumulative')}
-          </div>
-          <div className="grid grid-cols-2 gap-2 2xl:grid-cols-4">
-            {cumulativeItems.map((item) => (
-              <CumulativeChip key={item.key} icon={item.icon} label={item.label} value={item.value} locale={locale} />
-            ))}
-          </div>
-        </div>
-
-        <div className="order-1 flex flex-col gap-2 xl:order-2 xl:items-end">
-          <div className="flex flex-wrap xl:justify-end gap-3">
+      <div className="flex flex-col xl:flex-row gap-6">
+        {/* 左侧：资源管理 (当前投入与累计统计) */}
+        <div className="flex flex-col gap-4 flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
             {resourceItems.map((item) => (
               <ResourceChip
                 key={item.resourceKey}
@@ -331,48 +321,59 @@ const SimulatorToolbar = ({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-4">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-2">
+              {t('simulator.toolbar.cumulative')}
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {cumulativeItems.map((item) => (
+                <CumulativeChip key={item.key} icon={item.icon} label={item.label} value={item.value} locale={locale} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 右侧：模拟器控制与功能按钮 */}
+        <div className="flex flex-col gap-3 xl:w-[320px] shrink-0 border-t xl:border-t-0 xl:border-l border-zinc-200 dark:border-zinc-800 pt-4 xl:pt-0 xl:pl-6">
+          <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-1">
+            {t('simulator.controls', 'Simulator Controls')}
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
             {poolType === 'limited' && (
               <div
                 onClick={onToggleMultipleFreeTen}
-                className={`
-              flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
-              ${
-                multipleFreeTen
-                  ? 'bg-blue-500/10 border-blue-500 text-blue-500'
-                  : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
-              }
-            `}
+                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all border select-none rounded-sm ${
+                  multipleFreeTen
+                    ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 shadow-sm'
+                    : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+                }`}
                 title={t('simulator.toolbar.multipleFreeTenHint')}
               >
-                <div
-                  className={`w-3 h-3 border flex items-center justify-center transition-colors ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-current'}`}
-                >
+                <div className={`w-3.5 h-3.5 border flex items-center justify-center transition-colors rounded-sm ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
                   {multipleFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
                 </div>
-                <span className="text-xs font-bold uppercase">{t('simulator.toolbar.multipleFreeTen')}</span>
+                <span className="text-xs font-bold uppercase truncate">{t('simulator.toolbar.multipleFreeTen')}</span>
               </div>
             )}
 
             <div
               onClick={onToggleSkipAnimation}
-              className={`
-            flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-all border select-none
-            ${
-              skipAnimation
-                ? 'bg-yellow-50 dark:bg-endfield-yellow/10 border-yellow-600 dark:border-endfield-yellow text-yellow-700 dark:text-endfield-yellow'
-                : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
-            }
-          `}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all border select-none rounded-sm ${
+                skipAnimation
+                  ? 'bg-yellow-50 dark:bg-endfield-yellow/10 border-yellow-600 dark:border-endfield-yellow text-yellow-700 dark:text-endfield-yellow shadow-sm'
+                  : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
+              }`}
             >
-              <div
-                className={`w-3 h-3 border flex items-center justify-center transition-colors ${skipAnimation ? 'border-yellow-600 dark:border-endfield-yellow bg-yellow-500 dark:bg-endfield-yellow' : 'border-current'}`}
-              >
+              <div className={`w-3.5 h-3.5 border flex items-center justify-center transition-colors rounded-sm ${skipAnimation ? 'border-yellow-600 dark:border-endfield-yellow bg-yellow-500 dark:bg-endfield-yellow' : 'border-zinc-300 dark:border-zinc-600'}`}>
                 {skipAnimation && <Check size={10} className="text-white dark:text-black" strokeWidth={4} />}
               </div>
-              <span className="text-xs font-bold uppercase">{t('simulator.toolbar.skipAnimation')}</span>
+              <span className="text-xs font-bold uppercase truncate">{t('simulator.toolbar.skipAnimation')}</span>
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-2 mt-1">
+            {/* Inherit Button */}
             <div className="relative">
               <button
                 onClick={() => {
@@ -380,24 +381,19 @@ const SimulatorToolbar = ({
                     onInheritRealState(gameAccounts[0] || null);
                     return;
                   }
-
                   setShowInheritAccountDropdown((visible) => !visible);
                 }}
-                className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+                className="w-full px-3 py-2 flex items-center justify-center gap-2 text-xs font-bold bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors rounded-sm"
                 title={t('simulator.toolbar.inheritTitle')}
               >
                 <RefreshCw size={14} />
-                <span className="hidden sm:inline">{t('simulator.toolbar.inheritAccount')}</span>
-                <span className="sm:hidden">{t('simulator.toolbar.inheritShort')}</span>
+                <span className="truncate">{t('simulator.toolbar.inheritShort')}</span>
                 {gameAccounts.length > 1 && (
-                  <ChevronDown
-                    size={12}
-                    className={`transition-transform ${showInheritAccountDropdown ? 'rotate-180' : ''}`}
-                  />
+                  <ChevronDown size={12} className={`transition-transform ${showInheritAccountDropdown ? 'rotate-180' : ''}`} />
                 )}
               </button>
               {showInheritAccountDropdown && gameAccounts.length > 1 && (
-                <div className="absolute right-0 top-full mt-1 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-50">
+                <div className="absolute right-0 sm:left-0 top-full mt-1 w-60 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-50 rounded-md overflow-hidden">
                   {gameAccounts.map((account) => (
                     <button
                       key={account.gameUid}
@@ -406,151 +402,127 @@ const SimulatorToolbar = ({
                         onInheritRealState(account);
                         setShowInheritAccountDropdown(false);
                       }}
-                      className="w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-slate-600 dark:text-zinc-400"
+                      className="w-full px-3 py-2.5 text-left text-xs font-mono hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors text-slate-600 dark:text-zinc-300 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0"
                     >
                       <div className="flex items-center gap-2">
                         <User size={12} className="shrink-0" />
-                        <span className="font-bold text-slate-700 dark:text-zinc-300">{account.nickName}</span>
+                        <span className="font-bold truncate">{account.nickName}</span>
                         {account.serverTag && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400">
                             {account.serverTag}
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">UID: {account.gameUid}</div>
+                      <div className="mt-1 text-[10px] text-slate-400 dark:text-zinc-500">UID: {account.gameUid}</div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
+            {/* Share Button */}
             <div className="relative" ref={shareMenuRef}>
               <button
                 type="button"
                 onClick={() => setShowShareMenu((visible) => !visible)}
                 disabled={shareActionBusy}
-                className={`px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 transition-colors ${
-                  shareActionBusy
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'hover:text-endfield-yellow hover:border-endfield-yellow'
+                className={`w-full px-3 py-2 flex items-center justify-center gap-2 text-xs font-bold bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 transition-colors rounded-sm ${
+                  shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:text-endfield-yellow hover:border-endfield-yellow'
                 }`}
                 title={t('simulator.toolbar.shareTitle')}
               >
                 {shareActionBusy ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
-                <span className="hidden sm:inline">{shareActionBusy ? t('simulator.toolbar.shareBusy') : t('simulator.toolbar.share')}</span>
-                <ChevronDown size={12} className={`transition-transform ${showShareMenu ? 'rotate-180' : ''}`} />
+                <span className="truncate">{shareActionBusy ? t('simulator.toolbar.shareBusy') : t('simulator.toolbar.share')}</span>
               </button>
 
               {showShareMenu && (
-                <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+                <div className="absolute right-0 sm:left-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg z-50 rounded-md overflow-hidden">
                   {supportsImageShare && (
                     <button
                       type="button"
                       disabled={shareActionBusy}
-                      onClick={() => {
-                        setShowShareMenu(false);
-                        onShareImage();
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
-                        shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
-                      }`}
+                      onClick={() => { setShowShareMenu(false); onShareImage(); }}
+                      className={`w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 transition-colors flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800/50 ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                     >
-                      <Share2 size={14} />
-                      <span>{t('simulator.toolbar.systemShareImage')}</span>
+                      <Share2 size={14} className="text-zinc-400" /> <span>{t('simulator.toolbar.systemShareImage')}</span>
                     </button>
                   )}
                   <button
                     type="button"
                     disabled={shareActionBusy}
-                    onClick={() => {
-                      setShowShareMenu(false);
-                      onDownloadImage();
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
-                      supportsImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
-                    } ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
+                    onClick={() => { setShowShareMenu(false); onDownloadImage(); }}
+                    className={`w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 transition-colors flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800/50 ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                   >
-                    <Download size={14} />
-                    <span>{t('simulator.toolbar.downloadPng')}</span>
+                    <Download size={14} className="text-zinc-400" /> <span>{t('simulator.toolbar.downloadPng')}</span>
                   </button>
                   {supportsClipboardImageCopy && (
                     <button
                       type="button"
                       disabled={shareActionBusy}
-                      onClick={() => {
-                        setShowShareMenu(false);
-                        onCopyImage();
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
-                        shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
-                      }`}
+                      onClick={() => { setShowShareMenu(false); onCopyImage(); }}
+                      className={`w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 transition-colors flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800/50 ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                     >
-                      <Copy size={14} />
-                      <span>{t('simulator.toolbar.copyImage')}</span>
+                      <Copy size={14} className="text-zinc-400" /> <span>{t('simulator.toolbar.copyImage')}</span>
                     </button>
                   )}
                   <button
                     type="button"
                     disabled={shareActionBusy}
-                    onClick={() => {
-                      setShowShareMenu(false);
-                      onShareText();
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
-                      shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
-                    }`}
+                    onClick={() => { setShowShareMenu(false); onShareText(); }}
+                    className={`w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 transition-colors flex items-center gap-2 ${shareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                   >
-                    <Copy size={14} />
-                    <span>{t('simulator.toolbar.copyText')}</span>
+                    <Copy size={14} className="text-zinc-400" /> <span>{t('simulator.toolbar.copyText')}</span>
                   </button>
                 </div>
               )}
             </div>
 
+            {/* Export Button */}
             <div className="relative group">
               <button
-                className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+                className="w-full px-3 py-2 flex items-center justify-center gap-2 text-xs font-bold bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors rounded-sm"
                 title={t('simulator.toolbar.exportTitle')}
               >
                 <Download size={14} />
-                <span className="hidden sm:inline">{t('simulator.toolbar.export')}</span>
-                <ChevronDown size={12} />
+                <span className="truncate">{t('simulator.toolbar.export')}</span>
               </button>
 
-              <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+              <div className="absolute right-0 sm:left-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 rounded-md overflow-hidden">
                 <button
                   onClick={() => onExportData('json')}
-                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
+                  className="w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800/50"
                 >
                   {t('simulator.toolbar.exportJson')}
                 </button>
                 <button
                   onClick={() => onExportData('csv')}
-                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+                  className="w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-b border-zinc-100 dark:border-zinc-800/50"
                 >
                   {t('simulator.toolbar.exportCsv')}
                 </button>
                 <button
                   onClick={onExportReport}
-                  className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors border-t border-zinc-100 dark:border-zinc-800"
+                  className="w-full text-left px-3 py-2.5 text-xs text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors"
                 >
                   {t('simulator.toolbar.exportReport')}
                 </button>
               </div>
             </div>
 
+            {/* Reset Button */}
             <button
               onClick={onReset}
-              className="px-3 py-1.5 flex items-center gap-2 text-xs font-bold bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-red-500 hover:border-red-500 transition-colors"
+              className="w-full px-3 py-2 flex items-center justify-center gap-2 text-xs font-bold bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-red-500 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors rounded-sm"
               title={t('simulator.toolbar.resetTitle')}
             >
               <RefreshCw size={14} />
-              <span className="hidden sm:inline">{t('simulator.toolbar.reset')}</span>
+              <span className="truncate">{t('simulator.toolbar.reset')}</span>
             </button>
           </div>
+
           {shareActionFeedback?.phase !== 'idle' && (
-            <div className="flex justify-end">
-              <ShareActionStatus feedback={shareActionFeedback} compact className="w-full max-w-[320px]" />
+            <div className="w-full mt-1">
+              <ShareActionStatus feedback={shareActionFeedback} compact />
             </div>
           )}
         </div>

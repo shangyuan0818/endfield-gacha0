@@ -42,7 +42,6 @@
     --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     --font-number: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   }
-
   html.dark {
     background-color: var(--color-endfield-dark);
     color: var(--color-endfield-text);
