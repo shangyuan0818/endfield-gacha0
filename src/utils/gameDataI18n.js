@@ -413,6 +413,18 @@ export function localizePoolFeaturedName(pool, { locale = getAppLocale() } = {})
     return '';
   }
 
+  const localizedFeaturedList = localizePoolFeaturedList(pool, { locale });
+  if (localizedFeaturedList.length > 1) {
+    const leadName = localizedFeaturedList[0];
+    return isEnglishLocale(locale)
+      ? `${leadName} +${localizedFeaturedList.length - 1}`
+      : `${leadName} 等${localizedFeaturedList.length}名`;
+  }
+
+  if (localizedFeaturedList.length === 1) {
+    return localizedFeaturedList[0];
+  }
+
   return localizeEntityName(pool?.up_character || pool?.upCharacter || pool?.name || '', {
     locale,
     type: pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character'

@@ -32,6 +32,7 @@ import {
   canNativeShareFile,
   copyImageBlobToClipboard,
   downloadShareCard,
+  isFirefoxBrowser,
   renderShareCardToBlob,
   shareImageFile
 } from '../../utils/simulatorShare';
@@ -39,7 +40,7 @@ import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
 import { compareHistoryTimelineDesc } from '../../utils/historyTimelineSort.js';
-import { localizeEntityName, localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 import {
   MobileStatusBadge
 } from '../components/ux/MobilePrimitives.jsx';
@@ -66,6 +67,12 @@ function MobileDashboardView() {
   const { t, formatNumber, isEnglish, locale, formatDateTime } = useI18n();
   const { toasts, showToast, removeToast } = useToast();
   const shareCardRef = React.useRef(null);
+  const [clipboardImageWarmState, setClipboardImageWarmState] = React.useState('idle');
+  const [clipboardImageReadyKey, setClipboardImageReadyKey] = React.useState(null);
+  const shareImageCacheRef = React.useRef({
+    full: { key: null, blob: null, promise: null },
+    clipboard: { key: null, blob: null, promise: null }
+  });
   const [showDetailedLogs, setShowDetailedLogs] = React.useState(false);
   const {
     feedback: shareActionFeedback,
@@ -85,6 +92,7 @@ function MobileDashboardView() {
     return localStorage.getItem(DASHBOARD_SHARE_THEME_KEY)
       || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   });
+  const [showTimelineFiveStarDrops, setShowTimelineFiveStarDrops] = React.useState(true);
   const {
     user,
     charViewMode,
@@ -117,11 +125,11 @@ function MobileDashboardView() {
   } = useDashboardViewState();
   const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
   const localizedCurrentUpName = React.useMemo(
-    () => localizeEntityName(currentPool?.up_character || '', {
+    () => localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || '', {
       locale,
       type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
     }),
-    [currentPool?.up_character, locale, normalizedPoolType]
+    [currentPool, locale, normalizedPoolType]
   );
   const displayPity6 = isLimited ? effectivePity.pity6 : stats.currentPity;
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
@@ -189,9 +197,19 @@ function MobileDashboardView() {
     stats,
     analysisPity,
     sections: timelineSections,
-    overviewSplitStats
-  }), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, normalizedPoolType, overviewSplitStats, stats, timelineSections]);
+    overviewSplitStats,
+    showFiveStarDrops: showTimelineFiveStarDrops
+  }, locale), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, normalizedPoolType, overviewSplitStats, showTimelineFiveStarDrops, stats, timelineSections]);
   const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
+  const clipboardImageWarmKey = React.useMemo(() => (
+    hasDashboardShareData
+      ? JSON.stringify({
+          locale,
+          theme: shareTheme,
+          payload: dashboardSharePayload
+        })
+      : null
+  ), [dashboardSharePayload, hasDashboardShareData, locale, shareTheme]);
   const supportsNativeImageShare = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
       return false;
@@ -212,6 +230,18 @@ function MobileDashboardView() {
     }
   }, []);
   const supportsClipboardImageCopy = React.useMemo(() => canCopyImageToClipboard(), []);
+  const isFirefoxClipboardBrowser = React.useMemo(() => isFirefoxBrowser(), []);
+  const isClipboardImageReady = React.useMemo(() => {
+    if (!supportsClipboardImageCopy) {
+      return false;
+    }
+
+    if (!isFirefoxClipboardBrowser) {
+      return true;
+    }
+
+    return clipboardImageReadyKey === clipboardImageWarmKey;
+  }, [clipboardImageReadyKey, clipboardImageWarmKey, isFirefoxClipboardBrowser, supportsClipboardImageCopy]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') {
@@ -225,7 +255,11 @@ function MobileDashboardView() {
   const extraSixLabel = isEnglish ? 'Extra 6★' : '额外6★';
   const shareImageActionLabel = isActionRunning('share') ? t('dashboard.share.trigger.sharing') : t('dashboard.share.systemImage');
   const downloadImageActionLabel = isActionRunning('download') ? t('dashboard.share.trigger.downloading') : t('dashboard.share.downloadImage');
-  const copyImageActionLabel = isActionRunning('copy-image') ? t('dashboard.share.trigger.copying') : t('dashboard.share.copyImage');
+  const copyImageActionLabel = isActionRunning('copy-image')
+    ? t('dashboard.share.trigger.copying')
+    : isFirefoxClipboardBrowser && (clipboardImageWarmState === 'preparing' || !isClipboardImageReady)
+      ? t('dashboard.share.progress.prepareClipboardImage')
+      : t('dashboard.share.copyImage');
   const shareTextActionLabel = isActionRunning('copy-text') ? t('dashboard.share.trigger.copying') : t('dashboard.share.copyText');
   const resourceSummaryTitle = isGroupMode
     ? t('dashboard.resources.groupTitle', { name: localizedCurrentPoolName || '' })
@@ -276,7 +310,7 @@ function MobileDashboardView() {
     }
 
     try {
-      const success = await copyToClipboard(buildDashboardShareText(dashboardSharePayload));
+      const success = await copyToClipboard(buildDashboardShareText(dashboardSharePayload, locale));
       const message = success ? t('dashboard.share.copyTextSuccess') : t('dashboard.share.copyTextFailure');
       if (success) {
         finishShareAction('copy-text', message);
@@ -289,13 +323,104 @@ function MobileDashboardView() {
       failShareAction('copy-text', message);
       showToast(message, 'error');
     }
-  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, showToast, t]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, locale, showToast, t]);
 
   const waitForShareCard = React.useCallback(async () => {
     if (shareCardRef.current) return shareCardRef.current;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     return shareCardRef.current;
   }, []);
+
+  const getShareImageBlob = React.useCallback(async (variant = 'full') => {
+    const cardNode = await waitForShareCard();
+    if (!cardNode) {
+      return null;
+    }
+
+    const cacheKey = JSON.stringify({
+      locale,
+      theme: shareTheme,
+      payload: dashboardSharePayload
+    });
+    const cacheBucket = 'full';
+    const cache = shareImageCacheRef.current[cacheBucket];
+
+    if (cache.key === cacheKey && cache.blob) {
+      setClipboardImageReadyKey(cacheKey);
+      return cache.blob;
+    }
+
+    if (cache.key === cacheKey && cache.promise) {
+      return cache.promise;
+    }
+
+    const renderPromise = renderShareCardToBlob(cardNode, {
+      backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
+    })
+      .then((blob) => {
+        shareImageCacheRef.current[cacheBucket] = {
+          key: cacheKey,
+          blob,
+          promise: null
+        };
+        setClipboardImageReadyKey(cacheKey);
+        return blob;
+      })
+      .catch((error) => {
+        if (shareImageCacheRef.current[cacheBucket].key === cacheKey) {
+          shareImageCacheRef.current[cacheBucket] = {
+            key: null,
+            blob: null,
+            promise: null
+          };
+        }
+        setClipboardImageReadyKey((previous) => (previous === cacheKey ? null : previous));
+        throw error;
+      });
+
+    shareImageCacheRef.current[cacheBucket] = {
+      key: cacheKey,
+      blob: null,
+      promise: renderPromise
+    };
+
+    return renderPromise;
+  }, [dashboardSharePayload, locale, shareTheme, waitForShareCard]);
+
+  const prewarmClipboardShareImage = React.useCallback(() => {
+    if (!supportsClipboardImageCopy || !hasDashboardShareData) {
+      return Promise.resolve(null);
+    }
+
+    if (isClipboardImageReady) {
+      setClipboardImageWarmState('ready');
+      return Promise.resolve(shareImageCacheRef.current.full.blob);
+    }
+
+    setClipboardImageWarmState((previous) => (previous === 'ready' ? previous : 'preparing'));
+    return getShareImageBlob('full')
+      .then((blob) => {
+        setClipboardImageWarmState('ready');
+        return blob;
+      })
+      .catch((error) => {
+        setClipboardImageWarmState('idle');
+        throw error;
+      });
+  }, [getShareImageBlob, hasDashboardShareData, isClipboardImageReady, supportsClipboardImageCopy]);
+
+  React.useEffect(() => {
+    setClipboardImageReadyKey(null);
+    setClipboardImageWarmState('idle');
+  }, [clipboardImageWarmKey]);
+
+  React.useEffect(() => {
+    if (!supportsClipboardImageCopy || !hasDashboardShareData || !isFirefoxClipboardBrowser) {
+      return;
+    }
+
+    prewarmClipboardShareImage().catch(() => {});
+  }, [hasDashboardShareData, isFirefoxClipboardBrowser, prewarmClipboardShareImage, supportsClipboardImageCopy]);
 
   const handleShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -316,17 +441,15 @@ function MobileDashboardView() {
     }
 
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
-      });
-      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const blob = await getShareImageBlob('full');
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload, locale);
       const file = buildShareFile(blob, fileName);
 
       if (file && supportsNativeImageShare && canNativeShareFile(file)) {
         updateShareAction('share', t('dashboard.share.progress.openSystemShare'));
         await shareImageFile(file, {
           title: t('share.dashboard.scope', { scope: dashboardSharePayload.scopeLabel }),
-          text: buildDashboardShareText(dashboardSharePayload)
+          text: buildDashboardShareText(dashboardSharePayload, locale)
         });
         const message = t('dashboard.share.systemOpened');
         finishShareAction('share', message);
@@ -355,7 +478,7 @@ function MobileDashboardView() {
       failShareAction('share', message);
       showToast(message, 'error');
     }
-  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, resetShareActionFeedback, shareTheme, showToast, supportsNativeImageShare, t, updateShareAction, waitForShareCard]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, getShareImageBlob, hasDashboardShareData, locale, resetShareActionFeedback, showToast, supportsNativeImageShare, t, updateShareAction, waitForShareCard]);
 
   const handleDownloadShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -376,11 +499,9 @@ function MobileDashboardView() {
     }
 
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
-      });
+      const blob = await getShareImageBlob('full');
       updateShareAction('download', t('dashboard.share.progress.saveImage'));
-      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const fileName = buildDashboardShareCardFileName(dashboardSharePayload, locale);
       const downloaded = downloadShareCard(blob, fileName);
       const message = downloaded ? t('dashboard.share.downloadSuccess') : t('dashboard.share.downloadFailure');
       if (downloaded) {
@@ -394,7 +515,7 @@ function MobileDashboardView() {
       failShareAction('download', message);
       showToast(message, 'error');
     }
-  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, shareTheme, showToast, t, updateShareAction, waitForShareCard]);
+  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, getShareImageBlob, hasDashboardShareData, locale, showToast, t, updateShareAction, waitForShareCard]);
 
   const handleCopyShareImage = React.useCallback(async () => {
     if (!hasDashboardShareData) {
@@ -421,10 +542,16 @@ function MobileDashboardView() {
       return;
     }
 
+    if (isFirefoxClipboardBrowser && !isClipboardImageReady) {
+      prewarmClipboardShareImage().catch(() => {});
+      const message = t('dashboard.share.copyImagePreparing');
+      failShareAction('copy-image', message);
+      showToast(message, 'warning');
+      return;
+    }
+
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5'
-      });
+      const blob = await getShareImageBlob('full');
       updateShareAction('copy-image', t('dashboard.share.progress.writeClipboard'));
       const copied = await copyImageBlobToClipboard(blob);
       const message = copied ? t('dashboard.share.copyImageSuccess') : t('dashboard.share.copyImageFailure');
@@ -439,7 +566,7 @@ function MobileDashboardView() {
       failShareAction('copy-image', message);
       showToast(message, 'error');
     }
-  }, [beginShareAction, failShareAction, finishShareAction, hasDashboardShareData, shareTheme, showToast, supportsClipboardImageCopy, t, updateShareAction, waitForShareCard]);
+  }, [beginShareAction, failShareAction, finishShareAction, getShareImageBlob, hasDashboardShareData, isClipboardImageReady, isFirefoxClipboardBrowser, prewarmClipboardShareImage, showToast, supportsClipboardImageCopy, t, updateShareAction, waitForShareCard]);
 
   if (!hasPoolData) {
     return (
@@ -474,7 +601,7 @@ function MobileDashboardView() {
 
   return (
     <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark flex flex-col pb-[calc(env(safe-area-inset-bottom,0px)+7.5rem)] [&>*]:shrink-0">
-      {hasDashboardShareData && (
+      {hasDashboardShareData && (isShareActionBusy || (supportsClipboardImageCopy && isFirefoxClipboardBrowser)) && (
         <div
           aria-hidden="true"
           style={{
@@ -487,7 +614,13 @@ function MobileDashboardView() {
             pointerEvents: 'none',
           }}
         >
-          <DashboardShareCard ref={shareCardRef} payload={dashboardSharePayload} sections={timelineSections} theme={shareTheme} />
+          <DashboardShareCard
+            ref={shareCardRef}
+            payload={dashboardSharePayload}
+            sections={timelineSections}
+            theme={shareTheme}
+            showFiveStarDrops={showTimelineFiveStarDrops}
+          />
         </div>
       )}
       <div className={poolRailShellClass}>
@@ -597,10 +730,10 @@ function MobileDashboardView() {
                 {supportsClipboardImageCopy ? (
                   <button
                     type="button"
-                    disabled={isShareActionBusy}
+                    disabled={isShareActionBusy || (isFirefoxClipboardBrowser && !isClipboardImageReady)}
                     onClick={() => void handleCopyShareImage()}
                     className={`mobile-ux-card-inset flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-slate-900 dark:text-zinc-100 ${
-                      isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''
+                      isShareActionBusy || (isFirefoxClipboardBrowser && !isClipboardImageReady) ? 'cursor-not-allowed opacity-60' : ''
                     }`}
                   >
                     {isActionRunning('copy-image') ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
@@ -1033,6 +1166,8 @@ function MobileDashboardView() {
                 hasMergedAccountView={hasMergedAccountView}
                 embedded={true}
                 mobile={true}
+                showFiveStarDrops={showTimelineFiveStarDrops}
+                onToggleShowFiveStarDrops={setShowTimelineFiveStarDrops}
               />
             </div>
           ) : (
@@ -1158,6 +1293,8 @@ function MobileDashboardView() {
               hasMergedAccountView={hasMergedAccountView}
               embedded={true}
               mobile={true}
+              showFiveStarDrops={showTimelineFiveStarDrops}
+              onToggleShowFiveStarDrops={setShowTimelineFiveStarDrops}
             />
           </div>
         ) : (

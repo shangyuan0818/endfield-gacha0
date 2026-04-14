@@ -570,17 +570,43 @@ function getSectionTypeLabel(type, tt) {
   return tt('dashboard.shareCard.sectionType.limited', 'Limited Character Banner');
 }
 
-function getBarColor(entry, sectionType) {
+function getTimelineVisualKind(entry) {
   if (entry.stageKind === 'gift') {
+    return entry.highlightStageKind || (Number(entry.highestRarity) >= 6 ? 'up' : Number(entry.highestRarity) === 5 ? 'fiveStar' : 'gift');
+  }
+
+  return entry.stageKind;
+}
+
+function getBarColor(entry, sectionType) {
+  const visualKind = getTimelineVisualKind(entry);
+
+  if (visualKind === 'gift') {
     return '#34d399';
   }
 
-  if (entry.stageKind === 'fiveStar') {
+  if (visualKind === 'fiveStar') {
     return '#fbbf24';
   }
 
-  if (entry.stageKind === 'offStandard' || entry.stageKind === 'offLimited') {
+  if (visualKind === 'sixStar') {
+    if (sectionType === 'weapon') {
+      return '#f59e0b';
+    }
+
+    if (sectionType === 'standard') {
+      return '#3b82f6';
+    }
+
+    return '#d946ef';
+  }
+
+  if (visualKind === 'offStandard') {
     return '#fb7185';
+  }
+
+  if (visualKind === 'offLimited') {
+    return '#94a3b8';
   }
 
   if (sectionType === 'weapon') {
@@ -633,11 +659,24 @@ function buildCombinedPityItem(pitySummary, tt) {
 
   return {
     id: 'current-pity',
-    label: tt('dashboard.shareCard.currentPity', 'Current Pity'),
-    value: `${pitySummary.current6}/${pitySummary.current5}`,
-    hint: tt('dashboard.shareCard.pityHint', '6★ / 5★'),
+    label: tt('dashboard.shareCard.currentPity', 'Current 6★ Pity'),
+    value: `${pitySummary.current6}/${pitySummary.max6}`,
+    hint: pitySummary.probabilityHint || tt('dashboard.shareCard.pityHint', 'Toward the next 6★ milestone'),
     accent: true
   };
+}
+
+function getVisibleDropBadges(entry, showFiveStarDrops) {
+  const badges = Array.isArray(entry?.dropBadges) ? entry.dropBadges : [];
+  return showFiveStarDrops ? badges : badges.filter((badge) => Number(badge?.rarity) >= 6);
+}
+
+function getVisibleResultSummary(entry, showFiveStarDrops) {
+  if (showFiveStarDrops) {
+    return entry.resultSummary;
+  }
+
+  return entry.resultSummaryWithoutFiveStar || entry.resultSummary;
 }
 
 function getResourceIcon(itemId) {
@@ -769,12 +808,16 @@ function CompactMetricBlock({ title, rows = [], tokens, accentColor }) {
   );
 }
 
-function TimelineEntry({ entry, section, tokens, tt }) {
+function TimelineEntry({ entry, section, tokens, tt, showFiveStarDrops = true }) {
   const scaleBase = Math.max(Number(section.scaleMax) || 1, 1);
-  const widthPercent = Math.max(12, Math.min(100, ((entry.pulls || 0) / scaleBase) * 100));
+  const widthPercent = entry.stageKind === 'gift'
+    ? 100
+    : Math.max(12, Math.min(100, ((entry.pulls || 0) / scaleBase) * 100));
   const fillColor = getBarColor(entry, section.type);
   const stamp = getStamp(entry, section.type, tt);
   const leadBadge = entry.leadBadge || entry.dropBadges?.[0] || { label: '?', rarity: 0 };
+  const visibleBadges = getVisibleDropBadges(entry, showFiveStarDrops);
+  const resultSummary = getVisibleResultSummary(entry, showFiveStarDrops);
 
   return (
     <div style={{ ...styles.entryRow, borderTopColor: tokens.subtleBorder }}>
@@ -799,7 +842,7 @@ function TimelineEntry({ entry, section, tokens, tt }) {
       <div style={styles.entryBody}>
         <div style={styles.stageTop}>
           <div style={{ ...styles.stageChip, borderColor: tokens.border, background: tokens.chipBackground, color: tokens.textMuted }}>{entry.stageLabel}</div>
-          <div style={{ ...styles.resultText, color: tokens.textPrimary }}>{entry.resultSummary}</div>
+          <div style={{ ...styles.resultText, color: tokens.textPrimary }}>{resultSummary}</div>
         </div>
 
         <div style={styles.barRow}>
@@ -833,9 +876,9 @@ function TimelineEntry({ entry, section, tokens, tt }) {
           )}
         </div>
 
-        {entry.dropBadges?.length > 0 && (
+        {visibleBadges.length > 0 && (
           <div style={styles.badgeList}>
-            {entry.dropBadges.map((badge) => (
+            {visibleBadges.map((badge) => (
               <div key={`${entry.id}-${badge.label}`} style={{ ...styles.dropBadge, borderColor: tokens.border, background: tokens.panelMutedBackground }}>
                 <div style={{ ...styles.dropThumb, background: tokens.iconBackground, color: tokens.textPrimary, overflow: 'hidden' }}>
                   {badge.avatarUrl ? (
@@ -861,7 +904,7 @@ function TimelineEntry({ entry, section, tokens, tt }) {
   );
 }
 
-function TimelineSection({ section, tokens, tt }) {
+function TimelineSection({ section, tokens, tt, showFiveStarDrops = true }) {
   const tone = getSectionTone(section.type);
   const secondaryLabel = section.type === 'standard'
     ? tt('dashboard.shareCard.averageFive', 'Average 5★')
@@ -920,7 +963,7 @@ function TimelineSection({ section, tokens, tt }) {
             <div style={styles.metricCell}>
               <div style={{ ...styles.statLabel, color: tokens.textMuted }}>{tt('dashboard.shareCard.currentPityShort', 'Pity')}</div>
               <div style={{ ...styles.metricValue, color: tokens.textPrimary }}>
-                {section.hidePityState ? tt('dashboard.shareCard.multiAccount', 'Merged') : `${section.currentPity} / ${section.currentPity5}`}
+                {section.hidePityState ? tt('dashboard.shareCard.multiAccount', 'Merged') : `${section.currentPity}`}
               </div>
             </div>
             <div style={styles.metricCell}>
@@ -935,14 +978,14 @@ function TimelineSection({ section, tokens, tt }) {
         </div>
 
         {section.entries.map((entry) => (
-          <TimelineEntry key={entry.id} entry={entry} section={section} tokens={tokens} tt={tt} />
+          <TimelineEntry key={entry.id} entry={entry} section={section} tokens={tokens} tt={tt} showFiveStarDrops={showFiveStarDrops} />
         ))}
       </div>
     </div>
   );
 }
 
-const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sections = [], theme = 'light' }, ref) {
+const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sections = [], theme = 'light', showFiveStarDrops = true }, ref) {
   const { t } = useI18n();
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const tokens = getThemeTokens(theme);
@@ -1066,7 +1109,7 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
         </div>
 
         {sections.map((section) => (
-          <TimelineSection key={section.id} section={section} tokens={tokens} tt={tt} />
+          <TimelineSection key={section.id} section={section} tokens={tokens} tt={tt} showFiveStarDrops={showFiveStarDrops} />
         ))}
       </div>
 

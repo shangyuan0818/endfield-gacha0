@@ -15,6 +15,14 @@ function normalizePoolType(type) {
   return type;
 }
 
+function getPoolFeaturedLead(pool) {
+  const featuredCharacters = Array.isArray(pool?.featured_characters)
+    ? pool.featured_characters.filter(Boolean)
+    : [];
+
+  return featuredCharacters[0] || pool?.up_character || pool?.upCharacter || pool?.name || null;
+}
+
 export function useDashboardViewState() {
   const user = useAuthStore(state => state.user);
   const [charViewMode, setCharViewMode] = useState('waterfall');
@@ -22,6 +30,7 @@ export function useDashboardViewState() {
   const {
     poolsArray,
     selectedPools,
+    annotatedAccountHistoryArray,
     currentPool,
     currentPoolHistory,
     normalizedCurrentPoolHistory: normalizedPoolHistory,
@@ -137,7 +146,7 @@ export function useDashboardViewState() {
       const remainingMs = end - now;
 
       return {
-        name: currentPool.up_character || currentPool.name,
+        name: getPoolFeaturedLead(currentPool),
         isActive,
         isExpired,
         remainingDays: isActive ? Math.floor(remainingMs / (1000 * 60 * 60 * 24)) : 0,
@@ -238,6 +247,7 @@ export function useDashboardViewState() {
     setCharViewMode,
     poolsArray,
     selectedPools,
+    accountHistory: annotatedAccountHistoryArray,
     currentPool,
     currentPoolHistory,
     normalizedPoolHistory,

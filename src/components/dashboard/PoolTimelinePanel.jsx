@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Layers } from 'lucide-react';
+import { Eye, EyeOff, Layers } from 'lucide-react';
 import {
   buildDashboardTimelineSections,
   countDashboardTimelineNodes
@@ -73,20 +73,42 @@ function getLeadBadge(entry, featured) {
   };
 }
 
-function getEntryBarClass(sectionType, entry) {
+function getTimelineVisualKind(entry) {
   if (entry.stageKind === 'gift') {
+    return entry.highlightStageKind || (Number(entry.highestRarity) >= 6 ? 'up' : Number(entry.highestRarity) === 5 ? 'fiveStar' : 'gift');
+  }
+
+  return entry.stageKind;
+}
+
+function getEntryBarClass(sectionType, entry) {
+  const visualKind = getTimelineVisualKind(entry);
+
+  if (visualKind === 'gift') {
     return 'bg-emerald-400 dark:bg-emerald-500';
   }
 
-  if (entry.stageKind === 'fiveStar') {
+  if (visualKind === 'fiveStar') {
     return 'bg-amber-300 dark:bg-amber-400';
   }
 
-  if (entry.stageKind === 'offStandard') {
+  if (visualKind === 'sixStar') {
+    if (sectionType === 'weapon') {
+      return 'bg-amber-400 dark:bg-amber-500';
+    }
+
+    if (sectionType === 'standard') {
+      return 'bg-blue-400 dark:bg-blue-500';
+    }
+
+    return 'rainbow-progress';
+  }
+
+  if (visualKind === 'offStandard') {
     return 'bg-rose-400 dark:bg-rose-500';
   }
 
-  if (entry.stageKind === 'offLimited') {
+  if (visualKind === 'offLimited') {
     return 'bg-slate-400 dark:bg-slate-500';
   }
 
@@ -149,6 +171,19 @@ function getStampConfig(entry, sectionType, t) {
   }
 
   return null;
+}
+
+function getVisibleDropBadges(entry, showFiveStarDrops) {
+  const badges = Array.isArray(entry?.dropBadges) ? entry.dropBadges : [];
+  return showFiveStarDrops ? badges : badges.filter((badge) => Number(badge?.rarity) >= 6);
+}
+
+function getVisibleResultSummary(entry, showFiveStarDrops) {
+  if (showFiveStarDrops) {
+    return entry.resultSummary;
+  }
+
+  return entry.resultSummaryWithoutFiveStar || entry.resultSummary;
 }
 
 function StagePortrait({ entry, featured, compact = false, t }) {
@@ -215,10 +250,14 @@ function MetricItem({ label, value, mobile = false }) {
   );
 }
 
-function TimelineStageCard({ entry, sectionType, featured, t, mobile = false }) {
+function TimelineStageCard({ entry, sectionType, featured, t, mobile = false, showFiveStarDrops = true }) {
   const compact = entry.stageKind === 'fiveStar';
+  const visibleBadges = getVisibleDropBadges(entry, showFiveStarDrops);
+  const resultSummary = getVisibleResultSummary(entry, showFiveStarDrops);
   const stamp = getStampConfig(entry, sectionType, t);
-  const widthPercent = Math.max(
+  const widthPercent = entry.stageKind === 'gift'
+    ? 100
+    : Math.max(
     compact ? 10 : 12,
     Math.min(100, (entry.pulls / Math.max(entry.targetPulls || 1, 1)) * 100)
   );
@@ -238,7 +277,7 @@ function TimelineStageCard({ entry, sectionType, featured, t, mobile = false }) 
             {entry.stageLabel}
           </span>
           <span className={`min-w-0 break-words font-bold leading-snug ${mobile ? 'text-slate-700 dark:text-zinc-200' : 'text-zinc-700 dark:text-zinc-300'} ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
-            {entry.resultSummary}
+            {resultSummary}
           </span>
         </div>
 
@@ -263,9 +302,9 @@ function TimelineStageCard({ entry, sectionType, featured, t, mobile = false }) 
           )}
         </div>
 
-        {entry.dropBadges.length > 0 && (
+        {visibleBadges.length > 0 && (
           <div className={`mt-2.5 sm:mt-3 flex flex-wrap ${compact ? 'gap-1.5' : 'gap-1.5 sm:gap-2'}`}>
-            {entry.dropBadges.map((badge) => (
+            {visibleBadges.map((badge) => (
               <StageBadge key={`${entry.id}-${badge.label}`} badge={badge} compact={compact} mobile={mobile} />
             ))}
           </div>
@@ -275,11 +314,11 @@ function TimelineStageCard({ entry, sectionType, featured, t, mobile = false }) 
   );
 }
 
-function TimelineSectionCard({ section, isOverview, embedded, t, mobile = false }) {
+function TimelineSectionCard({ section, isOverview, embedded, t, mobile = false, showFiveStarDrops = true }) {
   const tone = getTimelineTone(section.type);
   const pityValue = section.hidePityState
     ? t('dashboard.timeline.multiAccount')
-    : `${section.currentPity} / ${section.currentPity5}`;
+    : `${section.currentPity}`;
 
   return (
     <div className={`relative overflow-hidden ${mobile ? (embedded ? 'mobile-ux-card-inset' : 'mobile-ux-soft-card mobile-ux-soft-card--muted') : 'rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900'}`}>
@@ -340,6 +379,7 @@ function TimelineSectionCard({ section, isOverview, embedded, t, mobile = false 
                 featured={section.featured}
                 t={t}
                 mobile={mobile}
+                showFiveStarDrops={showFiveStarDrops}
               />
             ))}
           </div>
@@ -362,7 +402,9 @@ const PoolTimelinePanel = ({
   overviewPoolFilter = 'all',
   hasMergedAccountView = false,
   embedded = false,
-  mobile = false
+  mobile = false,
+  showFiveStarDrops = true,
+  onToggleShowFiveStarDrops = null
 }) => {
   const { t, locale } = useI18n();
   const sections = useMemo(() => {
@@ -420,6 +462,16 @@ const PoolTimelinePanel = ({
           <div className={`border px-3 py-1.5 text-xs font-mono ${mobile ? 'rounded-xl border-zinc-200 bg-zinc-50 text-slate-600 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400' : 'border-zinc-200 text-slate-600 dark:border-zinc-800 dark:text-zinc-400'}`}>
             {t('dashboard.unit.timelineNodeCount', { count: totalNodes })}
           </div>
+          {typeof onToggleShowFiveStarDrops === 'function' && (
+            <button
+              type="button"
+              onClick={() => onToggleShowFiveStarDrops(!showFiveStarDrops)}
+              className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium transition-colors ${mobile ? 'rounded-xl border-zinc-200 bg-zinc-50 text-slate-600 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400 dark:hover:bg-zinc-900' : 'border-zinc-200 text-slate-600 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-900'}`}
+            >
+              {showFiveStarDrops ? <Eye size={14} /> : <EyeOff size={14} />}
+              <span>{showFiveStarDrops ? t('dashboard.timeline.toggle.hideFiveStar') : t('dashboard.timeline.toggle.showFiveStar')}</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -443,6 +495,7 @@ const PoolTimelinePanel = ({
               embedded={embedded}
               t={t}
               mobile={mobile}
+              showFiveStarDrops={showFiveStarDrops}
             />
           ))
         )}

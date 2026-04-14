@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { characterCache, getPoolCharacters } from '../../utils/characterUtils';
 import { LIMITED_POOL_SCHEDULE } from '../../constants/index.js';
-import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
+import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 
 const FALLBACK_LIMITED_CHARACTERS = {
   sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
@@ -179,9 +179,13 @@ export default function usePoolMechanicsData(currentUpInfo) {
       }
 
       const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
-      const roster = await fetchPoolRosterBuckets(currentPoolRecordId, {
+      const roster = await resolvePoolRosterBuckets({
+        poolId: currentPoolRecordId,
         expectedType: 'character',
-        currentUpName
+        currentUpName,
+        poolType: 'limited',
+        poolInfo: getPoolContext(currentUpInfo),
+        mergeStrategy: 'fill-missing'
       });
 
       if (cancelled) {
@@ -242,7 +246,7 @@ export default function usePoolMechanicsData(currentUpInfo) {
     const standardSixStarCharacters = getPoolCharacters('standard', 6, false);
 
     const limitedCharacters = {
-      sixStar: exactPoolRoster?.sixStar || buildLimitedSixStarSet(
+      sixStar: (exactPoolRoster?.sixStar?.length || 0) >= 2 ? exactPoolRoster.sixStar : buildLimitedSixStarSet(
         currentUpInfo,
         FALLBACK_LIMITED_CHARACTERS.sixStar,
         mapCharacterNames(activeLimitedSixStarCharacters),

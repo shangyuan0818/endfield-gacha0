@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { characterCache } from './characterUtils.js';
+import { characterCache, getLimitedCharacterPoolStatus } from './characterUtils.js';
 
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -36,6 +36,25 @@ function dedupeNames(items = []) {
     }
     seen.add(normalized);
     output.push(normalized);
+  });
+  return output;
+}
+
+function dedupeEntries(items = []) {
+  const seen = new Set();
+  const output = [];
+  items.forEach((item) => {
+    const normalizedName = normalizeName(item?.name);
+    if (!normalizedName || seen.has(normalizedName)) {
+      return;
+    }
+
+    seen.add(normalizedName);
+    output.push({
+      ...item,
+      name: normalizedName,
+      id: item?.id || normalizedName,
+    });
   });
   return output;
 }
@@ -117,6 +136,142 @@ function buildBucketsFromPoolCharacters(records = [], { expectedType = 'characte
   };
 }
 
+function buildBucketsFromCharacters(characters = [], { currentUpName = null } = {}) {
+  const normalizedCurrentUp = normalizeName(currentUpName);
+  const entries = (Array.isArray(characters) ? characters : [])
+    .map((character) => {
+      const normalizedName = normalizeName(character?.name);
+      if (!normalizedName) {
+        return null;
+      }
+
+      const isUp = Boolean(normalizedCurrentUp && normalizedName === normalizedCurrentUp);
+      return {
+        id: character?.id || normalizedName,
+        name: normalizedName,
+        rarity: Number(character?.rarity) || 0,
+        type: character?.type,
+        isUp
+      };
+    })
+    .filter(Boolean);
+
+  return {
+    items: dedupeEntries(entries),
+    up: dedupeEntries(entries.filter((entry) => entry.rarity === 6 && entry.isUp)),
+    offBanner: dedupeEntries(entries.filter((entry) => entry.rarity === 6 && !entry.isUp)),
+    sixStar: ensureLeadingName(
+      entries.filter((entry) => entry.rarity === 6).map((entry) => entry.name),
+      currentUpName
+    ),
+    fiveStar: dedupeNames(entries.filter((entry) => entry.rarity === 5).map((entry) => entry.name)),
+    fourStar: dedupeNames(entries.filter((entry) => entry.rarity === 4).map((entry) => entry.name))
+  };
+}
+
+function mergeRosterBuckets(primary, fallback, { currentUpName = null } = {}) {
+  const primaryItems = Array.isArray(primary?.items) ? primary.items : [];
+  const fallbackItems = Array.isArray(fallback?.items) ? fallback.items : [];
+  const mergedItems = dedupeEntries([
+    ...primaryItems,
+    ...fallbackItems
+  ]);
+  const mergedSixStar = ensureLeadingName([
+    ...(Array.isArray(primary?.sixStar) ? primary.sixStar : []),
+    ...(Array.isArray(fallback?.sixStar) ? fallback.sixStar : [])
+  ], currentUpName);
+
+  return {
+    items: mergedItems,
+    up: dedupeEntries([
+      ...(Array.isArray(primary?.up) ? primary.up : []),
+      ...(Array.isArray(fallback?.up) ? fallback.up : [])
+    ]),
+    offBanner: dedupeEntries([
+      ...(Array.isArray(primary?.offBanner) ? primary.offBanner : []),
+      ...(Array.isArray(fallback?.offBanner) ? fallback.offBanner : [])
+    ]),
+    sixStar: mergedSixStar,
+    fiveStar: dedupeNames([
+      ...(Array.isArray(primary?.fiveStar) ? primary.fiveStar : []),
+      ...(Array.isArray(fallback?.fiveStar) ? fallback.fiveStar : [])
+    ]),
+    fourStar: dedupeNames([
+      ...(Array.isArray(primary?.fourStar) ? primary.fourStar : []),
+      ...(Array.isArray(fallback?.fourStar) ? fallback.fourStar : [])
+    ])
+  };
+}
+
+function mergeRosterBucketsByMissingRarity(primary, fallback, { currentUpName = null } = {}) {
+  const usePrimarySixStar = Array.isArray(primary?.sixStar) && primary.sixStar.length > 0;
+  const usePrimaryFiveStar = Array.isArray(primary?.fiveStar) && primary.fiveStar.length > 0;
+  const usePrimaryFourStar = Array.isArray(primary?.fourStar) && primary.fourStar.length > 0;
+  const selectedNames = new Set([
+    ...(usePrimarySixStar ? primary.sixStar : (fallback?.sixStar || [])),
+    ...(usePrimaryFiveStar ? primary.fiveStar : (fallback?.fiveStar || [])),
+    ...(usePrimaryFourStar ? primary.fourStar : (fallback?.fourStar || []))
+  ].map(normalizeName).filter(Boolean));
+
+  const mergedItems = dedupeEntries([
+    ...(Array.isArray(primary?.items) ? primary.items : []),
+    ...(Array.isArray(fallback?.items) ? fallback.items : []).filter((item) => selectedNames.has(normalizeName(item?.name)))
+  ]);
+
+  return {
+    items: mergedItems,
+    up: dedupeEntries(usePrimarySixStar ? (primary?.up || []) : (fallback?.up || [])),
+    offBanner: dedupeEntries(usePrimarySixStar ? (primary?.offBanner || []) : (fallback?.offBanner || [])),
+    sixStar: ensureLeadingName(usePrimarySixStar ? (primary?.sixStar || []) : (fallback?.sixStar || []), currentUpName),
+    fiveStar: dedupeNames(usePrimaryFiveStar ? (primary?.fiveStar || []) : (fallback?.fiveStar || [])),
+    fourStar: dedupeNames(usePrimaryFourStar ? (primary?.fourStar || []) : (fallback?.fourStar || []))
+  };
+}
+
+function matchesFallbackPool(character, { expectedType = 'character', poolType = 'limited', poolInfo = null } = {}) {
+  if (!character?.name || character?.type !== expectedType) {
+    return false;
+  }
+
+  const pools = Array.isArray(character?.pool_config?.pools) ? character.pool_config.pools : [];
+
+  if (poolType === 'limited') {
+    if (!pools.includes('limited') && !pools.includes('standard')) {
+      return false;
+    }
+
+    if (expectedType === 'character' && Number(character?.rarity) >= 6 && character?.is_limited) {
+      const limitedStatus = getLimitedCharacterPoolStatus(character, poolInfo);
+      return limitedStatus.isIntroduced && limitedStatus.isActive;
+    }
+
+    return true;
+  }
+
+  if (poolType === 'weapon') {
+    return pools.includes('weapon') || pools.includes('standard');
+  }
+
+  return pools.includes(poolType);
+}
+
+export function buildDynamicRosterBuckets({
+  expectedType = 'character',
+  currentUpName = null,
+  poolType = 'limited',
+  poolInfo = null
+} = {}) {
+  const fallbackCharacters = characterCache
+    .getAll({ type: expectedType })
+    .filter((character) => matchesFallbackPool(character, {
+      expectedType,
+      poolType,
+      poolInfo
+    }));
+
+  return buildBucketsFromCharacters(fallbackCharacters, { currentUpName });
+}
+
 export async function fetchPoolRosterBuckets(poolId, { expectedType = 'character', currentUpName = null } = {}) {
   if (!supabase || !poolId) {
     return null;
@@ -149,3 +304,32 @@ export async function fetchPoolRosterBuckets(poolId, { expectedType = 'character
   });
 }
 
+export async function resolvePoolRosterBuckets({
+  poolId,
+  expectedType = 'character',
+  currentUpName = null,
+  poolType = expectedType === 'weapon' ? 'weapon' : 'limited',
+  poolInfo = null,
+  mergeStrategy = 'append'
+} = {}) {
+  const explicitBuckets = await fetchPoolRosterBuckets(poolId, {
+    expectedType,
+    currentUpName
+  });
+
+  const fallbackBuckets = buildDynamicRosterBuckets({
+    expectedType,
+    currentUpName,
+    poolType,
+    poolInfo
+  });
+
+  if (explicitBuckets) {
+    if (mergeStrategy === 'fill-missing') {
+      return mergeRosterBucketsByMissingRarity(explicitBuckets, fallbackBuckets, { currentUpName });
+    }
+    return mergeRosterBuckets(explicitBuckets, fallbackBuckets, { currentUpName });
+  }
+
+  return fallbackBuckets.items.length > 0 ? fallbackBuckets : null;
+}

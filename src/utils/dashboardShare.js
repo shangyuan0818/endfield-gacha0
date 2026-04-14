@@ -2,9 +2,10 @@ import { calculateCurrentProbability } from './index.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { SHARE_BRAND_LINK } from './shareBranding.js';
 import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
-import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from './gameDataI18n.js';
 
 const DASHBOARD_SHARE_FILE_PREFIX = '终末地卡池分析分享卡';
+const DASHBOARD_SHARE_FILE_PREFIX_EN = 'endfield-gacha-share';
 
 function formatShareTimestamp(date = new Date()) {
   const year = date.getFullYear();
@@ -13,6 +14,19 @@ function formatShareTimestamp(date = new Date()) {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${year}${month}${day}-${hours}${minutes}`;
+}
+
+function sanitizeFileNameSegment(value, fallback, maxLength = 28, asciiOnly = false) {
+  const normalized = String(value || '')
+    .normalize('NFKD');
+  const sanitized = (asciiOnly ? normalized.replace(/[^\x20-\x7E]/g, ' ') : normalized)
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, maxLength);
+
+  return sanitized || fallback;
 }
 
 function normalizeNumber(value, fallback = 0) {
@@ -104,6 +118,22 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAp
   return items;
 }
 
+function hasStatsContent(stats) {
+  return normalizeNumber(stats?.total) > 0
+    || normalizeNumber(stats?.totalSixStar) > 0
+    || normalizeNumber(stats?.counts?.[6]) > 0
+    || normalizeNumber(stats?.counts?.['6_std']) > 0
+    || normalizeNumber(stats?.counts?.[5]) > 0
+    || normalizeNumber(stats?.counts?.[4]) > 0;
+}
+
+function hasResourceContent(resources) {
+  return normalizeNumber(resources?.jadeSpent) > 0
+    || normalizeNumber(resources?.originiteEquivalent) > 0
+    || normalizeNumber(resources?.arsenalGained) > 0
+    || normalizeNumber(resources?.arsenalSpent) > 0;
+}
+
 function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
   if (!overviewSplitStats) {
@@ -114,6 +144,7 @@ function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
     {
       id: 'character',
       label: english ? 'Character Banner Summary' : '角色池汇总',
+      hasData: hasStatsContent(overviewSplitStats.character),
       items: buildSummaryItems({
         stats: overviewSplitStats.character,
         poolType: 'limited',
@@ -124,6 +155,7 @@ function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
     {
       id: 'weapon',
       label: english ? 'Weapon Banner Summary' : '武器池汇总',
+      hasData: hasStatsContent(overviewSplitStats.weapon),
       items: buildSummaryItems({
         stats: overviewSplitStats.weapon,
         poolType: 'weapon',
@@ -131,7 +163,9 @@ function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
         locale
       })
     }
-  ];
+  ]
+    .filter((group) => group.hasData && Array.isArray(group.items) && group.items.length > 0)
+    .map(({ hasData, ...group }) => group);
 }
 
 function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
@@ -144,6 +178,7 @@ function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
     {
       id: 'character',
       label: english ? 'Character Banner Avg' : '角色池平均',
+      hasData: hasStatsContent(overviewSplitStats.character),
       items: buildAverageItems({
         stats: overviewSplitStats.character,
         poolType: 'limited',
@@ -154,6 +189,7 @@ function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
     {
       id: 'weapon',
       label: english ? 'Weapon Banner Avg' : '武器池平均',
+      hasData: hasStatsContent(overviewSplitStats.weapon),
       items: buildAverageItems({
         stats: overviewSplitStats.weapon,
         poolType: 'weapon',
@@ -161,7 +197,9 @@ function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
         locale
       })
     }
-  ];
+  ]
+    .filter((group) => group.hasData && Array.isArray(group.items) && group.items.length > 0)
+    .map(({ hasData, ...group }) => group);
 }
 
 function buildSummaryItems({ stats, poolType, isAllPoolsOverview, locale = getAppLocale() }) {
@@ -296,21 +334,26 @@ function buildSplitResourceGroups(overviewSplitStats, locale = getAppLocale()) {
     {
       id: 'character',
       label: english ? 'Character Banner Resources' : '角色池资源',
+      hasData: hasResourceContent(overviewSplitStats.character?.resourceSummary),
       items: buildResourceItems(overviewSplitStats.character?.resourceSummary, 'limited', locale)
     },
     {
       id: 'weapon',
       label: english ? 'Weapon Banner Resources' : '武器池资源',
+      hasData: hasResourceContent(overviewSplitStats.weapon?.resourceSummary),
       items: buildResourceItems(overviewSplitStats.weapon?.resourceSummary, 'weapon', locale)
     }
-  ].filter((group) => group.items.length > 0);
+  ]
+    .filter((group) => group.hasData && group.items.length > 0)
+    .map(({ hasData, ...group }) => group);
 }
 
-function buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }) {
+function buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }, locale = getAppLocale()) {
   if (!currentPool || isGroupMode || hasMergedAccountView || !analysisPity) {
     return null;
   }
 
+  const english = isEnglishLocale(locale);
   const probabilityInfo = calculateCurrentProbability(
     analysisPity.displayPity6,
     analysisPity.normalizedType
@@ -322,7 +365,9 @@ function buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, anal
     current5: normalizeNumber(analysisPity.displayPity5),
     max5: normalizeNumber(analysisPity.maxPity5),
     probabilityHint: probabilityInfo?.hasSoftPity && probabilityInfo?.isInSoftPity
-      ? `概率提升 ${formatRate((probabilityInfo.probability || 0) * 100)}`
+      ? (english
+        ? `Soft pity ${formatRate((probabilityInfo.probability || 0) * 100)}`
+        : `概率提升 ${formatRate((probabilityInfo.probability || 0) * 100)}`)
       : null,
     inherited6: Boolean(analysisPity.isInherited6),
     inherited5: Boolean(analysisPity.isInherited5)
@@ -339,48 +384,74 @@ export function buildDashboardSharePayload({
   stats = {},
   analysisPity = null,
   sections = [],
-  overviewSplitStats = null
+  overviewSplitStats = null,
+  scopeLabelOverride = null,
+  poolNameOverride = null,
+  poolTypeLabelOverride = null,
+  featuredOverride = null,
+  periodLabelOverride = null,
+  summaryGroupsOverride = null,
+  averageGroupsOverride = null,
+  resourceGroupsOverride = null
 } = {}, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
-  const scopeLabel = isAllPoolsOverview
+  const derivedScopeLabel = isAllPoolsOverview
     ? (english ? 'All Banner Overview' : '全部卡池总览')
     : isGroupMode
       ? (english ? 'Group Overview' : '池组总览')
       : (english ? 'Pool Details' : '卡池详情');
-  const poolName = currentPool
+  const scopeLabel = scopeLabelOverride || derivedScopeLabel;
+  const poolName = poolNameOverride || (currentPool
     ? localizePoolName(currentPool, { locale })
-    : (english ? 'No pool selected' : '未选择卡池');
+    : (english ? 'No pool selected' : '未选择卡池'));
   const overviewFilterLabel = isAllPoolsOverview ? getOverviewFilterLabel(overviewPoolFilter, locale) : null;
-  const periodLabel = sections.length === 1
+  const derivedPeriodLabel = sections.length === 1
     ? sections[0]?.period || (english ? 'Always available' : '长期开放')
     : (english ? `${sections.length} banner stages` : `${sections.length} 个卡池阶段`);
+  const periodLabel = periodLabelOverride || derivedPeriodLabel;
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
+  const summaryGroups = summaryGroupsOverride || (
+    isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitSummaryGroups(overviewSplitStats, locale)
+      : null
+  );
+  const averageGroups = averageGroupsOverride || (
+    isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitAverageGroups(overviewSplitStats, locale)
+      : null
+  );
+  const resourceGroups = resourceGroupsOverride || (
+    isAllPoolsOverview && overviewPoolFilter === 'all'
+      ? buildSplitResourceGroups(overviewSplitStats, locale)
+      : null
+  );
+  const featured = featuredOverride !== null
+    ? featuredOverride
+    : localizePoolFeaturedName(currentPool, { locale })
+      || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || null, {
+        locale,
+        type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+      })
+      || null;
 
   return {
     scopeLabel,
     poolName,
     poolType: normalizedPoolType || 'standard',
-    poolTypeLabel: isAllPoolsOverview && overviewPoolFilter === 'all'
+    poolTypeLabel: poolTypeLabelOverride || (
+      isAllPoolsOverview && overviewPoolFilter === 'all'
       ? (english ? 'Character + Weapon Banners' : '角色池 + 武器池')
-      : getPoolTypeLabel(normalizedPoolType, locale),
+      : getPoolTypeLabel(normalizedPoolType, locale)
+    ),
     overviewFilterLabel,
-    featured: localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || null, {
-      locale,
-      type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
-    }) || null,
+    featured,
     periodLabel,
     totalNodes,
     totalSections: sections.length,
     hasMergedAccountView,
-    summaryGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitSummaryGroups(overviewSplitStats, locale)
-      : null,
-    averageGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitAverageGroups(overviewSplitStats, locale)
-      : null,
-    resourceGroups: isAllPoolsOverview && overviewPoolFilter === 'all'
-      ? buildSplitResourceGroups(overviewSplitStats, locale)
-      : null,
+    summaryGroups,
+    averageGroups,
+    resourceGroups,
     summaryItems: buildSummaryItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview, locale }),
     averageItems: buildAverageItems({ stats, poolType: normalizedPoolType, isAllPoolsOverview, locale }),
     resourceItems: buildResourceItems(
@@ -388,7 +459,7 @@ export function buildDashboardSharePayload({
       isAllPoolsOverview && overviewPoolFilter === 'all' ? 'all' : normalizedPoolType,
       locale
     ),
-    pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }),
+    pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }, locale),
     notes: hasMergedAccountView
       ? getMessage('share.dashboard.noteMerged', {}, locale)
       : getMessage('share.dashboard.noteDesensitized', {}, locale)
@@ -460,7 +531,6 @@ export function buildDashboardShareText(payload, locale = getAppLocale()) {
 
   if (payload.pitySummary) {
     lines.push(getMessage('share.dashboard.currentPity6', { value: `${payload.pitySummary.current6}/${payload.pitySummary.max6}` }, locale));
-    lines.push(getMessage('share.dashboard.currentPity5', { value: `${payload.pitySummary.current5}/${payload.pitySummary.max5}` }, locale));
     if (payload.pitySummary.probabilityHint) {
       lines.push(payload.pitySummary.probabilityHint);
     }
@@ -474,8 +544,21 @@ export function buildDashboardShareText(payload, locale = getAppLocale()) {
   return lines.join('\n');
 }
 
-export function buildDashboardShareCardFileName(payload) {
-  const safeScope = String(payload?.scopeLabel || '卡池分析').replace(/[\\/:*?"<>|]/g, '');
-  const safePoolName = String(payload?.poolName || '分享卡').replace(/[\\/:*?"<>|]/g, '');
-  return `${DASHBOARD_SHARE_FILE_PREFIX}_${safeScope}_${safePoolName}_${formatShareTimestamp()}.png`;
+export function buildDashboardShareCardFileName(payload, locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
+  const prefix = english ? DASHBOARD_SHARE_FILE_PREFIX_EN : DASHBOARD_SHARE_FILE_PREFIX;
+  const safeScope = sanitizeFileNameSegment(
+    payload?.scopeLabel,
+    english ? 'share' : '卡池分析',
+    28,
+    english
+  );
+  const safePoolName = sanitizeFileNameSegment(
+    payload?.poolName,
+    english ? 'banner' : '分享卡',
+    36,
+    english
+  );
+
+  return `${prefix}_${safeScope}_${safePoolName}_${formatShareTimestamp()}.png`;
 }

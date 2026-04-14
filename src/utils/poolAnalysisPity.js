@@ -35,6 +35,57 @@ function calculatePity(history = [], rarityThreshold = 6) {
   return pity;
 }
 
+function getHistorySeq(item) {
+  const value = Number(item?.seqId || item?.seq_id || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function getHistoryTimestamp(item) {
+  if (typeof item?.timestamp === 'number' && Number.isFinite(item.timestamp)) {
+    return item.timestamp;
+  }
+
+  const parsed = new Date(item?.timestamp || item?.gacha_time || item?.created_at || 0).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortHistoryAsc(left, right) {
+  const timeDiff = getHistoryTimestamp(left) - getHistoryTimestamp(right);
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  return getHistorySeq(left) - getHistorySeq(right);
+}
+
+function buildLimitedTerminalPityMap(allLimitedHistory = []) {
+  const terminalMap = new Map();
+  const validLimitedPulls = [...allLimitedHistory]
+    .filter((item) => !isGiftPull(item) && !isFreePull(item))
+    .sort(sortHistoryAsc);
+  let pity6 = 0;
+  let pity5 = 0;
+
+  validLimitedPulls.forEach((item) => {
+    const rarity = Number(item?.rarity) || 0;
+    pity6 = rarity >= 6 ? 0 : pity6 + 1;
+    pity5 = rarity >= 5 ? 0 : pity5 + 1;
+
+    const poolId = getHistoryPoolId(item);
+    if (!poolId) {
+      return;
+    }
+
+    terminalMap.set(poolId, {
+      pity6,
+      pity5,
+      isInherited: false
+    });
+  });
+
+  return terminalMap;
+}
+
 function buildLimitedEffectivePityState(allLimitedHistory = [], currentPoolId = null) {
   const validLimitedPulls = allLimitedHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
 
@@ -103,6 +154,8 @@ export function buildOverviewPoolAnalysisPityMap({
     historyByPoolId.get(poolId).push(item);
   });
 
+  const limitedTerminalPityMap = buildLimitedTerminalPityMap(allLimitedHistory);
+
   return new Map(
     (Array.isArray(pools) ? pools : []).map((pool) => {
       const poolHistory = historyByPoolId.get(pool.id) || [];
@@ -111,15 +164,21 @@ export function buildOverviewPoolAnalysisPityMap({
         currentPity5: calculatePity(poolHistory, 5)
       };
       const normalizedType = normalizePoolType(pool?.type);
+      const terminalLimitedPity = normalizedType === 'limited'
+        ? limitedTerminalPityMap.get(pool.id)
+        : null;
 
       return [
         pool.id,
         getPoolAnalysisPityState(
           pool,
-          stats,
-          normalizedType === 'limited'
-            ? buildLimitedEffectivePityState(allLimitedHistory, pool.id)
-            : null
+          terminalLimitedPity
+            ? {
+              currentPity: terminalLimitedPity.pity6,
+              currentPity5: terminalLimitedPity.pity5
+            }
+            : stats,
+          null
         )
       ];
     })

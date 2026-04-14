@@ -172,6 +172,16 @@ function formatFiveStarAddon(count, locale = getAppLocale()) {
   return isEnglishLocale(locale) ? `, plus ${count} 5★` : `，附带 ${count} 次 5★`;
 }
 
+function buildGiftResultSummary(stageLabel, badges = [], locale = getAppLocale()) {
+  const english = isEnglishLocale(locale);
+  const badgeSummary = formatBadgeSummary(badges, locale);
+  if (badgeSummary) {
+    return english ? `${stageLabel} results: ${badgeSummary}` : `${stageLabel}结果：${badgeSummary}`;
+  }
+
+  return english ? `${stageLabel} results` : `${stageLabel}结果`;
+}
+
 function formatBadgeSummary(badges = [], locale = getAppLocale()) {
   if (!Array.isArray(badges) || badges.length === 0) {
     return '';
@@ -361,20 +371,39 @@ function summarizeGroup(group = []) {
   };
 }
 
+function resolveGiftHighlightStageKind(summary) {
+  if (summary?.upSixStars?.length > 0) {
+    return 'up';
+  }
+
+  if (summary?.hasSixStar) {
+    return 'sixStar';
+  }
+
+  if (summary?.hasFiveStar) {
+    return 'fiveStar';
+  }
+
+  return 'gift';
+}
+
 function buildMilestoneSummary(summary, poolType, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
   if (summary.hasGift) {
     const stageLabel = summary.hasFreePulls
       ? (summary.groupSize >= 10 ? (english ? 'Free Ten Pull' : '免费十连') : (english ? 'Free Node' : '免费节点'))
       : (english ? 'Gift Node' : '赠送节点');
-    const badgeSummary = formatBadgeSummary(summary.dropBadges, locale);
+    const allBadges = createDropBadges(summary.highRarityItems, locale);
+    const sixStarBadges = createDropBadges(summary.sixStars, locale);
+    const highlightStageKind = resolveGiftHighlightStageKind(summary);
     return {
       stageLabel,
-      resultSummary: badgeSummary
-        ? (english ? `${stageLabel} results: ${badgeSummary}` : `${stageLabel}结果：${badgeSummary}`)
-        : (english ? `${stageLabel} results: no 5★ or higher` : `${stageLabel}结果：未出 5★ 及以上`),
+      resultSummary: buildGiftResultSummary(stageLabel, allBadges, locale),
+      resultSummaryWithoutFiveStar: buildGiftResultSummary(stageLabel, sixStarBadges, locale),
       tags: [summary.hasFreePulls ? (english ? 'Free' : '免费') : (english ? 'Gift' : '赠送')],
       stageKind: 'gift',
+      highlightStageKind,
+      highestRarity: Number(summary.primaryHighRarity?.rarity) || 0,
       leadBadge: summary.hasSixStar
         ? createLeadBadge(summary.primarySixStar, '?', locale)
         : createLeadBadge(summary.primaryHighRarity, '?', locale)
@@ -388,13 +417,16 @@ function buildMilestoneSummary(summary, poolType, locale = getAppLocale()) {
     locale
   );
   if (poolType === 'standard') {
+    const resultSummaryWithoutFiveStar = english
+      ? `Pulled 6★ ${formatQuotedLabel(primaryLabel, locale)}${summary.sixStars.length > 1 ? formatRepeatedCount(summary.sixStars.length, locale) : ''}`
+      : `获得 6★${formatQuotedLabel(primaryLabel, locale)}${summary.sixStars.length > 1 ? formatRepeatedCount(summary.sixStars.length, locale) : ''}`;
     return {
       stageLabel: english ? '6★ Milestone' : '6★ 节点',
-      resultSummary: english
-        ? `Pulled 6★ ${formatQuotedLabel(primaryLabel, locale)}${summary.sixStars.length > 1 ? formatRepeatedCount(summary.sixStars.length, locale) : ''}${formatFiveStarAddon(summary.fiveStars.length, locale)}`
-        : `获得 6★${formatQuotedLabel(primaryLabel, locale)}${summary.sixStars.length > 1 ? formatRepeatedCount(summary.sixStars.length, locale) : ''}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummary: `${resultSummaryWithoutFiveStar}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummaryWithoutFiveStar,
       tags: [],
       stageKind: primaryStageKind === 'offLimited' ? 'offLimited' : 'offStandard',
+      highestRarity: 6,
       leadBadge: createLeadBadge(summary.primarySixStar, '?', locale)
     };
   }
@@ -414,31 +446,40 @@ function buildMilestoneSummary(summary, poolType, locale = getAppLocale()) {
     : '';
 
   if (primaryStageKind === 'up') {
+    const resultSummaryWithoutFiveStar = `${english ? 'Hit target 6★' : '命中目标 6★'} ${formatQuotedLabel(primaryLabel, locale)}${summary.upSixStars.length > 1 ? formatRepeatedCount(summary.upSixStars.length, locale) : ''}${secondarySummary}`;
     return {
       stageLabel: english ? 'Hit Node' : '命中节点',
-      resultSummary: `${english ? 'Hit target 6★' : '命中目标 6★'} ${formatQuotedLabel(primaryLabel, locale)}${summary.upSixStars.length > 1 ? formatRepeatedCount(summary.upSixStars.length, locale) : ''}${secondarySummary}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummary: `${resultSummaryWithoutFiveStar}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummaryWithoutFiveStar,
       tags: ['UP'],
       stageKind: 'up',
+      highestRarity: 6,
       leadBadge: createLeadBadge(summary.primarySixStar, '?', locale)
     };
   }
 
   if (primaryStageKind === 'offLimited') {
+    const resultSummaryWithoutFiveStar = `${english ? 'Off-rate to other limited 6★' : '偏移到其他限定'} ${formatQuotedLabel(primaryLabel, locale)}${summary.offLimitedSixStars.length > 1 ? formatRepeatedCount(summary.offLimitedSixStars.length, locale) : ''}${secondarySummary}`;
     return {
       stageLabel: english ? 'Off-rate Node' : '偏移节点',
-      resultSummary: `${english ? 'Off-rate to other limited 6★' : '偏移到其他限定'} ${formatQuotedLabel(primaryLabel, locale)}${summary.offLimitedSixStars.length > 1 ? formatRepeatedCount(summary.offLimitedSixStars.length, locale) : ''}${secondarySummary}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummary: `${resultSummaryWithoutFiveStar}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummaryWithoutFiveStar,
       tags: [english ? 'Off-rate' : '偏移'],
       stageKind: 'offLimited',
+      highestRarity: 6,
       leadBadge: createLeadBadge(summary.primarySixStar, '?', locale)
     };
   }
 
   if (primaryStageKind === 'offStandard') {
+    const resultSummaryWithoutFiveStar = `${english ? 'Off-rate to standard 6★' : '偏移到常驻 6★'} ${formatQuotedLabel(primaryLabel, locale)}${summary.offStandardSixStars.length > 1 ? formatRepeatedCount(summary.offStandardSixStars.length, locale) : ''}${secondarySummary}`;
     return {
       stageLabel: english ? 'Off-rate Node' : '偏移节点',
-      resultSummary: `${english ? 'Off-rate to standard 6★' : '偏移到常驻 6★'} ${formatQuotedLabel(primaryLabel, locale)}${summary.offStandardSixStars.length > 1 ? formatRepeatedCount(summary.offStandardSixStars.length, locale) : ''}${secondarySummary}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummary: `${resultSummaryWithoutFiveStar}${formatFiveStarAddon(summary.fiveStars.length, locale)}`,
+      resultSummaryWithoutFiveStar,
       tags: [english ? 'Off-rate' : '歪'],
       stageKind: 'offStandard',
+      highestRarity: 6,
       leadBadge: createLeadBadge(summary.primarySixStar, '?', locale)
     };
   }
@@ -446,8 +487,10 @@ function buildMilestoneSummary(summary, poolType, locale = getAppLocale()) {
   return {
     stageLabel: english ? 'Stage Node' : '阶段节点',
     resultSummary: english ? 'Stage Node' : '阶段节点',
+    resultSummaryWithoutFiveStar: english ? 'Stage Node' : '阶段节点',
     tags: [],
     stageKind: 'generic',
+    highestRarity: Number(summary.primaryHighRarity?.rarity) || 0,
     leadBadge: createLeadBadge(summary.primaryHighRarity, '?', locale)
   };
 }
@@ -480,6 +523,9 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
     resultSummary: displayPulls > 0
       ? (english ? `Still progressing. No new ${targetLabel} has been triggered yet.` : `当前仍在推进，尚未触发新的 ${targetLabel}`)
       : (english ? 'No new high-rarity milestone has formed in the current stage.' : '当前阶段尚未形成新的高稀有节点'),
+    resultSummaryWithoutFiveStar: displayPulls > 0
+      ? (english ? `Still progressing. No new ${targetLabel} has been triggered yet.` : `当前仍在推进，尚未触发新的 ${targetLabel}`)
+      : (english ? 'No new high-rarity milestone has formed in the current stage.' : '当前阶段尚未形成新的高稀有节点'),
     metaSummary: null,
     tags: [english ? 'Current' : '当前'],
     leadBadge: createLeadBadge(
@@ -487,7 +533,8 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
       localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
       locale
     ),
-    dropBadges: supportBadges
+    dropBadges: supportBadges,
+    highestRarity: supportBadges.some((badge) => Number(badge?.rarity) >= 5) ? 5 : 0
   };
 }
 
@@ -519,6 +566,7 @@ function buildStageEntries({
         pulls: Math.max(group.length, summary.paidCount),
         targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind, summary.groupSize),
         resultSummary: milestone.resultSummary,
+        resultSummaryWithoutFiveStar: milestone.resultSummaryWithoutFiveStar || milestone.resultSummary,
         metaSummary: null,
         tags: milestone.tags,
         leadBadge: milestone.leadBadge || createLeadBadge(
@@ -526,7 +574,9 @@ function buildStageEntries({
           localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
           locale
         ),
-        dropBadges: createDropBadges(summary.highRarityItems, locale)
+        dropBadges: createDropBadges(summary.highRarityItems, locale),
+        highlightStageKind: milestone.highlightStageKind || milestone.stageKind,
+        highestRarity: milestone.highestRarity || Number(summary.primaryHighRarity?.rarity) || 0
       });
       return;
     }
@@ -549,6 +599,7 @@ function buildStageEntries({
       pulls: pendingPaidCount,
       targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind, summary.groupSize),
       resultSummary: milestone.resultSummary,
+      resultSummaryWithoutFiveStar: milestone.resultSummaryWithoutFiveStar || milestone.resultSummary,
       metaSummary: null,
       tags: milestone.tags,
       leadBadge: milestone.leadBadge || createLeadBadge(
@@ -556,7 +607,8 @@ function buildStageEntries({
         localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
         locale
       ),
-      dropBadges: createDropBadges(mergedSupportItems, locale)
+      dropBadges: createDropBadges(mergedSupportItems, locale),
+      highestRarity: milestone.highestRarity || 6
     });
     pendingPaidCount = 0;
     pendingSupportItems = [];

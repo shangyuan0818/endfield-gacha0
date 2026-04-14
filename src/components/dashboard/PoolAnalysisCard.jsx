@@ -6,7 +6,7 @@ import { getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { calculateCurrentProbability } from '../../utils';
 import AveragePullStatsPanel from './AveragePullStatsPanel';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 卡池时间信息组件 - 实时更新 (内部组件)
@@ -22,6 +22,19 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
     return getCurrentUpPoolInfo(poolsArray);
   }, [poolsArray, tick]);
 
+  const currentPoolFeaturedNames = useMemo(() => {
+    const featuredNames = Array.isArray(currentPool?.featured_characters)
+      ? currentPool.featured_characters.filter(Boolean)
+      : [];
+
+    if (featuredNames.length > 0) {
+      return featuredNames;
+    }
+
+    const fallbackName = currentPool?.up_character || currentPool?.upCharacter || currentPool?.name || null;
+    return fallbackName ? [fallbackName] : [];
+  }, [currentPool]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setTick(prev => prev + 1);
@@ -31,7 +44,7 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
 
   // 判断当前查看的卡池是否就是当前 UP 池
   const isCurrentUpPool = currentPool && upPoolInfo && (
-    currentPool.up_character === upPoolInfo.name ||
+    currentPoolFeaturedNames.includes(upPoolInfo.name) ||
     currentPool.name === upPoolInfo.name ||
     (upPoolInfo.poolData && currentPool.id === upPoolInfo.poolData.id)
   );
@@ -47,7 +60,7 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
     const remainingMs = end - now;
     const startsInMs = start - now;
     return {
-      name: currentPool.up_character || currentPool.name,
+      name: currentPoolFeaturedNames[0] || currentPool.name,
       startDate: currentPool.start_time,
       endDate: currentPool.end_time,
       isActive,
@@ -207,7 +220,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
   const localizedPoolName = localizePoolName(currentPool, { locale });
-  const localizedUpCharacter = localizeEntityName(currentPool?.up_character || '', {
+  const localizedUpCharacter = localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || '', {
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });

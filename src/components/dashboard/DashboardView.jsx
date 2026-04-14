@@ -16,6 +16,7 @@ import {
   Download,
   Copy,
   ChevronDown,
+  ChevronRight,
   Loader2,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
@@ -32,7 +33,7 @@ import ShareActionStatus from '../share/ShareActionStatus';
 import { characterCache } from '../../utils/characterUtils';
 import ResourceSummaryPanel from '../resources/ResourceSummaryPanel';
 import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
-import { normalizePoolGroupType } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, normalizePoolGroupType } from '../../utils/poolSelectorDisplay';
 import { buildOverviewPoolAnalysisPityMap, getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { buildDashboardTimelineSections } from '../../utils/dashboardTimelineSections';
 import { buildDashboardOverviewSplitStats } from '../../utils/dashboardOverviewSplitStats';
@@ -47,13 +48,14 @@ import {
   canNativeShareFile,
   copyImageBlobToClipboard,
   downloadShareCard,
+  isFirefoxBrowser,
   renderShareCardToBlob,
   shareImageFile,
 } from '../../utils/simulatorShare';
 import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -86,6 +88,28 @@ function getOverviewPoolBucket(pool) {
   }
 
   return 'standard';
+}
+
+function getHistoryPoolId(item) {
+  return item?.poolId || item?.pool_id || null;
+}
+
+function buildCustomSharePoolName(pools, locale, isEnglish) {
+  const localizedNames = pools
+    .map((pool) => localizePoolName(pool, { locale }))
+    .filter(Boolean);
+
+  if (localizedNames.length === 0) {
+    return isEnglish ? 'No banner selected' : '未选择卡池';
+  }
+
+  if (localizedNames.length <= 2) {
+    return localizedNames.join(' / ');
+  }
+
+  return isEnglish
+    ? `${localizedNames[0]} + ${localizedNames.length - 1} more`
+    : `${localizedNames[0]} 等 ${localizedNames.length} 个卡池`;
 }
 
 /**
@@ -134,6 +158,12 @@ const DashboardView = ({ showToast }) => {
   const { t, formatNumber, isEnglish, locale } = useI18n();
   const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
   const [showShareMenu, setShowShareMenu] = React.useState(false);
+  const [shareMode, setShareMode] = React.useState('current');
+  const [customSharePoolIds, setCustomSharePoolIds] = React.useState([]);
+  const [customShareExpandedGroupIds, setCustomShareExpandedGroupIds] = React.useState([]);
+  const [showTimelineFiveStarDrops, setShowTimelineFiveStarDrops] = React.useState(true);
+  const [clipboardImageWarmState, setClipboardImageWarmState] = React.useState('idle');
+  const [clipboardImageReadyKey, setClipboardImageReadyKey] = React.useState(null);
   const [shareTheme, setShareTheme] = React.useState(() => {
     if (typeof window === 'undefined') {
       return 'light';
@@ -146,6 +176,10 @@ const DashboardView = ({ showToast }) => {
   });
   const shareCardRef = React.useRef(null);
   const shareMenuRef = React.useRef(null);
+  const shareImageCacheRef = React.useRef({
+    full: { key: null, blob: null, promise: null },
+    clipboard: { key: null, blob: null, promise: null },
+  });
   const {
     feedback: shareActionFeedback,
     isBusy: isShareActionBusy,
@@ -159,6 +193,8 @@ const DashboardView = ({ showToast }) => {
     user,
     charViewMode,
     setCharViewMode,
+    poolsArray,
+    accountHistory,
     currentPool,
     currentPoolHistory,
     allLimitedHistory,
@@ -236,6 +272,60 @@ const DashboardView = ({ showToast }) => {
       return item;
     })
   ), []);
+  const customShareRecordCountByPoolId = React.useMemo(() => {
+    const counts = new Map();
+    accountHistory.forEach((item) => {
+      const poolId = getHistoryPoolId(item);
+      if (!poolId) {
+        return;
+      }
+
+      counts.set(poolId, (counts.get(poolId) || 0) + 1);
+    });
+    return counts;
+  }, [accountHistory]);
+  const customShareCandidatePools = React.useMemo(
+    () => poolsArray.filter((pool) => customShareRecordCountByPoolId.has(pool?.id)),
+    [customShareRecordCountByPoolId, poolsArray]
+  );
+  const customShareCandidateIdSet = React.useMemo(
+    () => new Set(customShareCandidatePools.map((pool) => pool.id)),
+    [customShareCandidatePools]
+  );
+  const customSharePoolGroups = React.useMemo(() => {
+    const poolPullCounts = Object.fromEntries(
+      customShareCandidatePools.map((pool) => [pool.id, customShareRecordCountByPoolId.get(pool.id) || 0])
+    );
+
+    return buildPoolSelectorGroups({
+      pools: customShareCandidatePools,
+      poolPullCounts,
+      locale,
+    }).map((group) => ({
+      id: group.groupId,
+      label: group.label,
+      pools: group.pools,
+    }));
+  }, [customShareCandidatePools, customShareRecordCountByPoolId, locale]);
+
+  React.useEffect(() => {
+    setCustomShareExpandedGroupIds((previous) => previous.filter((groupId) => customSharePoolGroups.some((group) => group.id === groupId)));
+  }, [customSharePoolGroups]);
+
+  React.useEffect(() => {
+    setCustomSharePoolIds((previous) => {
+      const validSelection = previous.filter((poolId) => customShareCandidateIdSet.has(poolId));
+      if (validSelection.length > 0) {
+        return validSelection;
+      }
+
+      const fallbackSelection = (isGroupMode ? selectedPools : [currentPool])
+        .map((pool) => pool?.id)
+        .filter((poolId) => customShareCandidateIdSet.has(poolId));
+
+      return [...new Set(fallbackSelection)];
+    });
+  }, [currentPool, customShareCandidateIdSet, isGroupMode, selectedPools]);
 
   const allOverviewFilterPoolIds = React.useMemo(() => {
     if (!isAllPoolsOverview || allOverviewPoolFilter === 'all') {
@@ -305,6 +395,7 @@ const DashboardView = ({ showToast }) => {
         overviewPoolFilter: allOverviewPoolFilter,
         hasMergedAccountView,
         locale,
+        showFiveStarDrops: showTimelineFiveStarDrops,
       }),
     [
       allOverviewPoolFilter,
@@ -318,6 +409,7 @@ const DashboardView = ({ showToast }) => {
       locale,
       normalizedPoolHistory,
       overviewAnalysisPityMap,
+      showTimelineFiveStarDrops,
       selectedPools,
     ]
   );
@@ -331,6 +423,138 @@ const DashboardView = ({ showToast }) => {
       selectedPools,
     });
   }, [allOverviewPoolFilter, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
+  const customShareSelectedPools = React.useMemo(
+    () => customShareCandidatePools.filter((pool) => customSharePoolIds.includes(pool.id)),
+    [customShareCandidatePools, customSharePoolIds]
+  );
+  const customSharePoolIdSet = React.useMemo(
+    () => new Set(customShareSelectedPools.map((pool) => pool.id)),
+    [customShareSelectedPools]
+  );
+  const customShareHistory = React.useMemo(
+    () => accountHistory.filter((item) => customSharePoolIdSet.has(getHistoryPoolId(item))),
+    [accountHistory, customSharePoolIdSet]
+  );
+  const customShareSplitStats = React.useMemo(() => {
+    if (customShareSelectedPools.length === 0) {
+      return null;
+    }
+
+    return buildDashboardOverviewSplitStats({
+      history: customShareHistory,
+      selectedPools: customShareSelectedPools,
+    });
+  }, [customShareHistory, customShareSelectedPools]);
+  const customShareTimelineSections = React.useMemo(() => {
+    if (customShareSelectedPools.length === 0) {
+      return [];
+    }
+
+    return buildDashboardTimelineSections({
+      currentPool: {
+        id: 'custom-share',
+        name: t('dashboard.share.custom.scope'),
+        type: 'all',
+        isGroupMode: true,
+        isAllPoolsOverview: true,
+        up_character: null,
+        locked: true,
+      },
+      currentPoolHistory: customShareHistory,
+      groupedHistory: [],
+      selectedPools: customShareSelectedPools,
+      isGroupMode: true,
+      isAllPoolsOverview: true,
+      effectivePity: null,
+      analysisPity: null,
+      overviewAnalysisPityMap: null,
+      overviewPoolFilter: 'all',
+      hasMergedAccountView,
+      locale,
+      showFiveStarDrops: showTimelineFiveStarDrops,
+    });
+  }, [customShareHistory, customShareSelectedPools, hasMergedAccountView, locale, showTimelineFiveStarDrops, t]);
+  const customShareBucketSet = React.useMemo(
+    () => new Set(customShareSelectedPools.map((pool) => getOverviewPoolBucket(pool))),
+    [customShareSelectedPools]
+  );
+  const customSharePoolTypeLabel = React.useMemo(() => {
+    if (customShareBucketSet.has('weapon') && customShareBucketSet.size > 1) {
+      return isEnglish ? 'Character + Weapon Banners' : '角色池 + 武器池';
+    }
+
+    if (customShareBucketSet.has('weapon')) {
+      return weaponPoolLabel;
+    }
+
+    if (customShareBucketSet.has('limited') && customShareBucketSet.has('standard')) {
+      return isEnglish ? 'Character Banners' : '角色池';
+    }
+
+    if (customShareBucketSet.has('limited')) {
+      return characterPoolLabel;
+    }
+
+    if (customShareBucketSet.has('standard')) {
+      return isEnglish ? 'Standard Banner' : '常驻池';
+    }
+
+    return isEnglish ? 'Custom Selection' : '自选组合';
+  }, [characterPoolLabel, customShareBucketSet, isEnglish, weaponPoolLabel]);
+  const customShareFeatured = React.useMemo(() => {
+    if (customShareSelectedPools.length !== 1) {
+      return null;
+    }
+
+    const pool = customShareSelectedPools[0];
+    return localizePoolFeaturedName(pool, { locale })
+      || localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
+        locale,
+        type: getOverviewPoolBucket(pool) === 'weapon' ? 'weapon' : 'character',
+      })
+      || null;
+  }, [customShareSelectedPools, locale]);
+  const customSharePayload = React.useMemo(() => {
+    if (customShareSelectedPools.length === 0 || !customShareSplitStats) {
+      return null;
+    }
+
+    return buildDashboardSharePayload({
+      currentPool: {
+        id: 'custom-share',
+        name: t('dashboard.share.custom.scope'),
+        type: 'all',
+        isGroupMode: true,
+        isAllPoolsOverview: true,
+        up_character: null,
+      },
+      normalizedPoolType: 'all',
+      isGroupMode: true,
+      isAllPoolsOverview: true,
+      hasMergedAccountView,
+      overviewPoolFilter: 'all',
+      stats: {},
+      analysisPity: null,
+      sections: customShareTimelineSections,
+      overviewSplitStats: customShareSplitStats,
+      scopeLabelOverride: t('dashboard.share.custom.scope'),
+      poolNameOverride: buildCustomSharePoolName(customShareSelectedPools, locale, isEnglish),
+      poolTypeLabelOverride: customSharePoolTypeLabel,
+      featuredOverride: customShareFeatured,
+      showFiveStarDrops: showTimelineFiveStarDrops,
+    }, locale);
+  }, [
+    customShareFeatured,
+    customSharePoolTypeLabel,
+    customShareSelectedPools,
+    customShareSplitStats,
+    customShareTimelineSections,
+    hasMergedAccountView,
+    isEnglish,
+    locale,
+    showTimelineFiveStarDrops,
+    t,
+  ]);
   const dashboardSharePayload = React.useMemo(
     () =>
       buildDashboardSharePayload({
@@ -344,7 +568,8 @@ const DashboardView = ({ showToast }) => {
         analysisPity,
         sections: timelineSections,
         overviewSplitStats: splitOverviewStats,
-      }),
+        showFiveStarDrops: showTimelineFiveStarDrops,
+      }, locale),
     [
       allOverviewPoolFilter,
       analysisPity,
@@ -352,13 +577,30 @@ const DashboardView = ({ showToast }) => {
       hasMergedAccountView,
       isAllPoolsOverview,
       isGroupMode,
+      locale,
       normalizedPoolType,
+      showTimelineFiveStarDrops,
       splitOverviewStats,
       stats,
       timelineSections,
     ]
   );
   const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
+  const hasCustomShareData = customShareSelectedPools.length > 0 && customShareTimelineSections.length > 0;
+  const isCustomShareMode = shareMode === 'custom' && hasCustomShareData;
+  const activeSharePayload = isCustomShareMode ? customSharePayload : dashboardSharePayload;
+  const activeTimelineSections = isCustomShareMode ? customShareTimelineSections : timelineSections;
+  const hasActiveShareData = isCustomShareMode ? hasCustomShareData : hasDashboardShareData;
+  const clipboardImageWarmKey = React.useMemo(() => (
+    hasActiveShareData && activeSharePayload
+      ? JSON.stringify({
+          locale,
+          theme: shareTheme,
+          payload: activeSharePayload,
+        })
+      : null
+  ), [activeSharePayload, hasActiveShareData, locale, shareTheme]);
+  const canOpenShareMenu = hasDashboardShareData || customShareCandidatePools.length > 0;
   const supportsNativeImageShare = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
       return false;
@@ -377,6 +619,26 @@ const DashboardView = ({ showToast }) => {
     }
   }, []);
   const supportsClipboardImageCopy = React.useMemo(() => canCopyImageToClipboard(), []);
+  const isFirefoxClipboardBrowser = React.useMemo(() => isFirefoxBrowser(), []);
+  const isClipboardImageReady = React.useMemo(() => {
+    if (!supportsClipboardImageCopy) {
+      return false;
+    }
+
+    if (!isFirefoxClipboardBrowser) {
+      return true;
+    }
+
+    return clipboardImageReadyKey === clipboardImageWarmKey;
+  }, [clipboardImageReadyKey, clipboardImageWarmKey, isFirefoxClipboardBrowser, supportsClipboardImageCopy]);
+  const copyImageMenuLabel = isFirefoxClipboardBrowser && (clipboardImageWarmState === 'preparing' || !isClipboardImageReady)
+    ? t('dashboard.share.progress.prepareClipboardImage')
+    : t('dashboard.share.copyImage');
+  const shouldMountShareCard = hasActiveShareData && activeSharePayload && (
+    showShareMenu
+    || isShareActionBusy
+    || (supportsClipboardImageCopy && isFirefoxClipboardBrowser)
+  );
 
   React.useEffect(() => {
     if (!showShareMenu) {
@@ -412,7 +674,7 @@ const DashboardView = ({ showToast }) => {
       : t('dashboard.share.trigger.idle');
 
   const handleCopyShareText = React.useCallback(async () => {
-    if (!hasDashboardShareData) {
+    if (!hasActiveShareData || !activeSharePayload) {
       showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
@@ -422,7 +684,7 @@ const DashboardView = ({ showToast }) => {
     }
 
     try {
-      const shareText = buildDashboardShareText(dashboardSharePayload);
+      const shareText = buildDashboardShareText(activeSharePayload, locale);
       const success = await copyToClipboard(shareText);
       const message = success ? t('dashboard.share.copyTextSuccess') : t('dashboard.share.copyTextFailure');
       if (success) {
@@ -436,7 +698,7 @@ const DashboardView = ({ showToast }) => {
       failShareAction('copy-text', message);
       showToast?.(message, 'error');
     }
-  }, [beginShareAction, dashboardSharePayload, failShareAction, finishShareAction, hasDashboardShareData, showToast, t]);
+  }, [activeSharePayload, beginShareAction, failShareAction, finishShareAction, hasActiveShareData, locale, showToast, t]);
 
   const waitForShareCard = React.useCallback(async () => {
     if (shareCardRef.current) return shareCardRef.current;
@@ -444,8 +706,110 @@ const DashboardView = ({ showToast }) => {
     return shareCardRef.current;
   }, []);
 
+  const getActiveShareImageBlob = React.useCallback(async (variant = 'full') => {
+    const cardNode = await waitForShareCard();
+    if (!cardNode) {
+      return null;
+    }
+
+    const cacheKey = JSON.stringify({
+      locale,
+      theme: shareTheme,
+      payload: activeSharePayload,
+    });
+    const cacheBucket = 'full';
+    const cache = shareImageCacheRef.current[cacheBucket];
+
+    if (cache.key === cacheKey && cache.blob) {
+      setClipboardImageReadyKey(cacheKey);
+      return cache.blob;
+    }
+
+    if (cache.key === cacheKey && cache.promise) {
+      return cache.promise;
+    }
+
+    const renderPromise = renderShareCardToBlob(cardNode, {
+      backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
+    })
+      .then((blob) => {
+        shareImageCacheRef.current[cacheBucket] = {
+          key: cacheKey,
+          blob,
+          promise: null,
+        };
+        setClipboardImageReadyKey(cacheKey);
+        return blob;
+      })
+      .catch((error) => {
+        if (shareImageCacheRef.current[cacheBucket].key === cacheKey) {
+          shareImageCacheRef.current[cacheBucket] = {
+            key: null,
+            blob: null,
+            promise: null,
+          };
+        }
+        setClipboardImageReadyKey((previous) => (previous === cacheKey ? null : previous));
+        throw error;
+      });
+
+    shareImageCacheRef.current[cacheBucket] = {
+      key: cacheKey,
+      blob: null,
+      promise: renderPromise,
+    };
+
+    return renderPromise;
+  }, [activeSharePayload, locale, shareTheme, waitForShareCard]);
+
+  const prewarmClipboardShareImage = React.useCallback(() => {
+    if (!supportsClipboardImageCopy || !hasActiveShareData || !activeSharePayload) {
+      return Promise.resolve(null);
+    }
+
+    if (isClipboardImageReady) {
+      setClipboardImageWarmState('ready');
+      return Promise.resolve(shareImageCacheRef.current.full.blob);
+    }
+
+    setClipboardImageWarmState((previous) => (previous === 'ready' ? previous : 'preparing'));
+    return getActiveShareImageBlob('full')
+      .then((blob) => {
+        setClipboardImageWarmState('ready');
+        return blob;
+      })
+      .catch((error) => {
+        setClipboardImageWarmState('idle');
+        throw error;
+      });
+  }, [activeSharePayload, getActiveShareImageBlob, hasActiveShareData, isClipboardImageReady, supportsClipboardImageCopy]);
+
+  React.useEffect(() => {
+    setClipboardImageReadyKey(null);
+    setClipboardImageWarmState('idle');
+  }, [clipboardImageWarmKey]);
+
+  React.useEffect(() => {
+    if (!hasActiveShareData || !activeSharePayload || !supportsClipboardImageCopy) {
+      return;
+    }
+
+    if (!showShareMenu && !isFirefoxClipboardBrowser) {
+      return;
+    }
+
+    prewarmClipboardShareImage().catch(() => {});
+  }, [
+    activeSharePayload,
+    hasActiveShareData,
+    isFirefoxClipboardBrowser,
+    prewarmClipboardShareImage,
+    showShareMenu,
+    supportsClipboardImageCopy,
+  ]);
+
   const handleShareImage = React.useCallback(async () => {
-    if (!hasDashboardShareData) {
+    if (!hasActiveShareData || !activeSharePayload) {
       showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
@@ -463,17 +827,15 @@ const DashboardView = ({ showToast }) => {
     }
 
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
-      });
-      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const blob = await getActiveShareImageBlob('full');
+      const fileName = buildDashboardShareCardFileName(activeSharePayload, locale);
       const file = buildShareFile(blob, fileName);
 
       if (file && supportsNativeImageShare && canNativeShareFile(file)) {
         updateShareAction('share', t('dashboard.share.progress.openSystemShare'));
         await shareImageFile(file, {
-          title: t('share.dashboard.scope', { scope: dashboardSharePayload.scopeLabel }),
-          text: buildDashboardShareText(dashboardSharePayload),
+          title: t('share.dashboard.scope', { scope: activeSharePayload.scopeLabel }),
+          text: buildDashboardShareText(activeSharePayload, locale),
         });
         const message = t('dashboard.share.systemOpened');
         finishShareAction('share', message);
@@ -502,13 +864,14 @@ const DashboardView = ({ showToast }) => {
       showToast?.(message, 'error');
     }
   }, [
+    activeSharePayload,
     beginShareAction,
-    dashboardSharePayload,
     failShareAction,
     finishShareAction,
-    hasDashboardShareData,
+    hasActiveShareData,
     resetShareActionFeedback,
-    shareTheme,
+    getActiveShareImageBlob,
+    locale,
     showToast,
     supportsNativeImageShare,
     t,
@@ -517,7 +880,7 @@ const DashboardView = ({ showToast }) => {
   ]);
 
   const handleDownloadShareImage = React.useCallback(async () => {
-    if (!hasDashboardShareData) {
+    if (!hasActiveShareData || !activeSharePayload) {
       showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
@@ -535,11 +898,9 @@ const DashboardView = ({ showToast }) => {
     }
 
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
-      });
+      const blob = await getActiveShareImageBlob('full');
       updateShareAction('download', t('dashboard.share.progress.saveImage'));
-      const fileName = buildDashboardShareCardFileName(dashboardSharePayload);
+      const fileName = buildDashboardShareCardFileName(activeSharePayload, locale);
       const downloaded = downloadShareCard(blob, fileName);
       const message = downloaded ? t('dashboard.share.downloadSuccess') : t('dashboard.share.downloadFailure');
       if (downloaded) {
@@ -554,12 +915,13 @@ const DashboardView = ({ showToast }) => {
       showToast?.(message, 'error');
     }
   }, [
+    activeSharePayload,
     beginShareAction,
-    dashboardSharePayload,
     failShareAction,
     finishShareAction,
-    hasDashboardShareData,
-    shareTheme,
+    hasActiveShareData,
+    getActiveShareImageBlob,
+    locale,
     showToast,
     t,
     updateShareAction,
@@ -567,7 +929,7 @@ const DashboardView = ({ showToast }) => {
   ]);
 
   const handleCopyShareImage = React.useCallback(async () => {
-    if (!hasDashboardShareData) {
+    if (!hasActiveShareData || !activeSharePayload) {
       showToast?.(t('dashboard.share.noData'), 'warning');
       return;
     }
@@ -591,10 +953,16 @@ const DashboardView = ({ showToast }) => {
       return;
     }
 
+    if (isFirefoxClipboardBrowser && !isClipboardImageReady) {
+      prewarmClipboardShareImage().catch(() => {});
+      const message = t('dashboard.share.copyImagePreparing');
+      failShareAction('copy-image', message);
+      showToast?.(message, 'warning');
+      return;
+    }
+
     try {
-      const blob = await renderShareCardToBlob(cardNode, {
-        backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
-      });
+      const blob = await getActiveShareImageBlob('full');
       updateShareAction('copy-image', t('dashboard.share.progress.writeClipboard'));
       const copied = await copyImageBlobToClipboard(blob);
       const message = copied ? t('dashboard.share.copyImageSuccess') : t('dashboard.share.copyImageFailure');
@@ -610,11 +978,15 @@ const DashboardView = ({ showToast }) => {
       showToast?.(message, 'error');
     }
   }, [
+    activeSharePayload,
     beginShareAction,
     failShareAction,
     finishShareAction,
-    hasDashboardShareData,
-    shareTheme,
+    hasActiveShareData,
+    getActiveShareImageBlob,
+    isClipboardImageReady,
+    isFirefoxClipboardBrowser,
+    prewarmClipboardShareImage,
     showToast,
     supportsClipboardImageCopy,
     t,
@@ -658,7 +1030,7 @@ const DashboardView = ({ showToast }) => {
 
   return (
     <div className="space-y-6">
-      {hasDashboardShareData && (
+      {shouldMountShareCard && (
         <div
           aria-hidden="true"
           style={{
@@ -671,9 +1043,10 @@ const DashboardView = ({ showToast }) => {
         >
           <DashboardShareCard
             ref={shareCardRef}
-            payload={dashboardSharePayload}
-            sections={timelineSections}
+            payload={activeSharePayload}
+            sections={activeTimelineSections}
             theme={shareTheme}
+            showFiveStarDrops={showTimelineFiveStarDrops}
           />
         </div>
       )}
@@ -1224,7 +1597,7 @@ const DashboardView = ({ showToast }) => {
                     </button>
                   </div>
                 )}
-                {hasDashboardShareData && (
+                {canOpenShareMenu && (
                   <div className="relative" ref={shareMenuRef}>
                     <button
                       type="button"
@@ -1246,7 +1619,154 @@ const DashboardView = ({ showToast }) => {
                     </button>
 
                     {showShareMenu && (
-                      <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+                      <div className="absolute right-0 top-full mt-1 w-80 max-h-[70vh] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none shadow-lg z-50">
+                        <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+                          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                            {t('dashboard.share.mode')}
+                          </div>
+                          <div className="mt-2 flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setShareMode('current')}
+                              disabled={isShareActionBusy}
+                              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                                shareMode === 'current'
+                                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                                  : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                              } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
+                            >
+                              {t('dashboard.share.mode.current')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShareMode('custom')}
+                              disabled={isShareActionBusy || customShareCandidatePools.length === 0}
+                              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                                shareMode === 'custom'
+                                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                                  : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                              } ${isShareActionBusy || customShareCandidatePools.length === 0 ? 'cursor-not-allowed opacity-60' : ''}`}
+                            >
+                              {t('dashboard.share.mode.custom')}
+                            </button>
+                          </div>
+                        </div>
+                        {shareMode === 'custom' && (
+                          <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                                  {t('dashboard.share.custom.title')}
+                                </div>
+                                <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-400">
+                                  {t('dashboard.share.custom.description')}
+                                </div>
+                              </div>
+                              <div className="text-[11px] font-mono text-zinc-500">
+                                {t('dashboard.share.custom.selectionCount', { count: customSharePoolIds.length })}
+                              </div>
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={isShareActionBusy || customShareCandidatePools.length === 0}
+                                onClick={() => setCustomSharePoolIds(customShareCandidatePools.map((pool) => pool.id))}
+                                className={`px-2 py-1 text-[11px] border border-zinc-200 dark:border-zinc-700 transition-colors ${
+                                  isShareActionBusy || customShareCandidatePools.length === 0
+                                    ? 'cursor-not-allowed opacity-60'
+                                    : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                                }`}
+                              >
+                                {t('dashboard.share.custom.selectAll')}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isShareActionBusy || customSharePoolIds.length === 0}
+                                onClick={() => setCustomSharePoolIds([])}
+                                className={`px-2 py-1 text-[11px] border border-zinc-200 dark:border-zinc-700 transition-colors ${
+                                  isShareActionBusy || customSharePoolIds.length === 0
+                                    ? 'cursor-not-allowed opacity-60'
+                                    : 'hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                                }`}
+                              >
+                                {t('dashboard.share.custom.clear')}
+                              </button>
+                            </div>
+                            {customShareCandidatePools.length === 0 ? (
+                              <div className="mt-3 text-[11px] text-slate-500 dark:text-zinc-400">
+                                {t('dashboard.share.custom.empty')}
+                              </div>
+                            ) : (
+                              <div className="mt-3 space-y-3">
+                                {customSharePoolGroups.map((group) => (
+                                  <div key={group.id}>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCustomShareExpandedGroupIds((previous) => (
+                                          previous.includes(group.id)
+                                            ? previous.filter((groupId) => groupId !== group.id)
+                                            : [...previous, group.id]
+                                        ));
+                                      }}
+                                      className="flex w-full items-center justify-between text-left"
+                                    >
+                                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                                        {group.label}
+                                      </span>
+                                      <span className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+                                        {group.pools.length}
+                                        {customShareExpandedGroupIds.includes(group.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                      </span>
+                                    </button>
+                                    {customShareExpandedGroupIds.includes(group.id) && (
+                                      <div className="mt-2 space-y-1">
+                                        {group.pools.map((pool) => {
+                                        const checked = customSharePoolIds.includes(pool.id);
+                                        const localizedPoolName = localizePoolName(pool, { locale });
+                                        const recordCount = customShareRecordCountByPoolId.get(pool.id) || 0;
+
+                                        return (
+                                          <label
+                                            key={pool.id}
+                                            className={`flex items-start gap-2 px-2 py-1.5 border transition-colors ${
+                                              checked
+                                                ? 'border-endfield-yellow bg-yellow-50 dark:bg-yellow-500/10'
+                                                : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={checked}
+                                              disabled={isShareActionBusy}
+                                              onChange={() => {
+                                                setCustomSharePoolIds((previous) => (
+                                                  previous.includes(pool.id)
+                                                    ? previous.filter((poolId) => poolId !== pool.id)
+                                                    : [...previous, pool.id]
+                                                ));
+                                              }}
+                                              className="mt-0.5"
+                                            />
+                                            <span className="min-w-0 flex-1">
+                                              <span className="block text-xs text-slate-700 dark:text-zinc-200 truncate">
+                                                {localizedPoolName}
+                                              </span>
+                                              <span className="block text-[11px] text-zinc-500 font-mono">
+                                                {recordCount} {pullUnitLabel}
+                                              </span>
+                                            </span>
+                                          </label>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800">
                           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                             {t('dashboard.share.theme')}
@@ -1281,13 +1801,13 @@ const DashboardView = ({ showToast }) => {
                         {supportsNativeImageShare && (
                           <button
                             type="button"
-                            disabled={isShareActionBusy}
+                            disabled={isShareActionBusy || !hasActiveShareData}
                             onClick={() => {
                               setShowShareMenu(false);
                               void handleShareImage();
                             }}
                             className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
-                              isShareActionBusy
+                              isShareActionBusy || !hasActiveShareData
                                 ? 'cursor-not-allowed opacity-60'
                                 : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
                             }`}
@@ -1298,14 +1818,14 @@ const DashboardView = ({ showToast }) => {
                         )}
                         <button
                           type="button"
-                          disabled={isShareActionBusy}
+                          disabled={isShareActionBusy || !hasActiveShareData}
                           onClick={() => {
                             setShowShareMenu(false);
                             void handleDownloadShareImage();
                           }}
                           className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors flex items-center gap-2 ${
                             supportsNativeImageShare ? 'border-t border-zinc-100 dark:border-zinc-800' : ''
-                          } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
+                          } ${isShareActionBusy || !hasActiveShareData ? 'cursor-not-allowed opacity-60' : 'hover:bg-slate-50 dark:hover:bg-zinc-800'}`}
                         >
                           <Download size={14} />
                           <span>{t('dashboard.share.downloadImage')}</span>
@@ -1313,30 +1833,30 @@ const DashboardView = ({ showToast }) => {
                         {supportsClipboardImageCopy && (
                           <button
                             type="button"
-                            disabled={isShareActionBusy}
+                            disabled={isShareActionBusy || !hasActiveShareData || (isFirefoxClipboardBrowser && !isClipboardImageReady)}
                             onClick={() => {
                               setShowShareMenu(false);
                               void handleCopyShareImage();
                             }}
                             className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
-                              isShareActionBusy
+                              isShareActionBusy || !hasActiveShareData || (isFirefoxClipboardBrowser && !isClipboardImageReady)
                                 ? 'cursor-not-allowed opacity-60'
                                 : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
                             }`}
                           >
                             <Copy size={14} />
-                            <span>{t('dashboard.share.copyImage')}</span>
+                            <span>{copyImageMenuLabel}</span>
                           </button>
                         )}
                         <button
                           type="button"
-                          disabled={isShareActionBusy}
+                          disabled={isShareActionBusy || !hasActiveShareData}
                           onClick={() => {
                             setShowShareMenu(false);
                             void handleCopyShareText();
                           }}
                           className={`w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-zinc-400 transition-colors border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-2 ${
-                            isShareActionBusy
+                            isShareActionBusy || !hasActiveShareData
                               ? 'cursor-not-allowed opacity-60'
                               : 'hover:bg-slate-50 dark:hover:bg-zinc-800'
                           }`}
@@ -1388,13 +1908,15 @@ const DashboardView = ({ showToast }) => {
                 selectedPools={selectedPools}
                 isGroupMode={isGroupMode}
                 isAllPoolsOverview={isAllPoolsOverview}
-                effectivePity={effectivePity}
-                analysisPity={analysisPity}
-                overviewAnalysisPityMap={overviewAnalysisPityMap}
-                overviewPoolFilter={allOverviewPoolFilter}
-                hasMergedAccountView={hasMergedAccountView}
-                embedded={true}
-              />
+              effectivePity={effectivePity}
+              analysisPity={analysisPity}
+              overviewAnalysisPityMap={overviewAnalysisPityMap}
+              overviewPoolFilter={allOverviewPoolFilter}
+              hasMergedAccountView={hasMergedAccountView}
+              embedded={true}
+              showFiveStarDrops={showTimelineFiveStarDrops}
+              onToggleShowFiveStarDrops={setShowTimelineFiveStarDrops}
+            />
             ) : visibleCharacterStats.length === 0 ? (
               <div className="text-center py-8 text-slate-400 dark:text-zinc-600 text-sm">{t('dashboard.empty.noHighRarityRecords')}</div>
             ) : (

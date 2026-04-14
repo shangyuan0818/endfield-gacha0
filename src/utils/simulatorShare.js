@@ -320,6 +320,7 @@ function absolutizeCssUrls(cssText, baseHref = document.baseURI) {
 }
 
 const embeddedCssAssetCache = new Map();
+const documentFontFaceCssCache = new Map();
 
 async function fetchCssAssetAsDataUrl(url) {
   if (!url) {
@@ -388,11 +389,65 @@ async function inlineCssAssetUrls(cssText, baseHref = document.baseURI) {
   return replacements.reduce((result, [from, to]) => result.replace(from, to), cssText);
 }
 
-async function collectDocumentFontFaceCss() {
+function normalizeFontFamilyName(value = '') {
+  return String(value || '').trim().replace(/^['"]|['"]$/g, '');
+}
+
+function extractFontFamilyNames(fontStack = '') {
+  return String(fontStack || '')
+    .split(',')
+    .map((part) => normalizeFontFamilyName(part))
+    .filter(Boolean);
+}
+
+function collectTextCodePoints(text = '') {
+  return Array.from(new Set(Array.from(String(text || '')).map((char) => char.codePointAt(0)).filter(Number.isFinite)));
+}
+
+function parseUnicodeRangeSegment(segment = '') {
+  const match = String(segment || '').trim().match(/^U\+([0-9A-F?]+)(?:-([0-9A-F?]+))?$/i);
+  if (!match) {
+    return null;
+  }
+
+  const [, startRaw, endRaw] = match;
+  if (startRaw.includes('?') || (endRaw && endRaw.includes('?'))) {
+    return null;
+  }
+
+  const start = Number.parseInt(startRaw, 16);
+  const end = Number.parseInt(endRaw || startRaw, 16);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return null;
+  }
+
+  return { start, end };
+}
+
+function unicodeRangeMatchesCodePoints(rangeText = '', codePoints = []) {
+  if (!rangeText || codePoints.length === 0) {
+    return true;
+  }
+
+  const ranges = String(rangeText || '')
+    .split(',')
+    .map(parseUnicodeRangeSegment)
+    .filter(Boolean);
+
+  if (ranges.length === 0) {
+    return true;
+  }
+
+  return codePoints.some((codePoint) => ranges.some((range) => codePoint >= range.start && codePoint <= range.end));
+}
+
+async function collectDocumentFontFaceCss({ familyNames = [], textContent = '' } = {}) {
   if (typeof document === 'undefined' || typeof CSSRule === 'undefined') {
     return '';
   }
 
+  const familyNameSet = new Set(familyNames.map(normalizeFontFamilyName).filter(Boolean));
+  const textCodePoints = collectTextCodePoints(textContent);
   const fontFaceRules = [];
 
   for (const sheet of Array.from(document.styleSheets || [])) {
@@ -406,6 +461,16 @@ async function collectDocumentFontFaceCss() {
     const baseHref = sheet.href || document.baseURI;
     for (const rule of Array.from(cssRules || [])) {
       if (rule?.type === CSSRule.FONT_FACE_RULE) {
+        const familyName = normalizeFontFamilyName(rule.style?.getPropertyValue('font-family'));
+        if (familyNameSet.size > 0 && !familyNameSet.has(familyName)) {
+          continue;
+        }
+
+        const unicodeRange = rule.style?.getPropertyValue('unicode-range') || '';
+        if (!unicodeRangeMatchesCodePoints(unicodeRange, textCodePoints)) {
+          continue;
+        }
+
         const cssText = absolutizeCssUrls(rule.cssText, baseHref);
         fontFaceRules.push(await inlineCssAssetUrls(cssText, baseHref));
       }
@@ -413,6 +478,24 @@ async function collectDocumentFontFaceCss() {
   }
 
   return fontFaceRules.join('\n');
+}
+
+async function collectCachedDocumentFontFaceCss(options = {}) {
+  const cacheKey = JSON.stringify({
+    familyNames: [...new Set((options.familyNames || []).map(normalizeFontFamilyName).filter(Boolean))].sort(),
+    textContent: String(options.textContent || '')
+  });
+  const cached = documentFontFaceCssCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = collectDocumentFontFaceCss(options).catch((error) => {
+    documentFontFaceCssCache.delete(cacheKey);
+    throw error;
+  });
+  documentFontFaceCssCache.set(cacheKey, pending);
+  return pending;
 }
 
 const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==';
@@ -487,7 +570,7 @@ export async function renderShareCardToBlob(node, options = {}) {
     throw new Error('分享卡节点不可用');
   }
 
-  const { width, height } = await measureRenderedShareCard(node, options);
+  const { width, height } = resolveShareCardSize(node, options);
   const clone = node.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   await inlineCloneImages(node, clone);
@@ -498,7 +581,14 @@ export async function renderShareCardToBlob(node, options = {}) {
   clone.style.overflow = 'visible';
 
   const serializedNode = new XMLSerializer().serializeToString(clone);
-  const fontFaceCss = await collectDocumentFontFaceCss();
+  const fontFamilyNames = [
+    ...extractFontFamilyNames(node.style?.getPropertyValue('--share-font-sans')),
+    ...extractFontFamilyNames(node.style?.getPropertyValue('--share-font-mono')),
+  ];
+  const fontFaceCss = await collectCachedDocumentFontFaceCss({
+    familyNames: fontFamilyNames,
+    textContent: node.textContent || ''
+  });
   const svgMarkup = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       ${fontFaceCss ? `<defs><style><![CDATA[${fontFaceCss}]]></style></defs>` : ''}
@@ -609,18 +699,39 @@ export function canCopyImageToClipboard() {
   return Boolean(navigator.clipboard?.write);
 }
 
+export function isFirefoxBrowser() {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  return /firefox\/\d+/i.test(userAgent) && !/seamonkey/i.test(userAgent);
+}
+
 export async function copyImageBlobToClipboard(blob) {
   if (!blob || !canCopyImageToClipboard()) {
     return false;
   }
 
   const mimeType = blob.type || 'image/png';
-  const clipboardItem = new ClipboardItem({
-    [mimeType]: blob
+  const createClipboardItem = () => new ClipboardItem({
+    [mimeType]: Promise.resolve(blob)
   });
 
-  await navigator.clipboard.write([clipboardItem]);
-  return true;
+  try {
+    await navigator.clipboard.write([createClipboardItem()]);
+    return true;
+  } catch (firstError) {
+    // Some browsers fail the first clipboard image write right after the
+    // user gesture / permission handoff, while an immediate second attempt works.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    try {
+      await navigator.clipboard.write([createClipboardItem()]);
+      return true;
+    } catch {
+      throw firstError;
+    }
+  }
 }
 
 export async function shareImageFile(file, options = {}) {

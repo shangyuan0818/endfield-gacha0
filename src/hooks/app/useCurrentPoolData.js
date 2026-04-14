@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_POOL_ID } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import {
@@ -15,6 +15,7 @@ import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { compareHistoryTimelineAsc } from '../../utils/historyTimelineSort.js';
+import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { useI18n } from '../../i18n/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
@@ -56,6 +57,38 @@ function matchesCurrentGameUid(item, currentGameUid) {
   return getHistoryGameUid(item) === currentGameUid;
 }
 
+function normalizePoolType(type) {
+  if (type === 'limited_character') {
+    return 'limited';
+  }
+
+  if (type === 'limited_weapon') {
+    return 'weapon';
+  }
+
+  if (type === 'beginner') {
+    return 'standard';
+  }
+
+  return type;
+}
+
+function getRosterExpectedType(poolType) {
+  return poolType === 'weapon' ? 'weapon' : 'character';
+}
+
+function getRosterPoolType(poolType) {
+  if (poolType === 'weapon') {
+    return 'weapon';
+  }
+
+  if (poolType === 'limited') {
+    return 'limited';
+  }
+
+  return 'standard';
+}
+
 export function useCurrentPoolData() {
   const { locale, t } = useI18n();
   const user = useAuthStore(state => state.user);
@@ -64,8 +97,73 @@ export function useCurrentPoolData() {
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const history = useHistoryStore(state => state.history);
 
-  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
+  const rawPoolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
+  const [poolRosterById, setPoolRosterById] = useState(() => new Map());
   const historyArray = useMemo(() => (Array.isArray(history) ? history : []), [history]);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPoolRosters = async () => {
+      const rosterCandidates = rawPoolsArray.filter((pool) => getPoolId(pool));
+      if (rosterCandidates.length === 0) {
+        if (!cancelled) {
+          setPoolRosterById(new Map());
+        }
+        return;
+      }
+
+      const rosterEntries = await Promise.all(rosterCandidates.map(async (pool) => {
+        const normalizedPoolType = normalizePoolType(pool?.type);
+        const currentUpName = pool?.up_character || pool?.upCharacter || null;
+        const roster = await resolvePoolRosterBuckets({
+          poolId: getPoolId(pool),
+          expectedType: getRosterExpectedType(normalizedPoolType),
+          currentUpName,
+          poolType: getRosterPoolType(normalizedPoolType),
+          poolInfo: pool,
+          mergeStrategy: normalizedPoolType === 'limited' ? 'fill-missing' : 'append',
+        }).catch(() => null);
+
+        const featuredCharacters = Array.isArray(roster?.sixStar) ? roster.sixStar.filter(Boolean) : [];
+        return [
+          getPoolId(pool),
+          featuredCharacters.length > 0
+            ? {
+                featured_characters: featuredCharacters,
+                roster,
+              }
+            : null,
+        ];
+      }));
+
+      if (cancelled) {
+        return;
+      }
+
+      setPoolRosterById(new Map(rosterEntries.filter(([, value]) => Boolean(value))));
+    };
+
+    loadPoolRosters();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rawPoolsArray]);
+
+  const poolsArray = useMemo(() => rawPoolsArray.map((pool) => {
+    const poolId = getPoolId(pool);
+    const rosterMeta = poolId ? poolRosterById.get(poolId) : null;
+    if (!rosterMeta) {
+      return pool;
+    }
+
+    return {
+      ...pool,
+      featured_characters: rosterMeta.featured_characters,
+      resolved_roster: rosterMeta.roster,
+    };
+  }), [poolRosterById, rawPoolsArray]);
+
   const ownedHistoryArray = useMemo(() => {
     if (!user?.id) {
       return [];
@@ -271,8 +369,10 @@ export function useCurrentPoolData() {
 
   return {
     poolsArray,
+    poolRosterById,
     selectedPools,
     historyArray,
+    annotatedAccountHistoryArray,
     currentPool,
     currentPoolHistory,
     normalizedCurrentPoolHistory,

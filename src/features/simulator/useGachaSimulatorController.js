@@ -46,13 +46,42 @@ import {
 import { buildSinglePoolTimelineSection } from '../../utils/poolTimelineView.js';
 import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups } from './simulatorViewUtils';
 import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './simulatorInheritance';
-import { characterCache } from '../../utils/characterUtils';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
-import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
+import { buildDynamicRosterBuckets, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
+
+function dedupeRosterEntries(items = []) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const key = String(item?.name || '').trim();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeSimulatorRoster(resolvedRoster, dynamicRoster) {
+  const resolvedItems = resolvedRoster || {};
+  const fallbackItems = dynamicRoster || {};
+
+  return {
+    up: dedupeRosterEntries([...(resolvedItems.up || []), ...(fallbackItems.up || [])]),
+    offBanner: dedupeRosterEntries([...(resolvedItems.offBanner || []), ...(fallbackItems.offBanner || [])]),
+    fiveStar: dedupeRosterEntries([
+      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 5) : []),
+      ...(fallbackItems.items || []).filter((item) => item.rarity === 5)
+    ]),
+    fourStar: dedupeRosterEntries([
+      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 4) : []),
+      ...(fallbackItems.items || []).filter((item) => item.rarity === 4)
+    ]),
+  };
+}
 
 const getWeaponPoolRules = (pool) =>
   pool?.isLimitedWeapon !== false
@@ -372,61 +401,39 @@ export function useGachaSimulatorController() {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
       const upCharName = currentSimPool.up_character;
       const realPoolId = currentSimPool.id.replace(/^sim_/, '');
-      const roster = await fetchPoolRosterBuckets(realPoolId, {
-        expectedType,
-        currentUpName: upCharName
-      });
-
-      if (roster) {
-        if (!cancelled) {
-          setPoolCharactersList({
-            up: roster.up,
-            offBanner: roster.offBanner,
-            fiveStar: roster.items.filter((item) => item.rarity === 5),
-            fourStar: roster.items.filter((item) => item.rarity === 4),
-          });
-        }
-        return;
-      }
-
-      appLogger.info('[GachaSimulator] pool_characters 查询失败或为空，使用 characters 表后备');
-      const lists = {
-        up: [],
-        offBanner: [],
-        fiveStar: [],
-        fourStar: [],
+      const poolType = currentPoolType === 'weapon'
+        ? 'weapon'
+        : currentPoolType === 'standard'
+          ? 'standard'
+          : 'limited';
+      const poolInfo = {
+        start_time: currentSimPool?.start_time || null,
+        rotation_position: currentSimPool?.rotation_position ?? currentSimPool?.rotationPosition ?? null
       };
+      const roster = await resolvePoolRosterBuckets({
+        poolId: realPoolId,
+        expectedType,
+        currentUpName: upCharName,
+        poolType,
+        poolInfo
+      });
+      const dynamicRoster = buildDynamicRosterBuckets({
+        expectedType,
+        currentUpName: upCharName,
+        poolType,
+        poolInfo
+      });
+      const mergedRoster = mergeSimulatorRoster(roster, dynamicRoster);
 
-      const allCharacters = characterCache.getAll({ type: expectedType });
-      if (!Array.isArray(allCharacters) || allCharacters.length === 0) {
-        appLogger.error('加载角色列表失败: public character cache unavailable');
+      if (mergedRoster.up.length > 0 || mergedRoster.offBanner.length > 0 || mergedRoster.fiveStar.length > 0 || mergedRoster.fourStar.length > 0) {
         if (!cancelled) {
-          setPoolCharactersList(null);
+          setPoolCharactersList(mergedRoster);
         }
         return;
       }
-
-      const poolTypeKey = currentPoolType === 'weapon' ? 'weapon' : 'limited';
-      allCharacters.forEach((character) => {
-        const pools = character.pool_config?.pools || [];
-        if (!pools.includes(poolTypeKey) && !pools.includes('standard')) {
-          return;
-        }
-
-        const isActuallyUp = upCharName && character.name === upCharName;
-        if (isActuallyUp) {
-          lists.up.push(character);
-        } else if (character.rarity === 6) {
-          lists.offBanner.push(character);
-        } else if (character.rarity === 5) {
-          lists.fiveStar.push(character);
-        } else if (character.rarity === 4) {
-          lists.fourStar.push(character);
-        }
-      });
-
+      appLogger.warn('[GachaSimulator] 当前卡池阵容未能解析，回退为空列表');
       if (!cancelled) {
-        setPoolCharactersList(lists);
+        setPoolCharactersList(null);
       }
     };
 
