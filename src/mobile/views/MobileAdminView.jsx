@@ -1,6 +1,13 @@
 import React from 'react';
 import { Shield, Users, FileText, Database, AlertTriangle, Bot } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
+import {
+  MobileGlassPanel,
+  MobilePage,
+  MobileSectionTitle,
+  MobileStatusBadge,
+  MobileStickyHeader
+} from '../components/ux/MobilePrimitives.jsx';
 
 /**
  * 移动端管理面板（简化版只读）
@@ -12,13 +19,13 @@ function MobileAdminView() {
 
   if (!isSuperAdmin) {
     return (
-      <div className="px-4 py-8">
-        <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-6 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <AlertTriangle className="text-red-500" size={20} />
-            <h3 className="text-red-700 dark:text-red-400 font-bold uppercase tracking-wider">拒绝访问</h3>
+      <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark px-4 pb-6 space-y-4">
+        <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm rounded-xl p-5 border-rose-500/30 bg-rose-500/10 p-6">
+          <div className="mb-2 flex items-center gap-3">
+            <AlertTriangle className="text-rose-400" size={20} />
+            <h3 className="font-bold uppercase tracking-wider text-rose-300">拒绝访问</h3>
           </div>
-          <p className="text-red-600 dark:text-red-300 text-xs font-mono">
+          <p className="font-mono text-xs text-rose-200/80">
             权限不足。需要超级管理员权限。
           </p>
         </div>
@@ -34,53 +41,54 @@ function MobileAdminView() {
   ];
 
   return (
-    <div className="px-4 py-4 space-y-6">
-      {/* 标题 */}
-      <div className="bg-zinc-900 text-white p-4 border-l-4 border-endfield-yellow shadow-md">
-        <div className="flex items-center gap-2 mb-1">
-          <Shield className="w-5 h-5 text-endfield-yellow" />
-          <h1 className="text-lg font-bold uppercase tracking-wide">
-            管理控制台
-          </h1>
-        </div>
-        <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest pl-7">
-          受限访问区域
-        </p>
-      </div>
+    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark px-4 pb-6 space-y-4">
+      <MobileStickyHeader
+        eyebrow="SYSTEM"
+        icon={Shield}
+        title="管理控制台"
+        subtitle="受限访问区域"
+        actions={<MobileStatusBadge tone="danger">SUPER ADMIN</MobileStatusBadge>}
+      />
 
-      {/* 提示 */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30 p-3 border-l-2 border-l-amber-500">
-        <p className="text-xs text-amber-700 dark:text-amber-400 font-mono uppercase">
+      <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm rounded-xl p-5 border-amber-400/20 bg-amber-500/10">
+        <p className="text-xs font-mono uppercase text-amber-300">
           [只读] 移动终端访问受限。请使用桌面接口进行完整管理控制。
         </p>
       </div>
 
-      {/* 模块列表 */}
-      <div className="space-y-3">
+      <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm rounded-xl p-4 space-y-4">
+        <MobileSectionTitle
+          title="模块总览"
+          subtitle="当前只提供只读入口与状态确认。"
+          icon={Shield}
+        />
+
+        <div className="space-y-3">
         {adminModules.map((module) => {
           const Icon = module.icon;
           return (
             <div
               key={module.id}
-              className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between group hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors"
+              className="group flex items-center justify-between rounded-[1rem] border border-white/10 bg-white/[0.04] p-4 transition-colors hover:border-white/15"
             >
               <div className="flex items-center gap-4">
-                <div className="p-2 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 group-hover:bg-endfield-yellow group-hover:border-endfield-yellow group-hover:text-black transition-colors">
-                  <Icon className="w-5 h-5 text-zinc-600 dark:text-zinc-400 group-hover:text-black" />
+                <div className="border border-white/10 bg-white/[0.05] p-2 transition-colors group-hover:border-endfield-yellow/40 group-hover:bg-endfield-yellow/10">
+                  <Icon className="h-5 w-5 text-zinc-400 group-hover:text-endfield-yellow" />
                 </div>
                 <div>
-                  <span className="block font-bold text-zinc-900 dark:text-zinc-100 uppercase text-sm tracking-wide">
+                  <span className="block text-sm font-bold uppercase tracking-wide text-zinc-100">
                     {module.label}
                   </span>
-                  <span className="text-[10px] text-zinc-500 font-mono uppercase">
+                  <span className="font-mono text-[10px] uppercase text-zinc-500">
                     {module.desc}
                   </span>
                 </div>
               </div>
-              <div className="h-1.5 w-1.5 bg-zinc-300 dark:bg-zinc-700 group-hover:bg-endfield-yellow transition-colors" />
+              <div className="h-1.5 w-1.5 rounded-full bg-zinc-700 transition-colors group-hover:bg-endfield-yellow" />
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

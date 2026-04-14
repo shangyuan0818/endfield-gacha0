@@ -8,6 +8,10 @@ export default {
   theme: {
     extend: {
       colors: {
+        'ef-light': '#f4f4f5',
+        'ef-light-card': '#ffffff',
+        'ef-dark': '#0a0a0a',
+        'ef-card': '#141414',
         endfield: {
           yellow: '#FFFA00', // Updated to match official site
           dark: '#0A0A0A',   // Deep black/gray

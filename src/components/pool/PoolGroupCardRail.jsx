@@ -170,17 +170,17 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
       )}
 
       <div className={`text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
-        {pool.name}
+        {pool.displayName || pool.name}
       </div>
 
-      {pool.up_character && (
+      {(pool.displayUpCharacter || pool.up_character) && (
         <div className="text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
-          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {pool.up_character}
+          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {pool.displayUpCharacter || pool.up_character}
           {isActive && remainingLabel ? <span className="font-semibold text-amber-700 dark:text-endfield-yellow"> · {remainingLabel}</span> : null}
         </div>
       )}
 
-      {!pool.up_character && isActive && remainingLabel && (
+      {!(pool.displayUpCharacter || pool.up_character) && isActive && remainingLabel && (
         <div className="text-xs font-semibold text-amber-700 dark:text-endfield-yellow truncate mb-1 font-mono">{remainingLabel}</div>
       )}
 

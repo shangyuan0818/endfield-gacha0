@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Star,
   Calculator,
@@ -11,33 +10,25 @@ import {
   Code,
   Sparkles,
   ExternalLink,
-  Bot,
-  ChevronLeft
+  Bot
 } from 'lucide-react';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
-import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
+import { MobileSectionTitle, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 
-function MobileAboutSectionHeader({ title, icon }) {
-  const IconComponent = icon;
-
+function MobileAboutSection({ title, icon, children }) {
   return (
-    <div className="px-4 py-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
-      <IconComponent size={14} className="text-zinc-500" />
-      <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
+    <div className="mobile-ux-card p-4 space-y-4">
+      <MobileSectionTitle title={title} icon={icon} />
+      <div>{children}</div>
     </div>
   );
 }
 
-/**
- * 移动端关于页面 - 工业风重构版 (中文)
- * 站点配置从 useSiteConfigStore 读取（管理面板可编辑）
- */
 function MobileAboutView() {
-  const navigate = useNavigate();
   const { t } = useI18n();
-  const config = useSiteConfigStore(state => state.config);
+  const config = useSiteConfigStore((state) => state.config);
 
   const siteVersion = config.site_version || APP_VERSION_LABEL;
   const buildInfo = config.build_info || 'Build 2026.02';
@@ -58,191 +49,168 @@ function MobileAboutView() {
   ];
 
   return (
-    <div className="px-4 py-4 space-y-4">
-      {/* 返回按钮 */}
-      <button
-        onClick={() => navigate(getMobilePathForTab('home'))}
-        className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 touch-feedback -ml-1 hover:text-endfield-yellow transition-colors"
-      >
-        <ChevronLeft size={16} />
-        <span className="text-xs font-bold uppercase tracking-wide">{t('about.backToConsole')}</span>
-      </button>
+    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark px-4 pb-6 space-y-4">
+      <MobileStickyHeader
+        eyebrow="SYSTEM"
+        icon={BarChart3}
+        title={t('app.brand')}
+        subtitle={t('about.mobileSubtitle')}
+      />
 
-      {/* 页面标题 */}
-      <div className="bg-zinc-900 text-white p-6 relative overflow-hidden border-l-4 border-endfield-yellow shadow-md group">
+      <div className="mobile-ux-card p-5 relative overflow-hidden border-l-4 border-l-endfield-yellow bg-[radial-gradient(circle_at_top_right,rgba(255,250,0,0.14),transparent_38%),linear-gradient(160deg,rgba(255,255,255,0.75),rgba(244,244,245,0.85))] dark:bg-[radial-gradient(circle_at_top_right,rgba(255,250,0,0.14),transparent_38%),linear-gradient(160deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]">
         <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.05)_50%,transparent_75%,transparent_100%)] bg-[length:250%_250%,100%_100%] animate-shine-slow pointer-events-none" />
         <div className="relative z-10">
-          <h1 className="text-lg font-black tracking-tight flex items-center gap-2 mb-2 uppercase">
+            <h1 className="mb-2 flex items-center gap-2 text-lg font-black tracking-tight uppercase text-slate-900 dark:text-zinc-100">
             <BarChart3 size={20} className="text-endfield-yellow" />
             {t('app.brand')}
           </h1>
-          <p className="text-zinc-500 text-[10px] tracking-[0.2em] uppercase font-mono">{t('about.mobileSubtitle')}</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">{t('about.mobileSubtitle')}</p>
           <div className="mt-4 flex items-center gap-3">
-            <span className="bg-zinc-800 px-2 py-0.5 text-[10px] font-mono border border-zinc-700 text-endfield-yellow">{siteVersion}</span>
-            <span className="text-zinc-600 text-[10px] font-mono uppercase">{buildInfo}</span>
+            <span className="mobile-ux-card-chip px-2 py-0.5 font-mono text-[10px] text-endfield-yellow dark:border-zinc-700 dark:bg-zinc-800">{siteVersion}</span>
+            <span className="font-mono text-[10px] uppercase text-slate-500 dark:text-zinc-600">{buildInfo}</span>
           </div>
         </div>
       </div>
 
-      {/* 作者信息 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <MobileAboutSectionHeader title={t('about.teamSection')} icon={Heart} />
-        <div className="p-4">
-          {/* 主要作者 */}
-          {authorName && (
-            <div className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700 mb-4 transition-colors hover:border-zinc-300 dark:hover:border-zinc-600">
-              <div className="relative">
-                <div className="w-14 h-14 bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center overflow-hidden border border-zinc-300 dark:border-zinc-600 rounded-none">
-                  <img
-                    src="/avatar.png"
-                    alt={authorName}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border border-white dark:border-zinc-900"></div>
+      <MobileAboutSection title={t('about.teamSection')} icon={Heart}>
+        {authorName && (
+          <div className="mb-4 flex items-center gap-4 rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 p-4 transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/15">
+            <div className="relative">
+              <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[1rem] border border-zinc-300 bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-700">
+                <img
+                  src="/avatar.png"
+                  alt={authorName}
+                  className="h-full w-full object-cover"
+                  loading="lazy"
+                />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <h4 className="font-bold text-zinc-800 dark:text-zinc-100 uppercase text-sm">{authorName}</h4>
-                  <span className="px-1.5 py-0.5 bg-zinc-200 dark:bg-zinc-700 text-[9px] text-zinc-600 dark:text-zinc-300 uppercase tracking-wider font-bold">{t('about.leadBadge')}</span>
-                </div>
-                <p className="text-[10px] text-zinc-500 dark:text-zinc-400 mb-2 font-mono uppercase">{t('about.leadDesc')}</p>
-                {authorBilibili && (
-                  <a
-                    href={authorBilibili}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-1.5 bg-pink-50 dark:bg-pink-900/10 border border-pink-100 dark:border-pink-900/30 text-pink-600 dark:text-pink-400 text-[10px] font-bold touch-feedback uppercase tracking-wider hover:bg-pink-100 dark:hover:bg-pink-900/20 transition-colors"
-                  >
-                    Bilibili
-                  </a>
-                )}
-              </div>
+              <div className="absolute -bottom-1 -right-1 h-3 w-3 border border-white bg-green-500 dark:border-zinc-900" />
             </div>
-          )}
-
-          {/* AI 助手 */}
-          <div className="border-t border-zinc-100 dark:border-zinc-800 pt-4">
-            <p className="text-[10px] font-bold text-zinc-400 mb-3 flex items-center gap-2 uppercase tracking-wider font-mono">
-              <Bot size={12} />
-              {t('about.aiSection')}
-            </p>
-            <div className="space-y-3">
-              {/* Claude */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-[#D97757] flex items-center justify-center text-white shrink-0 border border-[#D97757] rounded-none">
-                    <span className="font-bold font-serif italic text-xs">Cl</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Claude</h5>
-                      <span className="text-[9px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-1.5 py-0.5 font-mono font-bold">OPUS</span>
-                    </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.claudeFocus')}</p>
-                  </div>
-                </div>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <h4 className="text-sm font-bold uppercase text-slate-900 dark:text-zinc-100">{authorName}</h4>
+                <span className="bg-zinc-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 rounded-[0.8rem]">{t('about.leadBadge')}</span>
               </div>
+              <p className="mb-2 font-mono text-[10px] uppercase text-slate-500 dark:text-zinc-400">{t('about.leadDesc')}</p>
+              {authorBilibili && (
+                <a
+                  href={authorBilibili}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full border border-pink-900/30 bg-pink-900/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-pink-400 transition-colors hover:bg-pink-900/20"
+                >
+                  Bilibili
+                </a>
+              )}
+            </div>
+          </div>
+        )}
 
-              {/* Gemini */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-[#1A73E8] flex items-center justify-center text-white shrink-0 border border-[#1A73E8] rounded-none">
-                    <span className="font-bold font-sans text-xs">Ge</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Gemini</h5>
-                      <span className="text-[9px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 font-mono font-bold">1.5 PRO</span>
-                    </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.geminiFocus')}</p>
-                  </div>
+        <div className="border-t border-zinc-200 pt-4 dark:border-white/8">
+          <p className="mb-3 flex items-center gap-2 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+            <Bot size={12} />
+            {t('about.aiSection')}
+          </p>
+          <div className="space-y-3">
+            <div className="rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.9rem] border border-[#D97757] bg-[#D97757] text-white">
+                  <span className="font-serif text-xs font-bold italic">Cl</span>
                 </div>
-              </div>
-
-              {/* Codex */}
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 bg-black dark:bg-white flex items-center justify-center text-white dark:text-black shrink-0 border border-zinc-800 dark:border-zinc-200 rounded-none">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M7.5 8.5 4.5 12l3 3.5" />
-                      <path d="M16.5 8.5 19.5 12l-3 3.5" />
-                      <path d="M13.5 6 10.5 18" />
-                    </svg>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h5 className="text-xs font-bold uppercase text-slate-800 dark:text-zinc-200">Claude</h5>
+                    <span className="bg-orange-900/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-orange-400">OPUS</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h5 className="font-bold text-zinc-800 dark:text-zinc-200 text-xs uppercase">Codex</h5>
-                      <span className="text-[9px] bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-200 px-1.5 py-0.5 font-mono font-bold">GPT-5</span>
-                    </div>
-                    <p className="text-[9px] text-zinc-400 mt-1 uppercase tracking-wide">{t('about.ai.codexFocus')}</p>
-                  </div>
+                  <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500 dark:text-zinc-400">{t('about.ai.claudeFocus')}</p>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* 功能特性 */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <MobileAboutSectionHeader title={t('about.featuresSection')} icon={Sparkles} />
-        <div className="p-4">
-          <div className="grid grid-cols-2 gap-3">
-            {features.map((feature, idx) => (
-              <div key={idx} className="p-3 bg-zinc-50 dark:bg-zinc-800/30 border border-zinc-200 dark:border-zinc-700 group hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
-                <feature.Icon size={16} className="text-zinc-400 mb-2 group-hover:text-endfield-yellow transition-colors" />
-                <h4 className="font-bold text-zinc-700 dark:text-zinc-300 text-[10px] mb-0.5 uppercase tracking-wide">{feature.label}</h4>
-                <p className="text-[9px] text-zinc-500 font-mono">{feature.desc}</p>
+            <div className="rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.9rem] border border-[#1A73E8] bg-[#1A73E8] text-white">
+                  <span className="font-sans text-xs font-bold">Ge</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h5 className="text-xs font-bold uppercase text-slate-800 dark:text-zinc-200">Gemini</h5>
+                    <span className="bg-blue-900/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-blue-400">1.5 PRO</span>
+                  </div>
+                  <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500 dark:text-zinc-400">{t('about.ai.geminiFocus')}</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      {/* 开源项目 */}
-      {githubUrl && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-          <MobileAboutSectionHeader title={t('about.openSourceSection')} icon={Code} />
-          <div className="p-4">
-            <div className="flex items-center justify-between p-4 bg-zinc-900 text-white border border-zinc-700">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white flex items-center justify-center text-black shrink-0 rounded-none">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            <div className="rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[0.9rem] border border-zinc-200 bg-white text-black dark:border-zinc-800 dark:bg-black dark:text-white">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7.5 8.5 4.5 12l3 3.5" />
+                    <path d="M16.5 8.5 19.5 12l-3 3.5" />
+                    <path d="M13.5 6 10.5 18" />
                   </svg>
                 </div>
-                <div className="min-w-0">
-                  <h4 className="font-bold text-xs tracking-tight uppercase">{githubUrl.replace('https://github.com/', '')}</h4>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h5 className="text-xs font-bold uppercase text-slate-800 dark:text-zinc-200">Codex</h5>
+                    <span className="bg-zinc-700 px-1.5 py-0.5 font-mono text-[9px] font-bold text-zinc-200">GPT-5</span>
+                  </div>
+                  <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500 dark:text-zinc-400">{t('about.ai.codexFocus')}</p>
                 </div>
               </div>
-              <a
-                href={githubUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 bg-white text-black text-[10px] font-bold uppercase tracking-wider touch-feedback shrink-0 hover:bg-zinc-200 transition-colors"
-              >
-                {t('about.openSourceView')}
-                <ExternalLink size={10} />
-              </a>
             </div>
           </div>
         </div>
+      </MobileAboutSection>
+
+      <MobileAboutSection title={t('about.featuresSection')} icon={Sparkles}>
+        <div className="grid grid-cols-2 gap-3">
+          {features.map((feature, idx) => (
+            <div key={idx} className="rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 p-3 transition-colors hover:border-zinc-300 dark:border-white/10 dark:bg-white/[0.04] dark:hover:border-white/15">
+              <feature.Icon size={16} className="mb-2 text-slate-500 transition-colors hover:text-endfield-yellow dark:text-zinc-400" />
+              <h4 className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-700 dark:text-zinc-300">{feature.label}</h4>
+              <p className="font-mono text-[9px] text-slate-500 dark:text-zinc-500">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </MobileAboutSection>
+
+      {githubUrl && (
+        <MobileAboutSection title={t('about.openSourceSection')} icon={Code}>
+          <div className="mobile-ux-card-inset flex items-center justify-between p-4 text-slate-900 dark:text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[0.9rem] bg-white text-black">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold uppercase tracking-tight">{githubUrl.replace('https://github.com/', '')}</h4>
+              </div>
+            </div>
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black transition-colors hover:bg-zinc-200"
+            >
+              {t('about.openSourceView')}
+              <ExternalLink size={10} />
+            </a>
+          </div>
+        </MobileAboutSection>
       )}
 
-      {/* 免责声明 */}
-      <div className="text-center py-4 border-t border-zinc-200 dark:border-zinc-800">
-        <p className="text-[9px] text-zinc-400 dark:text-zinc-600 uppercase tracking-widest font-mono">
-          {t('about.disclaimer')}
-        </p>
-        <div className="mt-2 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
+      <div className="mobile-ux-card p-4 text-center">
+        <p className="font-mono text-[9px] uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('about.disclaimer')}</p>
+        <div className="mt-2 flex items-center justify-center gap-2 font-mono text-[9px] text-zinc-500">
           <a href="/privacy" className="underline">{t('about.privacyPolicy')}</a>
           <span>|</span>
           <a href="/terms" className="underline">{t('about.terms')}</a>
         </div>
         {(icpNumber || policeNumber) && (
-          <div className="mt-1 flex items-center justify-center gap-2 text-[9px] text-zinc-400 dark:text-zinc-600 font-mono">
+          <div className="mt-1 flex items-center justify-center gap-2 font-mono text-[9px] text-zinc-500">
             {icpNumber && (
               <a href={icpUrl} target="_blank" rel="noopener noreferrer">{icpNumber}</a>
             )}
@@ -254,7 +222,6 @@ function MobileAboutView() {
         )}
       </div>
 
-      {/* 底部留白 */}
       <div className="h-4" />
     </div>
   );

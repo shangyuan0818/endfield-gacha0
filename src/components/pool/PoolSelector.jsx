@@ -12,9 +12,11 @@ import {
   getFreshnessTone,
   getLatestHistoryTimestampMs
 } from '../../utils/dataFreshness.js';
+import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { isPoolGroupId } from '../../stores/usePoolStore';
 import { getDesktopPathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
+import { localizePoolName } from '../../utils/gameDataI18n.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -182,7 +184,7 @@ const PoolSelector = () => {
   }, [currentPoolId, currentViewLatestRecordAt, filteredHistory]);
 
   const currentPoolFreshnessLabel = currentPool
-    ? t('pool.selector.currentBanner', { name: currentPool.name })
+    ? t('pool.selector.currentBanner', { name: localizePoolName(currentPool, { locale }) })
     : t('pool.selector.currentFilter');
 
   const totalPart = visiblePools !== totalPools ? `/${formatNumber(totalPools)}` : '';
@@ -301,7 +303,7 @@ const PoolSelector = () => {
                       </div>
                       <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
                         {t('settings.lastImport', {
-                          value: formatFreshnessRelative(account.lastImportedAt, t('common.timeUnknown'), locale)
+                          value: formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.timeUnknown'), locale)
                         })}
                       </div>
                     </button>
@@ -320,14 +322,14 @@ const PoolSelector = () => {
             <div className="hidden md:flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-800 pr-3">
               {(currentAccount || gameAccounts.length > 1) && (
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(currentAccount?.lastImportedAt))}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}
                   title={currentAccount
-                    ? `${currentAccount.nickName} · ${t('pool.selector.meta.imported', { value: formatFreshnessAbsolute(currentAccount.lastImportedAt, null, locale, { includeYear: false }) })}`
+                    ? `${currentAccount.nickName} · ${t('pool.selector.meta.imported', { value: formatFreshnessAbsolute(getAccountLastImportTimestamp(currentAccount), null, locale, { includeYear: false }) })}`
                     : t('pool.selector.switchAccountHint')}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${!currentAccount ? 'bg-zinc-400' : getFreshnessTone(currentAccount.lastImportedAt) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(currentAccount.lastImportedAt) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${!currentAccount ? 'bg-zinc-400' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
                   <span className="hidden xl:inline font-bold tracking-widest uppercase">{t('pool.selector.accountStatus', 'ACCOUNT')}:</span>
-                  <span>{currentAccount ? formatFreshnessRelative(currentAccount.lastImportedAt, t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}</span>
+                  <span>{currentAccount ? formatFreshnessRelative(getAccountLastImportTimestamp(currentAccount), t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}</span>
                 </div>
               )}
               {currentPoolLatestRecordAt && (

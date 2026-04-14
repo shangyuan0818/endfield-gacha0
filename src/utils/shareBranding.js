@@ -20,6 +20,30 @@ const qrDataUrlCache = new Map();
 const GF_EXP = new Uint8Array(512);
 const GF_LOG = new Uint8Array(256);
 
+function resolveShareFontStack(cssVariableName, fallback) {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return fallback;
+  }
+
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(cssVariableName).trim();
+  return value || fallback;
+}
+
+export function getResolvedShareFontSans() {
+  return resolveShareFontStack('--font-sans', SHARE_FONT_SANS);
+}
+
+export function getResolvedShareFontMono() {
+  return resolveShareFontStack('--font-mono', SHARE_FONT_MONO);
+}
+
+export function getResolvedShareFontVariables() {
+  return {
+    '--share-font-sans': getResolvedShareFontSans(),
+    '--share-font-mono': getResolvedShareFontMono()
+  };
+}
+
 let current = 1;
 for (let i = 0; i < 255; i++) {
   GF_EXP[i] = current;

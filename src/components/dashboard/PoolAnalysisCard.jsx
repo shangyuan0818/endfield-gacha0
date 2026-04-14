@@ -6,6 +6,7 @@ import { getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { calculateCurrentProbability } from '../../utils';
 import AveragePullStatsPanel from './AveragePullStatsPanel';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 卡池时间信息组件 - 实时更新 (内部组件)
@@ -201,10 +202,15 @@ const WeaponGifts = ({ stats, t }) => {
  * 卡池分析卡片 (Dashboard Version)
  */
 const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFirstN, hasReceivedFreeTen, hasMergedAccountView = false }) => {
-  const { t, formatDateTime } = useI18n();
+  const { t, formatDateTime, locale } = useI18n();
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
+  const localizedPoolName = localizePoolName(currentPool, { locale });
+  const localizedUpCharacter = localizeEntityName(currentPool?.up_character || '', {
+    locale,
+    type: isWeapon ? 'weapon' : 'character'
+  });
   const pityState = getPoolAnalysisPityState(currentPool, stats, effectivePity);
   const currentProbabilityInfo = useMemo(() => {
     if (currentPool?.isGroupMode || hasMergedAccountView) {
@@ -248,10 +254,10 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {analysisTitle}
            </h3>
            {/* UP角色显示 */}
-           {currentPool.up_character && (
+           {localizedUpCharacter && (
              <div className="text-right">
                 <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">{t('dashboard.pool.upCharacter')}</div>
-                <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{currentPool.up_character}</div>
+                <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{localizedUpCharacter}</div>
              </div>
            )}
         </div>
@@ -259,7 +265,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
         <div className="mt-2">
            <div className="flex items-center gap-2">
              <span className="text-xs text-slate-500 dark:text-zinc-400 uppercase font-medium">{t('dashboard.analysis.currentPool')}</span>
-             <span className={`text-xs font-bold ${accentColor} uppercase`}>{currentPool.name}</span>
+             <span className={`text-xs font-bold ${accentColor} uppercase`}>{localizedPoolName}</span>
            </div>
            
            {/* 时间信息只在限定池显示 */}

@@ -10,7 +10,7 @@ import {
   Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { getCurrentUpPoolInfo, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import { getCurrentUpPoolInfo, getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import CountdownTimer from './CountdownTimer';
 import SpringPreviewCard from './SpringPreviewCard';
@@ -32,6 +32,7 @@ import {
 } from '../../utils';
 import { useAppStore, useAuthStore } from '../../stores';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityName } from '../../utils/gameDataI18n.js';
 
 const HomePage = React.memo(() => {
   const { t, isEnglish } = useI18n();
@@ -53,46 +54,34 @@ const HomePage = React.memo(() => {
   const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray, now), [poolsArray, now]);
 
   const countdowns = useMemo(() => {
-    const sortedPools = [...poolSchedule].sort((left, right) => new Date(left.startDate) - new Date(right.startDate));
+    let main = getLimitedPoolCountdownState(poolSchedule, now);
 
-    let activeIndex = sortedPools.findIndex((pool) => now >= new Date(pool.startDate) && now < new Date(pool.endDate));
-    if (activeIndex === -1) {
-      activeIndex = sortedPools.findIndex((pool) => now < new Date(pool.startDate));
+    if (main) {
+      const localizedBannerName = localizeEntityName(main.name, {
+        locale: isEnglish ? 'en-US' : 'zh-CN',
+        type: 'character'
+      }) || main.name;
+      main = {
+        ...main,
+        title: main.isActive
+          ? t('home.poolEndingCountdown', { name: localizedBannerName })
+          : t('home.poolStartingCountdown', { name: localizedBannerName }),
+        subTitle: main.isActive
+          ? t('home.poolEndingSubtitle', { name: localizedBannerName })
+          : t('home.poolStartingSubtitle', { name: localizedBannerName })
+      };
     }
 
-    const getPoolData = (index) => {
-      if (index < 0 || index >= sortedPools.length) return null;
-
-      const pool = sortedPools[index];
-      const start = new Date(pool.startDate);
-      const end = new Date(pool.endDate);
-      const isActive = now >= start && now < end;
-
-        return {
-          ...pool,
-          targetDate: isActive ? pool.endDate : pool.startDate,
-          title: isActive
-            ? t('home.poolEndingCountdown', { name: pool.name })
-            : t('home.poolStartingCountdown', { name: pool.name }),
-          subTitle: isActive
-            ? t('home.poolEndingSubtitle', { name: pool.name })
-            : t('home.poolStartingSubtitle', { name: pool.name }),
-          isActive
-        };
+    if (!main) {
+      main = {
+        targetDate: '2026-04-17T12:00:00+08:00',
+        title: t('home.nextVersionCountdown'),
+        subTitle: t('home.nextVersionWaiting')
       };
-
-    let main = activeIndex !== -1 ? getPoolData(activeIndex) : null;
-
-      if (!main) {
-        main = {
-          targetDate: '2026-04-15T12:00:00+08:00',
-          title: t('home.nextVersionCountdown'),
-          subTitle: t('home.nextVersionWaiting')
-        };
-      }
+    }
 
     return { main };
-  }, [poolSchedule, now, t]);
+  }, [isEnglish, now, poolSchedule, t]);
 
   const initialCollapseState = getHomeCollapseState();
   const latestAnnouncement = announcements[0];
@@ -358,7 +347,7 @@ const HomePage = React.memo(() => {
             <SpringPreviewCard />
             <div className="shrink-0 min-h-32">
               <CountdownTimer
-                targetDate="2026-04-15T12:00:00+08:00"
+                targetDate="2026-04-17T12:00:00+08:00"
                 title={t('home.nextVersionCountdown')}
                 subTitle={t('home.nextVersionRelease')}
                 customEndedContent={<span>{t('home.versionLaunched')}</span>}

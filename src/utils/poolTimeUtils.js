@@ -15,6 +15,62 @@ function normalizeRotationLimit(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizePoolDateValue(value) {
+  if (!value) {
+    return new Date(NaN);
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return new Date(value < 1e12 ? value * 1000 : value);
+  }
+
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return new Date(numeric < 1e12 ? numeric * 1000 : numeric);
+  }
+
+  return new Date(value);
+}
+
+function isValidDate(date) {
+  return date instanceof Date && !Number.isNaN(date.getTime());
+}
+
+function normalizeReferenceDate(referenceDate) {
+  const parsedDate = normalizePoolDateValue(referenceDate);
+  return isValidDate(parsedDate) ? parsedDate : new Date();
+}
+
+function getPoolStartDate(pool) {
+  return normalizePoolDateValue(pool?.start_time || pool?.startDate);
+}
+
+function getPoolEndDate(pool) {
+  return normalizePoolDateValue(pool?.end_time || pool?.endDate);
+}
+
+function getPoolCharacterName(pool) {
+  return pool?.up_character || pool?.upCharacter || pool?.name || null;
+}
+
+function getPoolBackgroundImage(pool) {
+  const directImage = pool?.banner_url || pool?.bannerUrl || pool?.poolData?.banner_url || pool?.poolData?.bannerUrl;
+  if (directImage) {
+    return directImage;
+  }
+
+  const characterName = getPoolCharacterName(pool);
+  if (!characterName || !characterCache.isLoaded()) {
+    return null;
+  }
+
+  return characterCache.searchByName(characterName, false)?.avatar_url || null;
+}
+
 function getCharacterRotationMeta(characterName) {
   if (!characterName || !characterCache.isLoaded()) {
     return null;
@@ -33,9 +89,17 @@ function getCharacterRotationMeta(characterName) {
   };
 }
 
-function normalizeReferenceDate(referenceDate) {
-  const parsedDate = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
-  return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
+function isTimedLimitedPool(pool) {
+  const type = pool?.type;
+  if (type !== 'limited' && type !== 'limited_character') {
+    return false;
+  }
+
+  return isValidDate(getPoolStartDate(pool)) && isValidDate(getPoolEndDate(pool));
+}
+
+function sortPoolsByStartTimeAsc(left, right) {
+  return getPoolStartDate(left).getTime() - getPoolStartDate(right).getTime();
 }
 
 /**
@@ -46,80 +110,64 @@ function normalizeReferenceDate(referenceDate) {
 export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) => {
   if (!pools || pools.length === 0) return null;
 
-  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
-
-  // 筛选限定角色池，且有时间范围的
-  const limitedPools = pools.filter(pool => {
-    const isLimited = pool.type === 'limited' || pool.type === 'limited_character';
-    return isLimited && pool.start_time && pool.end_time;
-  });
+  const now = normalizeReferenceDate(referenceDate);
+  const limitedPools = pools.filter(isTimedLimitedPool);
 
   if (limitedPools.length === 0) return null;
 
-  // 按 start_time 排序（最新的在前）
-  const sortedPools = [...limitedPools].sort((a, b) => {
-    return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-  });
+  const sortedPools = [...limitedPools].sort((a, b) => getPoolStartDate(b).getTime() - getPoolStartDate(a).getTime());
 
   const getRotationPosition = (targetPool) => {
-    const targetStart = new Date(targetPool.start_time).getTime();
+    const targetStart = getPoolStartDate(targetPool).getTime();
     if (Number.isNaN(targetStart)) {
       return 0;
     }
 
-    return limitedPools.filter(pool => {
-      const poolStart = new Date(pool.start_time).getTime();
+    return limitedPools.filter((pool) => {
+      const poolStart = getPoolStartDate(pool).getTime();
       return !Number.isNaN(poolStart) && poolStart < targetStart;
     }).length;
   };
 
-  // 查找当前活跃的卡池
   for (const pool of sortedPools) {
-    const start = new Date(pool.start_time);
-    const end = new Date(pool.end_time);
+    const start = getPoolStartDate(pool);
+    const end = getPoolEndDate(pool);
 
     if (now >= start && now < end) {
-      // 找到下一个卡池
       const currentIndex = sortedPools.indexOf(pool);
-      const nextPool = sortedPools[currentIndex - 1]; // 因为是倒序，所以下一个在前面
-
-      // 计算剩余时间
+      const nextPool = sortedPools[currentIndex - 1];
       const remainingMs = end - now;
       const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
       const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
 
       return {
-        name: pool.up_character || pool.name,
-        startDate: pool.start_time,
-        endDate: pool.end_time,
+        name: getPoolCharacterName(pool),
+        startDate: pool.start_time || pool.startDate,
+        endDate: pool.end_time || pool.endDate,
         rotationPosition: getRotationPosition(pool),
         startDateObj: start,
         endDateObj: end,
-        nextPool: nextPool ? (nextPool.up_character || nextPool.name) : '待公布',
+        nextPool: nextPool ? getPoolCharacterName(nextPool) : '待公布',
         isActive: true,
         remainingDays,
         remainingHours,
-        poolData: pool, // 保留完整的 pool 对象
+        backgroundImage: getPoolBackgroundImage(pool),
+        poolData: pool,
       };
     }
   }
 
-  // 如果当前时间在所有卡池之前，返回最早的未开始卡池
-  const futurePools = sortedPools.filter(pool => now < new Date(pool.start_time));
+  const futurePools = sortedPools.filter((pool) => now < getPoolStartDate(pool));
   if (futurePools.length > 0) {
-    // 按 start_time 正序排序，找到最早的
-    const earliestPool = futurePools.sort((a, b) => {
-      return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-    })[0];
-
-    const start = new Date(earliestPool.start_time);
-    const end = new Date(earliestPool.end_time);
+    const earliestPool = futurePools.sort(sortPoolsByStartTimeAsc)[0];
+    const start = getPoolStartDate(earliestPool);
+    const end = getPoolEndDate(earliestPool);
     const startsInMs = start - now;
 
     return {
-      name: earliestPool.up_character || earliestPool.name,
-      startDate: earliestPool.start_time,
-      endDate: earliestPool.end_time,
+      name: getPoolCharacterName(earliestPool),
+      startDate: earliestPool.start_time || earliestPool.startDate,
+      endDate: earliestPool.end_time || earliestPool.endDate,
       rotationPosition: getRotationPosition(earliestPool),
       startDateObj: start,
       endDateObj: end,
@@ -127,26 +175,27 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
       isActive: false,
       startsIn: Math.floor(startsInMs / (1000 * 60 * 60 * 24)),
       startsInHours: Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      backgroundImage: getPoolBackgroundImage(earliestPool),
       poolData: earliestPool,
     };
   }
 
-  // 所有卡池都已结束，返回最后一个
   if (sortedPools.length > 0) {
-    const lastPool = sortedPools[0]; // 倒序排序，第一个就是最新的
-    const start = new Date(lastPool.start_time);
-    const end = new Date(lastPool.end_time);
+    const lastPool = sortedPools[0];
+    const start = getPoolStartDate(lastPool);
+    const end = getPoolEndDate(lastPool);
 
     return {
-      name: lastPool.up_character || lastPool.name,
-      startDate: lastPool.start_time,
-      endDate: lastPool.end_time,
+      name: getPoolCharacterName(lastPool),
+      startDate: lastPool.start_time || lastPool.startDate,
+      endDate: lastPool.end_time || lastPool.endDate,
       rotationPosition: getRotationPosition(lastPool),
       startDateObj: start,
       endDateObj: end,
       nextPool: '待公布',
       isActive: false,
       isExpired: true,
+      backgroundImage: getPoolBackgroundImage(lastPool),
       poolData: lastPool,
     };
   }
@@ -162,34 +211,30 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
 export const getLimitedPoolScheduleFromDB = (pools) => {
   if (!pools || pools.length === 0) return [];
 
-  // 筛选限定角色池，且有时间范围的
-  const limitedPools = pools.filter(pool => {
-    const isLimited = pool.type === 'limited' || pool.type === 'limited_character';
-    return isLimited && pool.start_time && pool.end_time;
-  });
-
+  const limitedPools = pools.filter(isTimedLimitedPool);
   if (limitedPools.length === 0) return [];
 
-  // 按 start_time 正序排序（最早的在前）
-  const sortedPools = [...limitedPools].sort((a, b) => {
-    return new Date(a.start_time).getTime() - new Date(b.start_time).getTime();
-  });
+  const sortedPools = [...limitedPools].sort(sortPoolsByStartTimeAsc);
 
   const removesAfterMap = {};
-  for (const s of LIMITED_POOL_SCHEDULE) {
-    if (s.removesAfter) removesAfterMap[s.name.trim()] = s.removesAfter;
+  for (const scheduleItem of LIMITED_POOL_SCHEDULE) {
+    if (scheduleItem.removesAfter) {
+      removesAfterMap[scheduleItem.name.trim()] = scheduleItem.removesAfter;
+    }
   }
 
   return sortedPools.map((pool, index) => {
-    const charName = (pool.up_character || pool.name || '').trim();
+    const charName = (getPoolCharacterName(pool) || '').trim();
     const rotationMeta = getCharacterRotationMeta(charName);
+
     return {
       name: charName,
-      startDate: pool.start_time,
-      endDate: pool.end_time,
+      startDate: pool.start_time || pool.startDate,
+      endDate: pool.end_time || pool.endDate,
       rotationPosition: index,
       removesAfter: pool.removesAfter || rotationMeta?.removesAfter || removesAfterMap[charName] || null,
       rotationCount: rotationMeta?.rotationCount || 0,
+      backgroundImage: getPoolBackgroundImage(pool),
       poolData: pool,
     };
   });
@@ -203,9 +248,9 @@ export const getLimitedPoolRotationBaseCount = (pools, referenceDate = new Date(
 
   const reference = normalizeReferenceDate(referenceDate);
 
-  return schedule.filter(pool => {
-    const start = new Date(pool.startDate);
-    return !Number.isNaN(start.getTime()) && start < reference;
+  return schedule.filter((pool) => {
+    const start = normalizePoolDateValue(pool.startDate);
+    return isValidDate(start) && start < reference;
   }).length;
 };
 
@@ -215,15 +260,13 @@ export const getLimitedPoolRotationBaseCount = (pools, referenceDate = new Date(
  * @returns {Object} 当前 UP 池信息
  */
 export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
-  // 优先从数据库获取
   const dbPool = getCurrentLimitedPoolFromDB(pools, referenceDate);
   if (dbPool) return dbPool;
 
-  // Fallback 到硬编码
-  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const now = normalizeReferenceDate(referenceDate);
   for (const pool of LIMITED_POOL_SCHEDULE) {
-    const start = new Date(pool.startDate);
-    const end = new Date(pool.endDate);
+    const start = normalizePoolDateValue(pool.startDate);
+    const end = normalizePoolDateValue(pool.endDate);
 
     if (now >= start && now < end) {
       const index = LIMITED_POOL_SCHEDULE.indexOf(pool);
@@ -241,15 +284,15 @@ export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
         isActive: true,
         remainingDays,
         remainingHours,
+        backgroundImage: getPoolBackgroundImage(pool),
       };
     }
   }
 
-  // 如果当前时间在所有卡池之前
   const firstPool = LIMITED_POOL_SCHEDULE[0];
-  const firstStart = new Date(firstPool.startDate);
+  const firstStart = normalizePoolDateValue(firstPool.startDate);
   if (now < firstStart) {
-    const firstEnd = new Date(firstPool.endDate);
+    const firstEnd = normalizePoolDateValue(firstPool.endDate);
     const startsInMs = firstStart - now;
     return {
       ...firstPool,
@@ -260,13 +303,13 @@ export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
       isActive: false,
       startsIn: Math.floor(startsInMs / (1000 * 60 * 60 * 24)),
       startsInHours: Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      backgroundImage: getPoolBackgroundImage(firstPool),
     };
   }
 
-  // 所有卡池都已结束
   const lastPool = LIMITED_POOL_SCHEDULE[LIMITED_POOL_SCHEDULE.length - 1];
-  const lastStart = new Date(lastPool.startDate);
-  const lastEnd = new Date(lastPool.endDate);
+  const lastStart = normalizePoolDateValue(lastPool.startDate);
+  const lastEnd = normalizePoolDateValue(lastPool.endDate);
   return {
     ...lastPool,
     rotationPosition: LIMITED_POOL_SCHEDULE.length - 1,
@@ -275,6 +318,7 @@ export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
     nextPool: '待公布',
     isActive: false,
     isExpired: true,
+    backgroundImage: getPoolBackgroundImage(lastPool),
   };
 };
 
@@ -284,15 +328,53 @@ export const getCurrentUpPoolInfo = (pools, referenceDate = new Date()) => {
  * @returns {Array} 限定池轮换计划数组
  */
 export const getLimitedPoolSchedule = (pools) => {
-  // 优先从数据库获取
   const dbSchedule = getLimitedPoolScheduleFromDB(pools);
   if (dbSchedule.length > 0) return dbSchedule;
 
-  // Fallback 到硬编码
   return LIMITED_POOL_SCHEDULE.map((pool, index) => ({
     ...pool,
     rotationPosition: index,
+    backgroundImage: getPoolBackgroundImage(pool),
   }));
+};
+
+export const getLimitedPoolCountdownState = (schedule, referenceDate = new Date()) => {
+  const now = normalizeReferenceDate(referenceDate);
+  const sortedPools = [...(Array.isArray(schedule) ? schedule : [])]
+    .filter((pool) => isValidDate(normalizePoolDateValue(pool?.startDate)) && isValidDate(normalizePoolDateValue(pool?.endDate)))
+    .sort((left, right) => normalizePoolDateValue(left.startDate).getTime() - normalizePoolDateValue(right.startDate).getTime());
+
+  let activeIndex = sortedPools.findIndex((pool) => {
+    const start = normalizePoolDateValue(pool.startDate);
+    const end = normalizePoolDateValue(pool.endDate);
+    return now >= start && now < end;
+  });
+
+  if (activeIndex === -1) {
+    activeIndex = sortedPools.findIndex((pool) => now < normalizePoolDateValue(pool.startDate));
+  }
+
+  if (activeIndex === -1) {
+    return null;
+  }
+
+  const pool = sortedPools[activeIndex];
+  const start = normalizePoolDateValue(pool.startDate);
+  const end = normalizePoolDateValue(pool.endDate);
+  const isActive = now >= start && now < end;
+  const target = isActive ? end : start;
+  const diff = Math.max(0, target.getTime() - now.getTime());
+
+  return {
+    ...pool,
+    active: isActive,
+    isActive,
+    targetDate: isActive ? pool.endDate : pool.startDate,
+    days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+    minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+    backgroundImage: pool.backgroundImage || getPoolBackgroundImage(pool),
+  };
 };
 
 export const getCurrentUpPoolName = (pools, referenceDate = new Date()) => {

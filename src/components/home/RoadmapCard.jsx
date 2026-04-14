@@ -24,7 +24,7 @@ const STATUS_CONFIG = {
   planned: { bg: 'bg-zinc-300 dark:bg-zinc-600', text: 'text-zinc-400 dark:text-zinc-500', border: 'border-zinc-200 dark:border-zinc-700', cardBg: 'bg-zinc-50 dark:bg-zinc-800/50' },
 };
 
-const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
+const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interactive = true }) {
   const { t } = useI18n();
   const ROADMAP_ITEMS = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS);
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
@@ -41,6 +41,7 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
     title: tt(`home.roadmap.item.${item.id}.title`, item.title),
     description: tt(`home.roadmap.item.${item.id}.description`, item.description),
   }));
+  const HeaderTag = interactive ? 'button' : 'div';
 
   // Auto scroll to first non-completed item when opened
   useEffect(() => {
@@ -62,9 +63,10 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
 
       {/* Header Button */}
-      <button
-        onClick={onToggle}
-        className="w-full relative px-5 py-4 flex items-center justify-between gap-4 bg-white/80 dark:bg-[#111]/80 backdrop-blur-md hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors text-left border-b border-zinc-100 dark:border-zinc-800/50"
+      <HeaderTag
+        type={interactive ? 'button' : undefined}
+        onClick={interactive ? onToggle : undefined}
+        className={`w-full relative px-5 py-4 flex items-center justify-between gap-4 bg-white/80 dark:bg-[#111]/80 backdrop-blur-md text-left border-b border-zinc-100 dark:border-zinc-800/50 ${interactive ? 'cursor-pointer transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900' : ''}`}
       >
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-lg shadow-lg shadow-indigo-500/20">
@@ -77,7 +79,7 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
             <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">{tt('home.roadmap.subtitle', 'Development Roadmap')}</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-4">
           <a
             href="https://github.com/MoguJunn/endfield-gacha/issues"
@@ -89,14 +91,16 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle }) {
             <Github size={14} />
             <span>{tt('home.roadmap.feedback', 'Feedback')}</span>
           </a>
-          <div className={`p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`}>
-            <ChevronUp size={16} />
-          </div>
+          {interactive ? (
+            <div className={`p-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`}>
+              <ChevronUp size={16} />
+            </div>
+          ) : null}
         </div>
-      </button>
+      </HeaderTag>
 
       {/* Content Area */}
-      <CollapsibleContent isOpen={isOpen}>
+      <CollapsibleContent isOpen={interactive ? isOpen : true}>
         <div className="relative pt-8 pb-10">
           {/* Continuous Horizontal Line */}
           <div className="absolute top-[52px] left-0 right-0 h-1 bg-zinc-100 dark:bg-zinc-800/50 z-0"></div>

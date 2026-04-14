@@ -6,6 +6,7 @@ import {
 } from './shareBranding.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
+import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
 
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
 const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
@@ -146,8 +147,13 @@ export function buildSimulatorSharePayload({
   return {
     poolType,
     poolTypeLabel: getPoolTypeLabel(poolType, locale),
-    poolName: currentPoolObj?.name || (isEnglishLocale(locale) ? 'No pool selected' : '未选择卡池'),
-    upCharacter: currentPoolObj?.up_character || null,
+    poolName: currentPoolObj
+      ? localizePoolName(currentPoolObj, { locale, poolType: poolType, upCharacter: currentPoolObj?.up_character })
+      : (isEnglishLocale(locale) ? 'No pool selected' : '未选择卡池'),
+    upCharacter: localizeEntityName(currentPoolObj?.up_character || null, {
+      locale,
+      type: poolType === 'weapon' ? 'weapon' : 'character'
+    }) || null,
     totalPulls,
     sixStarCount,
     sixStarRate,
@@ -298,6 +304,117 @@ function blobToDataUrl(blob) {
   });
 }
 
+function absolutizeCssUrls(cssText, baseHref = document.baseURI) {
+  return cssText.replace(/url\((['"]?)([^'")]+)\1\)/g, (match, quote, rawUrl) => {
+    const trimmedUrl = String(rawUrl || '').trim();
+    if (!trimmedUrl || /^(data:|blob:|https?:|#)/i.test(trimmedUrl)) {
+      return match;
+    }
+
+    try {
+      return `url("${new URL(trimmedUrl, baseHref).href}")`;
+    } catch {
+      return match;
+    }
+  });
+}
+
+const embeddedCssAssetCache = new Map();
+
+async function fetchCssAssetAsDataUrl(url) {
+  if (!url) {
+    return '';
+  }
+
+  const cached = embeddedCssAssetCache.get(url);
+  if (cached) {
+    return cached;
+  }
+
+  const pending = (async () => {
+    const response = await fetch(url, {
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'force-cache'
+    });
+
+    if (!response.ok) {
+      throw new Error(`${response.status}`);
+    }
+
+    const blob = await response.blob();
+    return blobToDataUrl(blob);
+  })();
+
+  embeddedCssAssetCache.set(url, pending);
+
+  try {
+    const dataUrl = await pending;
+    embeddedCssAssetCache.set(url, dataUrl);
+    return dataUrl;
+  } catch (error) {
+    embeddedCssAssetCache.delete(url);
+    throw error;
+  }
+}
+
+async function inlineCssAssetUrls(cssText, baseHref = document.baseURI) {
+  const matches = Array.from(cssText.matchAll(/url\((['"]?)([^'")]+)\1\)/g));
+  if (matches.length === 0) {
+    return cssText;
+  }
+
+  const replacements = await Promise.all(matches.map(async ([match, , rawUrl]) => {
+    const trimmedUrl = String(rawUrl || '').trim();
+    if (!trimmedUrl || /^(data:|blob:|#)/i.test(trimmedUrl)) {
+      return [match, match];
+    }
+
+    let absoluteUrl;
+    try {
+      absoluteUrl = new URL(trimmedUrl, baseHref).href;
+    } catch {
+      return [match, match];
+    }
+
+    try {
+      const dataUrl = await fetchCssAssetAsDataUrl(absoluteUrl);
+      return [match, `url("${dataUrl}")`];
+    } catch {
+      return [match, `url("${absoluteUrl}")`];
+    }
+  }));
+
+  return replacements.reduce((result, [from, to]) => result.replace(from, to), cssText);
+}
+
+async function collectDocumentFontFaceCss() {
+  if (typeof document === 'undefined' || typeof CSSRule === 'undefined') {
+    return '';
+  }
+
+  const fontFaceRules = [];
+
+  for (const sheet of Array.from(document.styleSheets || [])) {
+    let cssRules;
+    try {
+      cssRules = sheet.cssRules;
+    } catch {
+      continue;
+    }
+
+    const baseHref = sheet.href || document.baseURI;
+    for (const rule of Array.from(cssRules || [])) {
+      if (rule?.type === CSSRule.FONT_FACE_RULE) {
+        const cssText = absolutizeCssUrls(rule.cssText, baseHref);
+        fontFaceRules.push(await inlineCssAssetUrls(cssText, baseHref));
+      }
+    }
+  }
+
+  return fontFaceRules.join('\n');
+}
+
 const TRANSPARENT_PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualzQAAAABJRU5ErkJggg==';
 const embeddedImageCache = new Map();
 
@@ -381,8 +498,10 @@ export async function renderShareCardToBlob(node, options = {}) {
   clone.style.overflow = 'visible';
 
   const serializedNode = new XMLSerializer().serializeToString(clone);
+  const fontFaceCss = await collectDocumentFontFaceCss();
   const svgMarkup = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      ${fontFaceCss ? `<defs><style><![CDATA[${fontFaceCss}]]></style></defs>` : ''}
       <foreignObject width="100%" height="100%">${serializedNode}</foreignObject>
     </svg>
   `;

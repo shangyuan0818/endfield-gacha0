@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { Star, Trash2, ChevronDown, User } from 'lucide-react';
 import { characterCache } from '../utils/characterUtils';
+import { useI18n } from '../i18n/index.js';
+import { localizeHistoryItemName } from '../utils/gameDataI18n.js';
 
 const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { locale } = useI18n();
+  const entityType = poolType === 'weapon' ? 'weapon' : 'character';
 
   // 统计该组信息
   const counts = { 6: 0, 5: 0, 4: 0 };
@@ -124,6 +128,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                        <div className="w-full h-full flex items-center justify-center relative z-10">
                          {(() => {
                            const name = item.character_name || item.item_name || item.name;
+                           const localizedName = localizeHistoryItemName(item, { locale, type: entityType, fallback: name });
                            const charData = name ? characterCache.searchByName(name, false) : null;
                            const avatarUrl = charData?.avatar_url;
 
@@ -131,7 +136,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                              return (
                                <img
                                  src={avatarUrl}
-                                 alt={name}
+                                 alt={localizedName}
                                  className="w-full h-full object-cover"
                                  onError={(e) => {
                                    e.target.style.display = 'none';
@@ -191,6 +196,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
               const isFree = item.isFree || item.is_free;
               const isInfoBook = item.isInfoBook || item.is_info_book;
               const name = item.character_name || item.item_name || item.name || '未知';
+              const localizedName = localizeHistoryItemName(item, { locale, type: entityType, fallback: name });
 
               // 确定颜色
               let borderColor = 'border-purple-300 dark:border-purple-700';
@@ -238,7 +244,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
                         return (
                           <img
                             src={avatarUrl}
-                            alt={name}
+                            alt={localizedName}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               e.target.style.display = 'none';
@@ -259,7 +265,7 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
 
                   {/* 角色名称 */}
                   <div className={`text-[10px] font-bold ${textColor} text-center truncate w-full`}>
-                    {name}
+                    {localizedName}
                   </div>
 
                   {/* 稀有度星星 */}

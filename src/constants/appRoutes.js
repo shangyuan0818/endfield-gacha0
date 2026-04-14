@@ -1,4 +1,17 @@
-export const APP_TAB_IDS = ['home', 'summary', 'dashboard', 'simulator', 'timeline-demo', 'admin', 'settings', 'about', 'tickets'];
+export const APP_TAB_IDS = [
+  'home',
+  'summary',
+  'dashboard',
+  'overview',
+  'details',
+  'stats',
+  'simulator',
+  'timeline-demo',
+  'admin',
+  'settings',
+  'about',
+  'tickets'
+];
 
 export const DESKTOP_TAB_ROUTES = {
   home: '/',
@@ -14,13 +27,27 @@ export const DESKTOP_TAB_ROUTES = {
 
 export const MOBILE_TAB_ROUTES = {
   home: '/m',
-  summary: '/m/summary',
-  dashboard: '/m/dashboard',
+  overview: '/m/overview',
+  details: '/m/details',
+  stats: '/m/stats',
   simulator: '/m/simulator',
   admin: '/m/admin',
   settings: '/m/settings',
   about: '/m/about',
   tickets: '/m/tickets'
+};
+
+const DESKTOP_TAB_ALIASES = {
+  ticket: 'tickets',
+  overview: 'summary',
+  stats: 'summary',
+  details: 'dashboard'
+};
+
+const MOBILE_TAB_ALIASES = {
+  ticket: 'tickets',
+  summary: 'overview',
+  dashboard: 'details'
 };
 
 function normalizePathname(pathname) {
@@ -31,15 +58,28 @@ function normalizePathname(pathname) {
 
 export function normalizeAppTab(tab) {
   const normalizedTab = tab === 'ticket' ? 'tickets' : tab;
-  return APP_TAB_IDS.includes(normalizedTab) ? normalizedTab : 'home';
+  const desktopTab = DESKTOP_TAB_ALIASES[normalizedTab] || normalizedTab;
+  return APP_TAB_IDS.includes(desktopTab) ? desktopTab : 'home';
+}
+
+function normalizeDesktopTab(tab) {
+  const normalizedTab = tab === 'ticket' ? 'tickets' : tab;
+  const desktopTab = DESKTOP_TAB_ALIASES[normalizedTab] || normalizedTab;
+  return DESKTOP_TAB_ROUTES[desktopTab] ? desktopTab : 'home';
+}
+
+function normalizeMobileTab(tab) {
+  const normalizedTab = tab === 'ticket' ? 'tickets' : tab;
+  const mobileTab = MOBILE_TAB_ALIASES[normalizedTab] || normalizedTab;
+  return MOBILE_TAB_ROUTES[mobileTab] ? mobileTab : 'home';
 }
 
 export function getDesktopPathForTab(tab) {
-  return DESKTOP_TAB_ROUTES[normalizeAppTab(tab)] || DESKTOP_TAB_ROUTES.home;
+  return DESKTOP_TAB_ROUTES[normalizeDesktopTab(tab)] || DESKTOP_TAB_ROUTES.home;
 }
 
 export function getMobilePathForTab(tab) {
-  return MOBILE_TAB_ROUTES[normalizeAppTab(tab)] || MOBILE_TAB_ROUTES.home;
+  return MOBILE_TAB_ROUTES[normalizeMobileTab(tab)] || MOBILE_TAB_ROUTES.home;
 }
 
 export function getDesktopTabFromPath(pathname) {
@@ -49,6 +89,12 @@ export function getDesktopTabFromPath(pathname) {
 
 export function getMobileTabFromPath(pathname) {
   const normalizedPath = normalizePathname(pathname);
+  if (normalizedPath === '/m/summary') {
+    return 'overview';
+  }
+  if (normalizedPath === '/m/dashboard') {
+    return 'details';
+  }
   return Object.entries(MOBILE_TAB_ROUTES).find(([, route]) => route === normalizedPath)?.[0] || 'home';
 }
 

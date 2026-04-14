@@ -19,6 +19,9 @@ const CharacterEditDialog = ({
   show,
   editingCharacter,
   characterForm,
+  localizedNameEnOverride,
+  localizedNameEnPreview,
+  onLocalizedNameEnChange,
   setCharacterForm,
   onCharacterIdChange,
   onCharacterNameChange,
@@ -109,6 +112,22 @@ const CharacterEditDialog = ({
                 placeholder="例如：莱万汀"
                 className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                英文名称
+              </label>
+              <input
+                type="text"
+                value={localizedNameEnOverride}
+                onChange={(e) => onLocalizedNameEnChange(e.target.value)}
+                placeholder={localizedNameEnPreview || '例如：Rossi'}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+              />
+              <p className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
+                留空则使用内置的 Warfarin 词条映射；填写后会覆盖默认英文名。
+              </p>
             </div>
 
             {/* 稀有度和类型 */}

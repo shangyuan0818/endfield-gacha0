@@ -3,6 +3,7 @@ import { ChevronUp, Info, Layers, Star, Swords } from 'lucide-react';
 import CollapsibleContent from './CollapsibleContent';
 import usePoolMechanicsData from '../../hooks/home/usePoolMechanicsData';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityList, localizeEntityName } from '../../utils/gameDataI18n.js';
 
 const CharacterRow = ({
   label,
@@ -10,11 +11,13 @@ const CharacterRow = ({
   characters,
   highlightFirst = false,
   highlightLabel = 'UP',
-}) => (
+}) => {
+  const normalizedCharacters = (characters || []).filter(Boolean);
+  return (
   <div className="flex items-baseline gap-2">
     <span className={`text-[10px] font-bold font-mono w-8 shrink-0 ${labelClassName}`}>{label}</span>
     <div className="flex flex-wrap gap-1">
-      {characters.map((character, index) => (
+      {normalizedCharacters.map((character, index) => (
         <span
           key={character}
           className={`text-xs px-1.5 py-0.5 rounded-sm ${
@@ -29,14 +32,16 @@ const CharacterRow = ({
       ))}
     </div>
   </div>
-);
+  );
+};
 
-const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
+function PoolMechanicsCard({
   currentUpInfo,
   isOpen,
   onToggle,
+  interactive = true,
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { limitedCharacters, standardCharacters } = usePoolMechanicsData(currentUpInfo);
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
 
@@ -50,7 +55,20 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
     name,
   } = currentUpInfo || {};
 
-  const currentUpName = name || limitedCharacters.sixStar[0] || tt('home.poolMechanics.pending', '待公布');
+  const currentUpName = localizeEntityName(name || limitedCharacters.sixStar[0] || tt('home.poolMechanics.pending', '待公布'), {
+    locale,
+    type: 'character'
+  });
+  const localizedLimitedCharacters = {
+    sixStar: localizeEntityList(limitedCharacters.sixStar, { locale, type: 'character' }),
+    fiveStar: localizeEntityList(limitedCharacters.fiveStar, { locale, type: 'character' }),
+    fourStar: localizeEntityList(limitedCharacters.fourStar, { locale, type: 'character' })
+  };
+  const localizedStandardCharacters = {
+    sixStar: localizeEntityList(standardCharacters.sixStar, { locale, type: 'character' }),
+    fiveStar: localizeEntityList(standardCharacters.fiveStar, { locale, type: 'character' }),
+    fourStar: localizeEntityList(standardCharacters.fourStar, { locale, type: 'character' })
+  };
   const isEndingSoon = remainingDays <= 3 && isActive;
   const isUpcoming = !isActive && !isExpired;
   const currentStatus = isActive
@@ -74,16 +92,18 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
             className: 'text-red-500',
             text: tt('home.poolMechanics.current.expired', '// 已结束'),
           }
-        : null;
+      : null;
+  const HeaderTag = interactive ? 'button' : 'div';
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden relative group/card shadow-sm dark:shadow-none">
       <div className="absolute top-0 left-0 w-1 h-full bg-blue-500/50 group-hover:bg-blue-500 transition-colors"></div>
       <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
 
-      <button
-        onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-white/5 transition-colors relative z-10 border-b border-zinc-100 dark:border-zinc-800"
+      <HeaderTag
+        type={interactive ? 'button' : undefined}
+        onClick={interactive ? onToggle : undefined}
+        className={`w-full px-6 py-4 flex items-center justify-between transition-colors relative z-10 border-b border-zinc-100 dark:border-zinc-800 ${interactive ? 'cursor-pointer hover:bg-zinc-50 dark:hover:bg-white/5' : ''}`}
       >
         <div className="flex items-center gap-3">
           <div className="p-1.5 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-500/30 rounded-sm">
@@ -102,10 +122,12 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
             </p>
           </div>
         </div>
-        <ChevronUp size={20} className={`text-zinc-400 dark:text-zinc-500 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`} />
-      </button>
+        {interactive ? (
+          <ChevronUp size={20} className={`text-zinc-400 dark:text-zinc-500 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`} />
+        ) : null}
+      </HeaderTag>
 
-      <CollapsibleContent isOpen={isOpen}>
+      <CollapsibleContent isOpen={interactive ? isOpen : true}>
         <div className="p-6 space-y-6 bg-zinc-50/50 dark:bg-black/20">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white dark:bg-zinc-900/80 border border-zinc-200 dark:border-zinc-700/50 p-4 relative group/pool hover:border-fuchsia-400 dark:hover:border-fuchsia-500/50 transition-colors shadow-sm dark:shadow-none">
@@ -202,9 +224,9 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
                 {tt('home.poolMechanics.sections.limited', 'Limited Pool // 限定池内容')}
               </h4>
               <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/50 p-3 border border-zinc-200 dark:border-zinc-800/50">
-                <CharacterRow label="6★" labelClassName="text-fuchsia-500" characters={limitedCharacters.sixStar} highlightFirst highlightLabel={tt('home.poolMechanics.upLabel', 'UP')} />
-                <CharacterRow label="5★" labelClassName="text-amber-500" characters={limitedCharacters.fiveStar} />
-                <CharacterRow label="4★" labelClassName="text-purple-500" characters={limitedCharacters.fourStar} />
+                <CharacterRow label="6★" labelClassName="text-fuchsia-500" characters={localizedLimitedCharacters.sixStar} highlightFirst highlightLabel={tt('home.poolMechanics.upLabel', 'UP')} />
+                <CharacterRow label="5★" labelClassName="text-amber-500" characters={localizedLimitedCharacters.fiveStar} />
+                <CharacterRow label="4★" labelClassName="text-purple-500" characters={localizedLimitedCharacters.fourStar} />
               </div>
             </div>
             <div>
@@ -212,9 +234,9 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
                 {tt('home.poolMechanics.sections.standard', 'Standard Pool // 常驻池内容')}
               </h4>
               <div className="space-y-2 bg-zinc-50 dark:bg-zinc-900/50 p-3 border border-zinc-200 dark:border-zinc-800/50">
-                <CharacterRow label="6★" labelClassName="text-indigo-500" characters={standardCharacters.sixStar} />
-                <CharacterRow label="5★" labelClassName="text-amber-500" characters={standardCharacters.fiveStar} />
-                <CharacterRow label="4★" labelClassName="text-purple-500" characters={standardCharacters.fourStar} />
+                <CharacterRow label="6★" labelClassName="text-indigo-500" characters={localizedStandardCharacters.sixStar} />
+                <CharacterRow label="5★" labelClassName="text-amber-500" characters={localizedStandardCharacters.fiveStar} />
+                <CharacterRow label="4★" labelClassName="text-purple-500" characters={localizedStandardCharacters.fourStar} />
               </div>
             </div>
           </div>
@@ -222,6 +244,6 @@ const PoolMechanicsCard = React.memo(function PoolMechanicsCard({
       </CollapsibleContent>
     </div>
   );
-});
+}
 
 export default PoolMechanicsCard;

@@ -14,13 +14,41 @@ const DEFAULT_FRIENDLY_LINKS = [
   { id: 'pull-planner', title: '抽卡规划器', url: 'https://endfield.203.io/', icon: 'BarChart3', label: 'PULL PLANNER' },
 ];
 
+const FRIENDLY_LINK_ID_BY_HOST = {
+  'ef.yituliu.cn': 'yituliu-calculator',
+  'opendfieldmap.cn': 'opendfield-map',
+  'www.zmdmap.com': 'zmdmap',
+  'zmdmap.com': 'zmdmap',
+  'endgacha.kwer.top': 'endgacha',
+  'endfield.prts.chat': 'story-search',
+  'endfield.203.io': 'pull-planner',
+};
+
+function resolveFriendlyLinkId(link, fallbackIndex = 0) {
+  if (link?.id) {
+    return link.id;
+  }
+
+  try {
+    const host = new URL(link?.url || '').hostname;
+    if (FRIENDLY_LINK_ID_BY_HOST[host]) {
+      return FRIENDLY_LINK_ID_BY_HOST[host];
+    }
+  } catch {
+    // Ignore invalid URL and fall back to the default list item id.
+  }
+
+  return DEFAULT_FRIENDLY_LINKS[fallbackIndex]?.id || null;
+}
+
 const FriendlyLinksCard = React.memo(function FriendlyLinksCard() {
   const { t } = useI18n();
   const FRIENDLY_LINKS = useJsonConfig('home_friendly_links', DEFAULT_FRIENDLY_LINKS);
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
-  const translatedLinks = FRIENDLY_LINKS.map((link) => ({
+  const translatedLinks = FRIENDLY_LINKS.map((link, index) => ({
     ...link,
-    title: link.id ? tt(`home.friendlyLinks.item.${link.id}.title`, link.title) : link.title,
+    id: resolveFriendlyLinkId(link, index),
+    title: resolveFriendlyLinkId(link, index) ? tt(`home.friendlyLinks.item.${resolveFriendlyLinkId(link, index)}.title`, link.title) : link.title,
   }));
 
   return (

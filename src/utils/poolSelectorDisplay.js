@@ -1,5 +1,6 @@
 import { getAppLocale, getMessage } from '../i18n/index.js';
 import { POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
+import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
 
 const TYPE_ORDER = ['limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 
@@ -85,14 +86,16 @@ export function getPoolTimingMeta(pool, referenceDate = new Date(), locale = get
   };
 }
 
-function matchesQuery(pool, query) {
+function matchesQuery(pool, query, locale = getAppLocale()) {
   if (!query) return true;
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
   const haystacks = [
     pool?.name,
     pool?.up_character,
-    pool?.upCharacter
+    pool?.upCharacter,
+    localizePoolName(pool, { locale }),
+    localizeEntityName(pool?.up_character || pool?.upCharacter || '', { locale })
   ];
   return haystacks.some((value) => String(value || '').toLowerCase().includes(normalizedQuery));
 }
@@ -122,7 +125,12 @@ function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {
     })
     .map(({ pool, timing }) => ({
       ...pool,
-      selectorTiming: timing
+      selectorTiming: timing,
+      displayName: localizePoolName(pool, { locale }),
+      displayUpCharacter: localizeEntityName(pool?.up_character || pool?.upCharacter || '', {
+        locale,
+        type: pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character'
+      })
     }));
 }
 
@@ -133,7 +141,7 @@ export function buildPoolSelectorGroups({
   referenceDate = new Date(),
   locale = getAppLocale()
 }) {
-  const filteredPools = (Array.isArray(pools) ? pools : []).filter((pool) => matchesQuery(pool, searchQuery));
+  const filteredPools = (Array.isArray(pools) ? pools : []).filter((pool) => matchesQuery(pool, searchQuery, locale));
   const grouped = {
     limited: [],
     standard: [],

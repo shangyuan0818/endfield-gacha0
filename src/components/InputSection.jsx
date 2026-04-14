@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Plus, Star, Save, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { useI18n } from '../i18n/index.js';
+import { localizePoolName } from '../utils/gameDataI18n.js';
 
 const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onSubmitBatch, onDeletePool }) => {
   const [batchInput, setBatchInput] = useState(Array(10).fill({ rarity: 4, isStandard: false }));
@@ -7,6 +9,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   const [textInput, setTextInput] = useState('');
   const [textPreview, setTextPreview] = useState([]);
   const textareaRef = useRef(null);
+  const { locale } = useI18n();
 
   // 解析文本输入
   // 支持格式：4454464444,4445444454 或 4454464444/4445444454
@@ -138,6 +141,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
   const totalPulls = textPreview.reduce((sum, group) => sum + Math.min(group.length, 10), 0);
   // 补齐后的总抽数
   const totalPullsWithPadding = textPreview.length * 10;
+  const localizedCurrentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || '未知卡池';
 
   return (
     <section className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 p-6 mb-8 relative overflow-hidden">
@@ -150,7 +154,7 @@ const InputSection = React.memo(({ currentPool, poolStatsTotal, onAddSingle, onS
           <Plus size={20} className="text-indigo-500"/>
           <span>录入数据</span>
           <span className="text-xs font-normal text-slate-400 dark:text-zinc-500 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded-sm">
-            当前: {currentPool.name}
+            当前: {localizedCurrentPoolName}
           </span>
         </h2>
         <div className="text-xs text-slate-400 dark:text-zinc-500">

@@ -14,6 +14,7 @@ import {
 import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
+import { compareHistoryTimelineAsc } from '../../utils/historyTimelineSort.js';
 import { useI18n } from '../../i18n/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
@@ -39,11 +40,9 @@ function getHistorySeqId(item) {
 }
 
 function sortByTimeline(a, b) {
-  const timeA = typeof a.timestamp === 'number' ? a.timestamp : new Date(a.timestamp).getTime();
-  const timeB = typeof b.timestamp === 'number' ? b.timestamp : new Date(b.timestamp).getTime();
-
-  if (timeA !== timeB) {
-    return timeA - timeB;
+  const timelineDiff = compareHistoryTimelineAsc(a, b);
+  if (timelineDiff !== 0) {
+    return timelineDiff;
   }
 
   return getHistorySeqId(a) - getHistorySeqId(b);

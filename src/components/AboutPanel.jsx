@@ -34,7 +34,7 @@ const DEFAULT_DISCLAIMER_ZH = '非官方工具。与 Gryphline / HyperGryph 无�
  * 关于面板组件
  */
 const AboutPanel = React.memo(() => {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const config = useSiteConfigStore(s => s.config);
   const rawFeatures = useJsonConfig('about_features', null);
   const rawDisclaimer = useSiteConfigStore(s => s.getConfig('about_disclaimer', DEFAULT_DISCLAIMER_ZH));
@@ -56,7 +56,7 @@ const AboutPanel = React.memo(() => {
       { icon: 'Download', label: t('about.feature.import.label'), desc: t('about.feature.import.desc') },
       { icon: 'Shield', label: t('about.feature.global.label'), desc: t('about.feature.global.desc') },
     ];
-  }, [rawFeatures, t]);
+  }, [locale, rawFeatures, t]);
   const disclaimer = rawDisclaimer && rawDisclaimer !== DEFAULT_DISCLAIMER_ZH
     ? rawDisclaimer
     : t('about.disclaimer');

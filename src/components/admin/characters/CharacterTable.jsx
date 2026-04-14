@@ -50,6 +50,7 @@ const SortIcon = ({ field, sortField, sortDirection }) => {
  */
 const CharacterTable = ({
   characters,
+  getEnglishName,
   selectedIds,
   isAllSelected,
   actionLoading,
@@ -92,6 +93,7 @@ const CharacterTable = ({
                 名称 <SortIcon field="name" sortField={sortField} sortDirection={sortDirection} />
               </button>
             </th>
+            <th className="px-4 py-3 text-left">英文名</th>
             <th className="px-4 py-3 text-left">
               <button
                 onClick={() => onSort('rarity')}
@@ -157,6 +159,12 @@ const CharacterTable = ({
                     </span>
                   )}
                 </div>
+              </td>
+
+              <td className="px-4 py-3">
+                <span className="font-medium text-slate-600 dark:text-zinc-300">
+                  {getEnglishName?.(char) || '-'}
+                </span>
               </td>
 
               {/* 稀有度 */}

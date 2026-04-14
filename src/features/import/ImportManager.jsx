@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
@@ -345,9 +346,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/20 dark:bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm transition-colors">
-      <div className="bg-white dark:bg-zinc-900 border-l-4 border-l-amber-500 dark:border-l-yellow-500 border-y border-r border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl relative transition-colors">
+  const modal = (
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/20 p-4 py-6 backdrop-blur-sm transition-colors dark:bg-black/80">
+      <div className="relative my-auto w-full max-w-2xl border-l-4 border-l-amber-500 border-y border-r border-zinc-200 bg-white shadow-2xl transition-colors dark:border-l-yellow-500 dark:border-zinc-800 dark:bg-zinc-900">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between z-10 transition-colors">
           <div className="flex items-center gap-3">
@@ -570,4 +571,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modal, document.body);
+  }
+
+  return modal;
 }

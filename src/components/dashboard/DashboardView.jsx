@@ -53,6 +53,7 @@ import {
 import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -191,8 +192,9 @@ const DashboardView = ({ showToast }) => {
   const standardSixLabel = isEnglish ? 'Standard 6★' : '常驻6★';
   const crossBannerSummary = isEnglish ? 'Cross-banner summary' : '跨卡池汇总';
   const offrateShort = isEnglish ? 'Off-rate' : '歪';
+  const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
   const totalPullBannerTitle = isGroupMode
-    ? (isEnglish ? `${currentPool?.name || ''} Total Pulls` : `${currentPool?.name || ''}总投入`)
+    ? (isEnglish ? `${localizedCurrentPoolName || ''} Total Pulls` : `${localizedCurrentPoolName || ''}总投入`)
     : (isEnglish ? 'Current Banner Total Pulls' : '当前卡池总投入');
   const primarySixStarLabel = isAllPoolsOverview
     ? t('dashboard.overview.targetSixStar')
@@ -203,7 +205,7 @@ const DashboardView = ({ showToast }) => {
     ? t('dashboard.overview.offrateSixStar')
     : standardSixLabel;
   const resourceSummaryTitle = isGroupMode
-    ? t('dashboard.resources.groupTitle', { name: currentPool?.name || '' })
+    ? t('dashboard.resources.groupTitle', { name: localizedCurrentPoolName || '' })
     : t('dashboard.resources.title');
   const formatPercentValue = React.useCallback(
     (value) =>
@@ -1401,6 +1403,10 @@ const DashboardView = ({ showToast }) => {
                   const isSixStar = char.rarity === 6;
                   const isLimitedChar = isSixStar && !char.isStandard;
                   const isStandardChar = isSixStar && char.isStandard;
+                  const localizedCharacterName = localizeEntityName(char.name, {
+                    locale,
+                    type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+                  });
 
                   // 生成出货抽数描述
                   // 格式：68抽(#120), 24抽(#300) - 保底计数(总抽数位置)
@@ -1469,7 +1475,7 @@ const DashboardView = ({ showToast }) => {
                               return (
                                 <img
                                   src={avatarUrl}
-                                  alt={char.name}
+                                  alt={localizedCharacterName}
                                   className="w-full h-full object-cover"
                                   onError={(e) => {
                                     e.target.style.display = 'none';
@@ -1496,7 +1502,7 @@ const DashboardView = ({ showToast }) => {
                               isLimitedChar ? 'text-slate-800 dark:text-zinc-200' : 'text-slate-700 dark:text-zinc-400'
                             }`}
                           >
-                            {char.name}
+                            {localizedCharacterName}
                           </div>
                           <div className="flex gap-0.5 mt-0.5">
                             {Array.from({ length: char.rarity }).map((_, i) => (

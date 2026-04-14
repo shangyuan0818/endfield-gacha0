@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { characterCache, getPoolCharacters } from '../../utils/characterUtils';
+import { LIMITED_POOL_SCHEDULE } from '../../constants/index.js';
+import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
 
 const FALLBACK_LIMITED_CHARACTERS = {
   sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
@@ -52,6 +54,47 @@ const ensureLeadingCharacter = (names, leadingName) => {
   return [leadingName, ...names];
 };
 
+const sanitizeNames = (names = []) => Array.from(new Set((names || []).filter(Boolean)));
+
+const FALLBACK_REMOVES_AFTER_BY_NAME = Object.fromEntries(
+  LIMITED_POOL_SCHEDULE
+    .filter((pool) => pool?.name && Number.isFinite(Number(pool?.removesAfter)))
+    .map((pool) => [pool.name, Number(pool.removesAfter)])
+);
+
+const getCharacterRemovesAfter = (characterName) => {
+  if (!characterName) {
+    return null;
+  }
+
+  const cachedCharacter = characterCache.searchByName(characterName, false)
+    || characterCache.searchByName(characterName, true);
+  const configuredRemovesAfter = Number(cachedCharacter?.pool_config?.removes_after);
+  if (Number.isFinite(configuredRemovesAfter)) {
+    return configuredRemovesAfter;
+  }
+
+  const fallbackRemovesAfter = Number(FALLBACK_REMOVES_AFTER_BY_NAME[characterName]);
+  return Number.isFinite(fallbackRemovesAfter) ? fallbackRemovesAfter : null;
+};
+
+const filterLimitedLineupByRotation = (names = [], currentUpInfo) => {
+  const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+  const rotationPosition = Number(currentUpInfo?.rotationPosition);
+  if (!Number.isFinite(rotationPosition)) {
+    return sanitizeNames(names);
+  }
+
+  return sanitizeNames(names).filter((name) => {
+    if (!name || name === currentUpName) {
+      return Boolean(name);
+    }
+
+    const removesAfter = getCharacterRemovesAfter(name);
+    return removesAfter === null || rotationPosition < removesAfter;
+  });
+};
+
 const getPoolContext = (currentUpInfo) => {
   const startTime = currentUpInfo?.poolData?.start_time || currentUpInfo?.startDate;
   if (!startTime) {
@@ -64,6 +107,12 @@ const getPoolContext = (currentUpInfo) => {
   };
 };
 
+const getCurrentPoolRecordId = (currentUpInfo) => (
+  currentUpInfo?.poolData?.id
+  || currentUpInfo?.poolData?.pool_id
+  || null
+);
+
 const getFeaturedCharacters = (currentUpInfo) => {
   const featuredCharacters = Array.isArray(currentUpInfo?.poolData?.featured_characters)
     ? currentUpInfo.poolData.featured_characters.filter(Boolean)
@@ -72,6 +121,38 @@ const getFeaturedCharacters = (currentUpInfo) => {
   return currentUpInfo?.name
     ? [currentUpInfo.name, ...featuredCharacters.filter((name) => name !== currentUpInfo.name)]
     : featuredCharacters;
+};
+
+const buildLimitedSixStarSet = (
+  currentUpInfo,
+  fallbackCharacters,
+  activeLimitedCharacters,
+  standardSixStarCharacters
+) => {
+  const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+  const explicitLineup = filterLimitedLineupByRotation([
+    ...sanitizeNames([
+      ...getFeaturedCharacters(currentUpInfo),
+      currentUpInfo?.poolData?.up_character,
+      currentUpInfo?.poolData?.upCharacter,
+      currentUpInfo?.name
+    ]),
+    ...sanitizeNames(activeLimitedCharacters || [])
+  ], currentUpInfo);
+  const normalizedStandardCharacters = sanitizeNames(standardSixStarCharacters || []);
+  const normalizedFallbackCharacters = sanitizeNames(fallbackCharacters || []);
+
+  const baseLineup = explicitLineup.length > 0
+    ? sanitizeNames([
+        ...explicitLineup,
+        ...normalizedStandardCharacters
+      ])
+    : sanitizeNames([
+        ...normalizedFallbackCharacters
+      ]);
+
+  const filteredLineup = sanitizeNames(baseLineup);
+  return currentUpName ? ensureLeadingCharacter(filteredLineup, currentUpName) : filteredLineup;
 };
 
 const buildCharacterSet = (fallbackCharacters, dynamicCharacters, priorityNames = [], leadingName = null) => {
@@ -83,7 +164,50 @@ const buildCharacterSet = (fallbackCharacters, dynamicCharacters, priorityNames 
 };
 
 export default function usePoolMechanicsData(currentUpInfo) {
-  return useMemo(() => {
+  const [exactPoolRoster, setExactPoolRoster] = useState(null);
+  const currentPoolRecordId = getCurrentPoolRecordId(currentUpInfo);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExactPoolRoster = async () => {
+      if (!currentPoolRecordId) {
+        if (!cancelled) {
+          setExactPoolRoster(null);
+        }
+        return;
+      }
+
+      const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+      const roster = await fetchPoolRosterBuckets(currentPoolRecordId, {
+        expectedType: 'character',
+        currentUpName
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (!roster) {
+        setExactPoolRoster(null);
+        return;
+      }
+
+      setExactPoolRoster({
+        sixStar: ensureLeadingCharacter(sanitizeNames(roster.sixStar), currentUpName),
+        fiveStar: sanitizeNames(roster.fiveStar),
+        fourStar: sanitizeNames(roster.fourStar),
+      });
+    };
+
+    loadExactPoolRoster();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPoolRecordId, currentUpInfo]);
+
+  const mechanicsData = useMemo(() => {
     const currentUpName = currentUpInfo?.name || FALLBACK_LIMITED_CHARACTERS.sixStar[0];
     const poolContext = getPoolContext(currentUpInfo);
     const featuredCharacters = getFeaturedCharacters(currentUpInfo);
@@ -92,11 +216,11 @@ export default function usePoolMechanicsData(currentUpInfo) {
     if (!hasCharacterData) {
       return {
         limitedCharacters: {
-          sixStar: buildCharacterSet(
-            FALLBACK_LIMITED_CHARACTERS.sixStar,
+          sixStar: buildLimitedSixStarSet(
+            currentUpInfo,
+            ensureLeadingCharacter(FALLBACK_LIMITED_CHARACTERS.sixStar, currentUpName),
             [],
-            featuredCharacters,
-            currentUpName
+            FALLBACK_STANDARD_CHARACTERS.sixStar
           ),
           fiveStar: buildCharacterSet(
             FALLBACK_LIMITED_CHARACTERS.fiveStar,
@@ -113,19 +237,23 @@ export default function usePoolMechanicsData(currentUpInfo) {
       };
     }
 
+    const activeLimitedSixStarCharacters = getPoolCharacters('limited', 6, true, poolContext)
+      .filter((character) => character?.is_limited);
+    const standardSixStarCharacters = getPoolCharacters('standard', 6, false);
+
     const limitedCharacters = {
-      sixStar: buildCharacterSet(
+      sixStar: exactPoolRoster?.sixStar || buildLimitedSixStarSet(
+        currentUpInfo,
         FALLBACK_LIMITED_CHARACTERS.sixStar,
-        mapCharacterNames(getPoolCharacters('limited', 6, true, poolContext)),
-        featuredCharacters,
-        currentUpName
+        mapCharacterNames(activeLimitedSixStarCharacters),
+        mapCharacterNames(standardSixStarCharacters)
       ),
-      fiveStar: buildCharacterSet(
+      fiveStar: exactPoolRoster?.fiveStar || buildCharacterSet(
         FALLBACK_LIMITED_CHARACTERS.fiveStar,
         mapCharacterNames(getPoolCharacters('limited', 5, true, poolContext)),
         featuredCharacters
       ),
-      fourStar: buildCharacterSet(
+      fourStar: exactPoolRoster?.fourStar || buildCharacterSet(
         FALLBACK_LIMITED_CHARACTERS.fourStar,
         mapCharacterNames(getPoolCharacters('limited', 4, true, poolContext)),
         featuredCharacters
@@ -135,7 +263,7 @@ export default function usePoolMechanicsData(currentUpInfo) {
     const standardCharacters = {
       sixStar: buildCharacterSet(
         FALLBACK_STANDARD_CHARACTERS.sixStar,
-        mapCharacterNames(getPoolCharacters('standard', 6, false))
+        mapCharacterNames(standardSixStarCharacters)
       ),
       fiveStar: buildCharacterSet(
         FALLBACK_STANDARD_CHARACTERS.fiveStar,
@@ -148,8 +276,19 @@ export default function usePoolMechanicsData(currentUpInfo) {
     };
 
     return {
-      limitedCharacters,
-      standardCharacters,
+      limitedCharacters: {
+        ...limitedCharacters,
+        sixStar: sanitizeNames(limitedCharacters.sixStar),
+        fiveStar: sanitizeNames(limitedCharacters.fiveStar),
+        fourStar: sanitizeNames(limitedCharacters.fourStar)
+      },
+      standardCharacters: {
+        sixStar: sanitizeNames(standardCharacters.sixStar),
+        fiveStar: sanitizeNames(standardCharacters.fiveStar),
+        fourStar: sanitizeNames(standardCharacters.fourStar)
+      },
     };
-  }, [currentUpInfo]);
+  }, [currentUpInfo, exactPoolRoster]);
+
+  return mechanicsData;
 }

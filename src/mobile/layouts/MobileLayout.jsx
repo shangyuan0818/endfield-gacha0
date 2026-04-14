@@ -7,50 +7,57 @@ import { getMobilePathForTab, getMobileTabFromPath } from '../../constants/appRo
 
 // 移动端视图
 import MobileHomePageView from '../views/MobileHomePageView';
-import MobileSummaryView from '../views/MobileSummaryView';
 import MobileDashboardView from '../views/MobileDashboardView';
+import MobileOverviewView from '../views/MobileOverviewView';
+import MobileStatsView from '../views/MobileStatsView';
 import MobileSimulatorView from '../views/MobileSimulatorView';
 import MobileSettingsView from '../views/MobileSettingsView';
 import MobileAboutView from '../views/MobileAboutView';
 import MobileAdminView from '../views/MobileAdminView';
 import MobileTicketView from '../views/MobileTicketView';
+import MobileAnnouncementsView from '../views/MobileAnnouncementsView';
+import MobileMechanicsView from '../views/MobileMechanicsView';
+import MobileRoadmapView from '../views/MobileRoadmapView';
 import useAuthStore from '../../stores/useAuthStore';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 import { useI18n } from '../../i18n/index.js';
 
 /**
- * 移动端主布局
+ * 移动端主布局 (重构版)
  */
 function MobileLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, userRole, authResolved } = useAuthStore();
-  const { isEnglish } = useI18n();
+  const { t } = useI18n();
   const activeTab = getMobileTabFromPath(location.pathname);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const isSuperAdmin = userRole === 'super_admin';
   const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
-  const tt = (zh, en) => (isEnglish ? en : zh);
-
+  const isHomeSubpage = /^\/m\/(announcements|mechanics|roadmap)$/u.test(location.pathname);
   useScrollToHighlight();
 
   useEffect(() => {
-    if (activeTab === 'home' && location.pathname !== getMobilePathForTab('home')) {
+    if (activeTab === 'home' && !isHomeSubpage && location.pathname !== getMobilePathForTab('home')) {
       navigate(getMobilePathForTab('home'), { replace: true });
     }
-  }, [activeTab, location.pathname, navigate]);
+  }, [activeTab, isHomeSubpage, location.pathname, navigate]);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 mobile-page-container">
-      {/* 顶部导航 */}
-      <MobileHeader onMenuClick={() => setIsDrawerOpen(true)} />
+    <div className="flex flex-col h-[100dvh] w-full overflow-hidden bg-ef-light dark:bg-ef-dark text-slate-900 dark:text-white font-sans transition-colors duration-300">
+      <MobileHeader onMenuClick={() => setIsDrawerOpen(true)} activeTab={activeTab} />
 
-      {/* 主内容区域 - pt-14 (56px) + safe-area-inset-top */}
-      <main className="pb-20" style={{ paddingTop: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}>
+      <main className="flex-1 relative overflow-hidden flex flex-col">
         <Routes>
           <Route index element={<MobileHomePageView />} />
-          <Route path="summary" element={<MobileSummaryView />} />
-          <Route path="dashboard" element={<MobileDashboardView />} />
+          <Route path="announcements" element={<MobileAnnouncementsView />} />
+          <Route path="mechanics" element={<MobileMechanicsView />} />
+          <Route path="roadmap" element={<MobileRoadmapView />} />
+          <Route path="overview" element={<MobileOverviewView />} />
+          <Route path="details" element={<MobileDashboardView />} />
+          <Route path="stats" element={<MobileStatsView />} />
+          <Route path="summary" element={<Navigate to={getMobilePathForTab('overview')} replace />} />
+          <Route path="dashboard" element={<Navigate to={getMobilePathForTab('details')} replace />} />
           <Route path="simulator" element={<MobileSimulatorView />} />
           <Route path="settings" element={<MobileSettingsView />} />
           <Route path="about" element={<MobileAboutView />} />
@@ -58,10 +65,8 @@ function MobileLayout() {
             path="admin"
             element={
               isResolvingRole ? (
-                <div className="px-4 py-8">
-                  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 text-sm text-slate-500 dark:text-zinc-400">
-                    {tt('正在校验管理权限...', 'Checking admin access...')}
-                  </div>
+                <div className="p-6 text-sm text-zinc-400">
+                  {t('admin.checkingAccess')}
                 </div>
               ) : isSuperAdmin ? (
                 <MobileAdminView />
@@ -75,13 +80,13 @@ function MobileLayout() {
         </Routes>
       </main>
 
-      {/* 底部 Tab 栏 */}
-      <MobileTabBar />
+      <MobileTabBar activeTab={activeTab} setActiveTab={(tab) => navigate(getMobilePathForTab(tab))} />
 
-      {/* 侧边抽屉菜单 */}
       <MobileDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={(tab) => navigate(getMobilePathForTab(tab))}
       />
     </div>
   );

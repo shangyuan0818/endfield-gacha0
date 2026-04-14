@@ -70,6 +70,7 @@ const AveragePullStatsPanel = ({
   poolType,
   isAllPoolsOverview = false,
   compact = false,
+  mobile = false,
   className = ''
 }) => {
   const { t } = useI18n();
@@ -86,19 +87,19 @@ const AveragePullStatsPanel = ({
   const note = buildNote({ stats, poolType, isAllPoolsOverview, t });
 
   return (
-    <div className={`bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-sm ${compact ? 'p-4' : 'p-5'} ${className}`.trim()}>
-      <div className="flex items-center gap-2 border-b border-zinc-100 pb-2 dark:border-zinc-800">
-        <TrendingUp size={16} className="text-slate-400 dark:text-zinc-500" />
-        <h3 className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">{t('dashboard.average.title')}</h3>
+    <div className={`${mobile ? 'mobile-ux-card' : 'border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900'} ${compact ? 'p-4' : 'p-5'} ${className}`.trim()}>
+      <div className={`flex items-center gap-2 border-b pb-2 ${mobile ? 'border-zinc-200/90 dark:border-zinc-800' : 'border-zinc-100 dark:border-zinc-800'}`}>
+        <TrendingUp size={16} className={mobile ? 'text-slate-400 dark:text-zinc-500' : 'text-slate-400 dark:text-zinc-500'} />
+        <h3 className={mobile ? 'text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-zinc-500' : 'text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-300'}>{t('dashboard.average.title')}</h3>
       </div>
 
-      <div className={`mt-4 grid gap-3 ${compact ? 'grid-cols-2' : items.length >= 4 ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2 xl:grid-cols-3'}`}>
+      <div className={`mt-3 grid gap-2.5 ${compact ? 'grid-cols-2' : items.length >= 4 ? 'grid-cols-2 xl:grid-cols-4' : 'grid-cols-2 xl:grid-cols-3'}`}>
         {items.map((item) => (
           <div
             key={item.id}
-            className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60"
+            className={mobile ? 'mobile-ux-card-inset p-3' : 'border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60'}
           >
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">
+            <div className={`text-[10px] font-bold uppercase tracking-wider ${mobile ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-500 dark:text-zinc-500'}`}>
               {item.label}
             </div>
             <div className={`mt-2 text-xl font-black font-mono ${item.tone}`}>
@@ -108,7 +109,7 @@ const AveragePullStatsPanel = ({
         ))}
       </div>
 
-      <div className="mt-3 text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
+      <div className={`mt-2.5 text-[11px] font-mono ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-slate-500 dark:text-zinc-400'}`}>
         {note}
       </div>
     </div>

@@ -19,6 +19,13 @@ function syncDocumentMeta(locale) {
     return;
   }
 
+  document.documentElement.lang = locale;
+  document.documentElement.dataset.locale = locale;
+  if (document.body) {
+    document.body.lang = locale;
+    document.body.dataset.locale = locale;
+  }
+
   document.title = getMessage('app.documentTitle', {}, locale);
 
   const description = document.querySelector('meta[name="description"]');
@@ -103,8 +110,10 @@ export function applyAppLocale(locale) {
   }
 
   window.localStorage.setItem(STORAGE_KEY, nextLocale);
-  document.documentElement.lang = nextLocale;
-  document.documentElement.dataset.locale = nextLocale;
+  syncDocumentMeta(nextLocale);
+  window.dispatchEvent(new CustomEvent('app-locale-change', {
+    detail: { locale: nextLocale }
+  }));
   return nextLocale;
 }
 
@@ -152,8 +161,18 @@ export function I18nProvider({ children }) {
   const [locale, setLocaleState] = useState(() => getAppLocale());
 
   useEffect(() => {
-    const nextLocale = applyAppLocale(locale);
-    syncDocumentMeta(nextLocale);
+    applyAppLocale(locale);
+
+    const handleStorage = (event) => {
+      if (event.key === STORAGE_KEY && event.newValue) {
+        setLocaleState(normalizeLocale(event.newValue));
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [locale]);
 
   const setLocale = useMemo(() => (nextLocale) => {

@@ -101,6 +101,7 @@ const ResourceSummaryPanel = ({
   compact = false,
   stacked = false,
   layout = 'grid',
+  mobile = false,
   className = ''
 }) => {
   const { locale, t, formatNumber } = useI18n();
@@ -119,10 +120,19 @@ const ResourceSummaryPanel = ({
   const renderItem = (item) => {
     const compactValue = formatCompactNumber(item.rawValue, locale);
     return (
-      <div key={item.key} className="min-w-0 flex items-center gap-3 border border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-black/20 px-3 py-3">
-        <img src={item.icon} alt={item.label} loading="lazy" className="w-10 h-10 object-contain shrink-0" />
+      <div
+        key={item.key}
+        className={`min-w-0 flex items-center gap-3 px-3 py-2.5 ${
+          mobile
+            ? 'mobile-ux-card-inset'
+            : 'border border-zinc-200 bg-white/80 dark:border-zinc-800 dark:bg-black/20'
+        }`}
+      >
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center ${mobile ? 'mobile-ux-card-chip' : 'rounded-lg border border-zinc-200 bg-white/70 dark:border-zinc-800 dark:bg-zinc-900/70'}`}>
+          <img src={item.icon} alt={item.label} loading="lazy" className="h-7 w-7 object-contain shrink-0" />
+        </div>
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold">
+          <div className={`text-[10px] uppercase tracking-wider font-bold ${mobile ? 'text-slate-500 dark:text-zinc-400' : 'text-slate-600 dark:text-zinc-500 dark:text-slate-500 dark:text-zinc-400'}`}>
             {item.label}
           </div>
           <div
@@ -132,7 +142,7 @@ const ResourceSummaryPanel = ({
             {compactValue || item.fullValue}
           </div>
           {compactValue && (
-            <div className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-mono break-all">
+            <div className={`mt-1 text-[11px] font-mono break-all ${mobile ? 'text-slate-600 dark:text-zinc-500' : 'text-slate-600 dark:text-zinc-500 dark:text-slate-500 dark:text-zinc-400'}`}>
               {item.fullValue}
             </div>
           )}
@@ -142,9 +152,9 @@ const ResourceSummaryPanel = ({
   };
 
   return (
-    <div className={`bg-zinc-50 dark:bg-zinc-950/30 border border-zinc-200 dark:border-zinc-800 p-5 ${className}`}>
-      <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
-        <span className="text-sm font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{title}</span>
+    <div className={`${mobile ? 'mobile-ux-card' : 'border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/30'} ${mobile ? 'p-4' : 'p-5'} ${className}`}>
+      <div className={`mb-3 flex items-center gap-2 pb-2 border-b border-dashed ${mobile ? 'border-zinc-200/90 dark:border-zinc-800' : 'border-zinc-200 dark:border-zinc-800'}`}>
+        <span className={`${mobile ? 'text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600 dark:text-zinc-500' : 'text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-zinc-300'}`}>{title}</span>
       </div>
       {layout === 'two-plus-one' && items.length === 3 ? (
         <div className="space-y-3">
@@ -156,7 +166,7 @@ const ResourceSummaryPanel = ({
           </div>
         </div>
       ) : (
-        <div className={`grid ${gridClass} gap-3`}>
+        <div className={`grid ${gridClass} gap-2.5`}>
           {items.map(renderItem)}
         </div>
       )}

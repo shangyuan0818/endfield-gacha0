@@ -17,36 +17,33 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
 import { deleteOwnAccount } from '../../services/selfAccountService';
 import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccountSession';
+import { MobileSectionTitle, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import {
   formatFreshnessAbsolute,
   formatFreshnessRelative,
   getFreshnessTone
 } from '../../utils/dataFreshness.js';
+import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { useI18n } from '../../i18n/index.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
     case 'fresh':
-      return 'border-emerald-500/40 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300';
+      return 'border-emerald-500/30 bg-emerald-500/12 text-emerald-300';
     case 'notice':
-      return 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300';
+      return 'border-amber-500/30 bg-amber-500/12 text-amber-300';
     case 'stale':
-      return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
+      return 'border-red-500/30 bg-red-500/12 text-red-300';
     default:
-      return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+      return 'border-zinc-200 bg-zinc-50 text-slate-500 dark:border-white/8 dark:bg-white/[0.03] dark:text-zinc-400';
   }
 }
 
 function MobileSettingsSection({ title, icon, children }) {
-  const IconComponent = icon;
-
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden shadow-sm">
-      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex items-center gap-2">
-        <IconComponent size={14} className="text-zinc-400" />
-        <span className="text-xs font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">{title}</span>
-      </div>
-      {children}
+    <div className="mobile-ux-card p-4 space-y-4">
+      <MobileSectionTitle title={title} icon={icon} />
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }
@@ -103,20 +100,20 @@ function MobileSettingsView() {
       case 'super_admin':
         return {
           label: t('settings.role.super_admin.label'),
-          badgeClass: 'border-red-200 dark:border-red-900/50 bg-red-100 dark:bg-red-900/30',
-          textClass: 'text-red-600 dark:text-red-400',
+          badgeClass: 'border-red-400/30 bg-red-500/12',
+          textClass: 'text-red-300',
         };
       case 'admin':
         return {
           label: t('settings.role.admin.label'),
-          badgeClass: 'border-green-200 dark:border-green-900/50 bg-green-100 dark:bg-green-900/30',
-          textClass: 'text-green-600 dark:text-green-400',
+          badgeClass: 'border-emerald-400/30 bg-emerald-500/12',
+          textClass: 'text-emerald-300',
         };
       default:
         return {
           label: t('settings.role.user.label'),
-          badgeClass: 'border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800',
-          textClass: 'text-zinc-600 dark:text-zinc-400',
+          badgeClass: 'border-white/10 bg-white/[0.04]',
+          textClass: 'text-zinc-300',
         };
     }
   };
@@ -259,23 +256,21 @@ function MobileSettingsView() {
   ];
 
   return (
-    <div className="px-4 py-4 space-y-4">
-      {/* 页面标题 */}
-      <div className="bg-zinc-900 text-white p-4 border-l-4 border-endfield-yellow rounded-none shadow-md">
-        <h1 className="text-lg font-bold flex items-center gap-2 uppercase tracking-wide">
-          <Settings size={20} className="text-endfield-yellow" />
-          {t('settings.pageTitle')}
-        </h1>
-        <p className="text-[10px] text-zinc-400 mt-1 font-mono uppercase tracking-widest">{t('settings.pageSubtitle')}</p>
-      </div>
+    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark px-4 pb-6 space-y-4">
+      <MobileStickyHeader
+        eyebrow="SYSTEM"
+        icon={Settings}
+        title={t('settings.pageTitle')}
+        subtitle={t('settings.pageSubtitle')}
+      />
 
       {/* 账户信息 */}
       <MobileSettingsSection title={t('settings.accountSection')} icon={User}>
         {user ? (
-          <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          <div className="divide-y divide-zinc-200 overflow-hidden rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 dark:divide-white/8 dark:border-white/8 dark:bg-white/[0.03]">
             {/* 用户头像和邮箱 */}
             <div className="p-4 flex items-center gap-4">
-              <div className="w-14 h-14 rounded-none bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow shadow-sm">
+              <div className="w-14 h-14 rounded-[1rem] bg-endfield-yellow flex items-center justify-center overflow-hidden border border-endfield-yellow shadow-sm">
                 {user.user_metadata?.avatar_url ? (
                   <img
                     src={user.user_metadata.avatar_url}
@@ -294,7 +289,7 @@ function MobileSettingsView() {
                   {user.user_metadata?.full_name || t('settings.mobile.unnamedUser')}
                 </p>
                 <p className="text-xs text-zinc-500 truncate font-mono uppercase tracking-wide">{user.email}</p>
-                <div className={`mt-2 inline-flex items-center px-2 py-0.5 border ${roleInfo.badgeClass}`}>
+                <div className={`mt-2 inline-flex items-center rounded-full px-2 py-0.5 border ${roleInfo.badgeClass}`}>
                   <span className={`text-[9px] font-bold uppercase ${roleInfo.textClass}`}>
                     {roleInfo.label}
                   </span>
@@ -308,7 +303,7 @@ function MobileSettingsView() {
                 resetPasswordModalState();
                 setShowPasswordModal(true);
               }}
-              className="w-full px-4 py-3 flex items-center justify-between touch-feedback hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+              className="w-full px-4 py-3 flex items-center justify-between touch-feedback hover:bg-white/5 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <Lock size={16} className="text-zinc-400" />
@@ -318,7 +313,7 @@ function MobileSettingsView() {
             </button>
           </div>
         ) : (
-          <div className="p-8 text-center bg-zinc-50 dark:bg-zinc-900/50">
+          <div className="rounded-[1.05rem] border border-dashed border-zinc-200 bg-zinc-50/75 p-8 text-center dark:border-white/10 dark:bg-white/[0.03]">
             <User size={32} className="mx-auto mb-3 text-zinc-300 dark:text-zinc-700" />
             <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('settings.mobile.authRequired')}</p>
           </div>
@@ -336,14 +331,14 @@ function MobileSettingsView() {
                 <button
                   key={option.value}
                   onClick={() => setThemeMode(option.value)}
-                  className={`flex-1 flex flex-col items-center gap-2 p-3 border transition-all touch-feedback rounded-none ${
+                  className={`flex-1 flex flex-col items-center gap-2 rounded-[1rem] p-3 border transition-all touch-feedback ${
                     isActive
-                      ? 'border-endfield-yellow bg-endfield-yellow/10 shadow-[inset_0_0_0_1px_rgba(255,250,0,0.5)]'
-                      : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-zinc-300 dark:hover:border-zinc-600'
+                      ? 'border-endfield-yellow bg-endfield-yellow/10 shadow-[inset_0_0_0_1px_rgba(255,250,0,0.25)]'
+                      : 'border-zinc-200 bg-zinc-50/75 hover:border-zinc-300 dark:border-white/8 dark:bg-white/[0.03] dark:hover:border-white/15'
                   }`}
                 >
-                  <Icon size={20} className={isActive ? 'text-endfield-yellow' : 'text-zinc-400'} strokeWidth={1.5} />
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-zinc-900 dark:text-endfield-yellow' : 'text-zinc-500'}`}>
+                  <Icon size={20} className={isActive ? 'text-endfield-yellow' : 'text-slate-500 dark:text-zinc-400'} strokeWidth={1.5} />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isActive ? 'text-zinc-900 dark:text-endfield-yellow' : 'text-slate-500 dark:text-zinc-500'}`}>
                     {option.label}
                   </span>
                 </button>
@@ -367,7 +362,7 @@ function MobileSettingsView() {
       {/* 平台切换 */}
       <MobileSettingsSection title={t('settings.platformSection')} icon={Monitor}>
         <div className="p-4">
-          <PlatformSwitcher className="w-full justify-center py-2.5 rounded-none" />
+          <PlatformSwitcher className="w-full justify-center py-2.5 rounded-[1rem]" />
           <p className="text-[10px] text-zinc-400 text-center mt-2 font-mono uppercase">
             {t('settings.mobile.platformHint')}
           </p>
@@ -380,13 +375,13 @@ function MobileSettingsView() {
           <div className="p-4 space-y-4">
             {/* 数据统计 */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-none">
-                <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100">{userPoolCount}</div>
-                <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-wider mt-1">{t('settings.createdPools')}</div>
+              <div className="mobile-ux-soft-card p-3">
+                <div className="text-2xl font-bold font-mono text-slate-900 dark:text-zinc-100">{userPoolCount}</div>
+                <div className="text-[9px] text-slate-500 dark:text-zinc-400 uppercase font-bold tracking-wider mt-1">{t('settings.createdPools')}</div>
               </div>
-              <div className="p-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-none">
-                <div className="text-2xl font-bold font-mono text-zinc-800 dark:text-zinc-100">{userHistoryCount}</div>
-                <div className="text-[9px] text-zinc-400 uppercase font-bold tracking-wider mt-1">{t('settings.historyRecords')}</div>
+              <div className="mobile-ux-soft-card p-3">
+                <div className="text-2xl font-bold font-mono text-slate-900 dark:text-zinc-100">{userHistoryCount}</div>
+                <div className="text-[9px] text-slate-500 dark:text-zinc-400 uppercase font-bold tracking-wider mt-1">{t('settings.historyRecords')}</div>
               </div>
             </div>
 
@@ -400,7 +395,7 @@ function MobileSettingsView() {
                 <button
                   onClick={handleManualSync}
                   disabled={syncing || (userPoolCount === 0 && userHistoryCount === 0)}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors rounded-none"
+                  className="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-white text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors disabled:bg-zinc-800 hover:bg-blue-500"
                 >
                   {syncing ? (
                     <>
@@ -437,8 +432,8 @@ function MobileSettingsView() {
                       key={account.gameUid}
                       className={`border px-3 py-3 ${
                         currentGameUid === account.gameUid
-                          ? 'border-endfield-yellow bg-endfield-yellow/5'
-                          : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40'
+                          ? 'mobile-ux-soft-card rounded-[1.05rem] border-endfield-yellow bg-endfield-yellow/5'
+                          : 'mobile-ux-soft-card mobile-ux-soft-card--muted'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -446,12 +441,12 @@ function MobileSettingsView() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{account.nickName}</span>
                             {account.serverTag && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-[0.8rem] bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
                                 {account.serverTag}
                               </span>
                             )}
                             {currentGameUid === account.gameUid && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-endfield-yellow/15 text-amber-700 dark:text-endfield-yellow">
+                              <span className="rounded-full bg-endfield-yellow/15 px-1.5 py-0.5 text-[10px] font-bold text-endfield-yellow">
                                 {t('settings.currentAccount')}
                               </span>
                             )}
@@ -460,19 +455,19 @@ function MobileSettingsView() {
                             {t('settings.uidRecordCount', { uid: account.gameUid, count: account.recordCount })}
                           </div>
                         </div>
-                        <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(account.lastImportedAt))}`}>
-                          {formatFreshnessRelative(account.lastImportedAt, t('common.importTimeUnknown'), locale)}
+                        <span className={`px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(account)))}`}>
+                          {formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.importTimeUnknown'), locale)}
                         </span>
                       </div>
                       <div className="mt-2 space-y-1 text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
-                        <div>{t('settings.lastImport', { value: formatFreshnessAbsolute(account.lastImportedAt, t('common.unknown'), locale) })}</div>
+                        <div>{t('settings.lastImport', { value: formatFreshnessAbsolute(getAccountLastImportTimestamp(account), t('common.unknown'), locale) })}</div>
                         <div>{t('settings.latestRecord', { value: formatFreshnessAbsolute(account.latestRecordAt, t('common.unknown'), locale) })}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="mt-3 border border-dashed border-zinc-200 dark:border-zinc-700 px-3 py-3 text-[10px] font-mono text-zinc-500 dark:text-zinc-500">
+                <div className="mt-3 rounded-[1.05rem] border border-dashed border-zinc-200 bg-zinc-50/75 px-3 py-3 text-[10px] font-mono text-zinc-500 dark:border-white/10 dark:bg-white/[0.03]">
                   {t('settings.noImportedAccounts')}
                 </div>
               )}
@@ -491,7 +486,7 @@ function MobileSettingsView() {
                     setShowDeleteModal(true);
                   }}
                   disabled={userPoolCount === 0 && userHistoryCount === 0}
-                  className="flex items-center gap-2 px-4 py-2 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors rounded-none"
+                  className="flex items-center gap-2 rounded-full border border-red-400/30 px-4 py-2 text-red-300 text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors hover:bg-red-500/10"
                 >
                   <Trash2 size={12} />
                   {t('settings.deleteMyData')}
@@ -513,7 +508,7 @@ function MobileSettingsView() {
                     setShowDeleteAccountModal(true);
                   }}
                   disabled={userRole === 'admin' || userRole === 'super_admin'}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-white text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors rounded-none"
+                  className="flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-white text-xs font-bold uppercase tracking-wider touch-feedback disabled:opacity-50 transition-colors disabled:bg-zinc-800 hover:bg-red-700"
                 >
                   <Trash2 size={12} />
                   {t('settings.confirmDeleteAccountAction')}
@@ -533,7 +528,7 @@ function MobileSettingsView() {
       {user && (
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 py-4 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400 font-bold uppercase tracking-widest touch-feedback transition-colors rounded-none text-xs"
+          className="w-full flex items-center justify-center gap-2 rounded-[1.05rem] border border-zinc-200 bg-zinc-50/75 py-4 text-xs font-bold uppercase tracking-widest text-slate-500 hover:border-rose-300 hover:text-rose-500 touch-feedback transition-colors dark:border-white/8 dark:bg-white/[0.03] dark:text-zinc-400 dark:hover:border-rose-400/20 dark:hover:text-rose-300"
         >
           <LogOut size={16} />
           {t('nav.logout')}
@@ -541,10 +536,10 @@ function MobileSettingsView() {
       )}
 
       {/* 版本信息 */}
-      <div className="text-center py-6">
-        <div className="w-8 h-1 bg-zinc-200 dark:bg-zinc-800 mx-auto mb-3" />
-        <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-widest">{t('app.brand')}</p>
-        <p className="text-[10px] text-zinc-500 mt-1 font-mono">{APP_VERSION_LABEL}</p>
+      <div className="mobile-ux-card p-4 text-center">
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/10" />
+        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-400">{t('app.brand')}</p>
+        <p className="mt-1 text-[10px] font-mono text-zinc-500">{APP_VERSION_LABEL}</p>
       </div>
 
       {/* 底部留白 */}
@@ -552,10 +547,10 @@ function MobileSettingsView() {
 
       {/* 修改密码弹窗 */}
       {showPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm overflow-hidden animate-scale-up rounded-none shadow-2xl border border-zinc-700">
-            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
-              <h3 className="font-bold text-zinc-700 dark:text-zinc-300 flex items-center gap-2 uppercase tracking-wide text-sm">
+        <div className="mobile-ux-modal">
+          <div className="mobile-ux-modal-card animate-scale-up">
+            <div className="mobile-ux-modal-header">
+              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-zinc-100">
                 <Lock size={16} />
                 {t('settings.passwordModalTitle')}
               </h3>
@@ -564,20 +559,20 @@ function MobileSettingsView() {
                   setShowPasswordModal(false);
                   resetPasswordModalState();
                 }}
-                className="p-1 touch-feedback hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
+                className="rounded-full border border-zinc-200 bg-zinc-50 p-1 touch-feedback transition-colors hover:bg-zinc-100 dark:border-white/8 dark:bg-white/5 dark:hover:bg-white/10"
               >
-                <X size={18} className="text-zinc-400" />
+                <X size={18} className="text-slate-500 dark:text-zinc-400" />
               </button>
             </div>
             <div className="p-5 space-y-4">
               {passwordError && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-3 py-2 text-xs flex items-start gap-2 rounded-none">
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--danger flex items-start gap-2 px-3 py-2 text-xs text-red-300">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                   <span>{passwordError}</span>
                 </div>
               )}
               {passwordSuccess && (
-                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-3 py-2 text-xs flex items-start gap-2 rounded-none">
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--success flex items-start gap-2 px-3 py-2 text-xs text-emerald-300">
                   <Lock size={14} className="shrink-0 mt-0.5" />
                   <span>{passwordSuccess}</span>
                 </div>
@@ -593,7 +588,7 @@ function MobileSettingsView() {
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
                     placeholder={t('settings.newPasswordPlaceholder')}
-                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:border-endfield-yellow outline-none text-sm font-mono rounded-none"
+                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
                   />
                 </div>
                 <div>
@@ -605,7 +600,7 @@ function MobileSettingsView() {
                     value={confirmNewPassword}
                     onChange={(event) => setConfirmNewPassword(event.target.value)}
                     placeholder={t('settings.confirmNewPasswordPlaceholder')}
-                    className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:border-endfield-yellow outline-none text-sm font-mono rounded-none"
+                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
                   />
                   {confirmNewPassword && newPassword !== confirmNewPassword && (
                     <p className="mt-2 text-[10px] text-red-500">{t('settings.passwordMismatchInline')}</p>
@@ -616,7 +611,7 @@ function MobileSettingsView() {
               <button
                 onClick={handlePasswordReset}
                 disabled={passwordLoading || !!passwordSuccess}
-                className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-black font-bold py-3 text-xs uppercase tracking-widest touch-feedback disabled:opacity-50 rounded-none transition-colors"
+                className="w-full rounded-full bg-endfield-yellow py-3 text-xs font-bold uppercase tracking-widest text-black touch-feedback disabled:opacity-50 transition-colors hover:bg-yellow-400 disabled:bg-zinc-700"
               >
                 {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : t('settings.passwordUpdateAction')}
               </button>
@@ -627,24 +622,24 @@ function MobileSettingsView() {
 
       {/* 删除数据确认弹窗 */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-zinc-900 w-full max-w-sm overflow-hidden animate-scale-up rounded-none shadow-2xl border-2 border-red-500">
+        <div className="mobile-ux-modal">
+          <div className="mobile-ux-modal-card animate-scale-up border border-red-400/30">
             <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-500 flex items-center justify-center mx-auto mb-4 rounded-none border border-red-200 dark:border-red-800">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[1rem] border border-red-400/30 bg-red-500/10 text-red-300">
                 <AlertTriangle size={32} />
               </div>
-              <h3 className="text-lg font-bold text-zinc-800 dark:text-zinc-100 mb-1 uppercase tracking-wide">{t('settings.deleteDataModalTitle')}</h3>
-              <p className="text-xs text-zinc-500 mb-4 font-mono">{t('settings.deleteDataIrreversible')}</p>
+              <h3 className="mb-1 text-lg font-bold uppercase tracking-wide text-slate-900 dark:text-zinc-100">{t('settings.deleteDataModalTitle')}</h3>
+              <p className="text-xs text-slate-500 dark:text-zinc-500 mb-4 font-mono">{t('settings.deleteDataIrreversible')}</p>
               {deleteError && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-3 py-2 text-xs flex items-start gap-2 rounded-none mb-4">
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--danger mb-4 flex items-start gap-2 px-3 py-2 text-xs text-red-300">
                   <AlertTriangle size={14} className="shrink-0 mt-0.5" />
                   <span>{deleteError}</span>
                 </div>
               )}
               
-              <div className="bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 p-3 mb-4 text-left rounded-none">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--danger mb-4 p-3 text-left">
                 <p className="text-[10px] text-red-400 uppercase font-bold mb-2">{t('settings.deleteDataTargetTitle')}</p>
-                <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 font-mono">
+                <ul className="space-y-1 font-mono text-xs text-red-300">
                   <li>[x] {t('settings.deleteDataTargetPools', { count: userPoolCount })}</li>
                   <li>[x] {t('settings.deleteDataTargetHistory', { count: userHistoryCount })}</li>
                 </ul>
@@ -661,24 +656,24 @@ function MobileSettingsView() {
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 placeholder={t('settings.deleteDataPlaceholder')}
-                className="w-full px-4 py-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 focus:border-red-500 outline-none mb-4 text-sm font-mono rounded-none"
+                className="mobile-ux-input mb-4 px-4 py-3 text-sm font-mono"
               />
             </div>
-            <div className="flex border-t border-zinc-200 dark:border-zinc-800">
+            <div className="mobile-ux-modal-footer">
               <button
                 onClick={() => {
                   setShowDeleteModal(false);
                   setDeleteConfirmText('');
                   setDeleteError('');
                 }}
-                className="flex-1 py-3 text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 touch-feedback uppercase tracking-wider"
+                className="flex-1 rounded-full border border-zinc-200 bg-zinc-50 py-3 text-xs font-bold uppercase tracking-wider text-slate-600 touch-feedback dark:border-white/8 dark:bg-white/[0.03] dark:text-zinc-300"
               >
                 {t('common.cancel')}
               </button>
               <button
                 onClick={handleDeleteAllData}
                 disabled={deleteConfirmText !== deletePhrase || deleteLoading}
-                className="flex-1 py-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 touch-feedback disabled:opacity-50 uppercase tracking-wider transition-colors"
+                className="flex-1 rounded-full bg-red-600 py-3 text-xs font-bold uppercase tracking-wider text-white touch-feedback disabled:opacity-50 transition-colors hover:bg-red-700 disabled:bg-zinc-800"
               >
                 {deleteLoading ? t('settings.deleteDataProgress') : t('settings.deleteDataAction')}
               </button>
@@ -688,19 +683,19 @@ function MobileSettingsView() {
       )}
 
       {showDeleteAccountModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-          <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none shadow-xl overflow-hidden">
-            <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-950/20 flex items-center justify-between">
+        <div className="mobile-ux-modal">
+          <div className="mobile-ux-modal-card">
+            <div className="mobile-ux-modal-header">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={16} className="text-red-500" />
-                <span className="text-sm font-bold text-red-700 dark:text-red-400 uppercase tracking-wide">{t('settings.deleteAccountModalTitle')}</span>
+                <span className="text-sm font-bold text-red-300 uppercase tracking-wide">{t('settings.deleteAccountModalTitle')}</span>
               </div>
               <button
                 onClick={() => {
                   setShowDeleteAccountModal(false);
                   resetDeleteAccountState();
                 }}
-                className="text-zinc-400 hover:text-zinc-600"
+                className="text-slate-500 hover:text-slate-700 dark:text-zinc-400 dark:hover:text-zinc-200"
               >
                 <X size={18} />
               </button>
@@ -708,12 +703,12 @@ function MobileSettingsView() {
 
             <div className="p-4 space-y-4">
               {deleteAccountError && (
-                <div className="px-3 py-2 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10 text-red-600 dark:text-red-400 text-xs">
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--danger px-3 py-2 text-xs text-red-300">
                   {deleteAccountError}
                 </div>
               )}
 
-              <div className="px-3 py-3 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/10 text-xs text-red-700 dark:text-red-300 space-y-1">
+              <div className="mobile-ux-soft-card mobile-ux-soft-card--danger px-3 py-3 text-xs text-red-300 space-y-1">
                 <p>• {t('settings.deleteAccountWarning1')}</p>
                 <p>• {t('settings.deleteAccountWarning2')}</p>
                 <p>• {t('settings.deleteAccountWarning3')}</p>
@@ -730,7 +725,7 @@ function MobileSettingsView() {
                   value={deleteAccountPassword}
                   onChange={(event) => setDeleteAccountPassword(event.target.value)}
                   placeholder={t('settings.currentPasswordPlaceholder')}
-                  className="w-full px-3 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                  className="mobile-ux-input px-3 py-3 text-sm"
                 />
               </div>
 
@@ -743,25 +738,25 @@ function MobileSettingsView() {
                   value={deleteAccountConfirmText}
                   onChange={(event) => setDeleteAccountConfirmText(event.target.value)}
                   placeholder={t('settings.confirmDeleteAccountPlaceholder')}
-                  className="w-full px-3 py-3 border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-sm text-zinc-800 dark:text-zinc-200 rounded-none focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                  className="mobile-ux-input px-3 py-3 text-sm"
                 />
               </div>
             </div>
 
-            <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 flex gap-2">
+            <div className="mobile-ux-modal-footer">
               <button
                 onClick={() => {
                   setShowDeleteAccountModal(false);
                   resetDeleteAccountState();
                 }}
-                className="flex-1 px-4 py-2 border border-zinc-200 dark:border-zinc-700 text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300"
+                className="flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:border-white/8 dark:bg-white/[0.03] dark:text-zinc-300"
               >
                 {t('common.cancel')}
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={deleteAccountLoading || deleteAccountConfirmText !== deleteAccountPhrase}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-xs font-bold uppercase tracking-wider disabled:opacity-50"
+                className="flex-1 rounded-full bg-red-600 px-4 py-2 text-white text-xs font-bold uppercase tracking-wider disabled:opacity-50 hover:bg-red-700 disabled:bg-zinc-700"
               >
                 {deleteAccountLoading ? t('settings.deleteAccountProgress') : t('settings.confirmDeleteAccountAction')}
               </button>

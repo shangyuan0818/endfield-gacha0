@@ -355,16 +355,16 @@ export function useCharacters({ showToast }) {
 
   // 保存角色
   const saveCharacter = useCallback(async () => {
-    if (!ensureSuperAdmin()) return;
+    if (!ensureSuperAdmin()) return { success: false };
 
     // 验证必填字段
     if (!characterForm.id.trim()) {
       showToast('角色ID不能为空', 'error');
-      return;
+      return { success: false };
     }
     if (!characterForm.name.trim()) {
       showToast('角色名称不能为空', 'error');
-      return;
+      return { success: false };
     }
 
     setActionLoading('save');
@@ -397,17 +397,27 @@ export function useCharacters({ showToast }) {
       pool_config: poolConfig
     };
 
-    const { success, error } = await characterService.saveCharacter(characterData, editingCharacter);
+    try {
+      const { success, error } = await characterService.saveCharacter(characterData, editingCharacter);
 
-    if (success) {
-      showToast(editingCharacter ? '角色已更新' : '角色已创建', 'success');
-      await loadCharacters();
-      resetForm();
-    } else {
+      if (success) {
+        showToast(editingCharacter ? '角色已更新' : '角色已创建', 'success');
+        await loadCharacters();
+        resetForm();
+        return {
+          success: true,
+          characterData,
+        };
+      }
+
       showToast('保存失败: ' + error.message, 'error');
+      return {
+        success: false,
+        error,
+      };
+    } finally {
+      setActionLoading(null);
     }
-
-    setActionLoading(null);
   }, [characterForm, editingCharacter, ensureSuperAdmin, showToast, loadCharacters, resetForm]);
 
   // 删除角色

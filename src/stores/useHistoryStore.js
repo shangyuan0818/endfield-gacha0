@@ -266,9 +266,12 @@ const useHistoryStore = create((set, get) => ({
     history.forEach(h => {
       const gameUid = getHistoryGameUid(h);
       if (gameUid) {
+        const recordTimestamp = getHistoryRecordTimestampMs(h);
         const metadata = getHistoryAccountMetadata(h, storedMetadataMap[gameUid]);
+        const derivedImportTimestamp = metadata?.lastImportedAt
+          || metadata?.lastImportedRecordAt
+          || (recordTimestamp ? new Date(recordTimestamp).toISOString() : null);
         if (!accountMap.has(gameUid)) {
-          const recordTimestamp = getHistoryRecordTimestampMs(h);
           accountMap.set(gameUid, {
             gameUid,
             nickName: metadata?.nickName || getHistoryNickName(h), // 优先使用昵称，否则使用 UID
@@ -278,7 +281,7 @@ const useHistoryStore = create((set, get) => ({
             region: metadata?.region || null,
             isOfficial: metadata?.isOfficial ?? null,
             serverTag: metadata?.serverTag || null,
-            lastImportedAt: metadata?.lastImportedAt || null,
+            lastImportedAt: derivedImportTimestamp,
             lastImportedRecordAt: metadata?.lastImportedRecordAt || null,
             lastImportSource: metadata?.lastImportSource || null,
             latestRecordAt: recordTimestamp ? new Date(recordTimestamp).toISOString() : null,
@@ -294,7 +297,7 @@ const useHistoryStore = create((set, get) => ({
             region: metadata.region || accountMap.get(gameUid).region,
             isOfficial: metadata.isOfficial ?? accountMap.get(gameUid).isOfficial,
             serverTag: metadata.serverTag || accountMap.get(gameUid).serverTag,
-            lastImportedAt: metadata.lastImportedAt || accountMap.get(gameUid).lastImportedAt,
+            lastImportedAt: metadata.lastImportedAt || metadata.lastImportedRecordAt || accountMap.get(gameUid).lastImportedAt,
             lastImportedRecordAt: metadata.lastImportedRecordAt || accountMap.get(gameUid).lastImportedRecordAt,
             lastImportSource: metadata.lastImportSource || accountMap.get(gameUid).lastImportSource
           });
@@ -302,13 +305,13 @@ const useHistoryStore = create((set, get) => ({
         const accountEntry = accountMap.get(gameUid);
         accountEntry.recordCount++;
 
-        const recordTimestamp = getHistoryRecordTimestampMs(h);
+        const latestRecordTimestamp = getHistoryRecordTimestampMs(h);
         const currentLatestTimestamp = getHistoryRecordTimestampMs({
           timestamp: accountEntry.latestRecordAt
         });
 
-        if (recordTimestamp && (!currentLatestTimestamp || recordTimestamp > currentLatestTimestamp)) {
-          accountEntry.latestRecordAt = new Date(recordTimestamp).toISOString();
+        if (latestRecordTimestamp && (!currentLatestTimestamp || latestRecordTimestamp > currentLatestTimestamp)) {
+          accountEntry.latestRecordAt = new Date(latestRecordTimestamp).toISOString();
         }
       }
     });
