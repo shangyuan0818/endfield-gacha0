@@ -33,9 +33,11 @@ import {
 import { useAppStore, useAuthStore } from '../../stores';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
+import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
+import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
 
 const HomePage = React.memo(() => {
-  const { t, isEnglish } = useI18n();
+  const { t, isEnglish, locale } = useI18n();
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
@@ -85,6 +87,10 @@ const HomePage = React.memo(() => {
 
   const initialCollapseState = getHomeCollapseState();
   const latestAnnouncement = announcements[0];
+  const latestAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale);
+  const latestAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
+  const latestGameAnnouncement = gameAnnouncements[0] || null;
+  const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement);
   const hasAnnouncementUpdate = latestAnnouncement
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at)
     : false;
@@ -278,7 +284,7 @@ const HomePage = React.memo(() => {
                     <div className="text-left">
                       <div className="flex items-center gap-2">
                       <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">{t('home.siteAnnouncement')}</span>
-                      <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncement.title}</h3>
+                      <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncementTitle}</h3>
                       {isAnnouncementNew && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
                           NEW
@@ -291,7 +297,7 @@ const HomePage = React.memo(() => {
               </button>
 
               <CollapsibleContent isOpen={showAnnouncement}>
-                <HomeAnnouncementContent content={latestAnnouncement.content} />
+                <HomeAnnouncementContent content={latestAnnouncementContent} />
               </CollapsibleContent>
             </div>
           )}
@@ -309,9 +315,13 @@ const HomePage = React.memo(() => {
                     <div className="text-left">
                       <div className="flex items-center gap-2">
                       <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">{t('home.gameAnnouncement')}</span>
-                      <h3 className="font-bold text-amber-700 dark:text-amber-400">{t('home.fromOfficialSite')}</h3>
+                      <h3 className="font-bold text-amber-700 dark:text-amber-400">
+                        {latestGameAnnouncement?.title || t('home.fromOfficialSite')}
+                      </h3>
                     </div>
-                    <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">{t('home.autoSummary')}</p>
+                    <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">
+                      {latestGameAnnouncementSummary || t('home.autoSummary')}
+                    </p>
                   </div>
                 </div>
                 <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />

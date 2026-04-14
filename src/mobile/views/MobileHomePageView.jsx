@@ -8,6 +8,8 @@ import useSiteConfigStore, { useJsonConfig } from '../../stores/useSiteConfigSto
 import { useI18n } from '../../i18n/index.js';
 import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
+import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
 
 
 const DEFAULT_LINKS = [
@@ -107,6 +109,9 @@ export default function MobileHomePageView() {
 
   const schedule = useMemo(() => getLimitedPoolSchedule(Array.isArray(pools) ? pools : []), [pools]);
   const latestAnnouncement = announcements?.[0] || null;
+  const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
+  const latestGameAnnouncement = gameAnnouncements?.[0] || null;
+  const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement, 72);
   
   const translatedLinks = useMemo(() => (Array.isArray(links) ? links : []).map((item, index) => ({
     ...item,
@@ -265,15 +270,24 @@ export default function MobileHomePageView() {
                       {latestAnnouncement && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>}
                   </div>
                   <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{t('home.siteAnnouncement')}</span>
-                  <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{latestAnnouncement?.title || t('announcement.empty')}</span>
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{localizedAnnouncementTitle}</span>
               </div>
               <ChevronRight size={14} className="text-amber-500/50 shrink-0" />
           </div>
           <div onClick={() => navigate('/m/announcements')} className="rounded-xl border border-orange-200 dark:border-orange-800/30 bg-gradient-to-r from-orange-100 dark:from-orange-950/20 to-transparent flex items-center justify-between p-3 cursor-pointer">
               <div className="flex items-center gap-2 w-full pr-2">
                   <Radio size={16} className="text-orange-500 shrink-0" />
-                  <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate flex-1">{gameAnnouncements?.[0]?.title || t('announcement.empty')}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate">{latestGameAnnouncement?.title || t('announcement.empty')}</span>
+                    </div>
+                    {latestGameAnnouncementSummary ? (
+                      <div className="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400 truncate">
+                        {latestGameAnnouncementSummary}
+                      </div>
+                    ) : null}
+                  </div>
               </div>
               <ChevronRight size={14} className="text-slate-400 dark:text-zinc-600 shrink-0" />
           </div>

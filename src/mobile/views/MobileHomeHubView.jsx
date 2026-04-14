@@ -11,6 +11,8 @@ import { useI18n } from '../../i18n/index.js';
 import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import SpringPreviewCard from '../../components/home/SpringPreviewCard';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
+import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
 
 const DEFAULT_LINKS = [
   { id: 'yituliu-calculator', title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'bar-chart-2' }, 
@@ -115,6 +117,10 @@ export default function MobileHomeHubView() {
 
   const schedule = useMemo(() => getLimitedPoolSchedule(Array.isArray(pools) ? pools : []), [pools]);
   const latestAnnouncement = announcements?.[0] || null;
+  const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
+  const localizedAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
+  const latestGameAnnouncement = gameAnnouncements?.[0] || null;
+  const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement, 72);
   
   const translatedLinks = useMemo(() => (Array.isArray(links) ? links : []).map((item, index) => ({
     ...item,
@@ -193,10 +199,10 @@ export default function MobileHomeHubView() {
               <span className="px-2 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold">{t('home.siteAnnouncement')}</span>
               {latestAnnouncement.version ? <span className="px-2 py-0.5 rounded-sm bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-bold font-mono">v{latestAnnouncement.version}</span> : null}
             </div>
-            <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{latestAnnouncement.title}</div>
+            <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{localizedAnnouncementTitle}</div>
             <div className="text-[11px] text-slate-500 dark:text-zinc-500 mb-4">{formatDateTime(latestAnnouncement.updated_at || latestAnnouncement.created_at, { includeYear: false }, t('common.timeUnknown'))}</div>
             <div className="pt-4 border-t border-amber-200 dark:border-amber-800/30 text-sm text-slate-700 dark:text-zinc-300 prose prose-invert max-w-none">
-              <AnnouncementContent content={latestAnnouncement.content} />
+              <AnnouncementContent content={localizedAnnouncementContent} />
             </div>
           </div>
         ) : (
@@ -305,15 +311,24 @@ export default function MobileHomeHubView() {
                       {latestAnnouncement && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>}
                   </div>
                   <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{t('home.siteAnnouncement')}</span>
-                  <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{latestAnnouncement?.title || t('announcement.empty')}</span>
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{localizedAnnouncementTitle}</span>
               </div>
               <ChevronRight size={14} className="text-amber-500/50 shrink-0" />
           </div>
           <div onClick={() => setActiveView('announcements')} className="rounded-xl border border-orange-200 dark:border-orange-800/30 bg-gradient-to-r from-orange-100 dark:from-orange-950/20 to-transparent flex items-center justify-between p-3 cursor-pointer">
               <div className="flex items-center gap-2 w-full pr-2">
                   <Radio size={16} className="text-orange-500 shrink-0" />
-                  <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
-                  <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate flex-1">{gameAnnouncements?.[0]?.title || t('announcement.empty')}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate">{latestGameAnnouncement?.title || t('announcement.empty')}</span>
+                    </div>
+                    {latestGameAnnouncementSummary ? (
+                      <div className="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400 truncate">
+                        {latestGameAnnouncementSummary}
+                      </div>
+                    ) : null}
+                  </div>
               </div>
               <ChevronRight size={14} className="text-slate-400 dark:text-zinc-600 shrink-0" />
           </div>

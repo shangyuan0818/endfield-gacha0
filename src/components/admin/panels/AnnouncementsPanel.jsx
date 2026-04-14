@@ -16,14 +16,16 @@ const AnnouncementsPanel = ({
   const [showAnnouncementForm, setShowAnnouncementForm] = useState(false);
   const [announcementForm, setAnnouncementForm] = useState({
     title: '',
+    title_en: '',
     content: '',
+    content_en: '',
     version: '1.0.0',
     is_active: true,
     priority: 0
   });
 
   const resetAnnouncementForm = () => {
-    setAnnouncementForm({ title: '', content: '', version: '1.0.0', is_active: true, priority: 0 });
+    setAnnouncementForm({ title: '', title_en: '', content: '', content_en: '', version: '1.0.0', is_active: true, priority: 0 });
     setEditingAnnouncement(null);
     setShowAnnouncementForm(false);
   };
@@ -31,7 +33,9 @@ const AnnouncementsPanel = ({
   const startEditAnnouncement = (announcement) => {
     setAnnouncementForm({
       title: announcement.title,
+      title_en: announcement.title_en || '',
       content: announcement.content,
+      content_en: announcement.content_en || '',
       version: announcement.version || '1.0.0',
       is_active: announcement.is_active,
       priority: announcement.priority || 0
@@ -75,8 +79,8 @@ const AnnouncementsPanel = ({
           </div>
 
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">标题</label>
                 <input
                   type="text"
@@ -86,6 +90,19 @@ const AnnouncementsPanel = ({
                   placeholder="公告标题"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">英文标题</label>
+                <input
+                  type="text"
+                  value={announcementForm.title_en}
+                  onChange={(e) => setAnnouncementForm(prev => ({ ...prev, title_en: e.target.value }))}
+                  className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                  placeholder="English announcement title"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">版本号</label>
@@ -107,31 +124,62 @@ const AnnouncementsPanel = ({
                   />
                 </div>
               </div>
+              <div className="text-xs text-amber-700/80 dark:text-amber-300/80 md:self-end">
+                英文字段为可选。英文环境下若未填写，将自动回退到中文公告内容。
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
-                内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
-              </label>
-              <div data-color-mode="light" className="dark:hidden">
-                <MDEditor
-                  value={announcementForm.content}
-                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                  height={300}
-                  preview="live"
-                  hideToolbar={false}
-                  enableScroll={true}
-                />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
+                  中文内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
+                </label>
+                <div data-color-mode="light" className="dark:hidden">
+                  <MDEditor
+                    value={announcementForm.content}
+                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
+                    height={300}
+                    preview="live"
+                    hideToolbar={false}
+                    enableScroll={true}
+                  />
+                </div>
+                <div data-color-mode="dark" className="hidden dark:block">
+                  <MDEditor
+                    value={announcementForm.content}
+                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
+                    height={300}
+                    preview="live"
+                    hideToolbar={false}
+                    enableScroll={true}
+                  />
+                </div>
               </div>
-              <div data-color-mode="dark" className="hidden dark:block">
-                <MDEditor
-                  value={announcementForm.content}
-                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                  height={300}
-                  preview="live"
-                  hideToolbar={false}
-                  enableScroll={true}
-                />
+
+              <div>
+                <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
+                  英文内容 <span className="text-xs opacity-75">(Markdown 编辑器，可选)</span>
+                </label>
+                <div data-color-mode="light" className="dark:hidden">
+                  <MDEditor
+                    value={announcementForm.content_en}
+                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
+                    height={300}
+                    preview="live"
+                    hideToolbar={false}
+                    enableScroll={true}
+                  />
+                </div>
+                <div data-color-mode="dark" className="hidden dark:block">
+                  <MDEditor
+                    value={announcementForm.content_en}
+                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
+                    height={300}
+                    preview="live"
+                    hideToolbar={false}
+                    enableScroll={true}
+                  />
+                </div>
               </div>
             </div>
 
@@ -178,6 +226,11 @@ const AnnouncementsPanel = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h4 className="font-medium text-slate-700 dark:text-zinc-300">{announcement.title}</h4>
+                    {announcement.title_en ? (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 rounded">
+                        EN
+                      </span>
+                    ) : null}
                     <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400 rounded">
                       v{announcement.version}
                     </span>
@@ -190,6 +243,11 @@ const AnnouncementsPanel = ({
                   <p className="text-sm text-slate-500 dark:text-zinc-500 line-clamp-2">
                     {announcement.content.replace(/[#*>\-`]/g, '').slice(0, 100)}...
                   </p>
+                  {announcement.content_en ? (
+                    <p className="mt-1 text-xs text-slate-400 dark:text-zinc-600 line-clamp-1">
+                      EN: {announcement.content_en.replace(/[#*>\-`]/g, '').slice(0, 80)}...
+                    </p>
+                  ) : null}
                   <span className="text-xs text-slate-400 dark:text-zinc-600">
                     优先级: {announcement.priority} · 更新于 {new Date(announcement.updated_at || announcement.created_at).toLocaleString()}
                   </span>

@@ -22,7 +22,9 @@ export async function createAnnouncement(announcementForm) {
     .from('announcements')
     .insert({
       title: announcementForm.title,
+      title_en: announcementForm.title_en || null,
       content: announcementForm.content,
+      content_en: announcementForm.content_en || null,
       version: announcementForm.version,
       is_active: announcementForm.is_active,
       priority: announcementForm.priority
@@ -40,7 +42,9 @@ export async function updateAnnouncement(announcementId, announcementForm) {
     .from('announcements')
     .update({
       title: announcementForm.title,
+      title_en: announcementForm.title_en || null,
       content: announcementForm.content,
+      content_en: announcementForm.content_en || null,
       version: announcementForm.version,
       is_active: announcementForm.is_active,
       priority: announcementForm.priority,

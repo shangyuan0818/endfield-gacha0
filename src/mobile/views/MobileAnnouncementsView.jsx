@@ -6,6 +6,7 @@ import GameAnnouncementFeed from '../../components/home/GameAnnouncementFeed.jsx
 import { useAppStore } from '../../stores';
 import { getMobilePathForTab } from '../../constants/appRoutes.js';
 import { useI18n } from '../../i18n/index.js';
+import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 
 function BackButton({ onClick }) {
   return (
@@ -17,10 +18,12 @@ function BackButton({ onClick }) {
 
 function MobileAnnouncementsView() {
   const navigate = useNavigate();
-  const { t, formatDateTime } = useI18n();
+  const { t, formatDateTime, locale } = useI18n();
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const latestAnnouncement = announcements?.[0] || null;
+  const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
+  const localizedAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
 
   return (
     <div className="flex-1 h-full overflow-y-auto overflow-x-hidden px-4 pb-20 slide-up-enter scroll-smooth w-full bg-ef-light dark:bg-ef-dark">
@@ -35,10 +38,10 @@ function MobileAnnouncementsView() {
             <span className="px-2 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold">{t('home.siteAnnouncement')}</span>
             {latestAnnouncement.version ? <span className="px-2 py-0.5 rounded-sm bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-bold font-mono">v{latestAnnouncement.version}</span> : null}
           </div>
-          <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{latestAnnouncement.title}</div>
+          <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{localizedAnnouncementTitle}</div>
           <div className="text-[11px] text-slate-500 dark:text-zinc-500 mb-4">{formatDateTime(latestAnnouncement.updated_at || latestAnnouncement.created_at, { includeYear: false }, t('common.timeUnknown'))}</div>
           <div className="pt-4 border-t border-amber-200 dark:border-amber-800/30 text-sm text-slate-700 dark:text-zinc-300 prose prose-invert max-w-none">
-            <AnnouncementContent content={latestAnnouncement.content} />
+            <AnnouncementContent content={localizedAnnouncementContent} />
           </div>
         </div>
       ) : (
