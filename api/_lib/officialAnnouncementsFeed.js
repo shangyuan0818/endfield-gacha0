@@ -102,7 +102,7 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
     return {
       source_id: String(detail.cid),
       title: String(detail.title),
-      summary: normalizedSummary,
+      summary: presentation.summaryText || normalizedSummary,
       content: presentation.content,
       raw_content: presentation.rawContent,
       image_urls: presentation.imageUrls,

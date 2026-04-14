@@ -97,12 +97,12 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
 
       <div className="flex flex-wrap items-center gap-3">
         <button
-          onClick={triggerSync}
+          onClick={() => triggerSync()}
           disabled={syncing || loading}
           className="flex items-center gap-1 px-3 py-2 border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
         >
           {syncing ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
-          {syncing ? '同步中...' : '立即同步'}
+          {syncing ? '同步中...' : '立即同步公告'}
         </button>
         <button
           onClick={refreshRuns}

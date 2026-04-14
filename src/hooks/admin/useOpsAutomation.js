@@ -34,11 +34,11 @@ export function useOpsAutomation(showToast) {
     setSyncing(true);
     try {
       const result = await opsAutomationService.triggerManualSync();
-      if (showToast) showToast('手动同步完成', 'success');
+      if (showToast) showToast('公告同步完成', 'success');
       await loadRuns();
       return result;
     } catch (error) {
-      if (showToast) showToast(`手动同步失败: ${error.message}`, 'error');
+      if (showToast) showToast(`公告同步失败: ${error.message}`, 'error');
     } finally {
       setSyncing(false);
     }

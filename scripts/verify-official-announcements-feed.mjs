@@ -142,6 +142,7 @@ assert.equal(res.statusCode, 200, 'official-announcements-feed 应返回 200');
 assert.equal(res.payload?.success, true, 'official-announcements-feed 应返回 success=true');
 assert.equal(res.payload?.records?.length, 1, 'official-announcements-feed 应输出标准化记录');
 assert.equal(res.payload.records[0].source_id, '5992', '记录应保留官方 cid 作为 source_id');
+assert.equal(res.payload.records[0].summary, '亲爱的管理员：测试摘要', '公告摘要应保留或派生为可展示短摘要');
 assert.match(res.payload.records[0].content, /## 核心内容/, '长公告应通过 LLM 生成结构化摘要内容');
 assert.equal(res.payload.records[0].summary_mode, 'llm', '长公告应标记为 llm 摘要模式');
 assert.match(res.payload.records[0].content, /原公告配图/, '长公告摘要应补上原公告配图区');

@@ -54,7 +54,7 @@ export async function loadOpsAutomationRuns({
   return data || [];
 }
 
-export async function triggerManualSync() {
+export async function triggerManualSync(job = 'official-announcements') {
   const token = await getAccessToken();
   if (!token) throw new Error('未登录或会话已过期');
 
@@ -64,6 +64,7 @@ export async function triggerManualSync() {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
+    body: JSON.stringify({ job }),
   });
 
   const json = await res.json().catch(() => ({}));

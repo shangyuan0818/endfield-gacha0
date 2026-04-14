@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ExternalLink, Radio } from 'lucide-react';
 import AnnouncementContent from './AnnouncementContent';
 import { formatAppDateTime, useI18n } from '../../i18n/index.js';
+import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
 
 function formatPublishedAt(value, locale, fallback) {
   if (!value) {
@@ -56,6 +57,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
     <div className="px-4 pb-4 space-y-3">
       {visibleAnnouncements.map((announcement) => {
         const isExpanded = effectiveExpandedId === announcement.source_id;
+        const summaryText = getGameAnnouncementSummary(announcement);
 
         return (
           <div
@@ -86,7 +88,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
                   <span>{formatPublishedAt(announcement.published_at, locale, t('announcement.timeUnavailable'))}</span>
-                  {announcement.summary ? <span>· {announcement.summary}</span> : null}
+                  {summaryText ? <span>· {summaryText}</span> : null}
                 </div>
               </div>
               <button

@@ -57,6 +57,37 @@ function truncateText(value, maxLength) {
   return `${normalizedValue.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
+function extractFirstBulletLine(markdownText) {
+  const lines = String(markdownText || '')
+    .split(/\n+/)
+    .map(line => normalizeText(line.replace(/^[-*]\s*/u, '')))
+    .filter(Boolean)
+    .filter(line => !line.startsWith('> '))
+    .filter(line => !/^##\s/u.test(line));
+
+  return lines[0] || '';
+}
+
+function buildAnnouncementSummaryText({ title, summary, plainText, structuredSummary }) {
+  const normalizedSummary = normalizeText(summary);
+  if (normalizedSummary) {
+    return truncateText(normalizedSummary, 96);
+  }
+
+  const bulletSummary = extractFirstBulletLine(structuredSummary);
+  if (bulletSummary) {
+    return truncateText(bulletSummary, 96);
+  }
+
+  const plainLines = String(plainText || '')
+    .split(/\n+/)
+    .map(line => normalizeText(line))
+    .filter(Boolean)
+    .filter(line => line !== normalizeText(title));
+
+  return truncateText(plainLines[0] || normalizeText(title), 96);
+}
+
 function absolutizeUrl(rawValue, sourceUrl = OFFICIAL_SITE_ORIGIN) {
   const value = normalizeText(rawValue);
   if (!value) {
@@ -363,6 +394,12 @@ export async function buildAnnouncementDisplayContent({
       rawContent: normalizedRawHtml,
       imageUrls,
       summaryMode: 'raw',
+      summaryText: buildAnnouncementSummaryText({
+        title,
+        summary,
+        plainText,
+        structuredSummary: null,
+      }),
     };
   }
 
@@ -398,6 +435,12 @@ export async function buildAnnouncementDisplayContent({
     rawContent: normalizedRawHtml,
     imageUrls,
     summaryMode: structuredSummary ? 'llm' : 'heuristic',
+    summaryText: buildAnnouncementSummaryText({
+      title,
+      summary,
+      plainText,
+      structuredSummary: structuredSummary || fallbackSummary,
+    }),
   };
 }
 
