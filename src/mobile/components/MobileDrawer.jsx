@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Home, User, ListFilter, Globe, Gamepad2, MessageSquare, Settings, Info, Shield, LogOut, ChevronDown, X, LogIn } from 'lucide-react';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher.jsx';
-import AuthModal from '../../AuthModal';
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
@@ -31,12 +30,11 @@ function DrawerNavButton({ icon: Icon, label, active = false, tone = 'default', 
 }
 
 function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
-  const { user, signOut, userRole, setUser } = useAuthStore();
+  const { user, signOut, userRole, openAuthModal } = useAuthStore();
   const currentGameUid = usePoolStore((state) => state.currentGameUid);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const { t } = useI18n();
   const drawerRef = useRef(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const isSuperAdmin = userRole === 'super_admin';
   
   const accounts = getGameAccountsFromHistory();
@@ -75,11 +73,6 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
     onClose();
   };
 
-  const handleAuthSuccess = (nextUser) => {
-    setUser(nextUser);
-    setShowAuthModal(false);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="absolute inset-0 bg-white/80 dark:bg-black/80 backdrop-blur-sm transition-opacity animate-overlay-fade-in" onClick={onClose} />
@@ -116,7 +109,13 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
               </div>
             </div>
             {!user ? (
-               <button onClick={() => setShowAuthModal(true)} className="p-1.5 ml-2 rounded-full bg-amber-100 dark:bg-ef-yellow/20 text-amber-600 dark:text-ef-yellow touch-feedback shrink-0">
+               <button
+                 onClick={() => {
+                   onClose();
+                   openAuthModal();
+                 }}
+                 className="p-1.5 ml-2 rounded-full bg-amber-100 dark:bg-ef-yellow/20 text-amber-600 dark:text-ef-yellow touch-feedback shrink-0"
+               >
                  <LogIn size={16} />
                </button>
             ) : null}
@@ -168,12 +167,6 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
           </div>
         ) : null}
       </aside>
-
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onAuthSuccess={handleAuthSuccess}
-      />
     </div>
   );
 }

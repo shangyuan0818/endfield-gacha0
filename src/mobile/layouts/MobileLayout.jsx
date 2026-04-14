@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import MobileHeader from '../components/MobileHeader';
 import MobileTabBar from '../components/MobileTabBar';
 import MobileDrawer from '../components/MobileDrawer';
+import AuthModal from '../../AuthModal';
 import { getMobilePathForTab, getMobileTabFromPath } from '../../constants/appRoutes';
 
 // 移动端视图
@@ -28,7 +29,7 @@ import { useI18n } from '../../i18n/index.js';
 function MobileLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, userRole, authResolved } = useAuthStore();
+  const { user, userRole, authResolved, showAuthModal, closeAuthModal, setUser } = useAuthStore();
   const { t } = useI18n();
   const activeTab = getMobileTabFromPath(location.pathname);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -87,6 +88,12 @@ function MobileLayout() {
         onClose={() => setIsDrawerOpen(false)}
         activeTab={activeTab}
         setActiveTab={(tab) => navigate(getMobilePathForTab(tab))}
+      />
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={closeAuthModal}
+        onAuthSuccess={setUser}
       />
     </div>
   );

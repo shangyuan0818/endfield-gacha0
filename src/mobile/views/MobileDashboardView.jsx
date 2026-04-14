@@ -44,6 +44,7 @@ import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, 
 import {
   MobileStatusBadge
 } from '../components/ux/MobilePrimitives.jsx';
+import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 
 const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
 
@@ -567,6 +568,19 @@ function MobileDashboardView() {
       showToast(message, 'error');
     }
   }, [beginShareAction, failShareAction, finishShareAction, getShareImageBlob, hasDashboardShareData, isClipboardImageReady, isFirefoxClipboardBrowser, prewarmClipboardShareImage, showToast, supportsClipboardImageCopy, t, updateShareAction, waitForShareCard]);
+
+  if (!user) {
+    return (
+      <MobileAuthRequiredView
+        animation="right"
+        eyebrow={t('nav.details')}
+        title={t('nav.details')}
+        description={isEnglish
+          ? 'Sign in to view banner analysis, pity progress, timeline, and detailed pull logs.'
+          : '登录后才能查看卡池分析、保底进度、时间线和详细抽卡日志。'}
+      />
+    );
+  }
 
   if (!hasPoolData) {
     return (
