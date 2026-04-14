@@ -101,7 +101,7 @@ export default function MobileHomePageView() {
   const communityLabel = ENGLISH_COMMUNITY_DISCORD_URL.replace(/^https?:\/\//u, '');
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60000);
+    const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -186,7 +186,8 @@ export default function MobileHomePageView() {
       pool: targetPool,
       days: Math.floor(diff / (1000 * 60 * 60 * 24)),
       hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diff % (1000 * 60)) / 1000)
     };
   }, [now, schedule]);
   const localizedNextVersionName = useMemo(() => (
@@ -318,7 +319,8 @@ export default function MobileHomePageView() {
               <div className="flex items-baseline gap-1 font-mono font-bold text-4xl tracking-tighter">
                   <span className="text-slate-900 dark:text-white">{String(countdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
-                  <span className="text-slate-900 dark:text-white">{String(countdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+                  <span className="text-slate-900 dark:text-white">{String(countdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+                  <span className="text-slate-900 dark:text-white">{String(countdown.seconds || 0).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 font-sans font-bold">{isEnglish ? 'S' : '秒'}</span>
               </div>
             </div>
         </div>
@@ -354,7 +356,8 @@ export default function MobileHomePageView() {
             <div className="flex items-baseline gap-1 font-mono font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
                 <span>{String(nextVersionCountdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                 <span>{String(nextVersionCountdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
-                <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+                <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+                <span>{String(nextVersionCountdown.seconds || 0).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 font-sans font-bold">{isEnglish ? 'S' : '秒'}</span>
             </div>
             <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500">{localizedNextVersionName}</div>
         </div>
