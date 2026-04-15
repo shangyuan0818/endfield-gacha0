@@ -21,6 +21,7 @@
     "prebuild": "npm run fonts:prepare",
     "build": "vite build",
     "test": "node scripts/run-public-tests.mjs",
+    "test:unit": "vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{js,jsx,css,json}\"",
@@ -87,6 +88,8 @@
     "@eslint/js": "^9.39.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.1.17",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",
@@ -98,12 +101,14 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^27.0.1",
     "playwright": "^1.58.2",
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.1.17",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0",
-    "vite-plugin-webfont-dl": "^3.12.0"
+    "vite-plugin-webfont-dl": "^3.12.0",
+    "vitest": "^3.2.4"
   }
 }

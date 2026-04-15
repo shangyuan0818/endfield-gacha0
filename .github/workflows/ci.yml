@@ -38,5 +38,8 @@ jobs:
       - name: Public verification suite
         run: npm test
 
+      - name: Unit test suite
+        run: npm run test:unit
+
       - name: Build
         run: npm run build
