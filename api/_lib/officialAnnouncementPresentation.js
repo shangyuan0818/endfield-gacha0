@@ -95,6 +95,10 @@ function absolutizeUrl(rawValue, sourceUrl = OFFICIAL_SITE_ORIGIN) {
     return '';
   }
 
+  if (value === OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH || value.startsWith(`${OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH}?`)) {
+    return value;
+  }
+
   if (/^(data:|blob:|mailto:|tel:)/i.test(value)) {
     return value;
   }
