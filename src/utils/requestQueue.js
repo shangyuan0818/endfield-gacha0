@@ -9,6 +9,7 @@
  * @version 1.1.0 - 修复超时后请求仍在执行的问题
  * @date 2026-02-08
  */
+import appLogger from './appLogger.js';
 
 /**
  * 请求队列类
@@ -51,7 +52,7 @@ class RequestQueue {
       try {
         listener(event, data);
       } catch (error) {
-        console.error('[RequestQueue] Listener error:', error);
+        appLogger.error('[RequestQueue] Listener error:', error);
       }
     });
   }
@@ -109,6 +110,7 @@ class RequestQueue {
 
     while (this.queue.length > 0) {
       const task = this.queue.shift();
+      // eslint-disable-next-line no-await-in-loop -- queue semantics require strict sequential execution
       await this.executeTask(task);
     }
 
@@ -150,7 +152,7 @@ class RequestQueue {
         // 计算退避延迟（指数退避）
         const delay = this.calculateBackoffDelay(retryCount);
 
-        console.warn(`[RequestQueue] 请求失败，${delay}ms 后重试 (${retryCount + 1}/${maxRetries}):`, error.message);
+        appLogger.warn(`[RequestQueue] 请求失败，${delay}ms 后重试 (${retryCount + 1}/${maxRetries}):`, error.message);
 
         // 🆕 触发重试事件
         this.emit('request:retry', {
@@ -169,7 +171,7 @@ class RequestQueue {
         this.queue.unshift(task); // 插入队列头部，优先重试
       } else {
         // 不再重试，返回错误
-        console.error(`[RequestQueue] 请求最终失败 (重试 ${retryCount} 次):`, error);
+        appLogger.error(`[RequestQueue] 请求最终失败 (重试 ${retryCount} 次):`, error);
 
         // 🆕 触发请求失败事件
         this.emit('request:error', {

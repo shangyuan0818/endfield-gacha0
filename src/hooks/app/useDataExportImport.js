@@ -174,11 +174,13 @@ export function useDataExportImport({
       setSyncing(true);
       try {
         for (const pool of addedPools) {
+          // eslint-disable-next-line no-await-in-loop -- imported pools are synced sequentially so partial failures stay attributable
           await savePoolToCloud(pool);
         }
         const batchSize = 100;
         for (let i = 0; i < addedHistory.length; i += batchSize) {
           const batch = addedHistory.slice(i, i + batchSize);
+          // eslint-disable-next-line no-await-in-loop -- imported history batches are intentionally serialized
           await saveHistoryToCloud(batch);
         }
         showToast(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`, 'success', '导入成功');

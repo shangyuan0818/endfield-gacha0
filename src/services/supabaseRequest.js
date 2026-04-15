@@ -57,6 +57,7 @@ async function executeWithTimeout(buildRequest, {
         request = request.abortSignal(abortController.signal);
       }
 
+      // eslint-disable-next-line no-await-in-loop -- retry loop needs per-attempt timeout/abort handling
       return await request;
     } catch (error) {
       lastError = error?.name === 'AbortError'
@@ -67,6 +68,7 @@ async function executeWithTimeout(buildRequest, {
         throw lastError;
       }
 
+      // eslint-disable-next-line no-await-in-loop -- retry backoff is intentionally sequential
       await wait(retryDelayMs * (attempt + 1));
     } finally {
       window.clearTimeout(timeoutId);
@@ -113,6 +115,7 @@ export async function fetchWithTimeout(input, init = {}, {
     const timeoutId = window.setTimeout(() => abortController.abort(), timeoutMs);
 
     try {
+      // eslint-disable-next-line no-await-in-loop -- retry loop needs per-attempt timeout/abort handling
       const response = await fetch(input, {
         ...init,
         signal: abortController.signal,
@@ -127,6 +130,7 @@ export async function fetchWithTimeout(input, init = {}, {
         throw lastError;
       }
 
+      // eslint-disable-next-line no-await-in-loop -- retry backoff is intentionally sequential
       await wait(retryDelayMs * (attempt + 1));
     } finally {
       window.clearTimeout(timeoutId);
@@ -134,6 +138,12 @@ export async function fetchWithTimeout(input, init = {}, {
   }
 
   throw lastError || createClientTimeoutError(label, timeoutMs);
+}
+
+export async function fetchJsonWithTimeout(input, init = {}, options = {}) {
+  const response = await fetchWithTimeout(input, init, options);
+  const data = await response.json().catch(() => null);
+  return { response, data };
 }
 
 export default {
@@ -144,5 +154,6 @@ export default {
   executeSupabaseRpc,
   executeSupabaseMutation,
   fetchWithTimeout,
+  fetchJsonWithTimeout,
   isRetryableSupabaseError,
 };

@@ -104,6 +104,7 @@ export function useCloudSync({ showToast }) {
           .order('record_id', { ascending: true })
           .range(from, to);
 
+        // eslint-disable-next-line no-await-in-loop -- paginated history reads are cursor-like and must remain sequential
         const { data: pageData, error: historyError } = await historyQuery;
         if (historyError) throw historyError;
 
@@ -406,12 +407,14 @@ export function useCloudSync({ showToast }) {
 
     try {
       for (const pool of pools) {
+        // eslint-disable-next-line no-await-in-loop -- pool sync stays sequential to keep failure attribution deterministic
         await savePoolToCloud(pool);
       }
 
       const batchSize = 100;
       for (let i = 0; i < history.length; i += batchSize) {
         const batch = history.slice(i, i + batchSize);
+        // eslint-disable-next-line no-await-in-loop -- history sync batches are intentionally serialized
         await saveHistoryToCloud(batch);
       }
 
@@ -443,6 +446,7 @@ export function useCloudSync({ showToast }) {
       skippedPools = (pools || []).length - myPools.length;
 
       for (const pool of myPools) {
+        // eslint-disable-next-line no-await-in-loop -- pool sync stays sequential to keep per-pool success counts exact
         const success = await savePoolToCloud(pool);
         if (success) syncedPools++;
       }
@@ -453,6 +457,7 @@ export function useCloudSync({ showToast }) {
       const batchSize = 100;
       for (let i = 0; i < myHistory.length; i += batchSize) {
         const batch = myHistory.slice(i, i + batchSize);
+        // eslint-disable-next-line no-await-in-loop -- history batches are intentionally serialized
         await saveHistoryToCloud(batch);
         syncedHistory += batch.length;
       }

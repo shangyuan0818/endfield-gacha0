@@ -13,6 +13,7 @@ import {
 import { ImportStatus } from '../importStatus';
 import { getPoolName } from '../importShared';
 import { useI18n } from '../../../i18n/index.js';
+import { evaluateImportHealth } from '../../../utils/importHealth.js';
 
 const FetchProgressBar = ({ progress, message, t }) => (
   <div className="w-full">
@@ -185,9 +186,20 @@ export default function OfficialImportContent({
   const guide = IMPORT_SOURCE_GUIDES[source] || IMPORT_SOURCE_GUIDES.cn;
   const userInfoAccent = userInfo ? getAccountAccent(userInfo) : null;
   const switchCountdown = sourceSwitchInfo?.countdown > 0 ? ` (${sourceSwitchInfo.countdown}s)` : '';
+  const health = evaluateImportHealth({ status, queueStatus, retryInfo, error });
+  const healthToneClasses = {
+    healthy: 'border-emerald-300/80 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+    queue: 'border-amber-300/80 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+    warning: 'border-orange-300/80 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-900/20 dark:text-orange-300',
+    error: 'border-red-300/80 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300',
+  };
 
   return (
     <div className="space-y-6">
+      <div className={`inline-flex items-center gap-2 border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`}>
+        <span>{t('import.official.healthLabel')}</span>
+        <span>{t(health.key)}</span>
+      </div>
       {status === ImportStatus.IDLE && (
         <div className="bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 transition-colors">
           <div className="mb-4">

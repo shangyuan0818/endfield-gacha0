@@ -10,9 +10,11 @@ import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 import { appLogger } from './utils/appLogger.js'
 import { prepareFreshNavigation } from './utils/serviceWorkerRecovery.js'
 import { I18nProvider } from './i18n/index.js'
+import { installRuntimeObservability } from './utils/runtimeObservability.js'
+import { readStorageValue, STORAGE_KEYS } from './utils/storageUtils.js'
 
 function syncDeviceRedirect() {
-  const preference = localStorage.getItem('platform-preference');
+  const preference = readStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, null, { raw: true });
   const pathname = window.location.pathname;
 
   const mqMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -37,6 +39,7 @@ async function bootstrapApp() {
     return;
   }
 
+  installRuntimeObservability();
   syncDeviceRedirect();
 
   schedulePreload(() => {

@@ -16,6 +16,7 @@ import {
   resolveAliasValue,
   resolveCharacterAliasMap,
 } from '../../../shared/idAliasService.js';
+import appLogger from '../../utils/appLogger.js';
 
 function buildSyncedPoolConfig(itemType) {
   if (itemType === 'weapon') {
@@ -294,6 +295,7 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
 
       // 如果有更新，执行更新
       if (needUpdate) {
+        // eslint-disable-next-line no-await-in-loop -- character mutations remain sequential for precise error attribution
         const { error } = await supabase
           .from('characters')
           .update(updates)
@@ -336,6 +338,7 @@ export async function batchUpdateCharacterAvatars(avatarUpdates) {
     let errorCount = 0;
 
     for (const item of avatarUpdates) {
+      // eslint-disable-next-line no-await-in-loop -- avatar writes remain sequential to avoid spiky admin traffic and preserve progress accounting
       const { error } = await supabase
         .from('characters')
         .update({ avatar_url: item.avatar_url })
@@ -494,7 +497,7 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
         if (isFatalSyncSetupError(err)) {
           throw err;
         }
-        console.error(`同步 ${item.name} 失败:`, err);
+        appLogger.error(`同步 ${item.name} 失败:`, err);
         errorCount++;
       }
     }

@@ -18,6 +18,7 @@ import {
 import OfficialAPIImport from './OfficialAPIImport';
 import { getPoolName } from './importShared.js';
 import { useI18n } from '../../i18n/index.js';
+import appLogger from '../../utils/appLogger.js';
 
 /**
  * 导入状态枚举
@@ -129,6 +130,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
+      // eslint-disable-next-line no-await-in-loop -- history batches must be persisted in order so progress and retry boundaries stay deterministic
       await upsertHistory(supabase, batch, user.id);
       savedCount += batch.length;
       setSaveProgress({ current: savedCount, total: records.length });
@@ -157,7 +159,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('[ImportManager] 查询已有记录失败:', error);
+      appLogger.error('[ImportManager] 查询已有记录失败:', error);
       return new Set();
     }
 
@@ -211,7 +213,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           importSource: 'official_api'
         });
       } catch (refreshError) {
-        console.error('[ImportManager] 刷新导入后的云端数据失败:', refreshError);
+        appLogger.error('[ImportManager] 刷新导入后的云端数据失败:', refreshError);
         persistImportedAccountMetadata({
           accounts: result.userInfo ? [result.userInfo] : [],
           historyRecords: [],
@@ -313,7 +315,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
       setImportStatus(ImportStatus.SUCCESS);
 
     } catch (error) {
-      console.error('[ImportManager] 保存数据失败:', error);
+      appLogger.error('[ImportManager] 保存数据失败:', error);
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage(error.message || t('import.errorTitle'));
     }

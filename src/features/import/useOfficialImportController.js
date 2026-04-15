@@ -15,6 +15,7 @@ import { buildGameAccountServerTag } from '../../utils/gameAccountMetadata';
 import { getGlobalQueue } from '../../utils/requestQueue';
 import { ImportStatus } from './importShared';
 import { useI18n } from '../../i18n/index.js';
+import appLogger from '../../utils/appLogger.js';
 
 function normalizeImportError(err, t) {
   let errorMessage = err.message || t('import.error.unknown');
@@ -186,8 +187,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           currentTaskMeta: backendStatus.currentTaskMeta
         });
       } catch (queueError) {
-        // eslint-disable-next-line no-console
-        console.warn('[OfficialAPIImport] 获取队列状态失败:', queueError);
+        appLogger.warn('[OfficialAPIImport] 获取队列状态失败:', queueError);
       }
     };
 
@@ -415,8 +415,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setStatus(ImportStatus.SUCCESS);
       setStatusMessage(t('import.official.ready'));
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[OfficialAPIImport] 导入失败:', err);
+      appLogger.error('[OfficialAPIImport] 导入失败:', err);
       if (cancelRef.current) return;
       setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);
@@ -464,8 +463,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
 
       const shouldTryAlternate = looksLikeTokenInvalidError(firstErr.message);
       if (!shouldTryAlternate) {
-        // eslint-disable-next-line no-console
-        console.error('[OfficialAPIImport] 导入失败:', firstErr);
+        appLogger.error('[OfficialAPIImport] 导入失败:', firstErr);
         setError(normalizeImportError(firstErr, t));
         setStatus(ImportStatus.ERROR);
         return;
@@ -521,8 +519,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         onSourceSwitch?.(altSource);
         setSourceSwitchInfo(null);
       } catch (secondErr) {
-        // eslint-disable-next-line no-console
-        console.error('[OfficialAPIImport] 双服验证均失败:', secondErr);
+        appLogger.error('[OfficialAPIImport] 双服验证均失败:', secondErr);
         if (cancelRef.current) return;
         setSourceSwitchInfo(null);
         setError(t('import.error.doubleSourceFailed', {
@@ -557,8 +554,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
 
       await continueImportWithAccount(nextAppToken, normalizedAccounts[0]);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[OfficialAPIImport] 导入失败:', err);
+      appLogger.error('[OfficialAPIImport] 导入失败:', err);
       if (cancelRef.current) return;
       setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);

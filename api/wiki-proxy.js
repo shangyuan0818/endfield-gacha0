@@ -12,6 +12,7 @@ import {
   getRequesterKey,
   rejectDisallowedBrowserOrigin
 } from './_lib/http.js';
+import { serverLogger } from './_lib/serverLogger.js';
 
 // 内存缓存（5 分钟）
 const cache = new Map();
@@ -240,7 +241,10 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ success: true, data, cached: false });
   } catch (error) {
-    console.error(`[wiki-proxy] 获取 ${type} 失败:`, error.message);
+    serverLogger.error('wiki-proxy.fetch.failed', {
+      type,
+      message: error?.message || String(error),
+    });
 
     // stale-on-error 降级：如果有过期缓存，使用过期数据
     if (cached?.data) {

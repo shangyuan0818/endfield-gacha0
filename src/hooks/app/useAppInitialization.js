@@ -4,6 +4,7 @@ import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync';
+import appLogger from '../../utils/appLogger.js';
 
 const APP_INIT_SYNC_BUDGET_MS = import.meta.env.DEV ? 9000 : 6500;
 
@@ -124,7 +125,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
         ]);
       } catch (error) {
         setAuthResolved(true);
-        console.error('[useAppInitialization] 初始化失败:', error);
+        appLogger.error('[useAppInitialization] 初始化失败:', error);
       }
     };
 

@@ -2,6 +2,7 @@
  * 错误代码到用户友好消息的映射表
  * 提供清晰的错误说明和解决方案
  */
+import appLogger from './appLogger.js';
 
 // Supabase 错误代码映射
 const SUPABASE_ERROR_MAP = {
@@ -183,6 +184,6 @@ export function showFriendlyError(showToast, error, action = '操作', showTechn
 
   // 开发环境下在控制台显示技术错误
   if (showTechnical && import.meta.env.DEV) {
-    console.error(`[${action}失败] 技术错误:`, friendlyError.technical);
+    appLogger.error(`[${action}失败] 技术错误:`, friendlyError.technical);
   }
 }

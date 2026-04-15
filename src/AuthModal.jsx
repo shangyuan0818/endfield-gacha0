@@ -1,5 +1,6 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
+import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
 import { getSimpleFriendlyError } from './utils/errorMessages';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
@@ -115,18 +116,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   const checkRateLimit = async (action) => {
     try {
-      const response = await fetch('/api/auth-rate-limit', {
+      const { response, data: payload } = await fetchJsonWithTimeout('/api/auth-rate-limit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ action })
+      }, {
+        label: 'auth-rate-limit',
+        timeoutMs: 15000,
+        retries: 1,
       });
 
       if (!response.ok) {
-        const fallbackPayload = await response.json().catch(() => null);
-        if (fallbackPayload?.allowed === false) {
-          return fallbackPayload;
+        if (payload?.allowed === false) {
+          return payload;
         }
 
         if (import.meta.env.DEV) {
@@ -136,7 +140,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return { allowed: false, retry_after: 60 };
       }
 
-      const payload = await response.json();
       return payload || { allowed: true };
     } catch {
       if (import.meta.env.DEV) {
@@ -148,7 +151,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   };
 
   const lookupAccountStatus = async (lookupEmail) => {
-    const response = await fetch('/api/auth-account-status', {
+    const { response, data: payload } = await fetchJsonWithTimeout('/api/auth-account-status', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -156,9 +159,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       body: JSON.stringify({
         email: lookupEmail
       })
+    }, {
+      label: 'auth-account-status',
+      timeoutMs: 20000,
+      retries: 1,
     });
 
-    const payload = await response.json().catch(() => null);
     if (!response.ok || payload?.success !== true) {
       if (response.status === 429 && payload?.retry_after) {
         throw new Error(tt(
@@ -181,15 +187,18 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   };
 
   const createRecoveryRequest = async (payload) => {
-    const response = await fetch('/api/account-recovery-request', {
+    const { response, data: result } = await fetchJsonWithTimeout('/api/account-recovery-request', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
+    }, {
+      label: 'account-recovery-request',
+      timeoutMs: 25000,
+      retries: 1,
     });
 
-    const result = await response.json().catch(() => null);
     if (!response.ok || result?.success !== true) {
       if (response.status === 409) {
         throw new Error(tt('该邮箱已有待处理的恢复申请，请勿重复提交。', 'A pending recovery request already exists for this email.'));

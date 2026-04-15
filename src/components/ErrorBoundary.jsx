@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import appLogger from '../utils/appLogger.js';
 
 const isDev = import.meta.env.DEV;
 
@@ -21,7 +22,7 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     // 仅在开发环境输出错误日志，生产环境可集成错误追踪服务
     if (isDev) {
-      console.error('ErrorBoundary caught an error:', error, errorInfo);
+      appLogger.error('ErrorBoundary caught an error:', error, errorInfo);
     }
     this.setState({ errorInfo });
   }

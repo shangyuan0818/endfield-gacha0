@@ -1,4 +1,7 @@
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
+import { evaluateImportHealth } from '../../../utils/importHealth.js';
+import { ImportStatus } from '../importShared.js';
+import { useI18n } from '../../../i18n/index.js';
 
 function FetchProgressBar({ message, progress }) {
   return (
@@ -99,8 +102,26 @@ export default function OfficialImportProgressView({
   statusMessage,
   onCancel
 }) {
+  const { t } = useI18n();
+  const health = evaluateImportHealth({
+    status: ImportStatus.FETCHING,
+    queueStatus,
+    retryInfo,
+    error: null,
+  });
+  const healthToneClasses = {
+    healthy: 'border-emerald-300/80 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300',
+    queue: 'border-amber-300/80 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300',
+    warning: 'border-orange-300/80 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-900/20 dark:text-orange-300',
+    error: 'border-red-300/80 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300',
+  };
+
   return (
     <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
+      <div className={`mb-4 inline-flex items-center gap-2 border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`}>
+        <span>{t('import.official.healthLabel')}</span>
+        <span>{t(health.key)}</span>
+      </div>
       <FetchProgressBar progress={progress} message={statusMessage} />
       <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} />
       <button

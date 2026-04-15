@@ -5,6 +5,7 @@
  */
 
 import { DEFAULT_SIMULATOR_RESOURCE_SETTINGS, normalizeResourceSettings } from './resourceEconomy.js';
+import appLogger from './appLogger.js';
 
 const STORAGE_KEY = 'gacha_simulator_state';
 const SHARED_PITY_KEY = 'gacha_simulator_shared_pity'; // 限定池共享保底
@@ -85,7 +86,7 @@ export function saveSimulatorState(poolType, state, scope = null) {
     localStorage.setItem(getScopedStorageKey(`${STORAGE_KEY}_${poolType}`, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
-    console.error('保存模拟器状态失败:', error);
+    appLogger.error('保存模拟器状态失败:', error);
     return false;
   }
 }
@@ -104,14 +105,14 @@ export function loadSimulatorState(poolType, scope = null) {
 
     // 版本检查
     if (storageData.version !== STORAGE_VERSION) {
-      console.warn('存储版本不匹配，清除旧数据');
+      appLogger.warn('存储版本不匹配，清除旧数据');
       clearSimulatorState(poolType, scope);
       return null;
     }
 
     return storageData.state;
   } catch (error) {
-    console.error('加载模拟器状态失败:', error);
+    appLogger.error('加载模拟器状态失败:', error);
     return null;
   }
 }
@@ -125,7 +126,7 @@ export function clearSimulatorState(poolType, scope = null) {
     localStorage.removeItem(getScopedStorageKey(`${STORAGE_KEY}_${poolType}`, scope));
     return true;
   } catch (error) {
-    console.error('清除模拟器状态失败:', error);
+    appLogger.error('清除模拟器状态失败:', error);
     return false;
   }
 }
@@ -387,7 +388,7 @@ export async function copyToClipboard(text) {
       document.body.removeChild(textarea);
       return success;
     } catch (fallbackError) {
-      console.error('复制到剪贴板失败:', fallbackError);
+      appLogger.error('复制到剪贴板失败:', fallbackError);
       return false;
     }
   }
@@ -407,7 +408,7 @@ export function saveSharedPityState(pityState, scope = null) {
     localStorage.setItem(getScopedStorageKey(SHARED_PITY_KEY, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
-    console.error('保存共享保底状态失败:', error);
+    appLogger.error('保存共享保底状态失败:', error);
     return false;
   }
 }
@@ -425,14 +426,14 @@ export function loadSharedPityState(scope = null) {
 
     // 版本检查
     if (storageData.version !== STORAGE_VERSION) {
-      console.warn('共享保底版本不匹配，清除旧数据');
+      appLogger.warn('共享保底版本不匹配，清除旧数据');
       clearSharedPityState(scope);
       return null;
     }
 
     return storageData.pityState;
   } catch (error) {
-    console.error('加载共享保底状态失败:', error);
+    appLogger.error('加载共享保底状态失败:', error);
     return null;
   }
 }
@@ -445,7 +446,7 @@ export function clearSharedPityState(scope = null) {
     localStorage.removeItem(getScopedStorageKey(SHARED_PITY_KEY, scope));
     return true;
   } catch (error) {
-    console.error('清除共享保底状态失败:', error);
+    appLogger.error('清除共享保底状态失败:', error);
     return false;
   }
 }
@@ -464,7 +465,7 @@ export function saveInfoBookState(infoBooks, scope = null) {
     localStorage.setItem(getScopedStorageKey(INFO_BOOK_KEY, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
-    console.error('保存情报书状态失败:', error);
+    appLogger.error('保存情报书状态失败:', error);
     return false;
   }
 }
@@ -486,11 +487,11 @@ export function loadInfoBookState(scope = null) {
     }
 
     // 旧版本数据，清除
-    console.warn('情报书状态版本不匹配，清除旧数据');
+    appLogger.warn('情报书状态版本不匹配，清除旧数据');
     clearInfoBookState(scope);
     return {};
   } catch (error) {
-    console.error('加载情报书状态失败:', error);
+    appLogger.error('加载情报书状态失败:', error);
     return {};
   }
 }
@@ -503,7 +504,7 @@ export function clearInfoBookState(scope = null) {
     localStorage.removeItem(getScopedStorageKey(INFO_BOOK_KEY, scope));
     return true;
   } catch (error) {
-    console.error('清除情报书状态失败:', error);
+    appLogger.error('清除情报书状态失败:', error);
     return false;
   }
 }
@@ -522,7 +523,7 @@ export function saveSimulatorResourceSettings(settings, scope = null) {
     localStorage.setItem(getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope), JSON.stringify(storageData));
     return true;
   } catch (error) {
-    console.error('保存模拟器资源设置失败:', error);
+    appLogger.error('保存模拟器资源设置失败:', error);
     return false;
   }
 }
@@ -546,7 +547,7 @@ export function loadSimulatorResourceSettings(scope = null) {
 
     return normalizeResourceSettings(storageData.settings);
   } catch (error) {
-    console.error('加载模拟器资源设置失败:', error);
+    appLogger.error('加载模拟器资源设置失败:', error);
     return { ...DEFAULT_SIMULATOR_RESOURCE_SETTINGS };
   }
 }
@@ -559,7 +560,7 @@ export function clearSimulatorResourceSettings(scope = null) {
     localStorage.removeItem(getScopedStorageKey(RESOURCE_SETTINGS_KEY, scope));
     return true;
   } catch (error) {
-    console.error('清除模拟器资源设置失败:', error);
+    appLogger.error('清除模拟器资源设置失败:', error);
     return false;
   }
 }

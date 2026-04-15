@@ -1,6 +1,7 @@
 import { getSupabaseAdminClient } from './authAdmin.js';
 import { buildOfficialAnnouncementRecords } from './officialAnnouncementsFeed.js';
 import { detectNewCharacters } from './detectNewCharacters.js';
+import { serverLogger } from './serverLogger.js';
 import {
   buildOpsAutomationDedupeKey,
   parseRequestedJobIds,
@@ -126,6 +127,11 @@ async function runSingleAutomationJob(jobId, {
 
   let result;
   try {
+    serverLogger.info('ops-automation.job.start', {
+      jobId,
+      triggerType,
+      createdBy,
+    });
     switch (jobId) {
       case 'official-announcements':
         result = await syncAnnouncements();
@@ -144,6 +150,11 @@ async function runSingleAutomationJob(jobId, {
         throw new Error(`Unknown ops automation job: ${jobId}`);
     }
   } catch (error) {
+    serverLogger.error('ops-automation.job.exception', {
+      jobId,
+      triggerType,
+      message: error.message,
+    });
     result = { error: error.message };
   }
 
@@ -159,6 +170,13 @@ async function runSingleAutomationJob(jobId, {
     started_at: startedAt,
     finished_at: new Date().toISOString(),
     created_by: createdBy,
+  });
+
+  serverLogger.info('ops-automation.job.finish', {
+    jobId,
+    triggerType,
+    status,
+    hasError: Boolean(result?.error),
   });
 
   return result;

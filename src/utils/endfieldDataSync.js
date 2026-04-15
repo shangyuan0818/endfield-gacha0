@@ -5,6 +5,9 @@
  * 数据源: warfarin.wiki（原生中文，无需 i18n 翻译）
  */
 
+import { fetchWithTimeout } from '../services/supabaseRequest.js';
+import appLogger from './appLogger.js';
+
 // 图片 URL 模板（warfarin.wiki 静态资源）
 const IMAGE_URLS = {
   character: (charId) => `https://static.warfarin.wiki/v3/charicon/icon_${charId}.webp`,
@@ -25,7 +28,11 @@ async function buildProxyFetchError(response) {
 }
 
 async function fetchProxyData(type, label) {
-  const response = await fetch(`/api/wiki-proxy?type=${type}`);
+  const response = await fetchWithTimeout(`/api/wiki-proxy?type=${type}`, undefined, {
+    label: `wiki-proxy:${type}`,
+    timeoutMs: 25000,
+    retries: 1,
+  });
   if (!response.ok) {
     throw await buildProxyFetchError(response);
   }
@@ -143,7 +150,7 @@ export async function syncAllCharacters(onProgress = null) {
       warning: operatorResult.warning
     };
   } catch (error) {
-    console.error('同步角色数据失败:', error);
+    appLogger.error('同步角色数据失败:', error);
     throw error;
   }
 }
@@ -170,7 +177,7 @@ export async function syncAllWeapons(onProgress = null) {
       warning: weaponResult.warning
     };
   } catch (error) {
-    console.error('同步武器数据失败:', error);
+    appLogger.error('同步武器数据失败:', error);
     throw error;
   }
 }
@@ -204,7 +211,7 @@ export async function syncAll(onProgress = null) {
       warnings: [operatorResult.warning, weaponResult.warning].filter(Boolean),
     };
   } catch (error) {
-    console.error('同步数据失败:', error);
+    appLogger.error('同步数据失败:', error);
     throw error;
   }
 }
@@ -217,7 +224,11 @@ export async function syncAll(onProgress = null) {
 export async function validateImageUrl(url) {
   if (!url) return false;
   try {
-    const response = await fetch(url, { method: 'HEAD' });
+    const response = await fetchWithTimeout(url, { method: 'HEAD' }, {
+      label: 'validate-image-url',
+      timeoutMs: 15000,
+      retries: 1,
+    });
     return response.ok;
   } catch {
     return false;

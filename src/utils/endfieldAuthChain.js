@@ -18,6 +18,7 @@
 import { queuedFetch } from './requestQueue.js';
 import { supabase } from '../supabaseClient';
 import { appLogger } from './appLogger.js';
+import { fetchWithTimeout } from '../services/supabaseRequest.js';
 
 function normalizeImportSource(source) {
   return source === 'intl' ? 'intl' : 'cn';
@@ -333,6 +334,7 @@ export async function fetchAllPoolRecords(u8Token, options = {}, onProgress) {
       onProgress(`第${page}页，已获取${allRecords.length}条记录...`);
     }
 
+    // eslint-disable-next-line no-await-in-loop -- seqId pagination is stateful and must advance page by page
     const result = await fetchRecordsPage(u8Token, {
       ...options,
       seqId: lastSeqId
@@ -348,6 +350,7 @@ export async function fetchAllPoolRecords(u8Token, options = {}, onProgress) {
 
     // 如果还有更多，添加延迟防止风控
     if (hasMore) {
+      // eslint-disable-next-line no-await-in-loop -- anti-abuse pacing is intentionally sequential
       await delay(800 + Math.random() * 700);
     }
   }
@@ -492,7 +495,13 @@ async function pollTaskUntilComplete(taskId, taskKey, onProgress, maxWaitTime = 
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
-      const response = await fetch(`${proxyBase}?action=task-status&taskId=${encodeURIComponent(taskId)}&taskKey=${encodeURIComponent(taskKey)}&source=${encodeURIComponent(normalizeImportSource(source))}`);
+      // eslint-disable-next-line no-await-in-loop -- task polling is intentionally sequential
+      const response = await fetchWithTimeout(`${proxyBase}?action=task-status&taskId=${encodeURIComponent(taskId)}&taskKey=${encodeURIComponent(taskKey)}&source=${encodeURIComponent(normalizeImportSource(source))}`, undefined, {
+        label: 'task-status',
+        timeoutMs: 15000,
+        retries: 1,
+      });
+      // eslint-disable-next-line no-await-in-loop -- response parsing belongs to the current poll attempt
       const result = await safeParseJSON(response, 'Task Status API');
 
       if (!result.success) {
@@ -518,10 +527,12 @@ async function pollTaskUntilComplete(taskId, taskKey, onProgress, maxWaitTime = 
       }
 
       // 等待后继续轮询
+      // eslint-disable-next-line no-await-in-loop -- task polling interval is intentionally sequential
       await delay(pollInterval);
     } catch (error) {
       // 网络错误，等待后重试
       appLogger.warn('[pollTaskUntilComplete] 轮询失败，重试中...', error.message);
+      // eslint-disable-next-line no-await-in-loop -- retry pacing is intentionally sequential
       await delay(pollInterval);
     }
   }
@@ -536,7 +547,11 @@ async function pollTaskUntilComplete(taskId, taskKey, onProgress, maxWaitTime = 
 export async function fetchImportQueueStatus(source = 'cn') {
   const proxyBase = getProxyBase(source);
   try {
-    const response = await fetch(`${proxyBase}?action=queue-status&source=${encodeURIComponent(normalizeImportSource(source))}`);
+    const response = await fetchWithTimeout(`${proxyBase}?action=queue-status&source=${encodeURIComponent(normalizeImportSource(source))}`, undefined, {
+      label: 'queue-status',
+      timeoutMs: 15000,
+      retries: 1,
+    });
     const result = await safeParseJSON(response, 'Queue Status API');
 
     if (!result.success) {
@@ -553,8 +568,12 @@ export async function fetchImportQueueStatus(source = 'cn') {
 export async function fetchFullImportStatus(taskId, source = 'cn') {
   const proxyBase = getProxyBase(source);
   const authHeaders = await getAuthHeaders(true);
-  const response = await fetch(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`, {
+  const response = await fetchWithTimeout(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`, {
     headers: authHeaders
+  }, {
+    label: 'import-status',
+    timeoutMs: 20000,
+    retries: 1,
   });
   const result = await safeParseJSON(response, 'Import Status API');
 
@@ -571,6 +590,7 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
+      // eslint-disable-next-line no-await-in-loop -- import polling is intentionally sequential
       const task = await fetchFullImportStatus(taskId, source);
 
       if (onProgress) {
@@ -589,6 +609,7 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
         throw new AuthChainError(task.error || 'Import failed', 'import-full', task);
       }
 
+      // eslint-disable-next-line no-await-in-loop -- polling cadence is intentionally sequential
       await delay(pollInterval);
     } catch (error) {
       if (error instanceof AuthChainError) {
@@ -596,6 +617,7 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
       }
 
       appLogger.warn('[pollFullImportUntilComplete] 轮询失败，重试中...', error.message);
+      // eslint-disable-next-line no-await-in-loop -- retry pacing is intentionally sequential
       await delay(pollInterval);
     }
   }
