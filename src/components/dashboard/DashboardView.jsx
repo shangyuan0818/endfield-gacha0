@@ -55,7 +55,7 @@ import {
 import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -706,7 +706,7 @@ const DashboardView = ({ showToast }) => {
     return shareCardRef.current;
   }, []);
 
-  const getActiveShareImageBlob = React.useCallback(async (variant = 'full') => {
+  const getActiveShareImageBlob = React.useCallback(async () => {
     const cardNode = await waitForShareCard();
     if (!cardNode) {
       return null;

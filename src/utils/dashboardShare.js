@@ -165,7 +165,11 @@ function buildSplitSummaryGroups(overviewSplitStats, locale = getAppLocale()) {
     }
   ]
     .filter((group) => group.hasData && Array.isArray(group.items) && group.items.length > 0)
-    .map(({ hasData, ...group }) => group);
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: group.items,
+    }));
 }
 
 function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
@@ -199,7 +203,11 @@ function buildSplitAverageGroups(overviewSplitStats, locale = getAppLocale()) {
     }
   ]
     .filter((group) => group.hasData && Array.isArray(group.items) && group.items.length > 0)
-    .map(({ hasData, ...group }) => group);
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: group.items,
+    }));
 }
 
 function buildSummaryItems({ stats, poolType, isAllPoolsOverview, locale = getAppLocale() }) {
@@ -345,7 +353,11 @@ function buildSplitResourceGroups(overviewSplitStats, locale = getAppLocale()) {
     }
   ]
     .filter((group) => group.hasData && group.items.length > 0)
-    .map(({ hasData, ...group }) => group);
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      items: group.items,
+    }));
 }
 
 function buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }, locale = getAppLocale()) {

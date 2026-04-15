@@ -101,7 +101,7 @@ export default function MobilePoolRailSelector() {
       }));
     });
     return items;
-  }, [allOverviewId, formatNumber, groupedPools, poolPullCounts, selectorPools.length, showOverviewOptions, t, totalPulls]);
+  }, [allOverviewId, formatNumber, groupedPools, locale, poolPullCounts, selectorPools.length, showOverviewOptions, t, totalPulls]);
   const selectedPullCount = useMemo(() => {
     if (currentPoolId === allOverviewId) {
       return totalPulls;
@@ -141,18 +141,6 @@ export default function MobilePoolRailSelector() {
     };
   }, [showPoolMenu]);
 
-  useEffect(() => {
-    setExpandedGroups((prev) => {
-      const next = { ...prev };
-      groupedPools.forEach((group) => {
-        if (!(group.type in next)) {
-          next[group.type] = true;
-        }
-      });
-      return next;
-    });
-  }, [groupedPools]);
-
   const selectedConfig = selectedPool && !selectedPool.isGroupMode ? getPoolTypeConfig(selectedPool) : { icon: Layers, accent: 'border-zinc-200 bg-zinc-100 text-slate-600 dark:border-white/8 dark:bg-white/[0.04] dark:text-zinc-300' };
   const SelectedIcon = selectedConfig.icon;
 
@@ -168,7 +156,7 @@ export default function MobilePoolRailSelector() {
     setShowPoolMenu(false);
   };
   const toggleGroup = (groupType) => {
-    setExpandedGroups((prev) => ({ ...prev, [groupType]: !prev[groupType] }));
+    setExpandedGroups((prev) => ({ ...prev, [groupType]: prev[groupType] === false }));
   };
   const getGroupHeaderConfig = (groupType) => {
     if (groupType === 'weapon_limited' || groupType === 'weapon_standard') {

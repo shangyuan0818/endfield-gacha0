@@ -86,35 +86,6 @@ function buildLimitedTerminalPityMap(allLimitedHistory = []) {
   return terminalMap;
 }
 
-function buildLimitedEffectivePityState(allLimitedHistory = [], currentPoolId = null) {
-  const validLimitedPulls = allLimitedHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
-
-  if (validLimitedPulls.length === 0) {
-    return {
-      pity6: 0,
-      pity5: 0,
-      isInherited: false
-    };
-  }
-
-  let lastSixStarPoolId = null;
-  for (let index = validLimitedPulls.length - 1; index >= 0; index -= 1) {
-    if (Number(validLimitedPulls[index]?.rarity) >= 6) {
-      lastSixStarPoolId = getHistoryPoolId(validLimitedPulls[index]);
-      break;
-    }
-  }
-
-  const pity6 = calculatePity(validLimitedPulls, 6);
-  const pity5 = calculatePity(validLimitedPulls, 5);
-
-  return {
-    pity6,
-    pity5,
-    isInherited: pity6 > 0 && lastSixStarPoolId !== currentPoolId
-  };
-}
-
 export function getPoolAnalysisPityState(currentPool, stats = {}, effectivePity = null) {
   const normalizedType = normalizePoolType(currentPool?.type);
   const isLimited = normalizedType === 'limited';

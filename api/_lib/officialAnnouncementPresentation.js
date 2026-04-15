@@ -136,7 +136,7 @@ export function proxifyAnnouncementImageUrl(rawUrl) {
   return `${OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH}?url=${encodeURIComponent(normalizedUrl)}`;
 }
 
-function normalizeImgTag(tag, sourceUrl) {
+function normalizeImgTag(tag) {
   const srcMatch = /\ssrc=(["'])(.*?)\1/i.exec(tag);
   const fallbackSrcMatch = /\s(?:data-src|data-original|data-origin-src)=(["'])(.*?)\1/i.exec(tag);
   const targetSrc = proxifyAnnouncementImageUrl(srcMatch?.[2] || fallbackSrcMatch?.[2] || '');
@@ -166,7 +166,7 @@ function normalizeImgTag(tag, sourceUrl) {
 export function normalizeOfficialHtml(html, sourceUrl) {
   const normalizedSourceUrl = absolutizeUrl(sourceUrl || OFFICIAL_SITE_ORIGIN);
   return String(html || '')
-    .replace(/<img\b[^>]*>/gi, (tag) => normalizeImgTag(tag, normalizedSourceUrl))
+    .replace(/<img\b[^>]*>/gi, (tag) => normalizeImgTag(tag))
     .replace(/\s(href|src)=(["'])(.*?)\2/gi, (match, attribute, quote, value) => {
       const resolved = absolutizeUrl(value, normalizedSourceUrl);
       return resolved ? ` ${attribute}=${quote}${escapeHtml(resolved)}${quote}` : match;

@@ -332,7 +332,7 @@ function MobileDashboardView() {
     return shareCardRef.current;
   }, []);
 
-  const getShareImageBlob = React.useCallback(async (variant = 'full') => {
+  const getShareImageBlob = React.useCallback(async () => {
     const cardNode = await waitForShareCard();
     if (!cardNode) {
       return null;

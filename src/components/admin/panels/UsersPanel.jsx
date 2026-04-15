@@ -101,6 +101,13 @@ const UsersPanel = ({
     onResetUserPassword(resetPasswordTarget, resetPasswordValue, closeResetPasswordDialog);
   };
 
+  const resetUserListScroll = () => {
+    if (userListRef.current) {
+      userListRef.current.scrollTop = 0;
+    }
+    setUserScrollTop(0);
+  };
+
   const filteredUsers = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
     const result = users.filter(user => {
@@ -155,6 +162,7 @@ const UsersPanel = ({
   }, [users, searchQuery, roleFilter, userSortField, userSortDirection]);
 
   const handleUserSort = (field) => {
+    resetUserListScroll();
     if (userSortField === field) {
       setUserSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
@@ -177,15 +185,6 @@ const UsersPanel = ({
     window.addEventListener('resize', updateListHeight);
     return () => window.removeEventListener('resize', updateListHeight);
   }, []);
-
-  useEffect(() => {
-    if (!userListRef.current) {
-      return;
-    }
-
-    userListRef.current.scrollTop = 0;
-    setUserScrollTop(0);
-  }, [searchQuery, roleFilter, userSortField, userSortDirection]);
 
   const visibleUserRange = useMemo(() => {
     const viewportHeight = Math.max(userListHeight, USER_LIST_MIN_HEIGHT);
@@ -211,14 +210,20 @@ const UsersPanel = ({
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              resetUserListScroll();
+              setSearchQuery(e.target.value);
+            }}
             placeholder="搜索用户名、邮箱或用户 ID..."
             className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          onChange={(e) => {
+            resetUserListScroll();
+            setRoleFilter(e.target.value);
+          }}
           className="px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
         >
           <option value="all">全部角色</option>

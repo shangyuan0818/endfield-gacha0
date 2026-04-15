@@ -61,10 +61,6 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
   };
 
   useEffect(() => {
-    setShowAccountMenu(false);
-  }, [activeTab]);
-
-  useEffect(() => {
     if (!showAccountMenu) {
       return undefined;
     }

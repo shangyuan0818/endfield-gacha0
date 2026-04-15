@@ -241,60 +241,6 @@ function resolveShareCardSize(node, options = {}) {
   };
 }
 
-async function measureRenderedShareCard(node, options = {}) {
-  if (!node || typeof document === 'undefined') {
-    return resolveShareCardSize(node, options);
-  }
-
-  const fallbackSize = resolveShareCardSize(node, options);
-  const sandbox = document.createElement('div');
-  sandbox.setAttribute('aria-hidden', 'true');
-  sandbox.style.position = 'fixed';
-  sandbox.style.left = '-200vw';
-  sandbox.style.top = '0';
-  sandbox.style.pointerEvents = 'none';
-  sandbox.style.opacity = '0';
-  sandbox.style.zIndex = '-1';
-  sandbox.style.overflow = 'visible';
-
-  const clone = node.cloneNode(true);
-  clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-  await inlineCloneImages(node, clone);
-
-  const explicitWidth = Number(options.width) || fallbackSize.width;
-  clone.style.width = `${explicitWidth}px`;
-  clone.style.maxWidth = `${explicitWidth}px`;
-  clone.style.height = 'auto';
-  clone.style.minHeight = clone.style.minHeight || `${fallbackSize.height}px`;
-  clone.style.overflow = 'visible';
-
-  sandbox.appendChild(clone);
-  document.body.appendChild(sandbox);
-
-  if (document.fonts?.ready) {
-    await document.fonts.ready;
-  }
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-  const measuredWidth = Number(options.width)
-    || clone.scrollWidth
-    || clone.offsetWidth
-    || clone.getBoundingClientRect().width
-    || fallbackSize.width;
-  const measuredHeight = Number(options.height)
-    || clone.scrollHeight
-    || clone.offsetHeight
-    || clone.getBoundingClientRect().height
-    || fallbackSize.height;
-
-  document.body.removeChild(sandbox);
-
-  return {
-    width: Math.max(1, Math.round(measuredWidth)),
-    height: Math.max(1, Math.round(measuredHeight))
-  };
-}
-
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
