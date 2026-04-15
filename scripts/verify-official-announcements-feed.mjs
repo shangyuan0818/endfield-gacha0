@@ -146,7 +146,11 @@ assert.equal(res.payload.records[0].summary, '亲爱的管理员：测试摘要'
 assert.match(res.payload.records[0].content, /## 核心内容/, '长公告应通过 LLM 生成结构化摘要内容');
 assert.equal(res.payload.records[0].summary_mode, 'llm', '长公告应标记为 llm 摘要模式');
 assert.match(res.payload.records[0].content, /原公告配图/, '长公告摘要应补上原公告配图区');
-assert.match(res.payload.records[0].raw_content, /https:\/\/endfield\.hypergryph\.com\/images\/test-banner\.png/, '原始正文中的相对图片地址应被归一化为绝对地址');
+assert.match(
+  res.payload.records[0].raw_content,
+  /\/api\/official-announcement-image\?url=https%3A%2F%2Fendfield\.hypergryph\.com%2Fimages%2Ftest-banner\.png/,
+  '原始正文中的相对图片地址应被归一化并改写为站内代理地址'
+);
 assert.match(res.payload.records[0].version, /^hg-1773203400-5992$/, 'version 应可从官方时间戳构造');
 
 globalThis.fetch = fetchBackup;
