@@ -6,6 +6,9 @@ import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
 import adminOpsAutomationHandler from './api/admin-ops-automation.js'
 import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
+import adminUsersHandler from './api/admin-users.js'
+import adminDeleteUserHandler from './api/admin-delete-user.js'
+import adminUserResetPasswordHandler from './api/admin-user-reset-password.js'
 import selfDeleteAccountHandler from './api/self-delete-account.js'
 
 function readJsonBody(req) {
@@ -117,6 +120,9 @@ function createDevApiPlugin() {
     ['/api/account-recovery-request', accountRecoveryRequestHandler],
     ['/api/admin-ops-automation', adminOpsAutomationHandler],
     ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler],
+    ['/api/admin-users', adminUsersHandler],
+    ['/api/admin-delete-user', adminDeleteUserHandler],
+    ['/api/admin-user-reset-password', adminUserResetPasswordHandler],
     ['/api/self-delete-account', selfDeleteAccountHandler]
   ])
   const middleware = createApiMiddleware(routeHandlers)

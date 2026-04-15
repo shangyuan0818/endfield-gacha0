@@ -161,6 +161,28 @@ export function useAdminData(showToast) {
     }
   }, [users, ensureSuperAdmin, showToast]);
 
+  const resetUserPassword = useCallback(async (user, temporaryPassword, onSuccess) => {
+    if (!ensureSuperAdmin()) return;
+
+    const normalizedPassword = String(temporaryPassword || '').trim();
+    if (normalizedPassword.length < 6) {
+      showToast('临时密码至少需要 6 位字符', 'error');
+      return;
+    }
+
+    setActionLoading(`reset_password_${user.id}`);
+
+    try {
+      await userService.resetUserPassword(user.id, normalizedPassword);
+      showToast('临时密码已设置，请通过可信渠道告知用户', 'success');
+      onSuccess?.();
+    } catch (error) {
+      showToast('重置密码失败: ' + error.message, 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [ensureSuperAdmin, showToast]);
+
   // ========== 公告管理函数 ==========
   const saveAnnouncement = useCallback(async (announcementForm, editingAnnouncement, onSuccess) => {
     if (!ensureSuperAdmin()) return;
@@ -281,6 +303,7 @@ export function useAdminData(showToast) {
     // 用户管理
     saveUser,
     deleteUser,
+    resetUserPassword,
 
     // 公告管理
     saveAnnouncement,

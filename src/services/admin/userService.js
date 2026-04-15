@@ -1,11 +1,8 @@
 import { supabase } from '../../supabaseClient';
 import {
-  executeSupabaseRead,
   executeSupabaseRpc,
   fetchWithTimeout,
 } from '../supabaseRequest';
-
-export const ADMIN_PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at, last_seen_at';
 
 async function getAccessToken() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -13,15 +10,27 @@ async function getAccessToken() {
 }
 
 export async function loadUsers() {
-  const { data, error } = await executeSupabaseRead(
-    () => supabase.from('profiles').select(ADMIN_PROFILE_FIELDS),
-    {
-      label: 'loadUsers',
-      retries: 1
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
+  const response = await fetchWithTimeout('/api/admin-users', {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`
     }
-  );
-  if (error) throw error;
-  return data || [];
+  }, {
+    label: 'admin-users',
+    timeoutMs: 45000
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.success !== true) {
+    throw new Error(result?.error || '加载用户列表失败');
+  }
+
+  return Array.isArray(result?.users) ? result.users : [];
 }
 
 export async function updateUserProfile(userId, userForm) {
@@ -69,7 +78,11 @@ export async function createUser(userForm) {
 
 export async function deleteUser(userId) {
   const accessToken = await getAccessToken();
-  const response = await fetchWithTimeout(`${supabase.supabaseUrl}/functions/v1/admin-delete-user`, {
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
+  const response = await fetchWithTimeout('/api/admin-delete-user', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -84,6 +97,35 @@ export async function deleteUser(userId) {
   const result = await response.json();
   if (!response.ok) {
     throw new Error(result.error || '删除用户失败');
+  }
+
+  return result;
+}
+
+export async function resetUserPassword(userId, temporaryPassword) {
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
+  const response = await fetchWithTimeout('/api/admin-user-reset-password', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`
+    },
+    body: JSON.stringify({
+      userId,
+      temporaryPassword
+    })
+  }, {
+    label: 'admin-user-reset-password',
+    timeoutMs: 45000
+  });
+
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.success !== true) {
+    throw new Error(result?.error || '重置密码失败');
   }
 
   return result;

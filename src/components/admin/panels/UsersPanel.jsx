@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Search, UserPlus, Edit2, Trash2, Save, X,
-  Users, ChevronUp, ChevronDown, ChevronsUpDown
+  Users, ChevronUp, ChevronDown, ChevronsUpDown, KeyRound
 } from 'lucide-react';
 
 // 格式化最后在线时间
@@ -34,6 +34,11 @@ const SortIcon = ({ field, userSortField, userSortDirection }) => {
     : <ChevronDown size={14} className="text-blue-500" />;
 };
 
+const USER_ROW_HEIGHT = 56;
+const USER_LIST_OVERSCAN = 8;
+const USER_LIST_MIN_HEIGHT = 360;
+const USER_LIST_MAX_HEIGHT = 720;
+
 /**
  * 用户管理面板
  */
@@ -41,7 +46,8 @@ const UsersPanel = ({
   users,
   actionLoading,
   onSaveUser,
-  onDeleteUser
+  onDeleteUser,
+  onResetUserPassword
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -49,6 +55,11 @@ const UsersPanel = ({
   const [showUserForm, setShowUserForm] = useState(false);
   const [userSortField, setUserSortField] = useState('created_at');
   const [userSortDirection, setUserSortDirection] = useState('desc');
+  const [resetPasswordTarget, setResetPasswordTarget] = useState(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState('');
+  const [userListHeight, setUserListHeight] = useState(480);
+  const [userScrollTop, setUserScrollTop] = useState(0);
+  const userListRef = useRef(null);
   const [userForm, setUserForm] = useState({
     username: '',
     email: '',
@@ -77,10 +88,26 @@ const UsersPanel = ({
     onSaveUser(userForm, editingUser, resetUserForm);
   };
 
+  const closeResetPasswordDialog = () => {
+    setResetPasswordTarget(null);
+    setResetPasswordValue('');
+  };
+
+  const handleResetPassword = () => {
+    if (!resetPasswordTarget) {
+      return;
+    }
+
+    onResetUserPassword(resetPasswordTarget, resetPasswordValue, closeResetPasswordDialog);
+  };
+
   const filteredUsers = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
     const result = users.filter(user => {
-      const matchesSearch = user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           user.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = !normalizedQuery ||
+                           user.username?.toLowerCase().includes(normalizedQuery) ||
+                           user.email?.toLowerCase().includes(normalizedQuery) ||
+                           String(user.id || '').toLowerCase().includes(normalizedQuery);
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       return matchesSearch && matchesRole;
     });
@@ -136,6 +163,45 @@ const UsersPanel = ({
     }
   };
 
+  useEffect(() => {
+    const updateListHeight = () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      const availableHeight = Math.floor(window.innerHeight * 0.62);
+      setUserListHeight(Math.max(USER_LIST_MIN_HEIGHT, Math.min(USER_LIST_MAX_HEIGHT, availableHeight)));
+    };
+
+    updateListHeight();
+    window.addEventListener('resize', updateListHeight);
+    return () => window.removeEventListener('resize', updateListHeight);
+  }, []);
+
+  useEffect(() => {
+    if (!userListRef.current) {
+      return;
+    }
+
+    userListRef.current.scrollTop = 0;
+    setUserScrollTop(0);
+  }, [searchQuery, roleFilter, userSortField, userSortDirection]);
+
+  const visibleUserRange = useMemo(() => {
+    const viewportHeight = Math.max(userListHeight, USER_LIST_MIN_HEIGHT);
+    const startIndex = Math.max(0, Math.floor(userScrollTop / USER_ROW_HEIGHT) - USER_LIST_OVERSCAN);
+    const visibleCount = Math.ceil(viewportHeight / USER_ROW_HEIGHT) + USER_LIST_OVERSCAN * 2;
+    const endIndex = Math.min(filteredUsers.length, startIndex + visibleCount);
+
+    return {
+      startIndex,
+      endIndex,
+      totalHeight: filteredUsers.length * USER_ROW_HEIGHT,
+      offsetTop: startIndex * USER_ROW_HEIGHT,
+      items: filteredUsers.slice(startIndex, endIndex)
+    };
+  }, [filteredUsers, userListHeight, userScrollTop]);
+
   return (
     <div className="space-y-4">
       {/* 工具栏 */}
@@ -146,7 +212,7 @@ const UsersPanel = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜索用户名或邮箱..."
+            placeholder="搜索用户名、邮箱或用户 ID..."
             className="w-full pl-9 pr-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
@@ -248,6 +314,55 @@ const UsersPanel = ({
         </div>
       )}
 
+      {resetPasswordTarget && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="font-bold text-slate-700 dark:text-zinc-300">重置用户密码</h4>
+              <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
+                当前用户：{resetPasswordTarget.username || resetPasswordTarget.email || resetPasswordTarget.id}
+              </p>
+            </div>
+            <button onClick={closeResetPasswordDialog} className="text-slate-400 hover:text-slate-600 dark:text-zinc-500">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="max-w-md">
+            <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+              临时密码
+            </label>
+            <input
+              type="text"
+              value={resetPasswordValue}
+              onChange={(e) => setResetPasswordValue(e.target.value)}
+              className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+              placeholder="至少 6 位字符"
+            />
+            <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2">
+              该操作会直接覆盖现有密码，请通过可信渠道把临时密码发送给用户，并要求其登录后立即修改。
+            </p>
+          </div>
+
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={handleResetPassword}
+              disabled={actionLoading === `reset_password_${resetPasswordTarget.id}`}
+              className="flex items-center gap-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-none transition-colors disabled:opacity-50"
+            >
+              <KeyRound size={16} />
+              {actionLoading === `reset_password_${resetPasswordTarget.id}` ? '设置中...' : '设置临时密码'}
+            </button>
+            <button
+              onClick={closeResetPasswordDialog}
+              className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 用户列表 */}
       <div className="text-xs text-slate-500 dark:text-zinc-500 mb-2">
         显示 {filteredUsers.length} / {users.length} 个用户
@@ -260,96 +375,126 @@ const UsersPanel = ({
         </div>
       ) : (
         <div className="overflow-x-auto border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-zinc-950 text-xs text-slate-500 dark:text-zinc-500 uppercase">
-              <tr>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleUserSort('username')}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    用户名 <SortIcon field="username" userSortField={userSortField} userSortDirection={userSortDirection} />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleUserSort('email')}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    邮箱 <SortIcon field="email" userSortField={userSortField} userSortDirection={userSortDirection} />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleUserSort('role')}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    角色 <SortIcon field="role" userSortField={userSortField} userSortDirection={userSortDirection} />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleUserSort('last_seen_at')}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    最后在线 <SortIcon field="last_seen_at" userSortField={userSortField} userSortDirection={userSortDirection} />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">
-                  <button
-                    onClick={() => handleUserSort('created_at')}
-                    className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
-                  >
-                    注册时间 <SortIcon field="created_at" userSortField={userSortField} userSortDirection={userSortDirection} />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-              {filteredUsers.map(u => (
-                <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-zinc-950">
-                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-zinc-300">{u.username}</td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-zinc-500">{u.email || '-'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-1 rounded font-bold ${
-                      u.role === 'super_admin' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                      u.role === 'admin' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
-                      'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400'
-                    }`}>
-                      {u.role === 'super_admin' ? '超管' : u.role === 'admin' ? '管理员' : '用户'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-zinc-500">
-                    {u.last_seen_at ? (
-                      <span title={new Date(u.last_seen_at).toLocaleString()}>
-                        {formatLastSeen(u.last_seen_at)}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 dark:text-zinc-600">从未</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 dark:text-zinc-500">
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      {u.role !== 'super_admin' && (
-                        <>
-                          <button onClick={() => startEditUser(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="编辑">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => onDeleteUser(u)} disabled={actionLoading === u.id} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50" title="删除">
-                            <Trash2 size={16} />
-                          </button>
-                        </>
-                      )}
+          <div className="min-w-[980px] text-sm">
+            <div className="grid grid-cols-[minmax(180px,1.2fr)_minmax(240px,1.6fr)_120px_140px_120px_120px] bg-slate-50 dark:bg-zinc-950 text-xs text-slate-500 dark:text-zinc-500 uppercase border-b border-zinc-200 dark:border-zinc-800">
+              <div className="px-4 py-3 text-left">
+                <button
+                  onClick={() => handleUserSort('username')}
+                  className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  用户名 <SortIcon field="username" userSortField={userSortField} userSortDirection={userSortDirection} />
+                </button>
+              </div>
+              <div className="px-4 py-3 text-left">
+                <button
+                  onClick={() => handleUserSort('email')}
+                  className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  邮箱 <SortIcon field="email" userSortField={userSortField} userSortDirection={userSortDirection} />
+                </button>
+              </div>
+              <div className="px-4 py-3 text-left">
+                <button
+                  onClick={() => handleUserSort('role')}
+                  className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  角色 <SortIcon field="role" userSortField={userSortField} userSortDirection={userSortDirection} />
+                </button>
+              </div>
+              <div className="px-4 py-3 text-left">
+                <button
+                  onClick={() => handleUserSort('last_seen_at')}
+                  className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  最后在线 <SortIcon field="last_seen_at" userSortField={userSortField} userSortDirection={userSortDirection} />
+                </button>
+              </div>
+              <div className="px-4 py-3 text-left">
+                <button
+                  onClick={() => handleUserSort('created_at')}
+                  className="flex items-center gap-1 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+                >
+                  注册时间 <SortIcon field="created_at" userSortField={userSortField} userSortDirection={userSortDirection} />
+                </button>
+              </div>
+              <div className="px-4 py-3 text-right">操作</div>
+            </div>
+
+            <div
+              ref={userListRef}
+              onScroll={(event) => setUserScrollTop(event.currentTarget.scrollTop)}
+              className="overflow-y-auto"
+              style={{ height: `${userListHeight}px` }}
+            >
+              <div style={{ height: `${visibleUserRange.totalHeight}px`, position: 'relative' }}>
+                <div
+                  className="absolute inset-x-0"
+                  style={{ top: `${visibleUserRange.offsetTop}px` }}
+                >
+                  {visibleUserRange.items.map((u) => (
+                    <div
+                      key={u.id}
+                      className="grid grid-cols-[minmax(180px,1.2fr)_minmax(240px,1.6fr)_120px_140px_120px_120px] border-b border-slate-100 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-950"
+                      style={{ minHeight: `${USER_ROW_HEIGHT}px` }}
+                    >
+                      <div className="px-4 py-3 font-medium text-slate-700 dark:text-zinc-300 truncate" title={u.username || '-'}>
+                        {u.username || '-'}
+                      </div>
+                      <div className="px-4 py-3 text-slate-500 dark:text-zinc-500 truncate" title={u.email || '-'}>
+                        {u.email || '-'}
+                      </div>
+                      <div className="px-4 py-3">
+                        <span className={`text-xs px-2 py-1 rounded font-bold ${
+                          u.role === 'super_admin' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                          u.role === 'admin' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                          'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400'
+                        }`}>
+                          {u.role === 'super_admin' ? '超管' : u.role === 'admin' ? '管理员' : '用户'}
+                        </span>
+                      </div>
+                      <div className="px-4 py-3 text-slate-500 dark:text-zinc-500">
+                        {u.last_seen_at ? (
+                          <span title={new Date(u.last_seen_at).toLocaleString()}>
+                            {formatLastSeen(u.last_seen_at)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-zinc-600">从未</span>
+                        )}
+                      </div>
+                      <div className="px-4 py-3 text-slate-500 dark:text-zinc-500">
+                        {u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}
+                      </div>
+                      <div className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {u.role !== 'super_admin' && (
+                            <>
+                              <button onClick={() => startEditUser(u)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded" title="编辑">
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setResetPasswordTarget(u);
+                                  setResetPasswordValue('');
+                                }}
+                                disabled={Boolean(actionLoading) && actionLoading !== `reset_password_${u.id}`}
+                                className="p-1.5 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded disabled:opacity-50"
+                                title="重置密码"
+                              >
+                                <KeyRound size={16} />
+                              </button>
+                              <button onClick={() => onDeleteUser(u)} disabled={actionLoading === u.id} className="p-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50" title="删除">
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

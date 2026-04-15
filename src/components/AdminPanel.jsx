@@ -44,6 +44,7 @@ const AdminPanel = React.memo(({ showToast }) => {
     actionLoading,
     saveUser,
     deleteUser,
+    resetUserPassword,
     saveAnnouncement,
     toggleAnnouncementActive,
     deleteAnnouncement,
@@ -88,6 +89,7 @@ const AdminPanel = React.memo(({ showToast }) => {
             actionLoading={actionLoading}
             onSaveUser={saveUser}
             onDeleteUser={deleteUser}
+            onResetUserPassword={resetUserPassword}
           />
         );
 

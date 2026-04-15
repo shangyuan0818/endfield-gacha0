@@ -3,7 +3,11 @@ import {
   getRequesterKey,
   rejectDisallowedBrowserOrigin
 } from './_lib/http.js';
-import { findAuthUserByEmail, getSupabaseAdminClient } from './_lib/authAdmin.js';
+import {
+  ensureProfileForAuthUser,
+  findAuthUserByEmail,
+  getSupabaseAdminClient
+} from './_lib/authAdmin.js';
 
 const EMAIL_LOOKUP_LIMIT = {
   windowMs: 30 * 60 * 1000,
@@ -73,7 +77,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    const registered = Boolean(await findAuthUserByEmail(adminClient, normalizedEmail));
+    const matchedUser = await findAuthUserByEmail(adminClient, normalizedEmail);
+    if (matchedUser) {
+      await ensureProfileForAuthUser(adminClient, matchedUser);
+    }
+
+    const registered = Boolean(matchedUser);
     return res.status(200).json({
       success: true,
       registered,

@@ -3,7 +3,11 @@ import {
   getRequesterKey,
   rejectDisallowedBrowserOrigin
 } from './_lib/http.js';
-import { findAuthUserByEmail, getSupabaseAdminClient } from './_lib/authAdmin.js';
+import {
+  ensureProfileForAuthUser,
+  findAuthUserByEmail,
+  getSupabaseAdminClient
+} from './_lib/authAdmin.js';
 
 const REQUEST_LIMIT = {
   windowMs: 60 * 60 * 1000,
@@ -113,6 +117,8 @@ export default async function handler(req, res) {
     if (!matchedUser) {
       return res.status(404).json({ success: false, error: 'Email not registered' });
     }
+
+    await ensureProfileForAuthUser(adminClient, matchedUser);
 
     const { data: existingRequests, error: existingError } = await adminClient
       .from('account_recovery_requests')
