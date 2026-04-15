@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { MOBILE_BREAKPOINT } from '../constants/index.js';
+import { readStorageValue, removeStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
-const PREF_KEY = 'platform-preference';
 const MQ_STRING = `(max-width: ${MOBILE_BREAKPOINT}px)`;
 const MOBILE_UA_RE = /Mobile|Android|iPhone|iPod|iPad|webOS|BlackBerry|Opera Mini|IEMobile/i;
 
@@ -19,7 +19,7 @@ export function useDeviceDetection() {
 
   const [platformPreference, setPlatformPreference] = useState(() => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(PREF_KEY);
+    return readStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, null, { raw: true });
   });
 
   useEffect(() => {
@@ -37,15 +37,15 @@ export function useDeviceDetection() {
 
   const setPreference = useCallback((pref) => {
     if (pref === null) {
-      localStorage.removeItem(PREF_KEY);
+      removeStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, { raw: true });
     } else {
-      localStorage.setItem(PREF_KEY, pref);
+      writeStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, pref, { raw: true });
     }
     setPlatformPreference(pref);
   }, []);
 
   const clearPreference = useCallback(() => {
-    localStorage.removeItem(PREF_KEY);
+    removeStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, { raw: true });
     setPlatformPreference(null);
   }, []);
 

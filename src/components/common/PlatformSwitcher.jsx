@@ -4,8 +4,7 @@ import {
   resolvePlatformPath
 } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
-
-const PLATFORM_PREFERENCE_KEY = 'platform-preference';
+import { STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 
 /**
  * 平台切换器组件
@@ -20,7 +19,7 @@ function PlatformSwitcher({ variant = 'button', className = '' }) {
   };
 
   const handleSwitch = (targetPlatform) => {
-    localStorage.setItem(PLATFORM_PREFERENCE_KEY, targetPlatform);
+    writeStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, targetPlatform, { raw: true });
     const basePath = window.location.origin;
     const targetPath = resolveTargetPath(targetPlatform);
     const search = window.location.search || '';

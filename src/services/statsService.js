@@ -8,6 +8,7 @@ import {
   isRetryableSupabaseError,
 } from './supabaseRequest.js';
 import { appLogger } from '../utils/appLogger.js';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 /**
  * 统计服务
@@ -18,9 +19,6 @@ import { appLogger } from '../utils/appLogger.js';
 
 const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
-const GLOBAL_STATS_SNAPSHOT_KEY = 'global_summary_stats_snapshot';
-const CHARACTER_RANKING_SNAPSHOT_KEY = 'character_ranking_snapshot';
-const USER_RANKING_SNAPSHOT_PREFIX = 'user_ranking_snapshot_';
 const STATS_API_TIMEOUT_MS = 25000;
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 const globalStatsRequestState = {
@@ -39,7 +37,7 @@ const userRankingRequestStates = new Map();
 
 function readPersistedSnapshot(key) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = readStorageValue(key, null, { raw: true });
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -48,7 +46,7 @@ function readPersistedSnapshot(key) {
 
 function writePersistedSnapshot(key, data) {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    writeStorageValue(key, JSON.stringify(data), { raw: true });
   } catch {
     // 忽略持久化缓存失败
   }
@@ -502,7 +500,7 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
             source: 'api',
             fetchedAt: Date.now()
           });
-          writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalizedFromApi);
+          writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromApi);
           return normalizedFromApi;
         }
 
@@ -512,11 +510,11 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
             source: 'supabase-direct',
             fetchedAt: Date.now()
           });
-          writePersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY, normalizedFromDirect);
+          writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromDirect);
           return normalizedFromDirect;
         }
 
-        const persistedSnapshot = readPersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY);
+        const persistedSnapshot = readPersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT);
         if (persistedSnapshot) {
           return withStatsMeta(persistedSnapshot, {
             status: 'stale',
@@ -533,7 +531,7 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
     );
   } catch (error) {
     logStatsFailure('获取全服统计', error);
-    const persisted = readPersistedSnapshot(GLOBAL_STATS_SNAPSHOT_KEY);
+    const persisted = readPersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT);
 
     if (globalStatsRequestState.data) {
       return withStatsMeta(globalStatsRequestState.data, {
@@ -571,23 +569,23 @@ export async function getCharacterRankingStats(forceRefresh = false) {
       async () => {
         const apiPayload = await fetchStatsApi('character_ranking').catch(() => null);
         if (apiPayload?.characterRanking) {
-          writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, apiPayload.characterRanking);
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, apiPayload.characterRanking);
           return apiPayload.characterRanking;
         }
 
         const directRanking = await fetchCharacterRankingDirect().catch(() => null);
         if (directRanking) {
-          writePersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY, directRanking);
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, directRanking);
           return directRanking;
         }
 
-        return readPersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY);
+        return readPersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT);
       },
       { cacheTtl: CHARACTER_RANKING_CACHE_TTL, forceRefresh }
     );
   } catch (error) {
     logStatsFailure('获取角色排名', error);
-    return characterRankingRequestState.data || readPersistedSnapshot(CHARACTER_RANKING_SNAPSHOT_KEY) || null;
+    return characterRankingRequestState.data || readPersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT) || null;
   }
 }
 
@@ -600,7 +598,7 @@ export async function getUserRankingStats(userId) {
   try {
     if (!supabase) {
       appLogger.warn('[statsService] Supabase 未配置，无法获取用户排名');
-      return readPersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`);
+      return readPersistedSnapshot(`${STORAGE_KEYS.USER_RANKING_SNAPSHOT_PREFIX}${userId}`);
     }
 
     if (!userId) {
@@ -619,13 +617,12 @@ export async function getUserRankingStats(userId) {
           throw error;
         }
 
-        writePersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`, data);
+        writePersistedSnapshot(`${STORAGE_KEYS.USER_RANKING_SNAPSHOT_PREFIX}${userId}`, data);
         return data;
       }
     );
   } catch (error) {
     logStatsFailure('获取用户排名', error);
-    return getUserRankingRequestState(userId).data || readPersistedSnapshot(`${USER_RANKING_SNAPSHOT_PREFIX}${userId}`) || null;
+    return getUserRankingRequestState(userId).data || readPersistedSnapshot(`${STORAGE_KEYS.USER_RANKING_SNAPSHOT_PREFIX}${userId}`) || null;
   }
 }
-

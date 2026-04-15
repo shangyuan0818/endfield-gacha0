@@ -1,8 +1,8 @@
 import { fetchWithTimeout } from './supabaseRequest.js';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 const BOOTSTRAP_API_TIMEOUT_MS = 25000;
 const BOOTSTRAP_MEMORY_TTL = 5 * 60 * 1000;
-const BOOTSTRAP_SNAPSHOT_KEY = 'public_bootstrap_snapshot_v2';
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
 const bootstrapState = {
@@ -26,7 +26,7 @@ function readPersistedBootstrapSnapshot() {
   }
 
   try {
-    const raw = window.localStorage.getItem(BOOTSTRAP_SNAPSHOT_KEY);
+    const raw = readStorageValue(STORAGE_KEYS.PUBLIC_BOOTSTRAP_SNAPSHOT_V2, null, { raw: true });
     if (!raw) {
       return null;
     }
@@ -51,10 +51,10 @@ function writePersistedBootstrapSnapshot(data) {
   }
 
   try {
-    window.localStorage.setItem(BOOTSTRAP_SNAPSHOT_KEY, JSON.stringify({
+    writeStorageValue(STORAGE_KEYS.PUBLIC_BOOTSTRAP_SNAPSHOT_V2, JSON.stringify({
       data: normalizeBootstrapPayload(data),
       fetchedAt: Date.now()
-    }));
+    }), { raw: true });
   } catch {
     // 本地快照失败时静默降级
   }

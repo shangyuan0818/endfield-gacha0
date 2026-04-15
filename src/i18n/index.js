@@ -1,5 +1,6 @@
 import { createContext, createElement, useContext, useEffect, useMemo, useState } from 'react';
 import messages from './messages.js';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 export const LANGUAGE_OPTIONS = [
   { value: 'zh-CN', key: 'zh-CN' },
@@ -7,7 +8,6 @@ export const LANGUAGE_OPTIONS = [
 ];
 
 export const DEFAULT_LOCALE = 'zh-CN';
-const STORAGE_KEY = 'app_locale';
 const I18nContext = createContext(null);
 
 function hasWindow() {
@@ -95,7 +95,7 @@ export function getAppLocale() {
     return DEFAULT_LOCALE;
   }
 
-  const stored = window.localStorage.getItem(STORAGE_KEY);
+  const stored = readStorageValue(STORAGE_KEYS.APP_LOCALE, null, { raw: true });
   if (stored) {
     return normalizeLocale(stored);
   }
@@ -109,7 +109,7 @@ export function applyAppLocale(locale) {
     return nextLocale;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, nextLocale);
+  writeStorageValue(STORAGE_KEYS.APP_LOCALE, nextLocale, { raw: true });
   syncDocumentMeta(nextLocale);
   window.dispatchEvent(new CustomEvent('app-locale-change', {
     detail: { locale: nextLocale }
@@ -164,7 +164,7 @@ export function I18nProvider({ children }) {
     applyAppLocale(locale);
 
     const handleStorage = (event) => {
-      if (event.key === STORAGE_KEY && event.newValue) {
+      if (event.key === STORAGE_KEYS.APP_LOCALE && event.newValue) {
         setLocaleState(normalizeLocale(event.newValue));
       }
     };

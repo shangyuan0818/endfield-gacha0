@@ -1,4 +1,4 @@
-const ACCOUNT_METADATA_STORAGE_KEY = 'gacha_account_metadata';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from './storageUtils.js';
 
 function safeParseJSON(value, fallback) {
   if (!value) return fallback;
@@ -111,7 +111,7 @@ export function loadGameAccountMetadataMap() {
     return {};
   }
 
-  return safeParseJSON(localStorage.getItem(ACCOUNT_METADATA_STORAGE_KEY), {}) || {};
+  return safeParseJSON(readStorageValue(STORAGE_KEYS.ACCOUNT_METADATA, null, { raw: true }), {}) || {};
 }
 
 export function saveGameAccountMetadata(metadata) {
@@ -129,7 +129,7 @@ export function saveGameAccountMetadata(metadata) {
     ...(currentMap[normalized.gameUid] || {}),
     ...normalized
   };
-  localStorage.setItem(ACCOUNT_METADATA_STORAGE_KEY, JSON.stringify(currentMap));
+  writeStorageValue(STORAGE_KEYS.ACCOUNT_METADATA, JSON.stringify(currentMap), { raw: true });
   return true;
 }
 

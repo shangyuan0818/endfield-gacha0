@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { normalizeCells, getRotations, shuffleItems } from './puzzleUtils';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 
 function getNearestCell(shape, row, col) {
   const direct = shape.find(([shapeRow, shapeCol]) => shapeRow === row && shapeCol === col);
@@ -87,7 +88,7 @@ function getInitialConstraintMode() {
     return 'bars';
   }
 
-  return localStorage.getItem('puzzleCaptchaConstraintMode') === 'numbers' ? 'numbers' : 'bars';
+  return readStorageValue(STORAGE_KEYS.PUZZLE_CAPTCHA_CONSTRAINT_MODE, null, { raw: true }) === 'numbers' ? 'numbers' : 'bars';
 }
 
 function getResponsiveSizing() {
@@ -232,7 +233,7 @@ export default function EnhancedPuzzleCaptchaImpl({
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('puzzleCaptchaConstraintMode', constraintMode);
+    writeStorageValue(STORAGE_KEYS.PUZZLE_CAPTCHA_CONSTRAINT_MODE, constraintMode, { raw: true });
   }, [constraintMode]);
 
   useEffect(() => {

@@ -8,6 +8,26 @@ const STORAGE_PREFIX = 'gacha_';
 
 // 存储键枚举
 export const STORAGE_KEYS = {
+  THEME_MODE: 'theme',
+  APP_LOCALE: 'app_locale',
+  PLATFORM_PREFERENCE: 'platform-preference',
+  CURRENT_POOL_ID: 'gacha_current_pool_id',
+  CURRENT_GAME_UID: 'gacha_current_game_uid',
+  DASHBOARD_SHARE_THEME: 'dashboard_share_theme',
+  CAPTCHA_MODE_PREFERENCE: 'captchaModePreference',
+  PUZZLE_CAPTCHA_DIFFICULTY: 'puzzleCaptchaDifficulty',
+  PUZZLE_CAPTCHA_CONSTRAINT_MODE: 'puzzleCaptchaConstraintMode',
+  CAPTCHA_LAST_VERIFIED: 'lastCaptchaVerified',
+  SIMULATOR_SKIP_ANIMATION: 'simulator_skipAnimation',
+  SIMULATOR_MULTIPLE_FREE_TEN: 'simulator_multipleFreeTen',
+  SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE: 'simulator_originite_prompt_suppress_date',
+  CHARACTER_CACHE_SNAPSHOT_V1: 'character_cache_snapshot_v1',
+  SITE_CONFIG_SNAPSHOT_V1: 'site_config_snapshot_v1',
+  PUBLIC_BOOTSTRAP_SNAPSHOT_V2: 'public_bootstrap_snapshot_v2',
+  GLOBAL_SUMMARY_STATS_SNAPSHOT: 'global_summary_stats_snapshot',
+  CHARACTER_RANKING_SNAPSHOT: 'character_ranking_snapshot',
+  USER_RANKING_SNAPSHOT_PREFIX: 'user_ranking_snapshot_',
+  ACCOUNT_METADATA: 'gacha_account_metadata',
   // 首页折叠状态
   HOME_ANNOUNCEMENT_COLLAPSED: 'home_announcement_collapsed',
   HOME_GAME_ANNOUNCEMENTS_COLLAPSED: 'home_game_announcements_collapsed',
@@ -22,6 +42,52 @@ export const STORAGE_KEYS = {
   TICKETS_LAST_VIEWED: 'tickets_last_viewed',
 };
 
+function hasStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function resolveStorageKey(key, { raw = false } = {}) {
+  return raw ? key : STORAGE_PREFIX + key;
+}
+
+function readStorage(key, { raw = false } = {}) {
+  if (!hasStorage()) {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(resolveStorageKey(key, { raw }));
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key, value, { raw = false } = {}) {
+  if (!hasStorage()) {
+    return false;
+  }
+
+  try {
+    window.localStorage.setItem(resolveStorageKey(key, { raw }), value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeStorage(key, { raw = false } = {}) {
+  if (!hasStorage()) {
+    return false;
+  }
+
+  try {
+    window.localStorage.removeItem(resolveStorageKey(key, { raw }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 获取存储的值
  * @param {string} key - 存储键（不含前缀）
@@ -30,8 +96,7 @@ export const STORAGE_KEYS = {
  */
 export const getStorageItem = (key, defaultValue = null) => {
   try {
-    const fullKey = STORAGE_PREFIX + key;
-    const item = localStorage.getItem(fullKey);
+    const item = readStorage(key);
     if (item === null) return defaultValue;
     return JSON.parse(item);
   } catch {
@@ -46,8 +111,7 @@ export const getStorageItem = (key, defaultValue = null) => {
  */
 export const setStorageItem = (key, value) => {
   try {
-    const fullKey = STORAGE_PREFIX + key;
-    localStorage.setItem(fullKey, JSON.stringify(value));
+    writeStorage(key, JSON.stringify(value));
   } catch {
     // 静默失败
   }
@@ -59,12 +123,50 @@ export const setStorageItem = (key, value) => {
  */
 export const removeStorageItem = (key) => {
   try {
-    const fullKey = STORAGE_PREFIX + key;
-    localStorage.removeItem(fullKey);
+    removeStorage(key);
   } catch {
     // 静默失败
   }
 };
+
+export const readStorageValue = (key, defaultValue = null, options = {}) => {
+  const value = readStorage(key, options);
+  if (value === null || value === 'null' || value === 'undefined') {
+    return defaultValue;
+  }
+  return value;
+};
+
+export const writeStorageValue = (key, value, options = {}) =>
+  writeStorage(key, String(value), options);
+
+export const removeStorageValue = (key, options = {}) =>
+  removeStorage(key, options);
+
+export const readBooleanStorageValue = (key, defaultValue = false, options = {}) => {
+  const value = readStorageValue(key, null, options);
+  if (value === null) {
+    return defaultValue;
+  }
+
+  return value === 'true';
+};
+
+export const writeBooleanStorageValue = (key, value, options = {}) =>
+  writeStorageValue(key, value ? 'true' : 'false', options);
+
+export const readNumberStorageValue = (key, defaultValue = null, options = {}) => {
+  const value = readStorageValue(key, null, options);
+  if (value === null) {
+    return defaultValue;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : defaultValue;
+};
+
+export const writeNumberStorageValue = (key, value, options = {}) =>
+  writeStorageValue(key, String(value), options);
 
 /**
  * 检查是否有新内容（基于时间戳比较）

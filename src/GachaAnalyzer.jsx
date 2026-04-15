@@ -11,6 +11,7 @@ import DesktopAppRoutes from './components/app/DesktopAppRoutes';
 import { extractDrawerFromPoolName } from './utils';
 import { isPoolGroupId } from './stores/usePoolStore';
 import { getPreferredPool } from './utils/poolSelectionUtils';
+import { STORAGE_KEYS, writeStorageValue } from './utils/storageUtils.js';
 
 export default function GachaAnalyzer() {
   // --- 从 Zustand Stores 获取状态 ---
@@ -252,7 +253,7 @@ export default function GachaAnalyzer() {
   // 仅保留 UI 状态（当前选中卡池ID）在 localStorage
 
   useEffect(() => {
-    localStorage.setItem('gacha_current_pool_id', currentPoolId);
+    writeStorageValue(STORAGE_KEYS.CURRENT_POOL_ID, currentPoolId, { raw: true });
   }, [currentPoolId]);
 
   // --- 组件 ---

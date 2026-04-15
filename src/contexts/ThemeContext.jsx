@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 const ThemeContext = createContext(null);
 
@@ -9,7 +10,7 @@ const ThemeContext = createContext(null);
  * 替代之前 App.jsx 和 MobileApp.jsx 中重复的 useEffect + MutationObserver
  */
 export function ThemeProvider({ children }) {
-  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme') || 'system');
+  const [themeMode, setThemeMode] = useState(() => readStorageValue(STORAGE_KEYS.THEME_MODE, 'system', { raw: true }));
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function ThemeProvider({ children }) {
     };
 
     applyTheme(themeMode);
-    localStorage.setItem('theme', themeMode);
+    writeStorageValue(STORAGE_KEYS.THEME_MODE, themeMode, { raw: true });
 
     // system 模式下监听系统偏好变化
     if (themeMode === 'system') {

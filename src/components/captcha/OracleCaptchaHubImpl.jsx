@@ -4,6 +4,7 @@ import TerminalPowCaptcha from './TerminalPowCaptcha';
 import EnhancedPuzzleCaptcha from './EnhancedPuzzleCaptchaImpl';
 import { fetchWithTimeout } from '../../services/supabaseRequest';
 import { buildPlayerUrl, expandPuzzle } from './puzzleUtils';
+import { readNumberStorageValue, readStorageValue, STORAGE_KEYS, writeNumberStorageValue, writeStorageValue } from '../../utils/storageUtils.js';
 import './CaptchaPuzzleOracle.css';
 
 const CAPTCHA_MODES = [
@@ -49,12 +50,12 @@ const CAPTCHA_MODES = [
 const CAPTCHA_PUZZLE_READ_TIMEOUT_MS = 10000;
 
 function getInitialMode(isMobile = false) {
-  const savedMode = localStorage.getItem('captchaModePreference');
+  const savedMode = readStorageValue(STORAGE_KEYS.CAPTCHA_MODE_PREFERENCE, null, { raw: true });
   return CAPTCHA_MODES.some(({ id }) => id === savedMode) ? savedMode : (isMobile ? 'terminal' : 'puzzle');
 }
 
 function getInitialDifficulty() {
-  const savedDifficulty = Number(localStorage.getItem('puzzleCaptchaDifficulty'));
+  const savedDifficulty = readNumberStorageValue(STORAGE_KEYS.PUZZLE_CAPTCHA_DIFFICULTY, null, { raw: true });
   return [1, 2, 3].includes(savedDifficulty) ? savedDifficulty : 1;
 }
 
@@ -280,12 +281,12 @@ export default function OracleCaptchaHubImpl({ onVerified, isMobile = false }) {
   const effectiveMode = activeMode;
 
   const persistMode = useCallback((nextMode) => {
-    localStorage.setItem('captchaModePreference', nextMode);
+    writeStorageValue(STORAGE_KEYS.CAPTCHA_MODE_PREFERENCE, nextMode, { raw: true });
   }, []);
 
   const persistDifficulty = useCallback((nextDifficulty) => {
     setCurrentDifficulty(nextDifficulty);
-    localStorage.setItem('puzzleCaptchaDifficulty', String(nextDifficulty));
+    writeNumberStorageValue(STORAGE_KEYS.PUZZLE_CAPTCHA_DIFFICULTY, nextDifficulty, { raw: true });
   }, []);
 
   const renderModeRail = useCallback(() => (

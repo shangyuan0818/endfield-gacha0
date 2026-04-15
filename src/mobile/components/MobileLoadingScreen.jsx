@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import OracleCaptchaHub from '../../components/captcha/OracleCaptchaHub';
 import { warmupApplication } from '../../services/appWarmupService';
 import { useI18n } from '../../i18n/index.js';
+import { readNumberStorageValue, STORAGE_KEYS, writeNumberStorageValue } from '../../utils/storageUtils.js';
 
 // 验证码有效期：24小时（毫秒）- 与桌面端共享
 const CAPTCHA_VALIDITY_DURATION = 24 * 60 * 60 * 1000;
@@ -32,12 +33,12 @@ const MobileLoadingScreen = ({ onComplete }) => {
   const [showWarmupHint, setShowWarmupHint] = useState(false);
   const isMountedRef = useRef(true);
   const [skipCaptcha] = useState(() => {
-    const lastVerifiedTime = localStorage.getItem('lastCaptchaVerified');
+    const lastVerifiedTime = readNumberStorageValue(STORAGE_KEYS.CAPTCHA_LAST_VERIFIED, null, { raw: true });
     if (!lastVerifiedTime) {
       return false;
     }
 
-    const timeSinceLastVerified = Date.now() - parseInt(lastVerifiedTime, 10);
+    const timeSinceLastVerified = Date.now() - lastVerifiedTime;
     return timeSinceLastVerified < CAPTCHA_VALIDITY_DURATION;
   });
 
@@ -149,7 +150,7 @@ const MobileLoadingScreen = ({ onComplete }) => {
   // 阶段2: 验证码完成处理
   const handleCaptchaVerified = () => {
     // 存储验证成功时间（与桌面端共享）
-    localStorage.setItem('lastCaptchaVerified', Date.now().toString());
+    writeNumberStorageValue(STORAGE_KEYS.CAPTCHA_LAST_VERIFIED, Date.now(), { raw: true });
 
     setStage('done');
     // 显示成功提示1秒后进入主应用

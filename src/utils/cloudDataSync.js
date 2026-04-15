@@ -1,4 +1,5 @@
 import { getPreferredPoolId } from './poolSelectionUtils';
+import { STORAGE_KEYS, writeStorageValue } from './storageUtils.js';
 
 function getHistoryPoolId(record) {
   return record?.poolId || record?.pool_id || null;
@@ -66,6 +67,6 @@ export function applyCloudDataToStores(
 
   if (fallbackId) {
     switchPool(fallbackId);
-    localStorage.setItem('gacha_current_pool_id', fallbackId);
+    writeStorageValue(STORAGE_KEYS.CURRENT_POOL_ID, fallbackId, { raw: true });
   }
 }

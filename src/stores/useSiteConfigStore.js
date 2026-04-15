@@ -4,8 +4,7 @@ import { executeSupabaseMutation } from '../services/supabaseRequest.js';
 import { getBootstrapSiteConfig } from '../services/bootstrapService.js';
 import { supabase } from '../supabaseClient.js';
 import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta.js';
-
-const SITE_CONFIG_SNAPSHOT_KEY = 'site_config_snapshot_v1';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 function normalizeVersionConfig(config) {
   return {
@@ -21,7 +20,7 @@ function readSiteConfigSnapshot() {
   }
 
   try {
-    const rawSnapshot = window.localStorage.getItem(SITE_CONFIG_SNAPSHOT_KEY);
+    const rawSnapshot = readStorageValue(STORAGE_KEYS.SITE_CONFIG_SNAPSHOT_V1, null, { raw: true });
     if (!rawSnapshot) {
       return {};
     }
@@ -41,10 +40,10 @@ function writeSiteConfigSnapshot(config) {
   }
 
   try {
-    window.localStorage.setItem(SITE_CONFIG_SNAPSHOT_KEY, JSON.stringify({
+    writeStorageValue(STORAGE_KEYS.SITE_CONFIG_SNAPSHOT_V1, JSON.stringify({
       config: normalizeVersionConfig(config),
       fetchedAt: Date.now(),
-    }));
+    }), { raw: true });
   } catch {
     // 本地缓存写入失败时静默降级
   }

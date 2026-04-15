@@ -7,8 +7,8 @@
 
 import { executeSupabaseMutation, executeSupabaseRead, fetchWithTimeout } from '../services/supabaseRequest.js';
 import { supabase } from '../supabaseClient.js';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from './storageUtils.js';
 
-const CHARACTER_CACHE_SNAPSHOT_KEY = 'character_cache_snapshot_v1';
 const PUBLIC_CHARACTERS_API_TIMEOUT_MS = 25000;
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
@@ -27,7 +27,7 @@ function readCharacterSnapshot() {
   }
 
   try {
-    const rawSnapshot = window.localStorage.getItem(CHARACTER_CACHE_SNAPSHOT_KEY);
+    const rawSnapshot = readStorageValue(STORAGE_KEYS.CHARACTER_CACHE_SNAPSHOT_V1, null, { raw: true });
     if (!rawSnapshot) {
       return [];
     }
@@ -45,10 +45,10 @@ function writeCharacterSnapshot(characters) {
   }
 
   try {
-    window.localStorage.setItem(CHARACTER_CACHE_SNAPSHOT_KEY, JSON.stringify({
+    writeStorageValue(STORAGE_KEYS.CHARACTER_CACHE_SNAPSHOT_V1, JSON.stringify({
       characters,
       fetchedAt: Date.now(),
-    }));
+    }), { raw: true });
   } catch {
     // 本地缓存写入失败时静默降级
   }

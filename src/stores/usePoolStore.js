@@ -8,6 +8,8 @@ import {
   getPoolGroupType,
   getPoolsForGroupType
 } from '../utils/poolGroupUtils.js';
+import appLogger from '../utils/appLogger.js';
+import { readStorageValue, removeStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 // ========== 池组聚合模式 (FEAT-018) ==========
 export {
@@ -76,21 +78,8 @@ const getCurrentUserId = () => {
   }
 };
 
-function getSafeLocalStorage() {
-  try {
-    return typeof localStorage !== 'undefined' ? localStorage : null;
-  } catch {
-    return null;
-  }
-}
-
 function readStoredUiValue(key) {
-  const storage = getSafeLocalStorage();
-  if (!storage) {
-    return null;
-  }
-
-  const saved = storage.getItem(key);
+  const saved = readStorageValue(key, null, { raw: true });
   if (!saved || saved === 'null' || saved === 'undefined') {
     return null;
   }
@@ -113,10 +102,10 @@ const usePoolStore = create((set, get) => ({
   pools: [],
 
   // ========== 当前选中卡池（UI 状态，保留 localStorage）==========
-  currentPoolId: readStoredUiValue('gacha_current_pool_id'),
+  currentPoolId: readStoredUiValue(STORAGE_KEYS.CURRENT_POOL_ID),
 
   // ========== 当前游戏账号（UI 状态，保留 localStorage）==========
-  currentGameUid: readStoredUiValue('gacha_current_game_uid'),
+  currentGameUid: readStoredUiValue(STORAGE_KEYS.CURRENT_GAME_UID),
 
   // ========== 卡池搜索 ==========
   poolSearchQuery: '',
@@ -135,7 +124,7 @@ const usePoolStore = create((set, get) => ({
       const newPools = poolsOrUpdater(currentPools);
       // 确保结果是数组
       if (!Array.isArray(newPools)) {
-        console.error('[usePoolStore] setPools 函数更新器必须返回数组');
+        appLogger.error('[usePoolStore] setPools 函数更新器必须返回数组');
         return;
       }
       set({ pools: newPools });
@@ -143,7 +132,7 @@ const usePoolStore = create((set, get) => ({
     } else {
       // 确保传入的是数组
       if (!Array.isArray(poolsOrUpdater)) {
-        console.error('[usePoolStore] setPools 必须接收数组或函数更新器');
+        appLogger.error('[usePoolStore] setPools 必须接收数组或函数更新器');
         return;
       }
       set({ pools: poolsOrUpdater });
@@ -156,7 +145,7 @@ const usePoolStore = create((set, get) => ({
    */
   switchPool: (poolId) => {
     set({ currentPoolId: poolId });
-    getSafeLocalStorage()?.setItem('gacha_current_pool_id', poolId);
+    writeStorageValue(STORAGE_KEYS.CURRENT_POOL_ID, poolId, { raw: true });
   },
 
   /**
@@ -165,7 +154,7 @@ const usePoolStore = create((set, get) => ({
   switchToPoolGroup: (groupType) => {
     const id = POOL_GROUP_PREFIX + groupType;
     set({ currentPoolId: id });
-    getSafeLocalStorage()?.setItem('gacha_current_pool_id', id);
+    writeStorageValue(STORAGE_KEYS.CURRENT_POOL_ID, id, { raw: true });
   },
 
   /**
@@ -176,15 +165,10 @@ const usePoolStore = create((set, get) => ({
     const normalizedUid = (!gameUid || gameUid === 'null' || gameUid === 'undefined') ? null : gameUid;
     set({ currentGameUid: normalizedUid });
 
-    const storage = getSafeLocalStorage();
-    if (!storage) {
-      return;
-    }
-
     if (normalizedUid === null) {
-      storage.removeItem('gacha_current_game_uid');
+      removeStorageValue(STORAGE_KEYS.CURRENT_GAME_UID, { raw: true });
     } else {
-      storage.setItem('gacha_current_game_uid', normalizedUid);
+      writeStorageValue(STORAGE_KEYS.CURRENT_GAME_UID, normalizedUid, { raw: true });
     }
   },
 
