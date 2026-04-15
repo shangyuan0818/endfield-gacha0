@@ -1,14 +1,11 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import webfontDownload from 'vite-plugin-webfont-dl'
+import adminHandler from './api/admin.js'
 import authRateLimitHandler from './api/auth-rate-limit.js'
 import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
-import adminOpsAutomationHandler from './api/admin-ops-automation.js'
-import adminResetRecoveryPasswordHandler from './api/admin-reset-recovery-password.js'
-import adminUsersHandler from './api/admin-users.js'
-import adminDeleteUserHandler from './api/admin-delete-user.js'
-import adminUserResetPasswordHandler from './api/admin-user-reset-password.js'
+import officialAnnouncementImageHandler from './api/official-announcement-image.js'
 import selfDeleteAccountHandler from './api/self-delete-account.js'
 
 function readJsonBody(req) {
@@ -118,11 +115,13 @@ function createDevApiPlugin() {
     ['/api/auth-rate-limit', authRateLimitHandler],
     ['/api/auth-account-status', authAccountStatusHandler],
     ['/api/account-recovery-request', accountRecoveryRequestHandler],
-    ['/api/admin-ops-automation', adminOpsAutomationHandler],
-    ['/api/admin-reset-recovery-password', adminResetRecoveryPasswordHandler],
-    ['/api/admin-users', adminUsersHandler],
-    ['/api/admin-delete-user', adminDeleteUserHandler],
-    ['/api/admin-user-reset-password', adminUserResetPasswordHandler],
+    ['/api/admin', adminHandler],
+    ['/api/admin-ops-automation', adminHandler],
+    ['/api/admin-reset-recovery-password', adminHandler],
+    ['/api/admin-users', adminHandler],
+    ['/api/admin-delete-user', adminHandler],
+    ['/api/admin-user-reset-password', adminHandler],
+    ['/api/official-announcement-image', officialAnnouncementImageHandler],
     ['/api/self-delete-account', selfDeleteAccountHandler]
   ])
   const middleware = createApiMiddleware(routeHandlers)

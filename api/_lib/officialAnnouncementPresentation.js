@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const OFFICIAL_SITE_ORIGIN = 'https://endfield.hypergryph.com';
+const OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH = '/api/official-announcement-image';
 const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
 const DEFAULT_SILICONFLOW_MODEL = 'deepseek-ai/DeepSeek-V3.2';
 const SUMMARY_TRIGGER_TEXT_LENGTH = 1400;
@@ -113,10 +114,28 @@ function absolutizeUrl(rawValue, sourceUrl = OFFICIAL_SITE_ORIGIN) {
   }
 }
 
+function shouldProxyAnnouncementImage(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return /^https?:$/i.test(parsedUrl.protocol);
+  } catch {
+    return false;
+  }
+}
+
+export function proxifyAnnouncementImageUrl(rawUrl) {
+  const normalizedUrl = absolutizeUrl(rawUrl, OFFICIAL_SITE_ORIGIN);
+  if (!normalizedUrl || !shouldProxyAnnouncementImage(normalizedUrl)) {
+    return normalizedUrl;
+  }
+
+  return `${OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH}?url=${encodeURIComponent(normalizedUrl)}`;
+}
+
 function normalizeImgTag(tag, sourceUrl) {
   const srcMatch = /\ssrc=(["'])(.*?)\1/i.exec(tag);
   const fallbackSrcMatch = /\s(?:data-src|data-original|data-origin-src)=(["'])(.*?)\1/i.exec(tag);
-  const targetSrc = absolutizeUrl(srcMatch?.[2] || fallbackSrcMatch?.[2] || '', sourceUrl);
+  const targetSrc = proxifyAnnouncementImageUrl(srcMatch?.[2] || fallbackSrcMatch?.[2] || '');
   if (!targetSrc) {
     return tag;
   }
@@ -168,7 +187,7 @@ function buildImageGalleryMarkdown(imageUrls = []) {
 
   const lines = [
     '## 原公告配图',
-    ...visibleImages.map((url, index) => `![公告配图 ${index + 1}](${url})`),
+    ...visibleImages.map((url, index) => `![公告配图 ${index + 1}](${proxifyAnnouncementImageUrl(url)})`),
   ];
 
   if (imageUrls.length > visibleImages.length) {
@@ -447,11 +466,13 @@ export async function buildAnnouncementDisplayContent({
 export const __internal = {
   DEFAULT_SILICONFLOW_MODEL,
   OFFICIAL_SITE_ORIGIN,
+  OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH,
   SUMMARY_TRIGGER_TEXT_LENGTH,
   absolutizeUrl,
   buildHeuristicStructuredSummary,
   extractImageUrlsFromHtml,
   normalizeOfficialHtml,
+  proxifyAnnouncementImageUrl,
   shouldSummarizeAnnouncement,
   stripHtmlToText,
 };
