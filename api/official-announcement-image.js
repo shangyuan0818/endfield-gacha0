@@ -36,7 +36,7 @@ function normalizeTargetUrl(rawValue) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=604800');
+  res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
 
   if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
     return;
@@ -95,13 +95,11 @@ export default async function handler(req, res) {
     }
 
     const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const cacheControl = response.headers.get('cache-control');
     const arrayBuffer = await response.arrayBuffer();
 
     res.setHeader('Content-Type', contentType);
-    if (cacheControl) {
-      res.setHeader('Cache-Control', cacheControl);
-    }
+    res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
 
     return res.status(200).end(Buffer.from(arrayBuffer));
   } catch (error) {

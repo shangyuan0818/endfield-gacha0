@@ -4,6 +4,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 
+const OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_MARKER = '/api/official-announcement-image?';
+
 /**
  * 自定义 HTML 净化规则
  * 基于 rehype-sanitize 的 defaultSchema，添加必要的扩展
@@ -109,6 +111,8 @@ const SimpleMarkdown = ({ content, className = '' }) => {
       let parsedWidth = width;
       let parsedHeight = height;
       let actualTitle;
+      const isOfficialAnnouncementImage = typeof src === 'string'
+        && src.includes(OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_MARKER);
 
       if (title) {
         // 解析尺寸: 支持 "=300", "=300x200", "=50%", "=50%x30%", "标题 =300"
@@ -142,8 +146,9 @@ const SimpleMarkdown = ({ content, className = '' }) => {
           width={typeof parsedWidth === 'number' || typeof parsedWidth === 'string' ? parsedWidth : undefined}
           height={typeof parsedHeight === 'number' || typeof parsedHeight === 'string' ? parsedHeight : undefined}
           style={style}
-          loading="lazy"
-          decoding="async"
+          loading={isOfficialAnnouncementImage ? 'eager' : 'lazy'}
+          decoding={isOfficialAnnouncementImage ? 'sync' : 'async'}
+          fetchPriority={isOfficialAnnouncementImage ? 'high' : 'auto'}
           className={`block mx-auto ${parsedWidth ? '' : 'max-w-full'} h-auto rounded-none my-3 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-950 ${incomingClassName || ''}`.trim()}
         />
       );
