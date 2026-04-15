@@ -47,6 +47,57 @@ import {
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 
+const PIE_LABEL_MIN_PERCENT = 0.05;
+const PIE_LABEL_RADIAN = Math.PI / 180;
+
+function resolvePieLabelColor(fill, isDark) {
+  if (typeof fill !== 'string' || !fill.startsWith('#')) {
+    return isDark ? '#fafafa' : '#ffffff';
+  }
+
+  const hex = fill.slice(1);
+  const normalized = hex.length === 3
+    ? hex.split('').map((char) => char + char).join('')
+    : hex;
+
+  if (normalized.length !== 6) {
+    return isDark ? '#fafafa' : '#ffffff';
+  }
+
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  const luma = (0.299 * r) + (0.587 * g) + (0.114 * b);
+  return luma > 170 ? '#111827' : '#ffffff';
+}
+
+function renderPiePercentLabel(isDark) {
+  return ({ cx, cy, midAngle, innerRadius, outerRadius, percent, fill }) => {
+    if (!Number.isFinite(percent) || percent < PIE_LABEL_MIN_PERCENT) {
+      return null;
+    }
+
+    const radius = innerRadius + ((outerRadius - innerRadius) * 0.58);
+    const x = cx + (radius * Math.cos(-midAngle * PIE_LABEL_RADIAN));
+    const y = cy + (radius * Math.sin(-midAngle * PIE_LABEL_RADIAN));
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill={resolvePieLabelColor(fill, isDark)}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={11}
+        fontWeight={700}
+        style={{ pointerEvents: 'none' }}
+      >
+        {`${(percent * 100).toFixed(1)}%`}
+      </text>
+    );
+  };
+}
+
 function getDistributionVariant(poolType) {
   if (poolType === 'weapon') {
     return 'weapon';
@@ -895,15 +946,17 @@ function MobileDashboardView() {
                 <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
                   <PieChart>
                     <RainbowGradientDefs />
-                    <Pie
-                      data={localizeChartData(stats.chartData, primarySixStarLabel, secondarySixStarLabel)}
-                      cx="50%"
-                      cy="45%"
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={2}
-                      dataKey="displayValue"
-                    >
+                      <Pie
+                        data={localizeChartData(stats.chartData, primarySixStarLabel, secondarySixStarLabel)}
+                        cx="50%"
+                        cy="45%"
+                        innerRadius={32}
+                        outerRadius={68}
+                        paddingAngle={2}
+                        dataKey="displayValue"
+                        labelLine={false}
+                        label={renderPiePercentLabel(isDark)}
+                      >
                       {localizeChartData(stats.chartData, primarySixStarLabel, secondarySixStarLabel).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                       ))}

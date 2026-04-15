@@ -89,22 +89,22 @@ const DistributionAreaChart = ({
           />
           <Area
             type="linear"
-            dataKey="limited"
-            stackId="distribution"
-            name={labels.limited}
-            stroke={RARITY_CONFIG[6].color}
-            strokeWidth={2}
-            fill={`url(#distribution-limited-${gradientId})`}
-            activeDot={{ r: 4 }}
-          />
-          <Area
-            type="linear"
             dataKey="standard"
-            stackId="distribution"
             name={labels.standard}
             stroke={RARITY_CONFIG['6_std'].color}
             strokeWidth={2}
             fill={`url(#distribution-standard-${gradientId})`}
+            fillOpacity={0.5}
+            activeDot={{ r: 4 }}
+          />
+          <Area
+            type="linear"
+            dataKey="limited"
+            name={labels.limited}
+            stroke={RARITY_CONFIG[6].color}
+            strokeWidth={2}
+            fill={`url(#distribution-limited-${gradientId})`}
+            fillOpacity={0.58}
             activeDot={{ r: 4 }}
           />
         </AreaChart>
