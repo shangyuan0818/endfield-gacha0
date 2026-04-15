@@ -30,10 +30,10 @@ const AdminPanelFallback = () => (
 );
 
 const AdminPanel = React.memo(({ showToast }) => {
-  const [activeMenu, setActiveMenu] = React.useState('users');
+  const [activeMenu, setActiveMenu] = React.useState('automation');
 
   // 使用拆分后的 hooks
-  const adminData = useAdminData(showToast);
+  const adminData = useAdminData(showToast, activeMenu);
   const userDataViewer = useUserDataViewer(showToast);
 
   const {

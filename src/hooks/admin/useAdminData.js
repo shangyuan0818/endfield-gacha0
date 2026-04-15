@@ -10,7 +10,7 @@ import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
  * 管理后台数据统一管理 Hook
  * 负责：用户与公告的数据获取与 CRUD 操作
  */
-export function useAdminData(showToast) {
+export function useAdminData(showToast, activeMenu = 'automation') {
   const user = useAuthStore(state => state.user);
   const userRole = useAuthStore(state => state.userRole);
 
@@ -20,6 +20,11 @@ export function useAdminData(showToast) {
   const [accountRecoveryRequests, setAccountRecoveryRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [loadedSections, setLoadedSections] = useState({
+    users: false,
+    announcements: false,
+    accountRecovery: false,
+  });
 
   const ensureSuperAdmin = useCallback(() => {
     if (userRole !== 'super_admin') {
@@ -29,45 +34,86 @@ export function useAdminData(showToast) {
     return true;
   }, [userRole, showToast]);
 
-  const loadAdminData = useCallback(async () => {
+  const loadAdminData = useCallback(async (force = false) => {
     if (!user || userRole !== 'super_admin') {
       setUsers([]);
       setAnnouncements([]);
       setAccountRecoveryRequests([]);
+      setLoadedSections({
+        users: false,
+        announcements: false,
+        accountRecovery: false,
+      });
+      setLoading(false);
+      return;
+    }
+
+    const requiredSections = [];
+    if (activeMenu === 'users' || activeMenu === 'userData') {
+      requiredSections.push('users');
+    }
+    if (activeMenu === 'announcements') {
+      requiredSections.push('announcements');
+    }
+    if (activeMenu === 'accountRecovery') {
+      requiredSections.push('accountRecovery');
+    }
+
+    const sectionsToFetch = requiredSections.filter((section) => force || !loadedSections[section]);
+    if (sectionsToFetch.length === 0) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const [
-      usersResult,
-      announcementsResult,
-      accountRecoveryResult
-    ] = await Promise.allSettled([
-      userService.loadUsers(),
-      announcementService.loadAnnouncements(),
-      accountRecoveryService.loadAccountRecoveryRequests()
-    ]);
+    const results = await Promise.allSettled(sectionsToFetch.map(async (section) => {
+      switch (section) {
+        case 'users': {
+          const result = await userService.loadUsers();
+          setUsers(result);
+          break;
+        }
+        case 'announcements': {
+          const result = await announcementService.loadAnnouncements();
+          setAnnouncements(result);
+          break;
+        }
+        case 'accountRecovery': {
+          const result = await accountRecoveryService.loadAccountRecoveryRequests();
+          setAccountRecoveryRequests(result);
+          break;
+        }
+        default:
+          break;
+      }
+
+      return section;
+    }));
 
     const failedSections = [];
+    const loadedSectionNames = [];
 
-    if (usersResult.status === 'fulfilled') {
-      setUsers(usersResult.value);
-    } else {
-      failedSections.push('用户');
-    }
+    results.forEach((result, index) => {
+      const section = sectionsToFetch[index];
+      const labelMap = {
+        users: '用户',
+        announcements: '公告',
+        accountRecovery: '账号恢复',
+      };
 
-    if (announcementsResult.status === 'fulfilled') {
-      setAnnouncements(announcementsResult.value);
-    } else {
-      failedSections.push('公告');
-    }
+      if (result.status === 'fulfilled') {
+        loadedSectionNames.push(section);
+      } else {
+        failedSections.push(labelMap[section] || section);
+      }
+    });
 
-    if (accountRecoveryResult.status === 'fulfilled') {
-      setAccountRecoveryRequests(accountRecoveryResult.value);
-    } else {
-      failedSections.push('账号恢复');
+    if (loadedSectionNames.length > 0) {
+      setLoadedSections((prev) => loadedSectionNames.reduce((next, section) => ({
+        ...next,
+        [section]: true,
+      }), prev));
     }
 
     if (failedSections.length > 0) {
@@ -75,11 +121,11 @@ export function useAdminData(showToast) {
     }
 
     setLoading(false);
-  }, [showToast, user, userRole]);
+  }, [activeMenu, loadedSections, showToast, user, userRole]);
 
   // 加载所有数据
   useEffect(() => {
-    loadAdminData();
+    loadAdminData(false);
   }, [loadAdminData]);
 
   // ========== 用户管理函数 ==========
@@ -120,7 +166,7 @@ export function useAdminData(showToast) {
         showToast('用户已更新', 'success');
       } else {
         await userService.createUser(userForm);
-        await loadAdminData();
+        await loadAdminData(true);
         showToast('用户已创建', 'success');
       }
 
@@ -261,7 +307,7 @@ export function useAdminData(showToast) {
       };
 
       await accountRecoveryService.updateAccountRecoveryRequest(request.id, payload);
-      await loadAdminData();
+      await loadAdminData(true);
       showToast('账号恢复申请已更新', 'success');
     } catch (error) {
       showToast('更新账号恢复申请失败: ' + error.message, 'error');
@@ -282,7 +328,7 @@ export function useAdminData(showToast) {
         temporaryPassword,
         adminNote
       );
-      await loadAdminData();
+      await loadAdminData(true);
       showToast(`临时密码已设置，请引导用户加入 QQ 群 ${ACCOUNT_RECOVERY_QQ_GROUP} 获取临时密码`, 'success');
     } catch (error) {
       showToast('设置临时密码失败: ' + error.message, 'error');
