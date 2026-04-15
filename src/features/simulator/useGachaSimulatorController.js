@@ -48,7 +48,7 @@ import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups }
 import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './simulatorInheritance';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
-import { buildDynamicRosterBuckets, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
@@ -60,36 +60,6 @@ import {
   writeBooleanStorageValue,
   writeStorageValue,
 } from '../../utils/storageUtils.js';
-
-function dedupeRosterEntries(items = []) {
-  const seen = new Set();
-  return (Array.isArray(items) ? items : []).filter((item) => {
-    const key = String(item?.name || '').trim();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
-}
-
-function mergeSimulatorRoster(resolvedRoster, dynamicRoster) {
-  const resolvedItems = resolvedRoster || {};
-  const fallbackItems = dynamicRoster || {};
-
-  return {
-    up: dedupeRosterEntries([...(resolvedItems.up || []), ...(fallbackItems.up || [])]),
-    offBanner: dedupeRosterEntries([...(resolvedItems.offBanner || []), ...(fallbackItems.offBanner || [])]),
-    fiveStar: dedupeRosterEntries([
-      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 5) : []),
-      ...(fallbackItems.items || []).filter((item) => item.rarity === 5)
-    ]),
-    fourStar: dedupeRosterEntries([
-      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 4) : []),
-      ...(fallbackItems.items || []).filter((item) => item.rarity === 4)
-    ]),
-  };
-}
 
 const getWeaponPoolRules = (pool) =>
   pool?.isLimitedWeapon !== false
@@ -426,17 +396,10 @@ export function useGachaSimulatorController() {
         poolInfo,
         mergeStrategy: 'fill-missing'
       });
-      const dynamicRoster = buildDynamicRosterBuckets({
-        expectedType,
-        currentUpName: upCharName,
-        poolType,
-        poolInfo
-      });
-      const mergedRoster = mergeSimulatorRoster(roster, dynamicRoster);
 
-      if (mergedRoster.up.length > 0 || mergedRoster.offBanner.length > 0 || mergedRoster.fiveStar.length > 0 || mergedRoster.fourStar.length > 0) {
+      if (roster?.up?.length > 0 || roster?.offBanner?.length > 0 || roster?.fiveStar?.length > 0 || roster?.fourStar?.length > 0) {
         if (!cancelled) {
-          setPoolCharactersList(mergedRoster);
+          setPoolCharactersList(roster);
         }
         return;
       }
