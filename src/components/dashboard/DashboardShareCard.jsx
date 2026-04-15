@@ -1,12 +1,12 @@
 import React, { forwardRef } from 'react';
 import ShareBrandPanel from '../share/ShareBrandPanel';
 import {
-  SHARE_CARD_HEIGHT,
   SHARE_CARD_WIDTH,
   getResolvedShareFontVariables
 } from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 import { useI18n } from '../../i18n/index.js';
+import { getTimelineBarColor, getTimelineTextBadgeStyle } from '../../utils/timelineVisuals.js';
 
 function getThemeTokens(theme = 'light') {
   if (theme === 'dark') {
@@ -53,7 +53,7 @@ function getThemeTokens(theme = 'light') {
 const styles = {
   root: {
     width: `${SHARE_CARD_WIDTH}px`,
-    minHeight: `${SHARE_CARD_HEIGHT}px`,
+    minHeight: '0px',
     boxSizing: 'border-box',
     background: 'linear-gradient(140deg, #fcfbf7 0%, #f6f2e9 52%, #eef3f8 100%)',
     color: '#18181b',
@@ -570,56 +570,6 @@ function getSectionTypeLabel(type, tt) {
   return tt('dashboard.shareCard.sectionType.limited', 'Limited Character Banner');
 }
 
-function getTimelineVisualKind(entry) {
-  if (entry.stageKind === 'gift') {
-    return entry.highlightStageKind || (Number(entry.highestRarity) >= 6 ? 'up' : Number(entry.highestRarity) === 5 ? 'fiveStar' : 'gift');
-  }
-
-  return entry.stageKind;
-}
-
-function getBarColor(entry, sectionType) {
-  const visualKind = getTimelineVisualKind(entry);
-
-  if (visualKind === 'gift') {
-    return '#34d399';
-  }
-
-  if (visualKind === 'fiveStar') {
-    return '#fbbf24';
-  }
-
-  if (visualKind === 'sixStar') {
-    if (sectionType === 'weapon') {
-      return '#f59e0b';
-    }
-
-    if (sectionType === 'standard') {
-      return '#3b82f6';
-    }
-
-    return '#d946ef';
-  }
-
-  if (visualKind === 'offStandard') {
-    return '#fb7185';
-  }
-
-  if (visualKind === 'offLimited') {
-    return '#94a3b8';
-  }
-
-  if (sectionType === 'weapon') {
-    return '#f59e0b';
-  }
-
-  if (sectionType === 'standard') {
-    return '#3b82f6';
-  }
-
-  return '#d946ef';
-}
-
 function getStamp(entry, sectionType, tt) {
   if (entry.stageKind === 'gift') {
     return { label: tt('dashboard.shareCard.stamp.free', 'FREE'), color: '#34d399', bg: '#ecfdf5' };
@@ -808,12 +758,46 @@ function CompactMetricBlock({ title, rows = [], tokens, accentColor }) {
   );
 }
 
+function renderShareSummary(entry, summary, theme = 'light') {
+  if (!summary) {
+    return '--';
+  }
+
+  const parts = String(summary).split(/(6★|5★)/u);
+  return parts.map((part, index) => {
+    if (part !== '6★' && part !== '5★') {
+      return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
+    }
+
+    const badgeStyle = getTimelineTextBadgeStyle(entry, part === '6★' ? 6 : 5, theme);
+    return (
+      <span
+        key={`${part}-${index}`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '1px 6px',
+          margin: '0 2px',
+          border: `1px solid ${badgeStyle?.borderColor || 'transparent'}`,
+          background: badgeStyle?.background,
+          color: badgeStyle?.color,
+          fontSize: '12px',
+          fontWeight: 900,
+          lineHeight: 1.2,
+        }}
+      >
+        {part}
+      </span>
+    );
+  });
+}
+
 function TimelineEntry({ entry, section, tokens, tt, showFiveStarDrops = true }) {
   const scaleBase = Math.max(Number(section.scaleMax) || 1, 1);
   const widthPercent = entry.stageKind === 'gift'
     ? 100
     : Math.max(12, Math.min(100, ((entry.pulls || 0) / scaleBase) * 100));
-  const fillColor = getBarColor(entry, section.type);
+  const fillColor = getTimelineBarColor(section.type, entry);
   const stamp = getStamp(entry, section.type, tt);
   const leadBadge = entry.leadBadge || entry.dropBadges?.[0] || { label: '?', rarity: 0 };
   const visibleBadges = getVisibleDropBadges(entry, showFiveStarDrops);
@@ -842,7 +826,7 @@ function TimelineEntry({ entry, section, tokens, tt, showFiveStarDrops = true })
       <div style={styles.entryBody}>
         <div style={styles.stageTop}>
           <div style={{ ...styles.stageChip, borderColor: tokens.border, background: tokens.chipBackground, color: tokens.textMuted }}>{entry.stageLabel}</div>
-          <div style={{ ...styles.resultText, color: tokens.textPrimary }}>{resultSummary}</div>
+          <div style={{ ...styles.resultText, color: tokens.textPrimary }}>{renderShareSummary(entry, resultSummary, 'light')}</div>
         </div>
 
         <div style={styles.barRow}>
@@ -989,18 +973,6 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
   const { t } = useI18n();
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const tokens = getThemeTokens(theme);
-  const brandChips = [
-    tt('share.card.desensitized', 'Desensitized share card'),
-    theme === 'dark'
-      ? tt('dashboard.shareCard.theme.dark', 'Dark Theme')
-      : tt('dashboard.shareCard.theme.light', 'Light Theme'),
-    payload?.overviewFilterLabel && payload.overviewFilterLabel !== tt('dashboard.shareCard.filterAll', 'All Banners')
-      ? tt('dashboard.shareCard.filterChip', 'Filter {value}', { value: payload.overviewFilterLabel })
-      : null,
-    payload?.featured
-      ? tt('dashboard.shareCard.targetChip', 'Target {value}', { value: payload.featured })
-      : null
-  ].filter(Boolean);
   const accentColor = getSectionTone(payload?.poolType).accent;
   const averageGroupMap = new Map((payload?.averageGroups || []).map((group) => [group.id, group.items]));
   const resourceGroupMap = new Map((payload?.resourceGroups || []).map((group) => [group.id, group.items]));
@@ -1053,23 +1025,15 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           </div>
         </div>
 
-        <div style={styles.tagColumn}>
-          {brandChips.map((chip) => (
-            <div
-              key={chip}
-              style={{
-                ...styles.badge,
-                borderColor: tokens.border,
-                background: tokens.panelBackground,
-                color: tokens.textSecondary,
-                padding: '6px 10px',
-                fontSize: '10px'
-              }}
-            >
-              {chip}
-            </div>
-          ))}
-        </div>
+        <ShareBrandPanel
+          theme={theme}
+          accentColor={accentColor}
+          compact
+          showChips={false}
+          showHeader={false}
+          qrSize={88}
+          style={{ width: '236px', marginLeft: 'auto', flexShrink: 0 }}
+        />
       </div>
 
       <div>
@@ -1118,15 +1082,6 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           <span>{payload?.notes || tt('share.dashboard.noteDesensitized', 'Desensitized share card. No account, UID, timestamp, or raw pull details included.')}</span>
           <span>{tt('dashboard.shareCard.localOnly', 'Scan or open the site to continue the full analysis. This card is generated locally only and does not create a public link.')}</span>
         </div>
-        <ShareBrandPanel
-          theme={theme}
-          accentColor={accentColor}
-          compact
-          showChips={false}
-          showHeader={false}
-          qrSize={88}
-          style={{ width: '236px', marginLeft: 'auto' }}
-        />
       </div>
     </div>
   );

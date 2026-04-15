@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Layers, Lock, Star, Swords, User } from 'lucide-react';
 import { getPoolTimingMeta, getSelectorVisiblePools } from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
+import { characterCache } from '../../utils/characterUtils.js';
 
 const TYPE_CONFIG = {
   limited: { icon: Star, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/20' },
@@ -138,12 +139,20 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
   const isActive = pool.selectorTiming?.isActive;
   const remainingLabel = pool.selectorTiming?.remainingLabel;
   const formattedPullCount = new Intl.NumberFormat(locale).format(pool.pullCount || 0);
+  const upCharacterName = pool.displayUpCharacter || pool.up_character || pool.upCharacter || '';
+  const upCharacterAvatarUrl = useMemo(() => {
+    if (!upCharacterName) {
+      return null;
+    }
+
+    return characterCache.searchByName(upCharacterName, false)?.avatar_url || null;
+  }, [upCharacterName]);
 
   return (
     <div
       onClick={onClick}
       className={`
-        relative flex-shrink-0 w-44 p-3 cursor-pointer transition-all border
+        relative flex-shrink-0 w-44 p-3 cursor-pointer transition-all border overflow-hidden
         group hover:border-zinc-400 dark:hover:border-zinc-500
         ${isSelected
           ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
@@ -152,41 +161,69 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
         ${isActive ? 'shadow-[0_0_0_1px_rgba(234,179,8,0.35),0_0_18px_rgba(234,179,8,0.12)]' : ''}
       `}
     >
-      <div className={`absolute top-2 left-2 p-1 ${config.bg}`}>
+      {upCharacterAvatarUrl && (
+        <>
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[60%] opacity-24 dark:opacity-18">
+            <img
+              src={upCharacterAvatarUrl}
+              alt={upCharacterName}
+              className="h-full w-full object-cover object-[72%_center]"
+            />
+          </div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[68%] bg-gradient-to-l from-white/92 via-white/72 to-transparent dark:from-zinc-900/92 dark:via-zinc-900/72 dark:to-transparent" />
+        </>
+      )}
+
+      <div className={`absolute top-2 left-2 z-10 p-1 ${config.bg}`}>
         <TypeIcon size={12} className={config.color} />
       </div>
 
       {pool.locked && (
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-10">
           <Lock size={12} className="text-amber-500" />
         </div>
       )}
 
       {isActive && (
-        <div className="absolute top-2 right-2 flex items-center gap-1 border border-amber-600/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:border-yellow-500/60 dark:bg-yellow-500/10 dark:text-endfield-yellow">
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 border border-amber-600/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:border-yellow-500/60 dark:bg-yellow-500/10 dark:text-endfield-yellow">
           <span className="w-1.5 h-1.5 rounded-full bg-endfield-yellow animate-pulse" />
           {t('pool.card.currentUp')}
         </div>
       )}
 
-      <div className={`text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
+      <div className={`relative z-10 text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
         {pool.displayName || pool.name}
       </div>
 
-      {(pool.displayUpCharacter || pool.up_character) && (
-        <div className="text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
-          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {pool.displayUpCharacter || pool.up_character}
+      {upCharacterName && (
+        <div className="relative z-10 text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
+          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {upCharacterName}
           {isActive && remainingLabel ? <span className="font-semibold text-amber-700 dark:text-endfield-yellow"> · {remainingLabel}</span> : null}
         </div>
       )}
 
-      {!(pool.displayUpCharacter || pool.up_character) && isActive && remainingLabel && (
-        <div className="text-xs font-semibold text-amber-700 dark:text-endfield-yellow truncate mb-1 font-mono">{remainingLabel}</div>
+      {!upCharacterName && isActive && remainingLabel && (
+        <div className="relative z-10 text-xs font-semibold text-amber-700 dark:text-endfield-yellow truncate mb-1 font-mono">{remainingLabel}</div>
       )}
 
-      <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
+      <div className="relative z-10 text-xs text-slate-500 dark:text-zinc-400 font-mono">
         {t('pool.card.pulls', { count: formattedPullCount })}
       </div>
+
+      {pool.selectorTiming?.isTimed && (
+        <div className="relative z-10 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200/80 dark:bg-zinc-800/90">
+          <div
+            className={`h-full transition-all ${
+              isActive
+                ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500'
+                : pool.selectorTiming?.isUpcoming
+                  ? 'bg-blue-400'
+                  : 'bg-zinc-400 dark:bg-zinc-600'
+            }`}
+            style={{ width: `${Math.max(Number(pool.selectorTiming?.progressPercent || 0), 4)}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   countDashboardTimelineNodes
 } from '../../utils/dashboardTimelineSections.js';
 import { useI18n } from '../../i18n/index.js';
+import { getTimelineBarColor, getTimelineTextBadgeStyle } from '../../utils/timelineVisuals.js';
 
 function formatAverage(value, t) {
   if (!Number.isFinite(value)) {
@@ -73,56 +74,6 @@ function getLeadBadge(entry, featured) {
   };
 }
 
-function getTimelineVisualKind(entry) {
-  if (entry.stageKind === 'gift') {
-    return entry.highlightStageKind || (Number(entry.highestRarity) >= 6 ? 'up' : Number(entry.highestRarity) === 5 ? 'fiveStar' : 'gift');
-  }
-
-  return entry.stageKind;
-}
-
-function getEntryBarClass(sectionType, entry) {
-  const visualKind = getTimelineVisualKind(entry);
-
-  if (visualKind === 'gift') {
-    return 'bg-emerald-400 dark:bg-emerald-500';
-  }
-
-  if (visualKind === 'fiveStar') {
-    return 'bg-amber-300 dark:bg-amber-400';
-  }
-
-  if (visualKind === 'sixStar') {
-    if (sectionType === 'weapon') {
-      return 'bg-amber-400 dark:bg-amber-500';
-    }
-
-    if (sectionType === 'standard') {
-      return 'bg-blue-400 dark:bg-blue-500';
-    }
-
-    return 'rainbow-progress';
-  }
-
-  if (visualKind === 'offStandard') {
-    return 'bg-rose-400 dark:bg-rose-500';
-  }
-
-  if (visualKind === 'offLimited') {
-    return 'bg-slate-400 dark:bg-slate-500';
-  }
-
-  if (sectionType === 'weapon') {
-    return 'bg-amber-400 dark:bg-amber-500';
-  }
-
-  if (sectionType === 'standard') {
-    return 'bg-blue-400 dark:bg-blue-500';
-  }
-
-  return 'rainbow-progress';
-}
-
 function getStampConfig(entry, sectionType, t) {
   if (entry.stageKind === 'gift') {
     return {
@@ -184,6 +135,26 @@ function getVisibleResultSummary(entry, showFiveStarDrops) {
   }
 
   return entry.resultSummaryWithoutFiveStar || entry.resultSummary;
+}
+
+function renderResultSummary(entry, summary, mobile = false) {
+  const segments = String(summary || '').split(/(6★|5★)/g);
+  return segments.map((segment, index) => {
+    if (segment !== '6★' && segment !== '5★') {
+      return <React.Fragment key={`${segment}-${index}`}>{segment}</React.Fragment>;
+    }
+
+    const style = getTimelineTextBadgeStyle(entry, segment === '6★' ? 6 : 5, mobile ? 'dark' : 'light');
+    return (
+      <span
+        key={`${segment}-${index}`}
+        className="mx-0.5 inline-flex items-center rounded-full border px-1.5 py-0.5 text-[0.88em] font-black leading-none"
+        style={style || undefined}
+      >
+        {segment}
+      </span>
+    );
+  });
 }
 
 function StagePortrait({ entry, featured, compact = false, t }) {
@@ -276,16 +247,16 @@ function TimelineStageCard({ entry, sectionType, featured, t, mobile = false, sh
           <span className={`${mobile ? 'mobile-ux-card-chip text-slate-500 dark:text-zinc-400' : 'border border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400'} font-bold uppercase ${compact ? 'px-1.5 py-0.5 text-[8px] sm:text-[9px]' : 'px-1.5 py-0.5 text-[9px] sm:text-[10px]'}`}>
             {entry.stageLabel}
           </span>
-          <span className={`min-w-0 break-words font-bold leading-snug ${mobile ? 'text-slate-700 dark:text-zinc-200' : 'text-zinc-700 dark:text-zinc-300'} ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
-            {resultSummary}
-          </span>
-        </div>
+            <span className={`min-w-0 break-words font-bold leading-snug ${mobile ? 'text-slate-700 dark:text-zinc-200' : 'text-zinc-700 dark:text-zinc-300'} ${compact ? 'text-[11px] sm:text-xs' : 'text-xs sm:text-sm'}`}>
+              {renderResultSummary(entry, resultSummary, mobile)}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className={`relative flex-1 overflow-hidden ${mobile ? 'rounded-2xl bg-zinc-100/90 dark:bg-zinc-950/75' : 'border border-zinc-200 bg-zinc-100 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-800/50'} ${compact ? 'h-6 sm:h-7 max-w-[70%] sm:max-w-[60%]' : 'h-8 sm:h-10 max-w-[90%] sm:max-w-[85%]'}`}>
-            <div
-              className={`absolute inset-y-0 left-0 ${getEntryBarClass(sectionType, entry)}`}
-              style={{ width: `${widthPercent}%` }}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className={`relative flex-1 overflow-hidden ${mobile ? 'rounded-2xl bg-zinc-100/90 dark:bg-zinc-950/75' : 'border border-zinc-200 bg-zinc-100 shadow-sm dark:border-zinc-700/50 dark:bg-zinc-800/50'} ${compact ? 'h-6 sm:h-7 max-w-[70%] sm:max-w-[60%]' : 'h-8 sm:h-10 max-w-[90%] sm:max-w-[85%]'}`}>
+              <div
+              className="absolute inset-y-0 left-0"
+              style={{ width: `${widthPercent}%`, background: getTimelineBarColor(sectionType, entry) }}
             >
               <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.15)_50%,rgba(255,255,255,0.15)_75%,transparent_75%,transparent_100%)] bg-[length:12px_12px]" />
             </div>

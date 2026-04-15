@@ -7,6 +7,7 @@ import {
 } from '../../utils/shareBranding';
 import { RESOURCE_ICON_URLS } from '../../utils/resourceEconomy.js';
 import { useI18n } from '../../i18n/index.js';
+import { getTimelineBarColor, getTimelineTextBadgeStyle } from '../../utils/timelineVisuals.js';
 
 const cardStyles = {
   root: {
@@ -469,26 +470,6 @@ function getLeadBadge(entry, featured) {
   };
 }
 
-function getTimelineBarColor(sectionType, entry) {
-  if (entry?.stageKind === 'gift') {
-    return '#34d399';
-  }
-
-  if (entry?.stageKind === 'offStandard' || entry?.stageKind === 'offLimited') {
-    return '#fb7185';
-  }
-
-  if (sectionType === 'weapon') {
-    return '#f59e0b';
-  }
-
-  if (sectionType === 'standard') {
-    return '#60a5fa';
-  }
-
-  return '#facc15';
-}
-
 function formatAveragePulls(value, locale, t) {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
@@ -538,15 +519,44 @@ function StatPill({ item, accentColor }) {
   );
 }
 
+function renderShareSummary(entry, summary) {
+  if (!summary) {
+    return '--';
+  }
+
+  const parts = String(summary).split(/(6★|5★)/u);
+  return parts.map((part, index) => {
+    if (part !== '6★' && part !== '5★') {
+      return <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>;
+    }
+
+    const badgeStyle = getTimelineTextBadgeStyle(entry, part === '6★' ? 6 : 5, 'dark');
+    return (
+      <span
+        key={`${part}-${index}`}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '1px 6px',
+          margin: '0 2px',
+          border: `1px solid ${badgeStyle?.borderColor || 'transparent'}`,
+          background: badgeStyle?.background,
+          color: badgeStyle?.color,
+          fontSize: '12px',
+          fontWeight: 900,
+          lineHeight: 1.2,
+        }}
+      >
+        {part}
+      </span>
+    );
+  });
+}
+
 const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sections = [] }, ref) {
   const { t, locale } = useI18n();
   const accentColor = getAccentColor(payload?.poolType);
   const totalNodes = sections.reduce((sum, section) => sum + (section?.entries?.length || 0), 0);
-  const brandChips = [
-    t('share.card.desensitized'),
-    payload?.poolTypeLabel || t('simulator.shareCard.defaultTitle'),
-    payload?.poolName || t('simulator.toast.noSelection')
-  ].filter(Boolean);
   const statRows = useMemo(() => {
     const upLabel = payload?.poolType === 'standard' ? payload?.guaranteeProgress?.label : t('simulator.shareCard.upResult');
     const upValue = payload?.poolType === 'standard'
@@ -641,13 +651,15 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
           </div>
         </div>
 
-        <div style={cardStyles.badges}>
-          {brandChips.map((chip) => (
-            <div key={chip} style={cardStyles.badge}>
-              {chip}
-            </div>
-          ))}
-        </div>
+        <ShareBrandPanel
+          theme="dark"
+          accentColor={accentColor}
+          compact
+          showChips={false}
+          showHeader={false}
+          qrSize={88}
+          style={{ width: '236px', marginLeft: 'auto', flexShrink: 0 }}
+        />
       </div>
 
       <div style={cardStyles.statsPanel}>
@@ -722,7 +734,7 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
                     <div style={cardStyles.timelineBody}>
                       <div style={cardStyles.timelineStageTop}>
                         <span style={cardStyles.timelineStageChip}>{entry.stageLabel}</span>
-                        <span style={cardStyles.timelineResult}>{entry.resultSummary}</span>
+                        <span style={cardStyles.timelineResult}>{renderShareSummary(entry, entry.resultSummary)}</span>
                       </div>
                       <div style={cardStyles.timelineBarTrack}>
                         <div
@@ -769,15 +781,6 @@ const SimulatorShareCard = forwardRef(function SimulatorShareCard({ payload, sec
           <span>{t('share.simulator.noteDesensitized')}</span>
           <span>{t('simulator.shareCard.localOnly')}</span>
         </div>
-        <ShareBrandPanel
-          theme="dark"
-          accentColor={accentColor}
-          compact
-          showChips={false}
-          showHeader={false}
-          qrSize={88}
-          style={{ width: '236px', marginLeft: 'auto' }}
-        />
       </div>
     </div>
   );
