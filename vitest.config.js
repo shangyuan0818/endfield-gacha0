@@ -8,6 +8,9 @@ export default defineConfig({
     setupFiles: './vitest.setup.js',
     globals: true,
     css: true,
-    include: ['src/**/__tests__/**/*.{test,spec}.{js,jsx}'],
+    include: [
+      'src/**/__tests__/**/*.{test,spec}.{js,jsx}',
+      'api/**/__tests__/**/*.{test,spec}.{js,jsx}',
+    ],
   },
 });

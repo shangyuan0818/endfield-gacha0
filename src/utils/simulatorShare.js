@@ -418,6 +418,7 @@ async function collectDocumentFontFaceCss({ familyNames = [], textContent = '' }
         }
 
         const cssText = absolutizeCssUrls(rule.cssText, baseHref);
+        // eslint-disable-next-line no-await-in-loop -- font-face rules are collected in stylesheet order for deterministic output
         fontFaceRules.push(await inlineCssAssetUrls(cssText, baseHref));
       }
     }
@@ -477,11 +478,13 @@ async function fetchImageAsDataUrl(source) {
   const pending = (async () => {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        // eslint-disable-next-line no-await-in-loop -- retry attempts are intentionally serialized
         const dataUrl = await fetchImageOnce(source);
         embeddedImageCache.set(source, dataUrl);
         return dataUrl;
       } catch {
         if (attempt === 0) {
+          // eslint-disable-next-line no-await-in-loop -- retry backoff is intentionally sequential
           await new Promise(r => setTimeout(r, 300));
         }
       }

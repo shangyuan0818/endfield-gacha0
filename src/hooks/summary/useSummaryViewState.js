@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RARITY_CONFIG } from '../../constants';
 import { useI18n } from '../../i18n/index.js';
 import { useRankingData } from './useRankingData';
@@ -96,13 +96,13 @@ export function useSummaryViewState({
   user,
   globalStats,
   fetchGlobalStats,
-  variant = 'desktop',
+  variant: _variant = 'desktop',
   initialDataSource = 'global',
   lockedDataSource = null,
   initialPoolTypeFilter = 'all'
 }) {
-  const { locale, t } = useI18n();
-  const tt = (key, fallback, params = {}) => t(key, params, fallback);
+  const { t } = useI18n();
+  const tt = useCallback((key, fallback, params = {}) => t(key, params, fallback), [t]);
   const [dataSource, setDataSourceState] = useState(() => lockedDataSource || initialDataSource);
   const [poolTypeFilter, setPoolTypeFilter] = useState(() => initialPoolTypeFilter);
 
@@ -116,19 +116,19 @@ export function useSummaryViewState({
       weapon: tt('summary.scope.weapon', '武器池'),
       standard: tt('summary.scope.standard', '常驻池')
     }
-  }), [locale, t, variant]);
+  }), [tt]);
   const filterOptions = useMemo(() => (
     SUMMARY_FILTER_OPTIONS.map((value) => ({
       value,
       label: tt(`summary.filter.${value}`, value)
     }))
-  ), [locale, t]);
+  ), [tt]);
   const chartLabels = useMemo(() => ({
     sixLimited: tt('summary.chart.sixLimited', '6★ (限定)'),
     sixStandard: tt('summary.chart.sixStandard', '6★ (常驻)'),
     fiveStar: tt('summary.chart.fiveStar', '5★'),
     fourStar: tt('summary.chart.fourStar', '4★')
-  }), [locale, t]);
+  }), [tt]);
   const isGlobalSource = dataSource === 'global';
 
   const { characterRanking, rankingLoading, userRanking, userRankingLoading } = useRankingData(dataSource, user);
@@ -315,7 +315,7 @@ export function useSummaryViewState({
         }
       ]
     };
-  }, [chartLabels, globalStats, isGlobalSource, localStats, poolTypeFilter, locale, t]);
+  }, [chartLabels, globalStats, isGlobalSource, localStats, poolTypeFilter, tt]);
 
   const setDataSource = useMemo(() => {
     if (lockedDataSource) {

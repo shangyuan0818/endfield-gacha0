@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import useHistoryStore from '../../stores/useHistoryStore.js';
 import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import {
   calculateCurrentProbability,
@@ -34,8 +33,6 @@ export function usePoolStats({
   allLimitedHistory = [],
   currentPoolId = currentPool?.id
 }) {
-  const manualPityLimit = useHistoryStore(state => state.manualPityLimit);
-
   const {
     groupedHistory,
     filteredGroupedHistory
@@ -330,7 +327,7 @@ export function usePoolStats({
       pullsUntilInfoBook,
       resourceSummary
     };
-  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, manualPityLimit, normalizedCurrentPoolHistory, normalizedPoolType]);
+  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, normalizedCurrentPoolHistory, normalizedPoolType]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {

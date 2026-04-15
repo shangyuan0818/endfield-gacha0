@@ -197,7 +197,7 @@ export const validateBatchAgainstRules = ({ batchData, existingPulls, pool }) =>
   }
 
   // 2. 模拟录入，检查每一抽
-  let simulatedPulls = [...validExistingPulls];
+  const simulatedPulls = [...validExistingPulls];
   let pity = calculatePityFromHistory(simulatedPulls);
   let pity5 = calculatePity5FromHistory(simulatedPulls);
 

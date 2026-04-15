@@ -36,6 +36,7 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
 
   const gameAccounts = useMemo(() => {
+    void history;
     return getGameAccountsFromHistory();
   }, [getGameAccountsFromHistory, history]);
 
