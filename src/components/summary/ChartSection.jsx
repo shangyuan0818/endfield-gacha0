@@ -133,6 +133,7 @@ const ChartSection = ({ title, subtitle, color, data, isGlobal, tooltipStyle, is
                   outerRadius={72}
                   paddingAngle={2}
                   dataKey="displayValue"
+                  isAnimationActive={false}
                   labelLine={false}
                   label={renderPiePercentLabel(isDark)}
                 >

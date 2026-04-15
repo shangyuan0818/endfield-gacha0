@@ -954,6 +954,7 @@ function MobileDashboardView() {
                         outerRadius={68}
                         paddingAngle={2}
                         dataKey="displayValue"
+                        isAnimationActive={false}
                         labelLine={false}
                         label={renderPiePercentLabel(isDark)}
                       >

@@ -1354,6 +1354,7 @@ const DashboardView = ({ showToast }) => {
                                 outerRadius={82}
                                 paddingAngle={2}
                                 dataKey="displayValue"
+                                isAnimationActive={false}
                                 labelLine={false}
                                 label={renderPiePercentLabel(isDark)}
                               >
@@ -1563,6 +1564,7 @@ const DashboardView = ({ showToast }) => {
                               outerRadius={82}
                               paddingAngle={2}
                               dataKey="displayValue"
+                              isAnimationActive={false}
                               labelLine={false}
                               label={renderPiePercentLabel(isDark)}
                             >
