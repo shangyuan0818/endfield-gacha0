@@ -69,6 +69,7 @@ function formatVisiblePoolRecord(record) {
   return {
     id: record.pool_id,
     name: record.name,
+    name_en: record.name_en || null,
     type: normalizeRemotePoolType(record.type, record.is_limited_weapon),
     locked: record.locked || false,
     isLimitedWeapon: record.is_limited_weapon !== false,

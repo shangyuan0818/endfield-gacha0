@@ -52,6 +52,14 @@ import { buildDynamicRosterBuckets, resolvePoolRosterBuckets } from '../../utils
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
+import {
+  readBooleanStorageValue,
+  readStorageValue,
+  removeStorageValue,
+  STORAGE_KEYS,
+  writeBooleanStorageValue,
+  writeStorageValue,
+} from '../../utils/storageUtils.js';
 
 function dedupeRosterEntries(items = []) {
   const seen = new Set();
@@ -93,8 +101,6 @@ const getWeaponPoolRules = (pool) =>
 
 const getCustomRulesForPool = (pool) =>
   normalizeSimulatorPoolType(pool?.type) === 'weapon' ? getWeaponPoolRules(pool) : null;
-
-const ORIGINITE_PROMPT_SUPPRESS_KEY = 'simulator_originite_prompt_suppress_date';
 
 function getTodayPromptKey() {
   return new Date().toISOString().slice(0, 10);
@@ -200,9 +206,11 @@ export function useGachaSimulatorController() {
   const [resetAllPools, setResetAllPools] = useState(false);
   const [resetKeepResources, setResetKeepResources] = useState(false);
   const [resetSettings, setResetSettings] = useState(false);
-  const [skipAnimation, setSkipAnimation] = useState(() => localStorage.getItem('simulator_skipAnimation') === 'true');
+  const [skipAnimation, setSkipAnimation] = useState(() =>
+    readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, false, { raw: true })
+  );
   const [multipleFreeTen, setMultipleFreeTen] = useState(
-    () => localStorage.getItem('simulator_multipleFreeTen') === 'true'
+    () => readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, false, { raw: true })
   );
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => fallbackLimitedPoolName);
@@ -236,7 +244,7 @@ export function useGachaSimulatorController() {
   }, [realPools]);
 
   const [currentSimPoolId, setCurrentSimPoolId] = useState(() =>
-    normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey))
+    normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }))
   );
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -255,7 +263,7 @@ export function useGachaSimulatorController() {
     const fallbackUpPool = fallbackLimitedPoolName;
     const nextSimulator = createSimulator('limited', null, fallbackUpPool, null);
     const nextResourceSettings = loadSimulatorResourceSettings(simulatorStorageScope);
-    const nextPoolId = normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey));
+    const nextPoolId = normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }));
     let cancelled = false;
 
     queueMicrotask(() => {
@@ -415,7 +423,8 @@ export function useGachaSimulatorController() {
         expectedType,
         currentUpName: upCharName,
         poolType,
-        poolInfo
+        poolInfo,
+        mergeStrategy: 'fill-missing'
       });
       const dynamicRoster = buildDynamicRosterBuckets({
         expectedType,
@@ -441,16 +450,23 @@ export function useGachaSimulatorController() {
     return () => {
       cancelled = true;
     };
-  }, [currentPoolType, currentSimPool?.id, currentSimPool?.up_character]);
+  }, [
+    currentPoolType,
+    currentSimPool?.id,
+    currentSimPool?.rotationPosition,
+    currentSimPool?.rotation_position,
+    currentSimPool?.start_time,
+    currentSimPool?.up_character
+  ]);
 
   useEffect(() => {
     if (currentSimPoolId && isInitialized) {
-      localStorage.setItem(simulatorCurrentPoolStorageKey, currentSimPoolId);
+      writeStorageValue(simulatorCurrentPoolStorageKey, currentSimPoolId, { raw: true });
       return;
     }
 
     if (isInitialized) {
-      localStorage.removeItem(simulatorCurrentPoolStorageKey);
+      removeStorageValue(simulatorCurrentPoolStorageKey, { raw: true });
     }
   }, [currentSimPoolId, isInitialized, simulatorCurrentPoolStorageKey]);
 
@@ -469,11 +485,11 @@ export function useGachaSimulatorController() {
   }, [poolCharactersList, simulator]);
 
   useEffect(() => {
-    localStorage.setItem('simulator_skipAnimation', skipAnimation);
+    writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, skipAnimation, { raw: true });
   }, [skipAnimation]);
 
   useEffect(() => {
-    localStorage.setItem('simulator_multipleFreeTen', multipleFreeTen);
+    writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, multipleFreeTen, { raw: true });
   }, [multipleFreeTen]);
 
   useEffect(() => {
@@ -485,7 +501,7 @@ export function useGachaSimulatorController() {
       return;
     }
 
-    const savedPoolId = normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey));
+    const savedPoolId = normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }));
     let targetPool = null;
     let targetPoolId = null;
 
@@ -772,7 +788,7 @@ export function useGachaSimulatorController() {
     }
 
     if (disableOriginitePromptToday) {
-      localStorage.setItem(ORIGINITE_PROMPT_SUPPRESS_KEY, getTodayPromptKey());
+      writeStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, getTodayPromptKey(), { raw: true });
     }
 
     const pendingPrompt = showOriginitePrompt;
@@ -823,7 +839,8 @@ export function useGachaSimulatorController() {
 
         if (conversionPlan.canConvert && conversionPlan.originiteNeeded > 0) {
           const actionLabel = type === 'ten' ? t('simulator.toast.action.ten') : t('simulator.toast.action.single');
-          const suppressToday = localStorage.getItem(ORIGINITE_PROMPT_SUPPRESS_KEY) === getTodayPromptKey();
+          const suppressToday =
+            readStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, null, { raw: true }) === getTodayPromptKey();
 
           if (!suppressToday) {
             setDisableOriginitePromptToday(false);
@@ -946,7 +963,7 @@ export function useGachaSimulatorController() {
         }
       }
 
-      localStorage.setItem(targetCurrentPoolStorageKey, currentSimPoolId);
+      writeStorageValue(targetCurrentPoolStorageKey, currentSimPoolId, { raw: true });
 
       if (selectedGameUid !== currentGameUid) {
         switchGameAccount(selectedGameUid);
@@ -1058,8 +1075,8 @@ export function useGachaSimulatorController() {
     if (resetSettings) {
       setSkipAnimation(false);
       setMultipleFreeTen(false);
-      localStorage.removeItem('simulator_skipAnimation');
-      localStorage.removeItem('simulator_multipleFreeTen');
+      removeStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, { raw: true });
+      removeStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, { raw: true });
     }
 
     closeResetDialog();

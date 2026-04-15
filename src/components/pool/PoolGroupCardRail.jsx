@@ -140,13 +140,14 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
   const remainingLabel = pool.selectorTiming?.remainingLabel;
   const formattedPullCount = new Intl.NumberFormat(locale).format(pool.pullCount || 0);
   const upCharacterName = pool.displayUpCharacter || pool.up_character || pool.upCharacter || '';
+  const avatarLookupName = pool.up_character || pool.upCharacter || '';
   const upCharacterAvatarUrl = useMemo(() => {
-    if (!upCharacterName) {
+    if (!avatarLookupName) {
       return null;
     }
 
-    return characterCache.searchByName(upCharacterName, false)?.avatar_url || null;
-  }, [upCharacterName]);
+    return characterCache.searchByName(avatarLookupName, false)?.avatar_url || null;
+  }, [avatarLookupName]);
 
   return (
     <div
@@ -163,14 +164,14 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
     >
       {upCharacterAvatarUrl && (
         <>
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[60%] opacity-24 dark:opacity-18">
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[60%] opacity-48 dark:opacity-36">
             <img
               src={upCharacterAvatarUrl}
               alt={upCharacterName}
               className="h-full w-full object-cover object-[72%_center]"
             />
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[68%] bg-gradient-to-l from-white/92 via-white/72 to-transparent dark:from-zinc-900/92 dark:via-zinc-900/72 dark:to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[68%] bg-gradient-to-r from-white/92 via-white/68 to-transparent dark:from-zinc-900/92 dark:via-zinc-900/68 dark:to-transparent" />
         </>
       )}
 

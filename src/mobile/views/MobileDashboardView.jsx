@@ -45,8 +45,7 @@ import {
   MobileStatusBadge
 } from '../components/ux/MobilePrimitives.jsx';
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
-
-const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 
 function getDistributionVariant(poolType) {
   if (poolType === 'weapon') {
@@ -90,7 +89,7 @@ function MobileDashboardView() {
       return 'light';
     }
 
-    return localStorage.getItem(DASHBOARD_SHARE_THEME_KEY)
+    return readStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, null, { raw: true })
       || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   });
   const [showTimelineFiveStarDrops, setShowTimelineFiveStarDrops] = React.useState(true);
@@ -126,10 +125,10 @@ function MobileDashboardView() {
   } = useDashboardViewState();
   const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
   const localizedCurrentUpName = React.useMemo(
-    () => localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || '', {
+    () => localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
       locale,
       type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
-    }),
+    }) || localizePoolFeaturedName(currentPool, { locale }),
     [currentPool, locale, normalizedPoolType]
   );
   const displayPity6 = isLimited ? effectivePity.pity6 : stats.currentPity;
@@ -249,7 +248,7 @@ function MobileDashboardView() {
       return;
     }
 
-    localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
+    writeStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, shareTheme, { raw: true });
   }, [shareTheme]);
   const pullUnitLabel = isEnglish ? 'PULLS' : t('dashboard.unit.pull');
   const standardSixLabel = isEnglish ? 'Standard 6★' : '常驻6★';

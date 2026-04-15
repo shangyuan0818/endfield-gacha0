@@ -6,6 +6,7 @@ import { formatVisiblePoolRecord } from '../../services/poolReadService';
 function mapRealtimePoolRecord(record) {
   return formatVisiblePoolRecord({
     ...record,
+    name_en: record.name_en || null,
     creator_username: record.creator_username || null,
     creator_role: record.creator_role || null
   });
@@ -19,6 +20,7 @@ function mergePoolRecord(existingPool, incomingPool) {
   return {
     ...existingPool,
     ...incomingPool,
+    name_en: incomingPool.name_en ?? existingPool.name_en ?? null,
     creator_username: incomingPool.creator_username || existingPool.creator_username || null,
     creator_role: incomingPool.creator_role || existingPool.creator_role || null,
     up_character: incomingPool.up_character ?? existingPool.up_character ?? null,

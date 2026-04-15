@@ -9,6 +9,7 @@ import {
   buildCharacterSelfAliasRows,
   buildPoolSelfAliasRows,
 } from '../../../shared/idAliasService.js';
+import appLogger from '../../utils/appLogger.js';
 
 async function saveManagedCharacterWithAliases(characterData) {
   const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
@@ -413,13 +414,14 @@ export const recalculateIsStandard = async (pools) => {
       const batch = updates.slice(i, i + batchSize);
 
       for (const update of batch) {
+        // eslint-disable-next-line no-await-in-loop -- per-record normalization updates stay sequential for granular failure logs
         const { error: updateError } = await supabase
           .from('history')
           .update({ is_standard: update.is_standard })
           .eq('record_id', update.record_id);
 
         if (updateError) {
-          console.warn('更新记录失败:', update.record_id, updateError);
+          appLogger.warn('更新记录失败:', update.record_id, updateError);
         }
       }
     }

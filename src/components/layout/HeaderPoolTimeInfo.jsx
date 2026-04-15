@@ -12,7 +12,10 @@ const HeaderPoolTimeInfo = React.memo(() => {
   const pools = usePoolStore(state => state.pools);
   const { t, locale } = useI18n();
   const [tick, setTick] = useState(0);
-  const timeInfo = useMemo(() => getCurrentUpPoolInfo(pools), [pools, tick]);
+  const timeInfo = useMemo(() => {
+    void tick;
+    return getCurrentUpPoolInfo(pools);
+  }, [pools, tick]);
 
   useEffect(() => {
     // 每分钟更新一次倒计时

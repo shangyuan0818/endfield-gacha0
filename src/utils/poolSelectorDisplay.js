@@ -59,6 +59,8 @@ export function getPoolTimingMeta(pool, referenceDate = new Date(), locale = get
   const isExpired = now >= end;
   const remainingMs = isActive ? Math.max(end.getTime() - now.getTime(), 0) : 0;
   const startsInMs = isUpcoming ? Math.max(start.getTime() - now.getTime(), 0) : 0;
+  const totalMs = Math.max(end.getTime() - start.getTime(), 0);
+  const elapsedMs = isActive ? Math.max(now.getTime() - start.getTime(), 0) : 0;
 
   const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
   const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -76,6 +78,9 @@ export function getPoolTimingMeta(pool, referenceDate = new Date(), locale = get
     remainingHours,
     startsInDays,
     startsInHours,
+    progressPercent: totalMs > 0
+      ? (isActive ? Math.min((elapsedMs / totalMs) * 100, 100) : isExpired ? 100 : 0)
+      : 0,
     remainingLabel: isActive
       ? getMessage('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours }, locale)
       : isUpcoming

@@ -60,7 +60,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
         // 4. 最后是5星
         return b.rarity - a.rarity;
       });
-  }, [locale, pullHistory, t]);
+  }, [pullHistory, t]);
 
   // 计算总出货数量
   const totalCharacterCount = useMemo(() => {

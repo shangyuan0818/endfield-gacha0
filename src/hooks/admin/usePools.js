@@ -11,6 +11,7 @@ import { getLimitedPoolRotationBaseCount, getLimitedPoolScheduleFromDB } from '.
 // 表单初始状态
 export const INITIAL_POOL_FORM = {
   name: '',
+  name_en: '',
   type: 'limited',
   up_character: '',
   banner_url: '',
@@ -181,6 +182,7 @@ export const usePools = (showToast) => {
 
     setPoolForm({
       name: pool.name || '',
+      name_en: pool.name_en || '',
       type: pool.type || 'limited',
       up_character: pool.up_character || '',
       banner_url: pool.banner_url || '',
@@ -230,6 +232,7 @@ export const usePools = (showToast) => {
 
       const poolData = {
         name: poolForm.name.trim(),
+        name_en: poolForm.name_en.trim() || null,
         type: poolForm.type,
         up_character: upCharacterName || null,
         banner_url: poolForm.banner_url.trim() || null,
@@ -348,6 +351,7 @@ export const usePools = (showToast) => {
     try {
       for (const char of toAdd) {
         const isUp = char.name === poolForm.up_character.trim();
+        // eslint-disable-next-line no-await-in-loop -- per-character writes remain sequential for deterministic ordering and easier failure attribution
         await poolService.addCharacterToPool(editingPool.pool_id, char.id, isUp);
       }
       setEditingPoolCharacters(prev => [
@@ -375,6 +379,7 @@ export const usePools = (showToast) => {
 
     try {
       for (const char of toRemove) {
+        // eslint-disable-next-line no-await-in-loop -- per-character deletes remain sequential so a failing delete is attributable
         await poolService.removeCharacterFromPool(editingPool.pool_id, char.id);
       }
       const removeIds = toRemove.map(c => c.id);

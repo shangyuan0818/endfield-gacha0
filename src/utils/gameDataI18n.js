@@ -281,6 +281,13 @@ function getPoolLocalizedEntry(pool) {
 }
 
 function resolveLocalizedPoolName(pool, locale) {
+  if (locale === 'en-US') {
+    const explicitEnglishName = normalizeName(pool?.name_en);
+    if (explicitEnglishName) {
+      return explicitEnglishName;
+    }
+  }
+
   const localizedEntry = getPoolLocalizedEntry(pool);
   if (!localizedEntry) {
     return '';

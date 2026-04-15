@@ -93,7 +93,10 @@ function MobileSettingsView() {
 
   const userPoolCount = myPools.length;
   const userHistoryCount = myHistory.length;
-  const gameAccounts = useMemo(() => getGameAccountsFromHistory(), [getGameAccountsFromHistory, history]);
+  const gameAccounts = useMemo(() => {
+    void history;
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
 
   const getRoleInfo = (role) => {
     switch (role) {

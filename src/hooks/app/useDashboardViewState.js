@@ -16,11 +16,16 @@ function normalizePoolType(type) {
 }
 
 function getPoolFeaturedLead(pool) {
+  const singleUpName = pool?.up_character || pool?.upCharacter || null;
+  if (singleUpName) {
+    return singleUpName;
+  }
+
   const featuredCharacters = Array.isArray(pool?.featured_characters)
     ? pool.featured_characters.filter(Boolean)
     : [];
 
-  return featuredCharacters[0] || pool?.up_character || pool?.upCharacter || pool?.name || null;
+  return featuredCharacters[0] || pool?.name || null;
 }
 
 export function useDashboardViewState() {

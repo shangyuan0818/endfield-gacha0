@@ -66,6 +66,7 @@ export function serializePoolForUpsert(pool, currentUserId, resolvedPoolId = nul
     user_id: ownerId,
     pool_id: resolvedPoolId || pool.id || pool.pool_id,
     name: pool.name,
+    name_en: pool.name_en || null,
     type: pool.type,
     locked: pool.locked || false,
     is_limited_weapon: pool.isLimitedWeapon !== undefined ? pool.isLimitedWeapon : (pool.is_limited_weapon !== false),
@@ -176,6 +177,7 @@ export async function upsertHistory(supabaseClient, records, currentUserId) {
     // 兼容真实库仍缺少 optional 列的环境，按缺失列逐步降级重试
     // 当前已知历史兼容项: character_id / server_id / region
     while (true) {
+      // eslint-disable-next-line no-await-in-loop -- retry loop mutates pendingRows between attempts and must stay sequential
       const { error } = await supabaseClient
         .from('history')
         .upsert(pendingRows, { onConflict: group.onConflict });

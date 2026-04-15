@@ -125,14 +125,14 @@ export default function MobileHomePageView() {
         return item.url;
       }
     })(),
-  })), [links, locale, t]);
+  })), [links, t]);
 
   const translatedRoadmap = useMemo(() => (Array.isArray(roadmap) ? roadmap : []).map((item) => ({
     ...item,
     status: ROADMAP_STATUS_OVERRIDES[item.id] || normalizeRoadmapStatus(item.status),
     title: item.id ? t(`home.roadmap.item.${item.id}.title`, {}, item.title) : item.title,
     description: item.id ? t(`home.roadmap.item.${item.id}.description`, {}, item.description) : item.description,
-  })), [locale, roadmap, t]);
+  })), [roadmap, t]);
 
   const roadmapCounts = useMemo(() => ({
     completed: translatedRoadmap.filter((item) => item.status === 'completed').length,

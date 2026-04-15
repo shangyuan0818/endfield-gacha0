@@ -130,7 +130,7 @@ async function loadPoolRowsByIds(poolIds) {
   const { data: poolRows, error } = await executeSupabaseRead(
     () => supabase
       .from('pools')
-      .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters')
+      .select('pool_id, name, name_en, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters')
       .in('pool_id', normalizedIds),
     {
       label: 'loadPoolRowsByIds',
@@ -153,7 +153,7 @@ async function loadAllPoolRows() {
   const { data: poolRows, error } = await executeSupabaseRead(
     () => supabase
       .from('pools')
-      .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters'),
+      .select('pool_id, name, name_en, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters'),
     {
       label: 'loadAllPoolRows',
       retries: 1
@@ -180,6 +180,7 @@ export function formatVisiblePoolRecord(record) {
   return {
     id: record.pool_id || record.id || null,
     name: record.name,
+    name_en: record.name_en || null,
     type: normalizeRemotePoolType(record.type, limitedWeaponFlag),
     locked: record.locked || false,
     isLimitedWeapon: limitedWeaponFlag !== false,

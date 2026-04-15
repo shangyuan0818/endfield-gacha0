@@ -391,7 +391,7 @@ function buildMilestoneSummary(summary, poolType, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
   if (summary.hasGift) {
     const stageLabel = summary.hasFreePulls
-      ? (summary.groupSize >= 10 ? (english ? 'Free Ten Pull' : '免费十连') : (english ? 'Free Node' : '免费节点'))
+      ? (summary.groupSize >= 10 ? (english ? 'Urgent Recruitment' : '免费十连') : (english ? 'Free Node' : '免费节点'))
       : (english ? 'Gift Node' : '赠送节点');
     const allBadges = createDropBadges(summary.highRarityItems, locale);
     const sixStarBadges = createDropBadges(summary.sixStars, locale);
@@ -530,7 +530,7 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
     tags: [english ? 'Current' : '当前'],
     leadBadge: createLeadBadge(
       null,
-      localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+      localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
       locale
     ),
     dropBadges: supportBadges,
@@ -571,7 +571,7 @@ function buildStageEntries({
         tags: milestone.tags,
         leadBadge: milestone.leadBadge || createLeadBadge(
           summary.primaryHighRarity,
-          localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+          localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
           locale
         ),
         dropBadges: createDropBadges(summary.highRarityItems, locale),
@@ -604,7 +604,7 @@ function buildStageEntries({
       tags: milestone.tags,
       leadBadge: milestone.leadBadge || createLeadBadge(
         summary.primaryHighRarity,
-        localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+        localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
         locale
       ),
       dropBadges: createDropBadges(mergedSupportItems, locale),
@@ -660,7 +660,10 @@ function buildTimelineSection({
     id: pool?.id || 'pool-timeline',
     title: localizePoolName(pool, { locale }) || (isEnglishLocale(locale) ? 'Unknown Banner' : '未知卡池'),
     type: normalizedType,
-    featured: localizePoolFeaturedName(pool, { locale }) || null,
+    featured: localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
+      locale,
+      type: normalizedType === 'weapon' ? 'weapon' : 'character'
+    }) || localizePoolFeaturedName(pool, { locale }) || null,
     period: formatPeriod(pool, locale),
     status: timing,
     totalPulls: metrics.totalPulls,

@@ -56,6 +56,8 @@ import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
+import appLogger from '../../utils/appLogger.js';
+import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
@@ -63,8 +65,6 @@ const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'weapon', label: '武器池' },
   { id: 'standard', label: '常驻池' },
 ];
-const DASHBOARD_SHARE_THEME_KEY = 'dashboard_share_theme';
-
 function getDistributionVariant(poolType) {
   if (poolType === 'weapon') {
     return 'weapon';
@@ -170,7 +170,7 @@ const DashboardView = ({ showToast }) => {
     }
 
     return (
-      localStorage.getItem(DASHBOARD_SHARE_THEME_KEY) ||
+      readStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, null, { raw: true }) ||
       (document.documentElement.classList.contains('dark') ? 'dark' : 'light')
     );
   });
@@ -507,11 +507,11 @@ const DashboardView = ({ showToast }) => {
     }
 
     const pool = customShareSelectedPools[0];
-    return localizePoolFeaturedName(pool, { locale })
-      || localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
+    return localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
         locale,
         type: getOverviewPoolBucket(pool) === 'weapon' ? 'weapon' : 'character',
       })
+      || localizePoolFeaturedName(pool, { locale })
       || null;
   }, [customShareSelectedPools, locale]);
   const customSharePayload = React.useMemo(() => {
@@ -660,7 +660,7 @@ const DashboardView = ({ showToast }) => {
       return;
     }
 
-    localStorage.setItem(DASHBOARD_SHARE_THEME_KEY, shareTheme);
+    writeStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, shareTheme, { raw: true });
   }, [shareTheme]);
 
   const activeShareAction = shareActionFeedback.action;
@@ -858,7 +858,7 @@ const DashboardView = ({ showToast }) => {
         return;
       }
 
-      console.error('[DashboardView] share card generation failed:', error);
+      appLogger.error('[DashboardView] share card generation failed:', error);
       const message = t('dashboard.share.generateFailure');
       failShareAction('share', message);
       showToast?.(message, 'error');

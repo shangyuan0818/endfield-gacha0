@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from './_lib/http.js';
+import { serverLogger } from './_lib/serverLogger.js';
 
 // 内存缓存
 const cache = {
@@ -72,6 +73,7 @@ function formatVisiblePoolRecord(record) {
   return {
     id: record.pool_id,
     name: record.name,
+    name_en: record.name_en || null,
     type: normalizeRemotePoolType(record.type, record.is_limited_weapon),
     locked: record.locked || false,
     isLimitedWeapon: record.is_limited_weapon !== false,
@@ -125,7 +127,7 @@ async function fetchPublicProfilesMap(supabase, userIds = []) {
 async function fetchPoolCatalog(supabase) {
   const { data, error } = await supabase
     .from('pools')
-    .select('pool_id, name, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters');
+    .select('pool_id, name, name_en, type, locked, is_limited_weapon, created_at, updated_at, user_id, up_character, description, banner_url, start_time, end_time, featured_characters');
 
   if (error) {
     throw error;
@@ -195,7 +197,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'Invalid type parameter' });
     }
   } catch (error) {
-    console.error('API Error:', error);
+    serverLogger.error('stats.api.error', {
+      message: error?.message || String(error),
+      type,
+    });
     // 返回缓存数据
     return res.status(200).json({
       success: true,

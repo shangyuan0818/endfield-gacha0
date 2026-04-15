@@ -93,6 +93,7 @@ const PoolSelector = () => {
 
   // 获取所有游戏账号（从历史记录）
   const gameAccounts = useMemo(() => {
+    void history;
     return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]); // 依赖history而不是pools
 

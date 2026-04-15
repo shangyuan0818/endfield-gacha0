@@ -23,15 +23,20 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
   }, [poolsArray, tick]);
 
   const currentPoolFeaturedNames = useMemo(() => {
+    const singleUpName = currentPool?.up_character || currentPool?.upCharacter || null;
     const featuredNames = Array.isArray(currentPool?.featured_characters)
       ? currentPool.featured_characters.filter(Boolean)
       : [];
+
+    if (singleUpName) {
+      return [singleUpName, ...featuredNames.filter((name) => name !== singleUpName)];
+    }
 
     if (featuredNames.length > 0) {
       return featuredNames;
     }
 
-    const fallbackName = currentPool?.up_character || currentPool?.upCharacter || currentPool?.name || null;
+    const fallbackName = currentPool?.name || null;
     return fallbackName ? [fallbackName] : [];
   }, [currentPool]);
 
@@ -220,10 +225,10 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
   const localizedPoolName = localizePoolName(currentPool, { locale });
-  const localizedUpCharacter = localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || '', {
+  const localizedUpCharacter = localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
     locale,
     type: isWeapon ? 'weapon' : 'character'
-  });
+  }) || localizePoolFeaturedName(currentPool, { locale });
   const pityState = getPoolAnalysisPityState(currentPool, stats, effectivePity);
   const currentProbabilityInfo = useMemo(() => {
     if (currentPool?.isGroupMode || hasMergedAccountView) {

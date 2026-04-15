@@ -63,6 +63,7 @@ function MobilePoolSelector() {
 
   // 获取所有游戏账号
   const gameAccounts = useMemo(() => {
+    void history;
     return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]);
 

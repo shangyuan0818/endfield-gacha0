@@ -171,6 +171,22 @@ const PoolEditDialog = ({
                   />
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                    英文卡池名称
+                  </label>
+                  <input
+                    type="text"
+                    value={poolForm.name_en || ''}
+                    onChange={(e) => setPoolForm(prev => ({ ...prev, name_en: e.target.value }))}
+                    placeholder="e.g. Laevatain Featured Banner"
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                  />
+                  <div className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
+                    英文站点优先使用此译名；留空则继续使用自动占位翻译。
+                  </div>
+                </div>
+
                 {/* 卡池类型 */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">

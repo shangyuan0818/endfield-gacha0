@@ -129,7 +129,6 @@ export function useCurrentPoolData() {
           getPoolId(pool),
           featuredCharacters.length > 0
             ? {
-                featured_characters: featuredCharacters,
                 roster,
               }
             : null,
@@ -159,7 +158,6 @@ export function useCurrentPoolData() {
 
     return {
       ...pool,
-      featured_characters: rosterMeta.featured_characters,
       resolved_roster: rosterMeta.roster,
     };
   }), [poolRosterById, rawPoolsArray]);

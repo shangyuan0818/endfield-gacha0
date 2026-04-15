@@ -161,6 +161,7 @@ function normalizeImportedPool(pool, currentUserId) {
     value: errors.length > 0 ? null : {
       id: poolId,
       name,
+      name_en: normalizeString(pool?.name_en),
       type,
       locked: normalizeBoolean(pool?.locked) === true,
       isLimitedWeapon: type === 'weapon' ? normalizedWeaponFlag !== false : true,

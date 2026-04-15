@@ -76,7 +76,10 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
 
   const userPoolCount = myPools.length;
   const userHistoryCount = myHistory.length;
-  const gameAccounts = useMemo(() => getGameAccountsFromHistory(), [getGameAccountsFromHistory, history]);
+  const gameAccounts = useMemo(() => {
+    void history;
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== deletePhrase) return;
