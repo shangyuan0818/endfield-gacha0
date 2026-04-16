@@ -5,11 +5,11 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-04-15T10:38:25.808Z
---   5. 覆盖范围: archive\001_init_tables.sql -> active\097_add_announcement_i18n_and_bump_site_version.sql
+--   4. 生成时间: 2026-04-16T08:22:51.322Z
+--   5. 覆盖范围: archive/001_init_tables.sql -> active/098_add_pool_name_en.sql
 -- ============================================
 
--- >>> BEGIN MIGRATION: archive\001_init_tables.sql
+-- >>> BEGIN MIGRATION: archive/001_init_tables.sql
 -- ============================================
 -- 001: 终末地抽卡分析器 - 数据库初始化
 -- 创建基础表: profiles, pools, history, admin_applications
@@ -234,9 +234,9 @@ COMMENT ON TABLE public.profiles IS '用户资料表，存储用户名和角色�
 COMMENT ON TABLE public.pools IS '卡池表，存储用户创建的抽卡卡池';
 COMMENT ON TABLE public.history IS '抽卡历史记录表，存储所有抽卡结果';
 COMMENT ON TABLE public.admin_applications IS '管理员申请表，用户申请成为管理员的记录';
--- <<< END MIGRATION: archive\001_init_tables.sql
+-- <<< END MIGRATION: archive/001_init_tables.sql
 
--- >>> BEGIN MIGRATION: archive\002_global_stats_function.sql
+-- >>> BEGIN MIGRATION: archive/002_global_stats_function.sql
 -- 创建全服统计 RPC 函数（使用 SECURITY DEFINER 绕过 RLS）
 CREATE OR REPLACE FUNCTION get_global_stats()
 RETURNS JSON
@@ -296,9 +296,9 @@ $$;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 -- 也授权匿名用户（如果需要未登录也能看到统计）
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\002_global_stats_function.sql
+-- <<< END MIGRATION: archive/002_global_stats_function.sql
 
--- >>> BEGIN MIGRATION: archive\003_global_stats_with_charts.sql
+-- >>> BEGIN MIGRATION: archive/003_global_stats_with_charts.sql
 -- 扩展全服统计 RPC 函数，添加图表所需的详细数据
 -- 包括：各稀有度计数、6星出货分布、分类型详细统计
 
@@ -662,9 +662,9 @@ $$;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 -- 也授权匿名用户（如果需要未登录也能看到统计）
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\003_global_stats_with_charts.sql
+-- <<< END MIGRATION: archive/003_global_stats_with_charts.sql
 
--- >>> BEGIN MIGRATION: archive\004_tickets_system.sql
+-- >>> BEGIN MIGRATION: archive/004_tickets_system.sql
 -- 工单系统数据库表结构
 -- 支持用户向管理员、管理员向超管提交工单
 
@@ -985,9 +985,9 @@ COMMENT ON COLUMN tickets.type IS '工单类型：bug/feature/question/data_issu
 COMMENT ON COLUMN tickets.status IS '状态：pending/processing/resolved/rejected/closed';
 COMMENT ON COLUMN tickets.priority IS '优先级：low/medium/high/urgent';
 COMMENT ON COLUMN ticket_replies.is_internal IS '是否为内部备注（仅管理员可见）';
--- <<< END MIGRATION: archive\004_tickets_system.sql
+-- <<< END MIGRATION: archive/004_tickets_system.sql
 
--- >>> BEGIN MIGRATION: archive\005_open_view_permissions.sql
+-- >>> BEGIN MIGRATION: archive/005_open_view_permissions.sql
 -- ============================================
 -- RLS 策略更新：方案A - 开放查看权限
 -- 所有登录用户都能查看所有卡池和历史记录
@@ -1036,9 +1036,9 @@ CREATE POLICY "All users can view all history" ON public.history
 -- 3. ✅ 所有用户看到同一个卡池的全部数据（协作模式）
 -- 4. ✅ 写入权限仍受 user_id 保护（安全性）
 -- ============================================
--- <<< END MIGRATION: archive\005_open_view_permissions.sql
+-- <<< END MIGRATION: archive/005_open_view_permissions.sql
 
--- >>> BEGIN MIGRATION: archive\006_superadmin_delete_permissions.sql
+-- >>> BEGIN MIGRATION: archive/006_superadmin_delete_permissions.sql
 -- ============================================
 -- RLS 策略更新：超管删除权限
 -- 允许超级管理员删除任何用户的数据
@@ -1088,9 +1088,9 @@ CREATE POLICY "Users and superadmins can delete history" ON public.history
 -- 2. ✅ 普通用户/管理员只能删除自己创建的数据
 -- 3. ✅ 保持数据安全性的同时，赋予超管完全管理权限
 -- ============================================
--- <<< END MIGRATION: archive\006_superadmin_delete_permissions.sql
+-- <<< END MIGRATION: archive/006_superadmin_delete_permissions.sql
 
--- >>> BEGIN MIGRATION: archive\007_add_is_limited_weapon.sql
+-- >>> BEGIN MIGRATION: archive/007_add_is_limited_weapon.sql
 -- 为 pools 表添加 is_limited_weapon 字段
 -- 用于区分限定武器池（有额外获取内容）和常驻武器池（无额外获取）
 
@@ -1109,9 +1109,9 @@ COMMENT ON COLUMN public.pools.is_limited_weapon IS '武器池类型：true=限�
 --
 -- 常驻武器池（is_limited_weapon = false）：
 --   - 无额外获取内容
--- <<< END MIGRATION: archive\007_add_is_limited_weapon.sql
+-- <<< END MIGRATION: archive/007_add_is_limited_weapon.sql
 
--- >>> BEGIN MIGRATION: archive\008_announcements_table.sql
+-- >>> BEGIN MIGRATION: archive/008_announcements_table.sql
 -- 创建公告表
 CREATE TABLE IF NOT EXISTS public.announcements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1167,9 +1167,9 @@ VALUES (
   true,
   1
 );
--- <<< END MIGRATION: archive\008_announcements_table.sql
+-- <<< END MIGRATION: archive/008_announcements_table.sql
 
--- >>> BEGIN MIGRATION: archive\009_fix_announcements_version.sql
+-- >>> BEGIN MIGRATION: archive/009_fix_announcements_version.sql
 -- 修复：为已存在的 announcements 表添加缺失的 version 字段
 
 -- 添加 version 字段（如果不存在）
@@ -1190,9 +1190,9 @@ ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id);
 UPDATE public.announcements
 SET version = '1.0.0'
 WHERE version IS NULL;
--- <<< END MIGRATION: archive\009_fix_announcements_version.sql
+-- <<< END MIGRATION: archive/009_fix_announcements_version.sql
 
--- >>> BEGIN MIGRATION: archive\010_fix_gift_exclusion.sql
+-- >>> BEGIN MIGRATION: archive/010_fix_gift_exclusion.sql
 -- 修复全服统计RPC函数：排除赠送(gift)的6星统计
 -- 在 Supabase SQL Editor 中运行此脚本
 
@@ -1461,9 +1461,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\010_fix_gift_exclusion.sql
+-- <<< END MIGRATION: archive/010_fix_gift_exclusion.sql
 
--- >>> BEGIN MIGRATION: archive\011_debug_gift_check.sql
+-- >>> BEGIN MIGRATION: archive/011_debug_gift_check.sql
 -- 调试脚本：检查 gift 数据情况
 -- 在 Supabase SQL Editor 中运行此脚本查看结果
 
@@ -1485,9 +1485,9 @@ WHERE rarity = 6;
 SELECT routine_name, routine_definition
 FROM information_schema.routines
 WHERE routine_name = 'get_global_stats';
--- <<< END MIGRATION: archive\011_debug_gift_check.sql
+-- <<< END MIGRATION: archive/011_debug_gift_check.sql
 
--- >>> BEGIN MIGRATION: archive\012_add_gift_calculation.sql
+-- >>> BEGIN MIGRATION: archive/012_add_gift_calculation.sql
 -- 修复全服统计RPC函数：添加赠送6星计算
 -- 赠送规则：
 -- 限定池：每240抽赠送1个限定
@@ -1780,9 +1780,9 @@ $$;
 
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\012_add_gift_calculation.sql
+-- <<< END MIGRATION: archive/012_add_gift_calculation.sql
 
--- >>> BEGIN MIGRATION: archive\013_debug_limited_six.sql
+-- >>> BEGIN MIGRATION: archive/013_debug_limited_six.sql
 -- 调试：检查限定池6星数量
 -- 在 Supabase SQL Editor 中运行
 
@@ -1808,9 +1808,9 @@ FROM history h
 JOIN pools p ON h.pool_id = p.pool_id AND h.user_id = p.user_id
 WHERE p.type = 'limited'
 GROUP BY p.pool_id, p.type;
--- <<< END MIGRATION: archive\013_debug_limited_six.sql
+-- <<< END MIGRATION: archive/013_debug_limited_six.sql
 
--- >>> BEGIN MIGRATION: archive\014_analyze_six_star_pulls.sql
+-- >>> BEGIN MIGRATION: archive/014_analyze_six_star_pulls.sql
 -- 详细分析限定池6星出货情况
 -- 在 Supabase SQL Editor 中运行
 
@@ -1895,9 +1895,9 @@ SELECT
 
 -- 3. 检查是否有异常的垫刀数（比如 0 或 1，可能是赠送误录入）
 -- 正常抽卡至少需要 1 抽，赠送的如果误录入可能垫刀数为 0 或很小
--- <<< END MIGRATION: archive\014_analyze_six_star_pulls.sql
+-- <<< END MIGRATION: archive/014_analyze_six_star_pulls.sql
 
--- >>> BEGIN MIGRATION: archive\015_superadmin_user_management.sql
+-- >>> BEGIN MIGRATION: archive/015_superadmin_user_management.sql
 -- ============================================
 -- 超级管理员用户管理权限配置
 -- 允许超级管理员完整管理用户（增删改）
@@ -1988,9 +1988,9 @@ $$;
 --    - ⚠️ 切勿在生产环境暴露 service_role key！
 --
 -- ============================================
--- <<< END MIGRATION: archive\015_superadmin_user_management.sql
+-- <<< END MIGRATION: archive/015_superadmin_user_management.sql
 
--- >>> BEGIN MIGRATION: archive\016_blacklist_table.sql
+-- >>> BEGIN MIGRATION: archive/016_blacklist_table.sql
 -- 黑名单表
 -- 用于阻止特定邮箱或域名注册
 
@@ -2067,9 +2067,9 @@ GRANT EXECUTE ON FUNCTION public.is_email_blacklisted(TEXT) TO anon;
 
 COMMENT ON TABLE public.blacklist IS '邮箱/域名黑名单表，用于阻止刷号行为';
 COMMENT ON COLUMN public.blacklist.type IS '类型：email=完整邮箱地址, domain=邮箱域名';
--- <<< END MIGRATION: archive\016_blacklist_table.sql
+-- <<< END MIGRATION: archive/016_blacklist_table.sql
 
--- >>> BEGIN MIGRATION: archive\017_email_domain_validation.sql
+-- >>> BEGIN MIGRATION: archive/017_email_domain_validation.sql
 -- ============================================
 -- 017: 邮箱域名白名单验证 (后端实现)
 -- 修复 SEC-001: 将前端验证移至后端
@@ -2205,9 +2205,9 @@ GRANT EXECUTE ON FUNCTION validate_email_domain(TEXT) TO authenticated;
 
 COMMENT ON FUNCTION validate_email_domain IS '验证邮箱域名是否在白名单中，防止临时邮箱注册';
 COMMENT ON TABLE email_whitelist IS '邮箱域名白名单，用于注册验证';
--- <<< END MIGRATION: archive\017_email_domain_validation.sql
+-- <<< END MIGRATION: archive/017_email_domain_validation.sql
 
--- >>> BEGIN MIGRATION: archive\018_rate_limiting.sql
+-- >>> BEGIN MIGRATION: archive/018_rate_limiting.sql
 -- ============================================
 -- 018: API 请求频率限制
 -- 修复 SEC-002: 防止暴力破解和滥用
@@ -2357,9 +2357,9 @@ COMMENT ON TABLE rate_limit_logs IS '请求频率限制日志表';
 COMMENT ON TABLE rate_limit_config IS '频率限制配置表';
 COMMENT ON FUNCTION check_rate_limit IS '检查是否超过频率限制';
 COMMENT ON FUNCTION check_and_log_rate_limit IS '检查频率限制并记录请求';
--- <<< END MIGRATION: archive\018_rate_limiting.sql
+-- <<< END MIGRATION: archive/018_rate_limiting.sql
 
--- >>> BEGIN MIGRATION: archive\019_enable_rls_security_fix.sql
+-- >>> BEGIN MIGRATION: archive/019_enable_rls_security_fix.sql
 -- ============================================
 -- 019: 启用 RLS 安全修复
 -- 修复 Supabase Linter 检测到的安全问题
@@ -2472,9 +2472,9 @@ COMMENT ON POLICY "rate_limit_logs_no_direct_access" ON public.rate_limit_logs
 
 COMMENT ON POLICY "rate_limit_config_select_all" ON public.rate_limit_config 
   IS '允许所有用户读取频率限制配置';
--- <<< END MIGRATION: archive\019_enable_rls_security_fix.sql
+-- <<< END MIGRATION: archive/019_enable_rls_security_fix.sql
 
--- >>> BEGIN MIGRATION: archive\020_fix_function_search_path.sql
+-- >>> BEGIN MIGRATION: archive/020_fix_function_search_path.sql
 -- ============================================
 -- 020: 修复函数 search_path 安全警告
 -- 为所有 SECURITY DEFINER 函数添加 SET search_path = public
@@ -2730,9 +2730,9 @@ GRANT EXECUTE ON FUNCTION public.log_rate_limit(TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.check_and_log_rate_limit(TEXT, TEXT) TO anon;
 GRANT EXECUTE ON FUNCTION public.check_and_log_rate_limit(TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
--- <<< END MIGRATION: archive\020_fix_function_search_path.sql
+-- <<< END MIGRATION: archive/020_fix_function_search_path.sql
 
--- >>> BEGIN MIGRATION: archive\021_fix_locked_pool_protection.sql
+-- >>> BEGIN MIGRATION: archive/021_fix_locked_pool_protection.sql
 -- ============================================
 -- 修复 locked 卡池权限保护漏洞
 -- 日期: 2025-12-16
@@ -2897,9 +2897,9 @@ BEGIN
   RAISE NOTICE '执行时间: %', NOW();
   RAISE NOTICE '===========================================';
 END $$;
--- <<< END MIGRATION: archive\021_fix_locked_pool_protection.sql
+-- <<< END MIGRATION: archive/021_fix_locked_pool_protection.sql
 
--- >>> BEGIN MIGRATION: archive\022_add_performance_indexes.sql
+-- >>> BEGIN MIGRATION: archive/022_add_performance_indexes.sql
 -- ============================================
 -- 022: 添加性能优化索引
 -- 创建日期: 2025-12-17
@@ -2973,9 +2973,9 @@ BEGIN
 
   RAISE NOTICE '成功创建 % 个性能优化索引', idx_count;
 END $$;
--- <<< END MIGRATION: archive\022_add_performance_indexes.sql
+-- <<< END MIGRATION: archive/022_add_performance_indexes.sql
 
--- >>> BEGIN MIGRATION: archive\023_add_data_integrity_constraints.sql
+-- >>> BEGIN MIGRATION: archive/023_add_data_integrity_constraints.sql
 -- ============================================
 -- 023: 添加数据完整性约束
 -- 创建日期: 2025-12-17
@@ -3163,9 +3163,9 @@ BEGIN
   RAISE NOTICE '使用 NOT VALID 选项，仅对新数据生效';
   RAISE NOTICE '=====================================';
 END $$;
--- <<< END MIGRATION: archive\023_add_data_integrity_constraints.sql
+-- <<< END MIGRATION: archive/023_add_data_integrity_constraints.sql
 
--- >>> BEGIN MIGRATION: archive\024_user_management_enhancement.sql
+-- >>> BEGIN MIGRATION: archive/024_user_management_enhancement.sql
 -- ============================================
 -- 024: 用户管理增强
 -- 添加 email 和 last_seen_at 字段到 profiles 表
@@ -3246,9 +3246,9 @@ CREATE INDEX IF NOT EXISTS idx_profiles_last_seen ON public.profiles(last_seen_a
 COMMENT ON COLUMN public.profiles.email IS '用户邮箱（从 auth.users 同步）';
 COMMENT ON COLUMN public.profiles.last_seen_at IS '用户最后在线时间';
 COMMENT ON FUNCTION public.update_last_seen() IS '更新当前用户的最后在线时间';
--- <<< END MIGRATION: archive\024_user_management_enhancement.sql
+-- <<< END MIGRATION: archive/024_user_management_enhancement.sql
 
--- >>> BEGIN MIGRATION: archive\025_page_content.sql
+-- >>> BEGIN MIGRATION: archive/025_page_content.sql
 -- ============================================
 -- 025: 页面内容管理
 -- 支持超管编辑首页使用指南等内容
@@ -3356,9 +3356,9 @@ COMMENT ON COLUMN public.page_content.title IS '内容标题';
 COMMENT ON COLUMN public.page_content.content IS '内容正文（支持 Markdown）';
 COMMENT ON COLUMN public.page_content.is_active IS '是否激活显示';
 COMMENT ON COLUMN public.page_content.updated_by IS '最后更新者';
--- <<< END MIGRATION: archive\025_page_content.sql
+-- <<< END MIGRATION: archive/025_page_content.sql
 
--- >>> BEGIN MIGRATION: archive\026_global_stats.sql
+-- >>> BEGIN MIGRATION: archive/026_global_stats.sql
 -- =====================================================
 -- 迁移文件: 026_global_stats.sql
 -- 创建日期: 2026-01-06
@@ -3552,9 +3552,9 @@ COMMENT ON FUNCTION public.update_global_stats_timestamp() IS '自动更新 glob
 --    - 检查前端 statsService.js 的配置
 --
 -- =====================================================
--- <<< END MIGRATION: archive\026_global_stats.sql
+-- <<< END MIGRATION: archive/026_global_stats.sql
 
--- >>> BEGIN MIGRATION: archive\027_add_character_info.sql
+-- >>> BEGIN MIGRATION: archive/027_add_character_info.sql
 -- Migration: 027_add_character_info
 -- Description: 为 history 表添加角色信息字段（角色名称、角色ID、头像URL）
 -- Date: 2026-01-11
@@ -3588,9 +3588,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 027: character_name 字段添加失败';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\027_add_character_info.sql
+-- <<< END MIGRATION: archive/027_add_character_info.sql
 
--- >>> BEGIN MIGRATION: archive\028_create_characters_table.sql
+-- >>> BEGIN MIGRATION: archive/028_create_characters_table.sql
 -- Migration: 028_create_characters_table
 -- Description: 创建角色映射表，存储角色/武器基础信息
 -- Date: 2026-01-11
@@ -3675,9 +3675,9 @@ BEGIN
     RAISE WARNING '⚠️ Migration 028: characters 表已创建，但初始数据为空';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\028_create_characters_table.sql
+-- <<< END MIGRATION: archive/028_create_characters_table.sql
 
--- >>> BEGIN MIGRATION: archive\029_enhance_pools_metadata.sql
+-- >>> BEGIN MIGRATION: archive/029_enhance_pools_metadata.sql
 -- Migration: 029_enhance_pools_metadata
 -- Description: 扩展 pools 表，添加卡池元数据字段（描述、时间、Banner图等）
 -- Date: 2026-01-11
@@ -3714,9 +3714,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 029: pools 表元数据字段添加失败';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\029_enhance_pools_metadata.sql
+-- <<< END MIGRATION: archive/029_enhance_pools_metadata.sql
 
--- >>> BEGIN MIGRATION: archive\030_migrate_pool_ids.sql
+-- >>> BEGIN MIGRATION: archive/030_migrate_pool_ids.sql
 -- Migration: 030_migrate_pool_ids
 -- Description: 为卡池ID迁移准备兼容字段，保留旧ID用于平滑过渡
 -- Date: 2026-01-11
@@ -3802,9 +3802,9 @@ BEGIN
     RAISE NOTICE '✅ Migration 030: ID迁移辅助函数创建成功';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\030_migrate_pool_ids.sql
+-- <<< END MIGRATION: archive/030_migrate_pool_ids.sql
 
--- >>> BEGIN MIGRATION: archive\032_add_up_character_to_pools.sql
+-- >>> BEGIN MIGRATION: archive/032_add_up_character_to_pools.sql
 -- Migration: 032_add_up_character_to_pools
 -- Description: 添加 up_character 字段到 pools 表（单个UP角色名称，与 featured_characters 互补）
 -- Date: 2026-01-17
@@ -3830,9 +3830,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 032: pools.up_character 字段添加失败';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\032_add_up_character_to_pools.sql
+-- <<< END MIGRATION: archive/032_add_up_character_to_pools.sql
 
--- >>> BEGIN MIGRATION: archive\033_restore_pools_metadata.sql
+-- >>> BEGIN MIGRATION: archive/033_restore_pools_metadata.sql
 -- Migration: 033_restore_pools_metadata
 -- Description: 恢复 pools 表的元数据字段（被 031 删除，现在需要恢复）
 -- Date: 2026-01-17
@@ -3921,9 +3921,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 033: 以下字段添加失败: %', array_to_string(missing_columns, ', ');
   END IF;
 END $$;
--- <<< END MIGRATION: archive\033_restore_pools_metadata.sql
+-- <<< END MIGRATION: archive/033_restore_pools_metadata.sql
 
--- >>> BEGIN MIGRATION: archive\034_add_is_simulated_field.sql
+-- >>> BEGIN MIGRATION: archive/034_add_is_simulated_field.sql
 -- 添加 is_simulated 字段用于标识模拟数据
 -- 创建时间: 2026-01-18
 -- 用途: 区分真实抽卡数据和模拟器生成的数据
@@ -3961,9 +3961,9 @@ BEGIN
 
   RAISE NOTICE 'is_simulated 字段添加成功';
 END $$;
--- <<< END MIGRATION: archive\034_add_is_simulated_field.sql
+-- <<< END MIGRATION: archive/034_add_is_simulated_field.sql
 
--- >>> BEGIN MIGRATION: archive\035_add_pool_config_to_characters.sql
+-- >>> BEGIN MIGRATION: archive/035_add_pool_config_to_characters.sql
 -- Migration: 添加 pool_config 字段到 characters 表
 -- 用于存储角色的卡池归属配置和轮换信息
 
@@ -3987,9 +3987,9 @@ CREATE INDEX IF NOT EXISTS idx_characters_pool_config
 -- 创建索引以支持按卡池类型查询
 CREATE INDEX IF NOT EXISTS idx_characters_pool_config_pools
   ON public.characters USING GIN((pool_config->'pools'));
--- <<< END MIGRATION: archive\035_add_pool_config_to_characters.sql
+-- <<< END MIGRATION: archive/035_add_pool_config_to_characters.sql
 
--- >>> BEGIN MIGRATION: archive\036_initialize_characters_data.sql
+-- >>> BEGIN MIGRATION: archive/036_initialize_characters_data.sql
 -- Migration: 初始化角色数据
 -- 插入所有角色的完整数据，包括卡池配置
 
@@ -4250,9 +4250,9 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
   pool_config = EXCLUDED.pool_config,
   updated_at = NOW();
--- <<< END MIGRATION: archive\036_initialize_characters_data.sql
+-- <<< END MIGRATION: archive/036_initialize_characters_data.sql
 
--- >>> BEGIN MIGRATION: archive\037_add_rotation_processed_to_pools.sql
+-- >>> BEGIN MIGRATION: archive/037_add_rotation_processed_to_pools.sql
 -- =====================================================
 -- 037: 为卡池添加轮换处理标记
 -- 用于追踪卡池结束后是否已自动处理轮换
@@ -4275,9 +4275,9 @@ WHERE end_time IS NOT NULL AND end_time < NOW();
 CREATE INDEX IF NOT EXISTS idx_pools_pending_rotation
 ON pools (type, end_time, rotation_processed)
 WHERE rotation_processed = FALSE AND end_time IS NOT NULL;
--- <<< END MIGRATION: archive\037_add_rotation_processed_to_pools.sql
+-- <<< END MIGRATION: archive/037_add_rotation_processed_to_pools.sql
 
--- >>> BEGIN MIGRATION: archive\038_add_introduced_at_to_characters.sql
+-- >>> BEGIN MIGRATION: archive/038_add_introduced_at_to_characters.sql
 -- =====================================================
 -- 038: 为角色 pool_config 添加 introduced_at 字段
 -- 用于追踪角色首次出现的时间，确保新角色不会出现在之前的池子中
@@ -4297,9 +4297,9 @@ COMMENT ON COLUMN characters.pool_config IS '卡池配置JSON，包含：
 - removes_after: 几次轮换后从限定池移出
 - is_active_in_limited: 是否在限定池中激活
 - introduced_at: 角色首次引入时间，新角色只出现在此时间之后的池子中';
--- <<< END MIGRATION: archive\038_add_introduced_at_to_characters.sql
+-- <<< END MIGRATION: archive/038_add_introduced_at_to_characters.sql
 
--- >>> BEGIN MIGRATION: archive\039_create_pool_characters_table.sql
+-- >>> BEGIN MIGRATION: archive/039_create_pool_characters_table.sql
 -- =====================================================
 -- 039: 创建池子-角色关联表
 -- 实现每个池子独立管理角色列表
@@ -4357,9 +4357,9 @@ CREATE POLICY "pool_characters_update_policy" ON pool_characters
 
 CREATE POLICY "pool_characters_delete_policy" ON pool_characters
   FOR DELETE USING (auth.uid() IS NOT NULL);
--- <<< END MIGRATION: archive\039_create_pool_characters_table.sql
+-- <<< END MIGRATION: archive/039_create_pool_characters_table.sql
 
--- >>> BEGIN MIGRATION: archive\041_fix_character_pool_config.sql
+-- >>> BEGIN MIGRATION: archive/041_fix_character_pool_config.sql
 -- =====================================================
 -- 041: 修复角色的 pool_config.pools 数据
 -- 角色(type='character')不应该在武器池中
@@ -4397,9 +4397,9 @@ WHERE type = 'weapon'
 
 -- 验证：显示修复结果
 -- SELECT id, name, type, pool_config->'pools' as pools FROM characters ORDER BY type, rarity DESC;
--- <<< END MIGRATION: archive\041_fix_character_pool_config.sql
+-- <<< END MIGRATION: archive/041_fix_character_pool_config.sql
 
--- >>> BEGIN MIGRATION: archive\042_add_multi_account_support.sql
+-- >>> BEGIN MIGRATION: archive/042_add_multi_account_support.sql
 -- Migration: 042_add_multi_account_support
 -- Description: 添加多账号支持字段到 pools 表
 -- Date: 2026-01-28
@@ -4456,9 +4456,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 042: 以下字段添加失败: %', array_to_string(missing_columns, ', ');
   END IF;
 END $$;
--- <<< END MIGRATION: archive\042_add_multi_account_support.sql
+-- <<< END MIGRATION: archive/042_add_multi_account_support.sql
 
--- >>> BEGIN MIGRATION: archive\043_add_avg_pity_excluding_free.sql
+-- >>> BEGIN MIGRATION: archive/043_add_avg_pity_excluding_free.sql
 -- =====================================================
 -- 迁移文件: 043_add_avg_pity_excluding_free.sql
 -- 创建日期: 2026-01-27
@@ -4886,9 +4886,9 @@ GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
 -- 1. 在 Supabase SQL Editor 中执行此脚本
 -- 2. 刷新前端页面验证数据
 -- =====================================================
--- <<< END MIGRATION: archive\043_add_avg_pity_excluding_free.sql
+-- <<< END MIGRATION: archive/043_add_avg_pity_excluding_free.sql
 
--- >>> BEGIN MIGRATION: archive\044_avatar_storage_policies.sql
+-- >>> BEGIN MIGRATION: archive/044_avatar_storage_policies.sql
 -- =====================================================
 -- 044: Avatar Storage RLS Policies
 -- 头像存储桶的行级安全策略
@@ -4974,9 +4974,9 @@ USING (
 -- | UPDATE | ❌       | ❌       | ❌     | ✅         |
 -- | DELETE | ❌       | ❌       | ❌     | ✅         |
 -- =====================================================
--- <<< END MIGRATION: archive\044_avatar_storage_policies.sql
+-- <<< END MIGRATION: archive/044_avatar_storage_policies.sql
 
--- >>> BEGIN MIGRATION: archive\045_character_ranking_stats.sql
+-- >>> BEGIN MIGRATION: archive/045_character_ranking_stats.sql
 -- =====================================================
 -- 045: 角色出货排名统计函数
 -- 用于统计各卡池类型中出货最多的角色
@@ -5135,9 +5135,9 @@ GRANT EXECUTE ON FUNCTION public.get_character_ranking_stats() TO anon, authenti
 --   }
 -- }
 -- =====================================================
--- <<< END MIGRATION: archive\045_character_ranking_stats.sql
+-- <<< END MIGRATION: archive/045_character_ranking_stats.sql
 
--- >>> BEGIN MIGRATION: archive\046_fix_character_ranking_stats.sql
+-- >>> BEGIN MIGRATION: archive/046_fix_character_ranking_stats.sql
 -- =====================================================
 -- 046: 修复角色出货排名统计函数
 --
@@ -5358,9 +5358,9 @@ GRANT EXECUTE ON FUNCTION public.get_character_ranking_stats() TO anon, authenti
 --   "weapon": { ... }
 -- }
 -- =====================================================
--- <<< END MIGRATION: archive\046_fix_character_ranking_stats.sql
+-- <<< END MIGRATION: archive/046_fix_character_ranking_stats.sql
 
--- >>> BEGIN MIGRATION: archive\047_user_ranking_stats.sql
+-- >>> BEGIN MIGRATION: archive/047_user_ranking_stats.sql
 -- =====================================================
 -- 047: 用户个人出货排名统计函数
 --
@@ -5503,9 +5503,9 @@ COMMENT ON FUNCTION public.get_user_ranking_stats(uuid) IS '获取指定用户�
 
 -- 授予执行权限
 GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats(uuid) TO anon, authenticated;
--- <<< END MIGRATION: archive\047_user_ranking_stats.sql
+-- <<< END MIGRATION: archive/047_user_ranking_stats.sql
 
--- >>> BEGIN MIGRATION: archive\049_add_nick_name_to_history.sql
+-- >>> BEGIN MIGRATION: archive/049_add_nick_name_to_history.sql
 -- Migration: 049_add_nick_name_to_history
 -- Description: 添加 nick_name 字段到 history 表，用于账号切换器显示友好名称
 -- Date: 2026-01-29
@@ -5541,9 +5541,9 @@ BEGIN
     RAISE EXCEPTION '❌ Migration 049: nick_name 字段添加失败';
   END IF;
 END $$;
--- <<< END MIGRATION: archive\049_add_nick_name_to_history.sql
+-- <<< END MIGRATION: archive/049_add_nick_name_to_history.sql
 
--- >>> BEGIN MIGRATION: archive\050_fix_global_stats_pool_types.sql
+-- >>> BEGIN MIGRATION: archive/050_fix_global_stats_pool_types.sql
 -- =====================================================
 -- 迁移文件: 050_fix_global_stats_pool_types.sql
 -- 描述: 修复 get_global_stats 函数的 pool type 匹配问题
@@ -5955,9 +5955,9 @@ $$;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 -- 也授权匿名用户（如果需要未登录也能看到统计）
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\050_fix_global_stats_pool_types.sql
+-- <<< END MIGRATION: archive/050_fix_global_stats_pool_types.sql
 
--- >>> BEGIN MIGRATION: archive\051_fix_is_standard_calculation.sql
+-- >>> BEGIN MIGRATION: archive/051_fix_is_standard_calculation.sql
 -- =====================================================
 -- 迁移文件: 051_fix_is_standard_calculation.sql
 -- 描述: 修复 get_global_stats 函数中的 is_standard 计算逻辑
@@ -6481,9 +6481,9 @@ $$;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 -- 也授权匿名用户（如果需要未登录也能看到统计）
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\051_fix_is_standard_calculation.sql
+-- <<< END MIGRATION: archive/051_fix_is_standard_calculation.sql
 
--- >>> BEGIN MIGRATION: archive\052_fix_bilibili_record_conflict.sql
+-- >>> BEGIN MIGRATION: archive/052_fix_bilibili_record_conflict.sql
 -- ============================================
 -- 052: 修复 B服/官服 record_id 冲突问题
 --
@@ -6596,9 +6596,9 @@ BEGIN
   RAISE NOTICE '不同 game_uid 数量: %', unique_game_uids;
   RAISE NOTICE '========================================';
 END $$;
--- <<< END MIGRATION: archive\052_fix_bilibili_record_conflict.sql
+-- <<< END MIGRATION: archive/052_fix_bilibili_record_conflict.sql
 
--- >>> BEGIN MIGRATION: archive\053_remove_old_record_id_constraint.sql
+-- >>> BEGIN MIGRATION: archive/053_remove_old_record_id_constraint.sql
 -- ============================================
 -- 053: 移除旧的 record_id 唯一约束
 --
@@ -6690,9 +6690,9 @@ BEGIN
   RAISE NOTICE 'history 表当前唯一约束数量: %', constraint_count;
   RAISE NOTICE '======================================';
 END $$;
--- <<< END MIGRATION: archive\053_remove_old_record_id_constraint.sql
+-- <<< END MIGRATION: archive/053_remove_old_record_id_constraint.sql
 
--- >>> BEGIN MIGRATION: archive\054_fix_pool_join_condition.sql
+-- >>> BEGIN MIGRATION: archive/054_fix_pool_join_condition.sql
 -- =====================================================
 -- 迁移文件: 054_fix_pool_join_condition.sql
 -- 描述: 修复 get_global_stats 函数中的 JOIN 条件
@@ -7226,9 +7226,9 @@ BEGIN
   RAISE NOTICE '   - 移除了 "AND h.user_id = p.user_id" 条件';
   RAISE NOTICE '   - pools 表现在是全局共享的，不需要按 user_id 匹配';
 END $$;
--- <<< END MIGRATION: archive\054_fix_pool_join_condition.sql
+-- <<< END MIGRATION: archive/054_fix_pool_join_condition.sql
 
--- >>> BEGIN MIGRATION: archive\055_fix_pools_constraints.sql
+-- >>> BEGIN MIGRATION: archive/055_fix_pools_constraints.sql
 -- =====================================================
 -- 迁移文件: 055_fix_pools_constraints.sql
 -- 描述: 清理 pools 表上的残留唯一约束
@@ -7313,9 +7313,9 @@ BEGIN
   RAISE NOTICE '✅ Migration 055: pools 表约束清理完成';
   RAISE NOTICE '   请在 Supabase SQL Editor 中执行此迁移';
 END $$;
--- <<< END MIGRATION: archive\055_fix_pools_constraints.sql
+-- <<< END MIGRATION: archive/055_fix_pools_constraints.sql
 
--- >>> BEGIN MIGRATION: archive\056_fix_history_unique_constraint.sql
+-- >>> BEGIN MIGRATION: archive/056_fix_history_unique_constraint.sql
 -- =====================================================
 -- 迁移文件: 056_fix_history_unique_constraint.sql
 -- 描述: 修复 history 表的唯一约束，添加 pool_id
@@ -7412,9 +7412,9 @@ BEGIN
   RAISE NOTICE '   新约束: (user_id, game_uid, pool_id, seq_id)';
   RAISE NOTICE '   这确保了不同卡池的相同 seqId 被正确区分';
 END $$;
--- <<< END MIGRATION: archive\056_fix_history_unique_constraint.sql
+-- <<< END MIGRATION: archive/056_fix_history_unique_constraint.sql
 
--- >>> BEGIN MIGRATION: archive\057_enhance_character_ranking_stats.sql
+-- >>> BEGIN MIGRATION: archive/057_enhance_character_ranking_stats.sql
 -- =====================================================
 -- 057: 增强角色出货排名统计函数
 --
@@ -7856,9 +7856,9 @@ GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats(uuid) TO anon, authentic
 --   ...
 -- }
 -- =====================================================
--- <<< END MIGRATION: archive\057_enhance_character_ranking_stats.sql
+-- <<< END MIGRATION: archive/057_enhance_character_ranking_stats.sql
 
--- >>> BEGIN MIGRATION: archive\058_add_off_banner_breakdown.sql
+-- >>> BEGIN MIGRATION: archive/058_add_off_banner_breakdown.sql
 -- =====================================================
 -- 058: 歪出六星分类统计 - 区分歪常驻 vs 歪非当期限定
 --
@@ -8319,9 +8319,9 @@ $$;
 
 COMMENT ON FUNCTION public.get_user_ranking_stats(uuid) IS 'FEAT-013: 用户个人排名 - 歪出六星分类统计';
 GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats(uuid) TO anon, authenticated;
--- <<< END MIGRATION: archive\058_add_off_banner_breakdown.sql
+-- <<< END MIGRATION: archive/058_add_off_banner_breakdown.sql
 
--- >>> BEGIN MIGRATION: archive\059_fix_pity_data_and_constraint.sql
+-- >>> BEGIN MIGRATION: archive/059_fix_pity_data_and_constraint.sql
 -- ============================================================
 -- Migration 059: 修复 pity 数据并添加约束
 -- BUG-FIX-011: 数据库>=81抽出货异常
@@ -8390,9 +8390,9 @@ BEGIN
   ALTER TABLE public.history ADD CONSTRAINT history_pity_check
     CHECK (pity >= 0 AND pity <= 80);
 END $$;
--- <<< END MIGRATION: archive\059_fix_pity_data_and_constraint.sql
+-- <<< END MIGRATION: archive/059_fix_pity_data_and_constraint.sql
 
--- >>> BEGIN MIGRATION: archive\060_fix_global_stats_exclude_free.sql
+-- >>> BEGIN MIGRATION: archive/060_fix_global_stats_exclude_free.sql
 -- ============================================================
 -- Migration 060: 修复 get_global_stats 函数 (v2)
 -- BUG-FIX-011: 全面修复免费十连与赠送记录的统计问题
@@ -8995,9 +8995,9 @@ $$;
 -- 授权
 GRANT EXECUTE ON FUNCTION get_global_stats() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_global_stats() TO anon;
--- <<< END MIGRATION: archive\060_fix_global_stats_exclude_free.sql
+-- <<< END MIGRATION: archive/060_fix_global_stats_exclude_free.sql
 
--- >>> BEGIN MIGRATION: archive\061_fix_history_select_rls.sql
+-- >>> BEGIN MIGRATION: archive/061_fix_history_select_rls.sql
 -- ============================================
 -- DR-S01: 修复 history 表 SELECT 策略
 --
@@ -9031,9 +9031,9 @@ CREATE POLICY "history_select_own_or_admin" ON public.history
 -- 3. ✅ get_global_stats() 不受影响（SECURITY DEFINER 绕过 RLS）
 -- 4. ✅ game_uid 等敏感字段不再暴露给其他用户
 -- ============================================
--- <<< END MIGRATION: archive\061_fix_history_select_rls.sql
+-- <<< END MIGRATION: archive/061_fix_history_select_rls.sql
 
--- >>> BEGIN MIGRATION: archive\062_site_config.sql
+-- >>> BEGIN MIGRATION: archive/062_site_config.sql
 -- 062: 站点配置表
 -- 将硬编码的备案号、作者信息等从代码迁移到数据库，支持管理面板编辑
 
@@ -9073,9 +9073,9 @@ INSERT INTO public.site_config (key, value, label, category) VALUES
   ('author_bilibili', '', 'Bilibili主页', 'social'),
   ('github_url', '', 'GitHub仓库', 'social')
 ON CONFLICT (key) DO NOTHING;
--- <<< END MIGRATION: archive\062_site_config.sql
+-- <<< END MIGRATION: archive/062_site_config.sql
 
--- >>> BEGIN MIGRATION: archive\063_fix_pools_rls_policy.sql
+-- >>> BEGIN MIGRATION: archive/063_fix_pools_rls_policy.sql
 -- ============================================
 -- 迁移 063: 修复卡池 RLS 策略
 -- ============================================
@@ -9156,9 +9156,9 @@ COMMENT ON POLICY "pools_insert_policy" ON public.pools IS
 
 COMMENT ON POLICY "pools_delete_policy" ON public.pools IS
   '仅允许超管删除卡池';
--- <<< END MIGRATION: archive\063_fix_pools_rls_policy.sql
+-- <<< END MIGRATION: archive/063_fix_pools_rls_policy.sql
 
--- >>> BEGIN MIGRATION: archive\064_create_puzzles_table.sql
+-- >>> BEGIN MIGRATION: archive/064_create_puzzles_table.sql
 -- 拼图题库表（共享题库 + 未来验证码题目来源）
 CREATE TABLE IF NOT EXISTS public.puzzles (
   id SERIAL PRIMARY KEY,
@@ -9198,9 +9198,9 @@ BEGIN
   WHERE id = puzzle_id;
 END;
 $$;
--- <<< END MIGRATION: archive\064_create_puzzles_table.sql
+-- <<< END MIGRATION: archive/064_create_puzzles_table.sql
 
--- >>> BEGIN MIGRATION: archive\065_puzzles_auth_difficulty.sql
+-- >>> BEGIN MIGRATION: archive/065_puzzles_auth_difficulty.sql
 -- 拼图系统：登录 + 审核 + 难度
 -- 为 puzzles 表增加 difficulty、status、uploader_id 列
 -- 替换 RLS 策略，增加审核 RPC
@@ -9266,9 +9266,9 @@ BEGIN
   UPDATE public.puzzles SET status = new_status WHERE id = puzzle_id;
 END;
 $$;
--- <<< END MIGRATION: archive\065_puzzles_auth_difficulty.sql
+-- <<< END MIGRATION: archive/065_puzzles_auth_difficulty.sql
 
--- >>> BEGIN MIGRATION: archive\066_puzzle_uploader_edit.sql
+-- >>> BEGIN MIGRATION: archive/066_puzzle_uploader_edit.sql
 -- 允许上传者修改自己题目的难度（通过 SECURITY DEFINER RPC，绕过只允许管理员 UPDATE 的 RLS）
 CREATE OR REPLACE FUNCTION public.update_puzzle_difficulty(puzzle_id INT, new_difficulty SMALLINT)
 RETURNS VOID
@@ -9292,9 +9292,9 @@ BEGIN
   UPDATE public.puzzles SET difficulty = new_difficulty WHERE id = puzzle_id;
 END;
 $$;
--- <<< END MIGRATION: archive\066_puzzle_uploader_edit.sql
+-- <<< END MIGRATION: archive/066_puzzle_uploader_edit.sql
 
--- >>> BEGIN MIGRATION: archive\067_delete_puzzle_rpc.sql
+-- >>> BEGIN MIGRATION: archive/067_delete_puzzle_rpc.sql
 -- 允许上传者或管理员删除题目（SECURITY DEFINER 绕过 RLS）
 -- 拒绝审核时也调用此函数，直接从数据库删除，不保留 rejected 状态
 CREATE OR REPLACE FUNCTION public.delete_puzzle(puzzle_id INT)
@@ -9316,9 +9316,9 @@ BEGIN
   DELETE FROM public.puzzles WHERE id = puzzle_id;
 END;
 $$;
--- <<< END MIGRATION: archive\067_delete_puzzle_rpc.sql
+-- <<< END MIGRATION: archive/067_delete_puzzle_rpc.sql
 
--- >>> BEGIN MIGRATION: archive\068_security_harden_profiles_and_pool_characters.sql
+-- >>> BEGIN MIGRATION: archive/068_security_harden_profiles_and_pool_characters.sql
 -- ============================================
 -- 068: 安全加固 - profiles / pool_characters
 -- 修复:
@@ -9519,9 +9519,9 @@ COMMENT ON POLICY "pool_characters_update_admin_only" ON public.pool_characters 
 
 COMMENT ON POLICY "pool_characters_delete_admin_only" ON public.pool_characters IS
   '仅管理员和超管可删除池子角色映射';
--- <<< END MIGRATION: archive\068_security_harden_profiles_and_pool_characters.sql
+-- <<< END MIGRATION: archive/068_security_harden_profiles_and_pool_characters.sql
 
--- >>> BEGIN MIGRATION: archive\069_fix_profiles_rls_recursion.sql
+-- >>> BEGIN MIGRATION: archive/069_fix_profiles_rls_recursion.sql
 -- ============================================
 -- 069: 修复 profiles RLS 递归
 --
@@ -9629,9 +9629,9 @@ COMMENT ON POLICY "profiles_update_self_without_role_change" ON public.profiles 
 
 COMMENT ON POLICY "profiles_update_super_admin" ON public.profiles IS
   '仅超管可以更新任意 profile 并调整角色；通过 helper function 避免 RLS 递归';
--- <<< END MIGRATION: archive\069_fix_profiles_rls_recursion.sql
+-- <<< END MIGRATION: archive/069_fix_profiles_rls_recursion.sql
 
--- >>> BEGIN MIGRATION: archive\070_fix_get_global_stats_timeout_after_rls.sql
+-- >>> BEGIN MIGRATION: archive/070_fix_get_global_stats_timeout_after_rls.sql
 -- ============================================
 -- 070: 修复 get_global_stats 在 RLS 加固后的超时
 --
@@ -10019,9 +10019,9 @@ SELECT json_build_object(
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
--- <<< END MIGRATION: archive\070_fix_get_global_stats_timeout_after_rls.sql
+-- <<< END MIGRATION: archive/070_fix_get_global_stats_timeout_after_rls.sql
 
--- >>> BEGIN MIGRATION: archive\071_optimize_get_global_stats_query_shape.sql
+-- >>> BEGIN MIGRATION: archive/071_optimize_get_global_stats_query_shape.sql
 -- ============================================
 -- 071: 进一步优化 get_global_stats 查询形状
 --
@@ -10402,9 +10402,9 @@ LEFT JOIN type_distributions AS td_standard
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
--- <<< END MIGRATION: archive\071_optimize_get_global_stats_query_shape.sql
+-- <<< END MIGRATION: archive/071_optimize_get_global_stats_query_shape.sql
 
--- >>> BEGIN MIGRATION: archive\072_add_get_app_visible_pools_rpc.sql
+-- >>> BEGIN MIGRATION: archive/072_add_get_app_visible_pools_rpc.sql
 -- ============================================
 -- 072: app 端卡池读取边界收口
 -- 目的:
@@ -10524,9 +10524,9 @@ GRANT EXECUTE ON FUNCTION public.get_app_visible_pools() TO anon, authenticated;
 
 COMMENT ON FUNCTION public.get_app_visible_pools() IS
   '返回 app 端可见的卡池集合：公开共享卡池 + 当前用户自有卡池，并在服务端完成 pool_id 级别去重与共享池优先级排序。';
--- <<< END MIGRATION: archive\072_add_get_app_visible_pools_rpc.sql
+-- <<< END MIGRATION: archive/072_add_get_app_visible_pools_rpc.sql
 
--- >>> BEGIN MIGRATION: archive\073_drop_admin_applications.sql
+-- >>> BEGIN MIGRATION: archive/073_drop_admin_applications.sql
 -- ============================================
 -- 073: 移除已废弃的管理员申请体系
 -- 背景:
@@ -10545,9 +10545,9 @@ DROP TABLE IF EXISTS public.admin_applications CASCADE;
 
 COMMENT ON TABLE public.profiles IS
   '用户资料表；管理员权限变更已改走超管直管流程，不再使用 admin_applications 申请链路。';
--- <<< END MIGRATION: archive\073_drop_admin_applications.sql
+-- <<< END MIGRATION: archive/073_drop_admin_applications.sql
 
--- >>> BEGIN MIGRATION: archive\074_extend_rpc_statement_timeouts.sql
+-- >>> BEGIN MIGRATION: archive/074_extend_rpc_statement_timeouts.sql
 -- ============================================
 -- 074: 放宽关键 RPC 的 statement_timeout
 --
@@ -10571,9 +10571,9 @@ ALTER FUNCTION public.get_user_ranking_stats(uuid)
 
 ALTER FUNCTION public.get_app_visible_pools()
   SET statement_timeout = '30s';
--- <<< END MIGRATION: archive\074_extend_rpc_statement_timeouts.sql
+-- <<< END MIGRATION: archive/074_extend_rpc_statement_timeouts.sql
 
--- >>> BEGIN MIGRATION: archive\075_create_id_alias_tables.sql
+-- >>> BEGIN MIGRATION: archive/075_create_id_alias_tables.sql
 -- ============================================
 -- 075: 创建角色 / 卡池 ID alias 映射表
 --
@@ -10797,9 +10797,9 @@ BEGIN
   RAISE NOTICE '   character_id_aliases rows: %', character_alias_count;
   RAISE NOTICE '   pool_id_aliases rows: %', pool_alias_count;
 END $$;
--- <<< END MIGRATION: archive\075_create_id_alias_tables.sql
+-- <<< END MIGRATION: archive/075_create_id_alias_tables.sql
 
--- >>> BEGIN MIGRATION: archive\076_auto_maintain_internal_id_aliases.sql
+-- >>> BEGIN MIGRATION: archive/076_auto_maintain_internal_id_aliases.sql
 -- ============================================
 -- 076: 自动维护 internal self alias
 --
@@ -10906,9 +10906,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 076: internal self alias auto-maintenance enabled';
 END $$;
--- <<< END MIGRATION: archive\076_auto_maintain_internal_id_aliases.sql
+-- <<< END MIGRATION: archive/076_auto_maintain_internal_id_aliases.sql
 
--- >>> BEGIN MIGRATION: archive\077_add_admin_sync_character_rpc.sql
+-- >>> BEGIN MIGRATION: archive/077_add_admin_sync_character_rpc.sql
 -- ============================================
 -- 077: 原子化同步角色/武器与 alias
 --
@@ -11052,9 +11052,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 077: admin_sync_character_with_aliases RPC created';
 END $$;
--- <<< END MIGRATION: archive\077_add_admin_sync_character_rpc.sql
+-- <<< END MIGRATION: archive/077_add_admin_sync_character_rpc.sql
 
--- >>> BEGIN MIGRATION: archive\078_harden_admin_entity_upsert_rpcs.sql
+-- >>> BEGIN MIGRATION: archive/078_harden_admin_entity_upsert_rpcs.sql
 -- ============================================
 -- 078: 强化管理端实体原子写入 RPC
 --
@@ -11444,9 +11444,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 078: admin entity upsert RPCs hardened';
 END $$;
--- <<< END MIGRATION: archive\078_harden_admin_entity_upsert_rpcs.sql
+-- <<< END MIGRATION: archive/078_harden_admin_entity_upsert_rpcs.sql
 
--- >>> BEGIN MIGRATION: archive\079_replace_public_profiles_view_with_security_invoker.sql
+-- >>> BEGIN MIGRATION: archive/079_replace_public_profiles_view_with_security_invoker.sql
 -- ============================================
 -- 079: 将 public_profiles 改为 security_invoker 视图
 --
@@ -11557,9 +11557,9 @@ BEGIN
   RAISE NOTICE '✅ Migration 079: public_profiles 已切换为 security_invoker 视图';
   RAISE NOTICE '   public_profile_cache rows: %', profile_cache_count;
 END $$;
--- <<< END MIGRATION: archive\079_replace_public_profiles_view_with_security_invoker.sql
+-- <<< END MIGRATION: archive/079_replace_public_profiles_view_with_security_invoker.sql
 
--- >>> BEGIN MIGRATION: active\080_retire_page_content_management.sql
+-- >>> BEGIN MIGRATION: active/080_retire_page_content_management.sql
 -- ============================================
 -- 080: 退役无用的页面管理能力
 --
@@ -11578,9 +11578,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 080: page_content 已退役';
 END $$;
--- <<< END MIGRATION: active\080_retire_page_content_management.sql
+-- <<< END MIGRATION: active/080_retire_page_content_management.sql
 
--- >>> BEGIN MIGRATION: active\081_remove_blacklist_feature.sql
+-- >>> BEGIN MIGRATION: active/081_remove_blacklist_feature.sql
 -- ============================================
 -- 081: 移除无用黑名单功能
 --
@@ -11605,9 +11605,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 081: 黑名单与邮箱黑白名单旧链已移除';
 END $$;
--- <<< END MIGRATION: active\081_remove_blacklist_feature.sql
+-- <<< END MIGRATION: active/081_remove_blacklist_feature.sql
 
--- >>> BEGIN MIGRATION: active\082_fix_global_stats_exclude_info_book_resource.sql
+-- >>> BEGIN MIGRATION: active/082_fix_global_stats_exclude_info_book_resource.sql
 -- ============================================
 -- 082: 修复全服统计中的情报书十连资源口径
 --
@@ -12072,9 +12072,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 082: get_global_stats 已补 chargedPulls / 情报书资源口径';
 END $$;
--- <<< END MIGRATION: active\082_fix_global_stats_exclude_info_book_resource.sql
+-- <<< END MIGRATION: active/082_fix_global_stats_exclude_info_book_resource.sql
 
--- >>> BEGIN MIGRATION: active\083_harden_admin_delete_user_foreign_keys.sql
+-- >>> BEGIN MIGRATION: active/083_harden_admin_delete_user_foreign_keys.sql
 -- ============================================
 -- 083: 加固 admin-delete-user 的 auth.users 外键删除策略
 --
@@ -12109,9 +12109,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 083: admin-delete-user 外键策略已改为 ON DELETE SET NULL';
 END $$;
--- <<< END MIGRATION: active\083_harden_admin_delete_user_foreign_keys.sql
+-- <<< END MIGRATION: active/083_harden_admin_delete_user_foreign_keys.sql
 
--- >>> BEGIN MIGRATION: active\084_create_account_recovery_requests.sql
+-- >>> BEGIN MIGRATION: active/084_create_account_recovery_requests.sql
 -- ============================================
 -- 084: 新增账号恢复申请表
 --
@@ -12195,9 +12195,9 @@ COMMENT ON COLUMN public.account_recovery_requests.request_type IS
 
 COMMENT ON COLUMN public.account_recovery_requests.verification_claims IS
   '申请人提交的身份核验信息，格式如 [{gameUid, nickName}]。';
--- <<< END MIGRATION: active\084_create_account_recovery_requests.sql
+-- <<< END MIGRATION: active/084_create_account_recovery_requests.sql
 
--- >>> BEGIN MIGRATION: active\085_restore_history_v2_columns.sql
+-- >>> BEGIN MIGRATION: active/085_restore_history_v2_columns.sql
 -- ============================================
 -- 085: 恢复 history 的 V2 导入字段与约束
 --
@@ -12294,9 +12294,9 @@ BEGIN
 
   RAISE NOTICE '✅ Migration 085: history V2 columns / indexes / constraints are ready';
 END $$;
--- <<< END MIGRATION: active\085_restore_history_v2_columns.sql
+-- <<< END MIGRATION: active/085_restore_history_v2_columns.sql
 
--- >>> BEGIN MIGRATION: active\086_add_global_stats_contributor_region_breakdown.sql
+-- >>> BEGIN MIGRATION: active/086_add_global_stats_contributor_region_breakdown.sql
 /*
 -- ============================================
 -- 086: 为全服统计补充国服 / 国际服贡献人数拆分
@@ -12793,9 +12793,9 @@ DO $$
 BEGIN
   RAISE NOTICE 'ℹ️ Migration 086: 预留给全服贡献人数区服拆分；当前标准链缺少 server/region 元数据，暂不执行结构变更';
 END $$;
--- <<< END MIGRATION: active\086_add_global_stats_contributor_region_breakdown.sql
+-- <<< END MIGRATION: active/086_add_global_stats_contributor_region_breakdown.sql
 
--- >>> BEGIN MIGRATION: active\087_enable_global_stats_region_and_target_metrics.sql
+-- >>> BEGIN MIGRATION: active/087_enable_global_stats_region_and_target_metrics.sql
 -- ============================================
 -- 087: 启用全服统计的区服贡献人数与目标 6★ 平均出货
 --
@@ -13312,9 +13312,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 087: get_global_stats 已启用区服贡献人数拆分与目标 6★ 平均出货';
 END $$;
--- <<< END MIGRATION: active\087_enable_global_stats_region_and_target_metrics.sql
+-- <<< END MIGRATION: active/087_enable_global_stats_region_and_target_metrics.sql
 
--- >>> BEGIN MIGRATION: active\088_optimize_global_stats_target_matching.sql
+-- >>> BEGIN MIGRATION: active/088_optimize_global_stats_target_matching.sql
 -- ============================================
 -- 088: 优化 get_global_stats 的目标 6★ 匹配成本
 --
@@ -13822,9 +13822,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 088: get_global_stats 已优化目标 6★ 匹配成本';
 END $$;
--- <<< END MIGRATION: active\088_optimize_global_stats_target_matching.sql
+-- <<< END MIGRATION: active/088_optimize_global_stats_target_matching.sql
 
--- >>> BEGIN MIGRATION: active\089_create_ops_automation_runs_and_announcement_source_fields.sql
+-- >>> BEGIN MIGRATION: active/089_create_ops_automation_runs_and_announcement_source_fields.sql
 -- ============================================
 -- 089: 运营自动化运行审计表 + 公告源元数据
 --
@@ -13922,9 +13922,9 @@ COMMENT ON COLUMN public.ops_automation_runs.dedupe_key IS
 
 COMMENT ON COLUMN public.ops_automation_runs.review_bundle IS
   '供人工审核/发布的完整审计包快照。';
--- <<< END MIGRATION: active\089_create_ops_automation_runs_and_announcement_source_fields.sql
+-- <<< END MIGRATION: active/089_create_ops_automation_runs_and_announcement_source_fields.sql
 
--- >>> BEGIN MIGRATION: active\090_rewrite_global_stats_target_interval.sql
+-- >>> BEGIN MIGRATION: active/090_rewrite_global_stats_target_interval.sql
 -- ============================================
 -- 090: 重写 get_global_stats 的目标 6★ 平均出货口径 + 性能优化
 --
@@ -14437,9 +14437,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 090: get_global_stats — BUG-035 口径修复 + PERF-009 消除 3 次全量排序';
 END $$;
--- <<< END MIGRATION: active\090_rewrite_global_stats_target_interval.sql
+-- <<< END MIGRATION: active/090_rewrite_global_stats_target_interval.sql
 
--- >>> BEGIN MIGRATION: active\091_stats_cache_infrastructure.sql
+-- >>> BEGIN MIGRATION: active/091_stats_cache_infrastructure.sql
 -- ============================================
 -- 091: 统计缓存基础设施 (PERF-009)
 --
@@ -14639,9 +14639,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 091: stats_cache 基础设施 — PERF-009 变更感知缓存';
 END $$;
--- <<< END MIGRATION: active\091_stats_cache_infrastructure.sql
+-- <<< END MIGRATION: active/091_stats_cache_infrastructure.sql
 
--- >>> BEGIN MIGRATION: active\092_pool_alias_source_official_notice.sql
+-- >>> BEGIN MIGRATION: active/092_pool_alias_source_official_notice.sql
 -- ============================================
 -- 092: 扩展 pool_id_aliases.source 枚举
 -- ============================================
@@ -14665,9 +14665,9 @@ ALTER TABLE public.pool_id_aliases
 
 COMMENT ON COLUMN public.pool_id_aliases.source IS
   'alias 来源：internal / official_api / official_notice / legacy_manual / manual_placeholder / import_raw / custom';
--- <<< END MIGRATION: active\092_pool_alias_source_official_notice.sql
+-- <<< END MIGRATION: active/092_pool_alias_source_official_notice.sql
 
--- >>> BEGIN MIGRATION: active\093_site_config_content_blocks.sql
+-- >>> BEGIN MIGRATION: active/093_site_config_content_blocks.sql
 -- 093: 将硬编码的首页/关于页运营内容迁移到 site_config (ARCH-023)
 
 INSERT INTO site_config (key, value, label, category) VALUES
@@ -14708,9 +14708,9 @@ INSERT INTO site_config (key, value, label, category) VALUES
     'social'
   )
 ON CONFLICT (key) DO NOTHING;
--- <<< END MIGRATION: active\093_site_config_content_blocks.sql
+-- <<< END MIGRATION: active/093_site_config_content_blocks.sql
 
--- >>> BEGIN MIGRATION: active\094_backfill_history_server_id.sql
+-- >>> BEGIN MIGRATION: active/094_backfill_history_server_id.sql
 -- 094: backfill history.server_id / region and invalidate stats cache
 
 -- 1) INTL: game_uid does not start with '1', is not empty
@@ -14730,9 +14730,9 @@ WHERE server_id IS NULL;
 
 -- 3) Invalidate global stats cache
 DELETE FROM public.stats_cache WHERE cache_key = 'global_stats';
--- <<< END MIGRATION: active\094_backfill_history_server_id.sql
+-- <<< END MIGRATION: active/094_backfill_history_server_id.sql
 
--- >>> BEGIN MIGRATION: active\095_spark_count_to_occurrences.sql
+-- >>> BEGIN MIGRATION: active/095_spark_count_to_occurrences.sql
 -- 095: Change sparkCount from distinct users to total occurrences
 --
 -- Previously: COUNT(DISTINCT user_id) FILTER (WHERE is_spark = true)
@@ -15234,9 +15234,9 @@ GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
 
 -- Invalidate both caches
 DELETE FROM public.stats_cache WHERE cache_key IN ('global_stats', 'character_ranking');
--- <<< END MIGRATION: active\095_spark_count_to_occurrences.sql
+-- <<< END MIGRATION: active/095_spark_count_to_occurrences.sql
 
--- >>> BEGIN MIGRATION: active\096_retire_history_character_id_and_legacy_pool_id.sql
+-- >>> BEGIN MIGRATION: active/096_retire_history_character_id_and_legacy_pool_id.sql
 -- ============================================
 -- 096: 退役 history.character_id 与 legacy_pool_id 兼容字段
 --
@@ -15298,9 +15298,9 @@ BEGIN
 
   RAISE NOTICE '✅ Migration 096: retired history.character_id and legacy_pool_id compatibility fields';
 END $$;
--- <<< END MIGRATION: active\096_retire_history_character_id_and_legacy_pool_id.sql
+-- <<< END MIGRATION: active/096_retire_history_character_id_and_legacy_pool_id.sql
 
--- >>> BEGIN MIGRATION: active\097_add_announcement_i18n_and_bump_site_version.sql
+-- >>> BEGIN MIGRATION: active/097_add_announcement_i18n_and_bump_site_version.sql
 ALTER TABLE public.announcements
 ADD COLUMN IF NOT EXISTS title_en TEXT;
 
@@ -15310,5 +15310,345 @@ ADD COLUMN IF NOT EXISTS content_en TEXT;
 UPDATE public.site_config
 SET value = 'v4.0.0'
 WHERE key = 'site_version';
--- <<< END MIGRATION: active\097_add_announcement_i18n_and_bump_site_version.sql
+-- <<< END MIGRATION: active/097_add_announcement_i18n_and_bump_site_version.sql
+
+-- >>> BEGIN MIGRATION: active/098_add_pool_name_en.sql
+-- 098: pool English name support
+-- Purpose:
+--   1. Add explicit English pool title storage to public.pools
+--   2. Expose name_en through get_app_visible_pools
+--   3. Allow admin_upsert_pool_with_aliases to write name_en
+
+ALTER TABLE public.pools
+  ADD COLUMN IF NOT EXISTS name_en TEXT;
+
+COMMENT ON COLUMN public.pools.name_en IS
+  '卡池英文译名；英文界面优先使用该字段，留空则回退到自动推导。';
+
+DROP FUNCTION IF EXISTS public.get_app_visible_pools();
+
+CREATE OR REPLACE FUNCTION public.get_app_visible_pools()
+RETURNS TABLE (
+  pool_id TEXT,
+  name TEXT,
+  name_en TEXT,
+  type TEXT,
+  locked BOOLEAN,
+  is_limited_weapon BOOLEAN,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  user_id UUID,
+  creator_username TEXT,
+  creator_role TEXT,
+  up_character TEXT,
+  description TEXT,
+  banner_url TEXT,
+  start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ,
+  featured_characters TEXT[]
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH visible_pools AS (
+    SELECT p.*
+    FROM public.pools AS p
+    WHERE
+      p.pool_id IN ('standard', 'beginner')
+      OR split_part(p.pool_id, '_', 1) IN ('special', 'weponbox', 'weaponbox')
+      OR p.user_id IS NULL
+      OR p.user_id = auth.uid()
+      OR p.locked = true
+      OR EXISTS (
+        SELECT 1
+        FROM public.profiles AS owner_profile
+        WHERE owner_profile.id = p.user_id
+          AND owner_profile.role IN ('admin', 'super_admin')
+      )
+  ),
+  ranked_pools AS (
+    SELECT
+      p.pool_id,
+      p.name,
+      p.name_en,
+      p.type,
+      p.locked,
+      p.is_limited_weapon,
+      p.created_at,
+      p.updated_at,
+      p.user_id,
+      prof.username AS creator_username,
+      prof.role AS creator_role,
+      p.up_character,
+      p.description,
+      p.banner_url,
+      p.start_time,
+      p.end_time,
+      p.featured_characters,
+      ROW_NUMBER() OVER (
+        PARTITION BY p.pool_id
+        ORDER BY
+          CASE
+            WHEN prof.role = 'super_admin' THEN 3
+            WHEN prof.role = 'admin' THEN 2
+            ELSE 1
+          END DESC,
+          (
+            CASE WHEN NULLIF(BTRIM(COALESCE(p.up_character, '')), '') IS NOT NULL THEN 4 ELSE 0 END +
+            CASE WHEN p.start_time IS NOT NULL THEN 2 ELSE 0 END +
+            CASE WHEN p.end_time IS NOT NULL THEN 2 ELSE 0 END +
+            CASE WHEN COALESCE(array_length(p.featured_characters, 1), 0) > 0 THEN 1 ELSE 0 END +
+            CASE WHEN NULLIF(BTRIM(COALESCE(p.banner_url, '')), '') IS NOT NULL THEN 1 ELSE 0 END +
+            CASE WHEN NULLIF(BTRIM(COALESCE(p.description, '')), '') IS NOT NULL THEN 1 ELSE 0 END +
+            CASE WHEN NULLIF(BTRIM(COALESCE(p.name_en, '')), '') IS NOT NULL THEN 1 ELSE 0 END +
+            CASE WHEN p.locked THEN 1 ELSE 0 END
+          ) DESC,
+          CASE WHEN p.user_id = auth.uid() THEN 1 ELSE 0 END DESC,
+          COALESCE(p.start_time, p.updated_at, p.created_at, to_timestamp(0)) DESC,
+          COALESCE(p.updated_at, p.created_at, to_timestamp(0)) DESC
+      ) AS row_rank
+    FROM visible_pools AS p
+    LEFT JOIN public.profiles AS prof
+      ON prof.id = p.user_id
+  )
+  SELECT
+    pool_id,
+    name,
+    name_en,
+    type,
+    locked,
+    is_limited_weapon,
+    created_at,
+    updated_at,
+    user_id,
+    creator_username,
+    creator_role,
+    up_character,
+    description,
+    banner_url,
+    start_time,
+    end_time,
+    featured_characters
+  FROM ranked_pools
+  WHERE row_rank = 1
+  ORDER BY COALESCE(start_time, created_at, updated_at, to_timestamp(0)) DESC, pool_id ASC;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_app_visible_pools() TO anon, authenticated;
+
+COMMENT ON FUNCTION public.get_app_visible_pools() IS
+  '返回 app 端可见的卡池集合：公开共享卡池 + 当前用户自有卡池，并在服务端完成 pool_id 级别去重与共享池优先级排序。';
+
+CREATE OR REPLACE FUNCTION public.admin_upsert_pool_with_aliases(
+  p_pool_id TEXT,
+  p_insert_payload JSONB,
+  p_update_payload JSONB DEFAULT '{}'::jsonb,
+  p_alias_rows JSONB DEFAULT '[]'::jsonb,
+  p_pool_character_rows JSONB DEFAULT '[]'::jsonb
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'only super_admin can manage pools';
+  END IF;
+
+  IF COALESCE(BTRIM(p_pool_id), '') = '' THEN
+    RAISE EXCEPTION 'p_pool_id is required';
+  END IF;
+
+  IF p_insert_payload IS NULL OR jsonb_typeof(p_insert_payload) <> 'object' THEN
+    RAISE EXCEPTION 'p_insert_payload must be a JSON object';
+  END IF;
+
+  IF p_update_payload IS NULL THEN
+    p_update_payload := '{}'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_update_payload) <> 'object' THEN
+    RAISE EXCEPTION 'p_update_payload must be a JSON object';
+  END IF;
+
+  IF p_alias_rows IS NULL THEN
+    p_alias_rows := '[]'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_alias_rows) <> 'array' THEN
+    RAISE EXCEPTION 'p_alias_rows must be a JSON array';
+  END IF;
+
+  IF p_pool_character_rows IS NULL THEN
+    p_pool_character_rows := '[]'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_pool_character_rows) <> 'array' THEN
+    RAISE EXCEPTION 'p_pool_character_rows must be a JSON array';
+  END IF;
+
+  INSERT INTO public.pools (
+    user_id,
+    pool_id,
+    name,
+    name_en,
+    type,
+    locked,
+    is_limited_weapon,
+    description,
+    start_time,
+    end_time,
+    banner_url,
+    featured_characters,
+    up_character
+  )
+  VALUES (
+    auth.uid(),
+    BTRIM(p_pool_id),
+    BTRIM(p_insert_payload->>'name'),
+    NULLIF(BTRIM(p_insert_payload->>'name_en'), ''),
+    COALESCE(NULLIF(BTRIM(p_insert_payload->>'type'), ''), 'limited'),
+    COALESCE((p_insert_payload->>'locked')::BOOLEAN, FALSE),
+    CASE
+      WHEN p_insert_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_insert_payload->'is_limited_weapon') = 'boolean'
+      THEN (p_insert_payload->>'is_limited_weapon')::BOOLEAN
+      ELSE NULL
+    END,
+    NULLIF(BTRIM(p_insert_payload->>'description'), ''),
+    NULLIF(BTRIM(p_insert_payload->>'start_time'), '')::TIMESTAMPTZ,
+    NULLIF(BTRIM(p_insert_payload->>'end_time'), '')::TIMESTAMPTZ,
+    NULLIF(BTRIM(p_insert_payload->>'banner_url'), ''),
+    CASE
+      WHEN p_insert_payload ? 'featured_characters'
+        AND jsonb_typeof(p_insert_payload->'featured_characters') = 'array'
+      THEN ARRAY(
+        SELECT jsonb_array_elements_text(p_insert_payload->'featured_characters')
+      )
+      ELSE NULL
+    END,
+    NULLIF(BTRIM(p_insert_payload->>'up_character'), '')
+  )
+  ON CONFLICT (pool_id) DO UPDATE
+  SET
+    name = CASE
+      WHEN p_update_payload ? 'name'
+      THEN COALESCE(NULLIF(BTRIM(p_update_payload->>'name'), ''), public.pools.name)
+      ELSE public.pools.name
+    END,
+    name_en = CASE
+      WHEN p_update_payload ? 'name_en'
+      THEN NULLIF(BTRIM(p_update_payload->>'name_en'), '')
+      ELSE public.pools.name_en
+    END,
+    type = CASE
+      WHEN p_update_payload ? 'type'
+      THEN COALESCE(NULLIF(BTRIM(p_update_payload->>'type'), ''), public.pools.type)
+      ELSE public.pools.type
+    END,
+    locked = CASE
+      WHEN p_update_payload ? 'locked'
+        AND jsonb_typeof(p_update_payload->'locked') = 'boolean'
+      THEN (p_update_payload->>'locked')::BOOLEAN
+      ELSE public.pools.locked
+    END,
+    is_limited_weapon = CASE
+      WHEN p_update_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_update_payload->'is_limited_weapon') = 'boolean'
+      THEN (p_update_payload->>'is_limited_weapon')::BOOLEAN
+      WHEN p_update_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_update_payload->'is_limited_weapon') = 'null'
+      THEN NULL
+      ELSE public.pools.is_limited_weapon
+    END,
+    description = CASE
+      WHEN p_update_payload ? 'description'
+      THEN NULLIF(BTRIM(p_update_payload->>'description'), '')
+      ELSE public.pools.description
+    END,
+    start_time = CASE
+      WHEN p_update_payload ? 'start_time'
+      THEN NULLIF(BTRIM(p_update_payload->>'start_time'), '')::TIMESTAMPTZ
+      ELSE public.pools.start_time
+    END,
+    end_time = CASE
+      WHEN p_update_payload ? 'end_time'
+      THEN NULLIF(BTRIM(p_update_payload->>'end_time'), '')::TIMESTAMPTZ
+      ELSE public.pools.end_time
+    END,
+    banner_url = CASE
+      WHEN p_update_payload ? 'banner_url'
+      THEN NULLIF(BTRIM(p_update_payload->>'banner_url'), '')
+      ELSE public.pools.banner_url
+    END,
+    featured_characters = CASE
+      WHEN p_update_payload ? 'featured_characters'
+        AND jsonb_typeof(p_update_payload->'featured_characters') = 'array'
+      THEN ARRAY(
+        SELECT jsonb_array_elements_text(p_update_payload->'featured_characters')
+      )
+      WHEN p_update_payload ? 'featured_characters'
+        AND jsonb_typeof(p_update_payload->'featured_characters') = 'null'
+      THEN NULL
+      ELSE public.pools.featured_characters
+    END,
+    up_character = CASE
+      WHEN p_update_payload ? 'up_character'
+      THEN NULLIF(BTRIM(p_update_payload->>'up_character'), '')
+      ELSE public.pools.up_character
+    END;
+
+  INSERT INTO public.pool_id_aliases (
+    source,
+    alias_id,
+    pool_id,
+    is_primary,
+    note
+  )
+  SELECT
+    BTRIM(alias_entry.value->>'source'),
+    BTRIM(alias_entry.value->>'alias_id'),
+    BTRIM(p_pool_id),
+    COALESCE((alias_entry.value->>'is_primary')::BOOLEAN, FALSE),
+    NULLIF(BTRIM(alias_entry.value->>'note'), '')
+  FROM jsonb_array_elements(p_alias_rows) AS alias_entry(value)
+  WHERE
+    jsonb_typeof(alias_entry.value) = 'object'
+    AND COALESCE(BTRIM(alias_entry.value->>'source'), '') <> ''
+    AND COALESCE(BTRIM(alias_entry.value->>'alias_id'), '') <> ''
+  ON CONFLICT (source, alias_id) DO UPDATE
+  SET
+    pool_id = EXCLUDED.pool_id,
+    is_primary = EXCLUDED.is_primary,
+    note = EXCLUDED.note,
+    updated_at = NOW();
+
+  IF jsonb_array_length(p_pool_character_rows) > 0 THEN
+    DELETE FROM public.pool_characters
+    WHERE pool_id = BTRIM(p_pool_id);
+
+    INSERT INTO public.pool_characters (
+      pool_id,
+      character_id,
+      is_up
+    )
+    SELECT
+      BTRIM(p_pool_id),
+      BTRIM(character_entry.value->>'character_id'),
+      COALESCE((character_entry.value->>'is_up')::BOOLEAN, FALSE)
+    FROM jsonb_array_elements(p_pool_character_rows) AS character_entry(value)
+    WHERE
+      jsonb_typeof(character_entry.value) = 'object'
+      AND COALESCE(BTRIM(character_entry.value->>'character_id'), '') <> ''
+    ON CONFLICT (pool_id, character_id) DO UPDATE
+    SET is_up = EXCLUDED.is_up;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB) TO authenticated;
+-- <<< END MIGRATION: active/098_add_pool_name_en.sql
 

@@ -9,6 +9,10 @@ const activeMigrationsDir = path.join(projectRoot, 'supabase', 'migrations');
 const archivedMigrationsDir = path.join(projectRoot, 'supabase', 'archive', 'migrations');
 const baselinePath = path.join(projectRoot, 'supabase', 'baseline', '000_complete_schema.sql');
 
+function toPosixPath(filePath) {
+  return filePath.split(path.sep).join(path.posix.sep);
+}
+
 function compareMigrationNames(a, b) {
   const aName = path.basename(a);
   const bName = path.basename(b);
@@ -46,7 +50,7 @@ async function collectMigrationFiles(dirPath, rootDir = dirPath) {
     }
 
     if (entry.isFile() && /^\d+_.+\.sql$/i.test(entry.name)) {
-      files.push(path.relative(rootDir, absolutePath));
+      files.push(toPosixPath(path.relative(rootDir, absolutePath)));
     }
   }
 
@@ -57,8 +61,8 @@ async function main() {
   const archivedFiles = await collectMigrationFiles(archivedMigrationsDir);
   const activeFiles = await collectMigrationFiles(activeMigrationsDir);
   const migrationFiles = [
-    ...archivedFiles.map((file) => path.join('archive', file)),
-    ...activeFiles.map((file) => path.join('active', file)),
+    ...archivedFiles.map((file) => path.posix.join('archive', file)),
+    ...activeFiles.map((file) => path.posix.join('active', file)),
   ].sort(compareMigrationNames);
 
   if (migrationFiles.length === 0) {
