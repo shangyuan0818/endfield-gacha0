@@ -29,6 +29,7 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interact
   const ROADMAP_ITEMS = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS);
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const scrollRef = useRef(null);
+  const focusItemRef = useRef(null);
 
   const statusConfig = {
     completed: { ...STATUS_CONFIG.completed, label: tt('home.roadmap.status.completed', '已完成') },
@@ -43,19 +44,22 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interact
   }));
   const HeaderTag = interactive ? 'button' : 'div';
 
-  // Auto scroll to first non-completed item when opened
-  useEffect(() => {
-    if (isOpen && scrollRef.current) {
-      const firstActiveIndex = translatedRoadmapItems.findIndex(i => i.status !== 'completed');
-      if (firstActiveIndex > 0) {
-        const itemWidth = 260; // card width + gap approx
-        const scrollTarget = (firstActiveIndex - 1) * itemWidth;
-        setTimeout(() => {
-          scrollRef.current?.scrollTo({ left: scrollTarget, behavior: 'smooth' });
-        }, 100);
-      }
+  const focusIndex = (() => {
+    const firstUnfinishedIndex = translatedRoadmapItems.findIndex((item) => item.status !== 'completed');
+    if (firstUnfinishedIndex !== -1) {
+      return firstUnfinishedIndex;
     }
-  }, [isOpen, translatedRoadmapItems]);
+    return Math.max(translatedRoadmapItems.length - 1, 0);
+  })();
+
+  useEffect(() => {
+    if ((interactive ? isOpen : true) && scrollRef.current && focusItemRef.current) {
+      const container = scrollRef.current;
+      const targetItem = focusItemRef.current;
+      const scrollLeft = targetItem.offsetLeft - container.offsetWidth / 2 + targetItem.offsetWidth / 2;
+      container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+    }
+  }, [focusIndex, interactive, isOpen, translatedRoadmapItems.length]);
 
   return (
     <div className="group relative overflow-hidden bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 transition-all duration-300 rounded-none sm:rounded-xl">
@@ -108,7 +112,7 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interact
           {/* Scrollable Container */}
           <div 
             ref={scrollRef}
-            className="flex flex-nowrap items-start gap-4 overflow-x-auto scrollbar-hide px-6 relative z-10"
+            className="pool-card-rail-scrollbar flex flex-nowrap items-start gap-4 overflow-x-scroll overflow-y-hidden px-6 relative z-10"
           >
             {translatedRoadmapItems.map((item, index) => {
               const status = statusConfig[item.status] || statusConfig.planned;
@@ -117,7 +121,11 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interact
               const isCurrent = item.status === 'in_progress';
 
               return (
-                <div key={item.id} className="relative shrink-0 w-[240px] flex flex-col group">
+                <div
+                  key={item.id}
+                  ref={index === focusIndex ? focusItemRef : null}
+                  className="relative shrink-0 w-[240px] flex flex-col group"
+                >
                   
                   {/* Timeline Node Point */}
                   <div className="relative h-10 flex items-center justify-center mb-4">

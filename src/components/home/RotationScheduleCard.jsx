@@ -7,11 +7,12 @@ import { localizeEntityName } from '../../utils/gameDataI18n.js';
 const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSchedule, now }) {
   const { t, formatDateTime, locale } = useI18n();
   const scrollContainerRef = useRef(null);
-  const activeItemRef = useRef(null);
+  const focusItemRef = useRef(null);
 
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
 
   let currentActiveIndex = -1;
+  let nextUpcomingIndex = -1;
   for (let index = 0; index < poolSchedule.length; index += 1) {
     const pool = poolSchedule[index];
     const start = new Date(pool.startDate);
@@ -20,16 +21,25 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
       currentActiveIndex = index;
       break;
     }
+    if (nextUpcomingIndex === -1 && now < start) {
+      nextUpcomingIndex = index;
+    }
   }
 
+  const focusIndex = currentActiveIndex !== -1
+    ? currentActiveIndex
+    : nextUpcomingIndex !== -1
+      ? nextUpcomingIndex
+      : Math.max(poolSchedule.length - 1, 0);
+
   useEffect(() => {
-    if (activeItemRef.current && scrollContainerRef.current) {
+    if (focusItemRef.current && scrollContainerRef.current) {
       const container = scrollContainerRef.current;
-      const activeItem = activeItemRef.current;
+      const activeItem = focusItemRef.current;
       const scrollLeft = activeItem.offsetLeft - container.offsetWidth / 2 + activeItem.offsetWidth / 2;
       container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
-  }, [currentActiveIndex]);
+  }, [focusIndex, poolSchedule.length]);
 
   if (!poolSchedule.length) {
     return null;
@@ -45,7 +55,7 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
         </h4>
         <div 
           ref={scrollContainerRef}
-          className="flex flex-nowrap items-center gap-3 overflow-x-auto scrollbar-hide pb-4 pt-2 -mx-6 px-6"
+          className="pool-card-rail-scrollbar flex flex-nowrap items-center gap-3 overflow-x-scroll overflow-y-hidden pb-4 pt-2 -mx-6 px-6"
         >
           {poolSchedule.map((pool, index) => {
             const poolStart = new Date(pool.startDate);
@@ -84,7 +94,7 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             return (
               <React.Fragment key={pool.name}>
                 <div 
-                  ref={isCurrent ? activeItemRef : null}
+                  ref={index === focusIndex ? focusItemRef : null}
                   className={`shrink-0 px-4 py-3 rounded-lg text-xs font-mono transition-all border ${containerClass} min-w-[200px] flex flex-col justify-center relative`}
                 >
                   <div className="font-bold flex items-center gap-3">
