@@ -48,18 +48,40 @@ import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups }
 import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './simulatorInheritance';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
-import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { buildDynamicRosterBuckets, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
-import {
-  readBooleanStorageValue,
-  readStorageValue,
-  removeStorageValue,
-  STORAGE_KEYS,
-  writeBooleanStorageValue,
-  writeStorageValue,
-} from '../../utils/storageUtils.js';
+
+function dedupeRosterEntries(items = []) {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const key = String(item?.name || '').trim();
+    if (!key || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeSimulatorRoster(resolvedRoster, dynamicRoster) {
+  const resolvedItems = resolvedRoster || {};
+  const fallbackItems = dynamicRoster || {};
+
+  return {
+    up: dedupeRosterEntries([...(resolvedItems.up || []), ...(fallbackItems.up || [])]),
+    offBanner: dedupeRosterEntries([...(resolvedItems.offBanner || []), ...(fallbackItems.offBanner || [])]),
+    fiveStar: dedupeRosterEntries([
+      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 5) : []),
+      ...(fallbackItems.items || []).filter((item) => item.rarity === 5)
+    ]),
+    fourStar: dedupeRosterEntries([
+      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 4) : []),
+      ...(fallbackItems.items || []).filter((item) => item.rarity === 4)
+    ]),
+  };
+}
 
 const getWeaponPoolRules = (pool) =>
   pool?.isLimitedWeapon !== false
@@ -71,6 +93,8 @@ const getWeaponPoolRules = (pool) =>
 
 const getCustomRulesForPool = (pool) =>
   normalizeSimulatorPoolType(pool?.type) === 'weapon' ? getWeaponPoolRules(pool) : null;
+
+const ORIGINITE_PROMPT_SUPPRESS_KEY = 'simulator_originite_prompt_suppress_date';
 
 function getTodayPromptKey() {
   return new Date().toISOString().slice(0, 10);
@@ -176,11 +200,9 @@ export function useGachaSimulatorController() {
   const [resetAllPools, setResetAllPools] = useState(false);
   const [resetKeepResources, setResetKeepResources] = useState(false);
   const [resetSettings, setResetSettings] = useState(false);
-  const [skipAnimation, setSkipAnimation] = useState(() =>
-    readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, false, { raw: true })
-  );
+  const [skipAnimation, setSkipAnimation] = useState(() => localStorage.getItem('simulator_skipAnimation') === 'true');
   const [multipleFreeTen, setMultipleFreeTen] = useState(
-    () => readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, false, { raw: true })
+    () => localStorage.getItem('simulator_multipleFreeTen') === 'true'
   );
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => fallbackLimitedPoolName);
@@ -214,7 +236,7 @@ export function useGachaSimulatorController() {
   }, [realPools]);
 
   const [currentSimPoolId, setCurrentSimPoolId] = useState(() =>
-    normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }))
+    normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey))
   );
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -233,7 +255,7 @@ export function useGachaSimulatorController() {
     const fallbackUpPool = fallbackLimitedPoolName;
     const nextSimulator = createSimulator('limited', null, fallbackUpPool, null);
     const nextResourceSettings = loadSimulatorResourceSettings(simulatorStorageScope);
-    const nextPoolId = normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }));
+    const nextPoolId = normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey));
     let cancelled = false;
 
     queueMicrotask(() => {
@@ -393,13 +415,19 @@ export function useGachaSimulatorController() {
         expectedType,
         currentUpName: upCharName,
         poolType,
-        poolInfo,
-        mergeStrategy: 'fill-missing'
+        poolInfo
       });
+      const dynamicRoster = buildDynamicRosterBuckets({
+        expectedType,
+        currentUpName: upCharName,
+        poolType,
+        poolInfo
+      });
+      const mergedRoster = mergeSimulatorRoster(roster, dynamicRoster);
 
-      if (roster?.up?.length > 0 || roster?.offBanner?.length > 0 || roster?.fiveStar?.length > 0 || roster?.fourStar?.length > 0) {
+      if (mergedRoster.up.length > 0 || mergedRoster.offBanner.length > 0 || mergedRoster.fiveStar.length > 0 || mergedRoster.fourStar.length > 0) {
         if (!cancelled) {
-          setPoolCharactersList(roster);
+          setPoolCharactersList(mergedRoster);
         }
         return;
       }
@@ -413,23 +441,16 @@ export function useGachaSimulatorController() {
     return () => {
       cancelled = true;
     };
-  }, [
-    currentPoolType,
-    currentSimPool?.id,
-    currentSimPool?.rotationPosition,
-    currentSimPool?.rotation_position,
-    currentSimPool?.start_time,
-    currentSimPool?.up_character
-  ]);
+  }, [currentPoolType, currentSimPool?.id, currentSimPool?.up_character]);
 
   useEffect(() => {
     if (currentSimPoolId && isInitialized) {
-      writeStorageValue(simulatorCurrentPoolStorageKey, currentSimPoolId, { raw: true });
+      localStorage.setItem(simulatorCurrentPoolStorageKey, currentSimPoolId);
       return;
     }
 
     if (isInitialized) {
-      removeStorageValue(simulatorCurrentPoolStorageKey, { raw: true });
+      localStorage.removeItem(simulatorCurrentPoolStorageKey);
     }
   }, [currentSimPoolId, isInitialized, simulatorCurrentPoolStorageKey]);
 
@@ -448,11 +469,11 @@ export function useGachaSimulatorController() {
   }, [poolCharactersList, simulator]);
 
   useEffect(() => {
-    writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, skipAnimation, { raw: true });
+    localStorage.setItem('simulator_skipAnimation', skipAnimation);
   }, [skipAnimation]);
 
   useEffect(() => {
-    writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, multipleFreeTen, { raw: true });
+    localStorage.setItem('simulator_multipleFreeTen', multipleFreeTen);
   }, [multipleFreeTen]);
 
   useEffect(() => {
@@ -464,7 +485,7 @@ export function useGachaSimulatorController() {
       return;
     }
 
-    const savedPoolId = normalizeStoredPoolId(readStorageValue(simulatorCurrentPoolStorageKey, null, { raw: true }));
+    const savedPoolId = normalizeStoredPoolId(localStorage.getItem(simulatorCurrentPoolStorageKey));
     let targetPool = null;
     let targetPoolId = null;
 
@@ -751,7 +772,7 @@ export function useGachaSimulatorController() {
     }
 
     if (disableOriginitePromptToday) {
-      writeStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, getTodayPromptKey(), { raw: true });
+      localStorage.setItem(ORIGINITE_PROMPT_SUPPRESS_KEY, getTodayPromptKey());
     }
 
     const pendingPrompt = showOriginitePrompt;
@@ -802,8 +823,7 @@ export function useGachaSimulatorController() {
 
         if (conversionPlan.canConvert && conversionPlan.originiteNeeded > 0) {
           const actionLabel = type === 'ten' ? t('simulator.toast.action.ten') : t('simulator.toast.action.single');
-          const suppressToday =
-            readStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, null, { raw: true }) === getTodayPromptKey();
+          const suppressToday = localStorage.getItem(ORIGINITE_PROMPT_SUPPRESS_KEY) === getTodayPromptKey();
 
           if (!suppressToday) {
             setDisableOriginitePromptToday(false);
@@ -926,7 +946,7 @@ export function useGachaSimulatorController() {
         }
       }
 
-      writeStorageValue(targetCurrentPoolStorageKey, currentSimPoolId, { raw: true });
+      localStorage.setItem(targetCurrentPoolStorageKey, currentSimPoolId);
 
       if (selectedGameUid !== currentGameUid) {
         switchGameAccount(selectedGameUid);
@@ -1038,8 +1058,8 @@ export function useGachaSimulatorController() {
     if (resetSettings) {
       setSkipAnimation(false);
       setMultipleFreeTen(false);
-      removeStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, { raw: true });
-      removeStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, { raw: true });
+      localStorage.removeItem('simulator_skipAnimation');
+      localStorage.removeItem('simulator_multipleFreeTen');
     }
 
     closeResetDialog();

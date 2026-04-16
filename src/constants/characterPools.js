@@ -8,7 +8,6 @@
 import { getPoolCharacters } from '../utils/characterUtils.js';
 import usePoolStore from '../stores/usePoolStore.js';
 import { getCurrentUpPoolInfo, getCurrentUpPoolName } from '../utils/poolTimeUtils.js';
-import appLogger from '../utils/appLogger.js';
 
 function getStorePoolsArray() {
   const storePools = usePoolStore.getState?.().pools;
@@ -358,7 +357,7 @@ export function getCharacterName(poolType, rarity, isUp = false, currentUpCharac
       if (isUp) {
         // 必须有明确的UP角色
         if (!currentUpCharacter) {
-          appLogger.warn('限定池抽到UP但未指定UP角色，使用默认');
+          console.warn('限定池抽到UP但未指定UP角色，使用默认');
           return randomChoice([...LIMITED_UP_CHARACTERS[6]]);
         }
         return currentUpCharacter;
