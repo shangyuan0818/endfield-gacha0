@@ -28,14 +28,15 @@ A full-featured gacha pull tracker and analytics tool for *Arknights: Endfield*,
 ## 核心功能 / Features
 
 - **多卡池支持** — 限定角色池（80 保底 / 120 硬保 / 240 赠送）、武器池（40 保底 / 80 硬保）、常驻池（80 保底 / 300 自选）
-- **官方 API 导入** — 通过 Token 一键导入完整抽卡记录，智能去重、实时进度
-- **数据可视化** — 全服 / 个人数据对比、稀有度饼图、6 星出货分布图、保底进度条
-- **抽卡模拟器** — 真实还原游戏内概率模型（含软保底机制），支持无限十连
-- **用户系统** — 邮箱认证、4 级权限体系（游客→用户→管理员→超管）、人机验证
-- **云端同步** — 登录后数据自动同步，支持 JSON / CSV 导入导出
-- **移动端适配** — 独立的移动端 UI，工业风格设计语言 + 暗色模式
-- **工单系统** — 应用内反馈、Bug 报告与建议提交
-- **管理后台** — 角色/武器数据同步、卡池管理、公告管理、用户管理、站点配置
+- **官方 API 导入** — 通过 Token 一键导入完整抽卡记录，智能去重、实时进度、区服纠错
+- **数据可视化** — 全服 / 个人数据对比、稀有度分布、出货趋势、保底进度与时间线
+- **抽卡模拟器** — 真实还原游戏内概率模型（含软保底机制）、资源系统与分享导出
+- **双语界面** — `zh-CN / en-US` 切换、字体链分流、桌面端与移动端共用 i18n 基座
+- **移动端重写** — 独立移动端路由与工业风 UI，支持亮暗主题、底栏导航、移动端详情/统计/模拟器
+- **云端同步** — 登录后数据自动同步，支持 JSON / CSV 导入导出、账号级导入新鲜度
+- **用户系统** — 邮箱认证、4 级权限体系（游客→用户→管理员→超管）、账号恢复申请、人机验证
+- **公告与自动化** — 官方公告 feed、站内公告双语输入、运营自动化运行审计、公告图片站内代理
+- **管理后台** — 角色/武器数据同步、卡池管理、公告管理、用户管理、站点配置、自动化审计
 
 ## 技术栈 / Tech Stack
 
@@ -96,6 +97,16 @@ npm test
 
 当前会顺序执行公开仓库内可复跑的核心验证脚本（模拟器继承、情报书资源口径、导入导出 round-trip、导入持久化、bootstrap cache、Supabase baseline）。私有 `backend/test-harness` 仍通过 `npm run test:harness` 单独维护。
 
+补充验证入口：
+
+```bash
+npm run lint
+npm run test:unit
+npm run build
+```
+
+当前 GitHub Actions 也执行这三类检查，并额外覆盖 `npm run test:dashboard-ordering`。`verify-supabase-baseline` 已修正为跨平台路径一致，不再因 Windows / Linux 路径分隔符差异误报。
+
 若需对 Supabase baseline 做一次真实数据库 smoke，可在本机启动 Docker Desktop 后执行：
 
 ```bash
@@ -138,7 +149,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key       # 仅服务端使用：账
 ### Vercel 部署
 
 1. Fork 仓库 → 在 [Supabase](https://supabase.com) 创建项目
-2. 新环境可直接执行 `supabase/baseline/000_complete_schema.sql` 起库；当前基线已覆盖到 `085_restore_history_v2_columns.sql`
+2. 新环境可直接执行 `supabase/baseline/000_complete_schema.sql` 起库；当前基线已覆盖到 `098_add_pool_name_en.sql`
 3. 启用 `global_stats` 表的 Realtime
 4. 如需账号恢复 / bootstrap / 受限管理接口，给 Vercel Serverless Functions 配置 `SUPABASE_SERVICE_ROLE_KEY`
 5. 若要启用邮箱注册确认，再额外配置 SMTP
@@ -160,12 +171,9 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key       # 仅服务端使用：账
 - `supabase/manual/`：破坏性 / 高风险 / 回滚 / 数据回填脚本，仅手工执行
 - `supabase/docs/`：迁移说明文档
 
-当前 `baseline/000_complete_schema.sql` 已覆盖到 `085_restore_history_v2_columns.sql`。新环境可直接执行 baseline 起库；若后续新增了编号更高的迁移，再只补执行“覆盖范围之后”的标准前向迁移。不要再把同一批 `migrations/` 叠加执行在同版本 baseline 之上。超管功能需部署 Edge Functions（`admin-create-user`、`admin-delete-user`）：
+当前 `baseline/000_complete_schema.sql` 已覆盖到 `098_add_pool_name_en.sql`。新环境可直接执行 baseline 起库；若后续新增了编号更高的迁移，再只补执行“覆盖范围之后”的标准前向迁移。不要再把同一批 `migrations/` 叠加执行在同版本 baseline 之上。
 
-```bash
-supabase functions deploy admin-create-user
-supabase functions deploy admin-delete-user
-```
+当前后台管理接口主链已收口到 Vercel Serverless `api/admin.js`，并通过 `vercel.json` rewrite 兼容旧的 `admin-users / admin-delete-user / admin-user-reset-password / admin-ops-automation` 路径；不再要求额外部署同名 Supabase Edge Functions。
 
 ## 项目结构
 
@@ -200,6 +208,17 @@ gacha-analyzer/
 ```
 
 ## 更新日志 / Changelog
+
+### v4.0.0 (2026-04-16)
+- 接入中文 `Judou Sans SE`、英文 `Space Grotesk` 与数字 `IBM Plex Mono` 字体链；前瞻特别节目倒计时卡继续保留 `Noto Serif SC`
+- 站内公告补齐英文标题 / 英文正文输入；前台英文环境优先显示英文，空字段自动回退中文
+- 官方游戏公告改为前端优先直连 feed，并补齐稳定摘要派生、公告图片站内代理、防盗链规避与代理路径归一化修复
+- 管理后台用户管理补齐全量加载、用户名/邮箱/用户 ID 搜索、删除用户、管理员重置密码与虚拟滚动；后台默认改为按页签延迟读取，避免首次整表拉取
+- 建立最小可用 CI 与前端单测底座，公开验证链现覆盖 `lint / dashboard-ordering / npm test / test:unit / build`
+- 移动端主路由与新壳层已进入主线：`/m`、`/m/overview`、`/m/details`、`/m/stats`、`/m/simulator`；移动端语言切换、亮暗主题、首页子页、总览 / 统计 / 详情主链已接入
+- 卡池英文名链路已打通：数据库新增 `pools.name_en`，管理页可维护英文卡池名，公开读取链与展示链同步支持
+- 分享链继续收口：紧凑统计布局、本地资源图标、时间线简化、二维码品牌区、Firefox 首次“预生成”卡死修复
+- Vercel Hobby 12 个函数上限已收口：5 个 `admin-*` 函数合并为单个 `api/admin.js`
 
 ### v3.5.0 (2026-03-12)
 - 增加公共 bootstrap 只读代理，聚合站点配置与公共卡池，并把全服统计改为按需拉取

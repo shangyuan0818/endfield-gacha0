@@ -26,7 +26,7 @@
 3. 仅当仓库里存在“编号高于 baseline 覆盖范围”的新迁移时，再补执行这些较新的 `migrations/` 文件
 4. 仅在明确场景下手工执行 `manual/` 中的脚本
 
-当前仓库内的 baseline 已覆盖到 `active\085_restore_history_v2_columns.sql`，因此不要再把 `001~085` 这批标准迁移重复叠加执行在同版本 baseline 上。
+当前仓库内的 baseline 已覆盖到 `active/098_add_pool_name_en.sql`，因此不要再把 `001~098` 这批标准迁移重复叠加执行在同版本 baseline 上。
 
 当前标准链已在后段显式移除 `admin_applications` 历史遗留表；不要再把管理员申请流重新写回 baseline 或新迁移。
 
@@ -37,5 +37,12 @@
 - 新迁移必须保持编号唯一
 - 修改 `archive/migrations/` 或 `migrations/` 后，如果希望刷新新环境基线，请执行 `npm run generate:supabase-baseline`
 - baseline 刷新后请同步执行 `npm run test:supabase-baseline`，确认头部覆盖范围与首尾 migration 标记一致
+- `generate-supabase-baseline` 与 `verify-supabase-baseline` 现已统一输出 POSIX 路径；不要再手工把 `archive/001...` 改回 Windows 反斜杠，否则 GitHub Actions 会在 Linux 上失败
 - 已验证 `npm run test:supabase-baseline:smoke` 可在临时 PostgreSQL 容器内注入最小 Supabase `auth` stub 后真实运行 baseline；如需复跑，请先确保 Docker daemon 可访问
 - 若要评估 `history.character_id / legacy_pool_id` 的退役准备度，请执行 `npm run audit:canonical-retirement-readiness`；当前 canonical 数据审计与兼容字段退场窗口以这支脚本和 `DATA-NEW-008` 为准，而不是旧的 FEAT-007 历史文档
+
+## 当前与部署相关的边界
+
+- 当前管理后台主链使用的是 Vercel Serverless `api/admin.js`，通过 `vercel.json` rewrite 兼容旧的 `admin-*` 路径
+- 不要在部署说明里再要求额外部署 `admin-create-user`、`admin-delete-user` 这类旧 Supabase Edge Function
+- `supabase/functions/` 仍保留其他确有需要的 Edge Function 说明，但它们不再是当前后台用户管理主路径
