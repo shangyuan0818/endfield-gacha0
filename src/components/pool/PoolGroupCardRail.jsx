@@ -267,7 +267,7 @@ const PoolGroupCardRail = ({
 
   return (
     <div className={`relative border-t border-zinc-100 dark:border-zinc-800 pt-4 ${className}`}>
-      <div className="flex flex-nowrap items-end gap-2 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide">
+      <div className="pool-card-rail-scrollbar flex flex-nowrap items-end gap-2 overflow-x-scroll overflow-y-hidden pb-2 -mx-1 px-1">
         {leadingOverview && showGroupOverviewCards ? (
           <OverviewCard
             title={leadingOverview.title}

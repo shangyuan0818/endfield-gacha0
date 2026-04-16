@@ -48,10 +48,11 @@ import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups }
 import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './simulatorInheritance';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
-import { buildDynamicRosterBuckets, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
+import { POOL_GROUP_PREFIX } from '../../utils/poolGroupUtils.js';
 
 function dedupeRosterEntries(items = []) {
   const seen = new Set();
@@ -65,22 +66,60 @@ function dedupeRosterEntries(items = []) {
   });
 }
 
-function mergeSimulatorRoster(resolvedRoster, dynamicRoster) {
-  const resolvedItems = resolvedRoster || {};
-  const fallbackItems = dynamicRoster || {};
+function normalizeSimulatorRoster(roster) {
+  if (!roster) {
+    return null;
+  }
+
+  const items = Array.isArray(roster.items) ? roster.items : [];
+  const mapNamesToEntries = (names = [], rarity = 0, isUp = false) =>
+    (Array.isArray(names) ? names : []).map((name) => ({
+      id: String(name || '').trim(),
+      name: String(name || '').trim(),
+      rarity,
+      isUp,
+    })).filter((item) => item.name);
+
+  const resolvedUp = Array.isArray(roster.up) ? roster.up : [];
+  const resolvedOffBanner = Array.isArray(roster.offBanner)
+    ? roster.offBanner
+    : [];
+  const resolvedFiveStar = items.filter((item) => Number(item?.rarity) === 5);
+  const resolvedFourStar = items.filter((item) => Number(item?.rarity) === 4);
 
   return {
-    up: dedupeRosterEntries([...(resolvedItems.up || []), ...(fallbackItems.up || [])]),
-    offBanner: dedupeRosterEntries([...(resolvedItems.offBanner || []), ...(fallbackItems.offBanner || [])]),
-    fiveStar: dedupeRosterEntries([
-      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 5) : []),
-      ...(fallbackItems.items || []).filter((item) => item.rarity === 5)
-    ]),
-    fourStar: dedupeRosterEntries([
-      ...(Array.isArray(resolvedItems.items) ? resolvedItems.items.filter((item) => item.rarity === 4) : []),
-      ...(fallbackItems.items || []).filter((item) => item.rarity === 4)
-    ]),
+    up: dedupeRosterEntries(resolvedUp),
+    offBanner: dedupeRosterEntries(resolvedOffBanner),
+    fiveStar: dedupeRosterEntries(
+      resolvedFiveStar.length > 0 ? resolvedFiveStar : mapNamesToEntries(roster.fiveStar, 5)
+    ),
+    fourStar: dedupeRosterEntries(
+      resolvedFourStar.length > 0 ? resolvedFourStar : mapNamesToEntries(roster.fourStar, 4)
+    ),
   };
+}
+
+function isAggregateSimulatorPool(pool) {
+  const rawId = String(pool?.id || pool?.pool_id || '').trim();
+  const rawName = String(pool?.name || '').trim();
+
+  if (!rawId && !rawName) {
+    return false;
+  }
+
+  if (rawId.startsWith(POOL_GROUP_PREFIX)) {
+    return true;
+  }
+
+  return [
+    /^全部.+池$/,
+    /^全部.+卡池$/,
+    /^全部.+寻访$/,
+    /^全.+池$/,
+    /汇总/,
+    /总览/,
+    /概览/
+  ].some((pattern) => pattern.test(rawName));
 }
 
 const getWeaponPoolRules = (pool) =>
@@ -220,12 +259,14 @@ export function useGachaSimulatorController() {
 
   const simulatorPools = useMemo(() => {
     const poolsArray = Array.isArray(realPools) ? realPools : [];
-    const sortedPools = [...poolsArray].sort((left, right) => {
+    const sortedPools = [...poolsArray]
+      .filter((pool) => !isAggregateSimulatorPool(pool))
+      .sort((left, right) => {
       if (!left.start_time && !right.start_time) return 0;
       if (!left.start_time) return 1;
       if (!right.start_time) return -1;
       return new Date(left.start_time).getTime() - new Date(right.start_time).getTime();
-    });
+      });
 
     return sortedPools.map((pool) => ({
       ...pool,
@@ -401,37 +442,25 @@ export function useGachaSimulatorController() {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
       const upCharName = currentSimPool.up_character;
       const realPoolId = currentSimPool.id.replace(/^sim_/, '');
-      const poolType = currentPoolType === 'weapon'
-        ? 'weapon'
-        : currentPoolType === 'standard'
-          ? 'standard'
-          : 'limited';
-      const poolInfo = {
-        start_time: currentSimPool?.start_time || null,
-        rotation_position: currentSimPool?.rotation_position ?? currentSimPool?.rotationPosition ?? null
-      };
-      const roster = await resolvePoolRosterBuckets({
-        poolId: realPoolId,
+      const roster = await fetchPoolRosterBuckets(realPoolId, {
         expectedType,
-        currentUpName: upCharName,
-        poolType,
-        poolInfo
+        currentUpName: upCharName
       });
-      const dynamicRoster = buildDynamicRosterBuckets({
-        expectedType,
-        currentUpName: upCharName,
-        poolType,
-        poolInfo
-      });
-      const mergedRoster = mergeSimulatorRoster(roster, dynamicRoster);
+      const mergedRoster = normalizeSimulatorRoster(roster);
 
-      if (mergedRoster.up.length > 0 || mergedRoster.offBanner.length > 0 || mergedRoster.fiveStar.length > 0 || mergedRoster.fourStar.length > 0) {
+      if (
+        mergedRoster
+        && (mergedRoster.up.length > 0
+          || mergedRoster.offBanner.length > 0
+          || mergedRoster.fiveStar.length > 0
+          || mergedRoster.fourStar.length > 0)
+      ) {
         if (!cancelled) {
           setPoolCharactersList(mergedRoster);
         }
         return;
       }
-      appLogger.warn('[GachaSimulator] 当前卡池阵容未能解析，回退为空列表');
+      appLogger.warn('[GachaSimulator] 当前卡池未配置显式阵容，模拟器已禁用默认回退');
       if (!cancelled) {
         setPoolCharactersList(null);
       }

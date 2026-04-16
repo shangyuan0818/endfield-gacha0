@@ -297,7 +297,12 @@ const SimulatorToolbar = ({
 
   return (
     <div className="mb-6 px-2 space-y-5">
-      <PoolGroupCardRail groups={selectorGroups} currentSelectionId={currentSimPoolId} onSelectPool={onSwitchPool} />
+      <PoolGroupCardRail
+        groups={selectorGroups}
+        currentSelectionId={currentSimPoolId}
+        onSelectPool={onSwitchPool}
+        showGroupOverviewCards={false}
+      />
 
       <div className="flex flex-col xl:flex-row gap-6">
         {/* 左侧：资源管理 (当前投入与累计统计) */}

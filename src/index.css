@@ -1167,6 +1167,37 @@
     height: 0;
   }
 
+  .pool-card-rail-scrollbar {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(161, 161, 170, 0.9) transparent;
+  }
+
+  .pool-card-rail-scrollbar::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .pool-card-rail-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .pool-card-rail-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(161, 161, 170, 0.9);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .dark .pool-card-rail-scrollbar {
+    scrollbar-color: rgba(82, 82, 91, 0.95) transparent;
+  }
+
+  .dark .pool-card-rail-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(82, 82, 91, 0.95);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
   /* 移动端滑入动画 */
   @keyframes slide-up {
     from {
