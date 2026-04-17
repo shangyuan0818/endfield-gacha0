@@ -25,8 +25,8 @@ export const STORAGE_KEYS = {
   SITE_CONFIG_SNAPSHOT_V1: 'site_config_snapshot_v1',
   PUBLIC_BOOTSTRAP_SNAPSHOT_V2: 'public_bootstrap_snapshot_v2',
   GLOBAL_SUMMARY_STATS_SNAPSHOT: 'global_summary_stats_snapshot',
-  CHARACTER_RANKING_SNAPSHOT: 'character_ranking_snapshot',
-  USER_RANKING_SNAPSHOT_PREFIX: 'user_ranking_snapshot_',
+  CHARACTER_RANKING_SNAPSHOT: 'character_ranking_snapshot_v2',
+  USER_RANKING_SNAPSHOT_PREFIX: 'user_ranking_snapshot_v2_',
   ACCOUNT_METADATA: 'gacha_account_metadata',
   // 首页折叠状态
   HOME_ANNOUNCEMENT_COLLAPSED: 'home_announcement_collapsed',

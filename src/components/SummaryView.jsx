@@ -6,6 +6,8 @@ import { useI18n } from '../i18n/index.js';
 // 拆分后的组件
 import { RankingCard, ChartSection, SummarySidebar } from './summary';
 import ResourceSummaryPanel from './resources/ResourceSummaryPanel';
+import { characterCache } from '../utils/characterUtils';
+import { localizeEntityName } from '../utils/gameDataI18n.js';
 
 // 拆分后的 Hooks
 import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hooks/summary';
@@ -16,7 +18,7 @@ import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hook
  * 2026-02-07 重构完成
  */
 const SummaryView = React.memo(() => {
-  const { t, formatNumber } = useI18n();
+  const { t, formatNumber, locale } = useI18n();
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const formatCount = (value) => formatNumber(Number(value) || 0);
   const formatPercent = (value, digits = 1) => `${formatNumber(value, {
@@ -50,6 +52,7 @@ const SummaryView = React.memo(() => {
     fetchGlobalStats,
     variant: 'desktop'
   });
+  const limitedUpEntries = (ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || []).slice(0, 6);
   const globalStatsMeta = dataSource === 'global' ? currentStats?.meta : null;
   const showGlobalStatsFallbackNotice = globalStatsMeta && globalStatsMeta.status && globalStatsMeta.status !== 'ready';
   const contributorRegionStats = dataSource === 'global' ? currentStats?.contributorsByRegion : null;
@@ -148,21 +151,59 @@ const SummaryView = React.memo(() => {
                         <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
                           <Star size={16} className="text-amber-500" />
                           <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{tt('summary.section.limitedUpAnalysis', '限定池 UP 6★ 分析')}</h4>
-                          <span className="text-[10px] text-zinc-400 ml-auto font-mono">{tt('summary.section.rankAndBreakdown', '排名 & 分布')}</span>
                         </div>
                         
                         <div className="grid grid-cols-1 xl:grid-cols-10 gap-6">
-                          {/* 左侧：UP 六星排名 */}
+                          {/* 左侧：UP 六星列表 */}
                           <div className="h-full xl:col-span-4 border-r-0 xl:border-r border-zinc-100 dark:border-zinc-800 xl:pr-6 border-b xl:border-b-0 pb-6 xl:pb-0">
-                              <RankingCard
-                                ranking={ranking}
-                                loading={isRankingLoading}
-                                poolType="limited"
-                                title={tt('summary.ranking.limitedUpSix', '限定池 UP 6★')}
-                                visibleSections={['limitedUp']}
-                                flatLayout={true}
-                                denseFlatLayout={true}
-                              />
+                            <div className="h-full">
+                              <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1 border-l-2 border-zinc-300 dark:border-zinc-700 mb-3">
+                                {tt('summary.ranking.limitedUpSix', '限定池 UP 6★')}
+                              </div>
+                              {isRankingLoading ? (
+                                <div className="flex items-center justify-center h-full text-zinc-400 text-xs">
+                                  <RefreshCw size={14} className="animate-spin mr-2" />
+                                  {tt('summary.loading.ranking', '加载排名...')}
+                                </div>
+                              ) : limitedUpEntries.length === 0 ? (
+                                <div className="flex items-center justify-center h-full text-zinc-400 text-xs italic">
+                                  {tt('summary.ranking.empty', '暂无排名数据')}
+                                </div>
+                              ) : (
+                                <div className="grid grid-cols-2 gap-3">
+                                  {limitedUpEntries.map((char) => {
+                                    const charData = characterCache.searchByName(char.name, false);
+                                    const avatarUrl = charData?.avatar_url;
+                                    const localizedName = localizeEntityName(char.name, { locale, type: 'character' });
+
+                                    return (
+                                      <div
+                                        key={char.name}
+                                        className="flex items-center gap-2 rounded-sm bg-zinc-50 dark:bg-zinc-800/50 px-2 py-1.5 min-w-0"
+                                      >
+                                        <div className="w-8 h-8 rounded-sm overflow-hidden bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex-shrink-0">
+                                          {avatarUrl ? (
+                                            <img src={avatarUrl} alt={localizedName} loading="lazy" className="w-full h-full object-cover" />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                              <User size={14} className="text-zinc-400" />
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-[11px] leading-tight font-medium text-slate-700 dark:text-zinc-300 break-words">
+                                            {localizedName}
+                                          </div>
+                                          <div className="text-[10px] leading-none font-mono text-zinc-400 mt-1">
+                                            ×{char.count}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* 右侧：六星出货分类统计 */}

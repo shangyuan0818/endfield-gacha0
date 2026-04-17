@@ -21,6 +21,7 @@ const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
 const STATS_API_TIMEOUT_MS = 25000;
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
+const EXPECTED_LIMITED_UP_DISPLAY_COUNT = 6;
 const globalStatsRequestState = {
   data: null,
   fetchedAt: 0,
@@ -116,6 +117,32 @@ async function fetchCharacterRankingDirect() {
   return data ?? null;
 }
 
+async function fetchCharacterRankingUncached() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_character_ranking_stats');
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+async function fetchUserRankingUncached(userId) {
+  if (!supabase || !userId) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_user_ranking_stats', { p_user_id: userId });
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
 function createEmptyTypeStats() {
   return {
     total: 0,
@@ -133,6 +160,15 @@ function createEmptyTypeStats() {
     chartData: [],
     resources: buildResourceSummaryFromAggregates()
   };
+}
+
+function getLimitedUpRankingLength(ranking) {
+  const entries = ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || [];
+  return Array.isArray(entries) ? entries.length : 0;
+}
+
+function shouldBypassRankingCache(ranking) {
+  return getLimitedUpRankingLength(ranking) === EXPECTED_LIMITED_UP_DISPLAY_COUNT - 1;
 }
 
 export function createEmptyGlobalSummaryStats(meta = {}) {
@@ -568,15 +604,21 @@ export async function getCharacterRankingStats(forceRefresh = false) {
       characterRankingRequestState,
       async () => {
         const apiPayload = await fetchStatsApi('character_ranking').catch(() => null);
-        if (apiPayload?.characterRanking) {
+        if (apiPayload?.characterRanking && !shouldBypassRankingCache(apiPayload.characterRanking)) {
           writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, apiPayload.characterRanking);
           return apiPayload.characterRanking;
         }
 
         const directRanking = await fetchCharacterRankingDirect().catch(() => null);
-        if (directRanking) {
+        if (directRanking && !shouldBypassRankingCache(directRanking)) {
           writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, directRanking);
           return directRanking;
+        }
+
+        const uncachedRanking = await fetchCharacterRankingUncached().catch(() => null);
+        if (uncachedRanking) {
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, uncachedRanking);
+          return uncachedRanking;
         }
 
         return readPersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT);
@@ -615,6 +657,14 @@ export async function getUserRankingStats(userId) {
 
         if (error) {
           throw error;
+        }
+
+        if (shouldBypassRankingCache(data)) {
+          const uncachedRanking = await fetchUserRankingUncached(userId).catch(() => null);
+          if (uncachedRanking) {
+            writePersistedSnapshot(`${STORAGE_KEYS.USER_RANKING_SNAPSHOT_PREFIX}${userId}`, uncachedRanking);
+            return uncachedRanking;
+          }
         }
 
         writePersistedSnapshot(`${STORAGE_KEYS.USER_RANKING_SNAPSHOT_PREFIX}${userId}`, data);
