@@ -16,6 +16,12 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const PUBLIC_AVATAR_DIR = path.join(PROJECT_ROOT, 'public', 'avatars');
 const AVATAR_BUCKET_ID = 'avatars';
 const DEFAULT_PAGE_SIZE = 1000;
+const ENV_FILE_CANDIDATES = [
+  path.join(PROJECT_ROOT, '.env.local'),
+  path.join(PROJECT_ROOT, '.env'),
+  path.join(PROJECT_ROOT, 'backend', '.env.local'),
+  path.join(PROJECT_ROOT, 'backend', '.env')
+];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -97,12 +103,7 @@ async function downloadAvatar(item) {
 }
 
 function loadEnvironmentFiles() {
-  const envFiles = [
-    path.join(PROJECT_ROOT, '.env'),
-    path.join(PROJECT_ROOT, 'backend', '.env.local')
-  ];
-
-  for (const envPath of envFiles) {
+  for (const envPath of ENV_FILE_CANDIDATES) {
     try {
       const envContent = fs.readFileSync(envPath, 'utf-8');
       for (const line of envContent.split('\n')) {
@@ -117,7 +118,13 @@ function loadEnvironmentFiles() {
         }
 
         const key = trimmed.slice(0, separatorIndex).trim();
-        const value = trimmed.slice(separatorIndex + 1).trim();
+        let value = trimmed.slice(separatorIndex + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"'))
+          || (value.startsWith('\'') && value.endsWith('\''))
+        ) {
+          value = value.slice(1, -1);
+        }
         if (typeof process.env[key] === 'undefined') {
           process.env[key] = value;
         }

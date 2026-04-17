@@ -17,6 +17,7 @@ const TEAM_STARDUST_PAGE_CONFIG = Object.freeze({
 
 const PAGE_RENDER_WAIT_MS = 4000;
 const LANGUAGE_SWITCH_WAIT_MS = 2000;
+const CATALOG_WAIT_TIMEOUT_MS = 30000;
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
 
 function findEdgeExecutable() {
@@ -97,11 +98,19 @@ async function switchPageLanguageToChinese(page, config, logger) {
     await page.selectOption('#language-select', '中文');
     await page.waitForLoadState('domcontentloaded').catch(() => null);
     await page.waitForTimeout(LANGUAGE_SWITCH_WAIT_MS);
-    await page.waitForSelector(config.itemSelector, { timeout: 10000 }).catch(() => null);
+    await waitForCatalogItems(page, config).catch(() => null);
     logger('Team Stardust 已切换为中文页面');
   } catch {
     // Ignore language-switch failures and fall back to the default locale.
   }
+}
+
+async function waitForCatalogItems(page, config, timeout = CATALOG_WAIT_TIMEOUT_MS) {
+  await page.waitForFunction(
+    ({ hrefPrefix }) => document.querySelectorAll(`a[href^="${hrefPrefix}"]`).length > 0,
+    { timeout },
+    { hrefPrefix: config.hrefPrefix }
+  );
 }
 
 export async function loadTeamStardustAssetCatalog(types = ['character', 'weapon'], { logger = () => {} } = {}) {
@@ -134,7 +143,7 @@ export async function loadTeamStardustAssetCatalog(types = ['character', 'weapon
         logger(`加载 Team Stardust ${itemType} 目录: ${config.url}`);
         await page.goto(config.url, { waitUntil: 'domcontentloaded' });
         await page.waitForTimeout(PAGE_RENDER_WAIT_MS);
-        await page.waitForSelector(config.itemSelector, { timeout: 10000 }).catch(() => null);
+        await waitForCatalogItems(page, config).catch(() => null);
         await switchPageLanguageToChinese(page, config, logger);
 
         const records = await extractCatalogEntries(page, config.hrefPrefix);

@@ -28,6 +28,12 @@ import { loadSklandCatalogRecords } from './lib/sklandCatalogSource.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const PUBLIC_AVATAR_DIR = path.join(PROJECT_ROOT, 'public', 'avatars');
+const ENV_FILE_CANDIDATES = [
+  path.join(PROJECT_ROOT, '.env.local'),
+  path.join(PROJECT_ROOT, '.env'),
+  path.join(PROJECT_ROOT, 'backend', '.env.local'),
+  path.join(PROJECT_ROOT, 'backend', '.env'),
+];
 
 const EXCLUDED_NAME_PATTERNS = [/^管理员/];
 const STRIP_SUFFIXES = ['-前瞻'];
@@ -190,12 +196,7 @@ async function downloadToLocalAsset(url, outputPath) {
 }
 
 function loadEnvironmentFiles() {
-  const envFiles = [
-    path.join(PROJECT_ROOT, '.env'),
-    path.join(PROJECT_ROOT, 'backend', '.env.local'),
-  ];
-
-  for (const envPath of envFiles) {
+  for (const envPath of ENV_FILE_CANDIDATES) {
     try {
       const envContent = fs.readFileSync(envPath, 'utf-8');
       for (const line of envContent.split('\n')) {
@@ -210,8 +211,14 @@ function loadEnvironmentFiles() {
         }
 
         const key = trimmed.slice(0, separatorIndex).trim();
-        const value = trimmed.slice(separatorIndex + 1).trim();
-        if (!process.env[key]) {
+        let value = trimmed.slice(separatorIndex + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"'))
+          || (value.startsWith('\'') && value.endsWith('\''))
+        ) {
+          value = value.slice(1, -1);
+        }
+        if (typeof process.env[key] === 'undefined') {
           process.env[key] = value;
         }
       }
