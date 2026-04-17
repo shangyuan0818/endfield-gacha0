@@ -33,7 +33,8 @@ function getHistoryGameUid(item) {
 }
 
 function getHistoryRecordKey(item) {
-  return item.id || item.record_id || null;
+  const value = item?.id || item?.record_id || null;
+  return value == null ? null : String(value);
 }
 
 function getHistorySeqId(item) {
@@ -326,7 +327,7 @@ export function useCurrentPoolData() {
   }, [annotatedAccountHistoryArray, poolsArray, user?.id]);
 
   const crossPoolPityMap = useMemo(() => {
-    if (isGroupMode || !LIMITED_POOL_TYPES.has(currentPool?.type)) {
+    if (allLimitedHistory.length === 0) {
       return null;
     }
 
@@ -363,7 +364,7 @@ export function useCurrentPoolData() {
       });
 
     return map;
-  }, [allLimitedHistory, currentPool?.type, isGroupMode]);
+  }, [allLimitedHistory]);
 
   return {
     poolsArray,

@@ -367,6 +367,7 @@ const PoolTimelinePanel = ({
   selectedPools = [],
   isGroupMode = false,
   isAllPoolsOverview = false,
+  crossPoolPityMap = null,
   effectivePity = null,
   analysisPity = null,
   overviewAnalysisPityMap = null,
@@ -384,6 +385,7 @@ const PoolTimelinePanel = ({
       currentPoolHistory,
       groupedHistory,
       selectedPools,
+      crossPoolPityMap,
       isGroupMode,
       isAllPoolsOverview,
       effectivePity,
@@ -393,7 +395,7 @@ const PoolTimelinePanel = ({
       hasMergedAccountView,
       locale
     });
-  }, [analysisPity, currentPool, currentPoolHistory, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
+  }, [analysisPity, crossPoolPityMap, currentPool, currentPoolHistory, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, overviewAnalysisPityMap, overviewPoolFilter, selectedPools]);
 
   const totalNodes = countDashboardTimelineNodes(sections);
   const title = isAllPoolsOverview

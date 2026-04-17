@@ -6,10 +6,16 @@ function getHistoryTimestamp(item) {
     : new Date(item?.timestamp || 0).getTime();
 }
 
+function getHistoryRecordKey(item) {
+  const value = item?.id || item?.record_id || null;
+  return value == null ? null : String(value);
+}
+
 export function buildCharacterStats({
   history = [],
   isLimitedPool = false,
-  crossPoolPityMap = null
+  crossPoolPityMap = null,
+  limitedPoolIds = null
 }) {
   const characters = new Map();
   let pullIndex = 0;
@@ -17,6 +23,15 @@ export function buildCharacterStats({
   let fiveStarPityCounter = 0;
 
   const sortedHistory = [...history].sort((left, right) => getHistoryTimestamp(left) - getHistoryTimestamp(right));
+
+  const isLimitedHistoryItem = (item) => {
+    if (limitedPoolIds instanceof Set) {
+      const poolId = item?.poolId || item?.pool_id || null;
+      return Boolean(poolId) && limitedPoolIds.has(poolId);
+    }
+
+    return isLimitedPool;
+  };
 
   sortedHistory.forEach((item) => {
     if (item?.specialType === 'gift' || item?.special_type === 'gift') {
@@ -41,8 +56,8 @@ export function buildCharacterStats({
     let pityValue;
     if (isFree) {
       pityValue = 'free';
-    } else if (isLimitedPool && crossPoolPityMap) {
-      const crossPity = crossPoolPityMap.get(item?.id || item?.record_id);
+    } else if (isLimitedHistoryItem(item) && crossPoolPityMap) {
+      const crossPity = crossPoolPityMap.get(getHistoryRecordKey(item));
       pityValue = crossPity
         ? (item?.rarity === 6 ? crossPity.sixStarPity : crossPity.fiveStarPity)
         : (item?.rarity === 6 ? sixStarPityCounter : fiveStarPityCounter);

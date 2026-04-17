@@ -23,6 +23,11 @@ function isFreePull(pull) {
   return pull?.isFree === true || pull?.is_free === true;
 }
 
+function getHistoryRecordKey(item) {
+  const value = item?.id || item?.record_id || null;
+  return value == null ? null : String(value);
+}
+
 /**
  * 卡池统计 Hook
  * 处理统计计算逻辑：stats、groupedHistory、filteredGroupedHistory、effectivePity 等
@@ -48,6 +53,29 @@ export function usePoolStats({
   const isLimitedPool = normalizedPoolType === 'limited';
   const isWeaponPool = normalizedPoolType === 'weapon';
   const isStandardPool = normalizedPoolType === 'standard' || normalizedPoolType === 'beginner';
+  const limitedCrossPoolPityMap = useMemo(() => {
+    if (!isLimitedPool || !Array.isArray(allLimitedHistory) || allLimitedHistory.length === 0) {
+      return null;
+    }
+
+    const map = new Map();
+    let sixPity = 0;
+
+    allLimitedHistory.forEach((item) => {
+      if (isGiftPull(item) || isFreePull(item)) {
+        return;
+      }
+
+      sixPity += 1;
+      const recordKey = getHistoryRecordKey(item);
+      if (Number(item?.rarity) >= 6 && recordKey) {
+        map.set(recordKey, sixPity);
+        sixPity = 0;
+      }
+    });
+
+    return map;
+  }, [allLimitedHistory, isLimitedPool]);
 
   // 主统计计算
   const stats = useMemo(() => {
@@ -201,8 +229,14 @@ export function usePoolStats({
           isActuallyLimited = !!(charInfo && charInfo.is_limited);
         }
 
+        const inheritedSixStarCount = isLimitedPool
+          ? limitedCrossPoolPityMap?.get(getHistoryRecordKey(pull))
+          : null;
+        const effectiveSixStarCount = Number.isFinite(inheritedSixStarCount) && inheritedSixStarCount > 0
+          ? inheritedSixStarCount
+          : tempCounter;
         const pullRecord = {
-          count: tempCounter,
+          count: effectiveSixStarCount,
           isStandard: pull.isStandard,
           isGuaranteed: pull.specialType === 'guaranteed',
           isSpark
@@ -226,14 +260,22 @@ export function usePoolStats({
       ? (pullCounts.reduce((a, b) => a + b, 0) / pullCounts.length).toFixed(1)
       : 0;
 
-    const avgAllSixStar = realTotalSix > 0 ? (total / realTotalSix).toFixed(2) : '0';
+    const avgAllSixStar = pullCounts.length > 0
+      ? (pullCounts.reduce((sum, value) => sum + value, 0) / pullCounts.length).toFixed(2)
+      : '0';
 
-    // BUG-035: 统一 UP 平均出货为 totalPulls / upCount
+    // BUG-035: 对限定角色池，UP 平均改为按真实命中区间均值计算，保持与跨池保底继承一致
     const upHitCount = upSixStarHits.length;
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
     const nonSparkUpCount = upHitCount - sparkCount;
-    const avgUpSixStar = upHitCount > 0 ? (total / upHitCount).toFixed(2) : '0';
-    const avgUpSixStarExcludingSpark = nonSparkUpCount > 0 ? (total / nonSparkUpCount).toFixed(2) : '0';
+    const upHitPullCounts = upSixStarHits.map((pull) => pull.count);
+    const nonSparkUpPullCounts = upSixStarHits.filter((pull) => !pull.isSpark).map((pull) => pull.count);
+    const avgUpSixStar = upHitPullCounts.length > 0
+      ? (upHitPullCounts.reduce((sum, value) => sum + value, 0) / upHitPullCounts.length).toFixed(2)
+      : '0';
+    const avgUpSixStarExcludingSpark = nonSparkUpPullCounts.length > 0
+      ? (nonSparkUpPullCounts.reduce((sum, value) => sum + value, 0) / nonSparkUpPullCounts.length).toFixed(2)
+      : '0';
 
     // 限定六星平均也统一用 UP 口径（totalPulls / upCount）
     const avgLimitedSixStar = avgUpSixStarExcludingSpark;
@@ -327,7 +369,7 @@ export function usePoolStats({
       pullsUntilInfoBook,
       resourceSummary
     };
-  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, normalizedCurrentPoolHistory, normalizedPoolType]);
+  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, limitedCrossPoolPityMap, normalizedCurrentPoolHistory, normalizedPoolType]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {

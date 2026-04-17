@@ -40,6 +40,10 @@ function getHistorySeqId(item) {
   return parseInt(item?.seqId || item?.seq_id || '0', 10) || 0;
 }
 
+function getHistoryRecordKey(item) {
+  return String(item?.id || item?.record_id || '');
+}
+
 function getHistoryTimestamp(item) {
   if (typeof item?.timestamp === 'number') {
     return item.timestamp;
@@ -285,11 +289,27 @@ function buildOrderedTimelineGroups(history = []) {
   return groups;
 }
 
-function calculateTimelineMetrics(history = []) {
+function getInheritedLimitedPityForItem(item, crossPoolPityMap = null) {
+  if (!(crossPoolPityMap instanceof Map)) {
+    return null;
+  }
+
+  const recordKey = getHistoryRecordKey(item);
+  if (!recordKey) {
+    return null;
+  }
+
+  const pityInfo = crossPoolPityMap.get(recordKey);
+  const pityValue = Number(pityInfo?.sixStarPity);
+  return Number.isFinite(pityValue) && pityValue > 0 ? pityValue : null;
+}
+
+function calculateTimelineMetrics(history = [], { poolType = 'standard', crossPoolPityMap = null } = {}) {
   const validPulls = history.filter((item) => !isGiftHistoryPull(item) && !isFreeHistoryPull(item));
   const sixStars = validPulls.filter((item) => Number(item?.rarity) >= 6);
   const fiveStars = validPulls.filter((item) => Number(item?.rarity) === 5);
   const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
+  const isLimitedPool = poolType === 'limited';
   const currentPity = (() => {
     let pity = 0;
     for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -318,6 +338,16 @@ function calculateTimelineMetrics(history = []) {
     }
     return pity;
   })();
+  const sixStarIntervals = isLimitedPool
+    ? sixStars
+      .map((item) => getInheritedLimitedPityForItem(item, crossPoolPityMap))
+      .filter((value) => Number.isFinite(value) && value > 0)
+    : [];
+  const upSixStarIntervals = isLimitedPool
+    ? upSixStars
+      .map((item) => getInheritedLimitedPityForItem(item, crossPoolPityMap))
+      .filter((value) => Number.isFinite(value) && value > 0)
+    : [];
 
   return {
     totalPulls: validPulls.length,
@@ -325,9 +355,21 @@ function calculateTimelineMetrics(history = []) {
     fiveStarCount: fiveStars.length,
     upSixStarCount: upSixStars.length,
     winRate: sixStars.length > 0 ? ((upSixStars.length / sixStars.length) * 100) : 0,
-    avgSixStarPulls: sixStars.length > 0 ? (validPulls.length / sixStars.length) : Number.NaN,
+    avgSixStarPulls: sixStars.length > 0
+      ? (
+        isLimitedPool && sixStarIntervals.length === sixStars.length
+          ? sixStarIntervals.reduce((sum, value) => sum + value, 0) / sixStarIntervals.length
+          : (validPulls.length / sixStars.length)
+      )
+      : Number.NaN,
     avgFiveStarPulls: fiveStars.length > 0 ? (validPulls.length / fiveStars.length) : Number.NaN,
-    avgUpPulls: upSixStars.length > 0 ? (validPulls.length / upSixStars.length) : Number.NaN,
+    avgUpPulls: upSixStars.length > 0
+      ? (
+        isLimitedPool && upSixStarIntervals.length === upSixStars.length
+          ? upSixStarIntervals.reduce((sum, value) => sum + value, 0) / upSixStarIntervals.length
+          : (validPulls.length / upSixStars.length)
+      )
+      : Number.NaN,
     currentPity,
     currentPity5
   };
@@ -543,6 +585,7 @@ function buildStageEntries({
   pool,
   currentPityOverride,
   currentTargetPullsOverride,
+  crossPoolPityMap,
   showCurrentStage = true,
   locale = getAppLocale()
 }) {
@@ -591,12 +634,15 @@ function buildStageEntries({
 
     const milestone = buildMilestoneSummary(summary, normalizedType, locale);
     const mergedSupportItems = mergeBadgeItems(pendingSupportItems, summary.fiveStars);
+    const inheritedPulls = normalizedType === 'limited'
+      ? getInheritedLimitedPityForItem(summary.primarySixStar, crossPoolPityMap)
+      : null;
     stages.push({
       id: `${pool?.id || 'pool'}-stage-${stages.length + 1}`,
       stageKind: milestone.stageKind,
       dateLabel: formatDateLabel(summary.timestamp),
       stageLabel: milestone.stageLabel,
-      pulls: pendingPaidCount,
+      pulls: inheritedPulls ?? pendingPaidCount,
       targetPulls: getStageTargetPulls(normalizedType, milestone.stageKind, summary.groupSize),
       resultSummary: milestone.resultSummary,
       resultSummaryWithoutFiveStar: milestone.resultSummaryWithoutFiveStar || milestone.resultSummary,
@@ -638,11 +684,15 @@ function buildTimelineSection({
   currentPityOverride,
   currentPity5Override,
   currentTargetPullsOverride,
+  crossPoolPityMap,
   disablePityState = false,
   locale = getAppLocale()
 }) {
   const normalizedType = normalizePoolType(pool?.type);
-  const metrics = calculateTimelineMetrics(history);
+  const metrics = calculateTimelineMetrics(history, {
+    poolType: normalizedType,
+    crossPoolPityMap
+  });
   const timing = getPoolTimingMeta(pool, new Date(), locale);
   const showCurrentStage = !disablePityState && (normalizedType === 'weapon' || !timing.isTimed || timing.isActive);
   const entries = buildStageEntries({
@@ -650,6 +700,7 @@ function buildTimelineSection({
     pool,
     currentPityOverride,
     currentTargetPullsOverride,
+    crossPoolPityMap,
     showCurrentStage,
     locale
   });
@@ -688,6 +739,7 @@ export function buildSinglePoolTimelineSection({
   currentPityOverride,
   currentPity5Override,
   currentTargetPullsOverride,
+  crossPoolPityMap = null,
   disablePityState = false,
   locale = getAppLocale()
 }) {
@@ -701,6 +753,7 @@ export function buildSinglePoolTimelineSection({
     currentPityOverride,
     currentPity5Override,
     currentTargetPullsOverride,
+    crossPoolPityMap,
     disablePityState,
     locale
   });
@@ -710,6 +763,7 @@ export function buildOverviewTimelineSections({
   pools = [],
   history = [],
   analysisPityByPoolId = null,
+  crossPoolPityMap = null,
   disablePityState = false,
   locale = getAppLocale()
 }) {
@@ -743,6 +797,7 @@ export function buildOverviewTimelineSections({
         currentPityOverride: disablePityState ? null : analysisPityByPoolId?.get(pool.id)?.displayPity6,
         currentPity5Override: disablePityState ? null : analysisPityByPoolId?.get(pool.id)?.displayPity5,
         currentTargetPullsOverride: analysisPityByPoolId?.get(pool.id)?.maxPity6,
+        crossPoolPityMap,
         disablePityState,
         locale
       });

@@ -28,6 +28,10 @@ function getPoolFeaturedLead(pool) {
   return featuredCharacters[0] || pool?.name || null;
 }
 
+function isLimitedPoolType(type) {
+  return type === 'limited' || type === 'limited_character';
+}
+
 export function useDashboardViewState() {
   const user = useAuthStore(state => state.user);
   const [charViewMode, setCharViewMode] = useState('waterfall');
@@ -53,6 +57,14 @@ export function useDashboardViewState() {
   const hasPoolData = poolsArray.length > 0;
   const isGroupMode = currentPool?.isGroupMode === true;
   const isAllPoolsOverview = currentPool?.isAllPoolsOverview === true;
+  const visibleLimitedPoolIds = useMemo(() => (
+    new Set(
+      selectedPools
+        .filter((pool) => isLimitedPoolType(pool?.type))
+        .map((pool) => pool?.id)
+        .filter(Boolean)
+    )
+  ), [selectedPools]);
 
   const { stats, effectivePity, groupedHistory } = usePoolStats({
     normalizedCurrentPoolHistory: normalizedPoolHistory,
@@ -65,9 +77,10 @@ export function useDashboardViewState() {
     buildCharacterStats({
       history: normalizedPoolHistory,
       isLimitedPool: isLimited,
-      crossPoolPityMap
+      crossPoolPityMap,
+      limitedPoolIds: isGroupMode ? visibleLimitedPoolIds : null
     })
-  ), [crossPoolPityMap, isLimited, normalizedPoolHistory]);
+  ), [crossPoolPityMap, isGroupMode, isLimited, normalizedPoolHistory, visibleLimitedPoolIds]);
 
   const totalCharacterCount = useMemo(() => {
     return characterStats.reduce((sum, char) => sum + char.count, 0);

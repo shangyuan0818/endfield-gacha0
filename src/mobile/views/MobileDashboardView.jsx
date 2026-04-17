@@ -152,6 +152,7 @@ function MobileDashboardView() {
     normalizedPoolHistory,
     selectedPools,
     allLimitedHistory,
+    crossPoolPityMap,
     normalizedPoolType,
     isLimited,
     isWeapon,
@@ -206,6 +207,7 @@ function MobileDashboardView() {
     currentPoolHistory: normalizedPoolHistory,
     groupedHistory,
     selectedPools,
+    crossPoolPityMap,
     isGroupMode,
     isAllPoolsOverview,
     effectivePity,
@@ -214,7 +216,7 @@ function MobileDashboardView() {
     overviewPoolFilter: 'all',
     hasMergedAccountView,
     locale
-  }), [analysisPity, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
+  }), [analysisPity, crossPoolPityMap, currentPool, effectivePity, groupedHistory, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, normalizedPoolHistory, overviewAnalysisPityMap, selectedPools]);
   const overviewSplitStats = React.useMemo(() => {
     if (!isAllPoolsOverview) {
       return null;
@@ -1224,6 +1226,7 @@ function MobileDashboardView() {
                 currentPoolHistory={normalizedPoolHistory}
                 groupedHistory={groupedHistory}
                 selectedPools={selectedPools}
+                crossPoolPityMap={crossPoolPityMap}
                 isGroupMode={isGroupMode}
                 isAllPoolsOverview={isAllPoolsOverview}
                 effectivePity={effectivePity}
@@ -1351,6 +1354,7 @@ function MobileDashboardView() {
               currentPoolHistory={normalizedPoolHistory}
               groupedHistory={groupedHistory}
               selectedPools={selectedPools}
+              crossPoolPityMap={crossPoolPityMap}
               isGroupMode={isGroupMode}
               isAllPoolsOverview={isAllPoolsOverview}
               effectivePity={effectivePity}

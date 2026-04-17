@@ -29,6 +29,7 @@ export function buildDashboardTimelineSections({
   currentPoolHistory = [],
   groupedHistory = [],
   selectedPools = [],
+  crossPoolPityMap = null,
   isGroupMode = false,
   isAllPoolsOverview = false,
   effectivePity = null,
@@ -47,6 +48,7 @@ export function buildDashboardTimelineSections({
       pools: visiblePools,
       history: currentPoolHistory,
       analysisPityByPoolId: overviewAnalysisPityMap,
+      crossPoolPityMap,
       disablePityState: hasMergedAccountView,
       locale
     });
@@ -56,6 +58,7 @@ export function buildDashboardTimelineSections({
     pool: currentPool,
     history: currentPoolHistory,
     groupedHistory,
+    crossPoolPityMap,
     currentPityOverride: hasMergedAccountView ? null : (analysisPity?.displayPity6 ?? effectivePity?.pity6),
     currentPity5Override: hasMergedAccountView ? null : (analysisPity?.displayPity5 ?? effectivePity?.pity5),
     currentTargetPullsOverride: analysisPity?.maxPity6,

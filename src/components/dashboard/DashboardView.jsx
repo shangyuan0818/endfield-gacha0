@@ -387,6 +387,24 @@ const DashboardView = ({ showToast }) => {
       selectedPools.filter((pool) => getOverviewPoolBucket(pool) === allOverviewPoolFilter).map((pool) => pool.id)
     );
   }, [allOverviewPoolFilter, isAllPoolsOverview, selectedPools]);
+  const visibleLimitedPoolIds = React.useMemo(() => (
+    new Set(
+      selectedPools
+        .filter((pool) => {
+          if (pool?.type !== 'limited' && pool?.type !== 'limited_character') {
+            return false;
+          }
+
+          if (!allOverviewFilterPoolIds) {
+            return true;
+          }
+
+          return allOverviewFilterPoolIds.has(pool.id);
+        })
+        .map((pool) => pool.id)
+        .filter(Boolean)
+    )
+  ), [allOverviewFilterPoolIds, selectedPools]);
 
   const visibleCharacterStats = React.useMemo(() => {
     if (!isAllPoolsOverview || !allOverviewFilterPoolIds) {
@@ -401,6 +419,7 @@ const DashboardView = ({ showToast }) => {
     return buildCharacterStats({
       history: filteredHistory,
       isLimitedPool: normalizedPoolType === 'limited',
+      limitedPoolIds: visibleLimitedPoolIds,
       crossPoolPityMap,
     });
   }, [
@@ -410,6 +429,7 @@ const DashboardView = ({ showToast }) => {
     isAllPoolsOverview,
     normalizedPoolHistory,
     normalizedPoolType,
+    visibleLimitedPoolIds,
   ]);
 
   const visibleTotalCharacterCount = React.useMemo(
@@ -438,6 +458,7 @@ const DashboardView = ({ showToast }) => {
         currentPoolHistory: normalizedPoolHistory,
         groupedHistory,
         selectedPools,
+        crossPoolPityMap,
         isGroupMode,
         isAllPoolsOverview,
         effectivePity,
@@ -451,6 +472,7 @@ const DashboardView = ({ showToast }) => {
     [
       allOverviewPoolFilter,
       analysisPity,
+      crossPoolPityMap,
       currentPool,
       effectivePity,
       groupedHistory,
@@ -1963,9 +1985,10 @@ const DashboardView = ({ showToast }) => {
                 currentPoolHistory={normalizedPoolHistory}
                 groupedHistory={groupedHistory}
                 selectedPools={selectedPools}
+                crossPoolPityMap={crossPoolPityMap}
                 isGroupMode={isGroupMode}
                 isAllPoolsOverview={isAllPoolsOverview}
-              effectivePity={effectivePity}
+                effectivePity={effectivePity}
               analysisPity={analysisPity}
               overviewAnalysisPityMap={overviewAnalysisPityMap}
               overviewPoolFilter={allOverviewPoolFilter}
