@@ -4,7 +4,7 @@ import Footer from './components/layout/Footer';
 import GachaModals from './components/modals/GachaModals';
 import { LoadingBar } from './components/ui';
 import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight } from './hooks';
-import { useAuthStore, useAppStore, usePoolStore } from './stores';
+import { useAuthStore, useAppStore, useHistoryStore, usePoolStore } from './stores';
 import { getDesktopPathForTab, getDesktopTabFromPath, normalizeAppTab } from './constants/appRoutes';
 import AppHeader from './components/layout/AppHeader';
 import DesktopAppRoutes from './components/app/DesktopAppRoutes';
@@ -31,11 +31,18 @@ export default function GachaAnalyzer() {
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const switchPool = usePoolStore(state => state.switchPool);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
+  const history = useHistoryStore(state => state.history);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
 
   const {
     poolsArray,
     currentPool
   } = useCurrentPoolData();
+  const gameAccounts = useMemo(() => {
+    void history;
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
 
   const activeTab = getDesktopTabFromPath(location.pathname);
   const [editItemState, setEditItemState] = useState(null);
@@ -83,6 +90,21 @@ export default function GachaAnalyzer() {
   // 使用 ref 和防抖防止快速切换时的竞态条件
   const pendingSwitchRef = useRef(null);
   const lastSwitchTimeRef = useRef(0);
+
+  useEffect(() => {
+    const preferredGameUid = gameAccounts[0]?.gameUid || null;
+    if (!preferredGameUid) {
+      return;
+    }
+
+    const hasValidCurrentAccount = currentGameUid
+      ? gameAccounts.some((account) => account.gameUid === currentGameUid)
+      : false;
+
+    if (!hasValidCurrentAccount) {
+      switchGameAccount(preferredGameUid);
+    }
+  }, [currentGameUid, gameAccounts, switchGameAccount]);
 
   useEffect(() => {
     // 卡池列表为空时不做任何操作

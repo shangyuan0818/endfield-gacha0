@@ -155,4 +155,31 @@ describe('poolTimelineView', () => {
     expect(nextSection.avgSixStarPulls).toBe(78);
   });
 
+  it('hides current progress stage after beginner banner reaches 40 paid pulls', () => {
+    const pool = {
+      id: 'pool_beginner',
+      type: 'beginner',
+      name: '启程寻访',
+      start_time: null,
+      end_time: null,
+    };
+    const history = Array.from({ length: 40 }, (_, index) => ({
+      id: `b${index + 1}`,
+      poolId: 'pool_beginner',
+      rarity: 4,
+      item_name: `角色${index + 1}`,
+      timestamp: `2026-01-01T00:${String(index).padStart(2, '0')}:00.000Z`,
+      seqId: String(index + 1),
+    }));
+
+    const section = buildSinglePoolTimelineSection({
+      pool,
+      history,
+      locale: 'zh-CN',
+    });
+
+    expect(section.totalPulls).toBe(40);
+    expect(section.entries.some((entry) => entry.isCurrentStage)).toBe(false);
+  });
+
 });

@@ -189,16 +189,13 @@ function MobilePoolSelector() {
   });
 
   useEffect(() => {
-    if (gameAccounts.length === 1) {
-      const onlyAccountUid = gameAccounts[0]?.gameUid || null;
-      if (onlyAccountUid && currentGameUid !== onlyAccountUid) {
-        switchGameAccount(onlyAccountUid);
-      }
+    const preferredAccountUid = gameAccounts[0]?.gameUid || null;
+    if (!preferredAccountUid) {
       return;
     }
 
-    if (currentGameUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      switchGameAccount(null);
+    if (currentGameUid !== preferredAccountUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      switchGameAccount(preferredAccountUid);
     }
   }, [currentGameUid, gameAccounts, switchGameAccount]);
 
@@ -311,18 +308,6 @@ function MobilePoolSelector() {
 
             {isAccountOpen && (
               <div className="mobile-ux-dropdown absolute top-full left-0 right-0 z-50 mt-2 max-h-60 overflow-y-auto animate-scale-up">
-                {/* 全部账号 */}
-                <button
-                  onClick={() => handleSelectAccount(null)}
-                  className={`w-full px-3 py-2.5 text-left text-xs font-mono transition-colors touch-feedback ${
-                    !currentGameUid
-                      ? 'bg-endfield-yellow/10 text-endfield-yellow font-bold'
-                      : 'text-zinc-400 hover:bg-white/5'
-                  }`}
-                >
-                  {t('pool.selector.allAccounts')}
-                </button>
-
                 {/* 账号列表 */}
                 {gameAccounts.map(account => (
                   <button

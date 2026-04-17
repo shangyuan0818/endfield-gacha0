@@ -694,7 +694,10 @@ function buildTimelineSection({
     crossPoolPityMap
   });
   const timing = getPoolTimingMeta(pool, new Date(), locale);
-  const showCurrentStage = !disablePityState && (normalizedType === 'weapon' || !timing.isTimed || timing.isActive);
+  const beginnerProgressClosed = pool?.type === 'beginner' && metrics.totalPulls >= 40;
+  const showCurrentStage = !disablePityState
+    && !beginnerProgressClosed
+    && (normalizedType === 'weapon' || !timing.isTimed || timing.isActive);
   const entries = buildStageEntries({
     history,
     pool,

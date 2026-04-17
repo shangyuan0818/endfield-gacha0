@@ -196,16 +196,13 @@ const PoolSelector = () => {
   });
 
   useEffect(() => {
-    if (gameAccounts.length === 1) {
-      const onlyAccountUid = gameAccounts[0]?.gameUid || null;
-      if (onlyAccountUid && currentGameUid !== onlyAccountUid) {
-        switchGameAccount(onlyAccountUid);
-      }
+    const preferredAccountUid = gameAccounts[0]?.gameUid || null;
+    if (!preferredAccountUid) {
       return;
     }
 
-    if (currentGameUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      switchGameAccount(null);
+    if (currentGameUid !== preferredAccountUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      switchGameAccount(preferredAccountUid);
     }
   }, [currentGameUid, gameAccounts, switchGameAccount]);
 
@@ -266,17 +263,6 @@ const PoolSelector = () => {
 
               {showAccountDropdown && (
                 <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-lg z-20">
-                  <button
-                    onClick={() => {
-                      switchGameAccount(null);
-                      setShowAccountDropdown(false);
-                    }}
-                    className={`w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
-                      !currentGameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
-                    }`}
-                  >
-                    {t('pool.selector.allAccounts')}
-                  </button>
                   {gameAccounts.map(account => (
                     <button
                       key={account.gameUid}
