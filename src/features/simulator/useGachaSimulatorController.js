@@ -25,6 +25,7 @@ import {
   saveSimulatorState,
 } from '../../utils/simulatorStorage';
 import {
+  DEFAULT_SIMULATOR_RESOURCE_SETTINGS,
   buildSimulatorResourceLedger,
   canAffordSimulatorPull,
   getOriginiteConversionPlanForJadeCost,
@@ -725,6 +726,24 @@ export function useGachaSimulatorController() {
     [locale, resourceLedger, showToastMessage, t]
   );
 
+  const toggleCnOriginiteDoubleBonus = useCallback(() => {
+    setResourceSettings((current) =>
+      normalizeResourceSettings({
+        ...current,
+        cnOriginiteDoubleBonusEnabled: !normalizeResourceSettings(current).cnOriginiteDoubleBonusEnabled,
+      })
+    );
+  }, []);
+
+  const toggleInfiniteResources = useCallback(() => {
+    setResourceSettings((current) =>
+      normalizeResourceSettings({
+        ...current,
+        infiniteResources: !normalizeResourceSettings(current).infiniteResources,
+      })
+    );
+  }, []);
+
   const executeResolvedPull = useCallback(
     (type, options = {}) => {
       const { isInfoBookPull = false, isFreePull = false, conversionPlan = null } = options;
@@ -1080,6 +1099,8 @@ export function useGachaSimulatorController() {
           baseOriginite: 0,
           baseArsenalQuota: 0,
           manualConvertedOriginite: 0,
+          cnOriginiteDoubleBonusEnabled: DEFAULT_SIMULATOR_RESOURCE_SETTINGS.cnOriginiteDoubleBonusEnabled,
+          infiniteResources: DEFAULT_SIMULATOR_RESOURCE_SETTINGS.infiniteResources,
         })
       );
     }
@@ -1540,6 +1561,8 @@ export function useGachaSimulatorController() {
     tenPullDisabledReason,
     toastMessage,
     toggleTenPull,
+    toggleCnOriginiteDoubleBonus,
+    toggleInfiniteResources,
     updateResourceSetting: adjustResourceAmount,
   };
 }

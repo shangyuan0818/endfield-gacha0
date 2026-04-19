@@ -50,6 +50,7 @@ const GachaSimulator = () => {
     poolCharactersList,
     pullHistory,
     resourceLedger,
+    resourceSettings,
     resetAllPools,
     resetKeepResources,
     resetSettings,
@@ -77,6 +78,8 @@ const GachaSimulator = () => {
     singlePullDisabledReason,
     tenPullDisabledReason,
     disableOriginitePromptToday,
+    toggleCnOriginiteDoubleBonus,
+    toggleInfiniteResources,
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const shareCardRef = useRef(null);
@@ -103,7 +106,10 @@ const GachaSimulator = () => {
         onSwitchPool={switchPool}
         resourceLedger={resourceLedger}
         onAdjustResourceAmount={adjustResourceAmount}
+        resourceSettings={resourceSettings}
         originiteToJadeRate={currentPullCosts.settings.originiteToJadeRate}
+        onToggleCnOriginiteDoubleBonus={toggleCnOriginiteDoubleBonus}
+        onToggleInfiniteResources={toggleInfiniteResources}
         onToggleMultipleFreeTen={() => setMultipleFreeTen(!multipleFreeTen)}
         onToggleSkipAnimation={() => setSkipAnimation(!skipAnimation)}
         poolType={simulator.poolType}

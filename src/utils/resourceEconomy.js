@@ -46,7 +46,9 @@ export const DEFAULT_SIMULATOR_RESOURCE_SETTINGS = {
   baseJade: 50000,
   baseOriginite: 120,
   baseArsenalQuota: 19800,
-  manualConvertedOriginite: 0
+  manualConvertedOriginite: 0,
+  cnOriginiteDoubleBonusEnabled: true,
+  infiniteResources: false
 };
 
 function toNonNegativeNumber(value, fallback = 0) {
@@ -63,6 +65,22 @@ function toFiniteNumber(value, fallback = 0) {
     return fallback;
   }
   return parsed;
+}
+
+function toBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (value === 'true' || value === '1' || value === 1) {
+    return true;
+  }
+
+  if (value === 'false' || value === '0' || value === 0) {
+    return false;
+  }
+
+  return fallback;
 }
 
 function normalizePoolType(poolType) {
@@ -93,6 +111,14 @@ export function normalizeResourceSettings(partialSettings = {}) {
     baseOriginite: toNonNegativeNumber(merged.baseOriginite, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseOriginite),
     baseArsenalQuota: toFiniteNumber(merged.baseArsenalQuota, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.baseArsenalQuota),
     manualConvertedOriginite: toNonNegativeNumber(merged.manualConvertedOriginite, DEFAULT_SIMULATOR_RESOURCE_SETTINGS.manualConvertedOriginite),
+    cnOriginiteDoubleBonusEnabled: toBoolean(
+      merged.cnOriginiteDoubleBonusEnabled,
+      DEFAULT_SIMULATOR_RESOURCE_SETTINGS.cnOriginiteDoubleBonusEnabled
+    ),
+    infiniteResources: toBoolean(
+      merged.infiniteResources,
+      DEFAULT_SIMULATOR_RESOURCE_SETTINGS.infiniteResources
+    ),
     characterPullJadeCost: toNonNegativeNumber(merged.characterPullJadeCost, DEFAULT_RESOURCE_RULES.characterPullJadeCost),
     weaponPullQuotaCost: toNonNegativeNumber(merged.weaponPullQuotaCost, DEFAULT_RESOURCE_RULES.weaponPullQuotaCost),
     originiteToJadeRate: Math.max(1, toNonNegativeNumber(merged.originiteToJadeRate, DEFAULT_RESOURCE_RULES.originiteToJadeRate)),
@@ -288,6 +314,7 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
   const arsenalBalance = normalizedSettings.baseArsenalQuota + summary.arsenalGained - summary.arsenalSpent;
   const arsenalShortfall = Math.max(-arsenalBalance, 0);
   const availableJadeBudget = jadeBalance + originiteBalance * normalizedSettings.originiteToJadeRate;
+  const infiniteResources = Boolean(normalizedSettings.infiniteResources);
 
   return {
     ...summary,
@@ -299,12 +326,13 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
     manualConvertedJade,
     originiteSpent,
     convertedJade,
-    jadeBalance,
-    originiteBalance,
-    arsenalBalance,
-    jadeShortfall,
-    arsenalShortfall,
-    availableJadeBudget
+    jadeBalance: infiniteResources ? Number.POSITIVE_INFINITY : jadeBalance,
+    originiteBalance: infiniteResources ? Number.POSITIVE_INFINITY : originiteBalance,
+    arsenalBalance: infiniteResources ? Number.POSITIVE_INFINITY : arsenalBalance,
+    jadeShortfall: infiniteResources ? 0 : jadeShortfall,
+    arsenalShortfall: infiniteResources ? 0 : arsenalShortfall,
+    availableJadeBudget: infiniteResources ? Number.POSITIVE_INFINITY : availableJadeBudget,
+    infiniteResources
   };
 }
 
@@ -347,6 +375,15 @@ export function getOriginiteConversionPlanForJadeCost({
   jadeCost = 0,
   settings = DEFAULT_SIMULATOR_RESOURCE_SETTINGS
 } = {}) {
+  if (ledger?.infiniteResources) {
+    return {
+      jadeShortfall: 0,
+      originiteNeeded: 0,
+      canConvert: false,
+      rate: normalizeResourceSettings(settings).originiteToJadeRate
+    };
+  }
+
   const normalizedSettings = normalizeResourceSettings(settings);
   const currentJadeBalance = Math.max(Number(ledger?.jadeBalance || 0), 0);
   const currentOriginiteBalance = Math.max(Number(ledger?.originiteBalance || 0), 0);
@@ -363,6 +400,10 @@ export function getOriginiteConversionPlanForJadeCost({
 }
 
 export function canAffordSimulatorPull(ledger, cost) {
+  if (ledger?.infiniteResources) {
+    return true;
+  }
+
   if (!cost?.resource || !cost?.amount) {
     return true;
   }

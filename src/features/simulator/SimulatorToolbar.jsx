@@ -7,16 +7,50 @@ import ShareActionStatus from '../../components/share/ShareActionStatus';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
 
-const ORIGINITE_PURCHASE_PRESETS = [
-  { label: '￥6', amount: 6, bonusLabel: '6' },
-  { label: '￥30', amount: 36, bonusLabel: '24+12' },
-  { label: '￥98', amount: 126, bonusLabel: '84+42' },
-  { label: '￥198', amount: 255, bonusLabel: '170+85' },
-  { label: '￥328', amount: 423, bonusLabel: '282+141' },
-  { label: '￥648', amount: 840, bonusLabel: '560+280' },
+const CN_ORIGINITE_PURCHASE_BASES = [
+  { label: '￥6', base: 3, bonus: 0, supportsDouble: true },
+  { label: '￥30', base: 12, bonus: 3, supportsDouble: true },
+  { label: '￥98', base: 42, bonus: 8, supportsDouble: true },
+  { label: '￥198', base: 85, bonus: 17, supportsDouble: true },
+  { label: '￥328', base: 141, bonus: 30, supportsDouble: true },
+  { label: '￥648', base: 280, bonus: 70, supportsDouble: true },
 ];
 
+const EN_ORIGINITE_PURCHASE_PRESETS = [
+  { label: '$1.99', amount: 12 },
+  { label: '$8.99', amount: 42 },
+  { label: '$12.99', amount: 68 },
+  { label: '$20.99', amount: 114 },
+  { label: '$33.99', amount: 184 },
+  { label: '$69.99', amount: 388 },
+];
+
+function buildChineseOriginitePurchasePresets(doubleBonusEnabled) {
+  return CN_ORIGINITE_PURCHASE_BASES.map((preset) => {
+    const purchased = preset.base;
+    const isDoublePreset = preset.supportsDouble && doubleBonusEnabled;
+    const amount = isDoublePreset ? purchased * 2 : purchased + preset.bonus;
+    const displayLabel = isDoublePreset
+      ? preset.bonus > 0
+        ? `${preset.base}+${preset.base}`
+        : amount.toLocaleString('zh-CN')
+      : preset.bonus > 0
+        ? `${preset.base}+${preset.bonus}`
+        : amount.toLocaleString('zh-CN');
+
+    return {
+      label: preset.label,
+      amount,
+      displayAmount: amount,
+      displayLabel,
+    };
+  });
+}
+
 function formatCompactMetric(value, locale) {
+  if (!Number.isFinite(Number(value))) {
+    return '∞';
+  }
   const numericValue = Number(value) || 0;
   return new Intl.NumberFormat(locale, {
     notation: 'compact',
@@ -51,13 +85,17 @@ function CumulativeChip({ icon, label, value, locale }) {
 
 function ResourceChip({
   activeEditor,
+  disableEditing,
   exchangeRate,
   onAdjustResourceAmount,
+  onToggleCnOriginiteDoubleBonus,
   onOpenEditor,
   onCloseEditor,
   originiteBalance,
   quickAddPresets,
   resourceKey,
+  showCnOriginiteDoubleBonusToggle,
+  cnOriginiteDoubleBonusEnabled,
   value,
   t,
   locale,
@@ -87,19 +125,37 @@ function ResourceChip({
         />
         <button
           type="button"
+          disabled={disableEditing}
           onClick={() => onOpenEditor(resourceKey, 'set', value)}
-          className="min-w-0 flex-1 text-left font-mono font-bold text-slate-700 dark:text-zinc-200 hover:text-endfield-yellow transition-colors"
+          className={`min-w-0 flex-1 text-left font-mono font-bold transition-colors ${
+            disableEditing
+              ? 'cursor-not-allowed text-slate-400 dark:text-zinc-500'
+              : 'text-slate-700 dark:text-zinc-200 hover:text-endfield-yellow'
+          }`}
           title={editTitle}
         >
           <span className="block text-[10px] uppercase tracking-wider text-slate-500 dark:text-zinc-500">{label}</span>
-          <span className="block text-sm sm:text-base leading-tight break-all">
-            {Number(value || 0).toLocaleString(locale)}
-          </span>
+          {Number.isFinite(Number(value)) ? (
+            <span className="block text-sm sm:text-base leading-tight break-all">
+              {Number(value || 0).toLocaleString(locale)}
+            </span>
+          ) : (
+            <span className="mt-0.5 inline-flex items-center rounded-full border border-emerald-400/60 bg-[linear-gradient(90deg,rgba(16,185,129,0.12),rgba(34,211,238,0.14),rgba(250,204,21,0.14),rgba(16,185,129,0.12))] px-2 py-0.5 shadow-[0_0_18px_rgba(16,185,129,0.18)] dark:border-emerald-300/50 dark:shadow-[0_0_22px_rgba(45,212,191,0.22)]">
+              <span className="rainbow-flow-text animate-rainbow-text block text-xl sm:text-2xl leading-none font-black">
+                ∞
+              </span>
+            </span>
+          )}
         </button>
         <button
           type="button"
+          disabled={disableEditing}
           onClick={() => onOpenEditor(resourceKey, 'add', '')}
-          className="w-7 h-7 shrink-0 flex items-center justify-center border border-zinc-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow transition-colors"
+          className={`w-7 h-7 shrink-0 flex items-center justify-center border transition-colors ${
+            disableEditing
+              ? 'cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-slate-300 dark:text-zinc-600'
+              : 'border-zinc-300 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 hover:text-endfield-yellow hover:border-endfield-yellow'
+          }`}
           title={addTitle}
         >
           <Plus size={14} />
@@ -149,7 +205,23 @@ function ResourceChip({
             Array.isArray(quickAddPresets) &&
             quickAddPresets.length > 0 && (
               <div className="mt-3 border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black/20 px-2 py-2">
-                <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400 mb-2">{t('simulator.resource.presetTitle')}</div>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{t('simulator.resource.presetTitle')}</div>
+                  {showCnOriginiteDoubleBonusToggle && (
+                    <button
+                      type="button"
+                      onClick={onToggleCnOriginiteDoubleBonus}
+                      className={`flex items-center gap-1 border px-1.5 py-1 text-[10px] font-bold transition-colors ${
+                        cnOriginiteDoubleBonusEnabled
+                          ? 'border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                          : 'border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400'
+                      }`}
+                    >
+                      <span>{t('simulator.resource.doubleLabel')}</span>
+                      <span>{cnOriginiteDoubleBonusEnabled ? t('common.on') : t('common.off')}</span>
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {quickAddPresets.map((preset) => (
                     <button
@@ -162,7 +234,9 @@ function ResourceChip({
                       className="border border-zinc-200 dark:border-zinc-700 px-2 py-1.5 text-left hover:border-endfield-yellow hover:text-endfield-yellow transition-colors"
                     >
                       <div className="text-[11px] font-bold">{preset.label}</div>
-                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">{preset.bonusLabel}</div>
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+                        {preset.displayLabel || Number(preset.displayAmount ?? preset.amount ?? 0).toLocaleString(locale)}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -202,12 +276,15 @@ const SimulatorToolbar = ({
   onReset,
   poolPullCounts,
   resourceLedger,
+  resourceSettings,
   onAdjustResourceAmount,
   onShareImage,
   onDownloadImage,
   onCopyImage,
   onShareText,
   onSwitchPool,
+  onToggleCnOriginiteDoubleBonus,
+  onToggleInfiniteResources,
   onToggleMultipleFreeTen,
   onToggleSkipAnimation,
   originiteToJadeRate,
@@ -227,11 +304,27 @@ const SimulatorToolbar = ({
   const shareMenuRef = useRef(null);
   useHistoryStore((state) => state.history);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
+  const isEnglishLocale = locale?.toLowerCase().startsWith('en');
+  const cnOriginiteDoubleBonusEnabled = Boolean(resourceSettings?.cnOriginiteDoubleBonusEnabled);
+  const infiniteResourcesEnabled = Boolean(resourceSettings?.infiniteResources);
+  const originiteQuickAddPresets = useMemo(
+    () => (isEnglishLocale ? EN_ORIGINITE_PURCHASE_PRESETS : buildChineseOriginitePurchasePresets(cnOriginiteDoubleBonusEnabled)),
+    [cnOriginiteDoubleBonusEnabled, isEnglishLocale]
+  );
   const resourceItems = useMemo(
     () => [
-      { resourceKey: 'jade', value: Math.max(Number(resourceLedger?.jadeBalance || 0), 0) },
-      { resourceKey: 'originite', value: Math.max(Number(resourceLedger?.originiteBalance || 0), 0) },
-      { resourceKey: 'arsenalQuota', value: Math.max(Number(resourceLedger?.arsenalBalance || 0), 0) },
+      {
+        resourceKey: 'jade',
+        value: resourceLedger?.infiniteResources ? Number.POSITIVE_INFINITY : Math.max(Number(resourceLedger?.jadeBalance || 0), 0)
+      },
+      {
+        resourceKey: 'originite',
+        value: resourceLedger?.infiniteResources ? Number.POSITIVE_INFINITY : Math.max(Number(resourceLedger?.originiteBalance || 0), 0)
+      },
+      {
+        resourceKey: 'arsenalQuota',
+        value: resourceLedger?.infiniteResources ? Number.POSITIVE_INFINITY : Math.max(Number(resourceLedger?.arsenalBalance || 0), 0)
+      },
     ],
     [resourceLedger]
   );
@@ -312,18 +405,42 @@ const SimulatorToolbar = ({
               <ResourceChip
                 key={item.resourceKey}
                 activeEditor={activeEditor}
+                disableEditing={infiniteResourcesEnabled}
+                cnOriginiteDoubleBonusEnabled={cnOriginiteDoubleBonusEnabled}
                 exchangeRate={originiteToJadeRate}
                 onAdjustResourceAmount={onAdjustResourceAmount}
+                onToggleCnOriginiteDoubleBonus={onToggleCnOriginiteDoubleBonus}
                 onOpenEditor={openEditor}
                 onCloseEditor={() => setActiveEditor(null)}
                 originiteBalance={Math.max(Number(resourceLedger?.originiteBalance || 0), 0)}
-                quickAddPresets={item.resourceKey === 'originite' ? ORIGINITE_PURCHASE_PRESETS : null}
+                quickAddPresets={item.resourceKey === 'originite' ? originiteQuickAddPresets : null}
                 resourceKey={item.resourceKey}
+                showCnOriginiteDoubleBonusToggle={item.resourceKey === 'originite' && !isEnglishLocale}
                 t={t}
                 locale={locale}
                 value={item.value}
               />
             ))}
+            <button
+              type="button"
+              onClick={onToggleInfiniteResources}
+              className={`ml-auto flex min-w-[156px] items-center justify-between gap-3 border px-3 py-2.5 text-left transition-colors ${
+                infiniteResourcesEnabled
+                  ? 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                  : 'border-zinc-200 bg-zinc-100 text-slate-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300'
+              }`}
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider">{t('simulator.toolbar.infiniteResources')}</span>
+              <span className={`flex h-5 w-10 items-center rounded-full border px-0.5 transition-colors ${
+                infiniteResourcesEnabled
+                  ? 'border-emerald-500 bg-emerald-500/20 justify-end'
+                  : 'border-zinc-300 dark:border-zinc-700 bg-white/70 dark:bg-black/30 justify-start'
+              }`}>
+                <span className={`block h-3.5 w-3.5 rounded-full ${
+                  infiniteResourcesEnabled ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'
+                }`} />
+              </span>
+            </button>
           </div>
 
           <div>
