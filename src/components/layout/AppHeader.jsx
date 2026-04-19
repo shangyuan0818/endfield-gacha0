@@ -3,6 +3,7 @@ import { BarChart3, LogIn, LogOut, Settings, Info, CloudOff, MessageSquare } fro
 import { NotificationBadge } from '../ui';
 import HeaderPoolTimeInfo from './HeaderPoolTimeInfo';
 import { isSupabaseConfigured } from '../../supabaseClient';
+import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import { STORAGE_KEYS, markAsViewed } from '../../utils';
 import LocaleSwitcher from '../common/LocaleSwitcher.jsx';
 import { useI18n } from '../../i18n/index.js';
@@ -192,7 +193,7 @@ export default function AppHeader({
                 <div className="flex items-center gap-2 sm:gap-3 group">
                   <div className="hidden lg:flex flex-col items-end justify-center">
                     <span className="text-xs font-bold text-slate-700 dark:text-zinc-200 max-w-[110px] truncate leading-tight">
-                      {user.user_metadata?.username || user.email?.split('@')[0]}
+                      {buildUsernameHandle(user, user.email?.split('@')[0])}
                     </span>
                     <span className="text-[9px] text-amber-600 dark:text-endfield-yellow uppercase tracking-[0.15em] font-mono leading-tight mt-0.5">
                       {userRole === 'super_admin' ? 'SUPER-ENDMIN' : userRole === 'admin' ? 'ENDMIN' : 'GUEST'}

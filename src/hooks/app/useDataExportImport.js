@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
+import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
 import {
   buildExportContent,
   buildExportPayload
@@ -26,13 +27,39 @@ export function useDataExportImport({
   const currentPoolId = usePoolStore(state => state.currentPoolId);
   const currentGameUid = usePoolStore(state => state.currentGameUid);
   const setPools = usePoolStore(state => state.setPools);
+  const switchPool = usePoolStore(state => state.switchPool);
+  const switchGameAccount = usePoolStore(state => state.switchGameAccount);
   const history = useHistoryStore(state => state.history);
   const setHistory = useHistoryStore(state => state.setHistory);
   const setSyncing = useAuthStore(state => state.setSyncing);
 
-  const { savePoolToCloud, saveHistoryToCloud } = cloudSync;
+  const { savePoolToCloud, saveHistoryToCloud, loadCloudData } = cloudSync;
 
   const [pendingImport, setPendingImport] = useState(null);
+
+  const getRecordGameUid = useCallback((record) => (
+    record?.gameUid || record?.game_uid || null
+  ), []);
+
+  const resolvePreferredImportedGameUid = useCallback((historyRecords, importedAccounts = []) => {
+    const availableGameUids = [
+      ...new Set(
+        (Array.isArray(historyRecords) ? historyRecords : [])
+          .map(getRecordGameUid)
+          .filter(Boolean)
+      )
+    ];
+
+    if (currentGameUid && availableGameUids.includes(currentGameUid)) {
+      return currentGameUid;
+    }
+
+    const importedAccountUid = importedAccounts
+      .map((account) => account?.gameUid || account?.hgUid || null)
+      .find((value) => value && availableGameUids.includes(value));
+
+    return importedAccountUid || availableGameUids[0] || null;
+  }, [currentGameUid, getRecordGameUid]);
 
   const triggerFileDownload = useCallback((content, mimeType, extension) => {
     const blob = new Blob([content], { type: mimeType });
@@ -157,17 +184,32 @@ export function useDataExportImport({
       }
     });
 
-    buildImportedGameAccountMetadataEntries({
+    const importedAccounts = buildImportedGameAccountMetadataEntries({
       accounts: importedData.accounts || [],
       historyRecords: importedData.history || [],
       importedAt: importedData.importedAt,
       importSource: importedData.sourceFormatId || 'file_import'
-    }).forEach((account) => {
+    });
+
+    importedAccounts.forEach((account) => {
       saveGameAccountMetadata(account);
     });
 
-    setPools(newPools);
-    setHistory(newHistory);
+    const preferredImportedGameUid = resolvePreferredImportedGameUid(newHistory, importedAccounts);
+
+    applyCloudDataToStores(
+      { pools: newPools, history: newHistory },
+      {
+        setPools,
+        switchPool,
+        setHistory,
+        preferredPoolId: currentPoolId,
+        preferredGameUid: preferredImportedGameUid
+      }
+    );
+    if (preferredImportedGameUid) {
+      switchGameAccount(preferredImportedGameUid);
+    }
     setPendingImport(null);
 
     if (willSyncToCloud && (addedPools.length > 0 || addedHistory.length > 0)) {
@@ -183,6 +225,23 @@ export function useDataExportImport({
           // eslint-disable-next-line no-await-in-loop -- imported history batches are intentionally serialized
           await saveHistoryToCloud(batch);
         }
+
+        if (typeof loadCloudData === 'function' && user) {
+          const refreshedCloudData = await loadCloudData(user);
+          if (refreshedCloudData) {
+            applyCloudDataToStores(refreshedCloudData, {
+              setPools,
+              switchPool,
+              setHistory,
+              preferredPoolId: currentPoolId,
+              preferredGameUid: preferredImportedGameUid
+            });
+            if (preferredImportedGameUid) {
+              switchGameAccount(preferredImportedGameUid);
+            }
+          }
+        }
+
         showToast(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`, 'success', '导入成功');
       } catch (syncError) {
         showToast(`新增了 ${addedHistory.length} 条记录，但云端同步失败: ${syncError.message}`, 'warning', '部分成功');
@@ -192,7 +251,7 @@ export function useDataExportImport({
     } else {
       showToast(`导入完成！新增了 ${addedHistory.length} 条记录。`, 'success', '导入成功');
     }
-  }, [pendingImport, pools, history, setPools, setHistory, setSyncing, savePoolToCloud, saveHistoryToCloud, showToast]);
+  }, [pendingImport, pools, history, currentPoolId, loadCloudData, resolvePreferredImportedGameUid, savePoolToCloud, saveHistoryToCloud, setHistory, setPools, setSyncing, showToast, switchGameAccount, switchPool, user]);
 
   return {
     pendingImport,

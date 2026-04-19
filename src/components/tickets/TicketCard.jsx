@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Clock, RefreshCw, Shield, User } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
+import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import ReplyInput from './ReplyInput';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from './constants';
 import { useI18n } from '../../i18n/index.js';
@@ -112,7 +113,7 @@ export default function TicketCard({
                     ticket.profiles?.role === 'admin' ? <Shield size={10} /> : <User size={10} />}
                 </div>
                 <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
-                  {ticket.profiles?.username || tt('未知用户', 'Unknown User')}
+                  {ticket.profiles ? buildUsernameHandle(ticket.profiles) : tt('未知用户', 'Unknown User')}
                 </span>
                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                   ticket.profiles?.role === 'super_admin' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
@@ -208,7 +209,7 @@ export default function TicketCard({
                           reply.profiles?.role === 'admin' ? <Shield size={12} /> : <User size={12} />}
                       </div>
                       <span className="text-sm font-medium text-slate-700 dark:text-zinc-300">
-                        {reply.profiles?.username || tt('用户', 'User')}
+                        {reply.profiles ? buildUsernameHandle(reply.profiles) : tt('用户', 'User')}
                       </span>
                       <span className="text-xs text-slate-400">{formatDateTime(reply.created_at, { hour12: false })}</span>
                     </div>

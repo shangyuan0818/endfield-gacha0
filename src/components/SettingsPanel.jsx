@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database } from 'lucide-react';
 import { supabase } from '../supabaseClient';
@@ -8,7 +8,14 @@ import LocaleSwitcher from './common/LocaleSwitcher.jsx';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
 import { deleteOwnAccount } from '../services/selfAccountService';
+import { updateOwnUsername } from '../services/accountProfileService.js';
 import { finalizeDeletedAccountSession } from '../utils/finalizeDeletedAccountSession';
+import {
+  buildUsernameHandle,
+  getPreferredUsername,
+  getUsernameValidationCode,
+  normalizeUsername,
+} from '../utils/usernameValidation.js';
 import {
   formatFreshnessAbsolute,
   formatFreshnessRelative,
@@ -34,6 +41,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
+  const setUser = useAuthStore(state => state.setUser);
   const userRole = useAuthStore(state => state.userRole);
   const logout = useAuthStore(state => state.logout);
   const pools = usePoolStore(state => state.pools);
@@ -59,6 +67,10 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameSuccess, setUsernameSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const deletePhrase = t('settings.deletePhrase');
@@ -80,6 +92,14 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     void history;
     return getGameAccountsFromHistory();
   }, [getGameAccountsFromHistory, history]);
+  const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
+  const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
+
+  useEffect(() => {
+    setUsernameInput(currentUsername);
+    setUsernameError('');
+    setUsernameSuccess('');
+  }, [currentUsername]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== deletePhrase) return;
@@ -168,6 +188,56 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     }
   };
 
+  const getLocalizedUsernameValidationMessage = (validationCode) => {
+    switch (validationCode) {
+      case 'required':
+        return t('settings.error.usernameRequired');
+      case 'too_short':
+        return t('settings.error.usernameTooShort');
+      case 'too_long':
+        return t('settings.error.usernameTooLong');
+      case 'invalid_characters':
+        return t('settings.error.usernameInvalid');
+      default:
+        return t('settings.error.usernameUpdateFailed');
+    }
+  };
+
+  const handleUsernameUpdate = async () => {
+    if (!user) {
+      setUsernameError(t('settings.error.notLoggedInUsername'));
+      return;
+    }
+
+    const normalizedUsername = normalizeUsername(usernameInput);
+    const validationCode = getUsernameValidationCode(normalizedUsername, { required: true });
+    if (validationCode) {
+      setUsernameError(getLocalizedUsernameValidationMessage(validationCode));
+      setUsernameSuccess('');
+      return;
+    }
+
+    if (normalizedUsername === currentUsername) {
+      setUsernameError(t('settings.error.usernameUnchanged'));
+      setUsernameSuccess('');
+      return;
+    }
+
+    setUsernameLoading(true);
+    setUsernameError('');
+    setUsernameSuccess('');
+    try {
+      const updatedUser = await updateOwnUsername(user, normalizedUsername);
+      setUser(updatedUser);
+      setUsernameInput(normalizedUsername);
+      setUsernameSuccess(t('settings.success.usernameUpdated'));
+    } catch (error) {
+      setUsernameError(error?.message || t('settings.error.usernameUpdateFailed'));
+    } finally {
+      setUsernameLoading(false);
+    }
+  };
+
   const getRoleInfo = (role) => {
     switch (role) {
       case 'super_admin':
@@ -215,6 +285,42 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     <User size={14} /> {t('settings.email')}
                   </div>
                   <span className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate max-w-[180px] sm:max-w-none">{user.email}</span>
+                </div>
+
+                <div className="border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-3 rounded-sm space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
+                      <User size={14} /> {t('settings.username')}
+                    </div>
+                    <span className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate">{currentUsernameHandle}</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={usernameInput}
+                    onChange={(event) => setUsernameInput(event.target.value)}
+                    placeholder={t('settings.usernamePlaceholder')}
+                    maxLength={50}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 rounded-sm focus:outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                  />
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    {t('settings.usernameFormatHint')}
+                  </div>
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
+                    {t('settings.usernamePublicHandle', { value: buildUsernameHandle({ ...user, user_metadata: { ...(user?.user_metadata || {}), username: normalizeUsername(usernameInput) || currentUsername } }) })}
+                  </div>
+                  {usernameError ? (
+                    <div className="text-[11px] text-red-600 dark:text-red-400">{usernameError}</div>
+                  ) : null}
+                  {usernameSuccess ? (
+                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400">{usernameSuccess}</div>
+                  ) : null}
+                  <button
+                    onClick={handleUsernameUpdate}
+                    disabled={usernameLoading}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 border border-zinc-900 dark:border-zinc-100 text-xs font-bold tracking-wider transition-all uppercase rounded-sm disabled:opacity-60"
+                  >
+                    <User size={14} /> {usernameLoading ? `${t('settings.changeUsername')}...` : t('settings.changeUsername')}
+                  </button>
                 </div>
                 
                 <div className="flex items-center justify-between border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-2 rounded-sm">

@@ -6,6 +6,7 @@ import {
 import useAuthStore from '../../stores/useAuthStore';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
+import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from '../../components/tickets/constants';
 import { useI18n } from '../../i18n/index.js';
@@ -395,7 +396,7 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={`text-[9px] px-1.5 py-0.5 font-bold ${statusConfig.color}`}>{statusConfig.label}</span>
               <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
-                {ticket.profiles?.username || tt('用户', 'User')}
+                {ticket.profiles ? buildUsernameHandle(ticket.profiles) : tt('用户', 'User')}
               </span>
               <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
                 {formatDateTime(ticket.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
@@ -539,7 +540,7 @@ function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
                     ? <Shield size={10} /> : <User size={10} />}
                 </div>
                 <span className="text-[10px] font-bold text-slate-700 dark:text-zinc-300">
-                  {reply.profiles?.username || tt('用户', 'User')}
+                  {reply.profiles ? buildUsernameHandle(reply.profiles) : tt('用户', 'User')}
                 </span>
                 <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
                   {formatDateTime(reply.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}

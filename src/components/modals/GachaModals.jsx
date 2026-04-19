@@ -4,6 +4,7 @@ import AuthModal from '../../AuthModal';
 import { Toast, ConfirmDialog } from '../ui';
 import { useUIStore, useAuthStore, useHistoryStore } from '../../stores';
 import { PRESET_POOLS } from '../../constants';
+import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 
 const DEFAULT_POOL_FORM = {
   name: '',
@@ -146,7 +147,7 @@ export default function GachaModals({
                   <label className="block text-sm font-medium text-slate-600 dark:text-zinc-400 mb-2">卡池添加人</label>
                   <div className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-none">
                     <User size={16} />
-                    <span>{modalState.data?.creator_username || user?.user_metadata?.username || user?.email?.split('@')[0] || '未知用户'}</span>
+                    <span>{modalState.data?.creator_username || (user ? buildUsernameHandle(user) : '未知用户')}</span>
                     {modalState.data?.created_at && (
                       <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
                         创建于 {new Date(modalState.data.created_at).toLocaleDateString('zh-CN')}

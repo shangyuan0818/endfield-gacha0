@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
@@ -16,7 +16,14 @@ import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
 import { deleteOwnAccount } from '../../services/selfAccountService';
+import { updateOwnUsername } from '../../services/accountProfileService.js';
 import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccountSession';
+import {
+  buildUsernameHandle,
+  getPreferredUsername,
+  getUsernameValidationCode,
+  normalizeUsername,
+} from '../../utils/usernameValidation.js';
 import { MobileSectionTitle, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import {
   formatFreshnessAbsolute,
@@ -55,7 +62,7 @@ function MobileSettingsView() {
   const navigate = useNavigate();
   const { t, locale, formatDateTime } = useI18n();
   const { themeMode, setThemeMode } = useTheme();
-  const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt } = useAuthStore();
+  const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt, setUser } = useAuthStore();
   const { pools, setPools, currentPoolId, currentGameUid, switchPool, switchGameAccount } = usePoolStore();
   const { history, setHistory, getGameAccountsFromHistory } = useHistoryStore();
   const { toasts, showToast, removeToast } = useToast();
@@ -76,6 +83,10 @@ function MobileSettingsView() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [usernameInput, setUsernameInput] = useState('');
+  const [usernameLoading, setUsernameLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameSuccess, setUsernameSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -97,6 +108,14 @@ function MobileSettingsView() {
     void history;
     return getGameAccountsFromHistory();
   }, [getGameAccountsFromHistory, history]);
+  const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
+  const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
+
+  useEffect(() => {
+    setUsernameInput(currentUsername);
+    setUsernameError('');
+    setUsernameSuccess('');
+  }, [currentUsername]);
 
   const getRoleInfo = (role) => {
     switch (role) {
@@ -175,6 +194,56 @@ function MobileSettingsView() {
       setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const getLocalizedUsernameValidationMessage = (validationCode) => {
+    switch (validationCode) {
+      case 'required':
+        return t('settings.error.usernameRequired');
+      case 'too_short':
+        return t('settings.error.usernameTooShort');
+      case 'too_long':
+        return t('settings.error.usernameTooLong');
+      case 'invalid_characters':
+        return t('settings.error.usernameInvalid');
+      default:
+        return t('settings.error.usernameUpdateFailed');
+    }
+  };
+
+  const handleUsernameUpdate = async () => {
+    if (!user) {
+      setUsernameError(t('settings.error.notLoggedInUsername'));
+      return;
+    }
+
+    const normalizedUsername = normalizeUsername(usernameInput);
+    const validationCode = getUsernameValidationCode(normalizedUsername, { required: true });
+    if (validationCode) {
+      setUsernameError(getLocalizedUsernameValidationMessage(validationCode));
+      setUsernameSuccess('');
+      return;
+    }
+
+    if (normalizedUsername === currentUsername) {
+      setUsernameError(t('settings.error.usernameUnchanged'));
+      setUsernameSuccess('');
+      return;
+    }
+
+    setUsernameLoading(true);
+    setUsernameError('');
+    setUsernameSuccess('');
+    try {
+      const updatedUser = await updateOwnUsername(user, normalizedUsername);
+      setUser(updatedUser);
+      setUsernameInput(normalizedUsername);
+      setUsernameSuccess(t('settings.success.usernameUpdated'));
+    } catch (error) {
+      setUsernameError(error?.message || t('settings.error.usernameUpdateFailed'));
+    } finally {
+      setUsernameLoading(false);
     }
   };
 
@@ -277,19 +346,19 @@ function MobileSettingsView() {
                 {user.user_metadata?.avatar_url ? (
                   <img
                     src={user.user_metadata.avatar_url}
-                    alt={user.user_metadata?.full_name || user.email || t('settings.mobile.unnamedUser')}
+                    alt={currentUsername || user.email || t('settings.mobile.unnamedUser')}
                     loading="lazy"
                     className="w-full h-full object-cover"
                   />
                 ) : (
                   <span className="text-2xl font-bold text-black font-mono">
-                    {(user.user_metadata?.full_name || user.email || '?')[0].toUpperCase()}
+                    {(currentUsername || user.email || '?')[0].toUpperCase()}
                   </span>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-bold text-zinc-900 dark:text-zinc-100 truncate text-lg">
-                  {user.user_metadata?.full_name || t('settings.mobile.unnamedUser')}
+                  {currentUsernameHandle || t('settings.mobile.unnamedUser')}
                 </p>
                 <p className="text-xs text-zinc-500 truncate font-mono uppercase tracking-wide">{user.email}</p>
                 <div className={`mt-2 inline-flex items-center rounded-full px-2 py-0.5 border ${roleInfo.badgeClass}`}>
@@ -298,6 +367,39 @@ function MobileSettingsView() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            <div className="px-4 py-4 space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                {t('settings.username')}
+              </div>
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={(event) => setUsernameInput(event.target.value)}
+                placeholder={t('settings.usernamePlaceholder')}
+                maxLength={50}
+                className="w-full rounded-[0.95rem] border border-zinc-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-endfield-yellow focus:ring-2 focus:ring-endfield-yellow dark:border-white/10 dark:bg-white/[0.03] dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <div className="text-[11px] leading-5 text-zinc-500 dark:text-zinc-400">
+                {t('settings.usernameFormatHint')}
+              </div>
+              <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
+                {t('settings.usernamePublicHandle', { value: buildUsernameHandle({ ...user, user_metadata: { ...(user?.user_metadata || {}), username: normalizeUsername(usernameInput) || currentUsername } }) })}
+              </div>
+              {usernameError ? (
+                <div className="text-[11px] text-red-500">{usernameError}</div>
+              ) : null}
+              {usernameSuccess ? (
+                <div className="text-[11px] text-emerald-500">{usernameSuccess}</div>
+              ) : null}
+              <button
+                onClick={handleUsernameUpdate}
+                disabled={usernameLoading}
+                className="w-full rounded-[0.95rem] border border-endfield-yellow bg-endfield-yellow/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-amber-700 transition-all hover:bg-endfield-yellow hover:text-black disabled:opacity-60 dark:text-endfield-yellow"
+              >
+                {usernameLoading ? `${t('settings.changeUsername')}...` : t('settings.changeUsername')}
+              </button>
             </div>
 
             {/* 修改密码 */}

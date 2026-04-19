@@ -5,6 +5,7 @@ import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
 import { useI18n } from '../../i18n/index.js';
+import { buildUsernameHandle, getPreferredUsername } from '../../utils/usernameValidation.js';
 
 // eslint-disable-next-line no-unused-vars
 function DrawerNavButton({ icon: Icon, label, active = false, tone = 'default', onClick, trailing = null }) {
@@ -95,12 +96,14 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
                 {user?.user_metadata?.avatar_url ? (
                   <img src={user.user_metadata.avatar_url} alt={t('common.avatar')} className="h-full w-full rounded-full object-cover" />
                 ) : (
-                  (user?.user_metadata?.full_name || user?.email || '?')[0].toUpperCase()
+                  (getPreferredUsername(user) || user?.email || '?')[0].toUpperCase()
                 )}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-sm text-slate-900 dark:text-white truncate flex items-center flex-wrap gap-1">
-                  <span className="truncate max-w-[100px]">{currentAccount?.nickName || user?.user_metadata?.full_name || t('nav.guest')}</span>
+                  <span className="truncate max-w-[140px]">
+                    {currentAccount?.nickName || (user ? buildUsernameHandle(user, t('nav.guest')) : t('nav.guest'))}
+                  </span>
                   {currentAccount?.serverTag && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-500/50 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded ml-1 shrink-0">{currentAccount.serverTag}</span>}
                 </div>
                 <div className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5 truncate">

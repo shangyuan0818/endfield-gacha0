@@ -2,6 +2,7 @@ import React from 'react';
 import { supabase } from './supabaseClient';
 import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
 import { getSimpleFriendlyError, isNetworkConnectivityError } from './utils/errorMessages';
+import { getUsernameValidationCode, normalizeUsername } from './utils/usernameValidation.js';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
 import { useI18n } from './i18n/index.js';
@@ -114,6 +115,24 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
     return isEnglish ? rawMessage : getSimpleFriendlyError(err);
   }, [isEnglish, tt]);
+
+  const getLocalizedUsernameError = React.useCallback((validationCode) => {
+    switch (validationCode) {
+      case 'required':
+        return tt('请输入用户名', 'Enter a username.');
+      case 'too_short':
+        return tt('用户名至少需要 2 个字符', 'Username must be at least 2 characters.');
+      case 'too_long':
+        return tt('用户名长度不能超过 50 个字符', 'Username must be 50 characters or fewer.');
+      case 'invalid_characters':
+        return tt(
+          '用户名只能包含中文、字母、数字、日文等文字、数字，以及 . _ - +',
+          'Username can only contain letters, numbers, Chinese/Japanese characters, and . _ - +.'
+        );
+      default:
+        return tt('用户名格式不正确', 'Invalid username format.');
+    }
+  }, [tt]);
 
   if (!isOpen) return null;
 
@@ -323,6 +342,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return;
     }
 
+    const normalizedUsername = normalizeUsername(username);
+    const usernameValidationCode = normalizedUsername
+      ? getUsernameValidationCode(normalizedUsername)
+      : null;
+    if (usernameValidationCode) {
+      setError(getLocalizedUsernameError(usernameValidationCode));
+      setLoading(false);
+      return;
+    }
+
     try {
       const rateLimitResult = await checkRateLimit('register');
       if (!rateLimitResult.allowed) {
@@ -341,7 +370,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         password,
         options: {
           data: {
-            username: username || email.split('@')[0],
+            username: normalizedUsername || email.split('@')[0],
           },
           emailRedirectTo: appUrl,
         },

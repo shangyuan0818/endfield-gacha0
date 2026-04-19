@@ -1,5 +1,6 @@
 // 数据校验工具函数
 import { LIMITED_POOL_RULES, STANDARD_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
+import { getUsernameValidationCode } from './usernameValidation.js';
 
 /**
  * 获取卡池规则
@@ -407,19 +408,13 @@ export const validateUserData = (data, isCreating = true) => {
 
   // 3. 用户名验证
   if (data.username && typeof data.username === 'string') {
-    const username = data.username.trim();
-    if (username.length > 0) {
-      if (username.length < 2) {
-        errors.push('用户名至少需要2个字符');
-      }
-      if (username.length > 50) {
-        errors.push('用户名长度不能超过50个字符');
-      }
-      // 用户名字符验证 (允许中文、字母、数字、下划线、连字符)
-      const usernameRegex = /^[\u4e00-\u9fa5a-zA-Z0-9_-]+$/;
-      if (!usernameRegex.test(username)) {
-        errors.push('用户名只能包含中文、字母、数字、下划线和连字符');
-      }
+    const validationCode = getUsernameValidationCode(data.username);
+    if (validationCode === 'too_short') {
+      errors.push('用户名至少需要2个字符');
+    } else if (validationCode === 'too_long') {
+      errors.push('用户名长度不能超过50个字符');
+    } else if (validationCode === 'invalid_characters') {
+      errors.push('用户名只能包含中文、字母、数字、日文等文字、数字，以及 . _ - +');
     }
   }
 
