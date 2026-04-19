@@ -512,6 +512,7 @@ const messages = {
     'share.status.phase.error': '失败',
 
     'import.title': '导入抽卡记录',
+    'import.retentionNotice': '官方通常仅保留近 90 日记录；若长期未更新或超过 90 日后才导入，部分记录缺失属正常现象。',
     'import.needLogin': '需要登录',
     'import.needLoginDesc': '请先登录账号以启用云端同步功能。',
     'import.guideTitle': '使用指南',
@@ -1706,6 +1707,7 @@ const messages = {
     'share.status.phase.error': 'Failed',
 
     'import.title': 'Import Pull History',
+    'import.retentionNotice': 'Official records usually retain only the most recent 90 days. If you import late or have not refreshed for a long time, some missing history is expected.',
     'import.needLogin': 'Login Required',
     'import.needLoginDesc': 'Log in first to enable cloud sync.',
     'import.guideTitle': 'Guide',

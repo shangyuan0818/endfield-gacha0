@@ -352,11 +352,15 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/20 p-4 py-6 backdrop-blur-sm transition-colors dark:bg-black/80">
       <div className="relative my-auto w-full max-w-2xl border-l-4 border-l-amber-500 border-y border-r border-zinc-200 bg-white shadow-2xl transition-colors dark:border-l-yellow-500 dark:border-zinc-800 dark:bg-zinc-900">
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 dark:bg-zinc-900/95 backdrop-blur border-b border-zinc-200 dark:border-zinc-800 p-4 flex items-center justify-between z-10 transition-colors">
-          <div className="flex items-center gap-3">
+        <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-zinc-200 bg-white/95 p-4 backdrop-blur transition-colors dark:border-zinc-800 dark:bg-zinc-900/95 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider">{t('import.title')}</h2>
+            <div className="flex min-w-0 items-start gap-2 border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-800 transition-colors dark:border-yellow-900/60 dark:bg-yellow-950/30 dark:text-yellow-200">
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <p className="min-w-0">{t('import.retentionNotice')}</p>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={() => setShowGuide(!showGuide)}
               className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-yellow-500 transition-colors"
