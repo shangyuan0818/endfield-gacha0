@@ -4,6 +4,15 @@
  */
 import appLogger from './appLogger.js';
 
+const NETWORK_CONNECTIVITY_PATTERNS = [
+  'failed to fetch',
+  'network request failed',
+  'typeerror: networkerror',
+  'fetch failed',
+  'err_connection_reset',
+  'connection reset',
+];
+
 // Supabase 错误代码映射
 const SUPABASE_ERROR_MAP = {
   // 认证相关错误
@@ -82,19 +91,6 @@ const SUPABASE_ERROR_MAP = {
     solution: '此操作需要相应的权限，请联系管理员',
   },
 
-  // 网络相关错误
-  'Failed to fetch': {
-    message: '网络连接失败',
-    solution: '请检查您的网络连接',
-  },
-  'Network request failed': {
-    message: '网络请求失败',
-    solution: '请检查您的网络连接并重试',
-  },
-  'TypeError: NetworkError': {
-    message: '网络错误',
-    solution: '网络连接中断，请重试',
-  },
 };
 
 // 通用错误类型映射
@@ -124,6 +120,14 @@ export function getFriendlyErrorMessage(error) {
   } else if (error?.message) {
     errorMsg = error.message;
     errorCode = error.code || error.status || '';
+  }
+
+  if (isNetworkConnectivityError(errorMsg || error)) {
+    return {
+      message: '服务连接失败',
+      solution: '当前网络或服务节点可能异常，请稍后重试；若反复失败，请切换网络或浏览器后再试',
+      technical: errorMsg || '网络连接异常',
+    };
   }
 
   // 优先匹配错误代码
@@ -167,6 +171,15 @@ export function getFriendlyErrorMessage(error) {
 export function getSimpleFriendlyError(error) {
   const friendly = getFriendlyErrorMessage(error);
   return `${friendly.message}。${friendly.solution}`;
+}
+
+export function isNetworkConnectivityError(error) {
+  const message = typeof error === 'string'
+    ? error
+    : `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`;
+  const normalized = message.toLowerCase();
+
+  return NETWORK_CONNECTIVITY_PATTERNS.some((pattern) => normalized.includes(pattern));
 }
 
 /**

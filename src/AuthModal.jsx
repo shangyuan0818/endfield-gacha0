@@ -1,7 +1,7 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
 import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
-import { getSimpleFriendlyError } from './utils/errorMessages';
+import { getSimpleFriendlyError, isNetworkConnectivityError } from './utils/errorMessages';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
 import { useI18n } from './i18n/index.js';
@@ -98,8 +98,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return tt('无法验证邮箱地址，请检查后重试。', 'Unable to validate this email address. Check it and try again.');
     }
 
-    if (lowerMessage.includes('failed to fetch') || lowerMessage.includes('network request failed')) {
-      return tt('网络连接失败，请检查网络后重试。', 'Network request failed. Check your connection and try again.');
+    if (isNetworkConnectivityError(err)) {
+      return tt(
+        '无法连接认证服务，可能是当前网络或服务节点异常。请稍后重试；若多次失败，请切换网络或浏览器后再试。',
+        'Unable to reach the auth service. The current network path or service endpoint may be unstable. Try again later, or switch networks or browsers and retry.'
+      );
     }
 
     if (lowerMessage.includes('auth admin not configured')) {
