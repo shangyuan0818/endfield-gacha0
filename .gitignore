@@ -33,7 +33,12 @@ test-results/
 *.bak
 
 # Backend services / 抓取链路（因合规与版权风险保留私有，不进入公开仓库）
-backend/
+# Shared backend library files that are imported by tests/runtime are explicitly re-included below.
+backend/*
+!backend/lib/
+backend/lib/*
+!backend/lib/canonicalEntityUtils.js
+!backend/lib/idAliasService.js
 dev-proxy.js
 api/hg-proxy.js
 
