@@ -269,19 +269,20 @@ export function usePoolStats({
       ? (pullCounts.reduce((sum, value) => sum + value, 0) / pullCounts.length).toFixed(2)
       : '0';
 
-    // BUG-035: 对限定角色池，UP 平均改为按真实命中区间均值计算，保持与跨池保底继承一致
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
-    const upHitPullCounts = upSixStarHits.map((pull) => pull.count);
-    const nonSparkUpPullCounts = upSixStarHits.filter((pull) => !pull.isSpark).map((pull) => pull.count);
-    const avgUpSixStar = upHitPullCounts.length > 0
-      ? (upHitPullCounts.reduce((sum, value) => sum + value, 0) / upHitPullCounts.length).toFixed(2)
-      : '0';
-    const avgUpSixStarExcludingSpark = nonSparkUpPullCounts.length > 0
-      ? (nonSparkUpPullCounts.reduce((sum, value) => sum + value, 0) / nonSparkUpPullCounts.length).toFixed(2)
-      : '0';
+    const upHitCount = upSixStarHits.length;
+    const nonSparkUpHitCount = upSixStarHits.filter((pull) => !pull.isSpark).length;
 
-    // 限定六星平均也统一用 UP 口径（totalPulls / upCount）
-    const avgLimitedSixStar = avgUpSixStarExcludingSpark;
+    // BUG-035: 详情页 / 总览 / 统计页统一为 池总抽数 / 目标 6★ 次数
+    const avgUpSixStar = upHitCount > 0
+      ? (total / upHitCount).toFixed(2)
+      : '0';
+    const avgUpSixStarExcludingSpark = nonSparkUpHitCount > 0
+      ? (total / nonSparkUpHitCount).toFixed(2)
+      : '0';
+    const avgLimitedSixStar = avgUpSixStarExcludingSpark !== '0'
+      ? avgUpSixStarExcludingSpark
+      : avgUpSixStar;
 
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
