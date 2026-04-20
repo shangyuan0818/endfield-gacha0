@@ -153,6 +153,7 @@ export function convertSimulatorHistoryToImportFormat(pullHistory, poolId, poolT
 
   // 将卡池类型转换为导入系统需要的格式
   const poolTypeMap = {
+    'extra': 'extra',
     'limited': 'limited_character',
     'weapon': 'limited_weapon',
     'standard': 'standard'
@@ -321,7 +322,13 @@ export function downloadJSON(content, filename) {
 export function downloadAnalysisReport(stats, pityInfo, poolType) {
   const report = exportAnalysisReport(stats, pityInfo, poolType);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  const poolName = poolType === 'limited' ? '限定池' : poolType === 'weapon' ? '武器池' : '常驻池';
+  const poolName = poolType === 'extra'
+    ? '附加寻访'
+    : poolType === 'limited'
+      ? '限定池'
+      : poolType === 'weapon'
+        ? '武器池'
+        : '常驻池';
   const filename = `终末地模拟器报告_${poolName}_${timestamp}.json`;
 
   downloadJSON(report, filename);
@@ -334,7 +341,13 @@ export function downloadAnalysisReport(stats, pityInfo, poolType) {
  * @returns {string} 文本摘要
  */
 export function generateShareText(stats, poolType) {
-  const poolName = poolType === 'limited' ? '限定寻访' : poolType === 'weapon' ? '武器寻访' : '常驻寻访';
+  const poolName = poolType === 'extra'
+    ? '附加寻访'
+    : poolType === 'limited'
+      ? '限定寻访'
+      : poolType === 'weapon'
+        ? '武器寻访'
+        : '常驻寻访';
 
   let text = `【终末地 ${poolName} 模拟报告】\n\n`;
   text += `📊 总抽数: ${stats.totalPulls}\n`;
@@ -349,7 +362,7 @@ export function generateShareText(stats, poolType) {
   text += `🎲 期望抽数: ${stats.expectedPulls} 抽\n\n`;
 
   // 赠送进度
-  if (poolType === 'limited' && stats.gifts.count > 0) {
+  if ((poolType === 'limited' || poolType === 'extra') && stats.gifts.count > 0) {
     text += `🎁 已领赠送: ${stats.gifts.count} 次 (每240抽)\n`;
   } else if (poolType === 'weapon') {
     text += `🎁 已领赠送: 常驻×${stats.gifts.standardCount} 限定×${stats.gifts.limitedCount}\n`;

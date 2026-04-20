@@ -91,6 +91,11 @@ export function rollProbability(probability) {
  * @returns {Object} 抽卡结果
  */
 export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
+  const normalizedPoolType = poolType === 'limited_character'
+    ? 'limited'
+    : poolType === 'limited_weapon'
+      ? 'weapon'
+      : poolType;
   const guaranteedLimitedThreshold = Number(rules?.guaranteedLimitedPity || 0);
   const tracksGuaranteedLimited = guaranteedLimitedThreshold > 0;
   // 增加保底计数
@@ -111,7 +116,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   if (shouldTriggerGuaranteedLimited) {
     // 触发硬保底，必出限定6星
     const upChar = currentUpCharacter || getCurrentUpCharacter();
-    const characterName = getCharacterName(poolType, 6, true, upChar, poolCharactersList);
+    const characterName = getCharacterName(normalizedPoolType, 6, true, upChar, poolCharactersList);
 
     return {
       rarity: 6,
@@ -136,11 +141,13 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
   // 判断是否出6星
   if (rollProbability(sixStarProb)) {
-    const isUp = rollProbability(rules.upProbability);
+    const isUp = normalizedPoolType === 'extra'
+      ? true
+      : rollProbability(rules.upProbability);
 
     // 获取当前UP角色名称
     const upChar = currentUpCharacter || getCurrentUpCharacter();
-    const characterName = getCharacterName(poolType, 6, isUp, upChar, poolCharactersList);
+    const characterName = getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList);
 
     const hasSatisfiedGuaranteedLimited = state.hasReceivedGuaranteedLimited || isUp;
 
@@ -162,7 +169,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
 
   // 判断是否出5星
   if (rollProbability(fiveStarProb)) {
-    const characterName = getCharacterName(poolType, 5, false, null, poolCharactersList);
+    const characterName = getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList);
 
     return {
       rarity: 5,
@@ -181,7 +188,7 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   }
 
   // 其他情况为4星（去掉三星）
-  const characterName = getCharacterName(poolType, 4, false, null, poolCharactersList);
+  const characterName = getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList);
 
   return {
     rarity: 4,

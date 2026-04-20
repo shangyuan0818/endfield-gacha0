@@ -166,6 +166,15 @@ export function buildDashboardStats(stats, pityInfo, simulator, locale = getAppL
 export function buildPityInfoWithGuarantee(stats, simulator) {
   const normalizedPoolType = normalizeSimulatorPoolType(simulator.poolType);
 
+  if (normalizedPoolType === 'extra') {
+    return {
+      guaranteedUp: {
+        current: Math.min(stats.totalPulls, 30),
+        hasReceived: (stats.freeTenPulls?.count || 0) > 0
+      }
+    };
+  }
+
   if (normalizedPoolType === 'limited') {
     let cumulativePulls = 0;
     let hasReceivedLimitedInFirst120 = false;

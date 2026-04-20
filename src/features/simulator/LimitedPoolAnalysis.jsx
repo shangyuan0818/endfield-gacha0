@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calculator, FileText, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedList, localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 限定池分析组件
@@ -99,6 +99,7 @@ const WeaponGifts = ({ stats, locale, t }) => {
 const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, multipleFreeTen = false }) => {
   const { t, locale } = useI18n();
   const isLimited = currentPool.type === 'limited';
+  const isExtra = currentPool.type === 'extra';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
   const targetProbabilityInfo = stats.targetProbabilityInfo;
@@ -128,12 +129,16 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
   // Dark: text-cyan-400, text-slate-400, text-endfield-yellow
   const accentColor = isLimited 
     ? 'text-blue-600 dark:text-cyan-400' 
+    : isExtra
+      ? 'text-cyan-600 dark:text-cyan-400'
     : isWeapon 
       ? 'text-slate-600 dark:text-slate-400' 
       : 'text-yellow-600 dark:text-endfield-yellow';
       
   const progressClass = isLimited 
     ? 'rainbow-progress' 
+    : isExtra
+      ? 'bg-cyan-500'
     : isWeapon 
       ? 'bg-slate-500' 
       : 'bg-yellow-500 dark:bg-endfield-yellow';
@@ -151,15 +156,22 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
     });
   };
   const localizedCurrentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || '-';
+  const localizedFeaturedCharacters = localizePoolFeaturedList(currentPool, {
+    locale,
+    type: isWeapon ? 'weapon' : 'character'
+  });
   const localizedUpCharacter = localizeEntityName(currentPool?.up_character || '', {
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });
+  const featuredDisplay = isExtra
+    ? localizedFeaturedCharacters.join(' / ')
+    : localizedUpCharacter;
 
   return (
     <div className="bg-white dark:bg-endfield-dark border border-zinc-200 dark:border-endfield-border p-6 relative overflow-hidden">
       {/* Decorative Side Bar */}
-      <div className={`absolute top-0 left-0 w-1 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-600 dark:bg-slate-700' : 'bg-yellow-500 dark:bg-endfield-yellow'}`}></div>
+      <div className={`absolute top-0 left-0 w-1 h-full ${isLimited ? 'rainbow-bg' : isExtra ? 'bg-cyan-500' : isWeapon ? 'bg-slate-600 dark:bg-slate-700' : 'bg-yellow-500 dark:bg-endfield-yellow'}`}></div>
       
       {/* Header */}
       <div className="flex justify-between items-end mb-6 pl-2">
@@ -168,7 +180,9 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
             <Calculator size={20} className={accentColor} />
             {isWeapon
               ? t('dashboard.analysis.title.weapon')
-              : isLimited
+              : isExtra
+                ? t('dashboard.analysis.title.extra')
+                : isLimited
                 ? t('dashboard.analysis.title.limited')
                 : t('dashboard.analysis.title.standard')}
           </h3>
@@ -177,10 +191,12 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
              <span className={`text-xs font-bold ${accentColor} uppercase`}>{localizedCurrentPoolName}</span>
           </div>
         </div>
-        {(isLimited || isWeapon) && localizedUpCharacter && (
+        {(isLimited || isWeapon || isExtra) && featuredDisplay && (
            <div className="text-right">
-             <div className="text-[10px] text-slate-500 dark:text-endfield-muted uppercase">{t('pool.card.currentUp')}</div>
-             <div className="text-sm font-bold text-slate-800 dark:text-endfield-text">{localizedUpCharacter}</div>
+             <div className="text-[10px] text-slate-500 dark:text-endfield-muted uppercase">
+               {isExtra ? t('simulator.analysis.featuredRoster') : t('pool.card.currentUp')}
+             </div>
+             <div className="text-sm font-bold text-slate-800 dark:text-endfield-text">{featuredDisplay}</div>
            </div>
         )}
       </div>
@@ -233,14 +249,14 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
       </div>
 
       {/* Analytics Grid */}
-      {(isLimited || isWeapon) && (
+      {(isLimited || isWeapon || isExtra) && (
         <div className="grid grid-cols-2 gap-4 mb-6">
            <StatCard 
              label={t('simulator.analysis.target6Chance')}
              extraLabel={targetProbabilityInfo?.isHardGuaranteeNextPull ? t('simulator.analysis.hardGuarantee') : t('simulator.analysis.dynamic')}
              value={targetProbabilityInfo ? `${currentTargetProbabilityPercent}%` : '-'}
              progress={targetProbabilityInfo ? parseFloat(currentTargetProbabilityPercent) : 0}
-             progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
+             progressColor={isLimited ? 'rainbow-progress' : isExtra ? 'bg-cyan-500' : 'bg-blue-500'}
              footer={
                stats.sixStarCount > 0
                  ? `${targetProbabilityFooter} · ${t('dashboard.analysis.winRate')} ${stats.winRate}%`
@@ -249,7 +265,7 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
            />
            <StatCard 
              label={t('simulator.analysis.averageTitle')}
-             extraLabel={isLimited ? t('simulator.analysis.averageBadgeLimited') : isWeapon ? t('simulator.analysis.averageBadgeWeapon') : null}
+             extraLabel={isLimited ? t('simulator.analysis.averageBadgeLimited') : isExtra ? t('simulator.analysis.averageBadgeExtra') : isWeapon ? t('simulator.analysis.averageBadgeWeapon') : null}
              value={stats.upSixStarCount > 0 ? formatNumber(stats.avgPullCost?.[6] || stats.avgPullsPerSixStar) : '-'}
              subValue={stats.upSixStarCount > 0 ? t('simulator.analysis.averageUnitUp') : null}
              progress={0}
@@ -343,6 +359,32 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
                 </div>
              </div>
            </>
+         )}
+
+         {isExtra && (
+           <div className="bg-zinc-50 dark:bg-endfield-panel p-2 border-l-2 border-cyan-500 flex flex-col gap-1">
+             <div className="flex justify-between items-center">
+               <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">
+                 {multipleFreeTen ? t('simulator.analysis.repeatedFreeTen') : t('dashboard.analysis.freeTenOnce')}
+               </span>
+               <span className="text-xs font-mono text-slate-500 dark:text-endfield-muted">
+                 {formatProgress(stats.total % 30, 30)}
+               </span>
+             </div>
+             <div className="h-1 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden">
+               <div className="h-full bg-cyan-500" style={{ width: `${((stats.total % 30) / 30) * 100}%` }}></div>
+             </div>
+             <div className="flex justify-between items-center mt-1">
+               <span className="text-[9px] text-slate-500 dark:text-endfield-muted">{t('dashboard.analysis.notCountPity')}</span>
+               {stats.freeTenPulls?.count > 0 && (
+                 <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-bold">
+                   {t('dashboard.analysis.obtained', {
+                     count: `${formatCount(stats.freeTenPulls?.received || 0)} / ${formatCount(stats.freeTenPulls?.count || 0)}`,
+                   })}
+                 </span>
+               )}
+             </div>
+           </div>
          )}
 
          {/* Weapon Pool Specials */}

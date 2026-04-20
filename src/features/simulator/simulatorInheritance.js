@@ -1,4 +1,5 @@
 import {
+  EXTRA_POOL_RULES,
   LIMITED_POOL_RULES,
   STANDARD_POOL_RULES,
   WEAPON_POOL_RULES
@@ -43,6 +44,10 @@ function normalizeRecordRarity(item) {
 
 function normalizeHistoryIsStandard(record, poolType, upCharacter) {
   if (normalizeRecordRarity(record) !== 6) {
+    return false;
+  }
+
+  if (poolType === 'extra') {
     return false;
   }
 
@@ -298,6 +303,8 @@ function buildInheritedStateForPool({
         : 0,
     freeTenPullsReceived: normalizedPoolType === 'limited'
       ? Math.floor(currentPoolPaidCount / LIMITED_POOL_RULES.freeTenPullInterval)
+      : normalizedPoolType === 'extra'
+        ? Math.floor(currentPoolPaidCount / EXTRA_POOL_RULES.freeTenPullInterval)
       : 0,
     hasReceivedInfoBook: normalizedPoolType === 'limited'
       ? (limitedPoolPullCounts.get(realPoolId) || 0) >= LIMITED_POOL_RULES.infoBookThreshold
@@ -355,6 +362,10 @@ function buildInheritedInfoBookState({
 }
 
 export function normalizeSimulatorPoolType(type) {
+  if (type === 'extra') {
+    return 'extra';
+  }
+
   if (type === 'limited_character' || type === 'limited') {
     return 'limited';
   }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createSimulator } from '../../utils/gachaSimulator';
-import { WEAPON_POOL_RULES } from '../../constants';
+import { EXTRA_POOL_RULES, WEAPON_POOL_RULES } from '../../constants';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import { loadAllPoolsForCatalog, loadVisiblePools, mergePoolCollections } from '../../services/poolReadService';
@@ -131,8 +131,18 @@ const getWeaponPoolRules = (pool) =>
         giftInterval: Infinity,
       };
 
-const getCustomRulesForPool = (pool) =>
-  normalizeSimulatorPoolType(pool?.type) === 'weapon' ? getWeaponPoolRules(pool) : null;
+const getCustomRulesForPool = (pool) => {
+  const normalizedType = normalizeSimulatorPoolType(pool?.type);
+  if (normalizedType === 'weapon') {
+    return getWeaponPoolRules(pool);
+  }
+
+  if (normalizedType === 'extra') {
+    return EXTRA_POOL_RULES;
+  }
+
+  return null;
+};
 
 const ORIGINITE_PROMPT_SUPPRESS_KEY = 'simulator_originite_prompt_suppress_date';
 
@@ -146,6 +156,18 @@ function normalizeStoredPoolId(value) {
   }
 
   return value;
+}
+
+function getPoolFeaturedLead(pool) {
+  if (pool?.up_character) {
+    return pool.up_character;
+  }
+
+  const featuredCharacters = Array.isArray(pool?.featured_characters)
+    ? pool.featured_characters.filter(Boolean)
+    : [];
+
+  return featuredCharacters[0] || null;
 }
 
 export function useGachaSimulatorController() {
@@ -181,6 +203,10 @@ export function useGachaSimulatorController() {
 
       if (normalizedPoolType === 'weapon') {
         return pool?.up_character || fallbackName || null;
+      }
+
+      if (normalizedPoolType === 'extra') {
+        return getPoolFeaturedLead(pool) || fallbackName || null;
       }
 
       return null;
@@ -272,6 +298,7 @@ export function useGachaSimulatorController() {
     return sortedPools.map((pool) => ({
       ...pool,
       id: `sim_${pool.id}`,
+      original_name: pool.name,
       name: `${pool.name} [模拟]`,
       isSimulator: true,
     }));
@@ -338,6 +365,10 @@ export function useGachaSimulatorController() {
         return t('simulator.poolTypeName.weapon');
       }
 
+      if (normalizedType === 'extra') {
+        return t('simulator.poolTypeName.extra');
+      }
+
       if (normalizedType === 'standard') {
         return t('simulator.poolTypeName.standard');
       }
@@ -379,11 +410,11 @@ export function useGachaSimulatorController() {
   );
   const currentPullCosts = useMemo(() => {
     const normalizedSettings = normalizeResourceSettings(resourceSettings);
-    const tenPullContext = {
+      const tenPullContext = {
       poolType: currentPoolType,
       pullType: 'ten',
       settings: normalizedSettings,
-      isFree: availableFreePulls > 0 && currentPoolType === 'limited',
+      isFree: availableFreePulls > 0 && (currentPoolType === 'limited' || currentPoolType === 'extra'),
       isInfoBook: infoBookTenPullAvailable && currentPoolType === 'limited',
     };
 
@@ -431,9 +462,13 @@ export function useGachaSimulatorController() {
   );
   const singlePullDisabledReason = getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
   const tenPullDisabledReason = getPullDisabledReason(currentPullCosts.ten, canAffordTenPull);
+  const currentSimPoolIdValue = currentSimPool?.id ?? null;
+  const currentSimPoolFeaturedCharacters = currentSimPool?.featured_characters ?? null;
+  const currentSimPoolUpCharacter = currentSimPool?.up_character ?? null;
+  const currentSimPoolFeaturedLead = currentSimPool ? getPoolFeaturedLead(currentSimPool) : null;
 
   useEffect(() => {
-    if (!currentSimPool?.id) {
+    if (!currentSimPoolIdValue) {
       return undefined;
     }
 
@@ -441,11 +476,10 @@ export function useGachaSimulatorController() {
 
     const loadPoolCharacters = async () => {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
-      const upCharName = currentSimPool.up_character;
-      const realPoolId = currentSimPool.id.replace(/^sim_/, '');
+      const realPoolId = currentSimPoolIdValue.replace(/^sim_/, '');
       const roster = await fetchPoolRosterBuckets(realPoolId, {
         expectedType,
-        currentUpName: upCharName
+        currentUpName: currentSimPoolFeaturedLead
       });
       const mergedRoster = normalizeSimulatorRoster(roster);
 
@@ -471,7 +505,13 @@ export function useGachaSimulatorController() {
     return () => {
       cancelled = true;
     };
-  }, [currentPoolType, currentSimPool?.id, currentSimPool?.up_character]);
+  }, [
+    currentPoolType,
+    currentSimPoolFeaturedCharacters,
+    currentSimPoolFeaturedLead,
+    currentSimPoolIdValue,
+    currentSimPoolUpCharacter
+  ]);
 
   useEffect(() => {
     if (currentSimPoolId && isInitialized) {
@@ -582,12 +622,22 @@ export function useGachaSimulatorController() {
       setPityInfo(simulator.getPityInfo());
       setPullHistory(state.pullHistory || []);
 
-      if (normalizeSimulatorPoolType(simulator.poolType) === 'limited') {
+      const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
+
+      if (normalizedSimulatorPoolType === 'limited' || normalizedSimulatorPoolType === 'extra') {
         const nextStats = simulator.getStatistics();
         const earnedFreePulls = nextStats.freeTenPulls?.count || 0;
         const usedFreePulls = state.freeTenPullsReceived || 0;
         const maxFreePulls = multipleFreeTen ? earnedFreePulls : Math.min(earnedFreePulls, 1);
         setAvailableFreePulls(Math.max(0, maxFreePulls - usedFreePulls));
+
+        if (normalizedSimulatorPoolType !== 'limited') {
+          setInfoBookTenPullAvailable(false);
+          if (currentSimPoolId) {
+            saveSimulatorState(currentSimPoolId, simulator.exportState(), simulatorStorageScope);
+          }
+          return;
+        }
 
         const limitedPools = sortLimitedPoolsByStartTime(simulatorPools);
         const storedInfoBooks = loadInfoBookState(simulatorStorageScope);
@@ -841,7 +891,7 @@ export function useGachaSimulatorController() {
         !isInfoBookPull &&
         type === 'ten' &&
         availableFreePulls > 0 &&
-        normalizeSimulatorPoolType(simulator.poolType) === 'limited';
+        ['limited', 'extra'].includes(normalizeSimulatorPoolType(simulator.poolType));
       const pullCost = getSimulatorPullCost({
         poolType: simulator.poolType,
         pullType: type,
@@ -1247,10 +1297,21 @@ export function useGachaSimulatorController() {
     () => ({
       type: normalizeSimulatorPoolType(simulator.poolType),
       isLimitedWeapon: currentSimPool?.isLimitedWeapon !== false,
-      name: currentSimPool?.name || t('simulator.toast.noSelection'),
+      name: currentSimPool?.original_name || currentSimPool?.name || t('simulator.toast.noSelection'),
+      name_en: currentSimPool?.name_en || null,
       up_character: currentSimPool?.up_character,
+      featured_characters: currentSimPool?.featured_characters || null,
     }),
-    [currentSimPool?.isLimitedWeapon, currentSimPool?.name, currentSimPool?.up_character, simulator.poolType, t]
+    [
+      currentSimPool?.featured_characters,
+      currentSimPool?.isLimitedWeapon,
+      currentSimPool?.name,
+      currentSimPool?.name_en,
+      currentSimPool?.original_name,
+      currentSimPool?.up_character,
+      simulator.poolType,
+      t
+    ]
   );
   const sharePayload = useMemo(
     () =>

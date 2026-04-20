@@ -36,6 +36,10 @@ function roundAverage(value) {
 
 function getPoolTypeLabel(poolType, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
+  if (poolType === 'extra') {
+    return english ? 'Extra Banner' : '附加寻访';
+  }
+
   if (poolType === 'limited') {
     return english ? 'Limited Banner' : '限定寻访';
   }
@@ -83,6 +87,22 @@ function buildResourceItems(resources, locale = getAppLocale()) {
 
 function buildGuaranteeProgress(poolType, totalPulls, pityInfoWithGuarantee, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
+  if (poolType === 'extra') {
+    const current = Math.min(
+      normalizeNumber(pityInfoWithGuarantee?.guaranteedUp?.current, totalPulls),
+      30
+    );
+    const achieved = Boolean(pityInfoWithGuarantee?.guaranteedUp?.hasReceived);
+
+    return {
+      label: english ? '30-pull free ten progress' : '30抽免费十连进度',
+      current,
+      target: 30,
+      achieved,
+      summary: achieved ? (english ? 'Claimed' : '已领取') : `${current}/30`,
+    };
+  }
+
   if (poolType === 'limited') {
     const current = Math.min(
       normalizeNumber(pityInfoWithGuarantee?.guaranteedUp?.current, totalPulls),
@@ -142,7 +162,7 @@ export function buildSimulatorSharePayload({
   const fiveStarRate = totalPulls > 0 ? roundRate((fiveStarCount / totalPulls) * 100) : '0.00';
   const avgPullCost6 = parseFloat(dashboardStats?.avgPullCost?.[6]) || 0;
   const avgPullsPerSixStar = avgPullCost6 > 0 ? roundAverage(avgPullCost6) : '0.00';
-  const hasUpMetrics = poolType === 'limited' || poolType === 'weapon';
+  const hasUpMetrics = poolType === 'limited' || poolType === 'extra' || poolType === 'weapon';
 
   return {
     poolType,
@@ -197,7 +217,12 @@ export function buildSimulatorShareText(payload, locale = getAppLocale()) {
     lines.push(`${english ? 'Target Rate' : '不歪率'}：${payload.winRate}%`);
   }
 
-  lines.push(`${english ? 'Average' : '平均出货'}：${payload.avgPullsPerSixStar} ${english ? `pulls/${payload.poolType === 'standard' ? '6★' : 'UP'}` : `抽/${payload.poolType === 'standard' ? '6★' : 'UP'}`}`);
+  const avgTargetLabel = payload.poolType === 'standard'
+    ? '6★'
+    : payload.poolType === 'extra'
+      ? (english ? 'Target 6★' : '目标6★')
+      : 'UP';
+  lines.push(`${english ? 'Average' : '平均出货'}：${payload.avgPullsPerSixStar} ${english ? `pulls/${avgTargetLabel}` : `抽/${avgTargetLabel}`}`);
   lines.push(`${english ? 'Current Pity' : '当前保底'}：6★ ${payload.currentPity6} / 5★ ${payload.currentPity5}`);
   lines.push(`${payload.guaranteeProgress.label}：${payload.guaranteeProgress.summary}`);
 

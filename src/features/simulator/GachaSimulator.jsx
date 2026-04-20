@@ -83,11 +83,14 @@ const GachaSimulator = () => {
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const shareCardRef = useRef(null);
-  const currentTypeName = normalizeSimulatorPoolType(currentSimPool?.type) === 'limited'
-    ? t('dashboard.pool.type.limited')
-    : normalizeSimulatorPoolType(currentSimPool?.type) === 'weapon'
-      ? t('dashboard.pool.type.weapon')
-      : t('dashboard.pool.type.standard');
+  const resolvedCurrentType = normalizeSimulatorPoolType(currentSimPool?.type);
+  const currentTypeName = resolvedCurrentType === 'extra'
+    ? t('dashboard.pool.type.extra')
+    : resolvedCurrentType === 'limited'
+      ? t('dashboard.pool.type.limited')
+      : resolvedCurrentType === 'weapon'
+        ? t('dashboard.pool.type.weapon')
+        : t('dashboard.pool.type.standard');
 
   return (
     <div className="flex flex-col h-full text-slate-800 dark:text-zinc-100 font-sans max-w-7xl mx-auto w-full">
@@ -180,6 +183,9 @@ const GachaSimulator = () => {
                     {normalizedSimulatorPoolType === 'limited' && (
                       <Star size={40} className="text-endfield-yellow -rotate-45" />
                     )}
+                    {normalizedSimulatorPoolType === 'extra' && (
+                      <Star size={40} className="text-cyan-400 -rotate-45" />
+                    )}
                     {normalizedSimulatorPoolType === 'weapon' && (
                       <Search size={40} className="text-endfield-yellow -rotate-45" />
                     )}
@@ -189,7 +195,9 @@ const GachaSimulator = () => {
                   </div>
 
                   <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter mb-2">
-                    {normalizedSimulatorPoolType === 'limited'
+                    {normalizedSimulatorPoolType === 'extra'
+                      ? t('simulator.poolTypeName.extra')
+                      : normalizedSimulatorPoolType === 'limited'
                       ? t('simulator.hero.limited')
                       : normalizedSimulatorPoolType === 'weapon'
                         ? t('simulator.hero.weapon')

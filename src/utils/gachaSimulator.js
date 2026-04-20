@@ -12,6 +12,7 @@ import {
 } from './probabilityEngine.js';
 
 import {
+  EXTRA_POOL_RULES,
   LIMITED_POOL_RULES,
   WEAPON_POOL_RULES,
   STANDARD_POOL_RULES
@@ -77,6 +78,8 @@ export function createInitialState(poolType = 'limited_character') {
  */
 function getRulesByPoolType(poolType) {
   switch (poolType) {
+    case 'extra':
+      return EXTRA_POOL_RULES;
     case 'limited':
     case 'limited_character':
       return LIMITED_POOL_RULES;
@@ -416,8 +419,8 @@ export class GachaSimulator {
    * @returns {Object} 赠送信息
    */
   checkFreeTenPulls(totalPulls) {
-    // 仅限定池有30抽赠送机制
-    if (this.poolType !== 'limited' && this.poolType !== 'limited_character') {
+    // 限定池与附加寻访都有 30 抽赠送十连，但都不计入保底。
+    if (this.poolType !== 'limited' && this.poolType !== 'limited_character' && this.poolType !== 'extra') {
       return {
         count: 0,
         isNewGift: false,
@@ -455,6 +458,15 @@ export class GachaSimulator {
         nextGiftAt: (giftCount + 1) * this.rules.giftInterval,
         remainingPulls: (giftCount + 1) * this.rules.giftInterval - totalPulls,
         giftType: 'limited_character'
+      };
+    }
+
+    if (this.poolType === 'extra') {
+      return {
+        count: 0,
+        isNewGift: false,
+        nextGiftAt: 0,
+        remainingPulls: 0
       };
     }
 
