@@ -18,6 +18,12 @@ describe('poolUtils', () => {
     expect(normalizeIsStandard({ rarity: 6 }, 'beginner')).toBe(true);
   });
 
+  it('treats six-stars in extra pools like limited banners', () => {
+    expect(normalizeIsStandard({ rarity: 6, character_name: '佩丽卡' }, 'extra', '佩丽卡')).toBe(false);
+    expect(normalizeIsStandard({ rarity: 6, item_name: '其他六星' }, 'extra', '佩丽卡')).toBe(true);
+    expect(normalizeIsStandard({ rarity: 6, isLimited: false }, 'extra')).toBe(true);
+  });
+
   it('derives limited off-banner state from up character name when available', () => {
     expect(normalizeIsStandard({ rarity: 6, character_name: '洛茜' }, 'limited', '洛茜')).toBe(false);
     expect(normalizeIsStandard({ rarity: 6, item_name: '洁尔佩塔' }, 'limited', '洛茜')).toBe(true);
@@ -32,6 +38,7 @@ describe('poolUtils', () => {
   it('extracts drawer, character and type from pool names', () => {
     expect(extractDrawerFromPoolName('限定-洛茜-阿明')).toBe('阿明');
     expect(extractCharNameFromPoolName('限定-洛茜-阿明')).toBe('洛茜');
+    expect(extractTypeFromPoolName('附加-四人混池-阿明')).toBe('extra');
     expect(extractTypeFromPoolName('常驻 - 默认卡池')).toBe('standard');
     expect(extractTypeFromPoolName('武器-洛茜专武-阿明')).toBe('weapon');
     expect(extractTypeFromPoolName('洛茜精选')).toBe('limited');

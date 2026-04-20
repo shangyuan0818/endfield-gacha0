@@ -28,7 +28,8 @@ export function normalizeIsStandard(record, poolType, upCharacter) {
   }
 
   // 限定池/武器池
-  if (poolType === 'limited' || poolType === 'limited_character' ||
+  if (poolType === 'extra' ||
+      poolType === 'limited' || poolType === 'limited_character' ||
       poolType === 'weapon' || poolType === 'limited_weapon') {
     // 有 UP 角色信息：通过角色名匹配判断
     if (upCharacter) {
@@ -96,12 +97,13 @@ export const extractCharNameFromPoolName = (poolName) => {
 /**
  * 从卡池名称中提取类型
  * @param {string} poolName - 卡池名称
- * @returns {'limited'|'standard'|'weapon'}
+ * @returns {'extra'|'limited'|'standard'|'weapon'}
  */
 export const extractTypeFromPoolName = (poolName) => {
   if (!poolName || typeof poolName !== 'string') return 'limited';
 
   const lowerName = poolName.toLowerCase();
+  if (lowerName.includes('附加') || lowerName.includes('extra')) return 'extra';
   if (lowerName.includes('常驻')) return 'standard';
   if (lowerName.includes('武器')) return 'weapon';
   return 'limited';

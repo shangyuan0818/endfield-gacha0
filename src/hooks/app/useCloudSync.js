@@ -185,6 +185,8 @@ export function useCloudSync({ showToast }) {
           const inferredType = normalizeRemotePoolType(rawType);
           const defaultName = (() => {
             switch (inferredType) {
+              case 'extra':
+                return getMessage('pool.group.extra');
               case 'limited_character':
               case 'limited':
                 return getMessage('cloudSync.placeholder.limitedCharacterBanner');
@@ -225,7 +227,7 @@ export function useCloudSync({ showToast }) {
       const normalizedHistory = formattedHistory.map(h => {
         const poolType = poolTypeLookup.get(h.poolId);
         const inferredIsStandard = (poolType === 'standard' || poolType === 'beginner') ? true
-          : (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') ? false
+          : (poolType === 'extra' || poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') ? false
           : null;
         const isStandard = inferredIsStandard !== null ? inferredIsStandard : Boolean(h.isStandard);
         return { ...h, isStandard };

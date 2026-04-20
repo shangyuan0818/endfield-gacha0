@@ -135,7 +135,7 @@ export function clearSimulatorState(poolType, scope = null) {
  * 清除所有卡池的存储数据
  */
 export function clearAllSimulatorStates(scope = null) {
-  const poolTypes = ['limited', 'weapon', 'standard'];
+  const poolTypes = ['limited', 'extra', 'weapon', 'standard'];
   poolTypes.forEach(type => clearSimulatorState(type, scope));
 }
 

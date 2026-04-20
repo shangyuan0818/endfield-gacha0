@@ -41,6 +41,7 @@ export const ENDFIELD_API = {
  */
 export const POOL_TYPE_MAP = {
   // 角色池
+  'extra': 'extra',                    // 附加寻访（预留本地映射）
   'special': 'limited_character',      // 限定角色池（特许寻访）
   'standard': 'standard',              // 常驻池（基础寻访）
   'beginner': 'beginner',              // 新手池（启程寻访）

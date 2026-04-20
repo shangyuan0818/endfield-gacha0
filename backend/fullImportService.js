@@ -87,6 +87,7 @@ function simpleStringHash(str) {
 }
 
 const POOL_TYPE_MAP = {
+  extra: 'extra',
   special: 'limited',
   standard: 'standard',
   beginner: 'beginner',
@@ -102,6 +103,7 @@ const POOL_TYPE_ENUM_MAP = {
 };
 
 function getFallbackPoolId(type, poolType) {
+  if (type === 'extra') return 'extra';
   if (type === 'weapon') return 'weaponbox';
   if (poolType === 'E_CharacterGachaPoolType_Special') return 'special';
   if (poolType === 'E_CharacterGachaPoolType_Standard') return 'standard';
@@ -130,6 +132,8 @@ function getPoolTypeFromId(poolId, type, poolType) {
 
 function getDefaultPoolName(poolId, type) {
   switch (type) {
+    case 'extra':
+      return '附加寻访';
     case 'limited':
       return '限定角色池';
     case 'standard':
@@ -221,7 +225,7 @@ function normalizeIsStandard(record, poolType, upCharacter) {
     return true;
   }
 
-  if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+  if (poolType === 'extra' || poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
     if (upCharacter) {
       const characterName = record.character_name || record.item_name || record.name || record.charName || record.weaponName || '';
       return !characterName.includes(upCharacter) && !upCharacter.includes(characterName);
