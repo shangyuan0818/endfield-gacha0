@@ -322,7 +322,7 @@ const usePoolStore = create((set, get) => ({
     });
 
     // 转换为数组，按预定顺序，过滤空分组
-    return ['extra', 'limited_character', 'standard', 'beginner', 'limited_weapon']
+    return ['limited_character', 'extra', 'standard', 'beginner', 'limited_weapon']
       .map(type => ({
         type,
         ...groups[type]

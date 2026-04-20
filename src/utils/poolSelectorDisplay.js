@@ -1,8 +1,8 @@
 import { getAppLocale, getMessage } from '../i18n/index.js';
 import { POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
-import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedList, localizePoolName } from './gameDataI18n.js';
 
-const TYPE_ORDER = ['extra', 'limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
+const TYPE_ORDER = ['limited', 'extra', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 
 function normalizeDateInput(input) {
   if (!input) return null;
@@ -97,14 +97,41 @@ function matchesQuery(pool, query, locale = getAppLocale()) {
   if (!query) return true;
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
+  const localizedFeaturedNames = getPoolSelectorFeaturedCharacters(pool, { locale });
   const haystacks = [
     pool?.name,
     pool?.up_character,
     pool?.upCharacter,
+    ...(Array.isArray(pool?.featured_characters) ? pool.featured_characters : []),
     localizePoolName(pool, { locale }),
-    localizeEntityName(pool?.up_character || pool?.upCharacter || '', { locale })
+    localizeEntityName(pool?.up_character || pool?.upCharacter || '', { locale }),
+    ...localizedFeaturedNames
   ];
   return haystacks.some((value) => String(value || '').toLowerCase().includes(normalizedQuery));
+}
+
+export function getPoolSelectorFeaturedCharacters(pool, { locale = getAppLocale() } = {}) {
+  const entityType = pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character';
+  const localizedFeaturedNames = localizePoolFeaturedList(pool, { locale, type: entityType }).filter(Boolean);
+
+  if ((pool?.type === 'extra') && localizedFeaturedNames.length > 0) {
+    return localizedFeaturedNames;
+  }
+
+  const localizedUpCharacter = localizeEntityName(pool?.up_character || pool?.upCharacter || '', {
+    locale,
+    type: entityType
+  });
+
+  return localizedUpCharacter ? [localizedUpCharacter] : [];
+}
+
+function getPoolSelectorAvatarLookupNames(pool) {
+  if (pool?.type === 'extra' && Array.isArray(pool?.featured_characters)) {
+    return pool.featured_characters.filter(Boolean).slice(0, 4);
+  }
+
+  return [pool?.up_character || pool?.upCharacter].filter(Boolean);
 }
 
 function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {
@@ -131,13 +158,17 @@ function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {
       return String(left.pool?.name || '').localeCompare(String(right.pool?.name || ''), locale);
     })
     .map(({ pool, timing }) => ({
+      ...(() => {
+        const displayFeaturedCharacters = getPoolSelectorFeaturedCharacters(pool, { locale });
+        return {
+          displayFeaturedCharacters,
+          displayUpCharacter: displayFeaturedCharacters.join(' / '),
+          avatarLookupNames: getPoolSelectorAvatarLookupNames(pool)
+        };
+      })(),
       ...pool,
       selectorTiming: timing,
       displayName: localizePoolName(pool, { locale }),
-      displayUpCharacter: localizeEntityName(pool?.up_character || pool?.upCharacter || '', {
-        locale,
-        type: pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character'
-      })
     }));
 }
 

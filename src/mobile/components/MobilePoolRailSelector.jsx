@@ -6,7 +6,7 @@ import { POOL_GROUP_PREFIX, isPoolGroupId } from '../../stores/usePoolStore';
 import ImportManager from '../../features/import/ImportManager';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
-import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, getPoolSelectorFeaturedCharacters, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { formatFreshnessRelative, getFreshnessTone, getLatestHistoryTimestampMs } from '../../utils/dataFreshness.js';
 import { MobileGlassPanel } from './ux/MobilePrimitives.jsx';
@@ -102,7 +102,7 @@ export default function MobilePoolRailSelector() {
         id: pool.id,
         kind: 'pool',
         name: pool.displayName || pool.name,
-        meta: pool.displayUpCharacter || localizeEntityName(pool.up_character || pool.upCharacter || '', { locale }) || t('pool.card.overviewDesc'),
+        meta: pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', { locale }) || t('pool.card.overviewDesc'),
         pulls: poolPullCounts[pool.id] || 0,
         pool,
       }));
@@ -266,7 +266,7 @@ export default function MobilePoolRailSelector() {
                   {selectedPool?.displayName || selectedPool?.name || t('pool.selector.selectPool')}
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500 dark:text-zinc-500">
-                  <span className="truncate">{selectedPool?.displayUpCharacter || localizeEntityName(selectedPool?.up_character || selectedPool?.upCharacter || '', { locale }) || (selectedPool?.isGroupMode ? t('pool.card.groupStats', { pools: formatNumber(selectorPools.length), pulls: formatNumber(totalPulls) }) : t('pool.card.overviewDesc'))}</span>
+                  <span className="truncate">{selectedPool?.displayUpCharacter || getPoolSelectorFeaturedCharacters(selectedPool, { locale }).join(' / ') || localizeEntityName(selectedPool?.up_character || selectedPool?.upCharacter || '', { locale }) || (selectedPool?.isGroupMode ? t('pool.card.groupStats', { pools: formatNumber(selectorPools.length), pulls: formatNumber(totalPulls) }) : t('pool.card.overviewDesc'))}</span>
                   <span className="shrink-0 font-mono text-slate-700 dark:text-zinc-300">
                     {formatNumber(selectedPullCount)} {t('dashboard.unit.pull')}
                   </span>
@@ -393,7 +393,7 @@ export default function MobilePoolRailSelector() {
                                     {pool.displayName || pool.name}
                                   </div>
                                   <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-500 dark:text-zinc-500">
-                                    <span className="truncate">{pool.displayUpCharacter || localizeEntityName(pool.up_character || pool.upCharacter || '', { locale }) || t('pool.card.overviewDesc')}</span>
+                                    <span className="truncate">{pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', { locale }) || t('pool.card.overviewDesc')}</span>
                                     <span className="shrink-0 font-mono">{formatNumber(pool.pullCount || 0)} {t('dashboard.unit.pull')}</span>
                                   </div>
                                 </div>

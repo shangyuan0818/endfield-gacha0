@@ -31,17 +31,6 @@ export default function SummarySidebar({
           {dataSource === 'global' && (
             <div className="bg-zinc-950">
               <SidebarItem
-                label={tt('summary.scope.extra', '附加寻访')}
-                icon={Star}
-                indent
-                isActive={poolTypeFilter === 'extra'}
-                onClick={() => {
-                  setDataSource('global');
-                  setPoolTypeFilter('extra');
-                }}
-                count={globalStats?.byType?.extra?.total}
-              />
-              <SidebarItem
                 label={tt('summary.scope.limited', '限定角色池')}
                 icon={Star}
                 indent
@@ -51,6 +40,17 @@ export default function SummarySidebar({
                   setPoolTypeFilter('limited');
                 }}
                 count={globalStats?.byType?.limited?.total}
+              />
+              <SidebarItem
+                label={tt('summary.scope.extra', '附加寻访')}
+                icon={Star}
+                indent
+                isActive={poolTypeFilter === 'extra'}
+                onClick={() => {
+                  setDataSource('global');
+                  setPoolTypeFilter('extra');
+                }}
+                count={globalStats?.byType?.extra?.total}
               />
               <SidebarItem
                 label={tt('summary.scope.standard', '常驻池')}
@@ -92,17 +92,6 @@ export default function SummarySidebar({
           {dataSource === 'local' && (
             <div className="bg-zinc-950">
               <SidebarItem
-                label={tt('summary.scope.extra', '附加寻访')}
-                icon={Star}
-                indent
-                isActive={poolTypeFilter === 'extra'}
-                onClick={() => {
-                  setDataSource('local');
-                  setPoolTypeFilter('extra');
-                }}
-                count={localStats.byType.extra.total}
-              />
-              <SidebarItem
                 label={tt('summary.scope.limited', '限定角色池')}
                 icon={Star}
                 indent
@@ -112,6 +101,17 @@ export default function SummarySidebar({
                   setPoolTypeFilter('limited');
                 }}
                 count={localStats.byType.limited.total}
+              />
+              <SidebarItem
+                label={tt('summary.scope.extra', '附加寻访')}
+                icon={Star}
+                indent
+                isActive={poolTypeFilter === 'extra'}
+                onClick={() => {
+                  setDataSource('local');
+                  setPoolTypeFilter('extra');
+                }}
+                count={localStats.byType.extra.total}
               />
               <SidebarItem
                 label={tt('summary.scope.standard', '常驻池')}

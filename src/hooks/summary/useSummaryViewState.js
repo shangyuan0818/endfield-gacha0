@@ -82,7 +82,7 @@ function getAveragePity(typeData) {
   return '-';
 }
 
-export const SUMMARY_FILTER_OPTIONS = ['all', 'extra', 'limited', 'standard', 'weapon'];
+export const SUMMARY_FILTER_OPTIONS = ['all', 'limited', 'extra', 'standard', 'weapon'];
 
 export function useSummaryViewState({
   history,

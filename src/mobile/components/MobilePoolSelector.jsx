@@ -14,7 +14,7 @@ import {
 } from '../../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
-import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
+import { buildPoolSelectorGroups, getPoolSelectorFeaturedCharacters, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
 import { MobileGlassPanel, MobileStatusBadge } from './ux/MobilePrimitives.jsx';
@@ -122,6 +122,7 @@ function MobilePoolSelector() {
     || selectedPool?.name
     || t('pool.selector.selectPool');
   const selectedPoolDisplayUp = selectedPool?.displayUpCharacter
+    || getPoolSelectorFeaturedCharacters(selectedPool, { locale }).join(' / ')
     || localizeEntityName(selectedPool?.up_character || selectedPool?.upCharacter || '', {
       locale,
       type: selectedPool?.type === 'weapon' ? 'weapon' : 'character'
@@ -613,7 +614,7 @@ function MobilePoolSelector() {
                               <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
                                 {(pool.displayUpCharacter || pool.up_character || pool.upCharacter) && (
                                   <span>
-                                    UP: {pool.displayUpCharacter || localizeEntityName(pool.up_character || pool.upCharacter || '', {
+                                    UP: {pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', {
                                       locale,
                                       type: pool.type === 'weapon' ? 'weapon' : 'character'
                                     }) || pool.up_character || pool.upCharacter}

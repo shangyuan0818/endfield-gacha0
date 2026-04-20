@@ -142,21 +142,32 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
   const isActive = pool.selectorTiming?.isActive;
   const remainingLabel = pool.selectorTiming?.remainingLabel;
   const formattedPullCount = new Intl.NumberFormat(locale).format(pool.pullCount || 0);
-  const upCharacterName = pool.displayUpCharacter || pool.up_character || pool.upCharacter || '';
-  const avatarLookupName = pool.up_character || pool.upCharacter || '';
-  const upCharacterAvatarUrl = useMemo(() => {
-    if (!avatarLookupName) {
-      return null;
-    }
-
-    return characterCache.searchByName(avatarLookupName, false)?.avatar_url || null;
-  }, [avatarLookupName]);
+  const featuredCharacterNames = Array.isArray(pool.displayFeaturedCharacters) && pool.displayFeaturedCharacters.length > 0
+    ? pool.displayFeaturedCharacters
+    : [pool.displayUpCharacter || pool.up_character || pool.upCharacter].filter(Boolean);
+  const featuredText = featuredCharacterNames.join(' / ');
+  const avatarLookupNames = Array.isArray(pool.avatarLookupNames) && pool.avatarLookupNames.length > 0
+    ? pool.avatarLookupNames
+    : [pool.up_character || pool.upCharacter].filter(Boolean);
+  const characterAvatarUrls = useMemo(() => (
+    avatarLookupNames
+      .map((name) => characterCache.searchByName(name, false)?.avatar_url || null)
+      .filter(Boolean)
+      .slice(0, 4)
+  ), [avatarLookupNames]);
+  const hasMultiCharacterBackdrop = characterAvatarUrls.length > 1;
+  const progressPercent = Math.max(Number(pool.selectorTiming?.progressPercent || 0), 4);
+  const progressBarClass = isActive
+    ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500'
+    : pool.selectorTiming?.isUpcoming
+      ? 'bg-blue-400'
+      : 'bg-zinc-400 dark:bg-zinc-600';
 
   return (
     <div
       onClick={onClick}
       className={`
-        relative flex-shrink-0 w-44 p-3 cursor-pointer transition-all border overflow-hidden
+        relative flex-shrink-0 w-44 p-3 pb-4 cursor-pointer transition-all border overflow-hidden
         group hover:border-zinc-400 dark:hover:border-zinc-500
         ${isSelected
           ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
@@ -165,14 +176,26 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
         ${isActive ? 'shadow-[0_0_0_1px_rgba(234,179,8,0.35),0_0_18px_rgba(234,179,8,0.12)]' : ''}
       `}
     >
-      {upCharacterAvatarUrl && (
+      {characterAvatarUrls.length > 0 && (
         <>
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[60%] opacity-48 dark:opacity-36">
-            <img
-              src={upCharacterAvatarUrl}
-              alt={upCharacterName}
-              className="h-full w-full object-cover object-[72%_center]"
-            />
+          <div className={`pointer-events-none absolute inset-y-0 right-0 z-0 ${hasMultiCharacterBackdrop ? 'grid w-[68%] grid-cols-2 grid-rows-2' : 'w-[60%]'} opacity-48 dark:opacity-36`}>
+            {hasMultiCharacterBackdrop
+              ? characterAvatarUrls.map((avatarUrl, index) => (
+                <div key={`${avatarUrl}-${index}`} className="overflow-hidden">
+                  <img
+                    src={avatarUrl}
+                    alt={featuredCharacterNames[index] || ''}
+                    className="h-full w-full object-cover object-center"
+                  />
+                </div>
+              ))
+              : (
+                <img
+                  src={characterAvatarUrls[0]}
+                  alt={featuredText}
+                  className="h-full w-full object-cover object-[72%_center]"
+                />
+              )}
           </div>
           <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[68%] bg-gradient-to-r from-white/92 via-white/68 to-transparent dark:from-zinc-900/92 dark:via-zinc-900/68 dark:to-transparent" />
         </>
@@ -199,14 +222,14 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
         {pool.displayName || pool.name}
       </div>
 
-      {upCharacterName && (
-        <div className="relative z-10 text-xs text-slate-500 dark:text-zinc-400 truncate mb-1 font-mono">
-          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> {upCharacterName}
+      {featuredText && (
+        <div className="relative z-10 mb-1 text-xs leading-4 text-slate-500 dark:text-zinc-400 font-mono">
+          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> <span className="whitespace-normal break-words">{featuredText}</span>
           {isActive && remainingLabel ? <span className="font-semibold text-amber-700 dark:text-endfield-yellow"> · {remainingLabel}</span> : null}
         </div>
       )}
 
-      {!upCharacterName && isActive && remainingLabel && (
+      {!featuredText && isActive && remainingLabel && (
         <div className="relative z-10 text-xs font-semibold text-amber-700 dark:text-endfield-yellow truncate mb-1 font-mono">{remainingLabel}</div>
       )}
 
@@ -215,16 +238,10 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
       </div>
 
       {pool.selectorTiming?.isTimed && (
-        <div className="relative z-10 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-200/80 dark:bg-zinc-800/90">
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[3px] bg-zinc-200/80 dark:bg-zinc-800/90">
           <div
-            className={`h-full transition-all ${
-              isActive
-                ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500'
-                : pool.selectorTiming?.isUpcoming
-                  ? 'bg-blue-400'
-                  : 'bg-zinc-400 dark:bg-zinc-600'
-            }`}
-            style={{ width: `${Math.max(Number(pool.selectorTiming?.progressPercent || 0), 4)}%` }}
+            className={`h-full transition-all ${progressBarClass}`}
+            style={{ width: `${progressPercent}%` }}
           />
         </div>
       )}
