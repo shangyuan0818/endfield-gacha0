@@ -49,7 +49,7 @@ import { buildDashboardStats, buildPityInfoWithGuarantee, processHistoryGroups }
 import { buildInheritedSimulatorSnapshot, normalizeSimulatorPoolType } from './simulatorInheritance';
 import { getLatestPendingInfoBook, reconcileInfoBookState, sortLimitedPoolsByStartTime } from './simulatorInfoBook';
 import { getCurrentUpPoolName } from '../../utils/poolTimeUtils';
-import { fetchPoolRosterBuckets } from '../../utils/poolRoster.js';
+import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
@@ -168,6 +168,18 @@ function getPoolFeaturedLead(pool) {
     : [];
 
   return featuredCharacters[0] || null;
+}
+
+function getRosterPoolTypeForSimulator(poolType) {
+  if (poolType === 'weapon') {
+    return 'weapon';
+  }
+
+  if (poolType === 'limited' || poolType === 'extra') {
+    return 'limited';
+  }
+
+  return 'standard';
 }
 
 export function useGachaSimulatorController() {
@@ -477,9 +489,13 @@ export function useGachaSimulatorController() {
     const loadPoolCharacters = async () => {
       const expectedType = currentPoolType === 'weapon' ? 'weapon' : 'character';
       const realPoolId = currentSimPoolIdValue.replace(/^sim_/, '');
-      const roster = await fetchPoolRosterBuckets(realPoolId, {
+      const roster = await resolvePoolRosterBuckets({
+        poolId: realPoolId,
         expectedType,
-        currentUpName: currentSimPoolFeaturedLead
+        currentUpName: currentSimPoolFeaturedLead,
+        poolType: getRosterPoolTypeForSimulator(currentPoolType),
+        poolInfo: currentSimPool || null,
+        mergeStrategy: currentPoolType === 'limited' || currentPoolType === 'extra' ? 'fill-missing' : 'append',
       });
       const mergedRoster = normalizeSimulatorRoster(roster);
 
@@ -506,6 +522,7 @@ export function useGachaSimulatorController() {
       cancelled = true;
     };
   }, [
+    currentSimPool,
     currentPoolType,
     currentSimPoolFeaturedCharacters,
     currentSimPoolFeaturedLead,

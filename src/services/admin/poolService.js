@@ -492,6 +492,8 @@ export const recalculateIsStandard = async (pools) => {
 
         if (poolType === 'standard' || poolType === 'beginner') {
           newIsStandard = true;
+        } else if (poolType === 'extra') {
+          newIsStandard = false;
         } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
           if (upCharacter) {
             newIsStandard = !characterName.includes(upCharacter) && !upCharacter.includes(characterName);

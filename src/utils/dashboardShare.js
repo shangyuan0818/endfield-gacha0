@@ -56,6 +56,10 @@ function formatRate(value) {
 
 function getPoolTypeLabel(poolType, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
+  if (poolType === 'extra') {
+    return english ? 'Extra Banner' : '附加寻访';
+  }
+
   if (poolType === 'weapon') {
     return english ? 'Weapon Banner' : '武器池';
   }
@@ -69,6 +73,10 @@ function getPoolTypeLabel(poolType, locale = getAppLocale()) {
 
 function getOverviewFilterLabel(filter, locale = getAppLocale()) {
   const english = isEnglishLocale(locale);
+  if (filter === 'extra') {
+    return english ? 'Extra Banner' : '附加寻访';
+  }
+
   if (filter === 'limited') {
     return english ? 'Limited Banner' : '限定池';
   }
