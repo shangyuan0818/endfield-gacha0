@@ -178,10 +178,11 @@ function MobileDashboardView() {
   } = useDashboardViewState();
   const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
   const localizedCurrentUpName = React.useMemo(
-    () => localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+    () => localizePoolFeaturedName(currentPool, { locale })
+      || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
       locale,
       type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
-    }) || localizePoolFeaturedName(currentPool, { locale }),
+    }),
     [currentPool, locale, normalizedPoolType]
   );
   const displayPity6 = (isLimited || isExtra) ? effectivePity.pity6 : stats.currentPity;

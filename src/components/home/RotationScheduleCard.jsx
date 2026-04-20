@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { RefreshCw, User } from 'lucide-react';
-import { characterCache } from '../../utils/characterUtils';
+import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
 
@@ -78,8 +78,7 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
               statusLabel = tt('home.rotation.status.nextNext', 'UP After Next');
             }
 
-            const characterData = characterCache.searchByName(pool.name, false);
-            const avatarUrl = characterData?.avatar_url;
+            const avatarUrl = getCharacterAvatarUrl(pool.name);
             const localizedPoolName = localizeEntityName(pool.name, { locale, type: 'character' }) || pool.name;
 
             let containerClass = 'bg-zinc-50 dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400';

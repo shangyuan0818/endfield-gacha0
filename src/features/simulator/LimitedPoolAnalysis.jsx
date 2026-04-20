@@ -1,7 +1,7 @@
 import React from 'react';
 import { Calculator, FileText, Sparkles } from 'lucide-react';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizePoolFeaturedList, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedList, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 
 /**
  * 限定池分析组件
@@ -160,7 +160,7 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });
-  const localizedUpCharacter = localizeEntityName(currentPool?.up_character || '', {
+  const localizedUpCharacter = localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || '', {
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });

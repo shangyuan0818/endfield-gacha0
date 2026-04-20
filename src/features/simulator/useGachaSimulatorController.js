@@ -54,6 +54,7 @@ import { appLogger } from '../../utils/appLogger.js';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
 import { POOL_GROUP_PREFIX } from '../../utils/poolGroupUtils.js';
+import { getPoolFeaturedLead } from '../../utils/poolFeaturedResolver.js';
 
 function dedupeRosterEntries(items = []) {
   const seen = new Set();
@@ -156,18 +157,6 @@ function normalizeStoredPoolId(value) {
   }
 
   return value;
-}
-
-function getPoolFeaturedLead(pool) {
-  if (pool?.up_character) {
-    return pool.up_character;
-  }
-
-  const featuredCharacters = Array.isArray(pool?.featured_characters)
-    ? pool.featured_characters.filter(Boolean)
-    : [];
-
-  return featuredCharacters[0] || null;
 }
 
 function getRosterPoolTypeForSimulator(poolType) {
@@ -369,6 +358,17 @@ export function useGachaSimulatorController() {
     () => simulatorPools.find((pool) => pool.id === currentSimPoolId),
     [simulatorPools, currentSimPoolId]
   );
+  const currentSimPoolSource = useMemo(
+    () => (
+      currentSimPool
+        ? {
+            ...currentSimPool,
+            resolved_roster: poolCharactersList || currentSimPool?.resolved_roster || null,
+          }
+        : null
+    ),
+    [currentSimPool, poolCharactersList]
+  );
   const currentPoolType = normalizeSimulatorPoolType(currentSimPool?.type || 'limited');
   const getLocalizedSimulatorPoolTypeName = useCallback(
     (poolType) => {
@@ -477,7 +477,7 @@ export function useGachaSimulatorController() {
   const currentSimPoolIdValue = currentSimPool?.id ?? null;
   const currentSimPoolFeaturedCharacters = currentSimPool?.featured_characters ?? null;
   const currentSimPoolUpCharacter = currentSimPool?.up_character ?? null;
-  const currentSimPoolFeaturedLead = currentSimPool ? getPoolFeaturedLead(currentSimPool) : null;
+  const currentSimPoolFeaturedLead = currentSimPoolSource ? getPoolFeaturedLead(currentSimPoolSource) : null;
 
   useEffect(() => {
     if (!currentSimPoolIdValue) {
@@ -527,6 +527,7 @@ export function useGachaSimulatorController() {
     currentSimPoolFeaturedCharacters,
     currentSimPoolFeaturedLead,
     currentSimPoolIdValue,
+    currentSimPoolSource,
     currentSimPoolUpCharacter
   ]);
 
@@ -1318,6 +1319,7 @@ export function useGachaSimulatorController() {
       name_en: currentSimPool?.name_en || null,
       up_character: currentSimPool?.up_character,
       featured_characters: currentSimPool?.featured_characters || null,
+      resolved_roster: poolCharactersList || currentSimPool?.resolved_roster || null,
     }),
     [
       currentSimPool?.featured_characters,
@@ -1325,7 +1327,9 @@ export function useGachaSimulatorController() {
       currentSimPool?.name,
       currentSimPool?.name_en,
       currentSimPool?.original_name,
+      currentSimPool?.resolved_roster,
       currentSimPool?.up_character,
+      poolCharactersList,
       simulator.poolType,
       t
     ]
@@ -1347,6 +1351,8 @@ export function useGachaSimulatorController() {
         type: currentPoolObj?.type,
         name: currentPoolObj?.name,
         up_character: currentPoolObj?.up_character,
+        featured_characters: currentPoolObj?.featured_characters,
+        resolved_roster: currentPoolObj?.resolved_roster,
       },
       history: pullHistory,
       currentPityOverride: currentSharePity6,

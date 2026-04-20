@@ -447,11 +447,11 @@ export function buildDashboardSharePayload({
   );
   const featured = featuredOverride !== null
     ? featuredOverride
-    : localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || null, {
+    : localizePoolFeaturedName(currentPool, { locale })
+      || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || null, {
         locale,
         type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
       })
-      || localizePoolFeaturedName(currentPool, { locale })
       || null;
 
   return {

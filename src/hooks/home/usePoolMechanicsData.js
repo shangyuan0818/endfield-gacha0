@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { characterCache, getPoolCharacters } from '../../utils/characterUtils';
 import { LIMITED_POOL_SCHEDULE } from '../../constants/index.js';
 import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { getPoolFeaturedLead, getPoolFeaturedNames } from '../../utils/poolFeaturedResolver.js';
 
 const FALLBACK_LIMITED_CHARACTERS = {
   sixStar: ['莱万汀', '伊冯', '洁尔佩塔', '余烬', '黎风', '艾尔黛拉', '别礼', '骏卫'],
@@ -79,7 +80,7 @@ const getCharacterRemovesAfter = (characterName) => {
 };
 
 const filterLimitedLineupByRotation = (names = [], currentUpInfo) => {
-  const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+  const currentUpName = currentUpInfo?.name || getPoolFeaturedLead(currentUpInfo?.poolData) || null;
   const rotationPosition = Number(currentUpInfo?.rotationPosition);
   if (!Number.isFinite(rotationPosition)) {
     return sanitizeNames(names);
@@ -114,12 +115,11 @@ const getCurrentPoolRecordId = (currentUpInfo) => (
 );
 
 const getFeaturedCharacters = (currentUpInfo) => {
-  const featuredCharacters = Array.isArray(currentUpInfo?.poolData?.featured_characters)
-    ? currentUpInfo.poolData.featured_characters.filter(Boolean)
-    : [];
+  const leadName = currentUpInfo?.name || getPoolFeaturedLead(currentUpInfo?.poolData) || null;
+  const featuredCharacters = getPoolFeaturedNames(currentUpInfo?.poolData);
 
-  return currentUpInfo?.name
-    ? [currentUpInfo.name, ...featuredCharacters.filter((name) => name !== currentUpInfo.name)]
+  return leadName
+    ? [leadName, ...featuredCharacters.filter((name) => name !== leadName)]
     : featuredCharacters;
 };
 
@@ -129,12 +129,10 @@ const buildLimitedSixStarSet = (
   activeLimitedCharacters,
   standardSixStarCharacters
 ) => {
-  const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+  const currentUpName = currentUpInfo?.name || getPoolFeaturedLead(currentUpInfo?.poolData) || null;
   const explicitLineup = filterLimitedLineupByRotation([
     ...sanitizeNames([
       ...getFeaturedCharacters(currentUpInfo),
-      currentUpInfo?.poolData?.up_character,
-      currentUpInfo?.poolData?.upCharacter,
       currentUpInfo?.name
     ]),
     ...sanitizeNames(activeLimitedCharacters || [])
@@ -178,7 +176,7 @@ export default function usePoolMechanicsData(currentUpInfo) {
         return;
       }
 
-      const currentUpName = currentUpInfo?.name || currentUpInfo?.poolData?.up_character || currentUpInfo?.poolData?.upCharacter || null;
+      const currentUpName = currentUpInfo?.name || getPoolFeaturedLead(currentUpInfo?.poolData) || null;
       const roster = await resolvePoolRosterBuckets({
         poolId: currentPoolRecordId,
         expectedType: 'character',
@@ -212,7 +210,7 @@ export default function usePoolMechanicsData(currentUpInfo) {
   }, [currentPoolRecordId, currentUpInfo]);
 
   const mechanicsData = useMemo(() => {
-    const currentUpName = currentUpInfo?.name || FALLBACK_LIMITED_CHARACTERS.sixStar[0];
+    const currentUpName = currentUpInfo?.name || getPoolFeaturedLead(currentUpInfo?.poolData) || FALLBACK_LIMITED_CHARACTERS.sixStar[0];
     const poolContext = getPoolContext(currentUpInfo);
     const featuredCharacters = getFeaturedCharacters(currentUpInfo);
     const hasCharacterData = characterCache.isLoaded() && characterCache.getAll().length > 0;

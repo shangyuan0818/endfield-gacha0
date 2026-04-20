@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useAuthStore } from '../../stores';
 import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
-import { characterCache } from '../../utils/characterUtils';
+import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
 import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
+import { getPoolFeaturedLead } from '../../utils/poolFeaturedResolver.js';
 import { useCurrentPoolData } from './useCurrentPoolData';
 import { usePoolStats } from './usePoolStats';
 
@@ -14,19 +15,6 @@ function normalizePoolType(type) {
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';
   return type;
-}
-
-function getPoolFeaturedLead(pool) {
-  const singleUpName = pool?.up_character || pool?.upCharacter || null;
-  if (singleUpName) {
-    return singleUpName;
-  }
-
-  const featuredCharacters = Array.isArray(pool?.featured_characters)
-    ? pool.featured_characters.filter(Boolean)
-    : [];
-
-  return featuredCharacters[0] || pool?.name || null;
 }
 
 function isLimitedPoolType(type) {
@@ -185,8 +173,7 @@ export function useDashboardViewState() {
   };
 
   const getCharacterAvatar = (name) => {
-    const charData = characterCache.searchByName(name, false);
-    return charData?.avatar_url;
+    return getCharacterAvatarUrl(name);
   };
 
   const dashboardResourceSummary = useMemo(() => {

@@ -578,11 +578,11 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
       : (english ? 'No new high-rarity milestone has formed in the current stage.' : '当前阶段尚未形成新的高稀有节点'),
     metaSummary: null,
     tags: [english ? 'Current' : '当前'],
-    leadBadge: createLeadBadge(
-      null,
-      localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
-      locale
-    ),
+      leadBadge: createLeadBadge(
+        null,
+        localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+        locale
+      ),
     dropBadges: supportBadges,
     highestRarity: supportBadges.some((badge) => Number(badge?.rarity) >= 5) ? 5 : 0
   };
@@ -620,11 +620,11 @@ function buildStageEntries({
         resultSummaryWithoutFiveStar: milestone.resultSummaryWithoutFiveStar || milestone.resultSummary,
         metaSummary: null,
         tags: milestone.tags,
-        leadBadge: milestone.leadBadge || createLeadBadge(
-          summary.primaryHighRarity,
-          localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
-          locale
-        ),
+          leadBadge: milestone.leadBadge || createLeadBadge(
+            summary.primaryHighRarity,
+            localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+            locale
+          ),
         dropBadges: createDropBadges(summary.highRarityItems, locale),
         highlightStageKind: milestone.highlightStageKind || milestone.stageKind,
         highestRarity: milestone.highestRarity || Number(summary.primaryHighRarity?.rarity) || 0
@@ -656,11 +656,11 @@ function buildStageEntries({
       resultSummaryWithoutFiveStar: milestone.resultSummaryWithoutFiveStar || milestone.resultSummary,
       metaSummary: null,
       tags: milestone.tags,
-      leadBadge: milestone.leadBadge || createLeadBadge(
-        summary.primaryHighRarity,
-        localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }) || localizePoolFeaturedName(pool, { locale }),
-        locale
-      ),
+        leadBadge: milestone.leadBadge || createLeadBadge(
+          summary.primaryHighRarity,
+          localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
+          locale
+        ),
       dropBadges: createDropBadges(mergedSupportItems, locale),
       highestRarity: milestone.highestRarity || 6
     });
@@ -722,10 +722,10 @@ function buildTimelineSection({
     id: pool?.id || 'pool-timeline',
     title: localizePoolName(pool, { locale }) || (isEnglishLocale(locale) ? 'Unknown Banner' : '未知卡池'),
     type: normalizedType,
-    featured: localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
+    featured: localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
       locale,
       type: normalizedType === 'weapon' ? 'weapon' : 'character'
-    }) || localizePoolFeaturedName(pool, { locale }) || null,
+    }) || null,
     period: formatPeriod(pool, locale),
     status: timing,
     totalPulls: metrics.totalPulls,

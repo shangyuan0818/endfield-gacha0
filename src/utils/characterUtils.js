@@ -8,6 +8,7 @@
 import { executeSupabaseMutation, executeSupabaseRead, fetchWithTimeout } from '../services/supabaseRequest.js';
 import { supabase } from '../supabaseClient.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from './storageUtils.js';
+import { normalizeEntityNameForMatch } from './canonicalEntityUtils.js';
 
 const PUBLIC_CHARACTERS_API_TIMEOUT_MS = 25000;
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
@@ -432,6 +433,64 @@ export const characterCache = new CharacterCache();
 // 开发环境下暴露到 window（方便调试）
 if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.__characterCache = characterCache;
+}
+
+export function resolveCharacterRecordByName(name, { fuzzy = true } = {}) {
+  if (!name) {
+    return null;
+  }
+
+  const normalizedName = String(name).trim();
+  if (!normalizedName) {
+    return null;
+  }
+
+  const directIdMatch = characterCache.getById(normalizedName);
+  if (directIdMatch) {
+    return directIdMatch;
+  }
+
+  const lowerCasedName = normalizedName.toLowerCase();
+  const caseInsensitiveIdMatch = characterCache.getAll().find((character) => (
+    typeof character?.id === 'string' && character.id.trim().toLowerCase() === lowerCasedName
+  ));
+  if (caseInsensitiveIdMatch) {
+    return caseInsensitiveIdMatch;
+  }
+
+  const strictMatch = characterCache.searchByName(normalizedName, false);
+  if (strictMatch) {
+    return strictMatch;
+  }
+
+  if (fuzzy) {
+    const fuzzyMatch = characterCache.searchByName(normalizedName, true);
+    if (fuzzyMatch) {
+      return fuzzyMatch;
+    }
+  }
+
+  const normalizedTarget = normalizeEntityNameForMatch(normalizedName);
+  if (!normalizedTarget) {
+    return null;
+  }
+
+  return characterCache.getAll().find((character) => {
+    if (normalizeEntityNameForMatch(character?.id) === normalizedTarget) {
+      return true;
+    }
+
+    if (normalizeEntityNameForMatch(character?.name) === normalizedTarget) {
+      return true;
+    }
+
+    return Array.isArray(character?.aliases)
+      && character.aliases.some((alias) => normalizeEntityNameForMatch(alias) === normalizedTarget);
+  }) || null;
+}
+
+export function getCharacterAvatarUrl(name, { fuzzy = true } = {}) {
+  return resolveCharacterRecordByName(name, { fuzzy })?.avatar_url || null;
 }
 
 /**

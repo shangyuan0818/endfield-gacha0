@@ -6,7 +6,7 @@ import {
 } from './shareBranding.js';
 import { formatOriginiteEquivalent } from './resourceEconomy.js';
 import { formatAppNumber, getAppLocale, getMessage, isEnglishLocale } from '../i18n/index.js';
-import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from './gameDataI18n.js';
 
 const SHARE_CARD_FILE_PREFIX = '终末地模拟器分享卡';
 const DEFAULT_SHARE_BACKGROUND = '#0a0a0b';
@@ -170,7 +170,8 @@ export function buildSimulatorSharePayload({
     poolName: currentPoolObj
       ? localizePoolName(currentPoolObj, { locale, poolType: poolType, upCharacter: currentPoolObj?.up_character })
       : (isEnglishLocale(locale) ? 'No pool selected' : '未选择卡池'),
-    upCharacter: localizeEntityName(currentPoolObj?.up_character || null, {
+    upCharacter: localizePoolFeaturedName(currentPoolObj, { locale })
+      || localizeEntityName(currentPoolObj?.up_character || null, {
       locale,
       type: poolType === 'weapon' ? 'weapon' : 'character'
     }) || null,

@@ -585,12 +585,12 @@ const DashboardView = ({ showToast }) => {
     }
 
     const pool = customShareSelectedPools[0];
-    return localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
-        locale,
-        type: getOverviewPoolBucket(pool) === 'weapon' ? 'weapon' : 'character',
-      })
-      || localizePoolFeaturedName(pool, { locale })
-      || null;
+    return localizePoolFeaturedName(pool, { locale })
+        || localizeEntityName(pool?.up_character || pool?.upCharacter || null, {
+          locale,
+          type: getOverviewPoolBucket(pool) === 'weapon' ? 'weapon' : 'character',
+        })
+        || null;
   }, [customShareSelectedPools, locale]);
   const customSharePayload = React.useMemo(() => {
     if (customShareSelectedPools.length === 0 || !customShareSplitStats) {

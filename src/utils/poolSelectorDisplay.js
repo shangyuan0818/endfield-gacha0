@@ -1,6 +1,7 @@
 import { getAppLocale, getMessage } from '../i18n/index.js';
 import { POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
 import { localizeEntityName, localizePoolFeaturedList, localizePoolName } from './gameDataI18n.js';
+import { getPoolFeaturedNames } from './poolFeaturedResolver.js';
 
 const TYPE_ORDER = ['limited', 'extra', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 
@@ -127,11 +128,13 @@ export function getPoolSelectorFeaturedCharacters(pool, { locale = getAppLocale(
 }
 
 function getPoolSelectorAvatarLookupNames(pool) {
-  if (pool?.type === 'extra' && Array.isArray(pool?.featured_characters)) {
-    return pool.featured_characters.filter(Boolean).slice(0, 4);
+  const featuredNames = getPoolFeaturedNames(pool);
+
+  if (pool?.type === 'extra' && featuredNames.length > 0) {
+    return featuredNames.slice(0, 4);
   }
 
-  return [pool?.up_character || pool?.upCharacter].filter(Boolean);
+  return featuredNames.slice(0, 1);
 }
 
 function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {

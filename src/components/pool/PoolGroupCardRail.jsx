@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Layers, Lock, Star, Swords, User } from 'lucide-react';
 import { getPoolTimingMeta, getSelectorVisiblePools } from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
-import { characterCache } from '../../utils/characterUtils.js';
+import { getCharacterAvatarUrl } from '../../utils/characterUtils.js';
 
 const TYPE_CONFIG = {
   extra: { icon: Star, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-100 dark:bg-cyan-900/20' },
@@ -151,7 +151,7 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
     : [pool.up_character || pool.upCharacter].filter(Boolean);
   const characterAvatarUrls = useMemo(() => (
     avatarLookupNames
-      .map((name) => characterCache.searchByName(name, false)?.avatar_url || null)
+      .map((name) => getCharacterAvatarUrl(name))
       .filter(Boolean)
       .slice(0, 4)
   ), [avatarLookupNames]);

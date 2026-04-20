@@ -1,6 +1,7 @@
 import { getAppLocale, isEnglishLocale } from '../i18n/index.js';
 import useSiteConfigStore from '../stores/useSiteConfigStore.js';
-import { characterCache } from './characterUtils.js';
+import { characterCache, resolveCharacterRecordByName } from './characterUtils.js';
+import { getPoolFeaturedNames } from './poolFeaturedResolver.js';
 
 export const POOL_LOCALIZATION_CONFIG_KEY = 'pool_localizations';
 export const ENTITY_LOCALIZATION_CONFIG_KEY = 'entity_localizations';
@@ -143,7 +144,7 @@ function resolveCharacterRecord(name) {
     return null;
   }
 
-  return characterCache.searchByName(normalized, false) || characterCache.searchByName(normalized, true);
+  return resolveCharacterRecordByName(normalized, { fuzzy: true });
 }
 
 function inferEntityType(record, explicitType = null) {
@@ -439,7 +440,7 @@ export function localizePoolFeaturedName(pool, { locale = getAppLocale() } = {})
 }
 
 export function localizePoolFeaturedList(pool, { locale = getAppLocale(), type = null } = {}) {
-  const names = Array.isArray(pool?.featured_characters) ? pool.featured_characters : [];
+  const names = getPoolFeaturedNames(pool);
   return localizeEntityList(names, {
     locale,
     type: type || (pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character')

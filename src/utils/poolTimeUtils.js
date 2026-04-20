@@ -4,7 +4,8 @@
  */
 
 import { LIMITED_POOL_SCHEDULE } from '../constants/index.js';
-import { characterCache } from './characterUtils.js';
+import { characterCache, getCharacterAvatarUrl } from './characterUtils.js';
+import { getPoolFeaturedLead } from './poolFeaturedResolver.js';
 
 function normalizeRotationLimit(value) {
   if (value === null || value === undefined || value === '') {
@@ -54,7 +55,7 @@ function getPoolEndDate(pool) {
 }
 
 function getPoolCharacterName(pool) {
-  return pool?.up_character || pool?.upCharacter || pool?.name || null;
+  return getPoolFeaturedLead(pool) || pool?.name || null;
 }
 
 function getPoolBackgroundImage(pool) {
@@ -68,7 +69,7 @@ function getPoolBackgroundImage(pool) {
     return null;
   }
 
-  return characterCache.searchByName(characterName, false)?.avatar_url || null;
+  return getCharacterAvatarUrl(characterName) || null;
 }
 
 function getCharacterRotationMeta(characterName) {
