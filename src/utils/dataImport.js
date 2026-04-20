@@ -4,6 +4,7 @@ import { detectImportFormat, prepareImportPayload } from './dataFormatRegistry.j
 
 const MAX_IMPORT_ERRORS = 10;
 const VALID_POOL_TYPES = new Set([
+  'extra',
   'limited',
   'limited_character',
   'standard',
@@ -96,6 +97,7 @@ function normalizePoolType(rawType, poolId, isLimitedWeapon) {
   const normalizedType = normalizeString(rawType)?.toLowerCase();
 
   if (normalizedType && VALID_POOL_TYPES.has(normalizedType)) {
+    if (normalizedType === 'extra') return 'extra';
     if (normalizedType === 'limited_character') return 'limited';
     if (normalizedType === 'limited_weapon') return 'weapon';
     return normalizedType;
@@ -142,7 +144,7 @@ function normalizeImportedPool(pool, currentUserId) {
   }
 
   if (!type) {
-    errors.push('无效的类型 (type)，应为 limited/limited_character/standard/weapon/limited_weapon/beginner');
+    errors.push('无效的类型 (type)，应为 extra/limited/limited_character/standard/weapon/limited_weapon/beginner');
   }
 
   const startTime = normalizeTimestamp(pool?.start_time || pool?.startTime);

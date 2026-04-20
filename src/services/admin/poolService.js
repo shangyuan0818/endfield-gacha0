@@ -5,11 +5,24 @@
 import { supabase } from '../../supabaseClient';
 import { buildManualCharacterId, buildManualPoolId } from '../../utils/canonicalEntityUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
+import { getLimitedCharacterPoolStatus } from '../../utils/characterUtils.js';
 import {
   buildCharacterSelfAliasRows,
   buildPoolSelfAliasRows,
 } from '../../../shared/idAliasService.js';
 import appLogger from '../../utils/appLogger.js';
+
+function normalizeName(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildNameSet(items = []) {
+  return new Set(
+    (Array.isArray(items) ? items : [])
+      .map((item) => normalizeName(item))
+      .filter(Boolean)
+  );
+}
 
 async function saveManagedCharacterWithAliases(characterData) {
   const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
@@ -57,6 +70,10 @@ async function upsertPoolWithAliases({ poolId, insertPayload, updatePayload, ali
 }
 
 function buildInitialPoolCharacterRows(characters, poolType, upCharacterName) {
+  if (poolType === 'extra') {
+    return [];
+  }
+
   const expectedType = poolType === 'weapon' ? 'weapon' : 'character';
 
   return characters
@@ -65,6 +82,100 @@ function buildInitialPoolCharacterRows(characters, poolType, upCharacterName) {
       character_id: character.id,
       is_up: character.name === upCharacterName
     }));
+}
+
+function buildExtraPoolCharacterRows(characters, featuredCharacters, poolStartTime = null) {
+  const featuredNameSet = buildNameSet(featuredCharacters);
+  const poolContext = poolStartTime ? { start_time: poolStartTime } : null;
+  const dedupedRows = new Map();
+
+  (Array.isArray(characters) ? characters : []).forEach((character) => {
+    if (character?.type !== 'character') {
+      return;
+    }
+
+    const normalizedName = normalizeName(character?.name);
+    if (!normalizedName || !character?.id) {
+      return;
+    }
+
+    if (Number(character?.rarity) === 6 && featuredNameSet.has(normalizedName)) {
+      dedupedRows.set(character.id, {
+        character_id: character.id,
+        is_up: true
+      });
+      return;
+    }
+
+    if (Number(character?.rarity) !== 5 && Number(character?.rarity) !== 4) {
+      return;
+    }
+
+    const supportedPools = Array.isArray(character?.pool_config?.pools) ? character.pool_config.pools : [];
+    if (!supportedPools.includes('limited')) {
+      return;
+    }
+
+    const limitedStatus = getLimitedCharacterPoolStatus(character, poolContext);
+    if (!limitedStatus.isIntroduced || !limitedStatus.isActive) {
+      return;
+    }
+
+    dedupedRows.set(character.id, {
+      character_id: character.id,
+      is_up: false
+    });
+  });
+
+  return Array.from(dedupedRows.values());
+}
+
+async function upsertPoolCharacter(poolId, characterId, isUp = false) {
+  const { error } = await supabase
+    .from('pool_characters')
+    .upsert(
+      { pool_id: poolId, character_id: characterId, is_up: isUp },
+      { onConflict: 'pool_id,character_id' }
+    );
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function syncExtraPoolCharacters(poolId, characters, editingPoolCharacters, poolData) {
+  const featuredCharacterRows = buildExtraPoolCharacterRows(
+    characters,
+    poolData?.featured_characters,
+    poolData?.start_time || null
+  );
+
+  if (featuredCharacterRows.length === 0) {
+    return;
+  }
+
+  const selectedRows = Array.isArray(editingPoolCharacters) ? editingPoolCharacters : [];
+  const selectedIds = new Set(selectedRows.map((row) => row.character_id));
+  const featuredIds = new Set(
+    featuredCharacterRows
+      .filter((row) => row.is_up)
+      .map((row) => row.character_id)
+  );
+
+  const rowsToPersist = selectedRows.length > 0
+    ? [
+        ...selectedRows.map((row) => ({
+          character_id: row.character_id,
+          is_up: featuredIds.has(row.character_id)
+        })),
+        ...featuredCharacterRows.filter((row) => !selectedIds.has(row.character_id))
+      ]
+    : featuredCharacterRows;
+
+  for (const row of rowsToPersist) {
+    // eslint-disable-next-line no-await-in-loop -- row upserts stay sequential so a failing mapping is attributable
+    await upsertPoolCharacter(poolId, row.character_id, row.is_up);
+  }
 }
 
 /**
@@ -183,17 +294,7 @@ export const addCharacterToPool = async (poolId, characterId, isUp = false) => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { error } = await supabase
-      .from('pool_characters')
-      .insert({ pool_id: poolId, character_id: characterId, is_up: isUp });
-
-    if (error) {
-      if (error.code === '23505') {
-        // 重复插入，忽略
-        return { success: true };
-      }
-      throw error;
-    }
+    await upsertPoolCharacter(poolId, characterId, isUp);
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -255,7 +356,7 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
 /**
  * 保存卡池（创建或更新）
  */
-export const savePool = async (poolData, editingPool, characters) => {
+export const savePool = async (poolData, editingPool, characters, editingPoolCharacters = []) => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
@@ -276,6 +377,10 @@ export const savePool = async (poolData, editingPool, characters) => {
         aliasRows: buildPoolSelfAliasRows(targetPoolId)
       });
 
+      if (poolData.type === 'extra') {
+        await syncExtraPoolCharacters(targetPoolId, characters, editingPoolCharacters, poolData);
+      }
+
       return { success: true, isNew: false };
     } else {
       // 创建新卡池
@@ -291,15 +396,17 @@ export const savePool = async (poolData, editingPool, characters) => {
         ...poolData,
         user_id: user.id,
         pool_id,
-        locked: false
+        locked: Boolean(poolData.locked)
       };
 
       const poolType = poolData.type === 'limited_character' ? 'limited' : poolData.type;
-      const initialPoolCharacterRows = buildInitialPoolCharacterRows(
-        characters,
-        poolType,
-        poolData.up_character
-      );
+      const initialPoolCharacterRows = poolType === 'extra'
+        ? buildExtraPoolCharacterRows(characters, poolData.featured_characters, poolData.start_time)
+        : buildInitialPoolCharacterRows(
+            characters,
+            poolType,
+            poolData.up_character
+          );
 
       await upsertPoolWithAliases({
         poolId: pool_id,

@@ -85,6 +85,7 @@ const PoolManagement = ({ showToast }) => {
           >
             <option value="all">全部类型</option>
             <option value="limited">限定角色</option>
+            <option value="extra">附加寻访</option>
             <option value="weapon">限定武器</option>
             <option value="standard">常驻</option>
           </select>

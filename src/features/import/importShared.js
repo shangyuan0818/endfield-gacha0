@@ -14,6 +14,7 @@ function translateWithFallback(t, key, fallback) {
 
 export function getPoolName(poolType, t) {
   const nameMap = {
+    extra: translateWithFallback(t, 'pool.group.extra', '附加寻访'),
     limited_character: translateWithFallback(t, 'pool.group.limited', '限定角色'),
     standard: translateWithFallback(t, 'pool.group.standard', '常驻'),
     beginner: translateWithFallback(t, 'pool.group.beginner', '新手'),

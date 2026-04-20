@@ -10,6 +10,8 @@ const getTypeIcon = (type) => {
     case 'limited':
     case 'limited_character':
       return <Star size={14} className="text-orange-500" />;
+    case 'extra':
+      return <Layers size={14} className="text-cyan-500" />;
     case 'weapon':
     case 'limited_weapon':
       return <Swords size={14} className="text-slate-500 dark:text-zinc-400" />;
@@ -26,6 +28,8 @@ const getTypeLabel = (type) => {
     case 'limited':
     case 'limited_character':
       return '限定角色';
+    case 'extra':
+      return '附加寻访';
     case 'weapon':
     case 'limited_weapon':
       return '限定武器';
@@ -42,6 +46,8 @@ const getTypeColor = (type) => {
     case 'limited':
     case 'limited_character':
       return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+    case 'extra':
+      return 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300';
     case 'weapon':
     case 'limited_weapon':
       return 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400';
@@ -56,10 +62,15 @@ const getTypeColor = (type) => {
 const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
   const poolCharIds = (poolCharacters[pool.pool_id] || []).map(pc => pc.character_id);
   const poolChars = characters.filter(c => poolCharIds.includes(c.id));
+  const featuredCharacterSet = new Set(
+    Array.isArray(pool.featured_characters) && pool.featured_characters.length > 0
+      ? pool.featured_characters.filter(Boolean)
+      : [pool.up_character].filter(Boolean)
+  );
 
   const sixStars = poolChars.filter(c => c.rarity === 6).sort((a, b) => {
-    const aIsUp = a.name === pool.up_character;
-    const bIsUp = b.name === pool.up_character;
+    const aIsUp = featuredCharacterSet.has(a.name);
+    const bIsUp = featuredCharacterSet.has(b.name);
     if (aIsUp && !bIsUp) return -1;
     if (!aIsUp && bIsUp) return 1;
     const aIsLimited = a.is_limited;
@@ -86,7 +97,7 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
             <span className="text-xs text-orange-500 font-medium shrink-0 w-8">6★</span>
             <div className="flex flex-wrap gap-1">
               {sixStars.slice(0, 6).map(char => {
-                const isUp = char.name === pool.up_character;
+                const isUp = featuredCharacterSet.has(char.name);
                 const isLimited = char.is_limited;
                 return (
                   <span
@@ -218,6 +229,9 @@ const PoolCard = ({
   onDelete
 }) => {
   const isLimitedPool = pool.type === 'limited' || pool.type === 'limited_character';
+  const featuredCharacters = Array.isArray(pool.featured_characters)
+    ? pool.featured_characters.filter(Boolean)
+    : [];
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
@@ -258,10 +272,29 @@ const PoolCard = ({
         </div>
 
         {/* UP 角色 */}
-        {pool.up_character && (
+        {pool.up_character && pool.type !== 'extra' && (
           <div className="flex items-center gap-2 mt-2 text-sm text-slate-600 dark:text-zinc-400">
             <Star size={12} className="text-orange-500" />
             UP: {pool.up_character}
+          </div>
+        )}
+
+        {pool.type === 'extra' && featuredCharacters.length > 0 && (
+          <div className="mt-2 text-sm text-slate-600 dark:text-zinc-400">
+            <div className="flex items-center gap-2">
+              <Star size={12} className="text-cyan-500" />
+              6★ 名单
+            </div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {featuredCharacters.map((name) => (
+                <span
+                  key={name}
+                  className="text-xs px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300"
+                >
+                  {name}
+                </span>
+              ))}
+            </div>
           </div>
         )}
 

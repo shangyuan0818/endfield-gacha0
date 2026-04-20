@@ -1,5 +1,6 @@
 // 卡池类型常量
 export const POOL_TYPES = {
+  EXTRA: 'extra',
   LIMITED_CHARACTER: 'limited_character',
   LIMITED_WEAPON: 'limited_weapon',
   STANDARD: 'standard'
@@ -56,6 +57,31 @@ export const LIMITED_POOL_RULES = {
 
   // 保底继承
   pityInherits: true,                 // 6星和5星保底继承到其他限定池
+};
+
+// 附加寻访规则
+// 2026-05-14「辉光庆典」为一次性独立池型：
+// - 4 名 6★ 同池等概率
+// - 30 抽赠送免费十连不计入保底，也不计入奖励累计
+// - 保底不继承到其他池
+export const EXTRA_POOL_RULES = {
+  sixStarPity: 80,
+  sixStarBaseProbability: 0.008,
+  sixStarSoftPityStart: 65,
+  sixStarSoftPityIncrease: 0.05,
+  hasSoftPity: true,
+
+  fiveStarPity: 10,
+  fiveStarBaseProbability: 0.08,
+
+  featuredSixStarCount: 4,
+  featuredSixStarShare: 0.25,
+
+  freeTenPullInterval: 30,
+  freeTenPullCountsTowardPity: false,
+  freeTenPullCountsTowardRewards: false,
+
+  pityInherits: false,
 };
 
 // 限定池轮换计划（基于官方公告时间）

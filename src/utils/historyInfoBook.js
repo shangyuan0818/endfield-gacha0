@@ -26,6 +26,7 @@ function sortByTimeline(left, right) {
 
 function normalizePoolType(pool) {
   const type = pool?.type;
+  if (type === 'extra') return 'extra';
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';

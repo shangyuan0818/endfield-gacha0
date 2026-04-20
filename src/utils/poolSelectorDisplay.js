@@ -2,7 +2,7 @@ import { getAppLocale, getMessage } from '../i18n/index.js';
 import { POOL_GROUP_PREFIX } from '../stores/usePoolStore.js';
 import { localizeEntityName, localizePoolName } from './gameDataI18n.js';
 
-const TYPE_ORDER = ['limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
+const TYPE_ORDER = ['extra', 'limited', 'standard', 'weapon_limited', 'weapon_standard', 'beginner'];
 
 function normalizeDateInput(input) {
   if (!input) return null;
@@ -18,12 +18,14 @@ export function normalizePoolGroupType(pool) {
     return pool?.isLimitedWeapon === false ? 'weapon_standard' : 'weapon_limited';
   }
 
+  if (type === 'extra') return 'extra';
   if (type === 'limited') return 'limited';
   if (type === 'beginner') return 'beginner';
   return 'standard';
 }
 
 export function getPoolTypeLabel(groupType, locale = getAppLocale()) {
+  if (groupType === 'extra') return getMessage('pool.group.extra', {}, locale);
   if (groupType === 'limited') return getMessage('pool.group.limited', {}, locale);
   if (groupType === 'weapon_limited') return getMessage('pool.group.weaponLimited', {}, locale);
   if (groupType === 'weapon_standard') return getMessage('pool.group.weaponStandard', {}, locale);
@@ -148,6 +150,7 @@ export function buildPoolSelectorGroups({
 }) {
   const filteredPools = (Array.isArray(pools) ? pools : []).filter((pool) => matchesQuery(pool, searchQuery, locale));
   const grouped = {
+    extra: [],
     limited: [],
     standard: [],
     weapon_limited: [],

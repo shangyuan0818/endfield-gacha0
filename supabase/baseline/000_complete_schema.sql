@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS public.pools (
   user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   pool_id TEXT NOT NULL,
   name TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('limited', 'standard', 'weapon')),
+  type TEXT NOT NULL CHECK (type IN ('extra', 'limited', 'standard', 'weapon', 'beginner')),
   locked BOOLEAN DEFAULT FALSE,
   is_limited_weapon BOOLEAN DEFAULT TRUE,  -- 武器池类型：限定/常驻
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -15651,4 +15651,3 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB) TO authenticated;
 -- <<< END MIGRATION: active/098_add_pool_name_en.sql
-

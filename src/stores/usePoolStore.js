@@ -50,6 +50,8 @@ export function getPoolTypeFromId(poolId) {
  */
 function getDefaultPoolName(poolId, type) {
   switch (type) {
+    case 'extra':
+      return '附加寻访';
     case 'limited_character':
     case 'limited':
       return '限定角色池';
@@ -298,6 +300,7 @@ const usePoolStore = create((set, get) => ({
 
     // 按类型分组
     const groups = {
+      extra: { label: '附加寻访', pools: [] },
       limited_character: { label: '限定角色池', pools: [] },
       standard: { label: '常驻池', pools: [] },
       beginner: { label: '新手池', pools: [] },
@@ -307,6 +310,7 @@ const usePoolStore = create((set, get) => ({
     filteredPools.forEach(pool => {
       // 统一类型映射
       let type = pool.type || 'standard';
+      if (type === 'extra') type = 'extra';
       if (type === 'limited') type = 'limited_character';
       if (type === 'weapon') type = 'limited_weapon';
 
@@ -318,7 +322,7 @@ const usePoolStore = create((set, get) => ({
     });
 
     // 转换为数组，按预定顺序，过滤空分组
-    return ['limited_character', 'standard', 'beginner', 'limited_weapon']
+    return ['extra', 'limited_character', 'standard', 'beginner', 'limited_weapon']
       .map(type => ({
         type,
         ...groups[type]

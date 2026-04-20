@@ -3,6 +3,15 @@ import { X, Save, Star, Users, RotateCw, UserPlus, CheckCircle, Lock, Unlock, Ch
 import DateTimePicker from '../../common/DateTimePicker';
 import { getLimitedCharacterPoolStatus } from '../../../utils/characterUtils';
 
+function parseFeaturedCharactersInput(value) {
+  return Array.from(new Set(
+    String(value || '')
+      .split(/[\n,，、；;|]+/u)
+      .map((item) => item.trim())
+      .filter(Boolean)
+  ));
+}
+
 /**
  * 角色标签组件
  */
@@ -97,10 +106,13 @@ const PoolEditDialog = ({
   const poolType = (poolForm.type === 'limited_character' || poolForm.type === 'limited') ? 'limited'
     : (poolForm.type === 'weapon' || poolForm.type === 'limited_weapon') ? 'weapon'
     : poolForm.type;
+  const isExtraPool = poolType === 'extra';
   const allChars = characters.filter(c => c.type === (poolType === 'weapon' ? 'weapon' : 'character'));
   const sixStars = allChars.filter(c => c.rarity === 6);
   const fiveStars = allChars.filter(c => c.rarity === 5);
   const fourStars = allChars.filter(c => c.rarity === 4);
+  const featuredCharacters = parseFeaturedCharactersInput(poolForm.featured_characters_text);
+  const featuredCharacterSet = new Set(isExtraPool ? featuredCharacters : [poolForm.up_character.trim()].filter(Boolean));
 
   const isInPool = (char) => editingPoolCharacters.some(pc => pc.character_id === char.id);
   const poolContext = {
@@ -110,7 +122,7 @@ const PoolEditDialog = ({
 
   const renderCharTag = (char) => {
     const inPool = isInPool(char);
-    const isUp = char.name === poolForm.up_character.trim();
+    const isUp = featuredCharacterSet.has(char.name);
     const rotationStatus = getLimitedCharacterPoolStatus(char, poolContext);
     const isRemoved = poolType === 'limited' && !rotationStatus.isActive;
 
@@ -198,6 +210,7 @@ const PoolEditDialog = ({
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
                   >
                     <option value="limited">限定角色池</option>
+                    <option value="extra">附加寻访</option>
                     <option value="weapon">限定武器池</option>
                     <option value="standard">常驻池</option>
                   </select>
@@ -218,40 +231,72 @@ const PoolEditDialog = ({
                   </div>
                 )}
 
-                {/* UP 角色 */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                    UP 角色/武器名称
-                  </label>
-                  <input
-                    type="text"
-                    value={poolForm.up_character}
-                    onChange={(e) => setPoolForm(prev => ({ ...prev, up_character: e.target.value }))}
-                    placeholder="例如：莱万汀"
-                    className={`w-full px-3 py-2 border rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 ${
-                      poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character)
-                        ? 'border-amber-400 dark:border-amber-600'
-                        : 'border-zinc-300 dark:border-zinc-700'
-                    }`}
-                  />
-                  {poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character) && (
-                    <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs">
-                      <div className="flex items-start gap-2">
-                        <UserPlus size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                        <div className="text-amber-700 dark:text-amber-400">
-                          <p className="font-medium">将自动创建新角色「{poolForm.up_character.trim()}」</p>
-                          <p className="mt-0.5 opacity-80">6星 · {poolForm.type === 'weapon' ? '武器' : '角色'} · 轮换基数按开始时间自动派生，默认 3 池后移出</p>
+                {isExtraPool ? (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                      附加寻访 6★ 名单 *
+                    </label>
+                    <textarea
+                      value={poolForm.featured_characters_text || ''}
+                      onChange={(e) => setPoolForm(prev => ({ ...prev, featured_characters_text: e.target.value }))}
+                      placeholder={'每行一个，或用逗号分隔\n例如：\n莱万汀\n伊冯\n洁尔佩塔\n余烬'}
+                      rows={5}
+                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 resize-none text-sm"
+                    />
+                    <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
+                      需填写 4 个不重复的 6★ 角色；保存时会自动将首位角色写入展示主位，并为模拟器填充这 4 位 6★ 与限定池同款 5★ / 4★ 阵容。
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-slate-400 dark:text-zinc-500">当前已识别 {featuredCharacters.length}/4：</span>
+                      {featuredCharacters.map((name) => (
+                        <span
+                          key={name}
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            checkUpCharacterExists(name)
+                              ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
+                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                          }`}
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                      UP 角色/武器名称
+                    </label>
+                    <input
+                      type="text"
+                      value={poolForm.up_character}
+                      onChange={(e) => setPoolForm(prev => ({ ...prev, up_character: e.target.value }))}
+                      placeholder="例如：莱万汀"
+                      className={`w-full px-3 py-2 border rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 ${
+                        poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character)
+                          ? 'border-amber-400 dark:border-amber-600'
+                          : 'border-zinc-300 dark:border-zinc-700'
+                      }`}
+                    />
+                    {poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character) && (
+                      <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs">
+                        <div className="flex items-start gap-2">
+                          <UserPlus size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                          <div className="text-amber-700 dark:text-amber-400">
+                            <p className="font-medium">将自动创建新角色「{poolForm.up_character.trim()}」</p>
+                            <p className="mt-0.5 opacity-80">6星 · {poolForm.type === 'weapon' ? '武器' : '角色'} · 轮换基数按开始时间自动派生，默认 3 池后移出</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {poolForm.up_character.trim() && checkUpCharacterExists(poolForm.up_character) && (
-                    <div className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                      <CheckCircle size={12} />
-                      角色已存在
-                    </div>
-                  )}
-                </div>
+                    )}
+                    {poolForm.up_character.trim() && checkUpCharacterExists(poolForm.up_character) && (
+                      <div className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        <CheckCircle size={12} />
+                        角色已存在
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* 时间范围 */}
                 <div className="grid grid-cols-2 gap-3">
@@ -354,7 +399,7 @@ const PoolEditDialog = ({
                   {!editingPool?.pool_id && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded text-xs text-blue-700 dark:text-blue-400">
                       <p className="font-medium">💡 提示：请先保存卡池，然后再管理池中角色</p>
-                      <p className="mt-1 opacity-80">保存后将自动选择所有可用角色</p>
+                      <p className="mt-1 opacity-80">保存后会按卡池类型自动填充初始阵容；附加寻访会自动带入 4 位 6★ 与限定池同款 5★ / 4★。</p>
                     </div>
                   )}
 
@@ -430,6 +475,15 @@ const PoolEditDialog = ({
                           </p>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {isExtraPool && allChars.length > 0 && (
+                    <div className="p-3 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-900 rounded text-xs text-cyan-700 dark:text-cyan-300">
+                      <p className="font-medium">附加寻访配置说明</p>
+                      <p className="mt-1 opacity-80">
+                        • 仅这 4 位 6★ 会进入六星池，且都按 UP 处理；5★ / 4★ 建议按限定池同款阵容维护。
+                      </p>
                     </div>
                   )}
                 </div>

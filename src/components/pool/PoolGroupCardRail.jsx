@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/index.js';
 import { characterCache } from '../../utils/characterUtils.js';
 
 const TYPE_CONFIG = {
+  extra: { icon: Star, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-100 dark:bg-cyan-900/20' },
   limited: { icon: Star, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/20' },
   standard: { icon: Layers, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/20' },
   beginner: { icon: User, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/20' },
@@ -15,6 +16,8 @@ const TYPE_CONFIG = {
 function GroupLabel({ groupType, label, collapsed, onToggle, t }) {
   const accentClass = groupType === 'limited'
     ? 'bg-orange-500 text-orange-600 dark:text-orange-400'
+    : groupType === 'extra'
+      ? 'bg-cyan-500 text-cyan-600 dark:text-cyan-400'
     : groupType === 'weapon_limited'
       ? 'bg-slate-500 text-slate-600 dark:text-slate-300'
       : groupType === 'standard'
