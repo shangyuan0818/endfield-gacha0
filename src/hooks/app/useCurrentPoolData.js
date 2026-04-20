@@ -59,6 +59,10 @@ function matchesCurrentGameUid(item, currentGameUid) {
 }
 
 function normalizePoolType(type) {
+  if (type === 'extra') {
+    return 'extra';
+  }
+
   if (type === 'limited_character') {
     return 'limited';
   }
@@ -83,7 +87,7 @@ function getRosterPoolType(poolType) {
     return 'weapon';
   }
 
-  if (poolType === 'limited') {
+  if (poolType === 'limited' || poolType === 'extra') {
     return 'limited';
   }
 
@@ -228,6 +232,8 @@ export function useCurrentPoolData() {
 
       const baseType = groupType === 'weapon_limited' || groupType === 'weapon_standard'
         ? 'weapon'
+        : groupType === 'extra'
+          ? 'extra'
         : groupType === 'limited'
           ? 'limited'
           : groupType;

@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
+import { RARITY_CONFIG, EXTRA_POOL_RULES, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
 
 const PITY_LIMITS = {
+  extra: EXTRA_POOL_RULES.sixStarPity,
   limited: LIMITED_POOL_RULES.sixStarPity,
   standard: LIMITED_POOL_RULES.sixStarPity,
   weapon: WEAPON_POOL_RULES.sixStarPity
@@ -111,6 +112,7 @@ function buildDistFromBuckets(buckets, hardPityLimit) {
 }
 
 function normalizePoolType(type) {
+  if (type === 'extra') return 'extra';
   if (type === 'limited' || type === 'limited_character') return 'limited';
   if (type === 'weapon' || type === 'limited_weapon') return 'weapon';
   return 'standard';
@@ -161,6 +163,12 @@ export function useSummaryStats(history, pools, user) {
 
       if (poolType === 'standard' || poolType === 'beginner') {
         isStd = true;
+      } else if (poolType === 'extra') {
+        if (h.rarity === 6) {
+          isStd = false;
+        } else {
+          isStd = h.isStandard ?? false;
+        }
       } else if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
         if (upCharacter && h.rarity === 6) {
           isStd = !characterName.toLowerCase().includes(upCharacter.toLowerCase()) &&
@@ -196,6 +204,7 @@ export function useSummaryStats(history, pools, user) {
       fiveStar: 0,
       counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
       byType: {
+        extra: { total: 0, six: 0, limitedSix: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
         limited: { total: 0, six: 0, limitedSix: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
         weapon: { total: 0, six: 0, limitedSix: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] },
         standard: { total: 0, six: 0, avgPityUp: null, avgPityTarget: null, counts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }, pityList: [] }
@@ -215,7 +224,7 @@ export function useSummaryStats(history, pools, user) {
     // ── Phase 1: 单次遍历 normalizedMyHistory ──
     // 同时完成：按池分组、全局/池型计数、chargedPulls、region bucket
     const pullsByPool = {};
-    const chargedPullsByType = { limited: 0, weapon: 0, standard: 0 };
+    const chargedPullsByType = { extra: 0, limited: 0, weapon: 0, standard: 0 };
     const contributorBuckets = new Set();
 
     for (let i = 0; i < normalizedMyHistory.length; i++) {
@@ -242,8 +251,8 @@ export function useSummaryStats(history, pools, user) {
       typeData.total++;
 
       // chargedPulls（排除 gift + free + 情报书）
-      if (type === 'limited') {
-        if (!isInfoBookHistoryPull(item)) chargedPullsByType.limited++;
+      if (type === 'limited' || type === 'extra') {
+        if (!isInfoBookHistoryPull(item)) chargedPullsByType[type]++;
       } else if (type === 'weapon') {
         chargedPullsByType.weapon++;
       } else {
@@ -285,12 +294,13 @@ export function useSummaryStats(history, pools, user) {
 
     // ── Phase 2: 按池独立计算保底/区间/赠送/分布 ──
     // 每个池独立追踪保底计数器，与时间线视图一致
-    const upCountByType = { limited: 0, weapon: 0 };
+    const upCountByType = { extra: 0, limited: 0, weapon: 0 };
 
     const globalDistBuckets = {};
-    const typeDistBuckets = { limited: {}, weapon: {}, standard: {} };
+    const typeDistBuckets = { extra: {}, limited: {}, weapon: {}, standard: {} };
 
     const typePitySums = {
+      extra: { sum: 0, count: 0 },
       limited: { sum: 0, count: 0 },
       weapon: { sum: 0, count: 0 },
       standard: { sum: 0, count: 0 }
@@ -394,7 +404,9 @@ export function useSummaryStats(history, pools, user) {
             isSpark
           });
 
-          if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
+          if (type === 'extra') {
+            upCountByType.extra++;
+          } else if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
             if (upCountByType[type] !== undefined) upCountByType[type]++;
           }
           tempCounter = 0;
@@ -408,7 +420,7 @@ export function useSummaryStats(history, pools, user) {
     data.chartData = generatePieData(data.counts);
 
     // 池型汇总
-    ['limited', 'weapon', 'standard'].forEach(t => {
+    ['extra', 'limited', 'weapon', 'standard'].forEach(t => {
       data.byType[t].distribution = buildDistFromBuckets(typeDistBuckets[t], PITY_LIMITS[t]);
       data.byType[t].chartData = generatePieData(data.byType[t].counts);
       if (typePitySums[t].count > 0) {
@@ -425,6 +437,10 @@ export function useSummaryStats(history, pools, user) {
     });
 
     // BUG-035: UP 平均出货 = 池总抽 / UP 6★ 数
+    data.byType.extra.avgPityUp = upCountByType.extra > 0
+      ? (data.byType.extra.total / upCountByType.extra).toFixed(1)
+      : null;
+    data.byType.extra.avgPityTarget = data.byType.extra.avgPityUp;
     data.byType.limited.avgPityUp = upCountByType.limited > 0
       ? (data.byType.limited.total / upCountByType.limited).toFixed(1)
       : null;
@@ -441,15 +457,15 @@ export function useSummaryStats(history, pools, user) {
 
     // 角色池合并数据
     const characterCounts = {
-      6: data.byType.limited.counts[6] + data.byType.standard.counts[6],
-      '6_std': data.byType.limited.counts['6_std'] + data.byType.standard.counts['6_std'],
-      5: data.byType.limited.counts[5] + data.byType.standard.counts[5],
-      4: data.byType.limited.counts[4] + data.byType.standard.counts[4]
+      6: data.byType.extra.counts[6] + data.byType.limited.counts[6] + data.byType.standard.counts[6],
+      '6_std': data.byType.extra.counts['6_std'] + data.byType.limited.counts['6_std'] + data.byType.standard.counts['6_std'],
+      5: data.byType.extra.counts[5] + data.byType.limited.counts[5] + data.byType.standard.counts[5],
+      4: data.byType.extra.counts[4] + data.byType.limited.counts[4] + data.byType.standard.counts[4]
     };
 
     // 合并角色分布桶
     const charDistBuckets = {};
-    for (const t of ['limited', 'standard']) {
+    for (const t of ['extra', 'limited', 'standard']) {
       for (const idx in typeDistBuckets[t]) {
         if (!charDistBuckets[idx]) charDistBuckets[idx] = { limited: 0, standard: 0 };
         charDistBuckets[idx].limited += typeDistBuckets[t][idx].limited || 0;
@@ -457,12 +473,12 @@ export function useSummaryStats(history, pools, user) {
       }
     }
 
-    const characterPityList = [...data.byType.limited.pityList, ...data.byType.standard.pityList];
-    const limitedPityListExcludingFree = data.byType.limited.pityList.filter(p => !p.isFree);
+    const characterPityList = [...data.byType.extra.pityList, ...data.byType.limited.pityList, ...data.byType.standard.pityList];
+    const limitedPityListExcludingFree = [...data.byType.extra.pityList, ...data.byType.limited.pityList].filter(p => !p.isFree);
     const characterPityListExcludingFree = characterPityList.filter(p => !p.isFree && !p.isSpark);
 
-    const charPitySum = typePitySums.limited.sum + typePitySums.standard.sum;
-    const charPityCount = typePitySums.limited.count + typePitySums.standard.count;
+    const charPitySum = typePitySums.extra.sum + typePitySums.limited.sum + typePitySums.standard.sum;
+    const charPityCount = typePitySums.extra.count + typePitySums.limited.count + typePitySums.standard.count;
 
     let charExclFreePitySum = 0, charExclFreePityCount = 0;
     for (let i = 0; i < characterPityListExcludingFree.length; i++) {
@@ -471,9 +487,9 @@ export function useSummaryStats(history, pools, user) {
     }
 
     data.byType.character = {
-      total: data.byType.limited.total + data.byType.standard.total,
-      six: data.byType.limited.six + data.byType.standard.six,
-      limitedSix: data.byType.limited.limitedSix,
+      total: data.byType.extra.total + data.byType.limited.total + data.byType.standard.total,
+      six: data.byType.extra.six + data.byType.limited.six + data.byType.standard.six,
+      limitedSix: data.byType.extra.limitedSix + data.byType.limited.limitedSix,
       counts: characterCounts,
       pityList: characterPityList,
       pityListExcludingFree: characterPityListExcludingFree,
@@ -482,21 +498,37 @@ export function useSummaryStats(history, pools, user) {
       avgPity: charPityCount > 0
         ? (charPitySum / charPityCount).toFixed(1)
         : '-',
-      avgPityUp: data.byType.limited.avgPityUp,
-      avgPityTarget: data.byType.limited.avgPityUp,
+      avgPityUp: (() => {
+        const totalCharacterTargets = upCountByType.extra + upCountByType.limited;
+        return totalCharacterTargets > 0
+          ? ((data.byType.extra.total + data.byType.limited.total) / totalCharacterTargets).toFixed(1)
+          : null;
+      })(),
+      avgPityTarget: (() => {
+        const totalCharacterTargets = upCountByType.extra + upCountByType.limited;
+        return totalCharacterTargets > 0
+          ? ((data.byType.extra.total + data.byType.limited.total) / totalCharacterTargets).toFixed(1)
+          : null;
+      })(),
       avgPityExcludingFree: charExclFreePityCount > 0
         ? (charExclFreePitySum / charExclFreePityCount).toFixed(1)
         : null
     };
 
     // 资源
-    const limitedChargedPulls = chargedPullsByType.limited;
+    const limitedChargedPulls = chargedPullsByType.extra + chargedPullsByType.limited;
     const standardChargedPulls = chargedPullsByType.standard;
     const weaponChargedPulls = chargedPullsByType.weapon;
 
+    data.byType.extra.resources = buildResourceSummaryFromAggregates({
+      characterPulls: data.byType.extra.total,
+      chargedCharacterPulls: chargedPullsByType.extra,
+      counts: data.byType.extra.counts,
+      arsenalGainCounts: data.byType.extra.counts
+    });
     data.byType.limited.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.limited.total,
-      chargedCharacterPulls: limitedChargedPulls,
+      chargedCharacterPulls: chargedPullsByType.limited,
       counts: data.byType.limited.counts,
       arsenalGainCounts: data.byType.limited.counts
     });

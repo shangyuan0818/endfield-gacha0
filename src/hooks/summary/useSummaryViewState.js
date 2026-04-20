@@ -42,33 +42,27 @@ function generateChartDataFromCounts(counts, labels) {
   });
 }
 
-function mergeDistributions(limited, standard) {
-  if (!limited?.length && !standard?.length) {
+function mergeDistributions(...sources) {
+  if (!sources.some((items) => items?.length)) {
     return [];
   }
 
   const merged = {};
 
-  (limited || []).forEach(item => {
-    merged[item.range] = {
-      range: item.range,
-      limited: item.limited || 0,
-      standard: item.standard || 0
-    };
-  });
+  sources.forEach((items = []) => {
+    items.forEach(item => {
+      if (merged[item.range]) {
+        merged[item.range].limited += item.limited || 0;
+        merged[item.range].standard += item.standard || 0;
+        return;
+      }
 
-  (standard || []).forEach(item => {
-    if (merged[item.range]) {
-      merged[item.range].limited += item.limited || 0;
-      merged[item.range].standard += item.standard || 0;
-      return;
-    }
-
-    merged[item.range] = {
-      range: item.range,
-      limited: item.limited || 0,
-      standard: item.standard || 0
-    };
+      merged[item.range] = {
+        range: item.range,
+        limited: item.limited || 0,
+        standard: item.standard || 0
+      };
+    });
   });
 
   return Object.values(merged)
@@ -88,7 +82,7 @@ function getAveragePity(typeData) {
   return '-';
 }
 
-export const SUMMARY_FILTER_OPTIONS = ['all', 'limited', 'standard', 'weapon'];
+export const SUMMARY_FILTER_OPTIONS = ['all', 'extra', 'limited', 'standard', 'weapon'];
 
 export function useSummaryViewState({
   history,
@@ -111,7 +105,8 @@ export function useSummaryViewState({
     titleLocal: tt('summary.source.local', '我的数据'),
     subtitleAll: tt('summary.scope.all', '全部卡池'),
     typeNames: {
-      character: tt('summary.scope.character', '角色池（限定+常驻）'),
+      character: tt('summary.scope.character', '角色池（附加+限定+常驻）'),
+      extra: tt('summary.scope.extra', '附加寻访'),
       limited: tt('summary.scope.limited', '限定角色池'),
       weapon: tt('summary.scope.weapon', '武器池'),
       standard: tt('summary.scope.standard', '常驻池')
@@ -197,7 +192,7 @@ export function useSummaryViewState({
     }
 
     let avgPityExcludingFree = null;
-    if (poolTypeFilter === 'limited' || poolTypeFilter === 'character') {
+    if (poolTypeFilter === 'extra' || poolTypeFilter === 'limited' || poolTypeFilter === 'character') {
       if (typeData.avgPityExcludingFree) {
         avgPityExcludingFree = typeData.avgPityExcludingFree;
       } else if (typeData.pityListExcludingFree?.length > 0) {
@@ -244,19 +239,22 @@ export function useSummaryViewState({
       }
 
       const typeTitles = {
-        character: tt('summary.scope.character', '角色池（限定+常驻）'),
+        character: tt('summary.scope.character', '角色池（附加+限定+常驻）'),
+        extra: tt('summary.scope.extra', '附加寻访'),
         limited: tt('summary.scope.limited', '限定角色池'),
         weapon: tt('summary.scope.weapon', '武器池'),
         standard: tt('summary.scope.standard', '常驻池')
       };
       const typeColors = {
         character: 'rainbow-text',
+        extra: 'text-cyan-500',
         limited: 'rainbow-text',
         weapon: 'text-slate-500',
         standard: 'text-indigo-500'
       };
       const typeDistributionVariants = {
         character: 'character',
+        extra: 'character',
         limited: 'character',
         weapon: 'weapon',
         standard: 'standard'
@@ -276,13 +274,14 @@ export function useSummaryViewState({
       };
     }
 
+    const extraCounts = baseStats.byType?.extra?.counts || {};
     const limitedCounts = baseStats.byType?.limited?.counts || {};
     const standardCounts = baseStats.byType?.standard?.counts || {};
     const characterCounts = {
-      6: (limitedCounts[6] || 0) + (standardCounts[6] || 0),
-      '6_std': (limitedCounts['6_std'] || 0) + (standardCounts['6_std'] || 0),
-      5: (limitedCounts[5] || 0) + (standardCounts[5] || 0),
-      4: (limitedCounts[4] || 0) + (standardCounts[4] || 0)
+      6: (extraCounts[6] || 0) + (limitedCounts[6] || 0) + (standardCounts[6] || 0),
+      '6_std': (extraCounts['6_std'] || 0) + (limitedCounts['6_std'] || 0) + (standardCounts['6_std'] || 0),
+      5: (extraCounts[5] || 0) + (limitedCounts[5] || 0) + (standardCounts[5] || 0),
+      4: (extraCounts[4] || 0) + (limitedCounts[4] || 0) + (standardCounts[4] || 0)
     };
 
     return {
@@ -290,14 +289,18 @@ export function useSummaryViewState({
       charts: [
         {
           title: tt('summary.section.characterBannerData', '角色池数据'),
-          subtitle: tt('summary.section.characterBannerSubtitle', '限定 + 常驻'),
+          subtitle: tt('summary.section.characterBannerSubtitle', '附加 + 限定 + 常驻'),
           color: 'text-violet-500',
           data: {
             ...(baseStats.byType?.character || {
-              total: (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
-              six: (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
+              total: (baseStats.byType?.extra?.total || 0) + (baseStats.byType?.limited?.total || 0) + (baseStats.byType?.standard?.total || 0),
+              six: (baseStats.byType?.extra?.six || 0) + (baseStats.byType?.limited?.six || 0) + (baseStats.byType?.standard?.six || 0),
               counts: characterCounts,
-              distribution: mergeDistributions(baseStats.byType?.limited?.distribution, baseStats.byType?.standard?.distribution),
+              distribution: mergeDistributions(
+                baseStats.byType?.extra?.distribution,
+                baseStats.byType?.limited?.distribution,
+                baseStats.byType?.standard?.distribution
+              ),
               chartData: generateChartDataFromCounts(characterCounts, chartLabels)
             }),
             distributionVariant: 'character',

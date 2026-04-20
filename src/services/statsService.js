@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
+import { RARITY_CONFIG, EXTRA_POOL_RULES, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy.js';
 import {
   SUPABASE_RPC_TIMEOUT_MS,
@@ -191,6 +191,7 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     distribution: [],
     chartData: [],
     byType: {
+      extra: createEmptyTypeStats(),
       limited: createEmptyTypeStats(),
       weapon: createEmptyTypeStats(),
       standard: createEmptyTypeStats(),
@@ -335,7 +336,11 @@ function processTypeStats(typeData) {
     counts,
     distribution: processDistribution(
       typeData.distribution,
-      normalizedType === 'weapon' ? WEAPON_POOL_RULES.sixStarPity : LIMITED_POOL_RULES.sixStarPity
+      normalizedType === 'weapon'
+        ? WEAPON_POOL_RULES.sixStarPity
+        : normalizedType === 'extra'
+          ? EXTRA_POOL_RULES.sixStarPity
+          : LIMITED_POOL_RULES.sixStarPity
     ),
     chartData: generateChartData(counts),
     resources: buildResourceSummaryFromAggregates({
@@ -349,7 +354,8 @@ function processTypeStats(typeData) {
   };
 }
 
-function mergeDistributions(primary = [], secondary = [], hardPityLimit = LIMITED_POOL_RULES.sixStarPity) {
+function mergeDistributions(...sources) {
+  const hardPityLimit = LIMITED_POOL_RULES.sixStarPity;
   const numBuckets = Math.ceil(hardPityLimit / 10);
   const merged = new Array(numBuckets).fill(null).map((_, i) => ({
     range: `${i * 10 + 1}-${(i + 1) * 10}`,
@@ -357,7 +363,7 @@ function mergeDistributions(primary = [], secondary = [], hardPityLimit = LIMITE
     standard: 0
   }));
 
-  [...primary, ...secondary].forEach(item => {
+  sources.flat().forEach(item => {
     const start = parseInt(item.range?.split('-')[0], 10);
     if (isNaN(start)) return;
     let idx = Math.floor((start - 1) / 10);
@@ -398,6 +404,7 @@ export function normalizeGlobalStats(rpcData) {
     distribution: processDistribution(rpcData.distribution),
     chartData: generateChartData(rpcData.counts),
     byType: {
+      extra: processTypeStats({ ...rpcData.byType?.extra, poolType: 'extra' }),
       limited: processTypeStats({ ...rpcData.byType?.limited, poolType: 'limited' }),
       weapon: processTypeStats({ ...rpcData.byType?.weapon, poolType: 'weapon' }),
       standard: processTypeStats({ ...rpcData.byType?.standard, poolType: 'standard' })
@@ -414,71 +421,73 @@ export function normalizeGlobalStats(rpcData) {
     }
   };
 
+  const extraStats = stats.byType.extra;
   const limitedStats = stats.byType.limited;
   const standardStats = stats.byType.standard;
   const weaponStats = stats.byType.weapon;
+  const extraChargedPulls = Number(extraStats.chargedPulls ?? extraStats.total) || 0;
   const limitedChargedPulls = Number(limitedStats.chargedPulls ?? limitedStats.total) || 0;
   const standardChargedPulls = Number(standardStats.chargedPulls ?? standardStats.total) || 0;
   const weaponChargedPulls = Number(weaponStats.chargedPulls ?? weaponStats.total) || 0;
-  stats.chargedCharacterPulls = Number(rpcData.chargedCharacterPulls ?? (limitedChargedPulls + standardChargedPulls)) || 0;
+  stats.chargedCharacterPulls = Number(rpcData.chargedCharacterPulls ?? (extraChargedPulls + limitedChargedPulls + standardChargedPulls)) || 0;
   stats.chargedWeaponPulls = Number(rpcData.chargedWeaponPulls ?? weaponChargedPulls) || 0;
+  const extraSix = extraStats.six || 0;
   const limitedSix = limitedStats.six || 0;
   const standardSix = standardStats.six || 0;
-  const totalSix = limitedSix + standardSix;
+  const totalSix = extraSix + limitedSix + standardSix;
 
   let characterAvgPity = null;
-  if (totalSix > 0 && (limitedStats.avgPity || standardStats.avgPity)) {
+  if (totalSix > 0 && (extraStats.avgPity || limitedStats.avgPity || standardStats.avgPity)) {
+    const extraAvg = Number(extraStats.avgPity) || 0;
     const limitedAvg = Number(limitedStats.avgPity) || 0;
     const standardAvg = Number(standardStats.avgPity) || 0;
-    characterAvgPity = ((limitedAvg * limitedSix + standardAvg * standardSix) / totalSix).toFixed(1);
+    characterAvgPity = ((extraAvg * extraSix + limitedAvg * limitedSix + standardAvg * standardSix) / totalSix).toFixed(1);
   }
 
   let characterAvgPityExcludingFree = null;
-  if (totalSix > 0 && (limitedStats.avgPityExcludingFree || standardStats.avgPityExcludingFree)) {
+  if (totalSix > 0 && (extraStats.avgPityExcludingFree || limitedStats.avgPityExcludingFree || standardStats.avgPityExcludingFree)) {
+    const extraAvgExcludingFree = Number(extraStats.avgPityExcludingFree) || Number(extraStats.avgPity) || 0;
     const limitedAvgExcludingFree = Number(limitedStats.avgPityExcludingFree) || Number(limitedStats.avgPity) || 0;
     const standardAvgExcludingFree = Number(standardStats.avgPityExcludingFree) || Number(standardStats.avgPity) || 0;
-    characterAvgPityExcludingFree = ((limitedAvgExcludingFree * limitedSix + standardAvgExcludingFree * standardSix) / totalSix).toFixed(1);
+    characterAvgPityExcludingFree = ((extraAvgExcludingFree * extraSix + limitedAvgExcludingFree * limitedSix + standardAvgExcludingFree * standardSix) / totalSix).toFixed(1);
   }
 
+  const extraTargetSix = extraStats.sixStarLimited || 0;
+  const limitedTargetSix = limitedStats.sixStarLimited || 0;
+  const totalCharacterTargetSix = extraTargetSix + limitedTargetSix;
+  let characterAvgPityTarget = null;
+  if (totalCharacterTargetSix > 0 && (extraStats.avgPityTarget || extraStats.avgPityUp || limitedStats.avgPityTarget || limitedStats.avgPityUp)) {
+    const extraTargetAvg = Number(extraStats.avgPityTarget || extraStats.avgPityUp) || 0;
+    const limitedTargetAvg = Number(limitedStats.avgPityTarget || limitedStats.avgPityUp) || 0;
+    characterAvgPityTarget = ((extraTargetAvg * extraTargetSix + limitedTargetAvg * limitedTargetSix) / totalCharacterTargetSix).toFixed(1);
+  }
+
+  const characterCounts = {
+    '6': (extraStats.counts['6'] || 0) + (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
+    '6_std': (extraStats.counts['6_std'] || 0) + (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
+    '5': (extraStats.counts['5'] || 0) + (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
+    '4': (extraStats.counts['4'] || 0) + (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
+  };
+
   stats.byType.character = {
-    total: limitedStats.total + standardStats.total,
-    chargedPulls: limitedChargedPulls + standardChargedPulls,
-    six: limitedStats.six + standardStats.six,
-    sixStarLimited: limitedStats.sixStarLimited + standardStats.sixStarLimited,
-    sixStarStandard: limitedStats.sixStarStandard + standardStats.sixStarStandard,
+    total: extraStats.total + limitedStats.total + standardStats.total,
+    chargedPulls: extraChargedPulls + limitedChargedPulls + standardChargedPulls,
+    six: extraStats.six + limitedStats.six + standardStats.six,
+    sixStarLimited: extraStats.sixStarLimited + limitedStats.sixStarLimited + standardStats.sixStarLimited,
+    sixStarStandard: extraStats.sixStarStandard + limitedStats.sixStarStandard + standardStats.sixStarStandard,
     avgPity: characterAvgPity,
-    avgPityUp: limitedStats.avgPityTarget || limitedStats.avgPityUp || null,
-    avgPityTarget: limitedStats.avgPityTarget || limitedStats.avgPityUp || null,
+    avgPityUp: characterAvgPityTarget,
+    avgPityTarget: characterAvgPityTarget,
     sparkCount: limitedStats.sparkCount || 0,
     avgPityExcludingFree: characterAvgPityExcludingFree,
-    counts: {
-      '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
-      '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
-      '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
-      '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
-    },
-    distribution: mergeDistributions(limitedStats.distribution, standardStats.distribution),
-    chartData: generateChartData({
-      '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
-      '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
-      '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
-      '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
-    }),
+    counts: characterCounts,
+    distribution: mergeDistributions(extraStats.distribution, limitedStats.distribution, standardStats.distribution),
+    chartData: generateChartData(characterCounts),
     resources: buildResourceSummaryFromAggregates({
-      characterPulls: limitedStats.total + standardStats.total,
-      chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
-      counts: {
-        '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
-        '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
-        '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
-        '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
-      },
-      arsenalGainCounts: {
-        '6': (limitedStats.counts['6'] || 0) + (standardStats.counts['6'] || 0),
-        '6_std': (limitedStats.counts['6_std'] || 0) + (standardStats.counts['6_std'] || 0),
-        '5': (limitedStats.counts['5'] || 0) + (standardStats.counts['5'] || 0),
-        '4': (limitedStats.counts['4'] || 0) + (standardStats.counts['4'] || 0)
-      }
+      characterPulls: extraStats.total + limitedStats.total + standardStats.total,
+      chargedCharacterPulls: extraChargedPulls + limitedChargedPulls + standardChargedPulls,
+      counts: characterCounts,
+      arsenalGainCounts: characterCounts
     })
   };
 

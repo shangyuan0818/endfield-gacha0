@@ -16,6 +16,14 @@ function formatAverage(value, t) {
 }
 
 function getTimelineTone(type) {
+  if (type === 'extra') {
+    return {
+      rail: 'bg-cyan-400 dark:bg-cyan-500',
+      chip: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-300/60 dark:border-cyan-500/30',
+      accent: 'text-cyan-700 dark:text-cyan-300'
+    };
+  }
+
   if (type === 'weapon') {
     return {
       rail: 'bg-amber-400 dark:bg-amber-500',
@@ -40,6 +48,10 @@ function getTimelineTone(type) {
 }
 
 function getSectionTypeLabel(type, t) {
+  if (type === 'extra') {
+    return t('dashboard.timeline.section.extra');
+  }
+
   if (type === 'weapon') {
     return t('dashboard.timeline.section.weapon');
   }
@@ -90,7 +102,7 @@ function getStampConfig(entry, sectionType, t) {
   }
 
   if (entry.stageKind === 'offStandard' || entry.stageKind === 'offLimited') {
-    if (sectionType === 'limited' || sectionType === 'weapon') {
+    if (sectionType === 'limited' || sectionType === 'extra' || sectionType === 'weapon') {
       return {
         label: t('dashboard.timeline.badge.offrate'),
         className: 'border-rose-400 bg-rose-50 text-rose-600 dark:border-rose-500/70 dark:bg-rose-500/10 dark:text-rose-400'

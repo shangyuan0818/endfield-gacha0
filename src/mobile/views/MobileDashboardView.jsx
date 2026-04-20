@@ -155,6 +155,7 @@ function MobileDashboardView() {
     crossPoolPityMap,
     normalizedPoolType,
     isLimited,
+    isExtra,
     isWeapon,
     isStandard,
     maxPity,
@@ -183,7 +184,7 @@ function MobileDashboardView() {
     }) || localizePoolFeaturedName(currentPool, { locale }),
     [currentPool, locale, normalizedPoolType]
   );
-  const displayPity6 = isLimited ? effectivePity.pity6 : stats.currentPity;
+  const displayPity6 = (isLimited || isExtra) ? effectivePity.pity6 : stats.currentPity;
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
     ? calculateCurrentProbability(displayPity6, normalizedPoolType)
     : null;
@@ -700,21 +701,22 @@ function MobileDashboardView() {
             <div className="min-w-0">
               <div className="flex items-center gap-3">
                 <div className={`mobile-ux-card-inset p-2.5 ${
+                  isExtra ? 'border-cyan-500/25 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300' :
                   isLimited ? 'border-fuchsia-500/25 bg-pink-500/10 text-pink-600 dark:text-pink-400' :
                   isWeapon ? 'border-slate-500/25 bg-slate-500/10 text-slate-600 dark:text-slate-300' :
                   'border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300'
                 }`}>
-                  {isWeapon ? <Swords size={18} /> : isLimited ? <Star size={18} /> : <Layers size={18} />}
+                  {isWeapon ? <Swords size={18} /> : (isLimited || isExtra) ? <Star size={18} /> : <Layers size={18} />}
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-lg font-black text-slate-900 dark:text-white">{localizedCurrentPoolName}</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">
-                    <MobileStatusBadge>{isLimited ? t('dashboard.pool.type.limited') : isWeapon ? t('dashboard.pool.type.weapon') : t('dashboard.pool.type.standard')}</MobileStatusBadge>
+                    <MobileStatusBadge>{isExtra ? t('dashboard.pool.type.extra') : isLimited ? t('dashboard.pool.type.limited') : isWeapon ? t('dashboard.pool.type.weapon') : t('dashboard.pool.type.standard')}</MobileStatusBadge>
                     <span className="tabular-nums">{formatNumber(stats.total)} {pullUnitLabel}</span>
                   </div>
                 </div>
               </div>
-              {isLimited ? (
+              {(isLimited || isExtra) ? (
                 <div className="mobile-ux-card-inset mt-3 flex items-center gap-2 border-endfield-yellow/10 bg-endfield-yellow/10 px-3 py-2 text-[11px] text-slate-700 dark:text-zinc-300">
                   <Clock size={12} className="text-endfield-yellow" />
                   <span className="font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.pool.status')}</span>
@@ -919,7 +921,7 @@ function MobileDashboardView() {
         {normalizedPoolType !== 'standard' && (
           <div className="mobile-ux-card-inset py-3 text-center">
             <div className="text-[11px] text-slate-600 dark:text-zinc-400 uppercase font-bold tracking-tight mb-1">{primarySixStarLabel}</div>
-            <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : 'text-zinc-700 dark:text-slate-700 dark:text-zinc-300'}`}>
+            <div className={`text-xl font-bold font-mono ${isLimited ? 'rainbow-text' : isExtra ? 'text-cyan-600 dark:text-cyan-400' : 'text-zinc-700 dark:text-slate-700 dark:text-zinc-300'}`}>
               {stats.counts[6]}
             </div>
           </div>
@@ -1010,20 +1012,20 @@ function MobileDashboardView() {
       )}
 
       {/* 不歪率和平均出货（限定/武器池） */}
-      {(isLimited || isWeapon) && (
+      {(isLimited || isExtra || isWeapon) && (
         <div className="mx-4 mb-4 grid grid-cols-1 gap-2">
           {/* 不歪率 */}
           <div className="mobile-ux-soft-card p-3">
             <div className="text-[10px] text-slate-600 dark:text-zinc-400 uppercase font-bold mb-2 flex justify-between">
               <span>{t('dashboard.analysis.winRate')}</span>
-              {isLimited && <span className="text-[11px] text-slate-700 dark:text-zinc-300">({t('dashboard.analysis.freeTenExcluded')})</span>}
+              {(isLimited || isExtra) && <span className="text-[11px] text-slate-700 dark:text-zinc-300">({t('dashboard.analysis.freeTenExcluded')})</span>}
             </div>
             <div className="mb-2 text-2xl font-bold font-mono text-slate-900 dark:text-zinc-100">
               {stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
             </div>
             <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
               <div
-                className={`h-full ${isLimited ? 'rainbow-progress' : 'bg-blue-500'}`}
+                className={`h-full ${isLimited ? 'rainbow-progress' : isExtra ? 'bg-cyan-500' : 'bg-blue-500'}`}
                 style={{ width: `${parseFloat(stats.winRate) || 0}%` }}
               />
             </div>
@@ -1118,6 +1120,24 @@ function MobileDashboardView() {
                 </div>
               </div>
             </>
+          )}
+
+          {isExtra && (
+            <div className="mobile-ux-soft-card mobile-ux-soft-card--info p-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.freeTenOnce')}</span>
+                <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
+                  {hasReceivedFreeTen ? t('dashboard.analysis.claimed') : '0 / 1'}
+                </span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <div
+                  className={`h-full ${hasReceivedFreeTen ? 'bg-green-500' : 'bg-cyan-500'}`}
+                  style={{ width: hasReceivedFreeTen ? '100%' : '0%' }}
+                />
+              </div>
+              <div className="mt-1 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">{t('dashboard.analysis.notCountPity')}</div>
+            </div>
           )}
 
           {/* 武器池特殊进度 */}

@@ -332,29 +332,30 @@ const SummaryView = React.memo(() => {
                       <div className="flex items-center gap-2 mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
                         <Star size={16} className="text-violet-500" />
                         <h4 className="font-bold text-sm text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{tt('summary.section.characterBannerData', '角色池数据')}</h4>
-                        <span className="text-[10px] text-zinc-400 ml-auto font-mono">{tt('summary.section.characterBannerSubtitle', '限定 + 常驻')}</span>
+                        <span className="text-[10px] text-zinc-400 ml-auto font-mono">{tt('summary.section.characterBannerSubtitle', '附加 + 限定 + 常驻')}</span>
                       </div>
-                      <div className={`grid grid-cols-2 ${currentStats.byType?.limited?.avgPityUp ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-6`}>
+                      <div className={`grid grid-cols-2 ${currentStats.byType?.character?.avgPityUp ? 'md:grid-cols-5' : 'md:grid-cols-4'} gap-6`}>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">{tt('summary.metric.totalPulls', '总抽数')}</div>
-                          <div className="text-xl font-bold font-mono text-slate-700 dark:text-zinc-200">{formatCount((currentStats.byType?.limited?.total || 0) + (currentStats.byType?.standard?.total || 0))}</div>
+                          <div className="text-xl font-bold font-mono text-slate-700 dark:text-zinc-200">{formatCount(currentStats.byType?.character?.total || 0)}</div>
                         </div>
                         <div className="space-y-1">
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">{tt('summary.metric.sixStarCount', '6★ 数量')}</div>
                           <div className="text-xl font-bold font-mono text-amber-500">
                             {(() => {
                               // 优先显示不含免费的6★数量
+                              const extraSixTotal = currentStats.byType?.extra?.six || 0;
                               const limitedSixTotal = currentStats.byType?.limited?.six || 0;
                               const standardSixTotal = currentStats.byType?.standard?.six || 0;
-                              const totalSix = limitedSixTotal + standardSixTotal;
+                              const totalSix = extraSixTotal + limitedSixTotal + standardSixTotal;
 
                               // 全服数据优先显示排除免费十连后的限定池 6★ 数量
                               const limitedSixExcl = dataSource === 'global' ? ranking?.limited?.sixStarExcludingFree : undefined;
                               const hasExclData = limitedSixExcl !== undefined && limitedSixExcl !== null;
 
                               if (hasExclData) {
-                                // 显示不含免费的数量（限定池不含免费 + 常驻池全部）
-                                return limitedSixExcl + standardSixTotal;
+                                // 显示不含免费的数量（附加池全部 + 限定池不含免费 + 常驻池全部）
+                                return extraSixTotal + limitedSixExcl + standardSixTotal;
                               }
                               return totalSix;
                             })()}
@@ -364,14 +365,15 @@ const SummaryView = React.memo(() => {
                           </div>
                           {/* 含免费的6★数量（如果与不含免费不同则显示） */}
                           {(() => {
+                            const extraSixTotal = currentStats.byType?.extra?.six || 0;
                             const limitedSixTotal = currentStats.byType?.limited?.six || 0;
                             const standardSixTotal = currentStats.byType?.standard?.six || 0;
-                            const totalSix = limitedSixTotal + standardSixTotal;
+                            const totalSix = extraSixTotal + limitedSixTotal + standardSixTotal;
                             const limitedSixExcl = dataSource === 'global' ? ranking?.limited?.sixStarExcludingFree : undefined;
 
                             if (limitedSixExcl === undefined || limitedSixExcl === null) return null;
 
-                            const totalExcl = limitedSixExcl + standardSixTotal;
+                            const totalExcl = extraSixTotal + limitedSixExcl + standardSixTotal;
                             if (totalExcl === totalSix) return null;
 
                             return (
@@ -386,39 +388,65 @@ const SummaryView = React.memo(() => {
                           <div className="text-xl font-bold font-mono text-indigo-500">
                             {(() => {
                               // 优先显示不含免费的平均出货
+                              const extraAvgExcl = currentStats.byType?.extra?.avgPityExcludingFree || currentStats.byType?.extra?.avgPity;
+                              const extraSix = currentStats.byType?.extra?.six || 0;
                               const limitedAvgExcl = currentStats.byType?.limited?.avgPityExcludingFree;
                               const standardAvgExcl = currentStats.byType?.standard?.avgPityExcludingFree || currentStats.byType?.standard?.avgPity;
                               const limitedSix = currentStats.byType?.limited?.six || 0;
                               const standardSix = currentStats.byType?.standard?.six || 0;
 
-                              if (limitedSix + standardSix === 0) return '-';
+                              if (extraSix + limitedSix + standardSix === 0) return '-';
 
                               // 如果有不含免费的数据，优先使用
-                              if (limitedAvgExcl) {
-                                const weighted = ((parseFloat(limitedAvgExcl) || 0) * limitedSix + (parseFloat(standardAvgExcl) || 0) * standardSix) / (limitedSix + standardSix);
+                              if (currentStats.byType?.character?.avgPityExcludingFree) {
+                                return currentStats.byType.character.avgPityExcludingFree;
+                              }
+
+                              if (limitedAvgExcl || extraAvgExcl) {
+                                const weighted = (
+                                  (parseFloat(extraAvgExcl) || 0) * extraSix +
+                                  (parseFloat(limitedAvgExcl) || 0) * limitedSix +
+                                  (parseFloat(standardAvgExcl) || 0) * standardSix
+                                ) / (extraSix + limitedSix + standardSix);
                                 return weighted.toFixed(1);
                               }
 
                               // 否则回退到含免费的
+                              const extraAvg = currentStats.byType?.extra?.avgPity;
                               const limitedAvg = currentStats.byType?.limited?.avgPity;
                               const standardAvg = currentStats.byType?.standard?.avgPity;
-                              const weighted = ((parseFloat(limitedAvg) || 0) * limitedSix + (parseFloat(standardAvg) || 0) * standardSix) / (limitedSix + standardSix);
+                              const weighted = (
+                                (parseFloat(extraAvg) || 0) * extraSix +
+                                (parseFloat(limitedAvg) || 0) * limitedSix +
+                                (parseFloat(standardAvg) || 0) * standardSix
+                              ) / (extraSix + limitedSix + standardSix);
                               return weighted.toFixed(1);
                             })()}
                           </div>
                           {/* 含免费十连的平均出货（如果与不含免费不同则显示） */}
                           {(() => {
+                            const extraAvg = currentStats.byType?.extra?.avgPity;
+                            const extraAvgExcl = currentStats.byType?.extra?.avgPityExcludingFree || extraAvg;
                             const limitedAvgExcl = currentStats.byType?.limited?.avgPityExcludingFree;
                             const limitedAvg = currentStats.byType?.limited?.avgPity;
                             const standardAvg = currentStats.byType?.standard?.avgPity;
+                            const extraSix = currentStats.byType?.extra?.six || 0;
                             const limitedSix = currentStats.byType?.limited?.six || 0;
                             const standardSix = currentStats.byType?.standard?.six || 0;
 
-                            if (limitedSix + standardSix === 0 || !limitedAvgExcl) return null;
+                            if (extraSix + limitedSix + standardSix === 0 || (!limitedAvgExcl && !extraAvgExcl)) return null;
 
-                            const weightedWithFree = ((parseFloat(limitedAvg) || 0) * limitedSix + (parseFloat(standardAvg) || 0) * standardSix) / (limitedSix + standardSix);
+                            const weightedWithFree = (
+                              (parseFloat(extraAvg) || 0) * extraSix +
+                              (parseFloat(limitedAvg) || 0) * limitedSix +
+                              (parseFloat(standardAvg) || 0) * standardSix
+                            ) / (extraSix + limitedSix + standardSix);
                             const standardAvgExcl = currentStats.byType?.standard?.avgPityExcludingFree || standardAvg;
-                            const weightedExclFree = ((parseFloat(limitedAvgExcl) || 0) * limitedSix + (parseFloat(standardAvgExcl) || 0) * standardSix) / (limitedSix + standardSix);
+                            const weightedExclFree = (
+                              (parseFloat(extraAvgExcl) || 0) * extraSix +
+                              (parseFloat(limitedAvgExcl) || 0) * limitedSix +
+                              (parseFloat(standardAvgExcl) || 0) * standardSix
+                            ) / (extraSix + limitedSix + standardSix);
 
                             // 如果差异小于0.1，不显示
                             if (Math.abs(weightedWithFree - weightedExclFree) < 0.1) return null;
@@ -446,15 +474,18 @@ const SummaryView = React.memo(() => {
                           <div className="text-zinc-400 text-[10px] uppercase font-bold">{tt('summary.metric.targetVsOff', '不歪/歪')}</div>
                           <div className="text-lg font-bold font-mono">
                             {(() => {
+                              const extraPool = currentStats.byType?.extra || {};
                               const limitedPool = currentStats.byType?.limited || {};
                               const standardPool = currentStats.byType?.standard || {};
+                              const extraUp = (extraPool.sixStarLimited ?? extraPool.limitedSix ?? 0);
                               const limitedUp = (limitedPool.sixStarLimited ?? limitedPool.limitedSix ?? 0);
                               const standardUp = (standardPool.sixStarLimited ?? standardPool.limitedSix ?? 0);
-                              const totalLimited = limitedUp + standardUp;
+                              const totalLimited = extraUp + limitedUp + standardUp;
+                              const extraStd = (extraPool.six || 0) - extraUp;
                               const limitedStd = (limitedPool.six || 0) - limitedUp;
                               const standardStd = (standardPool.six || 0) - standardUp;
-                              const totalStd = limitedStd + standardStd;
-                              const totalSix = (limitedPool.six || 0) + (standardPool.six || 0);
+                              const totalStd = extraStd + limitedStd + standardStd;
+                              const totalSix = (extraPool.six || 0) + (limitedPool.six || 0) + (standardPool.six || 0);
                               const rate = totalSix > 0 ? ((totalLimited / totalSix) * 100).toFixed(1) : 0;
                               return (
                                 <>
@@ -468,8 +499,24 @@ const SummaryView = React.memo(() => {
                           </div>
                         </div>
                       </div>
-                      {/* 限定池 vs 常驻池细分 */}
-                      <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 grid grid-cols-2 gap-4 text-xs font-mono">
+                      {/* 角色池细分 */}
+                      <div className="mt-4 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 grid grid-cols-1 xl:grid-cols-3 gap-4 text-xs font-mono">
+                        <div className="flex items-center gap-2 text-zinc-500 flex-wrap">
+                          <span className="w-2 h-2 bg-cyan-500/50 rounded-sm flex-shrink-0"></span>
+                          <span>{tt('summary.scope.extra', '附加寻访')}: {formatCount(currentStats.byType?.extra?.total || 0)} {tt('summary.metric.pullsUnit', '抽')}</span>
+                          <span className="ml-auto flex items-center gap-1">
+                            <span className="text-cyan-600 dark:text-cyan-400">
+                              {currentStats.byType?.extra?.avgPityExcludingFree || currentStats.byType?.extra?.avgPity || '-'} {tt('summary.metric.averageShort', '平均')}
+                            </span>
+                            {currentStats.byType?.extra?.avgPityExcludingFree &&
+                             currentStats.byType?.extra?.avgPity &&
+                             currentStats.byType?.extra?.avgPityExcludingFree !== currentStats.byType?.extra?.avgPity && (
+                              <span className="text-zinc-400">
+                                ({tt('summary.metric.withFree', '含免费')}: {currentStats.byType?.extra?.avgPity})
+                              </span>
+                            )}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2 text-zinc-500 flex-wrap">
                           <span className="w-2 h-2 bg-emerald-500/50 rounded-sm flex-shrink-0"></span>
                           <span>{tt('summary.scope.limited', '限定角色池')}: {formatCount(currentStats.byType?.limited?.total || 0)} {tt('summary.metric.pullsUnit', '抽')}</span>

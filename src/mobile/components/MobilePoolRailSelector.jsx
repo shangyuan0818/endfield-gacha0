@@ -26,8 +26,15 @@ function toneClass(tone) {
 }
 
 function getPoolTypeConfig(pool) {
-  const type = pool?.type === 'limited_character' ? 'limited' : pool?.type === 'limited_weapon' ? 'weapon' : pool?.type || 'standard';
+  const type = pool?.type === 'extra'
+    ? 'extra'
+    : pool?.type === 'limited_character'
+      ? 'limited'
+      : pool?.type === 'limited_weapon'
+        ? 'weapon'
+        : pool?.type || 'standard';
   if (type === 'weapon') return { icon: Swords, accent: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-400/25 dark:bg-slate-400/8 dark:text-slate-200' };
+  if (type === 'extra') return { icon: Star, accent: 'border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-400/25 dark:bg-cyan-400/8 dark:text-cyan-300' };
   if (type === 'limited') return { icon: Star, accent: 'border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-400/25 dark:bg-orange-400/8 dark:text-orange-300' };
   return { icon: Layers, accent: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/8 dark:text-amber-300' };
 }
@@ -161,6 +168,9 @@ export default function MobilePoolRailSelector() {
   const getGroupHeaderConfig = (groupType) => {
     if (groupType === 'weapon_limited' || groupType === 'weapon_standard') {
       return { icon: Swords, accent: 'text-slate-700 dark:text-slate-200' };
+    }
+    if (groupType === 'extra') {
+      return { icon: Star, accent: 'text-cyan-700 dark:text-cyan-300' };
     }
     if (groupType === 'limited') {
       return { icon: Star, accent: 'text-orange-700 dark:text-orange-300' };

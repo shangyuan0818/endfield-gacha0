@@ -112,6 +112,7 @@ function renderPiePercentLabel(isDark) {
 
 const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'all', label: '全部卡池' },
+  { id: 'extra', label: '附加寻访' },
   { id: 'limited', label: '限定池' },
   { id: 'weapon', label: '武器池' },
   { id: 'standard', label: '常驻池' },
@@ -130,6 +131,10 @@ function getDistributionVariant(poolType) {
 
 function getOverviewPoolBucket(pool) {
   const groupType = normalizePoolGroupType(pool);
+  if (groupType === 'extra') {
+    return 'extra';
+  }
+
   if (groupType === 'limited') {
     return 'limited';
   }

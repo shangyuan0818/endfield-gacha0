@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
+import { EXTRA_POOL_RULES, RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import {
   calculateCurrentProbability,
   calculatePity5FromHistory,
@@ -45,12 +45,15 @@ export function usePoolStats({
 
   const normalizedPoolType = currentPool?.type === 'limited_character'
     ? 'limited'
+    : currentPool?.type === 'extra'
+      ? 'extra'
     : currentPool?.type === 'limited_weapon'
       ? 'weapon'
       : currentPool?.type === 'beginner'
         ? 'standard'
-      : currentPool?.type;
+        : currentPool?.type;
   const isLimitedPool = normalizedPoolType === 'limited';
+  const isExtraPool = normalizedPoolType === 'extra';
   const isWeaponPool = normalizedPoolType === 'weapon';
   const isStandardPool = normalizedPoolType === 'standard' || normalizedPoolType === 'beginner';
   const limitedCrossPoolPityMap = useMemo(() => {
@@ -175,6 +178,8 @@ export function usePoolStats({
     if (!currentPool.isGroupMode) {
       if (isLimitedPool) {
         bonusGiftsLimited = Math.floor(total / 240);
+      } else if (isExtraPool) {
+        bonusGiftsLimited = 0;
       } else if (isWeaponPool) {
         if (total >= 100) bonusGiftsStandard++;
         if (total >= 180) {
@@ -265,9 +270,7 @@ export function usePoolStats({
       : '0';
 
     // BUG-035: 对限定角色池，UP 平均改为按真实命中区间均值计算，保持与跨池保底继承一致
-    const upHitCount = upSixStarHits.length;
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
-    const nonSparkUpCount = upHitCount - sparkCount;
     const upHitPullCounts = upSixStarHits.map((pull) => pull.count);
     const nonSparkUpPullCounts = upSixStarHits.filter((pull) => !pull.isSpark).map((pull) => pull.count);
     const avgUpSixStar = upHitPullCounts.length > 0
@@ -312,7 +315,9 @@ export function usePoolStats({
     // 出货分布直方图 — 范围封顶于池型保底上限
     const hardPityLimit = isWeaponPool
       ? WEAPON_POOL_RULES.sixStarPity
-      : LIMITED_POOL_RULES.sixStarPity;
+      : isExtraPool
+        ? EXTRA_POOL_RULES.sixStarPity
+        : LIMITED_POOL_RULES.sixStarPity;
     const distributionData = [];
     if (sixStarPulls.length > 0) {
       const numBuckets = Math.ceil(hardPityLimit / 10);
@@ -369,7 +374,7 @@ export function usePoolStats({
       pullsUntilInfoBook,
       resourceSummary
     };
-  }, [currentPool.isGroupMode, isLimitedPool, isStandardPool, isWeaponPool, limitedCrossPoolPityMap, normalizedCurrentPoolHistory, normalizedPoolType]);
+  }, [currentPool.isGroupMode, isExtraPool, isLimitedPool, isStandardPool, isWeaponPool, limitedCrossPoolPityMap, normalizedCurrentPoolHistory, normalizedPoolType]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {

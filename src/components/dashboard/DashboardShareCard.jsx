@@ -538,6 +538,13 @@ const styles = {
 };
 
 function getSectionTone(type) {
+  if (type === 'extra') {
+    return {
+      accent: '#06b6d4',
+      soft: '#cffafe'
+    };
+  }
+
   if (type === 'weapon') {
     return {
       accent: '#f59e0b',
@@ -559,6 +566,10 @@ function getSectionTone(type) {
 }
 
 function getSectionTypeLabel(type, tt) {
+  if (type === 'extra') {
+    return tt('dashboard.shareCard.sectionType.extra', 'Extra Banner');
+  }
+
   if (type === 'weapon') {
     return tt('dashboard.shareCard.sectionType.weapon', 'Weapon Banner');
   }

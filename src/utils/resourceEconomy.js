@@ -84,6 +84,10 @@ function toBoolean(value, fallback = false) {
 }
 
 function normalizePoolType(poolType) {
+  if (poolType === 'extra') {
+    return 'extra';
+  }
+
   if (poolType === 'limited' || poolType === 'limited_character') {
     return 'limited';
   }

@@ -9,6 +9,10 @@ function getOverviewPoolFilterType(pool) {
     return 'weapon';
   }
 
+  if (pool?.type === 'extra') {
+    return 'extra';
+  }
+
   if (pool?.type === 'limited' || pool?.type === 'limited_character') {
     return 'limited';
   }

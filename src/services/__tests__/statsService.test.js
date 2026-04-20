@@ -1,0 +1,111 @@
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../supabaseClient.js', () => ({
+  supabase: null,
+}));
+
+vi.mock('../supabaseRequest.js', () => ({
+  SUPABASE_RPC_TIMEOUT_MS: 30000,
+  executeSupabaseRpc: vi.fn(),
+  fetchWithTimeout: vi.fn(),
+  isRetryableSupabaseError: vi.fn(() => false),
+}));
+
+vi.mock('../../utils/appLogger.js', () => ({
+  appLogger: {
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+vi.mock('../../utils/storageUtils.js', () => ({
+  STORAGE_KEYS: {
+    GLOBAL_SUMMARY_STATS_SNAPSHOT: 'global-summary',
+    CHARACTER_RANKING_SNAPSHOT: 'character-ranking',
+    USER_RANKING_SNAPSHOT_PREFIX: 'user-ranking:',
+  },
+  readStorageValue: vi.fn(() => null),
+  writeStorageValue: vi.fn(),
+}));
+
+import { normalizeGlobalStats } from '../statsService.js';
+
+describe('normalizeGlobalStats', () => {
+  it('includes extra banner data in character aggregates', () => {
+    const normalized = normalizeGlobalStats({
+      totalPulls: 80,
+      counts: { '6': 4, '6_std': 1, '5': 6, '4': 69 },
+      byType: {
+        extra: {
+          total: 40,
+          chargedPulls: 40,
+          six: 2,
+          sixStarLimited: 2,
+          sixStarStandard: 0,
+          avgPity: '20.0',
+          avgPityTarget: '20.0',
+          counts: { '6': 2, '6_std': 0, '5': 2, '4': 36 },
+          distribution: [{ range: '1-10', limited: 1, standard: 0 }],
+        },
+        limited: {
+          total: 30,
+          chargedPulls: 25,
+          six: 1,
+          sixStarLimited: 1,
+          sixStarStandard: 0,
+          avgPity: '30.0',
+          avgPityTarget: '30.0',
+          avgPityExcludingFree: '25.0',
+          counts: { '6': 1, '6_std': 0, '5': 1, '4': 28 },
+          distribution: [{ range: '11-20', limited: 1, standard: 0 }],
+        },
+        standard: {
+          total: 10,
+          chargedPulls: 10,
+          six: 1,
+          sixStarLimited: 0,
+          sixStarStandard: 1,
+          avgPity: '10.0',
+          counts: { '6': 0, '6_std': 1, '5': 0, '4': 9 },
+          distribution: [{ range: '1-10', limited: 0, standard: 1 }],
+        },
+        weapon: {
+          total: 5,
+          chargedPulls: 5,
+          six: 0,
+          sixStarLimited: 0,
+          sixStarStandard: 0,
+          counts: { '6': 0, '6_std': 0, '5': 0, '4': 5 },
+          distribution: [],
+        },
+      },
+    });
+
+    expect(normalized.byType.extra.total).toBe(40);
+    expect(normalized.chargedCharacterPulls).toBe(75);
+    expect(normalized.byType.character.total).toBe(80);
+    expect(normalized.byType.character.chargedPulls).toBe(75);
+    expect(normalized.byType.character.six).toBe(4);
+    expect(normalized.byType.character.sixStarLimited).toBe(3);
+    expect(normalized.byType.character.sixStarStandard).toBe(1);
+    expect(normalized.byType.character.avgPity).toBe('20.0');
+    expect(normalized.byType.character.avgPityTarget).toBe('23.3');
+    expect(normalized.byType.character.avgPityUp).toBe('23.3');
+    expect(normalized.byType.character.counts).toMatchObject({
+      '6': 3,
+      '6_std': 1,
+      '5': 3,
+      '4': 73,
+    });
+    expect(normalized.byType.character.distribution).toEqual([
+      { range: '1-10', limited: 1, standard: 1, count: 2 },
+      { range: '11-20', limited: 1, standard: 0, count: 1 },
+      { range: '21-30', limited: 0, standard: 0, count: 0 },
+      { range: '31-40', limited: 0, standard: 0, count: 0 },
+      { range: '41-50', limited: 0, standard: 0, count: 0 },
+      { range: '51-60', limited: 0, standard: 0, count: 0 },
+      { range: '61-70', limited: 0, standard: 0, count: 0 },
+      { range: '71-80', limited: 0, standard: 0, count: 0 },
+    ]);
+  });
+});

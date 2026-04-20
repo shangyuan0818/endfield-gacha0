@@ -61,6 +61,7 @@ function RarityBars({ counts }) {
 }
 
 function normalizePoolType(type) {
+  if (type === 'extra') return 'extra';
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';
@@ -143,6 +144,7 @@ function MobileOverviewView() {
         return Number(left.id || 0) - Number(right.id || 0);
       });
       const counters = {
+        extra: 0,
         limited: 0,
         weapon: 0,
         standard: 0
@@ -197,35 +199,18 @@ function MobileOverviewView() {
   const limitedTotalSix = Number(upHits) + Number(offStandardHits) + Number(offLimitedHits);
   const onRate = limitedTotalSix > 0 ? `${((Number(upHits) / limitedTotalSix) * 100).toFixed(1)}%` : '0.0%';
   const averageSixValue = useMemo(() => {
-    const limitedPool = currentStats?.byType?.limited || {};
-    const standardPool = currentStats?.byType?.standard || {};
-    const limitedSix = Number(limitedPool.six || 0);
-    const standardSix = Number(standardPool.six || 0);
-    const totalSix = limitedSix + standardSix;
-
-    if (totalSix <= 0) {
+    const characterPool = currentStats?.byType?.character || null;
+    if (!characterPool) {
       return null;
     }
 
-    const limitedAvgExcludingFree = Number(limitedPool.avgPityExcludingFree);
-    const standardAvgExcludingFree = Number(standardPool.avgPityExcludingFree || standardPool.avgPity);
-
-    if (Number.isFinite(limitedAvgExcludingFree) && limitedAvgExcludingFree > 0) {
-      const weightedExcludingFree = (
-        limitedAvgExcludingFree * limitedSix
-        + (Number.isFinite(standardAvgExcludingFree) ? standardAvgExcludingFree : 0) * standardSix
-      ) / totalSix;
-      return Number.isFinite(weightedExcludingFree) ? weightedExcludingFree : null;
+    const avgExcludingFree = Number(characterPool.avgPityExcludingFree);
+    if (Number.isFinite(avgExcludingFree) && avgExcludingFree > 0) {
+      return avgExcludingFree;
     }
 
-    const limitedAvg = Number(limitedPool.avgPity);
-    const standardAvg = Number(standardPool.avgPity);
-    const weighted = (
-      (Number.isFinite(limitedAvg) ? limitedAvg : 0) * limitedSix
-      + (Number.isFinite(standardAvg) ? standardAvg : 0) * standardSix
-    ) / totalSix;
-
-    return Number.isFinite(weighted) ? weighted : null;
+    const avgPity = Number(characterPool.avgPity);
+    return Number.isFinite(avgPity) && avgPity > 0 ? avgPity : null;
   }, [currentStats]);
   const averageUpValue = useMemo(() => {
     const rawValue = currentStats?.byType?.character?.avgPityUp ?? currentStats?.byType?.limited?.avgPityUp;

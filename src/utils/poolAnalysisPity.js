@@ -1,4 +1,5 @@
 function normalizePoolType(type) {
+  if (type === 'extra') return 'extra';
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';
@@ -89,6 +90,7 @@ function buildLimitedTerminalPityMap(allLimitedHistory = []) {
 export function getPoolAnalysisPityState(currentPool, stats = {}, effectivePity = null) {
   const normalizedType = normalizePoolType(currentPool?.type);
   const isLimited = normalizedType === 'limited';
+  const isExtra = normalizedType === 'extra';
   const isWeapon = normalizedType === 'weapon';
   const maxPity6 = isWeapon ? 40 : 80;
   const displayPity6 = isLimited ? (effectivePity?.pity6 ?? stats.currentPity ?? 0) : (stats.currentPity ?? 0);
@@ -97,6 +99,7 @@ export function getPoolAnalysisPityState(currentPool, stats = {}, effectivePity 
   return {
     normalizedType,
     isLimited,
+    isExtra,
     isWeapon,
     maxPity6,
     maxPity5: 10,

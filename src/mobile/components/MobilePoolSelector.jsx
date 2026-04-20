@@ -254,6 +254,7 @@ function MobilePoolSelector() {
     if (poolType === 'limited_weapon') poolType = 'weapon';
 
     const configs = {
+      extra: { icon: Star, color: 'text-cyan-300', bg: 'bg-cyan-500/12' },
       limited: { icon: Star, color: 'text-orange-300', bg: 'bg-orange-500/12' },
       standard: { icon: Layers, color: 'text-amber-300', bg: 'bg-amber-500/12' },
       weapon: { icon: Swords, color: 'text-slate-300', bg: 'bg-slate-500/12' },
@@ -539,6 +540,7 @@ function MobilePoolSelector() {
                       {/* 分组标题 */}
                       <div className="sticky top-0 border-b border-white/8 bg-black/88 px-3 py-2 backdrop-blur-xl">
                         <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                          group.type === 'extra' ? 'text-cyan-500' :
                           group.type === 'limited' ? 'text-orange-500' :
                           group.type.includes('weapon') ? 'text-slate-500' :
                           group.type === 'standard' ? 'text-amber-500' :

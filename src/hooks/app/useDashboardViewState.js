@@ -9,6 +9,7 @@ import { useCurrentPoolData } from './useCurrentPoolData';
 import { usePoolStats } from './usePoolStats';
 
 function normalizePoolType(type) {
+  if (type === 'extra') return 'extra';
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';
@@ -51,6 +52,7 @@ export function useDashboardViewState() {
 
   const normalizedPoolType = normalizePoolType(currentPool?.type);
   const isLimited = normalizedPoolType === 'limited';
+  const isExtra = normalizedPoolType === 'extra';
   const isWeapon = normalizedPoolType === 'weapon';
   const isStandard = normalizedPoolType === 'standard';
   const maxPity = isWeapon ? 40 : 80;
@@ -155,7 +157,7 @@ export function useDashboardViewState() {
   }, [normalizedPoolType, stats.total]);
 
   const currentUpPool = useMemo(() => {
-    if (isLimited && currentPool?.start_time && currentPool?.end_time) {
+    if ((isLimited || isExtra) && currentPool?.start_time && currentPool?.end_time) {
       const now = new Date();
       const start = new Date(currentPool.start_time);
       const end = new Date(currentPool.end_time);
@@ -173,10 +175,11 @@ export function useDashboardViewState() {
     }
 
     return getCurrentUpPoolInfo(poolsArray);
-  }, [currentPool, isLimited, poolsArray]);
+  }, [currentPool, isExtra, isLimited, poolsArray]);
 
   const getProgressClass = () => {
     if (isLimited) return 'rainbow-progress';
+    if (isExtra) return 'bg-cyan-500';
     if (isWeapon) return 'bg-slate-500';
     return 'bg-amber-500';
   };
@@ -274,6 +277,7 @@ export function useDashboardViewState() {
     hasMergedAccountView,
     normalizedPoolType,
     isLimited,
+    isExtra,
     isWeapon,
     isStandard,
     isAllPoolsOverview,

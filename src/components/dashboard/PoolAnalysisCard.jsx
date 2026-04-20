@@ -221,6 +221,7 @@ const WeaponGifts = ({ stats, t }) => {
  */
 const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFirstN, hasReceivedFreeTen, hasMergedAccountView = false }) => {
   const { t, formatDateTime, locale } = useI18n();
+  const isExtra = currentPool.type === 'extra';
   const isLimited = currentPool.type === 'limited';
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
@@ -240,14 +241,16 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
   const maxPity = pityState.maxPity6;
   
   // 颜色主题
-  const accentColor = isLimited 
-    ? 'text-blue-600 dark:text-cyan-400' 
-    : isWeapon 
-      ? 'text-slate-600 dark:text-slate-400' 
+  const accentColor = (isLimited || isExtra)
+    ? (isExtra ? 'text-cyan-600 dark:text-cyan-400' : 'text-blue-600 dark:text-cyan-400')
+    : isWeapon
+      ? 'text-slate-600 dark:text-slate-400'
       : 'text-yellow-600 dark:text-endfield-yellow';
       
-  const progressClass = isLimited 
-    ? 'rainbow-progress' 
+  const progressClass = isLimited
+    ? 'rainbow-progress'
+    : isExtra
+      ? 'bg-cyan-500'
     : isWeapon 
       ? 'bg-slate-500' 
       : 'bg-yellow-500';
@@ -255,6 +258,8 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
     ? t('dashboard.analysis.title.weapon')
     : isLimited
       ? t('dashboard.analysis.title.limited')
+      : isExtra
+        ? t('pool.group.extra')
       : t('dashboard.analysis.title.standard');
 
   const validPullCount = checkLimitedInFirstN?.validPullCount || stats.total;
@@ -262,7 +267,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 relative overflow-hidden shadow-sm">
       {/* 侧边装饰条 */}
-      <div className={`absolute top-0 left-0 w-1.5 h-full ${isLimited ? 'rainbow-bg' : isWeapon ? 'bg-slate-600 dark:bg-slate-500' : 'bg-yellow-500'}`}></div>
+      <div className={`absolute top-0 left-0 w-1.5 h-full ${isLimited ? 'rainbow-bg' : isExtra ? 'bg-cyan-500' : isWeapon ? 'bg-slate-600 dark:bg-slate-500' : 'bg-yellow-500'}`}></div>
       
       {/* 标题区域 */}
       <div className="mb-6 pl-2">
@@ -287,7 +292,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            </div>
            
            {/* 时间信息只在限定池显示 */}
-           {isLimited && <PoolTimeInfo currentPool={currentPool} t={t} formatDateTime={formatDateTime} />}
+           {(isLimited || isExtra) && <PoolTimeInfo currentPool={currentPool} t={t} formatDateTime={formatDateTime} />}
         </div>
       </div>
 
@@ -347,15 +352,15 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
       )}
 
       {/* 数据概览网格 (限定/武器池显示) */}
-      {(isLimited || isWeapon) && (
+      {(isLimited || isExtra || isWeapon) && (
         <div className="grid grid-cols-1 gap-4 mb-6">
            {/* 不歪率 */}
            <StatCard
              label={t('dashboard.analysis.winRate')}
-             extraLabel={isLimited ? t('dashboard.analysis.freeTenExcluded') : null}
+             extraLabel={(isLimited || isExtra) ? t('dashboard.analysis.freeTenExcluded') : null}
              value={stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
              progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
-             progressColor={isLimited ? 'rainbow-progress' : 'bg-blue-500'}
+             progressColor={isLimited ? 'rainbow-progress' : isExtra ? 'bg-cyan-500' : 'bg-blue-500'}
              footer={
                stats.sixStarCount > 0
                  ? (
@@ -448,6 +453,27 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                 </div>
              </div>
            </>
+         )}
+
+         {isExtra && (
+           <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-cyan-500 flex flex-col gap-2">
+             <div className="flex justify-between items-center">
+               <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.freeTenOnce')}</span>
+               <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
+                 {hasReceivedFreeTen ? t('dashboard.analysis.claimed') : '0 / 1'}
+               </span>
+             </div>
+             <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
+               <div className={`h-full ${hasReceivedFreeTen ? 'bg-green-500' : 'bg-cyan-500'}`}
+                    style={{ width: `${hasReceivedFreeTen ? 100 : 0}%` }}></div>
+             </div>
+             <div className="flex justify-between items-center">
+               <span className="text-[11px] text-slate-600 dark:text-zinc-400">{t('dashboard.analysis.notCountPity')}</span>
+               {hasReceivedFreeTen && (
+                 <span className="text-[11px] text-green-600 dark:text-green-400 font-bold">{t('dashboard.analysis.completed')}</span>
+               )}
+             </div>
+           </div>
          )}
 
          {/* 武器池特殊进度 */}

@@ -6,6 +6,7 @@ import {
 } from './historyInfoBook.js';
 import { getPoolTimingMeta, normalizePoolGroupType } from './poolSelectorDisplay.js';
 import {
+  EXTRA_POOL_RULES,
   LIMITED_POOL_RULES,
   STANDARD_POOL_RULES,
   WEAPON_POOL_RULES
@@ -14,6 +15,7 @@ import { getAppLocale, isEnglishLocale } from '../i18n/index.js';
 import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from './gameDataI18n.js';
 
 function normalizePoolType(type) {
+  if (type === 'extra') return 'extra';
   if (type === 'limited_character') return 'limited';
   if (type === 'limited_weapon') return 'weapon';
   if (type === 'beginner') return 'standard';
@@ -27,6 +29,10 @@ function getPoolSixStarPity(poolType) {
 
   if (poolType === 'limited') {
     return LIMITED_POOL_RULES.sixStarPity;
+  }
+
+  if (poolType === 'extra') {
+    return EXTRA_POOL_RULES.sixStarPity;
   }
 
   return STANDARD_POOL_RULES.sixStarPity;
@@ -310,6 +316,7 @@ function calculateTimelineMetrics(history = [], { poolType = 'standard', crossPo
   const fiveStars = validPulls.filter((item) => Number(item?.rarity) === 5);
   const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
   const isLimitedPool = poolType === 'limited';
+  const isExtraPool = poolType === 'extra';
   const currentPity = (() => {
     let pity = 0;
     for (let index = history.length - 1; index >= 0; index -= 1) {
@@ -371,7 +378,8 @@ function calculateTimelineMetrics(history = [], { poolType = 'standard', crossPo
       )
       : Number.NaN,
     currentPity,
-    currentPity5
+    currentPity5,
+    isExtraPool
   };
 }
 
