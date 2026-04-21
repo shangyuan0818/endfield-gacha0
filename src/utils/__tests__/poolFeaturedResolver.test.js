@@ -44,6 +44,48 @@ describe('poolFeaturedResolver', () => {
     expect(getPoolFeaturedLead({ name: '未命名卡池' })).toBe('未命名卡池');
   });
 
+  it('falls back to standard six-star roster for standard pools without up characters', () => {
+    characterCache.applyCharacters([
+      {
+        id: 'std_1',
+        name: '莱万汀',
+        avatar_url: '/avatars/lv.png',
+        rarity: 6,
+        type: 'character',
+        pool_config: { pools: ['standard'] },
+      },
+      {
+        id: 'std_2',
+        name: '洁尔佩塔',
+        avatar_url: '/avatars/jep.png',
+        rarity: 6,
+        type: 'character',
+        pool_config: { pools: ['standard'] },
+      },
+    ]);
+
+    const pool = {
+      type: 'standard',
+      name: '基础寻访',
+    };
+
+    const featuredNames = getPoolFeaturedNames(pool);
+
+    expect(featuredNames.length).toBeGreaterThan(0);
+    expect(featuredNames).toContain('莱万汀');
+  });
+
+  it('keeps explicit single up for weapon pools instead of falling back to a roster', () => {
+    const pool = {
+      type: 'weapon',
+      isLimitedWeapon: true,
+      up_character: '焰羽火燎',
+    };
+
+    expect(getPoolFeaturedNames(pool)).toEqual(['焰羽火燎']);
+    expect(getPoolFeaturedLead(pool)).toBe('焰羽火燎');
+  });
+
   it('canonicalizes character ids from unified featured sources', () => {
     characterCache.applyCharacters([
       {

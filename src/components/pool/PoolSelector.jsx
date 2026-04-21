@@ -235,10 +235,12 @@ const PoolSelector = () => {
             <button
               id="guide-import-btn"
               onClick={() => setShowImportManager(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 dark:bg-zinc-100 hover:bg-zinc-700 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold uppercase tracking-wider transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-mono font-bold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
-              <Upload size={14} />
-              {t('pool.selector.import')}
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
+              <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform duration-300 relative z-10" />
+              <span className="relative z-10">{t('pool.selector.import')}</span>
             </button>
           ) : (
             <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
@@ -251,22 +253,29 @@ const PoolSelector = () => {
             <div className="relative">
               <button
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="flex min-w-[224px] items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-xs font-mono transition-colors"
+                className="flex w-auto min-w-[140px] max-w-[224px] items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-xs font-mono transition-all duration-300 group hover:shadow-[0_0_15px_rgba(234,179,8,0.15)] relative overflow-hidden"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
               >
-                <User size={14} className="text-slate-500 dark:text-zinc-400" />
-                <span className="min-w-0 truncate text-slate-700 dark:text-zinc-300">
-                  {currentAccount?.nickName || t('pool.selector.allAccounts')}
-                </span>
-                {currentAccountServerTag && (
-                  <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
-                    {currentAccountServerTag}
+                <div className="absolute inset-y-0 left-0 w-1 bg-yellow-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />
+                <div className="flex items-center gap-2 min-w-0 z-10 relative">
+                  <User size={14} className="text-slate-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors shrink-0" />
+                  <span className="min-w-0 truncate text-slate-700 dark:text-zinc-300 font-bold group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors">
+                    {currentAccount?.nickName || t('pool.selector.allAccounts')}
                   </span>
-                )}
-                <ChevronDown size={12} className={`text-slate-400 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
+                  {currentAccountServerTag && (
+                    <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 group-hover:border-yellow-500/50 group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors">
+                      {currentAccountServerTag}
+                    </span>
+                  )}
+                </div>
+                <ChevronDown size={12} className={`text-slate-400 transition-transform duration-300 z-10 relative shrink-0 ml-1 ${showAccountDropdown ? 'rotate-180 text-yellow-500' : ''}`} />
               </button>
 
               {showAccountDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-lg z-20">
+                <div 
+                  className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl z-20"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
+                >
                   {gameAccounts.map(account => (
                     <button
                       key={account.gameUid}
@@ -313,22 +322,24 @@ const PoolSelector = () => {
             <div className="hidden md:flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-800 pr-3">
               {(currentAccount || gameAccounts.length > 1) && (
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   title={currentAccount
                     ? `${currentAccount.nickName} · ${t('pool.selector.meta.imported', { value: formatFreshnessAbsolute(getAccountLastImportTimestamp(currentAccount), null, locale, { includeYear: false }) })}`
                     : t('pool.selector.switchAccountHint')}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${!currentAccount ? 'bg-zinc-400' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 ${!currentAccount ? 'bg-zinc-400' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(getAccountLastImportTimestamp(currentAccount)) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 2px), calc(100% - 2px) 100%, 0 100%)' }} />
                   <span className="hidden xl:inline font-bold tracking-widest uppercase">{t('pool.selector.accountStatus', 'ACCOUNT')}:</span>
                   <span>{currentAccount ? formatFreshnessRelative(getAccountLastImportTimestamp(currentAccount), t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}</span>
                 </div>
               )}
               {currentPoolLatestRecordAt && (
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors rounded ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   title={`${currentPoolFreshnessLabel} · ${t('pool.selector.meta.latestRecord', { value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false }) })}`}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${getFreshnessTone(currentPoolLatestRecordAt) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(currentPoolLatestRecordAt) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                  <span className={`w-1.5 h-1.5 ${getFreshnessTone(currentPoolLatestRecordAt) === 'fresh' ? 'bg-emerald-500 animate-pulse' : getFreshnessTone(currentPoolLatestRecordAt) === 'notice' ? 'bg-amber-500' : 'bg-red-500'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 2px), calc(100% - 2px) 100%, 0 100%)' }} />
                   <span className="hidden xl:inline font-bold tracking-widest uppercase">{t('pool.selector.poolStatus', 'POOL')}:</span>
                   <span>{formatFreshnessRelative(currentPoolLatestRecordAt, t('pool.selector.noRecords'), locale)}</span>
                 </div>
@@ -339,32 +350,35 @@ const PoolSelector = () => {
               <button
                 type="button"
                 onClick={() => setHideZeroPullPools((value) => !value)}
-                className={`flex items-center gap-2 px-2.5 py-1.5 border text-[11px] font-mono transition-colors ${
+                className={`flex items-center gap-2 px-3 py-1.5 border text-[11px] font-mono font-bold tracking-wider uppercase transition-all duration-300 relative overflow-hidden group ${
                   hideZeroPullPools
-                    ? 'border-emerald-500/50 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300'
-                    : 'border-zinc-200 bg-white text-slate-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-600'
+                    ? 'border-yellow-500 bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.4)]'
+                    : 'border-zinc-200 bg-white/50 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400 hover:border-yellow-500/50 hover:text-yellow-600 dark:hover:text-yellow-500'
                 }`}
+                style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                 title={hideZeroPullPools ? t('pool.selector.hideZeroTitle') : t('pool.selector.showZeroTitle')}
               >
-                <span className={`h-2 w-2 rounded-full ${hideZeroPullPools ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'}`} />
-                <span>{hideZeroPullPools ? t('pool.selector.hideZeroLabel') : t('pool.selector.showZeroLabel')}</span>
+                <div className={`absolute inset-0 bg-yellow-500/10 transition-transform duration-300 ease-out origin-left ${hideZeroPullPools ? 'hidden' : 'scale-x-0 group-hover:scale-x-100'}`} />
+                <span className={`h-2 w-2 transition-colors duration-300 relative z-10 ${hideZeroPullPools ? 'bg-black' : 'bg-zinc-300 dark:bg-zinc-700 group-hover:bg-yellow-500'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }} />
+                <span className="relative z-10 transition-colors duration-300">{hideZeroPullPools ? t('pool.selector.hideZeroLabel') : t('pool.selector.showZeroLabel')}</span>
               </button>
             )}
 
             {totalPools > 5 && (
-              <div className="relative group">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500 group-focus-within:text-yellow-500 transition-colors" />
+              <div className="relative group flex items-center">
+                <Search size={14} className="absolute left-2.5 text-slate-400 dark:text-zinc-500 group-focus-within:text-yellow-500 transition-colors z-10" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t('pool.selector.searchPlaceholder')}
-                  className="w-40 pl-8 pr-8 py-1.5 text-xs bg-transparent border-b border-zinc-200 dark:border-zinc-700 focus:border-yellow-500 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-700 transition-colors"
+                  className="w-40 pl-8 pr-8 py-1.5 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-yellow-500 dark:focus:border-yellow-500/50 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-600 transition-all duration-300 focus:w-48 hover:border-zinc-300 dark:hover:border-zinc-600 focus:shadow-[0_0_12px_rgba(234,179,8,0.15)]"
+                  style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)' }}
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-zinc-500"
+                    className="absolute right-2 text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-yellow-500 z-10 transition-colors"
                   >
                     <X size={14} />
                   </button>

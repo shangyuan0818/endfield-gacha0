@@ -36,6 +36,28 @@ export function getPoolTypeLabel(groupType, locale = getAppLocale()) {
   return getMessage('pool.group.other', {}, locale);
 }
 
+export function getPoolFeaturedLabel(pool, { locale = getAppLocale(), short = false } = {}) {
+  const normalizedGroupType = normalizePoolGroupType(pool);
+  const isRosterStylePool = normalizedGroupType === 'extra'
+    || normalizedGroupType === 'standard'
+    || normalizedGroupType === 'beginner';
+
+  if (short) {
+    return isRosterStylePool
+      ? getMessage('pool.card.sixStarRosterShort', {}, locale)
+      : getMessage('pool.card.upShort', {}, locale);
+  }
+
+  return isRosterStylePool
+    ? getMessage('dashboard.pool.sixStarRoster', {}, locale)
+    : getMessage('dashboard.pool.upCharacter', {}, locale);
+}
+
+export function shouldShowPoolFeaturedSummary(pool) {
+  const normalizedGroupType = normalizePoolGroupType(pool);
+  return normalizedGroupType !== 'standard' && normalizedGroupType !== 'beginner';
+}
+
 export function getPoolGroupId(groupType) {
   return `${POOL_GROUP_PREFIX}${groupType}`;
 }
@@ -114,8 +136,15 @@ function matchesQuery(pool, query, locale = getAppLocale()) {
 export function getPoolSelectorFeaturedCharacters(pool, { locale = getAppLocale() } = {}) {
   const entityType = pool?.type === 'weapon' || pool?.type === 'limited_weapon' ? 'weapon' : 'character';
   const localizedFeaturedNames = localizePoolFeaturedList(pool, { locale, type: entityType }).filter(Boolean);
+  const normalizedGroupType = normalizePoolGroupType(pool);
+  const shouldUseMultiFeaturedDisplay = normalizedGroupType === 'extra'
+    || (
+      (normalizedGroupType === 'standard' || normalizedGroupType === 'beginner')
+      && !pool?.up_character
+      && !pool?.upCharacter
+    );
 
-  if ((pool?.type === 'extra') && localizedFeaturedNames.length > 0) {
+  if (shouldUseMultiFeaturedDisplay) {
     return localizedFeaturedNames;
   }
 
@@ -129,8 +158,15 @@ export function getPoolSelectorFeaturedCharacters(pool, { locale = getAppLocale(
 
 function getPoolSelectorAvatarLookupNames(pool) {
   const featuredNames = getPoolFeaturedNames(pool);
+  const normalizedGroupType = normalizePoolGroupType(pool);
+  const shouldUseMultiAvatarBackdrop = normalizedGroupType === 'extra'
+    || (
+      (normalizedGroupType === 'standard' || normalizedGroupType === 'beginner')
+      && !pool?.up_character
+      && !pool?.upCharacter
+    );
 
-  if (pool?.type === 'extra' && featuredNames.length > 0) {
+  if (shouldUseMultiAvatarBackdrop) {
     return featuredNames.slice(0, 4);
   }
 
@@ -165,7 +201,9 @@ function sortPoolsForDisplay(pools, referenceDate, locale = getAppLocale()) {
         const displayFeaturedCharacters = getPoolSelectorFeaturedCharacters(pool, { locale });
         return {
           displayFeaturedCharacters,
-          displayUpCharacter: displayFeaturedCharacters.join(' / '),
+          displayUpCharacter: shouldShowPoolFeaturedSummary(pool)
+            ? displayFeaturedCharacters.join(' / ')
+            : '',
           avatarLookupNames: getPoolSelectorAvatarLookupNames(pool)
         };
       })(),

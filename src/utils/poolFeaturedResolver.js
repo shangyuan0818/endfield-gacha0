@@ -1,4 +1,5 @@
 import { resolveCharacterRecordByName } from './characterUtils.js';
+import { STANDARD_SIX_STAR_CHARACTERS } from '../constants/characterPools.js';
 
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -34,6 +35,16 @@ function extractRosterUpNames(pool) {
     .filter(Boolean);
 }
 
+function getDefaultPoolFeaturedNames(pool) {
+  const normalizedType = String(pool?.type || 'standard').trim();
+
+  if (normalizedType === 'standard' || normalizedType === 'standard_pool' || normalizedType === 'beginner') {
+    return dedupeNames([...STANDARD_SIX_STAR_CHARACTERS]);
+  }
+
+  return [];
+}
+
 export function getPoolFeaturedNames(pool) {
   const rosterUpNames = extractRosterUpNames(pool);
   const explicitFeaturedNames = Array.isArray(pool?.featured_characters) ? pool.featured_characters : [];
@@ -47,7 +58,16 @@ export function getPoolFeaturedNames(pool) {
     return dedupeNames(explicitFeaturedNames);
   }
 
-  return singleUpName ? [singleUpName] : [];
+  if (singleUpName) {
+    return [singleUpName];
+  }
+
+  const defaultPoolFeaturedNames = getDefaultPoolFeaturedNames(pool);
+  if (defaultPoolFeaturedNames.length > 0) {
+    return defaultPoolFeaturedNames;
+  }
+
+  return [];
 }
 
 export function getPoolFeaturedLead(pool) {

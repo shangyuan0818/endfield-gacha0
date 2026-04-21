@@ -14,7 +14,13 @@ import {
 } from '../../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
-import { buildPoolSelectorGroups, getPoolSelectorFeaturedCharacters, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
+import {
+  buildPoolSelectorGroups,
+  getPoolFeaturedLabel,
+  shouldShowPoolFeaturedSummary,
+  getPoolSelectorFeaturedCharacters,
+  getPoolTypeLabel
+} from '../../utils/poolSelectorDisplay';
 import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
 import { MobileGlassPanel, MobileStatusBadge } from './ux/MobilePrimitives.jsx';
@@ -131,6 +137,8 @@ function MobilePoolSelector() {
     || selectedPool?.up_character
     || selectedPool?.upCharacter
     || '';
+  const selectedPoolFeaturedLabel = getPoolFeaturedLabel(selectedPool, { locale, short: true });
+  const showSelectedPoolFeaturedSummary = shouldShowPoolFeaturedSummary(selectedPool);
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
@@ -446,9 +454,9 @@ function MobilePoolSelector() {
                 {selectedPoolDisplayName}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
-                {selectedPoolDisplayUp && (
+                {showSelectedPoolFeaturedSummary && selectedPoolDisplayUp && (
                   <>
-                    <span>UP: {selectedPoolDisplayUp}</span>
+                    <span>{selectedPoolFeaturedLabel}: {selectedPoolDisplayUp}</span>
                     <span className="text-zinc-300 dark:text-zinc-700">|</span>
                   </>
                 )}
@@ -591,6 +599,8 @@ function MobilePoolSelector() {
                         const poolConfig = getPoolTypeConfig(pool);
                         const PoolIcon = poolConfig.icon;
                         const count = poolPullCounts[pool.id] || 0;
+                        const poolFeaturedLabel = getPoolFeaturedLabel(pool, { locale, short: true });
+                        const showPoolFeaturedSummary = shouldShowPoolFeaturedSummary(pool);
 
                         return (
                           <button
@@ -616,9 +626,9 @@ function MobilePoolSelector() {
                                 {pool.locked && <Lock size={10} className="inline ml-1 text-amber-500" />}
                               </div>
                               <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
-                                {(pool.displayUpCharacter || pool.up_character || pool.upCharacter) && (
+                                {showPoolFeaturedSummary && (pool.displayUpCharacter || pool.up_character || pool.upCharacter) && (
                                   <span>
-                                    UP: {pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', {
+                                    {poolFeaturedLabel}: {pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', {
                                       locale,
                                       type: pool.type === 'weapon' ? 'weapon' : 'character'
                                     }) || pool.up_character || pool.upCharacter}

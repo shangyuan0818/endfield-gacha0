@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Layers, Lock, Star, Swords, User } from 'lucide-react';
-import { getPoolTimingMeta, getSelectorVisiblePools } from '../../utils/poolSelectorDisplay';
+import {
+  getPoolFeaturedLabel,
+  getPoolTimingMeta,
+  getSelectorVisiblePools,
+  shouldShowPoolFeaturedSummary
+} from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
 import { getCharacterAvatarUrl } from '../../utils/characterUtils.js';
 
@@ -30,17 +35,17 @@ function GroupLabel({ groupType, label, collapsed, onToggle, t }) {
     <button
       type="button"
       onClick={onToggle}
-      className="flex-shrink-0 flex flex-col items-center justify-end h-full pb-3 group"
+      className="flex-shrink-0 flex flex-col items-center justify-end h-full pb-3 group opacity-70 hover:opacity-100 transition-opacity duration-200"
       title={collapsed ? t('pool.card.groupToggleExpand', { label }) : t('pool.card.groupToggleCollapse', { label })}
     >
-      <div className="flex flex-col items-center gap-1.5" style={{ writingMode: 'vertical-rl' }}>
-        <span className={`w-1 h-6 flex-shrink-0 ${accentClass.split(' ')[0]}`} style={{ writingMode: 'horizontal-tb' }} />
-        <span className={`text-xs font-bold tracking-widest uppercase ${accentClass.split(' ').slice(1).join(' ')}`}>
+      <div className="flex flex-col items-center gap-2" style={{ writingMode: 'vertical-rl' }}>
+        <span className={`w-[3px] h-8 flex-shrink-0 ${accentClass.split(' ')[0]}`} style={{ writingMode: 'horizontal-tb' }} />
+        <span className={`text-[11px] font-mono font-bold tracking-[0.2em] uppercase ${accentClass.split(' ').slice(1).join(' ')}`}>
           {label}
         </span>
         <ChevronDown
-          size={12}
-          className={`transition-transform ${accentClass.split(' ').slice(1).join(' ')} ${collapsed ? '-rotate-90' : 'rotate-0'}`}
+          size={14}
+          className={`transition-transform duration-300 ${accentClass.split(' ').slice(1).join(' ')} ${collapsed ? '-rotate-90' : 'rotate-0'}`}
           style={{ writingMode: 'horizontal-tb' }}
         />
       </div>
@@ -58,22 +63,32 @@ function GroupCard({ group, isSelected, onClick, interactive, locale, t }) {
     <div
       onClick={interactive ? onClick : undefined}
       className={`
-        relative flex-shrink-0 w-44 p-3 border-2 border-dashed transition-all
-        ${interactive ? 'cursor-pointer group hover:border-zinc-400 dark:hover:border-zinc-500' : 'cursor-default'}
+        relative flex-shrink-0 w-32 p-3 border border-dashed transition-all duration-200 group
+        ${interactive ? 'cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800/50 hover:border-yellow-500' : 'cursor-default'}
         ${isSelected
-          ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
-          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700'
+          ? 'bg-zinc-50 dark:bg-zinc-900/80 border-yellow-500 dark:border-yellow-500 shadow-[inset_0_0_20px_rgba(234,179,8,0.1)]'
+          : 'bg-transparent border-zinc-300 dark:border-zinc-700'
         }
       `}
+      style={{
+        clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px))'
+      }}
     >
-      <div className={`absolute top-2 left-2 p-1 ${config.bg}`}>
+      <div className={`absolute top-2 left-2 p-1 ${config.bg} border border-black/5 dark:border-white/5`}>
         <TypeIcon size={12} className={config.color} />
       </div>
-      <div className={`text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
+      <div className={`text-xs font-mono font-bold tracking-widest uppercase truncate mb-2 mt-6 ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-600 dark:text-zinc-400 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
         {t('pool.card.allGroupTitle', { label: group.label })}
       </div>
-      <div className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {t('pool.card.groupStats', { pools: formattedPoolCount, pulls: formattedPullCount })}
+      <div className="flex flex-col gap-1 mt-auto">
+        <div className="flex justify-between items-end">
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
+          <span className="text-[11px] font-mono text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">{formattedPoolCount}</span>
+        </div>
+        <div className="flex justify-between items-end">
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+          <span className={`text-sm font-mono font-bold leading-none ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{formattedPullCount}</span>
+        </div>
       </div>
     </div>
   );
@@ -86,17 +101,20 @@ function CollapseCard({ count, expanded, onClick, locale, t }) {
     <button
       type="button"
       onClick={onClick}
-      className="relative flex-shrink-0 w-36 p-3 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:border-endfield-yellow hover:text-endfield-yellow transition-colors text-left"
+      className="relative flex-shrink-0 w-32 p-3 border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:border-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-500/10 transition-all duration-200 text-left group"
+      style={{
+        clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)'
+      }}
     >
-      <div className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-500">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
         {expanded ? t('pool.card.collapseOld') : t('pool.card.expandOld')}
       </div>
-      <div className="mt-2 text-sm font-bold text-slate-700 dark:text-zinc-200">
+      <div className="mt-2 text-sm font-mono font-bold text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
         {expanded ? t('pool.card.keepLatest') : t('pool.card.hasMore', { count: formattedCount })}
       </div>
-      <div className="mt-1 flex items-center gap-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-        <ChevronDown size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        {expanded ? t('pool.card.clickCollapse') : t('pool.card.clickExpand')}
+      <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-zinc-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
+        <span>{expanded ? 'COLLAPSE' : 'EXPAND'}</span>
+        <ChevronDown size={14} className={`transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
     </button>
   );
@@ -111,28 +129,62 @@ function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick, loca
       type="button"
       onClick={onClick}
       className={`
-        relative flex-shrink-0 w-48 p-3 border transition-all text-left
-        hover:border-zinc-400 dark:hover:border-zinc-500
+        relative flex-shrink-0 w-32 p-4 text-left transition-all duration-200 border-l-4 overflow-hidden group
         ${isSelected
-          ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
-          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+          ? 'bg-zinc-100 dark:bg-zinc-800/80 border-yellow-500 dark:border-yellow-500 shadow-[inset_0_0_20px_rgba(234,179,8,0.1)]'
+          : 'bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-yellow-500'
         }
       `}
+      style={{
+        clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)'
+      }}
     >
-      <div className="absolute top-2 left-2 p-1 bg-zinc-100 dark:bg-zinc-800">
-        <Layers size={12} className="text-slate-600 dark:text-zinc-300" />
+      <div className="absolute top-0 right-0 p-1 bg-zinc-100 dark:bg-zinc-800">
+        <Layers size={14} className="text-slate-400 dark:text-zinc-500" />
       </div>
-      <div className={`mt-6 text-sm font-bold ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
+      <div className={`mt-2 text-xs font-mono font-bold tracking-widest uppercase ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
         {title}
       </div>
-      <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {t('pool.card.groupStats', { pools: formattedPoolCount, pulls: formattedPullCount })}
+      
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex justify-between items-end">
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
+          <span className="text-[11px] font-mono text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">{formattedPoolCount}</span>
+        </div>
+        <div className="flex justify-between items-end">
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+          <span className={`text-sm font-mono font-bold leading-none ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{formattedPullCount}</span>
+        </div>
       </div>
-      <div className="mt-2 text-[11px] text-slate-500 dark:text-zinc-500">
-        {t('pool.card.overviewDesc')}
+      
+      <div className="absolute bottom-2 right-2 opacity-10 group-hover:opacity-20 transition-opacity">
+        <Layers size={48} />
       </div>
     </button>
   );
+}
+
+function getPoolNameFontSizeClass(poolName = '') {
+  if (poolName.length > 30) {
+    return 'text-[10px] leading-[1.2]';
+  }
+  if (poolName.length > 22) {
+    return 'text-[11px] leading-[1.25]';
+  }
+  if (poolName.length > 16) {
+    return 'text-[12px] leading-[1.25]';
+  }
+  return 'text-[15px] leading-tight';
+}
+
+function getFeaturedTextFontSizeClass(featuredText = '') {
+  if (featuredText.length > 42) {
+    return 'text-[9px] leading-[1.2]';
+  }
+  if (featuredText.length > 28) {
+    return 'text-[10px] leading-[1.25]';
+  }
+  return 'text-[12px] leading-4';
 }
 
 function PoolCard({ pool, isSelected, onClick, locale, t }) {
@@ -146,6 +198,8 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
     ? pool.displayFeaturedCharacters
     : [pool.displayUpCharacter || pool.up_character || pool.upCharacter].filter(Boolean);
   const featuredText = featuredCharacterNames.join(' / ');
+  const featuredLabel = getPoolFeaturedLabel(pool, { locale, short: true });
+  const showFeaturedSummary = shouldShowPoolFeaturedSummary(pool) && Boolean(featuredText);
   const avatarLookupNames = Array.isArray(pool.avatarLookupNames) && pool.avatarLookupNames.length > 0
     ? pool.avatarLookupNames
     : [pool.up_character || pool.upCharacter].filter(Boolean);
@@ -158,89 +212,120 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
   const hasMultiCharacterBackdrop = characterAvatarUrls.length > 1;
   const progressPercent = Math.max(Number(pool.selectorTiming?.progressPercent || 0), 4);
   const progressBarClass = isActive
-    ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500'
+    ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]'
     : pool.selectorTiming?.isUpcoming
       ? 'bg-blue-400'
       : 'bg-zinc-400 dark:bg-zinc-600';
+
+  const poolName = pool.displayName || pool.name;
+  const nameFontSizeClass = getPoolNameFontSizeClass(poolName);
+  const featuredTextFontSizeClass = getFeaturedTextFontSizeClass(featuredText);
 
   return (
     <div
       onClick={onClick}
       className={`
-        relative flex-shrink-0 w-44 p-3 pb-4 cursor-pointer transition-all border overflow-hidden
-        group hover:border-zinc-400 dark:hover:border-zinc-500
+        relative flex-shrink-0 w-36 min-h-[192px] flex flex-col p-0 cursor-pointer transition-all duration-300 ease-out overflow-hidden group
         ${isSelected
-          ? 'bg-zinc-50 dark:bg-zinc-900/50 border-yellow-500 dark:border-yellow-600 shadow-sm'
-          : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'
+          ? 'bg-zinc-100 dark:bg-zinc-800 scale-[1.02] z-10 shadow-lg ring-1 ring-yellow-500/30'
+          : 'bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800/80 hover:scale-[1.01]'
         }
-        ${isActive ? 'shadow-[0_0_0_1px_rgba(234,179,8,0.35),0_0_18px_rgba(234,179,8,0.12)]' : ''}
       `}
+      style={{
+        clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)'
+      }}
     >
-      {characterAvatarUrls.length > 0 && (
-        <>
-          <div className={`pointer-events-none absolute inset-y-0 right-0 z-0 ${hasMultiCharacterBackdrop ? 'grid w-[68%] grid-cols-2 grid-rows-2' : 'w-[60%]'} opacity-48 dark:opacity-36`}>
-            {hasMultiCharacterBackdrop
-              ? characterAvatarUrls.map((avatarUrl, index) => (
-                <div key={`${avatarUrl}-${index}`} className="overflow-hidden">
+      {/* Background Image Area */}
+      <div className="relative h-20 w-full bg-zinc-200 dark:bg-zinc-950 overflow-hidden shrink-0">
+        {characterAvatarUrls.length > 0 ? (
+          <>
+            <div className={`absolute inset-0 ${hasMultiCharacterBackdrop ? 'grid grid-cols-2 grid-rows-2' : ''} transition-all duration-700 ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}>
+              {hasMultiCharacterBackdrop
+                ? characterAvatarUrls.map((avatarUrl, index) => (
+                  <div key={`${avatarUrl}-${index}`} className="overflow-hidden">
+                    <img
+                      src={avatarUrl}
+                      alt={featuredCharacterNames[index] || ''}
+                      className={`h-full w-full object-cover object-center transition-all duration-500 ${isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}
+                    />
+                  </div>
+                ))
+                : (
                   <img
-                    src={avatarUrl}
-                    alt={featuredCharacterNames[index] || ''}
-                    className="h-full w-full object-cover object-center"
+                    src={characterAvatarUrls[0]}
+                    alt={featuredText}
+                    className={`h-full w-full object-cover object-[72%_center] transition-all duration-500 ${isSelected ? 'opacity-100' : 'opacity-80 group-hover:opacity-100'}`}
                   />
-                </div>
-              ))
-              : (
-                <img
-                  src={characterAvatarUrls[0]}
-                  alt={featuredText}
-                  className="h-full w-full object-cover object-[72%_center]"
-                />
-              )}
+                )}
+            </div>
+            <div className={`absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white dark:from-zinc-900 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-40' : 'opacity-100'}`} />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-zinc-200 dark:bg-zinc-800" />
+        )}
+
+        <div className={`absolute top-0 left-0 p-1.5 ${config.bg} border-b border-r border-black/10 dark:border-white/10 z-20`}>
+          <TypeIcon size={12} className={config.color} />
+        </div>
+
+        {pool.locked && (
+          <div className="absolute top-2 right-2 z-20 p-1 bg-black/50 backdrop-blur-sm border border-white/10 rounded-sm">
+            <Lock size={10} className="text-amber-500" />
           </div>
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[68%] bg-gradient-to-r from-white/92 via-white/68 to-transparent dark:from-zinc-900/92 dark:via-zinc-900/68 dark:to-transparent" />
-        </>
-      )}
+        )}
 
-      <div className={`absolute top-2 left-2 z-10 p-1 ${config.bg}`}>
-        <TypeIcon size={12} className={config.color} />
+        {isActive && (
+          <div className="absolute top-0 right-0 z-20 px-2 py-0.5 bg-yellow-500 text-zinc-900 text-[9px] font-bold tracking-widest uppercase shadow-sm">
+            {t('pool.card.currentUp')}
+          </div>
+        )}
       </div>
 
-      {pool.locked && (
-        <div className="absolute top-2 right-2 z-10">
-          <Lock size={12} className="text-amber-500" />
+      {/* Content Area */}
+      <div className={`relative flex flex-col p-3 pt-1.5 border-x border-b pb-2 transition-colors duration-300 ${isSelected ? 'border-yellow-500 dark:border-yellow-500/70 bg-zinc-50 dark:bg-zinc-900/50' : 'border-zinc-200 dark:border-zinc-800'}`}>
+        <div className={`font-bold line-clamp-2 transition-all duration-300 ${nameFontSizeClass} ${isSelected ? 'text-slate-900 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-200'}`}>
+          {poolName}
         </div>
-      )}
 
-      {isActive && (
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1 border border-amber-600/60 bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:border-yellow-500/60 dark:bg-yellow-500/10 dark:text-endfield-yellow">
-          <span className="w-1.5 h-1.5 rounded-full bg-endfield-yellow animate-pulse" />
-          {t('pool.card.currentUp')}
+        <div className="mt-1">
+          {showFeaturedSummary ? (
+            <div className="text-slate-500 dark:text-zinc-400 font-mono border-l-2 border-slate-300 dark:border-zinc-700 pl-1.5">
+              <span className="text-[10px] leading-3 text-slate-600 dark:text-zinc-300 block mb-px tracking-tighter opacity-80">{featuredLabel}</span>
+              <span className={`block line-clamp-2 text-slate-800 dark:text-zinc-200 ${featuredTextFontSizeClass}`}>{featuredText}</span>
+            </div>
+          ) : null}
         </div>
-      )}
 
-      <div className={`relative z-10 text-sm font-bold truncate mb-1 mt-6 ${isSelected ? 'text-slate-900 dark:text-zinc-100' : 'text-slate-600 dark:text-zinc-400'}`}>
-        {pool.displayName || pool.name}
+        <div className="mt-2 flex items-end justify-between">
+          <div className="flex flex-col">
+            <span className="text-[10px] leading-3 text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+            <span className={`mt-0.5 text-lg font-mono font-bold leading-none transition-colors duration-300 ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-300'}`}>
+              {formattedPullCount}
+            </span>
+          </div>
+
+          {isActive && remainingLabel && (
+            <div className="text-[10px] font-mono text-yellow-600 dark:text-yellow-500 text-right animate-pulse leading-none mb-0.5">
+              {remainingLabel}
+            </div>
+          )}
+          {!isActive && pool.selectorTiming?.isUpcoming && remainingLabel && (
+            <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 text-right leading-none mb-0.5">
+              {remainingLabel}
+            </div>
+          )}
+        </div>
+
+        {/* Selected Frame Corner Tech Decoration */}
+        <div className={`absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-yellow-500 transition-all duration-500 ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
+        <div className={`absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-yellow-500 transition-all duration-500 ${isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`} />
       </div>
 
-      {featuredText && (
-        <div className="relative z-10 mb-1 text-xs leading-4 text-slate-500 dark:text-zinc-400 font-mono">
-          <span className="text-slate-600 dark:text-zinc-300">{t('pool.card.upShort')}:</span> <span className="whitespace-normal break-words">{featuredText}</span>
-          {isActive && remainingLabel ? <span className="font-semibold text-amber-700 dark:text-endfield-yellow"> · {remainingLabel}</span> : null}
-        </div>
-      )}
-
-      {!featuredText && isActive && remainingLabel && (
-        <div className="relative z-10 text-xs font-semibold text-amber-700 dark:text-endfield-yellow truncate mb-1 font-mono">{remainingLabel}</div>
-      )}
-
-      <div className="relative z-10 text-xs text-slate-500 dark:text-zinc-400 font-mono">
-        {t('pool.card.pulls', { count: formattedPullCount })}
-      </div>
-
+      {/* Progress Bar (Industrial Style) */}
       {pool.selectorTiming?.isTimed && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[3px] bg-zinc-200/80 dark:bg-zinc-800/90">
+        <div className="absolute bottom-0 left-0 w-full h-[2px] bg-zinc-200 dark:bg-zinc-800">
           <div
-            className={`h-full transition-all ${progressBarClass}`}
+            className={`h-full transition-all duration-500 ${progressBarClass}`}
             style={{ width: `${progressPercent}%` }}
           />
         </div>

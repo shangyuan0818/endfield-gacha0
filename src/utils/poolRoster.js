@@ -325,7 +325,8 @@ export async function resolvePoolRosterBuckets({
   });
 
   if (explicitBuckets) {
-    if (mergeStrategy === 'fill-missing') {
+    const shouldFillMissingByRarity = mergeStrategy === 'fill-missing' || expectedType === 'weapon';
+    if (shouldFillMissingByRarity) {
       return mergeRosterBucketsByMissingRarity(explicitBuckets, fallbackBuckets, { currentUpName });
     }
     return mergeRosterBuckets(explicitBuckets, fallbackBuckets, { currentUpName });
