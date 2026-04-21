@@ -18,21 +18,21 @@ import { localizeGameAccountServerTag } from '../../../utils/gameAccountMetadata
 
 const FetchProgressBar = ({ progress, message, t }) => (
   <div className="w-full">
-    <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors">
+    <div className="flex justify-between items-center mb-2 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors tracking-widest">
       <span className="flex items-center gap-2">
-        <RefreshCw size={10} className="animate-spin text-amber-500 dark:text-yellow-500" />
+        <RefreshCw size={12} className="animate-spin text-yellow-600 dark:text-yellow-500" />
         {t('import.official.fetching')}
       </span>
-      <span>{progress}%</span>
+      <span className="text-yellow-600 dark:text-yellow-500 font-bold">{progress}%</span>
     </div>
-    <div className="h-1 w-full bg-slate-200 dark:bg-zinc-800 relative overflow-hidden transition-colors">
+    <div className="h-1.5 w-full bg-slate-200 dark:bg-zinc-900 relative overflow-hidden transition-colors" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }}>
       <div
-        className="h-full bg-amber-500 dark:bg-yellow-500 transition-all duration-300"
+        className="h-full bg-yellow-500 transition-all duration-300"
         style={{ width: `${progress}%` }}
       />
     </div>
     <div className="mt-2 flex justify-between items-center text-xs font-mono">
-      <span className="text-slate-600 dark:text-zinc-300 transition-colors">{message}</span>
+      <span className="text-slate-600 dark:text-zinc-400 transition-colors">{message}</span>
     </div>
   </div>
 );
@@ -197,45 +197,53 @@ export default function OfficialImportContent({
 
   return (
     <div className="space-y-6">
-      <div className={`inline-flex items-center gap-2 border px-3 py-1 text-[10px] font-mono uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`}>
-        <span>{t('import.official.healthLabel')}</span>
+      <div className={`inline-flex items-center gap-2 border px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+        <span className="opacity-80">{t('import.official.healthLabel')}</span>
         <span>{t(health.key)}</span>
       </div>
       {status === ImportStatus.IDLE && (
-        <div className="bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 transition-colors">
-          <div className="mb-4">
-            <div className="text-[10px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-2">
+        <div className="bg-slate-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+          <div className="mb-6">
+            <div className="text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3 font-mono">
               {t('import.official.sourceLabel')}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {IMPORT_SOURCE_OPTIONS.map((option) => (
                 <button
                   key={option.key}
                   type="button"
                   onClick={() => onSourceChange(option.key)}
-                  className={`border p-3 text-left transition-colors ${
+                  className={`border p-4 text-left transition-all duration-300 relative group overflow-hidden ${
                     source === option.key
-                      ? 'border-amber-500 dark:border-yellow-500 bg-amber-50 dark:bg-yellow-500/10'
-                      : 'border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900/40 hover:bg-slate-100 dark:hover:bg-zinc-800/70'
+                      ? 'border-yellow-500 bg-zinc-100 dark:bg-yellow-500/10 shadow-[0_0_15px_rgba(234,179,8,0.1)]'
+                      : 'border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-yellow-500/50'
                   }`}
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
                 >
-                  <div className="text-sm font-bold text-slate-800 dark:text-white">{option.label}</div>
-                  <div className="text-[10px] font-mono text-slate-500 dark:text-zinc-500 mt-1">{option.description}</div>
+                  <div className={`absolute inset-y-0 left-0 w-1 transition-transform duration-300 origin-bottom ${source === option.key ? 'bg-yellow-500 scale-y-100' : 'bg-zinc-400 dark:bg-zinc-600 scale-y-0 group-hover:scale-y-100'}`} />
+                  <div className={`text-sm font-bold tracking-widest uppercase font-mono transition-colors relative z-10 ${source === option.key ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{option.label}</div>
+                  <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-500 mt-1.5 relative z-10">{option.description}</div>
+                  {source === option.key && <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 animate-pulse" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }} />}
                 </button>
               ))}
             </div>
           </div>
 
-          <h3 className="text-slate-800 dark:text-zinc-300 text-sm font-bold flex items-center gap-2 mb-4">
-            <HelpCircle size={14} className="text-amber-600 dark:text-yellow-500" />
+          <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2 uppercase tracking-widest">
+            <HelpCircle size={14} className="text-yellow-600 dark:text-yellow-500" />
             {t('import.official.quickGuide')}
           </h3>
 
           <div className="space-y-4 pt-2 text-xs text-slate-500 dark:text-zinc-400 font-mono">
             <div className="flex gap-3">
-              <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">1</div>
+              <div
+                className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }}
+              >
+                1
+              </div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{guide.bindingTitle}</p>
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1 uppercase tracking-widest">{guide.bindingTitle}</p>
                 <p className="mb-1 text-slate-500 dark:text-zinc-500">{guide.bindingDesc}</p>
                 <a href={guide.bindingUrl} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
                   {guide.bindingHost} <ExternalLink size={10} />
@@ -243,9 +251,14 @@ export default function OfficialImportContent({
               </div>
             </div>
             <div className="flex gap-3">
-              <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">2</div>
+              <div
+                className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }}
+              >
+                2
+              </div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{guide.tokenTitle}</p>
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1 uppercase tracking-widest">{guide.tokenTitle}</p>
                 <p className="mb-1 text-slate-500 dark:text-zinc-500">{guide.tokenDesc}</p>
                 <a href={guide.tokenUrl} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 flex items-center gap-1 underline">
                   {guide.tokenHost} <ExternalLink size={10} />
@@ -253,11 +266,16 @@ export default function OfficialImportContent({
               </div>
             </div>
             <div className="flex gap-3">
-              <div className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300">3</div>
+              <div
+                className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }}
+              >
+                3
+              </div>
               <div>
-                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1">{t('import.official.pasteTitle')}</p>
+                <p className="text-slate-800 dark:text-zinc-300 font-bold mb-1 uppercase tracking-widest">{t('import.official.pasteTitle')}</p>
                 <p className="text-slate-500 dark:text-zinc-500 mb-2">{t('import.official.pasteDesc')}</p>
-                <div className="bg-slate-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-700 p-2 text-[10px] font-mono rounded-sm leading-relaxed transition-colors">
+                <div className="bg-slate-100 dark:bg-black/40 border border-zinc-200 dark:border-zinc-700 p-2 text-[10px] font-mono leading-relaxed transition-colors">
                   <span className="text-slate-500 dark:text-zinc-500">{'{'}</span><br />
                   <span className="text-slate-500 dark:text-zinc-500 ml-2">"code": 0,</span><br />
                   <span className="text-slate-500 dark:text-zinc-500 ml-2">"data": {'{'}</span><br />
@@ -275,23 +293,29 @@ export default function OfficialImportContent({
       {status === ImportStatus.IDLE && (
         <div className="space-y-4">
           <div className="relative">
-            <label className="block text-[10px] text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-2">
+            <label className="block text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3 font-mono">
               {t('import.official.tokenLabel')}
             </label>
-            <input
-              type="text"
-              value={tokenInput}
-              onChange={onTokenChange}
-              className="w-full bg-white dark:bg-black/30 border border-zinc-300 dark:border-zinc-700 p-4 font-mono text-center text-lg text-slate-800 dark:text-white focus:border-amber-500 dark:focus:border-yellow-500 focus:outline-none transition-colors placeholder:text-slate-400 dark:placeholder:text-zinc-700"
-              placeholder={t('import.official.tokenPlaceholder', { region: source === 'intl' ? t('import.source.intl.label') : t('import.source.cn.label') })}
-            />
-            <div className="absolute right-3 top-[38px] text-[10px] text-slate-400 dark:text-zinc-600 font-mono pointer-events-none">
-              {tokenInput.trim().length} chars
+            <div className="relative">
+              <input
+                type="text"
+                value={tokenInput}
+                onChange={onTokenChange}
+                className="w-full bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-800 p-4 font-mono text-center text-lg text-slate-800 dark:text-white focus:border-yellow-500 dark:focus:border-yellow-500 focus:outline-none transition-colors placeholder:text-slate-300 dark:placeholder:text-zinc-700 shadow-inner"
+                style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)' }}
+                placeholder={t('import.official.tokenPlaceholder', { region: source === 'intl' ? t('import.source.intl.label') : t('import.source.cn.label') })}
+              />
+              <div className="absolute right-3 top-[38px] text-[10px] text-slate-400 dark:text-zinc-600 font-mono pointer-events-none">
+                {tokenInput.trim().length} chars
+              </div>
             </div>
           </div>
 
           {autoDetected && tokenInput.length === 24 && (
-            <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-500 font-mono bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900/30 px-3 py-2 transition-colors">
+            <div
+              className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-500 font-mono bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-3 py-2 transition-colors"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+            >
               <CheckCircle size={14} />
               <span>{t('import.official.autoDetected')}</span>
             </div>
@@ -300,20 +324,22 @@ export default function OfficialImportContent({
           <button
             onClick={onStartImport}
             disabled={!tokenInput.trim()}
-            className="w-full bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 disabled:opacity-50 disabled:hover:bg-amber-500 dark:disabled:hover:bg-yellow-500 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors flex items-center justify-center gap-2 group"
+            className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-bold py-4 text-sm tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 group relative overflow-hidden disabled:cursor-not-allowed"
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}
           >
-            {t('import.official.start')}
-            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
+            <span className="relative z-10">{t('import.official.start')}</span>
+            <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform relative z-10" />
           </button>
         </div>
       )}
 
       {status === ImportStatus.ACCOUNT_SELECTION && availableAccounts.length > 1 && (
         <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-500/30 p-4 transition-colors">
+          <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
             <div className="flex items-center gap-2 mb-3">
               <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <span className="text-blue-700 dark:text-blue-400 font-bold text-sm">{t('import.official.multipleAccounts')}</span>
+              <span className="text-blue-700 dark:text-blue-400 font-bold uppercase tracking-widest text-sm">{t('import.official.multipleAccounts')}</span>
             </div>
             <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono mb-4">
               {t('import.official.selectAccount')}
@@ -326,23 +352,31 @@ export default function OfficialImportContent({
                 <button
                   key={`${account.uid}-${account.gameUid || 'unknown'}-${account.serverId || 'unknown'}`}
                   onClick={() => onSelectAccount(account)}
-                  className={`w-full p-3 border transition-all text-left flex items-center gap-3 ${accent.border}`}
+                  className={`w-full p-4 border transition-all duration-300 text-left flex items-center gap-4 group hover:-translate-y-0.5 hover:shadow-lg relative overflow-hidden ${accent.border}`}
+                  style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)' }}
                 >
-                  <div className={`w-10 h-10 flex items-center justify-center ${accent.iconBg}`}>
-                    <User size={20} className={accent.iconText} />
+                  <div className={`w-12 h-12 flex items-center justify-center shrink-0 border border-black/10 dark:border-white/10 ${accent.iconBg}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                    <User size={24} className={accent.iconText} />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-800 dark:text-white">{account.nickName}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${accent.badge}`}>
+                  <div className="flex-1 min-w-0 z-10 relative">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-800 dark:text-white truncate">{account.nickName}</span>
+                      <span className={`shrink-0 text-[10px] px-2 py-0.5 font-bold uppercase tracking-wider ${accent.badge}`} style={{ clipPath: 'polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%)' }}>
                         {account.serverTag ? localizeGameAccountServerTag(account.serverTag, locale) : account.channelName}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5">
-                      UID: {account.gameUid} • Lv.{account.level}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono flex items-center gap-1">
+                        <span className="text-[9px] uppercase tracking-widest">UID</span>
+                        <span className="text-slate-700 dark:text-zinc-300 font-bold">{account.gameUid}</span>
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono flex items-center gap-1">
+                        <span className="text-[9px] uppercase tracking-widest">LV</span>
+                        <span className="text-slate-700 dark:text-zinc-300 font-bold">{account.level}</span>
+                      </p>
+                    </div>
                   </div>
-                  <ArrowRight size={16} className="text-slate-400 dark:text-zinc-500" />
+                  <ArrowRight size={20} className="text-slate-400 dark:text-zinc-500 group-hover:translate-x-1 group-hover:text-slate-800 dark:group-hover:text-white transition-all z-10 relative" />
                 </button>
                 );
               })}
@@ -351,7 +385,8 @@ export default function OfficialImportContent({
 
           <button
             onClick={onReset}
-            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
+            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50 py-3 text-xs font-mono font-bold uppercase tracking-widest transition-all duration-200"
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
           >
             {t('import.official.cancelAndBack')}
           </button>
@@ -403,71 +438,78 @@ export default function OfficialImportContent({
       {status === ImportStatus.SUCCESS && importSummary && (
         <div className="space-y-6">
           {userInfo && userInfoAccent && (
-            <div className="flex items-center gap-3 p-3 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
-              <div className={`w-10 h-10 flex items-center justify-center ${userInfoAccent.iconBg}`}>
-                <User size={20} className={userInfoAccent.iconText} />
+            <div className="flex items-center gap-4 p-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/40 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+              <div className={`w-12 h-12 flex items-center justify-center shrink-0 border border-black/10 dark:border-white/10 ${userInfoAccent.iconBg}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                <User size={24} className={userInfoAccent.iconText} />
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-800 dark:text-white">{userInfo.nickName || 'Unknown User'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-bold text-slate-800 dark:text-white truncate">{userInfo.nickName || 'Unknown User'}</span>
                   {(userInfo.serverTag || userInfo.channelName) && (
-                    <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${userInfoAccent.badge}`}>
+                    <span className={`shrink-0 text-[10px] px-2 py-0.5 font-bold uppercase tracking-wider ${userInfoAccent.badge}`} style={{ clipPath: 'polygon(0 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%)' }}>
                       {userInfo.serverTag ? localizeGameAccountServerTag(userInfo.serverTag, locale) : userInfo.channelName}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono">UID: {userInfo.gameUid || userInfo.hgUid}</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono flex items-center gap-1">
+                    <span className="text-[9px] uppercase tracking-widest">UID</span>
+                    <span className="text-slate-700 dark:text-zinc-300 font-bold">{userInfo.gameUid || userInfo.hgUid}</span>
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-500/20 p-4 transition-colors">
+          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
             <div className="flex items-center gap-2 mb-4">
-              <CheckCircle className="text-green-600 dark:text-green-500" size={16} />
-              <span className="text-green-600 dark:text-green-500 font-bold text-sm">{t('import.official.fetchSuccess')}</span>
+              <CheckCircle className="text-emerald-600 dark:text-emerald-500" size={16} />
+              <span className="text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest text-sm">{t('import.official.fetchSuccess')}</span>
             </div>
 
             <div className="grid grid-cols-4 gap-2">
-              <div className="text-center bg-white dark:bg-zinc-900/50 p-2 border border-zinc-200 dark:border-zinc-800/50 transition-colors">
-                <div className="text-xs font-bold text-slate-400 dark:text-zinc-400">TOTAL</div>
-                <div className="text-lg font-mono text-slate-800 dark:text-white">{importSummary.total}</div>
+              <div className="text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 transition-colors py-2" style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                <div className="text-[10px] font-bold text-slate-400 dark:text-zinc-500 uppercase tracking-widest">TOTAL</div>
+                <div className="text-xl font-mono font-bold text-slate-800 dark:text-white mt-1">{importSummary.total}</div>
               </div>
 
               {['6', '5', '4'].map(rarity => (
-                <div key={rarity} className="text-center bg-white dark:bg-zinc-900/50 p-2 border border-zinc-200 dark:border-zinc-800/50 transition-colors">
-                  <div className={`text-xs font-bold ${rarity === '6' ? 'text-amber-600 dark:text-yellow-500' : rarity === '5' ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                <div key={rarity} className="text-center bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 transition-colors py-2" style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+                  <div className={`text-[10px] font-bold uppercase tracking-widest ${rarity === '6' ? 'text-yellow-600 dark:text-yellow-500' : rarity === '5' ? 'text-purple-600 dark:text-purple-400' : 'text-blue-600 dark:text-blue-400'}`}>
                     {rarity}★
                   </div>
-                  <div className="text-lg font-mono text-slate-700 dark:text-zinc-300">{importSummary.byRarity[rarity] || 0}</div>
+                  <div className="text-xl font-mono font-bold text-slate-700 dark:text-zinc-300 mt-1">{importSummary.byRarity[rarity] || 0}</div>
                 </div>
               ))}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800/50 transition-colors">
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase mb-2">{t('import.official.poolDistribution')}</p>
+            <div className="mt-5 pt-5 border-t border-zinc-200 dark:border-zinc-800/50 transition-colors">
+              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest mb-3">{t('import.official.poolDistribution')}</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(importSummary.byPoolType || importSummary.byPool).map(([pool, count]) => (
                   <span
                     key={pool}
-                    className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 px-2 py-1 text-xs text-slate-500 dark:text-zinc-400 font-mono transition-colors"
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-[11px] text-slate-500 dark:text-zinc-400 font-mono font-bold transition-colors uppercase tracking-wider"
+                    style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   >
-                    {getPoolName(pool, t)}: <span className="text-slate-800 dark:text-white">{count}</span>
+                    {getPoolName(pool, t)} <span className="text-slate-800 dark:text-white ml-2">{count}</span>
                   </span>
                 ))}
               </div>
             </div>
 
             {importSummary.sixStars && importSummary.sixStars.length > 0 && (
-              <div className="mt-4">
-                <p className="text-[10px] text-amber-600/70 dark:text-yellow-500/70 font-mono uppercase mb-2">{t('import.official.sixStarDrops')}</p>
+              <div className="mt-5">
+                <p className="text-[10px] text-yellow-600/80 dark:text-yellow-500/80 font-mono uppercase tracking-widest mb-3">{t('import.official.sixStarDrops')}</p>
                 <div className="flex flex-wrap gap-2">
                   {importSummary.sixStars.map((record, index) => (
                     <span
                       key={index}
-                      className="bg-amber-50 dark:bg-yellow-500/10 border border-amber-200 dark:border-yellow-500/20 px-2 py-1 text-xs text-amber-700 dark:text-yellow-500 font-bold transition-colors"
+                      className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 px-3 py-1.5 text-[11px] text-yellow-700 dark:text-yellow-500 font-bold transition-colors tracking-widest flex items-center gap-2"
+                      style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                     >
                       {record.name}
-                      {record.isNew && <span className="ml-1 text-[10px] bg-amber-500 dark:bg-yellow-500 text-white dark:text-black px-1 rounded-sm">NEW</span>}
+                      {record.isNew && <span className="text-[9px] bg-yellow-500 text-black px-1.5 font-black uppercase tracking-wider" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }}>NEW</span>}
                     </span>
                   ))}
                 </div>
@@ -478,15 +520,19 @@ export default function OfficialImportContent({
           <div className="flex gap-4">
             <button
               onClick={onReset}
-              className="flex-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
+              className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-200 relative group overflow-hidden"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
             >
-              {t('import.official.refetch')}
+              <div className="absolute inset-y-0 left-0 w-1 bg-yellow-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />
+              <span className="relative z-10 group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors">{t('import.official.refetch')}</span>
             </button>
             <button
               onClick={onConfirmImport}
-              className="flex-1 bg-amber-500 hover:bg-amber-600 dark:bg-yellow-500 dark:hover:bg-yellow-400 text-white dark:text-black font-bold py-3 text-sm tracking-wider transition-colors"
+              className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
+              style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)' }}
             >
-              {t('import.official.confirmSave')}
+              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
+              <span className="relative z-10">{t('import.official.confirmSave')}</span>
             </button>
           </div>
         </div>

@@ -349,77 +349,91 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
   if (!isOpen) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/20 p-4 py-6 backdrop-blur-sm transition-colors dark:bg-black/80">
-      <div className="relative my-auto w-full max-w-2xl border-l-4 border-l-amber-500 border-y border-r border-zinc-200 bg-white shadow-2xl transition-colors dark:border-l-yellow-500 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 py-6 backdrop-blur-md transition-colors dark:bg-black/80">
+      <div 
+        className="relative my-auto w-full max-w-2xl bg-white shadow-[0_0_40px_rgba(0,0,0,0.7)] transition-colors dark:bg-[#111113] border border-zinc-300 dark:border-zinc-800"
+        style={{ clipPath: 'polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 16px 100%, 0 calc(100% - 16px))' }}
+      >
+        {/* Decorator Lines */}
+        <div className="absolute top-0 left-0 w-full h-1 bg-yellow-500 z-20" />
+        <div className="absolute bottom-0 right-0 w-32 h-1 bg-yellow-500 z-20" />
+        <div className="absolute top-0 left-0 h-full w-1 bg-yellow-500 z-20" />
+
         {/* Header */}
-        <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-zinc-200 bg-white/95 p-4 backdrop-blur transition-colors dark:border-zinc-800 dark:bg-zinc-900/95 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-wider">{t('import.title')}</h2>
-            <div className="flex min-w-0 items-start gap-2 border border-amber-200 bg-amber-50/80 px-3 py-2 text-[11px] leading-5 text-amber-800 transition-colors dark:border-yellow-900/60 dark:bg-yellow-950/30 dark:text-yellow-200">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <p className="min-w-0">{t('import.retentionNotice')}</p>
+        <div className="sticky top-0 z-10 flex flex-col gap-4 border-b border-zinc-200 bg-slate-50/95 p-6 backdrop-blur transition-colors dark:border-zinc-800 dark:bg-[#151518]/95 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-widest pl-2">
+              {t('import.title')}
+            </h2>
+            <div 
+              className="flex min-w-0 items-start gap-2 border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-[11px] font-mono leading-5 text-amber-900 transition-colors dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-500"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p className="min-w-0 tracking-tight">{t('import.retentionNotice')}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-3 self-end sm:self-auto">
             <button
               onClick={() => setShowGuide(!showGuide)}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-amber-500 dark:hover:text-yellow-500 transition-colors"
+              className="p-2 border border-transparent hover:border-yellow-500 hover:bg-yellow-500/10 text-slate-400 dark:text-zinc-500 hover:text-yellow-600 dark:hover:text-yellow-500 transition-all duration-200 rounded-full"
               title={t('header.helpTitle')}
             >
               <HelpCircle className="w-5 h-5" />
             </button>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-zinc-800 text-slate-400 dark:text-zinc-400 hover:text-slate-800 dark:hover:text-white transition-colors"
+              className="p-2 border border-transparent hover:border-red-500 hover:bg-red-500/10 text-slate-400 dark:text-zinc-500 hover:text-red-600 dark:hover:text-red-500 transition-all duration-200"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
               disabled={importStatus === ImportStatus.SAVING}
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
 
         {/* Steps Indicator (Always Visible) */}
-        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
-           <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wide">
-              {/* 步骤1：等待输入token时亮起 */}
-              <div className={`flex items-center gap-2 ${
+        <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#111113] transition-colors">
+           <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest pl-2">
+              {/* 步骤1 */}
+              <div className={`flex items-center gap-3 transition-colors ${
                 importStatus === ImportStatus.IDLE && fetchStatus === 'idle'
-                  ? 'text-amber-600 dark:text-yellow-500'
+                  ? 'text-yellow-600 dark:text-yellow-500 font-bold'
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
-                 <span className="w-5 h-5 flex items-center justify-center border border-current">1</span>
+                 <span className={`w-6 h-6 flex items-center justify-center border transition-colors ${importStatus === ImportStatus.IDLE && fetchStatus === 'idle' ? 'border-yellow-500 bg-yellow-500/10' : 'border-current'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%)' }}>1</span>
                  <span>{t('import.step.token')}</span>
               </div>
-              <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
-              {/* 步骤2：正在获取数据时亮起 */}
-              <div className={`flex items-center gap-2 ${
+              <div className="h-px flex-1 mx-6 border-b border-solid border-zinc-300 dark:border-zinc-800"></div>
+              {/* 步骤2 */}
+              <div className={`flex items-center gap-3 transition-colors ${
                 ['authenticating', 'fetching', 'processing', 'success'].includes(fetchStatus) && importStatus === ImportStatus.IDLE
-                  ? 'text-amber-600 dark:text-yellow-500'
+                  ? 'text-yellow-600 dark:text-yellow-500 font-bold'
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
-                 <span className="w-5 h-5 flex items-center justify-center border border-current">2</span>
+                 <span className={`w-6 h-6 flex items-center justify-center border transition-colors ${['authenticating', 'fetching', 'processing', 'success'].includes(fetchStatus) && importStatus === ImportStatus.IDLE ? 'border-yellow-500 bg-yellow-500/10' : 'border-current'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%)' }}>2</span>
                  <span>{t('import.step.fetch')}</span>
               </div>
-              <div className="h-px bg-slate-200 dark:bg-zinc-800 flex-1 mx-4"></div>
-              {/* 步骤3：保存中或成功时亮起 */}
-              <div className={`flex items-center gap-2 ${
+              <div className="h-px flex-1 mx-6 border-b border-solid border-zinc-300 dark:border-zinc-800"></div>
+              {/* 步骤3 */}
+              <div className={`flex items-center gap-3 transition-colors ${
                 importStatus === ImportStatus.SAVING || importStatus === ImportStatus.SUCCESS
-                  ? 'text-amber-600 dark:text-yellow-500'
+                  ? 'text-yellow-600 dark:text-yellow-500 font-bold'
                   : 'text-slate-400 dark:text-zinc-500'
               }`}>
-                 <span className="w-5 h-5 flex items-center justify-center border border-current">3</span>
+                 <span className={`w-6 h-6 flex items-center justify-center border transition-colors ${importStatus === ImportStatus.SAVING || importStatus === ImportStatus.SUCCESS ? 'border-yellow-500 bg-yellow-500/10' : 'border-current'}`} style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%)' }}>3</span>
                  <span>{t('import.step.save')}</span>
               </div>
            </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-8 relative">
           {/* 未登录提示 */}
           {!user && (
-            <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 p-4 transition-colors">
+            <div className="mb-6 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
               <div className="flex items-center gap-2 text-red-600 dark:text-red-500 mb-2">
                 <AlertCircle className="w-5 h-5" />
-                <span className="font-bold">{t('import.needLogin')}</span>
+                <span className="font-bold font-mono tracking-widest uppercase">{t('import.needLogin')}</span>
               </div>
               <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">
                 {t('import.needLoginDesc')}
@@ -429,8 +443,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
           {/* 导入说明 */}
           {showGuide && (
-            <div className="mb-6 bg-slate-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 font-mono transition-colors">
-              <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2">
+            <div className="mb-6 bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 font-mono transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+              <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2 uppercase tracking-widest">
                 <HelpCircle size={14}/> {t('import.guideTitle')}
               </h3>
               <p>{t('import.guideStep1')}</p>
@@ -481,12 +495,12 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               </div>
 
               {((importResult.summary?.partialPools?.length || 0) > 0 || (importResult.summary?.failedPools?.length || 0) > 0) && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 space-y-2 transition-colors">
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-4 space-y-2 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
                   <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                       <div>
-                      <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">{t('import.partialTitle')}</p>
-                      <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">
+                      <p className="text-amber-700 dark:text-amber-400 text-sm font-bold uppercase tracking-widest">{t('import.partialTitle')}</p>
+                      <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1 font-mono">
                         {t('import.partialDesc')}
                       </p>
                     </div>
@@ -508,11 +522,11 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
               {/* 结果提示 */}
               {importResult.summary?.newRecords > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-4 flex items-start gap-3 transition-colors">
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-4 flex items-start gap-3 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
                   <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-amber-700 dark:text-amber-400 text-sm font-medium">{t('import.newDataSynced')}</p>
-                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">{t('import.newDataSyncedDesc')}</p>
+                    <p className="text-amber-700 dark:text-amber-400 text-sm font-bold uppercase tracking-widest">{t('import.newDataSynced')}</p>
+                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1 font-mono">{t('import.newDataSyncedDesc')}</p>
                   </div>
                 </div>
               )}
@@ -548,18 +562,20 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
           {/* 导入错误 */}
           {importStatus === ImportStatus.ERROR && (
             <div className="space-y-4 py-6">
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-500/30 p-4 flex items-start gap-3 transition-colors">
-                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5" />
+              <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-4 flex items-start gap-3 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5 shrink-0" />
                 <div>
-                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1">{t('import.errorTitle')}</h4>
-                  <p className="text-slate-600 dark:text-zinc-400 text-sm font-mono break-all">{errorMessage}</p>
+                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1 uppercase tracking-widest font-mono text-sm">{t('import.errorTitle')}</h4>
+                  <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono break-all leading-relaxed">{errorMessage}</p>
                 </div>
               </div>
               <button
                 onClick={handleReset}
-                className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
+                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-red-500 dark:hover:border-red-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-200 relative group overflow-hidden"
+                style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
               >
-                {t('common.retry')}
+                <div className="absolute inset-y-0 left-0 w-1 bg-red-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />
+                <span className="relative z-10 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors">{t('common.retry')}</span>
               </button>
             </div>
           )}
