@@ -1,5 +1,6 @@
 import { appLogger } from './appLogger.js'
 import { APP_FORCE_REFRESH_TOKEN } from '../constants/appMeta.js'
+import { readStorageValue, removeStorageValue, writeStorageValue } from './storageUtils.js'
 
 const RECOVERY_PARAM = '__sw_recover'
 const FORCE_REFRESH_PARAM = '__force_refresh'
@@ -7,31 +8,15 @@ const FORCE_REFRESH_STORAGE_KEY = 'endfield-force-refresh-token'
 
 function canPersistForceRefreshState() {
   const probeKey = `${FORCE_REFRESH_STORAGE_KEY}:probe`
-
-  try {
-    window.localStorage.setItem(probeKey, '1')
-    window.localStorage.removeItem(probeKey)
-    return true
-  } catch {
-    return false
-  }
+  return writeStorageValue(probeKey, '1', { raw: true }) && removeStorageValue(probeKey, { raw: true })
 }
 
 function readLocalStorage(key) {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
+  return readStorageValue(key, null, { raw: true })
 }
 
 function writeLocalStorage(key, value) {
-  try {
-    window.localStorage.setItem(key, value)
-    return true
-  } catch {
-    return false
-  }
+  return writeStorageValue(key, value, { raw: true })
 }
 
 function removeQueryParam(url, param) {

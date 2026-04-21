@@ -2,7 +2,19 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   clearAllSimulatorStates,
+  clearSimulatorCurrentPoolId,
+  clearSimulatorMultipleFreeTenPreference,
+  clearSimulatorOriginitePromptSuppressDate,
+  clearSimulatorSkipAnimationPreference,
   convertSimulatorHistoryToImportFormat,
+  loadSimulatorCurrentPoolId,
+  loadSimulatorMultipleFreeTenPreference,
+  loadSimulatorOriginitePromptSuppressDate,
+  loadSimulatorSkipAnimationPreference,
+  saveSimulatorCurrentPoolId,
+  saveSimulatorMultipleFreeTenPreference,
+  saveSimulatorOriginitePromptSuppressDate,
+  saveSimulatorSkipAnimationPreference,
   saveSimulatorState,
 } from '../simulatorStorage.js';
 
@@ -43,5 +55,33 @@ describe('simulatorStorage', () => {
         isLimited: true,
       })
     ]);
+  });
+
+  it('stores scoped current pool id through simulator storage helpers', () => {
+    saveSimulatorCurrentPoolId('sim_special_001', 'u:test|g:1001');
+
+    expect(loadSimulatorCurrentPoolId('u:test|g:1001')).toBe('sim_special_001');
+
+    clearSimulatorCurrentPoolId('u:test|g:1001');
+
+    expect(loadSimulatorCurrentPoolId('u:test|g:1001')).toBeNull();
+  });
+
+  it('stores simulator ui preferences and originite prompt suppression separately', () => {
+    saveSimulatorSkipAnimationPreference(true);
+    saveSimulatorMultipleFreeTenPreference(true);
+    saveSimulatorOriginitePromptSuppressDate('2026-04-21');
+
+    expect(loadSimulatorSkipAnimationPreference()).toBe(true);
+    expect(loadSimulatorMultipleFreeTenPreference()).toBe(true);
+    expect(loadSimulatorOriginitePromptSuppressDate()).toBe('2026-04-21');
+
+    clearSimulatorSkipAnimationPreference();
+    clearSimulatorMultipleFreeTenPreference();
+    clearSimulatorOriginitePromptSuppressDate();
+
+    expect(loadSimulatorSkipAnimationPreference()).toBe(false);
+    expect(loadSimulatorMultipleFreeTenPreference()).toBe(false);
+    expect(loadSimulatorOriginitePromptSuppressDate()).toBeNull();
   });
 });

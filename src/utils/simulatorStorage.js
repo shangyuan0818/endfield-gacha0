@@ -6,6 +6,14 @@
 
 import { DEFAULT_SIMULATOR_RESOURCE_SETTINGS, normalizeResourceSettings } from './resourceEconomy.js';
 import appLogger from './appLogger.js';
+import {
+  STORAGE_KEYS,
+  readBooleanStorageValue,
+  readStorageValue,
+  removeStorageValue,
+  writeBooleanStorageValue,
+  writeStorageValue,
+} from './storageUtils.js';
 
 const STORAGE_KEY = 'gacha_simulator_state';
 const SHARED_PITY_KEY = 'gacha_simulator_shared_pity'; // 限定池共享保底
@@ -32,6 +40,62 @@ export function buildSimulatorStorageScope({ currentUserId = null, currentGameUi
 
 export function getSimulatorCurrentPoolStorageKey(scope = null) {
   return getScopedStorageKey(CURRENT_POOL_KEY, scope);
+}
+
+export function loadSimulatorCurrentPoolId(scope = null) {
+  return readStorageValue(getSimulatorCurrentPoolStorageKey(scope), null, { raw: true });
+}
+
+export function saveSimulatorCurrentPoolId(poolId, scope = null) {
+  if (!poolId) {
+    return clearSimulatorCurrentPoolId(scope);
+  }
+
+  return writeStorageValue(getSimulatorCurrentPoolStorageKey(scope), poolId, { raw: true });
+}
+
+export function clearSimulatorCurrentPoolId(scope = null) {
+  return removeStorageValue(getSimulatorCurrentPoolStorageKey(scope), { raw: true });
+}
+
+export function loadSimulatorSkipAnimationPreference() {
+  return readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, false, { raw: true });
+}
+
+export function saveSimulatorSkipAnimationPreference(value) {
+  return writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, value, { raw: true });
+}
+
+export function clearSimulatorSkipAnimationPreference() {
+  return removeStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, { raw: true });
+}
+
+export function loadSimulatorMultipleFreeTenPreference() {
+  return readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, false, { raw: true });
+}
+
+export function saveSimulatorMultipleFreeTenPreference(value) {
+  return writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, value, { raw: true });
+}
+
+export function clearSimulatorMultipleFreeTenPreference() {
+  return removeStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, { raw: true });
+}
+
+export function loadSimulatorOriginitePromptSuppressDate() {
+  return readStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, null, { raw: true });
+}
+
+export function saveSimulatorOriginitePromptSuppressDate(value) {
+  if (!value) {
+    return clearSimulatorOriginitePromptSuppressDate();
+  }
+
+  return writeStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, value, { raw: true });
+}
+
+export function clearSimulatorOriginitePromptSuppressDate() {
+  return removeStorageValue(STORAGE_KEYS.SIMULATOR_ORIGINITE_PROMPT_SUPPRESS_DATE, { raw: true });
 }
 
 export function migrateLegacySimulatorStorageToScope({
@@ -581,6 +645,18 @@ export function clearSimulatorResourceSettings(scope = null) {
 export default {
   buildSimulatorStorageScope,
   getSimulatorCurrentPoolStorageKey,
+  loadSimulatorCurrentPoolId,
+  saveSimulatorCurrentPoolId,
+  clearSimulatorCurrentPoolId,
+  loadSimulatorSkipAnimationPreference,
+  saveSimulatorSkipAnimationPreference,
+  clearSimulatorSkipAnimationPreference,
+  loadSimulatorMultipleFreeTenPreference,
+  saveSimulatorMultipleFreeTenPreference,
+  clearSimulatorMultipleFreeTenPreference,
+  loadSimulatorOriginitePromptSuppressDate,
+  saveSimulatorOriginitePromptSuppressDate,
+  clearSimulatorOriginitePromptSuppressDate,
   migrateLegacySimulatorStorageToScope,
   saveSimulatorState,
   loadSimulatorState,
