@@ -6,6 +6,7 @@ import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
 import { useI18n } from '../../i18n/index.js';
 import { buildUsernameHandle, getPreferredUsername } from '../../utils/usernameValidation.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 // eslint-disable-next-line no-unused-vars
 function DrawerNavButton({ icon: Icon, label, active = false, tone = 'default', onClick, trailing = null }) {
@@ -34,7 +35,7 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
   const { user, signOut, userRole, openAuthModal } = useAuthStore();
   const currentGameUid = usePoolStore((state) => state.currentGameUid);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const drawerRef = useRef(null);
   const isSuperAdmin = userRole === 'super_admin';
   
@@ -104,7 +105,7 @@ function MobileDrawer({ isOpen, onClose, activeTab, setActiveTab }) {
                   <span className="truncate max-w-[140px]">
                     {currentAccount?.nickName || (user ? buildUsernameHandle(user, t('nav.guest')) : t('nav.guest'))}
                   </span>
-                  {currentAccount?.serverTag && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-500/50 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded ml-1 shrink-0">{currentAccount.serverTag}</span>}
+                  {currentAccount?.serverTag && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-500/50 text-blue-600 dark:text-blue-400 px-1 py-0.5 rounded ml-1 shrink-0">{localizeGameAccountServerTag(currentAccount.serverTag, locale)}</span>}
                 </div>
                 <div className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5 truncate">
                   {currentAccount?.gameUid ? `UID: ${currentAccount.gameUid}` : (user?.email || t('header.guestMode'))}

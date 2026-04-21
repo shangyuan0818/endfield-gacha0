@@ -32,6 +32,7 @@ import {
 } from '../../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import { useI18n } from '../../i18n/index.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -547,7 +548,7 @@ function MobileSettingsView() {
                             <span className="text-sm font-bold text-zinc-800 dark:text-zinc-100">{account.nickName}</span>
                             {account.serverTag && (
                               <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-[0.8rem] bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
-                                {account.serverTag}
+                                {localizeGameAccountServerTag(account.serverTag, locale)}
                               </span>
                             )}
                             {currentGameUid === account.gameUid && (

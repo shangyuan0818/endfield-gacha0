@@ -294,10 +294,10 @@ export function usePoolStats({
 
     // 饼图数据
     const rawChartData = [
-      ...(!isStandardPool ? [{ name: '6星(限定)', value: counts[6], color: RARITY_CONFIG[6].color, originalValue: counts[6] }] : []),
-      { name: '6星(常驻)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color, originalValue: counts['6_std'] },
-      { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color, originalValue: counts[5] },
-      { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color, originalValue: counts[4] },
+      ...(!isStandardPool ? [{ name: '6星(限定)', kind: 'target-six', value: counts[6], color: RARITY_CONFIG[6].color, originalValue: counts[6] }] : []),
+      { name: '6星(常驻)', kind: 'offrate-six', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color, originalValue: counts['6_std'] },
+      { name: '5星', kind: 'five-star', value: counts[5], color: RARITY_CONFIG[5].color, originalValue: counts[5] },
+      { name: '4星', kind: 'four-star', value: counts[4], color: RARITY_CONFIG[4].color, originalValue: counts[4] },
     ].filter(item => item.value > 0);
 
     const chartData = rawChartData.map(item => {

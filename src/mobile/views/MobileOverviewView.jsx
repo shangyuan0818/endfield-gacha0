@@ -18,6 +18,7 @@ import { useI18n } from '../../i18n/index.js';
 import { MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -252,7 +253,7 @@ function MobileOverviewView() {
             <div className="flex justify-between items-start mb-2">
                 <div className="text-[10px] font-bold tracking-widest text-slate-500 dark:text-zinc-500 uppercase flex items-center gap-2">
                     {t('pool.selector.accountStatus')}
-                    {currentAccount?.serverTag && <span className="bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 px-1 py-0.5 rounded-sm text-[8px]">{currentAccount.serverTag}</span>}
+                    {currentAccount?.serverTag && <span className="bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 px-1 py-0.5 rounded-sm text-[8px]">{localizeGameAccountServerTag(currentAccount.serverTag, locale)}</span>}
                 </div>
                 <button className={`flex items-center gap-1.5 px-2 py-1 border rounded-[0.9rem] text-[10px] font-bold transition-colors ${getFreshnessToneClasses(accountTone)}`}>
                     {formatFreshnessRelative(currentAccountLastImportAt || currentAccount?.latestRecordAt, t('common.unknown'), locale)}

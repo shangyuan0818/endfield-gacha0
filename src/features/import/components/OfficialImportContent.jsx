@@ -14,6 +14,7 @@ import { ImportStatus } from '../importStatus';
 import { getPoolName } from '../importShared';
 import { useI18n } from '../../../i18n/index.js';
 import { evaluateImportHealth } from '../../../utils/importHealth.js';
+import { localizeGameAccountServerTag } from '../../../utils/gameAccountMetadata.js';
 
 const FetchProgressBar = ({ progress, message, t }) => (
   <div className="w-full">
@@ -156,7 +157,7 @@ export default function OfficialImportContent({
   onReset,
   onConfirmImport
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const IMPORT_SOURCE_OPTIONS = [
     { key: 'cn', label: t('import.source.cn.label'), description: t('import.source.cn.description') },
     { key: 'intl', label: t('import.source.intl.label'), description: t('import.source.intl.description') }
@@ -334,7 +335,7 @@ export default function OfficialImportContent({
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-800 dark:text-white">{account.nickName}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${accent.badge}`}>
-                        {account.serverTag || account.channelName}
+                        {account.serverTag ? localizeGameAccountServerTag(account.serverTag, locale) : account.channelName}
                       </span>
                     </div>
                     <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono mt-0.5">
@@ -411,7 +412,7 @@ export default function OfficialImportContent({
                   <span className="text-sm font-bold text-slate-800 dark:text-white">{userInfo.nickName || 'Unknown User'}</span>
                   {(userInfo.serverTag || userInfo.channelName) && (
                     <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase ${userInfoAccent.badge}`}>
-                      {userInfo.serverTag || userInfo.channelName}
+                      {userInfo.serverTag ? localizeGameAccountServerTag(userInfo.serverTag, locale) : userInfo.channelName}
                     </span>
                   )}
                 </div>

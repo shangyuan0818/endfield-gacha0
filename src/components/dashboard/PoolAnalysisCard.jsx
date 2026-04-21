@@ -6,7 +6,7 @@ import { getPoolAnalysisPityState } from '../../utils/poolAnalysisPity';
 import { calculateCurrentProbability } from '../../utils';
 import AveragePullStatsPanel from './AveragePullStatsPanel';
 import { useI18n } from '../../i18n/index.js';
-import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizePoolFeaturedList, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getPoolFeaturedNames } from '../../utils/poolFeaturedResolver.js';
 
 /**
@@ -219,10 +219,16 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
   const isWeapon = currentPool.type === 'weapon';
   const isStandard = currentPool.type === 'standard';
   const localizedPoolName = localizePoolName(currentPool, { locale });
-  const localizedUpCharacter = localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+  const localizedFeaturedCharacters = localizePoolFeaturedList(currentPool, {
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });
+  const localizedUpCharacter = isExtra && localizedFeaturedCharacters.length > 0
+    ? localizedFeaturedCharacters.join(' / ')
+    : localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+      locale,
+      type: isWeapon ? 'weapon' : 'character'
+    });
   const pityState = getPoolAnalysisPityState(currentPool, stats, effectivePity);
   const currentProbabilityInfo = useMemo(() => {
     if (currentPool?.isGroupMode || hasMergedAccountView) {
@@ -272,7 +278,9 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            {/* UP角色显示 */}
            {localizedUpCharacter && (
              <div className="text-right">
-                <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">{t('dashboard.pool.upCharacter')}</div>
+                <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">
+                  {isExtra ? t('simulator.analysis.featuredRoster') : t('dashboard.pool.upCharacter')}
+                </div>
                 <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{localizedUpCharacter}</div>
              </div>
            )}

@@ -19,6 +19,7 @@ import { getMobilePathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
 import { MobileGlassPanel, MobileStatusBadge } from './ux/MobilePrimitives.jsx';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -143,6 +144,9 @@ function MobilePoolSelector() {
 
     return null;
   }, [gameAccounts, currentGameUid]);
+  const currentAccountServerTag = currentAccount?.serverTag
+    ? localizeGameAccountServerTag(currentAccount.serverTag, locale)
+    : null;
 
   // 按类型分组并排序的卡池
   const sortedPoolsWithGroups = useMemo(() => {
@@ -299,9 +303,9 @@ function MobilePoolSelector() {
                 <span className="text-zinc-200 truncate">
                   {currentAccount?.nickName || t('pool.selector.allAccounts')}
                 </span>
-                {currentAccount?.serverTag && (
+                {currentAccountServerTag && (
                   <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
-                    {currentAccount.serverTag}
+                    {currentAccountServerTag}
                   </span>
                 )}
               </div>
@@ -329,7 +333,7 @@ function MobilePoolSelector() {
                       </div>
                       {account.serverTag && (
                         <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
-                          {account.serverTag}
+                          {localizeGameAccountServerTag(account.serverTag, locale)}
                         </span>
                       )}
                     </div>

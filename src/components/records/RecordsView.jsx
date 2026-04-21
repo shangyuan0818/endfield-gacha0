@@ -6,6 +6,7 @@ import BatchCard from '../BatchCard';
 import { isPoolGroupId } from '../../stores/usePoolStore';
 import { useI18n } from '../../i18n/index.js';
 import { localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 /**
  * 记录列表组件
@@ -18,7 +19,7 @@ const RecordsView = ({
   onExportJSON,
   onExportCSV
 }) => {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   // 从 stores 获取状态
   const historyFilter = useHistoryStore(state => state.historyFilter);
   const visibleHistoryCount = useHistoryStore(state => state.visibleHistoryCount);
@@ -73,7 +74,7 @@ const RecordsView = ({
   };
 
   // 当前卡池名称
-  const currentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || '未知卡池';
+  const currentPoolName = localizePoolName(currentPool, { locale }) || currentPool?.name || t('records.unknownPool');
   const poolOptions = useMemo(
     () => [...(Array.isArray(pools) ? pools : [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN')),
     [pools]
@@ -116,7 +117,7 @@ const RecordsView = ({
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-slate-50 dark:bg-zinc-950 sticky top-0 z-10">
         <div className="flex items-center gap-4">
           <h3 className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-            <History size={18} /> 详细日志
+            <History size={18} /> {t('records.title')}
           </h3>
           <span className="text-xs px-2 py-1 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-endfield-yellow rounded-none">
             {currentPoolName}
@@ -134,7 +135,7 @@ const RecordsView = ({
                   : 'text-slate-500 dark:text-zinc-400 hover:text-slate-700'
               }`}
             >
-              全部
+              {t('records.filter.all')}
             </button>
             <button
               onClick={() => handleFilterChange('6star')}
@@ -144,7 +145,7 @@ const RecordsView = ({
                   : 'text-slate-500 dark:text-zinc-400 hover:rainbow-text'
               }`}
             >
-              6星
+              {t('records.filter.sixStar')}
             </button>
             <button
               onClick={() => handleFilterChange('5star')}
@@ -154,7 +155,7 @@ const RecordsView = ({
                   : 'text-slate-500 dark:text-zinc-400 hover:text-amber-500'
               }`}
             >
-              5星
+              {t('records.filter.fiveStar')}
             </button>
           </div>
 
@@ -166,7 +167,7 @@ const RecordsView = ({
                 className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
               >
                 <Upload size={14} />
-                导入
+                {t('overview.action.import')}
               </button>
               <input
                 type="file"
@@ -185,7 +186,7 @@ const RecordsView = ({
               className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
             >
               <Download size={14} />
-              导出...
+              {t('records.export.trigger')}
             </button>
 
             {showExportMenu && (
@@ -197,17 +198,17 @@ const RecordsView = ({
                       <div>
                         <div className="text-sm font-bold text-slate-700 dark:text-zinc-200 flex items-center gap-2">
                           <Filter size={14} />
-                          导出配置
+                          {t('records.export.configTitle')}
                         </div>
                         <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
-                          支持按时间、卡池和账号筛选，JSON 会附带结构化摘要与 schema 版本。
+                          {t('records.export.configDescription')}
                         </div>
                       </div>
                       <button
                         onClick={() => setExportOptions(buildDefaultExportOptions())}
                         className="text-[11px] text-slate-500 dark:text-zinc-400 hover:text-yellow-600 dark:hover:text-endfield-yellow"
                       >
-                        重置
+                        {t('records.export.reset')}
                       </button>
                     </div>
                   </div>
@@ -215,16 +216,16 @@ const RecordsView = ({
                   <div className="p-4 space-y-4">
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
-                        卡池范围
+                        {t('records.export.poolScope')}
                       </label>
                       <select
                         value={exportOptions.poolFilter}
                         onChange={(event) => updateExportOption('poolFilter', event.target.value)}
                         className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
                       >
-                        <option value="current">当前卡池</option>
-                        <option value="all">全部卡池</option>
-                        <option value="specific">指定卡池</option>
+                        <option value="current">{t('records.export.poolScopeCurrent')}</option>
+                        <option value="all">{t('records.export.poolScopeAll')}</option>
+                        <option value="specific">{t('records.export.poolScopeSpecific')}</option>
                       </select>
                       {exportOptions.poolFilter === 'specific' && (
                         <select
@@ -232,7 +233,7 @@ const RecordsView = ({
                           onChange={(event) => updateExportOption('poolId', event.target.value)}
                           className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
                         >
-                          <option value="">请选择卡池</option>
+                          <option value="">{t('records.export.poolPlaceholder')}</option>
                           {poolOptions.map(pool => (
                           <option key={pool.id} value={pool.id}>
                               {localizePoolName(pool, { locale }) || pool.name}
@@ -244,16 +245,16 @@ const RecordsView = ({
 
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider">
-                        账号范围
+                        {t('records.export.accountScope')}
                       </label>
                       <select
                         value={exportOptions.accountFilter}
                         onChange={(event) => updateExportOption('accountFilter', event.target.value)}
                         className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
                       >
-                        <option value="all">全部账号</option>
-                        {currentGameUid && <option value="current">当前账号</option>}
-                        <option value="specific">指定账号</option>
+                        <option value="all">{t('records.export.accountScopeAll')}</option>
+                        {currentGameUid && <option value="current">{t('records.export.accountScopeCurrent')}</option>}
+                        <option value="specific">{t('records.export.accountScopeSpecific')}</option>
                       </select>
                       {exportOptions.accountFilter === 'specific' && (
                         <select
@@ -261,10 +262,10 @@ const RecordsView = ({
                           onChange={(event) => updateExportOption('gameUid', event.target.value)}
                           className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-700 px-3 py-2 text-sm text-slate-700 dark:text-zinc-200 rounded-none"
                         >
-                          <option value="">请选择账号</option>
+                          <option value="">{t('records.export.accountPlaceholder')}</option>
                           {gameAccounts.map(account => (
                             <option key={account.gameUid} value={account.gameUid}>
-                              {account.nickName} · {account.gameUid}{account.serverTag ? ` · ${account.serverTag}` : ''}
+                              {account.nickName} · {account.gameUid}{account.serverTag ? ` · ${localizeGameAccountServerTag(account.serverTag, locale)}` : ''}
                             </option>
                           ))}
                         </select>
@@ -274,7 +275,7 @@ const RecordsView = ({
                     <div className="space-y-2">
                       <label className="text-[11px] font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider flex items-center gap-2">
                         <CalendarRange size={12} />
-                        时间范围
+                        {t('records.export.dateRange')}
                       </label>
                       <div className="grid grid-cols-2 gap-2">
                         <input
@@ -293,9 +294,9 @@ const RecordsView = ({
                     </div>
 
                     <div className="rounded-none border border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-[11px] text-slate-500 dark:text-zinc-500 space-y-1">
-                      <div>当前卡池：{currentPoolName}</div>
-                      <div>当前账号：{currentGameUid || '全部账号'}</div>
-                      <div>CSV 采用 UTF-8 BOM 与平铺字段，便于 Excel 直接打开。</div>
+                      <div>{t('records.export.summaryPool', { value: currentPoolName })}</div>
+                      <div>{t('records.export.summaryAccount', { value: currentGameUid || t('records.export.accountScopeAll') })}</div>
+                      <div>{t('records.export.csvNote')}</div>
                     </div>
                   </div>
 
@@ -309,7 +310,7 @@ const RecordsView = ({
                       className="bg-white dark:bg-zinc-900 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-endfield-yellow disabled:text-slate-300 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <FileJson size={14} />
-                      导出 JSON
+                      {t('records.export.json')}
                     </button>
                     <button
                       onClick={() => {
@@ -320,7 +321,7 @@ const RecordsView = ({
                       className="bg-white dark:bg-zinc-900 px-4 py-3 text-sm font-medium text-slate-600 dark:text-zinc-300 hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-600 dark:hover:text-green-400 disabled:text-slate-300 disabled:hover:bg-white disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <Download size={14} />
-                      导出 CSV
+                      {t('records.export.csv')}
                     </button>
                   </div>
                 </div>
@@ -335,8 +336,10 @@ const RecordsView = ({
         {filteredGroupedHistory.length === 0 ? (
           <div className="p-12 text-center text-slate-400 dark:text-zinc-500">
             {historyFilter === 'all'
-              ? '当前卡池暂无记录'
-              : `当前卡池暂无${historyFilter === '6star' ? '6星' : '5星'}记录`}
+              ? t('records.empty.all')
+              : t('records.empty.rarity', {
+                  rarity: historyFilter === '6star' ? t('records.filter.sixStar') : t('records.filter.fiveStar')
+                })}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -358,7 +361,7 @@ const RecordsView = ({
                   onClick={loadMoreHistory}
                   className="text-sm text-slate-500 dark:text-zinc-500 hover:text-yellow-600 dark:hover:text-endfield-yellow font-medium px-6 py-2 rounded-sm border border-zinc-200 dark:border-zinc-800 hover:border-yellow-200 dark:hover:border-yellow-800 bg-white dark:bg-zinc-900 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-all shadow-sm"
                 >
-                  加载更多 ({filteredGroupedHistory.length - visibleHistoryCount} 条剩余)
+                  {t('records.loadMore', { count: filteredGroupedHistory.length - visibleHistoryCount })}
                 </button>
               </div>
             )}

@@ -6,6 +6,7 @@ import { usePoolStore, useHistoryStore } from '../../stores';
 import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
 import { formatFreshnessRelative, getFreshnessTone } from '../../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -52,8 +53,11 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
 
   const showAccountSwitcher = activeTab === 'details' || activeTab === 'overview';
   const canSwitchAccount = showAccountSwitcher && gameAccounts.length > 0;
+  const currentAccountServerTag = currentAccount?.serverTag
+    ? localizeGameAccountServerTag(currentAccount.serverTag, locale)
+    : null;
   const accountLabel = currentAccount
-    ? `${currentAccount.serverTag ? `${currentAccount.serverTag} · ` : ''}${currentAccount.nickName}`
+    ? `${currentAccountServerTag ? `${currentAccountServerTag} · ` : ''}${currentAccount.nickName}`
     : t('pool.selector.allAccounts');
 
   const toggleTheme = () => {
@@ -171,7 +175,7 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
                   </div>
                   <div className="min-w-0">
                     <div className="truncate text-[11px] font-bold">
-                      {account.serverTag ? `${account.serverTag} · ${account.nickName}` : account.nickName}
+                      {account.serverTag ? `${localizeGameAccountServerTag(account.serverTag, locale)} · ${account.nickName}` : account.nickName}
                     </div>
                     <div className="mt-0.5 truncate text-[10px] text-slate-500 dark:text-zinc-500">{account.gameUid}</div>
                   </div>

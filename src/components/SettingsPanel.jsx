@@ -23,6 +23,7 @@ import {
 } from '../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../utils/accountFreshness.js';
 import { useI18n } from '../i18n/index.js';
+import { localizeGameAccountServerTag } from '../utils/gameAccountMetadata.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -449,7 +450,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                             <span className="font-bold text-sm text-zinc-800 dark:text-zinc-100 truncate max-w-[120px]">{account.nickName}</span>
                             {account.serverTag && (
                               <span className="px-1 py-0.5 text-[9px] font-bold rounded-sm bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
-                                {account.serverTag}
+                                {localizeGameAccountServerTag(account.serverTag, locale)}
                               </span>
                             )}
                             {currentGameUid === account.gameUid && (

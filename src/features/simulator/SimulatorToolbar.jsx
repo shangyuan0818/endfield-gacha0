@@ -6,6 +6,7 @@ import PoolGroupCardRail from '../../components/pool/PoolGroupCardRail';
 import ShareActionStatus from '../../components/share/ShareActionStatus';
 import { buildPoolSelectorGroups } from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 const CN_ORIGINITE_PURCHASE_BASES = [
   { label: '￥6', base: 3, bonus: 0, supportsDouble: true },
@@ -531,7 +532,7 @@ const SimulatorToolbar = ({
                         <span className="font-bold truncate">{account.nickName}</span>
                         {account.serverTag && (
                           <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-500 dark:text-zinc-400">
-                            {account.serverTag}
+                            {localizeGameAccountServerTag(account.serverTag, locale)}
                           </span>
                         )}
                       </div>

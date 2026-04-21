@@ -17,6 +17,7 @@ import { isPoolGroupId } from '../../stores/usePoolStore';
 import { getDesktopPathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
 import { localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -158,6 +159,9 @@ const PoolSelector = () => {
 
     return null;
   }, [currentGameUid, gameAccounts]);
+  const currentAccountServerTag = currentAccount?.serverTag
+    ? localizeGameAccountServerTag(currentAccount.serverTag, locale)
+    : null;
 
   const currentPool = useMemo(() => {
     if (!currentPoolId || isPoolGroupId(currentPoolId)) {
@@ -247,22 +251,22 @@ const PoolSelector = () => {
             <div className="relative">
               <button
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-xs font-mono transition-colors"
+                className="flex min-w-[224px] items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-xs font-mono transition-colors"
               >
                 <User size={14} className="text-slate-500 dark:text-zinc-400" />
-                <span className="text-slate-700 dark:text-zinc-300">
-                  {gameAccounts.find(a => a.gameUid === currentGameUid)?.nickName || t('pool.selector.allAccounts')}
+                <span className="min-w-0 truncate text-slate-700 dark:text-zinc-300">
+                  {currentAccount?.nickName || t('pool.selector.allAccounts')}
                 </span>
-                {gameAccounts.find(a => a.gameUid === currentGameUid)?.serverTag && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
-                    {gameAccounts.find(a => a.gameUid === currentGameUid)?.serverTag}
+                {currentAccountServerTag && (
+                  <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
+                    {currentAccountServerTag}
                   </span>
                 )}
                 <ChevronDown size={12} className={`text-slate-400 transition-transform ${showAccountDropdown ? 'rotate-180' : ''}`} />
               </button>
 
               {showAccountDropdown && (
-                <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-lg z-20">
+                <div className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 shadow-lg z-20">
                   {gameAccounts.map(account => (
                     <button
                       key={account.gameUid}
@@ -274,21 +278,21 @@ const PoolSelector = () => {
                         currentGameUid === account.gameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className="font-bold">{account.nickName}</div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="min-w-0 truncate font-bold">{account.nickName}</div>
                         {account.serverTag && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
-                            {account.serverTag}
+                          <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-slate-200 dark:bg-zinc-700 text-slate-600 dark:text-zinc-300">
+                            {localizeGameAccountServerTag(account.serverTag, locale)}
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                      <div className="truncate text-[11px] text-slate-500 dark:text-zinc-400">
                         {t('pool.selector.accountRecordCount', {
                           uid: account.gameUid,
                           count: formatNumber(account.recordCount || 0)
                         })}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
+                      <div className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-zinc-500">
                         {t('settings.lastImport', {
                           value: formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.timeUnknown'), locale)
                         })}

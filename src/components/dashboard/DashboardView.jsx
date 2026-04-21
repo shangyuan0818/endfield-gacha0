@@ -58,6 +58,7 @@ import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 import appLogger from '../../utils/appLogger.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
+import { localizeDashboardChartItems } from '../../utils/dashboardChartLabels.js';
 
 const PIE_LABEL_MIN_PERCENT = 0.05;
 const PIE_LABEL_RADIAN = Math.PI / 180;
@@ -308,24 +309,9 @@ const DashboardView = ({ showToast }) => {
     [formatNumber]
   );
   const localizeChartData = React.useCallback((items = [], primaryLabel, secondaryLabel) => (
-    items.map((item) => {
-      if (item?.name === '6星(限定)' || item?.name === '6星(目标)') {
-        return { ...item, name: primaryLabel };
-      }
-
-      if (item?.name === '6星(常驻)' || item?.name === '6星(常驻/偏移)') {
-        return { ...item, name: secondaryLabel };
-      }
-
-      if (item?.name === '5星') {
-        return { ...item, name: '5★' };
-      }
-
-      if (item?.name === '4星') {
-        return { ...item, name: '4★' };
-      }
-
-      return item;
+    localizeDashboardChartItems(items, {
+      primarySixStarLabel: primaryLabel,
+      secondarySixStarLabel: secondaryLabel,
     })
   ), []);
   const customShareRecordCountByPoolId = React.useMemo(() => {

@@ -32,10 +32,10 @@ function createBucketAccumulator() {
 
 function toChartData(counts, includeTargetSix) {
   const rawChartData = [
-    ...(includeTargetSix ? [{ name: '6星(目标)', value: counts[6], color: RARITY_CONFIG[6].color }] : []),
-    { name: '6星(常驻/偏移)', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
-    { name: '5星', value: counts[5], color: RARITY_CONFIG[5].color },
-    { name: '4星', value: counts[4], color: RARITY_CONFIG[4].color }
+    ...(includeTargetSix ? [{ name: '6星(目标)', kind: 'target-six', value: counts[6], color: RARITY_CONFIG[6].color }] : []),
+    { name: '6星(常驻/偏移)', kind: 'offrate-six', value: counts['6_std'], color: RARITY_CONFIG['6_std'].color },
+    { name: '5星', kind: 'five-star', value: counts[5], color: RARITY_CONFIG[5].color },
+    { name: '4星', kind: 'four-star', value: counts[4], color: RARITY_CONFIG[4].color }
   ].filter((item) => item.value > 0);
 
   return rawChartData.map((item) => {

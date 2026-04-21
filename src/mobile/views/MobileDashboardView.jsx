@@ -40,12 +40,13 @@ import { copyToClipboard } from '../../utils/simulatorStorage';
 import useShareActionFeedback from '../../hooks/useShareActionFeedback';
 import { useI18n } from '../../i18n/index.js';
 import { compareHistoryTimelineDesc } from '../../utils/historyTimelineSort.js';
-import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { localizeEntityName, localizeHistoryItemName, localizePoolFeaturedList, localizePoolFeaturedName, localizePoolName } from '../../utils/gameDataI18n.js';
 import {
   MobileStatusBadge
 } from '../components/ux/MobilePrimitives.jsx';
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
+import { localizeDashboardChartItems } from '../../utils/dashboardChartLabels.js';
 
 const PIE_LABEL_MIN_PERCENT = 0.05;
 const PIE_LABEL_RADIAN = Math.PI / 180;
@@ -177,14 +178,22 @@ function MobileDashboardView() {
     resourceSummaryVariant
   } = useDashboardViewState();
   const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
-  const localizedCurrentUpName = React.useMemo(
-    () => localizePoolFeaturedName(currentPool, { locale })
-      || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+  const localizedCurrentUpName = React.useMemo(() => {
+    const localizedFeaturedList = localizePoolFeaturedList(currentPool, {
       locale,
       type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
-    }),
-    [currentPool, locale, normalizedPoolType]
-  );
+    });
+
+    if (isExtra && localizedFeaturedList.length > 0) {
+      return localizedFeaturedList.join(' / ');
+    }
+
+    return localizePoolFeaturedName(currentPool, { locale })
+      || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+        locale,
+        type: normalizedPoolType === 'weapon' ? 'weapon' : 'character'
+      });
+  }, [currentPool, isExtra, locale, normalizedPoolType]);
   const displayPity6 = (isLimited || isExtra) ? effectivePity.pity6 : stats.currentPity;
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
     ? calculateCurrentProbability(displayPity6, normalizedPoolType)
@@ -307,7 +316,7 @@ function MobileDashboardView() {
   }, [shareTheme]);
   const pullUnitLabel = isEnglish ? 'PULLS' : t('dashboard.unit.pull');
   const standardSixLabel = isEnglish ? 'Standard 6★' : '常驻6★';
-  const extraSixLabel = isEnglish ? 'Extra 6★' : '额外6★';
+  const extraSixLabel = isEnglish ? 'Extra 6★' : '附加6★';
   const shareImageActionLabel = isActionRunning('share') ? t('dashboard.share.trigger.sharing') : t('dashboard.share.systemImage');
   const downloadImageActionLabel = isActionRunning('download') ? t('dashboard.share.trigger.downloading') : t('dashboard.share.downloadImage');
   const copyImageActionLabel = isActionRunning('copy-image')
@@ -333,24 +342,9 @@ function MobileDashboardView() {
       : standardSixLabel;
   const poolRailShellClass = 'sticky top-0 z-20 overflow-visible border-b border-zinc-200 dark:border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card px-4 pt-4 pb-2 shrink-0';
   const localizeChartData = React.useCallback((items = [], primaryLabel, secondaryLabel) => (
-    items.map((item) => {
-      if (item?.name === '6星(限定)' || item?.name === '6星(目标)') {
-        return { ...item, name: primaryLabel };
-      }
-
-      if (item?.name === '6星(常驻)' || item?.name === '6星(常驻/偏移)') {
-        return { ...item, name: secondaryLabel };
-      }
-
-      if (item?.name === '5星') {
-        return { ...item, name: '5★' };
-      }
-
-      if (item?.name === '4星') {
-        return { ...item, name: '4★' };
-      }
-
-      return item;
+    localizeDashboardChartItems(items, {
+      primarySixStarLabel: primaryLabel,
+      secondarySixStarLabel: secondaryLabel,
     })
   ), []);
 
@@ -629,9 +623,7 @@ function MobileDashboardView() {
         animation="right"
         eyebrow={t('nav.details')}
         title={t('nav.details')}
-        description={isEnglish
-          ? 'Sign in to view banner analysis, pity progress, timeline, and detailed pull logs.'
-          : '登录后才能查看卡池分析、保底进度、时间线和详细抽卡日志。'}
+        description={t('dashboard.authRequiredDescription')}
       />
     );
   }
@@ -1032,7 +1024,7 @@ function MobileDashboardView() {
             </div>
             <div className="flex justify-between text-[11px] text-slate-500 dark:text-zinc-500 font-mono uppercase">
               <span>{primarySixStarLabel}: {stats.counts[6]}</span>
-              <span>{isEnglish ? 'Off-rate' : '歪'}: {stats.counts['6_std']}</span>
+              <span>{t('dashboard.timeline.badge.offrate')}: {stats.counts['6_std']}</span>
             </div>
           </div>
         </div>
@@ -1333,7 +1325,9 @@ function MobileDashboardView() {
                           {part.type === 'free' ? (
                             <span className="text-blue-500 font-bold">{part.text}</span>
                           ) : part.type === 'infoBook' ? (
-                            <span className="text-amber-600 dark:text-amber-400 font-bold">{isEnglish ? `Intel ${part.text}` : `情报书 ${part.text}`}</span>
+                            <span className="text-amber-600 dark:text-amber-400 font-bold">
+                              {t('dashboard.analysis.infoBookPrefix', { value: part.text })}
+                            </span>
                           ) : (
                             <span>{part.text}</span>
                           )}
@@ -1347,12 +1341,12 @@ function MobileDashboardView() {
                   <div className="flex items-center gap-1">
                     {char.infoBookCount > 0 && (
                       <div className="text-[10px] font-mono font-bold px-1.5 py-0.5 border bg-amber-50 dark:bg-amber-900/20 border-amber-200 text-amber-700 dark:text-amber-300">
-                        {isEnglish ? `Book×${char.infoBookCount}` : `书×${char.infoBookCount}`}
+                        {t('simulator.characterStats.infoBookCount', { count: char.infoBookCount })}
                       </div>
                     )}
                     {char.freeCount > 0 && (
                       <div className="rounded-full border border-blue-400/30 bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-mono font-bold text-blue-300">
-                        {isEnglish ? `Free×${char.freeCount}` : `免×${char.freeCount}`}
+                        {t('simulator.characterStats.freeCount', { count: char.freeCount })}
                       </div>
                     )}
                     <div className={`text-xs font-mono font-bold px-1.5 py-0.5 border ${
@@ -1427,8 +1421,8 @@ function MobileDashboardView() {
                       <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500 dark:text-zinc-500">
                         <span>{entry.dateLabel}</span>
                         {entry.pity !== null ? <span>{t('dashboard.analysis.currentPity', { count: entry.pity })}</span> : null}
-                        {entry.isFree ? <span className="text-blue-600 dark:text-blue-400">{t('dashboard.timeline.badge.free', {}, '免费')}</span> : null}
-                        {!entry.isFree && entry.rarity >= 6 ? <span className={entry.isUp ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>{entry.isUp ? 'UP' : t('dashboard.timeline.badge.offrate', {}, '歪')}</span> : null}
+                        {entry.isFree ? <span className="text-blue-600 dark:text-blue-400">{t('dashboard.timeline.badge.free')}</span> : null}
+                        {!entry.isFree && entry.rarity >= 6 ? <span className={entry.isUp ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}>{entry.isUp ? t('dashboard.timeline.badge.up') : t('dashboard.timeline.badge.offrate')}</span> : null}
                       </div>
                     </div>
                   </div>
@@ -1436,7 +1430,7 @@ function MobileDashboardView() {
               </div>
             ) : (
               <div className="rounded-[1rem] border border-dashed border-zinc-200 bg-zinc-50/80 px-3 py-4 text-center text-[11px] font-mono text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-500">
-                {t('dashboard.logsEmpty', {}, isEnglish ? 'No detailed logs yet.' : '暂无详细日志。')}
+                {t('dashboard.logsEmpty')}
               </div>
             )}
           </div>

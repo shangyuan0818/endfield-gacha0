@@ -274,6 +274,28 @@ export function buildGameAccountServerTag(metadata = {}) {
   return null;
 }
 
+export function localizeGameAccountServerTag(serverTag, locale = 'zh-CN') {
+  const normalizedTag = normalizeString(serverTag);
+  if (!normalizedTag) {
+    return null;
+  }
+
+  const normalizedLocale = String(locale || '').toLowerCase();
+  if (!normalizedLocale.startsWith('en')) {
+    return normalizedTag;
+  }
+
+  const tagMap = {
+    官服: 'Official',
+    B服: 'Bilibili',
+    国际服: 'Intl',
+    '国际服·亚服': 'Intl Asia',
+    '国际服·欧/美服': 'Intl EU/NA'
+  };
+
+  return tagMap[normalizedTag] || normalizedTag;
+}
+
 export function classifyGameAccountRegionBucket(metadata = {}) {
   const serverTag = buildGameAccountServerTag(metadata);
   if (!serverTag) {
