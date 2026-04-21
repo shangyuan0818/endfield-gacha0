@@ -18,7 +18,7 @@ import { localizeGameAccountServerTag } from '../../../utils/gameAccountMetadata
 
 const FetchProgressBar = ({ progress, message, t }) => (
   <div className="w-full">
-    <div className="flex justify-between items-center mb-2 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors tracking-widest">
+    <div className="flex justify-between items-center mb-2 text-[10px] uppercase text-slate-500 dark:text-zinc-500 transition-colors tracking-widest">
       <span className="flex items-center gap-2">
         <RefreshCw size={12} className="animate-spin text-yellow-600 dark:text-yellow-500" />
         {t('import.official.fetching')}
@@ -31,7 +31,7 @@ const FetchProgressBar = ({ progress, message, t }) => (
         style={{ width: `${progress}%` }}
       />
     </div>
-    <div className="mt-2 flex justify-between items-center text-xs font-mono">
+    <div className="mt-2 flex justify-between items-center text-xs">
       <span className="text-slate-600 dark:text-zinc-400 transition-colors">{message}</span>
     </div>
   </div>
@@ -46,7 +46,7 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo, t }) => {
         <Clock size={14} className="text-amber-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
         <div className="flex-1 space-y-2">
           {queueStatus && (
-            <div className="text-xs font-mono">
+            <div className="text-xs">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-slate-700 dark:text-zinc-300 font-semibold">{t('import.official.queueStatus')}</span>
                 {queueStatus.isProcessing && (
@@ -72,7 +72,7 @@ const QueueStatusDisplay = ({ queueStatus, retryInfo, t }) => {
           )}
 
           {retryInfo && (
-            <div className="text-xs font-mono border-t border-slate-300 dark:border-zinc-600 pt-2">
+            <div className="text-xs border-t border-slate-300 dark:border-zinc-600 pt-2">
               <div className="flex items-center gap-2 mb-1">
                 <RefreshCw size={12} className="text-orange-500 dark:text-orange-400" />
                 <span className="text-slate-700 dark:text-zinc-300 font-semibold">{t('import.official.retrying')}</span>
@@ -197,14 +197,14 @@ export default function OfficialImportContent({
 
   return (
     <div className="space-y-6">
-      <div className={`inline-flex items-center gap-2 border px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+      <div className={`inline-flex items-center gap-2 border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
         <span className="opacity-80">{t('import.official.healthLabel')}</span>
         <span>{t(health.key)}</span>
       </div>
       {status === ImportStatus.IDLE && (
         <div className="bg-slate-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
           <div className="mb-6">
-            <div className="text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3 font-mono">
+            <div className="text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3">
               {t('import.official.sourceLabel')}
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -221,8 +221,8 @@ export default function OfficialImportContent({
                   style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
                 >
                   <div className={`absolute inset-y-0 left-0 w-1 transition-transform duration-300 origin-bottom ${source === option.key ? 'bg-yellow-500 scale-y-100' : 'bg-zinc-400 dark:bg-zinc-600 scale-y-0 group-hover:scale-y-100'}`} />
-                  <div className={`text-sm font-bold tracking-widest uppercase font-mono transition-colors relative z-10 ${source === option.key ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{option.label}</div>
-                  <div className="text-[11px] font-mono text-slate-500 dark:text-zinc-500 mt-1.5 relative z-10">{option.description}</div>
+                  <div className={`text-sm font-bold tracking-widest uppercase transition-colors relative z-10 ${source === option.key ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{option.label}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-zinc-500 mt-1.5 relative z-10">{option.description}</div>
                   {source === option.key && <div className="absolute top-2 right-2 w-2 h-2 bg-yellow-500 animate-pulse" style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 3px), calc(100% - 3px) 100%, 0 100%)' }} />}
                 </button>
               ))}
@@ -234,7 +234,7 @@ export default function OfficialImportContent({
             {t('import.official.quickGuide')}
           </h3>
 
-          <div className="space-y-4 pt-2 text-xs text-slate-500 dark:text-zinc-400 font-mono">
+          <div className="space-y-4 pt-2 text-xs text-slate-500 dark:text-zinc-400">
             <div className="flex gap-3">
               <div
                 className="w-5 h-5 flex-shrink-0 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 flex items-center justify-center text-slate-600 dark:text-zinc-300"
@@ -293,7 +293,7 @@ export default function OfficialImportContent({
       {status === ImportStatus.IDLE && (
         <div className="space-y-4">
           <div className="relative">
-            <label className="block text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3 font-mono">
+            <label className="block text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3">
               {t('import.official.tokenLabel')}
             </label>
             <div className="relative">
@@ -313,7 +313,7 @@ export default function OfficialImportContent({
 
           {autoDetected && tokenInput.length === 24 && (
             <div
-              className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-500 font-mono bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-3 py-2 transition-colors"
+                className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 px-3 py-2 transition-colors"
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
               <CheckCircle size={14} />
@@ -341,7 +341,7 @@ export default function OfficialImportContent({
               <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
               <span className="text-blue-700 dark:text-blue-400 font-bold uppercase tracking-widest text-sm">{t('import.official.multipleAccounts')}</span>
             </div>
-            <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono mb-4">
+            <p className="text-slate-600 dark:text-zinc-400 text-xs mb-4">
               {t('import.official.selectAccount')}
             </p>
 
@@ -385,7 +385,7 @@ export default function OfficialImportContent({
 
           <button
             onClick={onReset}
-            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50 py-3 text-xs font-mono font-bold uppercase tracking-widest transition-all duration-200"
+            className="w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/50 py-3 text-xs font-bold uppercase tracking-widest transition-all duration-200"
             style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
           >
             {t('import.official.cancelAndBack')}
@@ -397,7 +397,7 @@ export default function OfficialImportContent({
         <div className="py-8 px-4 border border-zinc-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900/50 transition-colors">
           <FetchProgressBar progress={progress} message={statusMessage} t={t} />
           {sourceSwitchInfo && (
-            <div className="mt-3 flex items-center gap-2 text-xs font-mono bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sky-700 dark:text-sky-400 transition-colors">
+            <div className="mt-3 flex items-center gap-2 text-xs bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 px-3 py-2 text-sky-700 dark:text-sky-400 transition-colors">
               <RefreshCw size={12} className="animate-spin" />
               <span>
                 {t('import.official.switching', {
@@ -410,7 +410,7 @@ export default function OfficialImportContent({
           <QueueStatusDisplay queueStatus={queueStatus} retryInfo={retryInfo} t={t} />
           <button
             onClick={onCancel}
-            className="mt-6 w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs font-mono uppercase tracking-widest transition-colors"
+            className="mt-6 w-full text-slate-400 dark:text-zinc-500 hover:text-slate-600 dark:hover:text-zinc-300 text-xs uppercase tracking-widest transition-colors"
           >
             {t('import.official.cancelOperation')}
           </button>
@@ -423,7 +423,7 @@ export default function OfficialImportContent({
             <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 shrink-0" />
             <div>
               <h4 className="text-red-600 dark:text-red-500 font-bold text-sm mb-1">{t('import.official.failure')}</h4>
-              <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">{error}</p>
+              <p className="text-slate-600 dark:text-zinc-400 text-xs">{error}</p>
             </div>
           </div>
           <button
@@ -484,12 +484,12 @@ export default function OfficialImportContent({
             </div>
 
             <div className="mt-5 pt-5 border-t border-zinc-200 dark:border-zinc-800/50 transition-colors">
-              <p className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest mb-3">{t('import.official.poolDistribution')}</p>
+              <p className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest mb-3">{t('import.official.poolDistribution')}</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(importSummary.byPoolType || importSummary.byPool).map(([pool, count]) => (
                   <span
                     key={pool}
-                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-[11px] text-slate-500 dark:text-zinc-400 font-mono font-bold transition-colors uppercase tracking-wider"
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 px-3 py-1.5 text-[11px] text-slate-500 dark:text-zinc-400 font-bold transition-colors uppercase tracking-wider"
                     style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   >
                     {getPoolName(pool, t)} <span className="text-slate-800 dark:text-white ml-2">{count}</span>
@@ -500,7 +500,7 @@ export default function OfficialImportContent({
 
             {importSummary.sixStars && importSummary.sixStars.length > 0 && (
               <div className="mt-5">
-                <p className="text-[10px] text-yellow-600/80 dark:text-yellow-500/80 font-mono uppercase tracking-widest mb-3">{t('import.official.sixStarDrops')}</p>
+                <p className="text-[10px] text-yellow-600/80 dark:text-yellow-500/80 uppercase tracking-widest mb-3">{t('import.official.sixStarDrops')}</p>
                 <div className="flex flex-wrap gap-2">
                   {importSummary.sixStars.map((record, index) => (
                     <span
@@ -520,7 +520,7 @@ export default function OfficialImportContent({
           <div className="flex gap-4">
             <button
               onClick={onReset}
-              className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-200 relative group overflow-hidden"
+              className="flex-1 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest uppercase transition-all duration-200 relative group overflow-hidden"
               style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
             >
               <div className="absolute inset-y-0 left-0 w-1 bg-yellow-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />
@@ -528,7 +528,7 @@ export default function OfficialImportContent({
             </button>
             <button
               onClick={onConfirmImport}
-              className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
+              className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 text-xs tracking-widest uppercase transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
               style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%)' }}
             >
               <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />

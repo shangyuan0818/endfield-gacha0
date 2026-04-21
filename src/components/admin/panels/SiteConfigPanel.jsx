@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Save, X, Edit2, Settings, Globe, Scale, Link, FileText, AlertTriangle } from 'lucide-react';
-import useSiteConfigStore from '../../../stores/useSiteConfigStore';
+import useSiteConfigStore, {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY
+} from '../../../stores/useSiteConfigStore';
 import { supabase } from '../../../supabaseClient';
 import { ENTITY_LOCALIZATION_CONFIG_KEY, POOL_LOCALIZATION_CONFIG_KEY } from '../../../utils/gameDataI18n.js';
 
@@ -37,6 +40,13 @@ const VIRTUAL_CONFIG_ITEMS = [
       }
     }, null, 2),
     description: '用于覆盖 Warfarin 默认词条映射，优先按角色/武器 ID 生效。'
+  },
+  {
+    key: HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+    label: '首页下版本倒计时',
+    category: 'content',
+    value: DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+    description: '控制首页下版本倒计时目标时间，推荐使用带时区的 ISO 8601 时间字符串。'
   }
 ];
 

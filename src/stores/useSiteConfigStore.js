@@ -6,6 +6,9 @@ import { supabase } from '../supabaseClient.js';
 import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
+export const HOME_NEXT_VERSION_TARGET_CONFIG_KEY = 'home_next_version_target_at';
+export const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-04T12:00:00+08:00';
+
 function normalizeVersionConfig(config) {
   return {
     ...(config && typeof config === 'object' ? config : {}),

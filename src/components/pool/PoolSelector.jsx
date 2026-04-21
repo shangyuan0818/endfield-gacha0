@@ -51,11 +51,11 @@ function CompactFreshnessCard({
           <div className="text-sm font-bold leading-tight text-slate-800 dark:text-zinc-100 break-words">
             {title}
           </div>
-          <div className="text-[11px] leading-tight font-mono text-slate-500 dark:text-zinc-400 break-words">
+          <div className="text-[11px] leading-tight text-slate-500 dark:text-zinc-400 break-words">
             {metaText}
           </div>
           {detailText && (
-            <div className="text-[10px] leading-tight font-mono text-slate-400 dark:text-zinc-500 break-words">
+            <div className="text-[10px] leading-tight text-slate-400 dark:text-zinc-500 break-words">
               {detailText}
             </div>
           )}
@@ -235,7 +235,7 @@ const PoolSelector = () => {
             <button
               id="guide-import-btn"
               onClick={() => setShowImportManager(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-mono font-bold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-bold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
               <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
@@ -243,7 +243,7 @@ const PoolSelector = () => {
               <span className="relative z-10">{t('pool.selector.import')}</span>
             </button>
           ) : (
-            <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400 font-mono">
+            <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400">
               {t('pool.selector.loginToImport')}
             </div>
           )}
@@ -253,7 +253,7 @@ const PoolSelector = () => {
             <div className="relative">
               <button
                 onClick={() => setShowAccountDropdown(!showAccountDropdown)}
-                className="flex w-auto min-w-[140px] max-w-[224px] items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-xs font-mono transition-all duration-300 group hover:shadow-[0_0_15px_rgba(234,179,8,0.15)] relative overflow-hidden"
+                className="flex w-auto min-w-[140px] max-w-[224px] items-center justify-between gap-2 px-3 py-2 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 hover:border-yellow-500 dark:hover:border-yellow-500 text-xs transition-all duration-300 group hover:shadow-[0_0_15px_rgba(234,179,8,0.15)] relative overflow-hidden"
                 style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
               >
                 <div className="absolute inset-y-0 left-0 w-1 bg-yellow-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />
@@ -283,7 +283,7 @@ const PoolSelector = () => {
                         switchGameAccount(account.gameUid);
                         setShowAccountDropdown(false);
                       }}
-                      className={`w-full px-3 py-2 text-left text-xs font-mono hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
+                      className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
                         currentGameUid === account.gameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
                       }`}
                     >
@@ -322,7 +322,7 @@ const PoolSelector = () => {
             <div className="hidden md:flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-800 pr-3">
               {(currentAccount || gameAccounts.length > 1) && (
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] transition-colors ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}
                   style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   title={currentAccount
                     ? `${currentAccount.nickName} · ${t('pool.selector.meta.imported', { value: formatFreshnessAbsolute(getAccountLastImportTimestamp(currentAccount), null, locale, { includeYear: false }) })}`
@@ -335,7 +335,7 @@ const PoolSelector = () => {
               )}
               {currentPoolLatestRecordAt && (
                 <div
-                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] font-mono transition-colors ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}
+                  className={`flex items-center gap-1.5 px-2 py-1 border text-[10px] transition-colors ${getFreshnessToneClasses(getFreshnessTone(currentPoolLatestRecordAt))}`}
                   style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}
                   title={`${currentPoolFreshnessLabel} · ${t('pool.selector.meta.latestRecord', { value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false }) })}`}
                 >
@@ -350,7 +350,7 @@ const PoolSelector = () => {
               <button
                 type="button"
                 onClick={() => setHideZeroPullPools((value) => !value)}
-                className={`flex items-center gap-2 px-3 py-1.5 border text-[11px] font-mono font-bold tracking-wider uppercase transition-all duration-300 relative overflow-hidden group ${
+                className={`flex items-center gap-2 px-3 py-1.5 border text-[11px] font-bold tracking-wider uppercase transition-all duration-300 relative overflow-hidden group ${
                   hideZeroPullPools
                     ? 'border-yellow-500 bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.4)]'
                     : 'border-zinc-200 bg-white/50 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-400 hover:border-yellow-500/50 hover:text-yellow-600 dark:hover:text-yellow-500'
@@ -372,7 +372,7 @@ const PoolSelector = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t('pool.selector.searchPlaceholder')}
-                  className="w-40 pl-8 pr-8 py-1.5 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-yellow-500 dark:focus:border-yellow-500/50 outline-none text-slate-700 dark:text-zinc-300 font-mono placeholder:text-slate-300 dark:placeholder:text-zinc-600 transition-all duration-300 focus:w-48 hover:border-zinc-300 dark:hover:border-zinc-600 focus:shadow-[0_0_12px_rgba(234,179,8,0.15)]"
+                  className="w-40 pl-8 pr-8 py-1.5 text-[11px] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 focus:border-yellow-500 dark:focus:border-yellow-500/50 outline-none text-slate-700 dark:text-zinc-300 placeholder:text-slate-300 dark:placeholder:text-zinc-600 transition-all duration-300 focus:w-48 hover:border-zinc-300 dark:hover:border-zinc-600 focus:shadow-[0_0_12px_rgba(234,179,8,0.15)]"
                   style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%)' }}
                 />
                 {searchQuery && (
@@ -388,7 +388,7 @@ const PoolSelector = () => {
           </div>
 
           {/* 统计 */}
-          <div className="text-xs font-mono text-slate-500 dark:text-zinc-400">
+          <div className="text-xs text-slate-500 dark:text-zinc-400">
             {summaryLabel}
           </div>
         </div>
@@ -412,7 +412,7 @@ const PoolSelector = () => {
         />
       ) : (
         <div className="text-center py-12 border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-          <div className="text-slate-400 dark:text-zinc-500 text-sm font-mono">
+          <div className="text-slate-400 dark:text-zinc-500 text-sm">
             {searchQuery ? t('pool.selector.noMatches') : (user ? t('pool.selector.noPoolDataImport') : t('pool.selector.noPoolData'))}
           </div>
         </div>

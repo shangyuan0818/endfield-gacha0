@@ -40,7 +40,7 @@ function GroupLabel({ groupType, label, collapsed, onToggle, t }) {
     >
       <div className="flex flex-col items-center gap-2" style={{ writingMode: 'vertical-rl' }}>
         <span className={`w-[3px] h-8 flex-shrink-0 ${accentClass.split(' ')[0]}`} style={{ writingMode: 'horizontal-tb' }} />
-        <span className={`text-[11px] font-mono font-bold tracking-[0.2em] uppercase ${accentClass.split(' ').slice(1).join(' ')}`}>
+        <span className={`text-[11px] font-bold tracking-[0.2em] uppercase ${accentClass.split(' ').slice(1).join(' ')}`}>
           {label}
         </span>
         <ChevronDown
@@ -77,16 +77,16 @@ function GroupCard({ group, isSelected, onClick, interactive, locale, t }) {
       <div className={`absolute top-2 left-2 p-1 ${config.bg} border border-black/5 dark:border-white/5`}>
         <TypeIcon size={12} className={config.color} />
       </div>
-      <div className={`text-xs font-mono font-bold tracking-widest uppercase truncate mb-2 mt-6 ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-600 dark:text-zinc-400 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
+      <div className={`text-xs font-bold tracking-widest uppercase truncate mb-2 mt-6 ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-600 dark:text-zinc-400 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
         {t('pool.card.allGroupTitle', { label: group.label })}
       </div>
       <div className="flex flex-col gap-1 mt-auto">
         <div className="flex justify-between items-end">
-          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
           <span className="text-[11px] font-mono text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">{formattedPoolCount}</span>
         </div>
         <div className="flex justify-between items-end">
-          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
           <span className={`text-sm font-mono font-bold leading-none ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{formattedPullCount}</span>
         </div>
       </div>
@@ -109,10 +109,10 @@ function CollapseCard({ count, expanded, onClick, locale, t }) {
       <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
         {expanded ? t('pool.card.collapseOld') : t('pool.card.expandOld')}
       </div>
-      <div className="mt-2 text-sm font-mono font-bold text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
+      <div className="mt-2 text-sm font-bold text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
         {expanded ? t('pool.card.keepLatest') : t('pool.card.hasMore', { count: formattedCount })}
       </div>
-      <div className="mt-4 flex items-center justify-between text-[10px] font-mono text-zinc-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
+      <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">
         <span>{expanded ? 'COLLAPSE' : 'EXPAND'}</span>
         <ChevronDown size={14} className={`transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </div>
@@ -142,17 +142,17 @@ function OverviewCard({ title, totalPools, totalPulls, isSelected, onClick, loca
       <div className="absolute top-0 right-0 p-1 bg-zinc-100 dark:bg-zinc-800">
         <Layers size={14} className="text-slate-400 dark:text-zinc-500" />
       </div>
-      <div className={`mt-2 text-xs font-mono font-bold tracking-widest uppercase ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
+      <div className={`mt-2 text-xs font-bold tracking-widest uppercase ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-800 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>
         {title}
       </div>
       
       <div className="mt-4 flex flex-col gap-2">
         <div className="flex justify-between items-end">
-          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t('pool.card.poolCountLabel', 'POOLS')}</span>
           <span className="text-[11px] font-mono text-slate-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-500">{formattedPoolCount}</span>
         </div>
         <div className="flex justify-between items-end">
-          <span className="text-[9px] text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+          <span className="text-[9px] text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
           <span className={`text-sm font-mono font-bold leading-none ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-200 group-hover:text-yellow-600 dark:group-hover:text-yellow-500'}`}>{formattedPullCount}</span>
         </div>
       </div>
@@ -236,7 +236,7 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
       }}
     >
       {/* Background Image Area */}
-      <div className="relative h-20 w-full bg-zinc-200 dark:bg-zinc-950 overflow-hidden shrink-0">
+      <div className="relative h-20 w-full bg-zinc-200 dark:bg-zinc-900 overflow-hidden shrink-0">
         {characterAvatarUrls.length > 0 ? (
           <>
             <div className={`absolute inset-0 ${hasMultiCharacterBackdrop ? 'grid grid-cols-2 grid-rows-2' : ''} transition-all duration-700 ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}>
@@ -258,10 +258,10 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
                   />
                 )}
             </div>
-            <div className={`absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white dark:from-zinc-900 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-40' : 'opacity-100'}`} />
+            <div className={`absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white dark:from-zinc-800 to-transparent transition-opacity duration-300 ${isSelected ? 'opacity-40' : 'opacity-100'}`} />
           </>
         ) : (
-          <div className="absolute inset-0 bg-zinc-200 dark:bg-zinc-800" />
+          <div className="absolute inset-0 bg-zinc-200 dark:bg-zinc-900" />
         )}
 
         <div className={`absolute top-0 left-0 p-1.5 ${config.bg} border-b border-r border-black/10 dark:border-white/10 z-20`}>
@@ -282,35 +282,35 @@ function PoolCard({ pool, isSelected, onClick, locale, t }) {
       </div>
 
       {/* Content Area */}
-      <div className={`relative flex flex-col p-3 pt-1.5 border-x border-b pb-2 transition-colors duration-300 ${isSelected ? 'border-yellow-500 dark:border-yellow-500/70 bg-zinc-50 dark:bg-zinc-900/50' : 'border-zinc-200 dark:border-zinc-800'}`}>
+      <div className={`relative flex flex-1 flex-col p-3 pt-1.5 border-x border-b pb-2 transition-colors duration-300 ${isSelected ? 'border-yellow-500 dark:border-yellow-500/70 bg-zinc-50 dark:bg-zinc-900/50' : 'border-zinc-200 dark:border-zinc-800'}`}>
         <div className={`font-bold line-clamp-2 transition-all duration-300 ${nameFontSizeClass} ${isSelected ? 'text-slate-900 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-200'}`}>
           {poolName}
         </div>
 
         <div className="mt-1">
           {showFeaturedSummary ? (
-            <div className="text-slate-500 dark:text-zinc-400 font-mono border-l-2 border-slate-300 dark:border-zinc-700 pl-1.5">
+            <div className="text-slate-500 dark:text-zinc-400 border-l-2 border-slate-300 dark:border-zinc-700 pl-1.5">
               <span className="text-[10px] leading-3 text-slate-600 dark:text-zinc-300 block mb-px tracking-tighter opacity-80">{featuredLabel}</span>
               <span className={`block line-clamp-2 text-slate-800 dark:text-zinc-200 ${featuredTextFontSizeClass}`}>{featuredText}</span>
             </div>
           ) : null}
         </div>
 
-        <div className="mt-2 flex items-end justify-between">
+        <div className="mt-auto pt-2 flex items-end justify-between">
           <div className="flex flex-col">
-            <span className="text-[10px] leading-3 text-slate-400 dark:text-zinc-500 font-mono uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
+            <span className="text-[10px] leading-3 text-slate-400 dark:text-zinc-500 uppercase tracking-widest">{t('pool.card.pullCountLabel', 'PULLS')}</span>
             <span className={`mt-0.5 text-lg font-mono font-bold leading-none transition-colors duration-300 ${isSelected ? 'text-yellow-600 dark:text-yellow-500' : 'text-slate-700 dark:text-zinc-300'}`}>
               {formattedPullCount}
             </span>
           </div>
 
           {isActive && remainingLabel && (
-            <div className="text-[10px] font-mono text-yellow-600 dark:text-yellow-500 text-right animate-pulse leading-none mb-0.5">
+            <div className="text-[10px] text-yellow-600 dark:text-yellow-500 text-right animate-pulse leading-none mb-0.5">
               {remainingLabel}
             </div>
           )}
           {!isActive && pool.selectorTiming?.isUpcoming && remainingLabel && (
-            <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400 text-right leading-none mb-0.5">
+            <div className="text-[10px] text-blue-600 dark:text-blue-400 text-right leading-none mb-0.5">
               {remainingLabel}
             </div>
           )}

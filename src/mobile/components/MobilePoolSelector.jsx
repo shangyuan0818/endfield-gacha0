@@ -294,7 +294,7 @@ function MobilePoolSelector() {
             {t('pool.selector.import')}
           </button>
         ) : (
-          <div className="text-[10px] text-zinc-500 font-mono">
+          <div className="text-[10px] text-zinc-500">
             {t('pool.selector.loginToImport')}
           </div>
         )}
@@ -304,7 +304,7 @@ function MobilePoolSelector() {
           <div className="relative flex-1" ref={accountDropdownRef}>
             <button
               onClick={() => setIsAccountOpen(!isAccountOpen)}
-              className="w-full flex items-center justify-between gap-2 rounded-[1rem] border border-white/8 bg-white/[0.04] px-3 py-2 text-xs font-mono transition-colors touch-feedback hover:border-white/14 hover:bg-white/[0.06]"
+              className="w-full flex items-center justify-between gap-2 rounded-[1rem] border border-white/8 bg-white/[0.04] px-3 py-2 text-xs transition-colors touch-feedback hover:border-white/14 hover:bg-white/[0.06]"
             >
               <div className="flex items-center gap-2 min-w-0">
                 <User size={14} className="text-zinc-500 shrink-0" />
@@ -345,13 +345,13 @@ function MobilePoolSelector() {
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-zinc-500 font-mono">
+                    <div className="text-[10px] text-zinc-500">
                       {t('pool.selector.accountRecordCount', {
                         uid: account.gameUid,
                         count: formatNumber(account.recordCount || 0)
                       })}
                     </div>
-                    <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">
+                    <div className="mt-0.5 text-[10px] text-zinc-500">
                       {t('settings.lastImport', {
                         value: formatFreshnessRelative(getAccountLastImportTimestamp(account), t('common.timeUnknown'), locale)
                       })}
@@ -383,7 +383,7 @@ function MobilePoolSelector() {
                 {currentAccount ? formatFreshnessRelative(getAccountLastImportTimestamp(currentAccount), t('common.importTimeUnknown'), locale) : t('pool.selector.switchAccountHint')}
               </span>
             </div>
-            <div className="mt-2 text-[10px] leading-tight text-zinc-500 font-mono break-words">
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 break-words">
               {currentAccount
                 ? t('pool.selector.meta.imported', {
                     value: formatFreshnessAbsolute(getAccountLastImportTimestamp(currentAccount), null, locale, { includeYear: false })
@@ -391,7 +391,7 @@ function MobilePoolSelector() {
                 : t('pool.selector.multiAccountDetail')}
             </div>
             {currentAccount?.latestRecordAt ? (
-              <div className="mt-1 text-[10px] leading-tight text-zinc-500 font-mono break-words">
+              <div className="mt-1 text-[10px] leading-tight text-zinc-500 break-words">
                 {t('pool.selector.meta.latestRecord', {
                   value: formatFreshnessAbsolute(currentAccount.latestRecordAt, null, locale, { includeYear: false })
                 })}
@@ -413,13 +413,13 @@ function MobilePoolSelector() {
                 {formatFreshnessRelative(currentPoolLatestRecordAt, t('pool.selector.noRecords'), locale)}
               </span>
             </div>
-            <div className="mt-2 text-[10px] leading-tight text-zinc-500 font-mono break-words">
+            <div className="mt-2 text-[10px] leading-tight text-zinc-500 break-words">
               {t('pool.selector.meta.latestRecord', {
                 value: formatFreshnessAbsolute(currentPoolLatestRecordAt, null, locale, { includeYear: false })
               })}
             </div>
             {!selectedPool?.isGroupMode && selectedPool?.id ? (
-              <div className="mt-1 text-[10px] leading-tight text-zinc-500 font-mono break-words">
+              <div className="mt-1 text-[10px] leading-tight text-zinc-500 break-words">
                 {t('pool.selector.currentPullsShort', { count: formatNumber(poolPullCounts[selectedPool.id] || 0) })}
               </div>
             ) : null}
@@ -429,7 +429,7 @@ function MobilePoolSelector() {
 
       {/* 卡池选择器 */}
       {(!pools || pools.length === 0) ? (
-        <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.03] py-4 text-center text-sm font-mono text-zinc-500">
+        <div className="rounded-[1rem] border border-dashed border-white/10 bg-white/[0.03] py-4 text-center text-sm text-zinc-500">
           {user ? t('pool.selector.noPoolDataImport') : t('pool.selector.noPoolData')}
         </div>
       ) : (
@@ -453,7 +453,7 @@ function MobilePoolSelector() {
               <div className="text-sm font-bold text-zinc-100 truncate">
                 {selectedPoolDisplayName}
               </div>
-              <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
+              <div className="flex items-center gap-2 text-[10px] text-zinc-500">
                 {showSelectedPoolFeaturedSummary && selectedPoolDisplayUp && (
                   <>
                     <span>{selectedPoolFeaturedLabel}: {selectedPoolDisplayUp}</span>
@@ -482,7 +482,7 @@ function MobilePoolSelector() {
                       <button
                         type="button"
                         onClick={() => setHideZeroPullPools((value) => !value)}
-                        className={`flex items-center gap-1.5 px-2 py-2 border text-[10px] font-mono whitespace-nowrap transition-colors ${
+                        className={`flex items-center gap-1.5 px-2 py-2 border text-[10px] whitespace-nowrap transition-colors ${
                           hideZeroPullPools
                             ? 'rounded-full border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
                             : 'rounded-full border-white/8 bg-white/[0.03] text-zinc-400'
@@ -502,7 +502,7 @@ function MobilePoolSelector() {
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder={t('pool.selector.searchPlaceholder')}
-                          className="mobile-ux-input py-2 pl-8 pr-8 text-xs font-mono"
+                          className="mobile-ux-input py-2 pl-8 pr-8 text-xs"
                         />
                         {searchQuery && (
                           <button
@@ -540,7 +540,7 @@ function MobilePoolSelector() {
                           }`}>
                             {t('pool.selector.allOverview')}
                           </div>
-                          <div className="text-[10px] text-zinc-400 font-mono">
+                          <div className="text-[10px] text-zinc-400">
                             {t('pool.card.groupStats', { pools: formatNumber(visiblePools), pulls: formatNumber(totalPulls) })}
                           </div>
                         </div>
@@ -584,7 +584,7 @@ function MobilePoolSelector() {
                               <div className={`text-sm font-medium ${isGroupSelected ? 'text-zinc-100' : 'text-zinc-300'}`}>
                                 {t('pool.card.allGroupTitle', { label: group.label })}
                               </div>
-                              <div className="text-[10px] text-zinc-400 font-mono">
+                              <div className="text-[10px] text-zinc-400">
                                 {t('pool.card.groupStats', { pools: formatNumber(group.pools.length), pulls: formatNumber(totalGroupPulls) })}
                               </div>
                             </div>
@@ -625,7 +625,7 @@ function MobilePoolSelector() {
                                 {pool.displayName || localizePoolName(pool, { locale }) || pool.name}
                                 {pool.locked && <Lock size={10} className="inline ml-1 text-amber-500" />}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
+                              <div className="flex items-center gap-2 text-[10px] text-zinc-400">
                                 {showPoolFeaturedSummary && (pool.displayUpCharacter || pool.up_character || pool.upCharacter) && (
                                   <span>
                                     {poolFeaturedLabel}: {pool.displayUpCharacter || getPoolSelectorFeaturedCharacters(pool, { locale }).join(' / ') || localizeEntityName(pool.up_character || pool.upCharacter || '', {
@@ -649,7 +649,7 @@ function MobilePoolSelector() {
                     ))}
                   </>
                 ) : (
-                  <div className="py-8 text-center text-sm text-zinc-500 font-mono">
+                  <div className="py-8 text-center text-sm text-zinc-500">
                     {searchQuery ? t('pool.selector.noMatches') : t('pool.selector.noBanners')}
                   </div>
                 )}

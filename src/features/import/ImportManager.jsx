@@ -36,7 +36,7 @@ const ImportStatus = {
 const ImportProgressBar = ({ progress, status, message, t }) => {
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-1 text-[10px] font-mono uppercase text-slate-500 dark:text-zinc-500 transition-colors">
+      <div className="flex justify-between items-center mb-1 text-[10px] uppercase tracking-widest text-slate-500 dark:text-zinc-500 transition-colors">
         <span className="flex items-center gap-2">
           {status === ImportStatus.SAVING ? (
             <>
@@ -58,7 +58,7 @@ const ImportProgressBar = ({ progress, status, message, t }) => {
           style={{ width: `${progress}%` }}
         ></div>
       </div>
-      <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 font-mono text-center transition-colors">
+      <div className="mt-1 text-xs text-slate-500 dark:text-zinc-400 text-center transition-colors">
         {message}
       </div>
     </div>
@@ -366,7 +366,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               {t('import.title')}
             </h2>
             <div 
-              className="flex min-w-0 items-start gap-2 border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-[11px] font-mono leading-5 text-amber-900 transition-colors dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-500"
+              className="flex min-w-0 items-start gap-2 border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-[11px] leading-5 text-amber-900 transition-colors dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-500"
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -394,7 +394,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
         {/* Steps Indicator (Always Visible) */}
         <div className="px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#111113] transition-colors">
-           <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest pl-2">
+           <div className="flex items-center justify-between text-xs uppercase tracking-widest pl-2">
               {/* 步骤1 */}
               <div className={`flex items-center gap-3 transition-colors ${
                 importStatus === ImportStatus.IDLE && fetchStatus === 'idle'
@@ -433,9 +433,9 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
             <div className="mb-6 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
               <div className="flex items-center gap-2 text-red-600 dark:text-red-500 mb-2">
                 <AlertCircle className="w-5 h-5" />
-                <span className="font-bold font-mono tracking-widest uppercase">{t('import.needLogin')}</span>
+                <span className="font-bold tracking-widest uppercase">{t('import.needLogin')}</span>
               </div>
-              <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono">
+              <p className="text-slate-600 dark:text-zinc-400 text-xs">
                 {t('import.needLoginDesc')}
               </p>
             </div>
@@ -443,7 +443,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
           {/* 导入说明 */}
           {showGuide && (
-            <div className="mb-6 bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 font-mono transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+            <div className="mb-6 bg-slate-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-4 text-sm text-slate-600 dark:text-zinc-400 space-y-2 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
               <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2 uppercase tracking-widest">
                 <HelpCircle size={14}/> {t('import.guideTitle')}
               </h3>
@@ -475,21 +475,21 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-1">{t('import.complete')}</h3>
-                <p className="text-slate-500 dark:text-zinc-500 text-xs font-mono uppercase">{t('import.completeDesc')}</p>
+                <p className="text-slate-500 dark:text-zinc-500 text-xs uppercase tracking-widest">{t('import.completeDesc')}</p>
               </div>
 
               {/* 统计网格 */}
               <div className="grid grid-cols-3 gap-1">
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.total')}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase tracking-widest">{t('import.summary.total')}</p>
                   <p className="text-xl font-bold text-slate-800 dark:text-white mt-1">{formatNumber(importResult.summary?.total || 0)}</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.new')}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase tracking-widest">{t('import.summary.new')}</p>
                   <p className="text-xl font-bold text-green-600 dark:text-green-500 mt-1">{formatNumber(importResult.summary?.newRecords || 0)}</p>
                 </div>
                 <div className="bg-slate-100 dark:bg-zinc-800 p-4 text-center transition-colors">
-                  <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono uppercase">{t('import.summary.skipped')}</p>
+                  <p className="text-xs text-slate-500 dark:text-zinc-500 uppercase tracking-widest">{t('import.summary.skipped')}</p>
                   <p className="text-xl font-bold text-slate-500 dark:text-zinc-500 mt-1">{formatNumber(importResult.summary?.duplicates || 0)}</p>
                 </div>
               </div>
@@ -500,20 +500,20 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                       <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                       <div>
                       <p className="text-amber-700 dark:text-amber-400 text-sm font-bold uppercase tracking-widest">{t('import.partialTitle')}</p>
-                      <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1 font-mono">
+                      <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">
                         {t('import.partialDesc')}
                       </p>
                     </div>
                   </div>
 
                   {(importResult.summary?.partialPools || []).map(pool => (
-                    <div key={`partial-${pool.poolType || pool.type}`} className="text-xs font-mono text-slate-600 dark:text-zinc-400">
+                    <div key={`partial-${pool.poolType || pool.type}`} className="text-xs text-slate-600 dark:text-zinc-400">
                       {t('import.partialSuccess')}: {getPoolName(pool.poolType || pool.type, t)} · {pool.records || 0} · {pool.error || t('import.partialFallback')}
                     </div>
                   ))}
 
                   {(importResult.summary?.failedPools || []).map(pool => (
-                    <div key={`failed-${pool.poolType || pool.type}`} className="text-xs font-mono text-red-600 dark:text-red-400">
+                    <div key={`failed-${pool.poolType || pool.type}`} className="text-xs text-red-600 dark:text-red-400">
                       {t('import.partialFailed')}: {getPoolName(pool.poolType || pool.type, t)} · {pool.error || t('import.failedFallback')}
                     </div>
                   ))}
@@ -526,7 +526,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
                   <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-500 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-amber-700 dark:text-amber-400 text-sm font-bold uppercase tracking-widest">{t('import.newDataSynced')}</p>
-                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1 font-mono">{t('import.newDataSyncedDesc')}</p>
+                    <p className="text-slate-600 dark:text-zinc-500 text-xs mt-1">{t('import.newDataSyncedDesc')}</p>
                   </div>
                 </div>
               )}
@@ -565,13 +565,13 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
               <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-4 flex items-start gap-3 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
                 <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-500 mt-0.5 shrink-0" />
                 <div>
-                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1 uppercase tracking-widest font-mono text-sm">{t('import.errorTitle')}</h4>
-                  <p className="text-slate-600 dark:text-zinc-400 text-xs font-mono break-all leading-relaxed">{errorMessage}</p>
+                  <h4 className="text-red-600 dark:text-red-500 font-bold mb-1 uppercase tracking-widest text-sm">{t('import.errorTitle')}</h4>
+                  <p className="text-slate-600 dark:text-zinc-400 text-xs break-all leading-relaxed">{errorMessage}</p>
                 </div>
               </div>
               <button
                 onClick={handleReset}
-                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-red-500 dark:hover:border-red-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest font-mono uppercase transition-all duration-200 relative group overflow-hidden"
+                className="w-full bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-red-500 dark:hover:border-red-500 text-slate-700 dark:text-zinc-300 font-bold py-3 text-xs tracking-widest uppercase transition-all duration-200 relative group overflow-hidden"
                 style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}
               >
                 <div className="absolute inset-y-0 left-0 w-1 bg-red-500 scale-y-0 group-hover:scale-y-100 transition-transform duration-300 origin-bottom" />

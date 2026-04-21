@@ -208,7 +208,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
 
         {/* 第4、5名（如果有）*/}
         {remaining.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex justify-center gap-4">
+          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap justify-center gap-x-3 gap-y-2">
             {remaining.map((char, idx) => {
               const actualRank = idx + 4; // 第4、5名
               const charData = characterCache.searchByName(char.name, false);
@@ -216,7 +216,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
               const localizedName = localizeEntityName(char.name, { locale, type: poolType === 'weapon' ? 'weapon' : 'character' });
 
               return (
-                <div key={char.name} className="flex items-center gap-2 text-xs">
+                <div key={char.name} className="flex min-w-0 basis-[calc(50%-0.375rem)] items-center gap-2 text-xs">
                   <span className="text-zinc-400 font-mono">#{actualRank}</span>
                   <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
                     {avatarUrl ? (
@@ -227,8 +227,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
                       </div>
                     )}
                   </div>
-                  <span className="text-zinc-600 dark:text-zinc-400 truncate max-w-[3rem]">{localizedName}</span>
-                  <span className="text-zinc-400 font-mono">×{char.count}</span>
+                  <span className="min-w-0 flex-1 text-zinc-600 dark:text-zinc-400 truncate">{localizedName}</span>
+                  <span className="shrink-0 text-zinc-400 font-mono">×{char.count}</span>
                 </div>
               );
             })}

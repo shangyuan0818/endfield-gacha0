@@ -12,6 +12,10 @@ import {
 import confetti from 'canvas-confetti';
 import { getCurrentUpPoolInfo, getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
+import useSiteConfigStore, {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY
+} from '../../stores/useSiteConfigStore';
 import CountdownTimer from './CountdownTimer';
 import SpringPreviewCard from './SpringPreviewCard';
 import HomeAnnouncementContent from './AnnouncementContent';
@@ -42,9 +46,18 @@ const HomePage = React.memo(() => {
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
   const pools = usePoolStore((state) => state.pools);
+  const nextVersionTargetConfigValue = useSiteConfigStore(
+    (state) => state.config[HOME_NEXT_VERSION_TARGET_CONFIG_KEY]
+  );
   const communityLinkLabel = ENGLISH_COMMUNITY_DISCORD_URL.replace(/^https?:\/\//u, '');
 
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
+  const nextVersionTargetDate = useMemo(() => {
+    const configuredValue = nextVersionTargetConfigValue || DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
+    return Number.isFinite(Date.parse(configuredValue))
+      ? configuredValue
+      : DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
+  }, [nextVersionTargetConfigValue]);
 
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -76,14 +89,14 @@ const HomePage = React.memo(() => {
 
     if (!main) {
       main = {
-        targetDate: '2026-04-17T12:00:00+08:00',
+        targetDate: nextVersionTargetDate,
         title: t('home.nextVersionCountdown'),
         subTitle: t('home.nextVersionWaiting')
       };
     }
 
     return { main };
-  }, [isEnglish, now, poolSchedule, t]);
+  }, [isEnglish, nextVersionTargetDate, now, poolSchedule, t]);
 
   const initialCollapseState = getHomeCollapseState();
   const latestAnnouncement = announcements[0];
@@ -357,7 +370,7 @@ const HomePage = React.memo(() => {
             <SpringPreviewCard />
             <div className="shrink-0 min-h-32">
               <CountdownTimer
-                targetDate="2026-04-17T12:00:00+08:00"
+                targetDate={nextVersionTargetDate}
                 title={t('home.nextVersionCountdown')}
                 subTitle={t('home.nextVersionRelease')}
                 customEndedContent={<span>{t('home.versionLaunched')}</span>}
