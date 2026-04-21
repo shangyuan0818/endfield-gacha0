@@ -27,4 +27,15 @@ describe('usernameValidation', () => {
     expect(getPreferredUsername(user)).toBe('Talos');
     expect(buildUsernameHandle(user)).toMatch(/^Talos#\d{4}$/);
   });
+
+  it('uses direct username fields from public profile records', () => {
+    const publicProfile = {
+      id: '6d1fded4-0efe-4701-95ef-71361cadfd2b',
+      username: '终末地用户',
+      role: 'user',
+    };
+
+    expect(getPreferredUsername(publicProfile)).toBe('终末地用户');
+    expect(buildUsernameHandle(publicProfile)).toMatch(/^终末地用户#\d{4}$/);
+  });
 });

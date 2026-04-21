@@ -9,6 +9,7 @@ export function normalizeUsername(value) {
 
 export function getPreferredUsername(user, fallback = '') {
   const candidates = [
+    user?.username,
     user?.user_metadata?.username,
     user?.user_metadata?.full_name,
     fallback,
