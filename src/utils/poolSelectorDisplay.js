@@ -41,11 +41,20 @@ export function getPoolFeaturedLabel(pool, { locale = getAppLocale(), short = fa
   const isRosterStylePool = normalizedGroupType === 'extra'
     || normalizedGroupType === 'standard'
     || normalizedGroupType === 'beginner';
+  const isWeaponPool = normalizedGroupType === 'weapon_limited' || normalizedGroupType === 'weapon_standard';
 
   if (short) {
+    if (isWeaponPool) {
+      return getMessage('pool.card.upWeaponShort', {}, locale);
+    }
+
     return isRosterStylePool
       ? getMessage('pool.card.sixStarRosterShort', {}, locale)
       : getMessage('pool.card.upShort', {}, locale);
+  }
+
+  if (isWeaponPool) {
+    return getMessage('dashboard.pool.upWeapon', {}, locale);
   }
 
   return isRosterStylePool

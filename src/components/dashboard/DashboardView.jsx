@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Calculator,
   Star,
@@ -207,10 +208,28 @@ const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-
   </div>
 );
 
+const FreePullStatsToggle = ({ enabled, onToggle, t }) => (
+  <button
+    type="button"
+    aria-pressed={enabled}
+    onClick={onToggle}
+    className={`relative z-10 flex h-12 min-w-[8rem] items-center justify-center gap-2 rounded-sm border px-3 text-[11px] font-bold uppercase tracking-wider transition-colors ${
+      enabled
+        ? 'border-cyan-400/60 bg-cyan-500/10 text-cyan-500 dark:text-cyan-300'
+        : 'border-zinc-200 bg-zinc-100 text-slate-500 hover:border-zinc-300 hover:text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-300'
+    }`}
+    title={enabled ? t('dashboard.analysis.includeFreeTenTitle') : t('dashboard.analysis.excludeFreeTenTitle')}
+  >
+    <Layers size={18} />
+    <span>{enabled ? t('dashboard.analysis.includeFreeTen') : t('dashboard.analysis.freeTenExcluded')}</span>
+  </button>
+);
+
 /**
  * 仪表盘视图组件
  */
 const DashboardView = ({ showToast }) => {
+  const location = useLocation();
   const { isDark } = useTheme();
   const { t, formatNumber, isEnglish, locale } = useI18n();
   const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
@@ -269,9 +288,20 @@ const DashboardView = ({ showToast }) => {
     characterStats,
     checkLimitedInFirstN,
     hasReceivedFreeTen,
+    includeFreePullsInStats,
+    setIncludeFreePullsInStats,
     dashboardResourceSummary,
     resourceSummaryVariant,
   } = useDashboardViewState();
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const shouldOpenShareMenu = searchParams.get('share') === 'open';
+
+    if (shouldOpenShareMenu) {
+      setShowShareMenu(true);
+    }
+  }, [location.search]);
   const allOverviewFilterOptions = React.useMemo(
     () => ALL_OVERVIEW_FILTER_OPTIONS.map((option) => ({
       ...option,
@@ -292,7 +322,7 @@ const DashboardView = ({ showToast }) => {
   const primarySixStarLabel = isAllPoolsOverview
     ? t('dashboard.overview.targetSixStar')
     : normalizedPoolType === 'weapon'
-      ? t('dashboard.overview.upSixStar')
+      ? t('dashboard.overview.upWeapon')
       : t('dashboard.average.limitedSix');
   const secondarySixStarLabel = isAllPoolsOverview
     ? t('dashboard.overview.offrateSixStar')
@@ -412,6 +442,7 @@ const DashboardView = ({ showToast }) => {
       isLimitedPool: normalizedPoolType === 'limited',
       limitedPoolIds: visibleLimitedPoolIds,
       crossPoolPityMap,
+      includeFreePullsInStats,
     });
   }, [
     allOverviewFilterPoolIds,
@@ -421,6 +452,7 @@ const DashboardView = ({ showToast }) => {
     normalizedPoolHistory,
     normalizedPoolType,
     visibleLimitedPoolIds,
+    includeFreePullsInStats,
   ]);
 
   const visibleTotalCharacterCount = React.useMemo(
@@ -485,8 +517,9 @@ const DashboardView = ({ showToast }) => {
     return buildDashboardOverviewSplitStats({
       history: normalizedPoolHistory,
       selectedPools,
+      includeFreePullsInStats,
     });
-  }, [allOverviewPoolFilter, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
+  }, [allOverviewPoolFilter, includeFreePullsInStats, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
   const customShareSelectedPools = React.useMemo(
     () => customShareCandidatePools.filter((pool) => customSharePoolIds.includes(pool.id)),
     [customShareCandidatePools, customSharePoolIds]
@@ -507,8 +540,9 @@ const DashboardView = ({ showToast }) => {
     return buildDashboardOverviewSplitStats({
       history: customShareHistory,
       selectedPools: customShareSelectedPools,
+      includeFreePullsInStats,
     });
-  }, [customShareHistory, customShareSelectedPools]);
+  }, [customShareHistory, customShareSelectedPools, includeFreePullsInStats]);
   const customShareTimelineSections = React.useMemo(() => {
     if (customShareSelectedPools.length === 0) {
       return [];
@@ -601,6 +635,7 @@ const DashboardView = ({ showToast }) => {
       analysisPity: null,
       sections: customShareTimelineSections,
       overviewSplitStats: customShareSplitStats,
+      includeFreePullsInStats,
       scopeLabelOverride: t('dashboard.share.custom.scope'),
       poolNameOverride: buildCustomSharePoolName(customShareSelectedPools, locale, isEnglish),
       poolTypeLabelOverride: customSharePoolTypeLabel,
@@ -614,6 +649,7 @@ const DashboardView = ({ showToast }) => {
     customShareSplitStats,
     customShareTimelineSections,
     hasMergedAccountView,
+    includeFreePullsInStats,
     isEnglish,
     locale,
     showTimelineFiveStarDrops,
@@ -632,6 +668,7 @@ const DashboardView = ({ showToast }) => {
         analysisPity,
         sections: timelineSections,
         overviewSplitStats: splitOverviewStats,
+        includeFreePullsInStats,
         showFiveStarDrops: showTimelineFiveStarDrops,
       }, locale),
     [
@@ -641,6 +678,7 @@ const DashboardView = ({ showToast }) => {
       hasMergedAccountView,
       isAllPoolsOverview,
       isGroupMode,
+      includeFreePullsInStats,
       locale,
       normalizedPoolType,
       showTimelineFiveStarDrops,
@@ -1141,7 +1179,7 @@ const DashboardView = ({ showToast }) => {
         <div className={`${isGroupMode ? 'md:col-span-3' : 'md:col-span-2'} space-y-6`}>
           {splitOverviewStats ? (
             <>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-4">
                 <OverviewBanner
                   title={t('dashboard.overview.characterTotal')}
                   value={formatNumber(splitOverviewStats.character.total)}
@@ -1154,6 +1192,13 @@ const DashboardView = ({ showToast }) => {
                   accentClass="text-amber-600 dark:text-amber-400"
                   unitLabel={pullUnitLabel}
                 />
+                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-center shadow-sm">
+                  <FreePullStatsToggle
+                    enabled={includeFreePullsInStats}
+                    onToggle={() => setIncludeFreePullsInStats((value) => !value)}
+                    t={t}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1445,9 +1490,11 @@ const DashboardView = ({ showToast }) => {
                     <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{pullUnitLabel}</span>
                   </div>
                 </div>
-                <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500 group-hover:bg-slate-200 dark:group-hover:bg-zinc-700 transition-colors">
-                  <Layers size={24} />
-                </div>
+                <FreePullStatsToggle
+                  enabled={includeFreePullsInStats}
+                  onToggle={() => setIncludeFreePullsInStats((value) => !value)}
+                  t={t}
+                />
               </div>
 
               {/* 核心数据网格 */}

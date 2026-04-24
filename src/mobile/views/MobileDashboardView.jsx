@@ -170,6 +170,8 @@ function MobileDashboardView() {
     characterStats,
     checkLimitedInFirstN,
     hasReceivedFreeTen,
+    includeFreePullsInStats,
+    setIncludeFreePullsInStats,
     weaponGifts,
     currentUpPool,
     getProgressClass,
@@ -195,6 +197,7 @@ function MobileDashboardView() {
       });
   }, [currentPool, isExtra, locale, normalizedPoolType]);
   const displayPity6 = (isLimited || isExtra) ? effectivePity.pity6 : stats.currentPity;
+  const paidTotal = stats.paidTotal ?? stats.total;
   const currentProbabilityInfo = !isGroupMode && !hasMergedAccountView
     ? calculateCurrentProbability(displayPity6, normalizedPoolType)
     : null;
@@ -235,9 +238,10 @@ function MobileDashboardView() {
 
     return buildDashboardOverviewSplitStats({
       history: normalizedPoolHistory,
-      selectedPools
+      selectedPools,
+      includeFreePullsInStats
     });
-  }, [isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
+  }, [includeFreePullsInStats, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
   const detailedLogEntries = React.useMemo(() => (
     [...(normalizedPoolHistory || [])]
       .sort(compareHistoryTimelineDesc)
@@ -262,8 +266,9 @@ function MobileDashboardView() {
     analysisPity,
     sections: timelineSections,
     overviewSplitStats,
+    includeFreePullsInStats,
     showFiveStarDrops: showTimelineFiveStarDrops
-  }, locale), [analysisPity, currentPool, hasMergedAccountView, isAllPoolsOverview, isGroupMode, locale, normalizedPoolType, overviewSplitStats, showTimelineFiveStarDrops, stats, timelineSections]);
+  }, locale), [analysisPity, currentPool, hasMergedAccountView, includeFreePullsInStats, isAllPoolsOverview, isGroupMode, locale, normalizedPoolType, overviewSplitStats, showTimelineFiveStarDrops, stats, timelineSections]);
   const hasDashboardShareData = (Number(stats?.total) || 0) > 0 || timelineSections.length > 0;
   const clipboardImageWarmKey = React.useMemo(() => (
     hasDashboardShareData
@@ -331,7 +336,7 @@ function MobileDashboardView() {
   const primarySixStarLabel = isAllPoolsOverview
     ? t('dashboard.overview.targetSixStar')
     : normalizedPoolType === 'weapon'
-      ? t('dashboard.overview.upSixStar')
+      ? t('dashboard.overview.upWeapon')
       : normalizedPoolType === 'standard'
         ? standardSixLabel
         : t('dashboard.average.limitedSix');
@@ -723,9 +728,9 @@ function MobileDashboardView() {
               ) : null}
             </div>
 
-            {localizedCurrentUpName ? (
+            {!isStandard && localizedCurrentUpName ? (
               <div className="mobile-ux-card-inset shrink-0 px-3 py-2 text-right">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.pool.upCharacter')}</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{isWeapon ? t('dashboard.pool.upWeapon') : t('dashboard.pool.upCharacter')}</div>
                 <div className="mt-1 text-sm font-black text-slate-900 dark:text-white">{localizedCurrentUpName}</div>
               </div>
             ) : null}
@@ -828,6 +833,18 @@ function MobileDashboardView() {
           <span className="ml-auto text-2xl font-black font-mono">{stats.total}</span>
           <span className="text-xs text-slate-500 dark:text-zinc-500">{t('dashboard.unit.pull')}</span>
           <div className="mobile-ux-card-chip ml-1 flex h-8 w-8 items-center justify-center text-slate-500 dark:text-zinc-500"><Layers size={16}/></div>
+          <button
+            type="button"
+            aria-pressed={includeFreePullsInStats}
+            onClick={() => setIncludeFreePullsInStats((value) => !value)}
+            className={`ml-1 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${
+              includeFreePullsInStats
+                ? 'border-cyan-400/40 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300'
+                : 'border-zinc-200 bg-zinc-100 text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-500'
+            }`}
+          >
+            {includeFreePullsInStats ? t('dashboard.analysis.includeFreeTen') : t('dashboard.analysis.freeTenExcluded')}
+          </button>
       </div>
 
       <ResourceSummaryPanel
@@ -1011,7 +1028,11 @@ function MobileDashboardView() {
           <div className="mobile-ux-soft-card p-3">
             <div className="text-[10px] text-slate-600 dark:text-zinc-400 uppercase font-bold mb-2 flex justify-between">
               <span>{t('dashboard.analysis.winRate')}</span>
-              {(isLimited || isExtra) && <span className="text-[11px] text-slate-700 dark:text-zinc-300">({t('dashboard.analysis.freeTenExcluded')})</span>}
+              {(isLimited || isExtra) && (
+                <span className="text-[11px] text-slate-700 dark:text-zinc-300">
+                  ({includeFreePullsInStats ? t('dashboard.analysis.includeFreeTen') : t('dashboard.analysis.freeTenExcluded')})
+                </span>
+              )}
             </div>
             <div className="mb-2 text-2xl font-bold font-mono text-slate-900 dark:text-zinc-100">
               {stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
@@ -1083,14 +1104,14 @@ function MobileDashboardView() {
               <div className="mobile-ux-soft-card p-3">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.potential240')}</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total % 240} / 240</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{paidTotal % 240} / 240</span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                  <div className="h-full bg-purple-500" style={{ width: `${((stats.total % 240) / 240) * 100}%` }} />
+                  <div className="h-full bg-purple-500" style={{ width: `${((paidTotal % 240) / 240) * 100}%` }} />
                 </div>
-                {Math.floor(stats.total / 240) > 0 && (
+                {Math.floor(paidTotal / 240) > 0 && (
                   <div className="mt-1 text-[10px] text-purple-600 dark:text-purple-400 font-bold font-mono">
-                    {t('dashboard.analysis.obtained', { count: Math.floor(stats.total / 240) })}
+                    {t('dashboard.analysis.obtained', { count: Math.floor(paidTotal / 240) })}
                   </div>
                 )}
               </div>
@@ -1102,13 +1123,13 @@ function MobileDashboardView() {
                     <FileText size={12} /> {t('dashboard.analysis.infoBook60')}
                   </span>
                   <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                    {stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 60)} / 60`}
+                    {stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(paidTotal, 60)} / 60`}
                   </span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${stats.hasInfoBook ? 'bg-green-500' : 'bg-cyan-500'}`}
-                    style={{ width: stats.hasInfoBook ? '100%' : `${Math.min((stats.total / 60) * 100, 100)}%` }}
+                    style={{ width: stats.hasInfoBook ? '100%' : `${Math.min((paidTotal / 60) * 100, 100)}%` }}
                   />
                 </div>
               </div>
@@ -1141,13 +1162,13 @@ function MobileDashboardView() {
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.guaranteedWeapon80')}</span>
                   <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                    {checkLimitedInFirstN.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 80)} / 80`}
+                    {checkLimitedInFirstN.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(paidTotal, 80)} / 80`}
                   </span>
                 </div>
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className={`h-full ${checkLimitedInFirstN.firstLimitedIndex80 > 0 ? 'bg-green-500' : 'bg-slate-500'}`}
-                    style={{ width: checkLimitedInFirstN.firstLimitedIndex80 > 0 ? '100%' : `${Math.min((stats.total / 80) * 100, 100)}%` }}
+                    style={{ width: checkLimitedInFirstN.firstLimitedIndex80 > 0 ? '100%' : `${Math.min((paidTotal / 80) * 100, 100)}%` }}
                   />
                 </div>
               </div>
@@ -1162,12 +1183,12 @@ function MobileDashboardView() {
                         {weaponGifts.nextGiftType === 'limited' ? t('dashboard.analysis.limitedShort') : t('dashboard.analysis.standardShort')}
                       </span>
                     </span>
-                    <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total} / {weaponGifts.nextGift}</span>
+                    <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{paidTotal} / {weaponGifts.nextGift}</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                     <div
                       className={`h-full ${weaponGifts.nextGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min((stats.total / weaponGifts.nextGift) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((paidTotal / weaponGifts.nextGift) * 100, 100)}%` }}
                     />
                   </div>
                   <div className="mt-1 flex gap-3 text-[11px] text-slate-500 dark:text-zinc-500 font-mono uppercase">
@@ -1185,12 +1206,12 @@ function MobileDashboardView() {
               <div className="mobile-ux-soft-card mobile-ux-soft-card--warning p-3">
                 <div className="flex justify-between items-center mb-1">
                 <span className="text-xs font-bold text-slate-700 dark:text-zinc-200">{t('dashboard.analysis.firstSelector300')}</span>
-                <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
+                <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(paidTotal, 300)} / 300</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                 <div
-                  className={`h-full ${stats.total >= 300 ? 'bg-green-500' : 'bg-amber-500'}`}
-                  style={{ width: `${Math.min((stats.total / 300) * 100, 100)}%` }}
+                  className={`h-full ${paidTotal >= 300 ? 'bg-green-500' : 'bg-amber-500'}`}
+                  style={{ width: `${Math.min((paidTotal / 300) * 100, 100)}%` }}
                 />
               </div>
             </div>

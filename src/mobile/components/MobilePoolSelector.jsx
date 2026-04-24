@@ -74,11 +74,19 @@ function MobilePoolSelector() {
     return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]);
 
+  const effectiveGameUid = useMemo(() => {
+    if (gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      return currentGameUid;
+    }
+
+    return gameAccounts[0]?.gameUid || null;
+  }, [currentGameUid, gameAccounts]);
+
   // 根据当前账号过滤历史记录
   const filteredHistory = useMemo(() => {
-    if (!currentGameUid) return history;
-    return history.filter(h => h.gameUid === currentGameUid || h.game_uid === currentGameUid);
-  }, [history, currentGameUid]);
+    if (!effectiveGameUid) return history;
+    return history.filter(h => h.gameUid === effectiveGameUid || h.game_uid === effectiveGameUid);
+  }, [history, effectiveGameUid]);
 
   // 计算每个卡池的抽数
   const poolPullCounts = useMemo(() => {
@@ -170,7 +178,7 @@ function MobilePoolSelector() {
   const totalPools = pools?.length || 0;
   const visiblePools = selectorPools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
-  const showOverviewOptions = Boolean(currentGameUid);
+  const showOverviewOptions = Boolean(effectiveGameUid);
   const allOverviewId = `${POOL_GROUP_PREFIX}all`;
 
   const currentViewLatestRecordAt = useMemo(() => {
@@ -202,15 +210,14 @@ function MobilePoolSelector() {
   });
 
   useEffect(() => {
-    const preferredAccountUid = gameAccounts[0]?.gameUid || null;
-    if (!preferredAccountUid) {
+    if (!effectiveGameUid) {
       return;
     }
 
-    if (currentGameUid !== preferredAccountUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      switchGameAccount(preferredAccountUid);
+    if (currentGameUid !== effectiveGameUid) {
+      switchGameAccount(effectiveGameUid);
     }
-  }, [currentGameUid, gameAccounts, switchGameAccount]);
+  }, [currentGameUid, effectiveGameUid, switchGameAccount]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -309,7 +316,7 @@ function MobilePoolSelector() {
               <div className="flex items-center gap-2 min-w-0">
                 <User size={14} className="text-zinc-500 shrink-0" />
                 <span className="text-zinc-200 truncate">
-                  {currentAccount?.nickName || t('pool.selector.allAccounts')}
+                  {currentAccount?.nickName || t('pool.selector.selectAccount')}
                 </span>
                 {currentAccountServerTag && (
                   <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
@@ -376,7 +383,7 @@ function MobilePoolSelector() {
                   {t('pool.selector.accountStatus')}
                 </div>
                 <div className="mt-1 text-sm font-bold leading-tight text-zinc-100 break-words">
-                  {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : t('pool.selector.multiAccountOverview')}
+                  {currentAccount ? `${currentAccount.nickName} · ${currentAccount.gameUid}` : t('pool.selector.selectAccount')}
                 </div>
               </div>
               <span className={`self-start px-2 py-1 text-[10px] font-bold border whitespace-nowrap ${getFreshnessToneClasses(getFreshnessTone(getAccountLastImportTimestamp(currentAccount)))}`}>

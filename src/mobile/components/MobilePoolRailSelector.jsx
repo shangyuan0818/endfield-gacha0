@@ -52,7 +52,9 @@ export default function MobilePoolRailSelector() {
   const switchPool = usePoolStore((state) => state.switchPool);
   const switchToPoolGroup = usePoolStore((state) => state.switchToPoolGroup);
   const currentGameUid = usePoolStore((state) => state.currentGameUid);
+  const switchGameAccount = usePoolStore((state) => state.switchGameAccount);
   const history = useHistoryStore((state) => state.history);
+  const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const user = useAuthStore((state) => state.user);
   const [showImportManager, setShowImportManager] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,7 +64,22 @@ export default function MobilePoolRailSelector() {
   const [expandedGroups, setExpandedGroups] = useState({});
   const poolMenuRef = React.useRef(null);
 
-  const filteredHistory = useMemo(() => currentGameUid ? history.filter((item) => (item.gameUid || item.game_uid) === currentGameUid) : history, [currentGameUid, history]);
+  const gameAccounts = useMemo(() => {
+    void history;
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
+  const effectiveGameUid = useMemo(() => {
+    if (gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      return currentGameUid;
+    }
+
+    return gameAccounts[0]?.gameUid || null;
+  }, [currentGameUid, gameAccounts]);
+  const filteredHistory = useMemo(() => (
+    effectiveGameUid
+      ? history.filter((item) => (item.gameUid || item.game_uid) === effectiveGameUid)
+      : history
+  ), [effectiveGameUid, history]);
   const poolPullCounts = useMemo(() => filteredHistory.reduce((acc, item) => {
     const poolId = item.poolId || item.pool_id;
     if (poolId) acc[poolId] = (acc[poolId] || 0) + 1;
@@ -85,7 +102,7 @@ export default function MobilePoolRailSelector() {
   }, [currentPoolId, locale, pools, t]);
   const groupedPools = useMemo(() => buildPoolSelectorGroups({ pools: selectorPools, poolPullCounts, searchQuery, locale }), [locale, poolPullCounts, searchQuery, selectorPools]);
   const totalPulls = Object.values(poolPullCounts).reduce((sum, count) => sum + count, 0);
-  const showOverviewOptions = Boolean(currentGameUid);
+  const showOverviewOptions = Boolean(effectiveGameUid);
   const allOverviewId = `${POOL_GROUP_PREFIX}all`;
   const currentViewLatestRecordAt = useMemo(() => {
     const timestamp = getLatestHistoryTimestampMs(filteredHistory);
@@ -129,6 +146,16 @@ export default function MobilePoolRailSelector() {
 
     return poolPullCounts[currentPoolId] || 0;
   }, [allOverviewId, currentPoolId, groupedPools, poolPullCounts, totalPulls]);
+
+  useEffect(() => {
+    if (gameAccounts.length <= 1) {
+      return;
+    }
+
+    if (effectiveGameUid && currentGameUid !== effectiveGameUid) {
+      switchGameAccount(effectiveGameUid);
+    }
+  }, [currentGameUid, effectiveGameUid, gameAccounts.length, switchGameAccount]);
 
   useEffect(() => {
     if (showOverviewOptions || !isPoolGroupId(currentPoolId)) return;

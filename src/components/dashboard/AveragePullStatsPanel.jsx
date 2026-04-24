@@ -30,7 +30,9 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, t }) {
   if (poolType !== 'standard') {
     items.push({
       id: 'avg-6-target',
-      label: isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix'),
+      label: poolType === 'weapon'
+        ? t('dashboard.average.upWeapon')
+        : isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix'),
       value: formatAverage(stats?.avgPullCost?.[6], t),
       tone: poolType === 'weapon'
         ? 'text-slate-700 dark:text-zinc-300'
@@ -38,7 +40,10 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, t }) {
     });
   }
 
-  if (poolType === 'limited' || isAllPoolsOverview) {
+  const showLimitedSixAverage = poolType !== 'weapon'
+    && (poolType === 'limited' || isAllPoolsOverview);
+
+  if (showLimitedSixAverage) {
     items.push({
       id: 'avg-6-limited',
       label: t('dashboard.average.limitedSix'),
@@ -51,12 +56,16 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, t }) {
 }
 
 function buildNote({ stats, poolType, isAllPoolsOverview, t }) {
-  const baseNote = t('dashboard.average.noteBase');
+  const baseNote = stats?.includeFreePullsInStats
+    ? t('dashboard.average.noteBaseWithFree')
+    : t('dashboard.average.noteBase');
   if (poolType === 'standard') {
     return t('dashboard.average.noteStandard', { base: baseNote });
   }
 
-  const targetLabel = isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix');
+  const targetLabel = poolType === 'weapon'
+    ? t('dashboard.average.upWeapon')
+    : isAllPoolsOverview ? t('dashboard.average.targetSix') : t('dashboard.average.upSix');
   if (stats?.sparkCount > 0 && stats?.avgPullCost?.['6_with_spark']) {
     const sparkAverage = formatAverage(stats.avgPullCost['6_with_spark'], t);
     return t('dashboard.average.noteWithSpark', { base: baseNote, target: targetLabel, value: sparkAverage });

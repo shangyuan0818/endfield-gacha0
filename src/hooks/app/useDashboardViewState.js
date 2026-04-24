@@ -8,6 +8,7 @@ import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
 import { getPoolFeaturedLead } from '../../utils/poolFeaturedResolver.js';
 import { useCurrentPoolData } from './useCurrentPoolData';
 import { usePoolStats } from './usePoolStats';
+import { readBooleanStorageValue, STORAGE_KEYS, writeBooleanStorageValue } from '../../utils/storageUtils.js';
 
 function normalizePoolType(type) {
   if (type === 'extra') return 'extra';
@@ -24,6 +25,16 @@ function isLimitedPoolType(type) {
 export function useDashboardViewState() {
   const user = useAuthStore(state => state.user);
   const [charViewMode, setCharViewMode] = useState('waterfall');
+  const [includeFreePullsInStats, setIncludeFreePullsInStatsState] = useState(() => (
+    readBooleanStorageValue(STORAGE_KEYS.DASHBOARD_INCLUDE_FREE_PULLS, false, { raw: true })
+  ));
+  const setIncludeFreePullsInStats = (valueOrUpdater) => {
+    setIncludeFreePullsInStatsState((current) => {
+      const next = typeof valueOrUpdater === 'function' ? valueOrUpdater(current) : valueOrUpdater;
+      writeBooleanStorageValue(STORAGE_KEYS.DASHBOARD_INCLUDE_FREE_PULLS, next, { raw: true });
+      return next;
+    });
+  };
 
   const {
     poolsArray,
@@ -60,7 +71,9 @@ export function useDashboardViewState() {
     normalizedCurrentPoolHistory: normalizedPoolHistory,
     currentPool,
     allLimitedHistory,
-    currentPoolId: currentPool?.id
+    currentPoolId: currentPool?.id,
+    selectedPools,
+    includeFreePullsInStats
   });
 
   const characterStats = useMemo(() => (
@@ -68,9 +81,10 @@ export function useDashboardViewState() {
       history: normalizedPoolHistory,
       isLimitedPool: isLimited,
       crossPoolPityMap,
-      limitedPoolIds: isGroupMode ? visibleLimitedPoolIds : null
+      limitedPoolIds: isGroupMode ? visibleLimitedPoolIds : null,
+      includeFreePullsInStats
     })
-  ), [crossPoolPityMap, isGroupMode, isLimited, normalizedPoolHistory, visibleLimitedPoolIds]);
+  ), [crossPoolPityMap, includeFreePullsInStats, isGroupMode, isLimited, normalizedPoolHistory, visibleLimitedPoolIds]);
 
   const totalCharacterCount = useMemo(() => {
     return characterStats.reduce((sum, char) => sum + char.count, 0);
@@ -112,13 +126,14 @@ export function useDashboardViewState() {
     }
 
     const giftThresholds = [100, 180, 260, 340, 420, 500];
+    const paidTotal = stats.paidTotal ?? stats.total;
     let nextGift = 0;
     let nextGiftType = 'standard';
     let standardCount = 0;
     let limitedCount = 0;
 
     for (const threshold of giftThresholds) {
-      if (stats.total >= threshold) {
+      if (paidTotal >= threshold) {
         if (threshold === 180 || threshold === 340 || threshold === 500) {
           limitedCount++;
         } else {
@@ -128,21 +143,21 @@ export function useDashboardViewState() {
     }
 
     for (const threshold of giftThresholds) {
-      if (stats.total < threshold) {
+      if (paidTotal < threshold) {
         nextGift = threshold;
         nextGiftType = (threshold === 180 || threshold === 340 || threshold === 500) ? 'limited' : 'standard';
         break;
       }
     }
 
-    if (nextGift === 0 && stats.total >= 500) {
-      const cycle = Math.floor((stats.total - 180) / 160);
+    if (nextGift === 0 && paidTotal >= 500) {
+      const cycle = Math.floor((paidTotal - 180) / 160);
       nextGift = 180 + (cycle + 1) * 160;
       nextGiftType = nextGift % 160 === 20 ? 'limited' : 'standard';
     }
 
     return { nextGift, nextGiftType, standardCount, limitedCount };
-  }, [normalizedPoolType, stats.total]);
+  }, [normalizedPoolType, stats.paidTotal, stats.total]);
 
   const currentUpPool = useMemo(() => {
     if ((isLimited || isExtra) && currentPool?.start_time && currentPool?.end_time) {
@@ -192,7 +207,7 @@ export function useDashboardViewState() {
     currentPoolHistory.forEach((item) => {
       const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
       const isFree = item?.isFree === true || item?.is_free === true;
-      if (isGift || isFree) {
+      if (isGift || (!includeFreePullsInStats && isFree)) {
         return;
       }
 
@@ -203,12 +218,12 @@ export function useDashboardViewState() {
 
       if (poolType === 'weapon') {
         weaponPulls += 1;
-        if (!isInfoBookHistoryPull(item)) {
+        if (!isFree && !isInfoBookHistoryPull(item)) {
           chargedWeaponPulls += 1;
         }
       } else {
         characterPulls += 1;
-        if (!isInfoBookHistoryPull(item)) {
+        if (!isFree && !isInfoBookHistoryPull(item)) {
           chargedCharacterPulls += 1;
         }
       }
@@ -239,7 +254,7 @@ export function useDashboardViewState() {
       },
       arsenalGainCounts
     });
-  }, [currentPoolHistory, isAllPoolsOverview, selectedPools, stats.resourceSummary]);
+  }, [currentPoolHistory, includeFreePullsInStats, isAllPoolsOverview, selectedPools, stats.resourceSummary]);
 
   const resourceSummaryVariant = useMemo(() => {
     if (isAllPoolsOverview) {
@@ -253,6 +268,8 @@ export function useDashboardViewState() {
     user,
     charViewMode,
     setCharViewMode,
+    includeFreePullsInStats,
+    setIncludeFreePullsInStats,
     poolsArray,
     selectedPools,
     accountHistory: annotatedAccountHistoryArray,

@@ -23,6 +23,23 @@ describe('share featured source unification', () => {
     expect(payload.featured).toBe('莱万汀 等4名');
   });
 
+  it('marks dashboard share methodology when free ten pulls are included', () => {
+    const payload = buildDashboardSharePayload({
+      currentPool: {
+        type: 'limited',
+        name: '测试限定池',
+      },
+      normalizedPoolType: 'limited',
+      stats: {
+        includeFreePullsInStats: true,
+      },
+      sections: [],
+    }, 'zh-CN');
+
+    expect(payload.includeFreePullsInStats).toBe(true);
+    expect(payload.methodology).toContain('计入免费十连');
+  });
+
   it('prefers resolved roster for simulator share featured label', () => {
     const payload = buildSimulatorSharePayload({
       currentPoolObj: {

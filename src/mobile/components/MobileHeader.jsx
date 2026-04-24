@@ -41,15 +41,23 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
     return getGameAccountsFromHistory();
   }, [getGameAccountsFromHistory, history]);
 
+  const effectiveGameUid = useMemo(() => {
+    if (gameAccounts.some((account) => account.gameUid === currentGameUid)) {
+      return currentGameUid;
+    }
+
+    return gameAccounts[0]?.gameUid || null;
+  }, [currentGameUid, gameAccounts]);
+
   const currentAccount = useMemo(() => {
-    if (currentGameUid) {
-      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    if (effectiveGameUid) {
+      return gameAccounts.find((account) => account.gameUid === effectiveGameUid) || null;
     }
     if (gameAccounts.length === 1) {
       return gameAccounts[0];
     }
     return null;
-  }, [currentGameUid, gameAccounts]);
+  }, [effectiveGameUid, gameAccounts]);
 
   const showAccountSwitcher = activeTab === 'details' || activeTab === 'overview';
   const canSwitchAccount = showAccountSwitcher && gameAccounts.length > 0;
@@ -58,12 +66,22 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
     : null;
   const accountLabel = currentAccount
     ? `${currentAccountServerTag ? `${currentAccountServerTag} · ` : ''}${currentAccount.nickName}`
-    : t('pool.selector.allAccounts');
+    : t('pool.selector.selectAccount');
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.contains('dark');
     setThemeMode(isDark ? 'light' : 'dark');
   };
+
+  useEffect(() => {
+    if (gameAccounts.length <= 1) {
+      return;
+    }
+
+    if (effectiveGameUid && currentGameUid !== effectiveGameUid) {
+      switchGameAccount(effectiveGameUid);
+    }
+  }, [currentGameUid, effectiveGameUid, gameAccounts.length, switchGameAccount]);
 
   useEffect(() => {
     if (!showAccountMenu) {
@@ -136,24 +154,6 @@ export default function MobileHeader({ onMenuClick, activeTab }) {
             </div>
           </div>
           <div className="max-h-[50vh] overflow-y-auto p-3">
-            <button
-              type="button"
-              onClick={() => {
-                switchGameAccount(null);
-                setShowAccountMenu(false);
-              }}
-              className={cx(
-                'mb-2 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left',
-                !currentGameUid
-                  ? 'border-endfield-yellow/30 bg-endfield-yellow/10 text-slate-900 dark:text-endfield-yellow'
-                  : 'border-zinc-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-900/70 dark:text-zinc-300'
-              )}
-            >
-              <div className="min-w-0">
-                <div className="text-[11px] font-bold">{t('pool.selector.allAccounts')}</div>
-                <div className="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-500">{t('pool.selector.multiAccountOverview')}</div>
-              </div>
-            </button>
             {gameAccounts.map((account) => (
               <button
                 key={account.gameUid}

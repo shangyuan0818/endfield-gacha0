@@ -1,6 +1,7 @@
 import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
+import { resolveCharacterRecordByName } from './characterUtils.js';
 
 const CHAR_PITY_LIMIT = LIMITED_POOL_RULES.sixStarPity;
 const WEAPON_PITY_LIMIT = WEAPON_POOL_RULES.sixStarPity;
@@ -14,6 +15,64 @@ function normalizePoolType(type) {
 
 function getBucketFromPoolType(type) {
   return normalizePoolType(type) === 'weapon' ? 'weapon' : 'character';
+}
+
+function isTargetCapablePool(type) {
+  const normalizedType = normalizePoolType(type);
+  return normalizedType === 'limited' || normalizedType === 'extra' || normalizedType === 'weapon';
+}
+
+function isLimitedCharacterPool(type) {
+  const normalizedType = normalizePoolType(type);
+  return normalizedType === 'limited' || normalizedType === 'extra';
+}
+
+function readExplicitLimitedFlag(item) {
+  const value = item?.item_is_limited
+    ?? item?.itemIsLimited
+    ?? item?.character_is_limited
+    ?? item?.characterIsLimited
+    ?? item?.char_is_limited
+    ?? item?.charIsLimited
+    ?? item?.is_limited
+    ?? item?.metadata?.item_is_limited
+    ?? item?.metadata?.character_is_limited
+    ?? null;
+
+  return typeof value === 'boolean' ? value : null;
+}
+
+function getHistoryItemLookupValues(item) {
+  return [
+    item?.character_id,
+    item?.characterId,
+    item?.item_id,
+    item?.itemId,
+    item?.character_name,
+    item?.characterName,
+    item?.item_name,
+    item?.itemName,
+    item?.name
+  ]
+    .map((value) => (value == null ? '' : String(value).trim()))
+    .filter(Boolean);
+}
+
+function isLimitedCharacterOffrate(item) {
+  const explicitFlag = readExplicitLimitedFlag(item);
+  if (explicitFlag !== null) {
+    return explicitFlag;
+  }
+
+  const lookupValues = getHistoryItemLookupValues(item);
+  for (const value of lookupValues) {
+    const itemInfo = resolveCharacterRecordByName(value, { fuzzy: true });
+    if (itemInfo) {
+      return itemInfo.type !== 'weapon' && itemInfo.is_limited === true;
+    }
+  }
+
+  return false;
 }
 
 function createBucketAccumulator() {
@@ -76,7 +135,8 @@ function buildDistributionData(sixStarPulls, hardPityLimit) {
 
 export function buildDashboardOverviewSplitStats({
   history = [],
-  selectedPools = []
+  selectedPools = [],
+  includeFreePullsInStats = false
 } = {}) {
   const poolTypeById = new Map(
     selectedPools.map((pool) => [pool.id, normalizePoolType(pool.type)])
@@ -89,6 +149,9 @@ export function buildDashboardOverviewSplitStats({
       poolType: 'limited',
       _allSixStarPulls: [],
       _upCount: 0,
+      _limitedSixCount: 0,
+      _targetScopePulls: 0,
+      _limitedScopePulls: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
@@ -101,6 +164,9 @@ export function buildDashboardOverviewSplitStats({
       poolType: 'weapon',
       _allSixStarPulls: [],
       _upCount: 0,
+      _limitedSixCount: 0,
+      _targetScopePulls: 0,
+      _limitedScopePulls: 0,
       _characterPulls: 0,
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
@@ -131,23 +197,31 @@ export function buildDashboardOverviewSplitStats({
     sortedPulls.forEach((item) => {
       const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
       const isFree = item?.isFree === true || item?.is_free === true;
-      if (isGift || isFree) return;
+      if (isGift || (!includeFreePullsInStats && isFree)) return;
 
       bucket.total += 1;
       tempCounter += 1;
+      if (isTargetCapablePool(poolType)) {
+        bucket._targetScopePulls += 1;
+      }
+      if (isLimitedCharacterPool(poolType)) {
+        bucket._limitedScopePulls += 1;
+      }
 
       if (bucketKey === 'weapon') {
         bucket._weaponPulls += 1;
-        if (!isInfoBookHistoryPull(item)) bucket._chargedWeaponPulls += 1;
+        if (!isFree && !isInfoBookHistoryPull(item)) bucket._chargedWeaponPulls += 1;
       } else {
         bucket._characterPulls += 1;
-        if (!isInfoBookHistoryPull(item)) bucket._chargedCharacterPulls += 1;
+        if (!isFree && !isInfoBookHistoryPull(item)) bucket._chargedCharacterPulls += 1;
       }
 
       const rarity = Number(item?.rarity) || 0;
 
       if (rarity >= 6) {
-        const isTargetSixStar = !item?.isStandard;
+        const isTargetSixStar = isTargetCapablePool(poolType) && !item?.isStandard;
+        const isLimitedSixStar = isLimitedCharacterPool(poolType)
+          && (isTargetSixStar || isLimitedCharacterOffrate(item));
 
         if (isTargetSixStar) {
           bucket.counts[6] += 1;
@@ -165,6 +239,7 @@ export function buildDashboardOverviewSplitStats({
         });
 
         if (isTargetSixStar) bucket._upCount += 1;
+        if (isLimitedSixStar) bucket._limitedSixCount += 1;
 
         tempCounter = 0;
         return;
@@ -189,12 +264,13 @@ export function buildDashboardOverviewSplitStats({
 
     const avgFiveStar = bucket.counts[5] > 0 ? (bucket.total / bucket.counts[5]).toFixed(2) : '0';
     const avgAllSixStar = bucket.totalSixStar > 0 ? (bucket.total / bucket.totalSixStar).toFixed(2) : '0';
-    const avgTargetSixStar = bucket._upCount > 0 ? (bucket.total / bucket._upCount).toFixed(2) : '0';
+    const avgTargetSixStar = bucket._upCount > 0 ? ((bucket._targetScopePulls || bucket.total) / bucket._upCount).toFixed(2) : '0';
+    const avgLimitedSixStar = bucket._limitedSixCount > 0 ? ((bucket._limitedScopePulls || bucket.total) / bucket._limitedSixCount).toFixed(2) : '0';
 
     bucket.avgPullCost = {
       6: avgTargetSixStar,
       '6_all': avgAllSixStar,
-      '6_limited': avgTargetSixStar,
+      '6_limited': avgLimitedSixStar,
       '6_with_spark': avgTargetSixStar,
       5: avgFiveStar
     };
@@ -223,6 +299,9 @@ export function buildDashboardOverviewSplitStats({
 
     delete bucket._allSixStarPulls;
     delete bucket._upCount;
+    delete bucket._limitedSixCount;
+    delete bucket._targetScopePulls;
+    delete bucket._limitedScopePulls;
     delete bucket._characterPulls;
     delete bucket._weaponPulls;
     delete bucket._chargedCharacterPulls;

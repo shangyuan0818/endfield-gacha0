@@ -15,7 +15,8 @@ export function buildCharacterStats({
   history = [],
   isLimitedPool = false,
   crossPoolPityMap = null,
-  limitedPoolIds = null
+  limitedPoolIds = null,
+  includeFreePullsInStats = true
 }) {
   const characters = new Map();
   let pullIndex = 0;
@@ -39,6 +40,10 @@ export function buildCharacterStats({
     }
 
     const isFree = item?.isFree || item?.is_free;
+    if (isFree && !includeFreePullsInStats) {
+      return;
+    }
+
     const isInfoBook = isInfoBookHistoryPull(item);
 
     if (!isFree) {

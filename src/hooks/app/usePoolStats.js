@@ -5,7 +5,7 @@ import {
   calculatePity5FromHistory,
   calculatePityFromHistory
 } from '../../utils/index.js';
-import { characterCache } from '../../utils/characterUtils.js';
+import { resolveCharacterRecordByName } from '../../utils/characterUtils.js';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import {
   createHitIntervalTracker,
@@ -23,6 +23,90 @@ function isFreePull(pull) {
   return pull?.isFree === true || pull?.is_free === true;
 }
 
+function normalizePoolType(type) {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'extra') return 'extra';
+  if (type === 'limited_weapon') return 'weapon';
+  if (type === 'beginner') return 'standard';
+  return type || 'standard';
+}
+
+function getHistoryPoolId(item) {
+  return item?.poolId || item?.pool_id || null;
+}
+
+function isTargetCapablePool(poolType) {
+  return poolType === 'limited' || poolType === 'extra' || poolType === 'weapon';
+}
+
+function isLimitedCharacterPool(poolType) {
+  return poolType === 'limited' || poolType === 'extra';
+}
+
+function readExplicitLimitedFlag(item) {
+  const value = item?.item_is_limited
+    ?? item?.itemIsLimited
+    ?? item?.character_is_limited
+    ?? item?.characterIsLimited
+    ?? item?.char_is_limited
+    ?? item?.charIsLimited
+    ?? item?.is_limited
+    ?? item?.metadata?.item_is_limited
+    ?? item?.metadata?.character_is_limited
+    ?? null;
+
+  return typeof value === 'boolean' ? value : null;
+}
+
+function getHistoryItemLookupValues(item) {
+  return [
+    item?.character_id,
+    item?.characterId,
+    item?.item_id,
+    item?.itemId,
+    item?.character_name,
+    item?.characterName,
+    item?.item_name,
+    item?.itemName,
+    item?.name
+  ]
+    .map((value) => (value == null ? '' : String(value).trim()))
+    .filter(Boolean);
+}
+
+function isLimitedCharacterOffrate(pull) {
+  const explicitFlag = readExplicitLimitedFlag(pull);
+  if (explicitFlag !== null) {
+    return explicitFlag;
+  }
+
+  const lookupValues = getHistoryItemLookupValues(pull);
+  for (const value of lookupValues) {
+    const charInfo = resolveCharacterRecordByName(value, { fuzzy: true });
+    if (charInfo) {
+      return charInfo.type !== 'weapon' && charInfo.is_limited === true;
+    }
+  }
+
+  return false;
+}
+
+function isTargetSixStarPull(pull, poolType) {
+  return isTargetCapablePool(poolType) && !pull.isStandard;
+}
+
+function isLimitedSixStarPull(pull, poolType) {
+  if (!isLimitedCharacterPool(poolType)) {
+    return false;
+  }
+
+  if (!pull.isStandard) {
+    return true;
+  }
+
+  return isLimitedCharacterOffrate(pull);
+}
+
 function getHistoryRecordKey(item) {
   const value = item?.id || item?.record_id || null;
   return value == null ? null : String(value);
@@ -36,26 +120,27 @@ export function usePoolStats({
   normalizedCurrentPoolHistory,
   currentPool,
   allLimitedHistory = [],
-  currentPoolId = currentPool?.id
+  currentPoolId = currentPool?.id,
+  selectedPools = [],
+  includeFreePullsInStats = false
 }) {
   const {
     groupedHistory,
     filteredGroupedHistory
   } = useCurrentPoolGroupedHistory(normalizedCurrentPoolHistory);
 
-  const normalizedPoolType = currentPool?.type === 'limited_character'
-    ? 'limited'
-    : currentPool?.type === 'extra'
-      ? 'extra'
-    : currentPool?.type === 'limited_weapon'
-      ? 'weapon'
-      : currentPool?.type === 'beginner'
-        ? 'standard'
-        : currentPool?.type;
+  const normalizedPoolType = normalizePoolType(currentPool?.type);
   const isLimitedPool = normalizedPoolType === 'limited';
   const isExtraPool = normalizedPoolType === 'extra';
   const isWeaponPool = normalizedPoolType === 'weapon';
   const isStandardPool = normalizedPoolType === 'standard' || normalizedPoolType === 'beginner';
+  const poolTypeById = useMemo(() => (
+    new Map(
+      (Array.isArray(selectedPools) ? selectedPools : [])
+        .map((pool) => [pool?.id, normalizePoolType(pool?.type)])
+        .filter(([poolId]) => Boolean(poolId))
+    )
+  ), [selectedPools]);
   const limitedCrossPoolPityMap = useMemo(() => {
     if (!isLimitedPool || !Array.isArray(allLimitedHistory) || allLimitedHistory.length === 0) {
       return null;
@@ -82,9 +167,21 @@ export function usePoolStats({
 
   // 主统计计算
   const stats = useMemo(() => {
-    const validPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
-    const chargedPullsList = validPullsList.filter((item) => !isInfoBookHistoryPull(item));
+    const getPullPoolType = (pull) => {
+      if (currentPool?.isGroupMode) {
+        return poolTypeById.get(getHistoryPoolId(pull)) || normalizePoolType(pull?.poolType || pull?.pool_type);
+      }
+
+      return normalizedPoolType;
+    };
+    const paidPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
+    const validPullsList = normalizedCurrentPoolHistory.filter((item) => (
+      !isGiftPull(item) && (includeFreePullsInStats || !isFreePull(item))
+    ));
+    const chargedPullsList = validPullsList.filter((item) => !isFreePull(item) && !isInfoBookHistoryPull(item));
     const total = validPullsList.length;
+    const paidTotal = paidPullsList.length;
+    const freePullCount = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && isFreePull(item)).length;
 
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
     const giftCounts = { 6: 0 };
@@ -123,13 +220,14 @@ export function usePoolStats({
         return; // 赠送不计入稀有度统计
       }
 
-      if (isFreePull(pull)) return; // 免费十连不计入稀有度统计
+      if (!includeFreePullsInStats && isFreePull(pull)) return; // 免费十连默认不计入稀有度统计
+      const pullPoolType = getPullPoolType(pull);
 
       if (r === 6) {
-        if (pull.isStandard) {
-          counts['6_std']++;
-        } else {
+        if (isTargetSixStarPull(pull, pullPoolType)) {
           counts[6]++;
+        } else {
+          counts['6_std']++;
         }
       } else {
         if (r < 4) r = 4;
@@ -153,19 +251,19 @@ export function usePoolStats({
     let offStandardCount = 0;  // 歪到常驻角色
     let offLimitedCount = 0;   // 歪到非当期限定角色
     normalizedCurrentPoolHistory.forEach(pull => {
-       if (pull.rarity === 6 && !isGiftPull(pull) && !isFreePull(pull)) {
-          if (pull.isStandard) {
+       if (pull.rarity === 6 && !isGiftPull(pull) && (includeFreePullsInStats || !isFreePull(pull))) {
+          const pullPoolType = getPullPoolType(pull);
+          if (isTargetSixStarPull(pull, pullPoolType)) {
+            realLimited++;
+          } else {
             realStandard++;
             // 区分歪常驻 vs 歪限定
-            const charName = pull.character_name || pull.item_name || pull.name || '';
-            const charInfo = characterCache.searchByName(charName);
-            if (charInfo && charInfo.is_limited) {
+            if (isLimitedCharacterOffrate(pull)) {
               offLimitedCount++;  // 歪到非当期限定角色
             } else {
               offStandardCount++; // 歪到常驻角色
             }
           }
-          else realLimited++;
        }
     });
     const realTotalSix = realLimited + realStandard;
@@ -177,20 +275,20 @@ export function usePoolStats({
 
     if (!currentPool.isGroupMode) {
       if (isLimitedPool) {
-        bonusGiftsLimited = Math.floor(total / 240);
+        bonusGiftsLimited = Math.floor(paidTotal / 240);
       } else if (isExtraPool) {
         bonusGiftsLimited = 0;
       } else if (isWeaponPool) {
-        if (total >= 100) bonusGiftsStandard++;
-        if (total >= 180) {
+        if (paidTotal >= 100) bonusGiftsStandard++;
+        if (paidTotal >= 180) {
           bonusGiftsLimited++;
-          const extraPulls = total - 180;
+          const extraPulls = paidTotal - 180;
           const extraCycles = Math.floor(extraPulls / 80);
           bonusGiftsStandard += Math.ceil(extraCycles / 2);
           bonusGiftsLimited += Math.floor(extraCycles / 2);
         }
       } else if (isStandardPool) {
-        if (total >= 300) {
+        if (paidTotal >= 300) {
           bonusGiftsStandard++;
         }
       }
@@ -202,24 +300,34 @@ export function usePoolStats({
     // 统计历史6星出货分布
     const sixStarPulls = [];
     const upSixStarHits = [];
+    const limitedSixStarHits = [];
     const limitedSixStarIntervalTracker = createHitIntervalTracker(); // UI-007: 限定六星(UP+歪限定)
     const targetSixStarIntervalTracker = createHitIntervalTracker();
     let tempCounter = 0;
     let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
     let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
+    let targetScopeTotal = 0;
+    let limitedScopeTotal = 0;
 
     validPullsList.forEach(pull => {
+      const pullPoolType = getPullPoolType(pull);
       tempCounter++;
       cumulativePullCount++;
+      if (isTargetCapablePool(pullPoolType)) {
+        targetScopeTotal++;
+      }
+      if (isLimitedCharacterPool(pullPoolType)) {
+        limitedScopeTotal++;
+      }
       recordHitIntervalPull(targetSixStarIntervalTracker);
       recordHitIntervalPull(limitedSixStarIntervalTracker);
       if (pull.rarity === 6) {
         // 判断是否为120抽Spark触发（FEAT-014）
         // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
         // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
-        const isUp = !pull.isStandard;
+        const isUp = isTargetSixStarPull(pull, pullPoolType);
         let isSpark = false;
-        if (!currentPool.isGroupMode && isLimitedPool && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+        if (!currentPool.isGroupMode && pullPoolType === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
           isSpark = true;
         }
         if (isUp && cumulativePullCount < 120) {
@@ -227,12 +335,7 @@ export function usePoolStats({
         }
 
         // UI-007: 判断歪出的6星是否为限定角色
-        let isActuallyLimited = false;
-        if (pull.isStandard) {
-          const charName = pull.character_name || pull.item_name || pull.name || '';
-          const charInfo = characterCache.searchByName(charName);
-          isActuallyLimited = !!(charInfo && charInfo.is_limited);
-        }
+        const isActuallyLimited = isLimitedSixStarPull(pull, pullPoolType);
 
         const inheritedSixStarCount = isLimitedPool
           ? limitedCrossPoolPityMap?.get(getHistoryRecordKey(pull))
@@ -250,9 +353,10 @@ export function usePoolStats({
         if (isUp) {
           upSixStarHits.push(pullRecord);
           recordHitIntervalHit(targetSixStarIntervalTracker, { isSpark });
+        }
+        if (isActuallyLimited) {
+          limitedSixStarHits.push(pullRecord);
           recordHitIntervalHit(limitedSixStarIntervalTracker, { isSpark });
-        } else if (isActuallyLimited) {
-          recordHitIntervalHit(limitedSixStarIntervalTracker);
         }
         tempCounter = 0;
       }
@@ -272,17 +376,21 @@ export function usePoolStats({
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
     const upHitCount = upSixStarHits.length;
     const nonSparkUpHitCount = upSixStarHits.filter((pull) => !pull.isSpark).length;
+    const limitedSixStarHitCount = limitedSixStarHits.length;
+    const nonSparkLimitedSixStarHitCount = limitedSixStarHits.filter((pull) => !pull.isSpark).length;
 
     // BUG-035: 详情页 / 总览 / 统计页统一为 池总抽数 / 目标 6★ 次数
     const avgUpSixStar = upHitCount > 0
-      ? (total / upHitCount).toFixed(2)
+      ? ((targetScopeTotal || total) / upHitCount).toFixed(2)
       : '0';
     const avgUpSixStarExcludingSpark = nonSparkUpHitCount > 0
-      ? (total / nonSparkUpHitCount).toFixed(2)
+      ? ((targetScopeTotal || total) / nonSparkUpHitCount).toFixed(2)
       : '0';
-    const avgLimitedSixStar = avgUpSixStarExcludingSpark !== '0'
-      ? avgUpSixStarExcludingSpark
-      : avgUpSixStar;
+    const avgLimitedSixStar = nonSparkLimitedSixStarHitCount > 0
+      ? ((limitedScopeTotal || total) / nonSparkLimitedSixStarHitCount).toFixed(2)
+      : limitedSixStarHitCount > 0
+        ? ((limitedScopeTotal || total) / limitedSixStarHitCount).toFixed(2)
+        : '0';
 
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
@@ -342,13 +450,16 @@ export function usePoolStats({
     const probabilityInfo = currentPool.isGroupMode ? null : calculateCurrentProbability(currentPity, normalizedPoolType);
 
     const infoBookThreshold = LIMITED_POOL_RULES.infoBookThreshold;
-    const hasInfoBook = !currentPool.isGroupMode && isLimitedPool && total >= infoBookThreshold;
+    const hasInfoBook = !currentPool.isGroupMode && isLimitedPool && paidTotal >= infoBookThreshold;
     const pullsUntilInfoBook = !currentPool.isGroupMode && isLimitedPool && !hasInfoBook
-      ? infoBookThreshold - total
+      ? infoBookThreshold - paidTotal
       : 0;
 
     return {
       total,
+      paidTotal,
+      freePullCount,
+      includeFreePullsInStats,
       counts,
       totalSixStar,
       validSixStar,
@@ -375,7 +486,18 @@ export function usePoolStats({
       pullsUntilInfoBook,
       resourceSummary
     };
-  }, [currentPool.isGroupMode, isExtraPool, isLimitedPool, isStandardPool, isWeaponPool, limitedCrossPoolPityMap, normalizedCurrentPoolHistory, normalizedPoolType]);
+  }, [
+    currentPool.isGroupMode,
+    includeFreePullsInStats,
+    isExtraPool,
+    isLimitedPool,
+    isStandardPool,
+    isWeaponPool,
+    limitedCrossPoolPityMap,
+    normalizedCurrentPoolHistory,
+    normalizedPoolType,
+    poolTypeById
+  ]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）
   const inheritedPityInfo = useMemo(() => {

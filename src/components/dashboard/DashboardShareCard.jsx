@@ -214,6 +214,34 @@ const styles = {
     color: '#71717a',
     fontWeight: 600
   },
+  methodologyBanner: {
+    position: 'relative',
+    zIndex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    border: '2px solid #06b6d4',
+    background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.14), rgba(14, 165, 233, 0.06))',
+    padding: '10px 12px'
+  },
+  methodologyBannerLabel: {
+    fontSize: '11px',
+    fontWeight: 900,
+    letterSpacing: '0.18em',
+    textTransform: 'uppercase'
+  },
+  methodologyBannerValue: {
+    fontSize: '18px',
+    lineHeight: 1.1,
+    fontWeight: 900,
+    fontFamily: 'var(--share-font-mono)'
+  },
+  methodologyBannerHint: {
+    fontSize: '11px',
+    lineHeight: 1.45,
+    fontWeight: 700
+  },
   summaryGrid: {
     position: 'relative',
     zIndex: 1,
@@ -703,6 +731,32 @@ function buildCompactRows({ poolType, summaryItems = [], averageItems = [], reso
   ];
 }
 
+function MethodologyBanner({ includeFreePullsInStats, methodology, tokens, tt }) {
+  const accent = includeFreePullsInStats ? '#06b6d4' : '#f59e0b';
+  const soft = includeFreePullsInStats
+    ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(14, 165, 233, 0.07))'
+    : 'linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(250, 204, 21, 0.07))';
+  const value = includeFreePullsInStats
+    ? tt('dashboard.shareCard.freeTenIncludedBadge', 'Free ten-pulls included')
+    : tt('dashboard.shareCard.freeTenExcludedBadge', 'Free ten-pulls excluded');
+
+  return (
+    <div style={{ ...styles.methodologyBanner, borderColor: accent, background: soft }}>
+      <div>
+        <div style={{ ...styles.methodologyBannerLabel, color: tokens.textMuted }}>
+          {tt('dashboard.shareCard.methodologyBadgeTitle', 'Statistic Method')}
+        </div>
+        <div style={{ ...styles.methodologyBannerValue, color: accent }}>
+          {value}
+        </div>
+      </div>
+      <div style={{ ...styles.methodologyBannerHint, color: tokens.textSecondary }}>
+        {methodology}
+      </div>
+    </div>
+  );
+}
+
 function getStatusText(status, tt) {
   if (!status?.isTimed) {
     return tt('dashboard.shareCard.status.permanent', 'Always available');
@@ -1047,6 +1101,13 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
         />
       </div>
 
+      <MethodologyBanner
+        includeFreePullsInStats={Boolean(payload?.includeFreePullsInStats)}
+        methodology={payload?.methodology || tt('dashboard.shareCard.methodology', 'Method: excludes gift nodes and free ten-pulls; intel books still count as valid pulls.')}
+        tokens={tokens}
+        tt={tt}
+      />
+
       <div>
         <div style={{ ...styles.sectionTitle, color: tokens.textMuted }}>{tt('dashboard.shareCard.coreStats', 'Core Stats')}</div>
         <div style={{ ...(compactBlocks.length > 1 ? styles.compactStatsGrid : {}), marginTop: '10px' }}>
@@ -1061,7 +1122,7 @@ const DashboardShareCard = forwardRef(function DashboardShareCard({ payload, sec
           ))}
         </div>
         <div style={{ ...styles.compactNote, marginTop: '10px', color: tokens.textMuted }}>
-          {tt('dashboard.shareCard.methodology', 'Method: excludes gift nodes and free ten-pulls; intel books still count as valid pulls.')}
+          {payload?.methodology || tt('dashboard.shareCard.methodology', 'Method: excludes gift nodes and free ten-pulls; intel books still count as valid pulls.')}
         </div>
       </div>
 

@@ -161,13 +161,14 @@ const StatCard = ({ label, value, subValue, footer, progress, progressColor, ext
  * 武器池赠送进度组件
  */
 const WeaponGifts = ({ stats, t }) => {
+  const paidTotal = stats.paidTotal ?? stats.total;
   // 计算下一档赠送阈值
   const giftThresholds = [100, 180, 260, 340, 420, 500];
   let nextWeaponGift = 0;
   let nextWeaponGiftType = 'standard';
 
   for (const threshold of giftThresholds) {
-    if (stats.total < threshold) {
+    if (paidTotal < threshold) {
       nextWeaponGift = threshold;
       nextWeaponGiftType = threshold === 100 ? 'standard' : (threshold === 180 || threshold === 340 || threshold === 500) ? 'limited' : 'standard';
       break;
@@ -176,7 +177,7 @@ const WeaponGifts = ({ stats, t }) => {
 
   // 超过500抽循环计算
   if (nextWeaponGift === 0) {
-    const cycle = Math.floor((stats.total - 180) / 160);
+    const cycle = Math.floor((paidTotal - 180) / 160);
     nextWeaponGift = 180 + (cycle + 1) * 160;
     nextWeaponGiftType = nextWeaponGift % 160 === 20 ? 'limited' : 'standard';
   }
@@ -190,11 +191,11 @@ const WeaponGifts = ({ stats, t }) => {
                     {nextWeaponGiftType === 'limited' ? t('dashboard.analysis.limitedShort') : t('dashboard.analysis.standardShort')}
                   </span>
               </span>
-              <span className="text-xs font-mono text-slate-600 dark:text-zinc-400">{stats.total} / {nextWeaponGift}</span>
+              <span className="text-xs font-mono text-slate-600 dark:text-zinc-400">{paidTotal} / {nextWeaponGift}</span>
           </div>
           <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
              <div className={`h-full ${nextWeaponGiftType === 'limited' ? 'rainbow-progress' : 'bg-red-500'}`}
-                  style={{ width: `${Math.min((stats.total / nextWeaponGift) * 100, 100)}%` }}></div>
+                  style={{ width: `${Math.min((paidTotal / nextWeaponGift) * 100, 100)}%` }}></div>
           </div>
           <div className="flex gap-3 text-[11px] text-slate-600 dark:text-zinc-400 font-mono">
               <span>{t('dashboard.analysis.obtainedSummary')}</span>
@@ -229,6 +230,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
       locale,
       type: isWeapon ? 'weapon' : 'character'
     });
+  const paidTotal = stats.paidTotal ?? stats.total;
   const pityState = getPoolAnalysisPityState(currentPool, stats, effectivePity);
   const currentProbabilityInfo = useMemo(() => {
     if (currentPool?.isGroupMode || hasMergedAccountView) {
@@ -276,10 +278,10 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              {analysisTitle}
            </h3>
            {/* UP角色显示 */}
-           {localizedUpCharacter && (
+           {!isStandard && localizedUpCharacter && (
              <div className="text-right">
                 <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">
-                  {isExtra ? t('simulator.analysis.featuredRoster') : t('dashboard.pool.upCharacter')}
+                  {isExtra ? t('simulator.analysis.featuredRoster') : isWeapon ? t('dashboard.pool.upWeapon') : t('dashboard.pool.upCharacter')}
                 </div>
                 <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{localizedUpCharacter}</div>
              </div>
@@ -358,7 +360,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            {/* 不歪率 */}
            <StatCard
              label={t('dashboard.analysis.winRate')}
-             extraLabel={(isLimited || isExtra) ? t('dashboard.analysis.freeTenExcluded') : null}
+             extraLabel={(isLimited || isExtra) ? (stats.includeFreePullsInStats ? t('dashboard.analysis.includeFreeTen') : t('dashboard.analysis.freeTenExcluded')) : null}
              value={stats.sixStarCount > 0 ? `${stats.winRate}%` : '-'}
              progress={stats.sixStarCount > 0 ? parseFloat(stats.winRate) : 0}
              progressColor={isLimited ? 'rainbow-progress' : isExtra ? 'bg-cyan-500' : 'bg-blue-500'}
@@ -430,14 +432,14 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-purple-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.potential240')}</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.total % 240} / 240</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{paidTotal % 240} / 240</span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
-                  <div className="h-full bg-purple-500" style={{width: `${((stats.total % 240) / 240) * 100}%`}}></div>
+                  <div className="h-full bg-purple-500" style={{width: `${((paidTotal % 240) / 240) * 100}%`}}></div>
                 </div>
-                {Math.floor(stats.total / 240) > 0 && (
+                {Math.floor(paidTotal / 240) > 0 && (
                   <div className="text-right text-[11px] text-purple-600 dark:text-purple-400 font-bold">
-                    {t('dashboard.analysis.obtained', { count: Math.floor(stats.total / 240) })}
+                    {t('dashboard.analysis.obtained', { count: Math.floor(paidTotal / 240) })}
                   </div>
                 )}
              </div>
@@ -446,11 +448,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
              <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-cyan-500 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold flex items-center gap-1"><FileText size={12}/> {t('dashboard.analysis.infoBook60')}</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 60)} / 60`}</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{stats.hasInfoBook ? t('dashboard.analysis.reached') : `${Math.min(paidTotal, 60)} / 60`}</span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
                   <div className={`h-full ${stats.hasInfoBook ? 'bg-green-500' : 'bg-cyan-500'}`} 
-                       style={{width: `${stats.hasInfoBook ? 100 : Math.min((stats.total / 60) * 100, 100)}%`}}></div>
+                       style={{width: `${stats.hasInfoBook ? 100 : Math.min((paidTotal / 60) * 100, 100)}%`}}></div>
                 </div>
              </div>
            </>
@@ -485,12 +487,12 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
                 <div className="flex justify-between items-center">
                    <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.guaranteedWeapon80')}</span>
                    <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">
-                     {checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(stats.total, 80)} / 80`}
+                     {checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? t('dashboard.analysis.reached') : `${Math.min(paidTotal, 80)} / 80`}
                    </span>
                 </div>
                 <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
                    <div className={`h-full ${checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? 'bg-green-500' : 'bg-slate-500'}`}
-                        style={{width: `${checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? 100 : Math.min((stats.total / 80) * 100, 100)}%`}}></div>
+                        style={{width: `${checkLimitedInFirstN?.firstLimitedIndex80 > 0 ? 100 : Math.min((paidTotal / 80) * 100, 100)}%`}}></div>
                 </div>
              </div>
              
@@ -504,11 +506,11 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
             <div className="bg-zinc-50 dark:bg-zinc-900 p-3 border-l-2 border-green-500 flex flex-col gap-2">
                <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-700 dark:text-zinc-300 font-bold">{t('dashboard.analysis.firstSelector300')}</span>
-                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(stats.total, 300)} / 300</span>
+                  <span className="text-xs font-mono text-slate-500 dark:text-zinc-500">{Math.min(paidTotal, 300)} / 300</span>
                </div>
                <div className="h-1.5 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden rounded-sm">
-                  <div className={`h-full ${stats.total >= 300 ? 'bg-green-500' : 'bg-green-600/50'}`}
-                       style={{width: `${Math.min((stats.total / 300) * 100, 100)}%`}}></div>
+                  <div className={`h-full ${paidTotal >= 300 ? 'bg-green-500' : 'bg-green-600/50'}`}
+                       style={{width: `${Math.min((paidTotal / 300) * 100, 100)}%`}}></div>
                </div>
             </div>
          )}

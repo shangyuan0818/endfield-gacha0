@@ -110,12 +110,17 @@ function buildAverageItems({ stats, poolType, isAllPoolsOverview, locale = getAp
   if (poolType !== 'standard') {
     items.push({
       id: 'avg-6-target',
-      label: isAllPoolsOverview ? (english ? 'Target 6★' : '目标 6★') : (english ? 'UP 6★' : 'UP 6★'),
+      label: poolType === 'weapon'
+        ? (english ? 'UP Weapon' : 'UP 武器')
+        : isAllPoolsOverview ? (english ? 'Target 6★' : '目标 6★') : (english ? 'UP 6★' : 'UP 6★'),
       value: formatAverage(stats?.avgPullCost?.[6], locale)
     });
   }
 
-  if (poolType === 'limited' || isAllPoolsOverview) {
+  const showLimitedSixAverage = poolType !== 'weapon'
+    && (poolType === 'limited' || isAllPoolsOverview);
+
+  if (showLimitedSixAverage) {
     items.push({
       id: 'avg-6-limited',
       label: english ? 'Limited 6★' : '限定 6★',
@@ -402,6 +407,7 @@ export function buildDashboardSharePayload({
   hasMergedAccountView = false,
   overviewPoolFilter = 'all',
   stats = {},
+  includeFreePullsInStats = Boolean(stats?.includeFreePullsInStats),
   analysisPity = null,
   sections = [],
   overviewSplitStats = null,
@@ -479,6 +485,14 @@ export function buildDashboardSharePayload({
       isAllPoolsOverview && overviewPoolFilter === 'all' ? 'all' : normalizedPoolType,
       locale
     ),
+    includeFreePullsInStats,
+    methodology: getMessage(
+      includeFreePullsInStats
+        ? 'dashboard.shareCard.methodologyWithFree'
+        : 'dashboard.shareCard.methodology',
+      {},
+      locale
+    ),
     pitySummary: buildPitySummary({ currentPool, isGroupMode, hasMergedAccountView, analysisPity }, locale),
     notes: hasMergedAccountView
       ? getMessage('share.dashboard.noteMerged', {}, locale)
@@ -547,6 +561,10 @@ export function buildDashboardShareText(payload, locale = getAppLocale()) {
     payload.resourceItems.forEach((item) => {
       lines.push(`${item.label}：${item.value}${item.hint ? `（${item.hint}）` : ''}`);
     });
+  }
+
+  if (payload.methodology) {
+    lines.push(payload.methodology);
   }
 
   if (payload.pitySummary) {

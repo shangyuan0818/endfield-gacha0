@@ -26,9 +26,12 @@ vi.mock('../../../utils/resourceEconomy.js', () => ({
 }));
 
 vi.mock('../../../utils/characterUtils.js', () => ({
-  characterCache: {
-    searchByName: vi.fn(() => null),
-  },
+  resolveCharacterRecordByName: vi.fn((value) => {
+    if (value === '歪限定角色' || value === 'chr_off_limited') {
+      return { id: 'chr_off_limited', name: '歪限定角色', type: 'character', is_limited: true };
+    }
+    return null;
+  }),
 }));
 
 describe('usePoolStats', () => {
@@ -152,6 +155,257 @@ describe('usePoolStats', () => {
       pity6: 2,
       pity5: 2,
       isInherited: true,
+    });
+  });
+
+  it('does not count standard-pool six stars as target six stars in grouped overview stats', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'l1',
+        rarity: 4,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        seqId: '1',
+      },
+      {
+        id: 'l2',
+        rarity: 6,
+        isStandard: false,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:01:00.000Z',
+        seqId: '2',
+      },
+      {
+        id: 's1',
+        rarity: 4,
+        poolId: 'pool_standard',
+        timestamp: '2026-04-15T10:02:00.000Z',
+        seqId: '3',
+      },
+      {
+        id: 's2',
+        rarity: 6,
+        isStandard: false,
+        poolId: 'pool_standard',
+        timestamp: '2026-04-15T10:03:00.000Z',
+        seqId: '4',
+      },
+    ];
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: '__group_all',
+        type: 'all',
+        isGroupMode: true,
+      },
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+        { id: 'pool_standard', type: 'standard' },
+      ],
+    }));
+
+    expect(result.current.stats.counts).toMatchObject({
+      6: 1,
+      '6_std': 1,
+    });
+    expect(result.current.stats.avgPullCost[6]).toBe('2.00');
+    expect(result.current.stats.avgPullCost['6_limited']).toBe('2.00');
+  });
+
+  it('includes off-rate limited characters in limited six-star averages', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'l1',
+        rarity: 4,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        seqId: '1',
+      },
+      {
+        id: 'l2',
+        rarity: 6,
+        isStandard: false,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:01:00.000Z',
+        seqId: '2',
+        character_name: '当期UP',
+      },
+      {
+        id: 'l3',
+        rarity: 6,
+        isStandard: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:02:00.000Z',
+        seqId: '3',
+        character_id: 'chr_off_limited',
+        character_name: '歪限定角色',
+      },
+      {
+        id: 'l4',
+        rarity: 6,
+        isStandard: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:03:00.000Z',
+        seqId: '4',
+        character_name: '常驻角色',
+      },
+    ];
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_limited',
+        type: 'limited',
+        isGroupMode: false,
+      },
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+      ],
+    }));
+
+    expect(result.current.stats.counts).toMatchObject({
+      6: 1,
+      '6_std': 2,
+    });
+    expect(result.current.stats.avgPullCost[6]).toBe('4.00');
+    expect(result.current.stats.avgPullCost['6_limited']).toBe('2.00');
+  });
+
+  it('includes free ten pulls in stats only when the toggle is enabled', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'r1',
+        rarity: 4,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        seqId: '1',
+      },
+      {
+        id: 'r2',
+        rarity: 6,
+        isStandard: false,
+        isFree: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:01:00.000Z',
+        seqId: '2',
+      },
+      {
+        id: 'r3',
+        rarity: 6,
+        isStandard: false,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:02:00.000Z',
+        seqId: '3',
+      },
+    ];
+
+    const baseProps = {
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_limited',
+        type: 'limited',
+        isGroupMode: false,
+      },
+      currentPoolId: 'pool_limited',
+    };
+
+    const excluded = renderHook(() => usePoolStats(baseProps));
+    const included = renderHook(() => usePoolStats({
+      ...baseProps,
+      includeFreePullsInStats: true,
+    }));
+
+    expect(excluded.result.current.stats).toMatchObject({
+      total: 2,
+      paidTotal: 2,
+      freePullCount: 1,
+      counts: {
+        6: 1,
+        '6_std': 0,
+        5: 0,
+        4: 1,
+      },
+      resourceSummary: {
+        totalPulls: 2,
+        chargedPulls: 2,
+      },
+    });
+    expect(included.result.current.stats).toMatchObject({
+      total: 3,
+      paidTotal: 2,
+      freePullCount: 1,
+      counts: {
+        6: 2,
+        '6_std': 0,
+        5: 0,
+        4: 1,
+      },
+      resourceSummary: {
+        totalPulls: 3,
+        chargedPulls: 2,
+      },
+    });
+  });
+
+  it('includes free ten pulls in all-pool grouped stats when the toggle is enabled', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'l1',
+        rarity: 4,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        seqId: '1',
+      },
+      {
+        id: 'l2',
+        rarity: 6,
+        isStandard: false,
+        isFree: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:01:00.000Z',
+        seqId: '2',
+      },
+      {
+        id: 'w1',
+        rarity: 5,
+        poolId: 'pool_weapon',
+        timestamp: '2026-04-15T10:02:00.000Z',
+        seqId: '3',
+      },
+    ];
+
+    const props = {
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: '__group_all',
+        type: 'all',
+        isGroupMode: true,
+      },
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+        { id: 'pool_weapon', type: 'weapon' },
+      ],
+    };
+
+    const excluded = renderHook(() => usePoolStats(props));
+    const included = renderHook(() => usePoolStats({
+      ...props,
+      includeFreePullsInStats: true,
+    }));
+
+    expect(excluded.result.current.stats.total).toBe(2);
+    expect(excluded.result.current.stats.counts).toMatchObject({
+      6: 0,
+      5: 1,
+      4: 1,
+    });
+    expect(included.result.current.stats.total).toBe(3);
+    expect(included.result.current.stats.paidTotal).toBe(2);
+    expect(included.result.current.stats.counts).toMatchObject({
+      6: 1,
+      5: 1,
+      4: 1,
     });
   });
 });

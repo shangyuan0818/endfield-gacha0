@@ -23,8 +23,8 @@ function createWorkerUrl() {
       return Array.from(new Uint8Array(buffer), (value) => value.toString(16).padStart(2, '0')).join('');
     }
 
-    async function hashCandidate(seed, nonce, rounds) {
-      let payload = encoder.encode(seed + ':' + nonce + ':0');
+    async function hashStep(seed, step, previousHash, rounds) {
+      let payload = encoder.encode(seed + ':' + step + ':' + previousHash);
       let hex = '';
 
       for (let round = 0; round < rounds; round += 1) {
@@ -32,7 +32,7 @@ function createWorkerUrl() {
         hex = toHex(digest);
 
         if (round + 1 < rounds) {
-          payload = encoder.encode(hex + ':' + nonce + ':' + (round + 1));
+          payload = encoder.encode(seed + ':' + step + ':' + hex + ':' + (round + 1));
         }
       }
 
@@ -40,27 +40,22 @@ function createWorkerUrl() {
     }
 
     self.onmessage = async (event) => {
-      const { seed, targetPrefix, rounds, maxNonce, progressInterval } = event.data;
-      let nonce = 0;
+      const { seed, rounds, totalSteps, progressInterval } = event.data;
+      let step = 0;
+      let hash = seed;
       let lastProgress = 0;
 
-      while (nonce <= maxNonce) {
-        const hash = await hashCandidate(seed, nonce, rounds);
+      while (step < totalSteps) {
+        hash = await hashStep(seed, step, hash, rounds);
+        step += 1;
 
-        if (hash.startsWith(targetPrefix)) {
-          self.postMessage({ type: 'done', nonce, hash });
-          return;
-        }
-
-        nonce += 1;
-
-        if (nonce - lastProgress >= progressInterval) {
-          lastProgress = nonce;
-          self.postMessage({ type: 'progress', nonce, hash });
+        if (step - lastProgress >= progressInterval || step === totalSteps) {
+          lastProgress = step;
+          self.postMessage({ type: 'progress', step, hash });
         }
       }
 
-      self.postMessage({ type: 'failed', nonce: maxNonce });
+      self.postMessage({ type: 'done', step: totalSteps, hash });
     };
   `;
 
@@ -71,29 +66,28 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
   const config = useMemo(() => (
     isMobile
       ? {
-        targetPrefix: '0000',
-        rounds: 4,
-        maxNonce: 1500000,
-        progressInterval: 80,
-        estimate: '约 4-8 秒',
+        rounds: 3,
+        totalSteps: 7200,
+        progressInterval: 720,
+        estimate: '约 3-6 秒',
       }
       : {
-        targetPrefix: '0000',
-        rounds: 6,
-        maxNonce: 2200000,
-        progressInterval: 120,
-        estimate: '约 3-6 秒',
+        rounds: 3,
+        totalSteps: 9600,
+        progressInterval: 960,
+        estimate: '约 2-5 秒',
       }
   ), [isMobile]);
 
   const workerRef = useRef(null);
   const workerUrlRef = useRef('');
   const verifyTimerRef = useRef(null);
+  const finishTimerRef = useRef(null);
 
   const [sessionId] = useState(createSessionId);
   const [seed, setSeed] = useState(createSeed);
   const [status, setStatus] = useState('idle');
-  const [progress, setProgress] = useState({ nonce: 0, hash: '' });
+  const [progress, setProgress] = useState({ step: 0, hash: '' });
   const [error, setError] = useState('');
 
   const supportsPow = (
@@ -116,15 +110,17 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
 
   useEffect(() => () => {
     window.clearTimeout(verifyTimerRef.current);
+    window.clearTimeout(finishTimerRef.current);
     cleanupWorker();
   }, [cleanupWorker]);
 
   const resetChallenge = useCallback(() => {
     cleanupWorker();
     window.clearTimeout(verifyTimerRef.current);
+    window.clearTimeout(finishTimerRef.current);
     setSeed(createSeed());
     setStatus('idle');
-    setProgress({ nonce: 0, hash: '' });
+    setProgress({ step: 0, hash: '' });
     setError('');
   }, [cleanupWorker]);
 
@@ -137,11 +133,12 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
 
     cleanupWorker();
     window.clearTimeout(verifyTimerRef.current);
+    window.clearTimeout(finishTimerRef.current);
     if (challengeSeed !== seed) {
       setSeed(challengeSeed);
     }
     setStatus('running');
-    setProgress({ nonce: 0, hash: '' });
+    setProgress({ step: 0, hash: '' });
     setError('');
 
     const workerUrl = createWorkerUrl();
@@ -153,17 +150,20 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
       const payload = event.data;
 
       if (payload.type === 'progress') {
-        setProgress({ nonce: payload.nonce, hash: payload.hash });
+        setProgress({ step: payload.step, hash: payload.hash });
         return;
       }
 
       if (payload.type === 'done') {
         cleanupWorker();
-        setProgress({ nonce: payload.nonce, hash: payload.hash });
-        setStatus('done');
-        verifyTimerRef.current = window.setTimeout(() => {
-          onVerified();
-        }, 520);
+        setProgress({ step: payload.step, hash: payload.hash });
+        setStatus('finalizing');
+        finishTimerRef.current = window.setTimeout(() => {
+          setStatus('done');
+          verifyTimerRef.current = window.setTimeout(() => {
+            onVerified();
+          }, 720);
+        }, 780);
         return;
       }
 
@@ -180,15 +180,14 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
 
     worker.postMessage({
       seed: challengeSeed,
-      targetPrefix: config.targetPrefix,
       rounds: config.rounds,
-      maxNonce: config.maxNonce,
+      totalSteps: config.totalSteps,
       progressInterval: config.progressInterval,
     });
-  }, [cleanupWorker, config.maxNonce, config.progressInterval, config.rounds, config.targetPrefix, onVerified, seed, supportsPow]);
+  }, [cleanupWorker, config.progressInterval, config.rounds, config.totalSteps, onVerified, seed, supportsPow]);
 
   const handlePrimaryAction = () => {
-    if (status === 'running') {
+    if (status === 'running' || status === 'finalizing') {
       return;
     }
 
@@ -209,11 +208,17 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
     ? '待命'
     : status === 'running'
       ? '校验中'
-      : status === 'done'
+      : status === 'finalizing'
+        ? '写入回执'
+        : status === 'done'
         ? '已放行'
         : '受阻';
 
-  const progressPercent = Math.max(12, Math.min(92, Math.floor((progress.nonce / config.maxNonce) * 100)));
+  const progressPercent = status === 'done' || status === 'finalizing'
+    ? 100
+    : status === 'running'
+      ? Math.max(10, Math.min(90, Math.floor((progress.step / config.totalSteps) * 10) * 10))
+      : 0;
 
   return (
     <div className="mx-auto w-full max-w-[360px] font-mono">
@@ -248,17 +253,24 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
         </div>
 
         <div className="mt-4 border border-zinc-800 bg-zinc-950/80 p-3 text-xs text-zinc-400">
-          {status === 'running' ? (
+          {status === 'running' || status === 'finalizing' ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-endfield-yellow">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                <span>值守终端正在核对来访记录，请稍候。</span>
+                <span>{status === 'finalizing' ? '核验完成，正在写入通行回执。' : '值守终端正在核对来访记录，请稍候。'}</span>
               </div>
-              <div className="text-zinc-300">边境识别程序已展开，值守信标正在逐段回应你的通行请求。</div>
+              <div className="text-zinc-300">
+                {status === 'finalizing'
+                  ? '值守信标已完成最后一次回响，终端会短暂停留后放行。'
+                  : '边境识别程序已展开，值守信标正在逐段回应你的通行请求。'}
+              </div>
               <div className="overflow-hidden border border-zinc-800 bg-black/70">
                 <div className="h-1.5 bg-endfield-yellow/70 transition-[width] duration-300" style={{ width: `${progressPercent}%` }} />
               </div>
-              <div className="text-zinc-500">请保持当前界面，等待值守终端完成回执。</div>
+              <div className="flex justify-between text-zinc-500">
+                <span>请保持当前界面，等待值守终端完成回执。</span>
+                <span>{progressPercent}%</span>
+              </div>
             </div>
           ) : status === 'done' ? (
             <div className="space-y-2">
@@ -281,10 +293,10 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
           <button
             type="button"
             onClick={handlePrimaryAction}
-            disabled={status === 'running'}
+            disabled={status === 'running' || status === 'finalizing'}
             className="inline-flex items-center gap-2 border border-endfield-yellow px-4 py-2 text-xs font-bold tracking-[0.18em] text-endfield-yellow transition-colors hover:bg-endfield-yellow hover:text-black disabled:cursor-wait disabled:opacity-60"
           >
-            {status === 'idle' ? '开始校验' : status === 'done' ? '重置终端' : '再次校验'}
+            {status === 'idle' ? '开始校验' : status === 'done' ? '重置终端' : status === 'finalizing' ? '写入回执' : '再次校验'}
             {status === 'idle' ? <ArrowRight className="h-3.5 w-3.5" /> : null}
           </button>
           <button
