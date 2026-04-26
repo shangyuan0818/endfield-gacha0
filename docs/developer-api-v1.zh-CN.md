@@ -250,11 +250,79 @@ async function getMeta(apiKey) {
 
 返回保底分布桶。
 
-## 7. 官方 BOT 与绑定接口
+## 7. 绑定与官方 BOT API 边界
 
-官方 BOT 私有接口不属于第三方 `public.read` 契约。它们使用 `official_bot` client 与 `bot.self.read`，并且平台绑定验证使用独立 verifier secret。
+本节记录已经上线的绑定与官方 BOT API，但它们不属于第三方 `public.read` 契约。普通开发者 Key 即使审核通过，也只能访问第 5、6 节的公开只读端点；绑定后的本人数据只允许官方 BOT 使用 `official_bot` client + `bot.self.read` 读取。
 
-相关边界见站内文档 `integration-api.md`。第三方开发者 v1 暂不开放用户个人数据读取。
+### 7.1 站内用户绑定接口
+
+这些端点使用站内登录态的 Supabase access token，不使用开发者 Key。
+
+| Method | Endpoint | 用途 | 认证 |
+| --- | --- | --- | --- |
+| `GET` | `/api/integrations/bindings/me` | 返回当前用户在 `discord / telegram / qq` 的绑定状态；待验证 challenge 会返回验证码，已验证绑定不会暴露 `platform_user_id`。 | `Authorization: Bearer <site user token>` |
+| `POST` | `/api/integrations/bindings/challenge` | 为指定平台创建或刷新短期绑定验证码。 | `Authorization: Bearer <site user token>` |
+| `POST` | `/api/integrations/bindings/revoke` | 撤销当前用户在指定平台的有效绑定。 | `Authorization: Bearer <site user token>` |
+
+创建验证码请求：
+
+```json
+{
+  "provider": "telegram"
+}
+```
+
+撤销绑定请求：
+
+```json
+{
+  "provider": "telegram"
+}
+```
+
+### 7.2 官方 BOT 绑定验证接口
+
+`POST /api/integrations/bindings/verify` 只用于消费验证码并写入已验证绑定。它使用平台 verifier secret，不使用官方 BOT 的只读查询 Key；该凭据不能读取任何统计或本人数据。
+
+```http
+X-API-Key: <provider verifier secret>
+```
+
+```json
+{
+  "provider": "telegram",
+  "challengeCode": "ABCD2345",
+  "platformUserId": "123456789",
+  "displayHandle": "@example"
+}
+```
+
+### 7.3 官方 BOT 本人只读接口
+
+这些端点需要 `official_bot` client 的只读 Key，并且必须具备 `bot.self.read`。请求必须带 `provider` 和 `platformUserId`；服务端会按绑定关系反查站内用户。平台必须匹配 client，例如 Telegram BOT Key 不能读取 Discord 绑定。
+
+```http
+X-API-Key: <official bot read-only key>
+```
+
+| Method | Endpoint | 用途 |
+| --- | --- | --- |
+| `GET` | `/api/dev/v1/bot/dashboard` | 绑定用户总览摘要。 |
+| `GET` | `/api/dev/v1/bot/self-summary` | 兼容旧 BOT 的本人摘要。 |
+| `GET` | `/api/dev/v1/bot/pools` | 按游戏账号分组的卡池索引。 |
+| `GET` | `/api/dev/v1/bot/recent-pulls` | 最近高稀有度出货摘要。 |
+| `GET` | `/api/dev/v1/bot/pool-detail` | 单池详情、时间线 sections 与分享 payload。 |
+| `GET` | `/api/dev/v1/bot/analysis` | API 优先的卡池分析工作区，支持账户与卡池切换。 |
+| `GET` | `/api/dev/v1/bot/share-card` | 生成与网页同源的单池分享图。 |
+| `GET` | `/api/dev/v1/bot/pool-log` | 导出单池详细日志文件。 |
+
+BOT 客户端应优先使用 `/api/dev/v1/bot/analysis` 返回的 `accountRef`、`poolRef` 作为按钮和菜单回调参数。`gameUid`、`poolId` 仅保留为兼容参数，不能展示给用户。
+
+### 7.4 第三方开发者边界
+
+第三方开发者 v1 暂不开放用户个人数据授权，也不能通过开发者 Key 访问绑定后的本人摘要、分享图或日志导出。若后续开放第三方应用读取用户数据，将使用新的 scope、授权页和撤销机制，不会混入当前 `public.read`。
+
+完整的内部集成说明见仓库文档：`docs/integration-api.md`。
 
 ## 8. 隐私边界
 

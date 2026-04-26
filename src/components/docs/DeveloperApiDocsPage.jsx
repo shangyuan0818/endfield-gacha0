@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BookOpen, ExternalLink, KeyRound, Languages, ShieldCheck } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import SimpleMarkdown from '../SimpleMarkdown.jsx';
 import { useI18n } from '../../i18n/index.js';
 import zhDeveloperApiDocs from '../../../docs/developer-api-v1.zh-CN.md?raw';
@@ -33,6 +34,10 @@ function buildQuickLinks(isEnglish) {
       href: isEnglish ? '#6-analytics-endpoints' : '#6-公开分析端点',
     },
     {
+      label: isEnglish ? 'Binding/Bot' : '绑定/BOT',
+      href: isEnglish ? '#7-binding-and-official-bot-api-boundary' : '#7-绑定与官方-bot-api-边界',
+    },
+    {
       label: isEnglish ? 'Privacy' : '隐私边界',
       href: isEnglish ? '#8-privacy-boundary' : '#8-隐私边界',
     },
@@ -41,9 +46,11 @@ function buildQuickLinks(isEnglish) {
 
 export default function DeveloperApiDocsPage() {
   const { isEnglish, locale, t } = useI18n();
+  const location = useLocation();
   const [docLocale, setDocLocale] = useState(locale);
   const docContent = useMemo(() => getDocContent(docLocale), [docLocale]);
   const quickLinks = useMemo(() => buildQuickLinks(docLocale === 'en-US'), [docLocale]);
+  const settingsPath = location.pathname.startsWith('/m/') ? '/m/settings' : '/settings';
 
   useEffect(() => {
     setDocLocale(locale);
@@ -65,13 +72,13 @@ export default function DeveloperApiDocsPage() {
         <header className="border border-zinc-200 bg-white/85 shadow-sm dark:border-white/10 dark:bg-zinc-950/80">
           <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-end lg:justify-between lg:p-7">
             <div className="space-y-4">
-              <a
-                href="/settings"
+              <Link
+                to={settingsPath}
                 className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500 transition-colors hover:text-amber-600 dark:text-zinc-400 dark:hover:text-endfield-yellow"
               >
                 <ArrowLeft size={14} />
                 {isEnglish ? 'Back to settings' : '返回设置'}
-              </a>
+              </Link>
               <div>
                 <div className="mb-2 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.35em] text-amber-600 dark:text-endfield-yellow">
                   <BookOpen size={15} />

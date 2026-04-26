@@ -250,11 +250,79 @@ Query:
 
 Returns pity bucket distributions.
 
-## 7. Official Bot and Binding APIs
+## 7. Binding and Official Bot API Boundary
 
-Official bot private endpoints are not part of the third-party `public.read` contract. They use `official_bot` clients and `bot.self.read`; binding verification uses a separate verifier secret.
+This section documents binding and official bot APIs that already exist, but they are not part of the third-party `public.read` contract. Approved developer keys can only call the public read-only endpoints in sections 5 and 6. Bound-user data is only available to official bot clients with `official_bot` + `bot.self.read`.
 
-See the internal boundary document `integration-api.md`. Third-party developers cannot read bound private user data in v1.
+### 7.1 Site User Binding Endpoints
+
+These endpoints use the signed-in site user's Supabase access token. They do not use developer API keys.
+
+| Method | Endpoint | Purpose | Auth |
+| --- | --- | --- | --- |
+| `GET` | `/api/integrations/bindings/me` | Returns the current user's binding status for `discord / telegram / qq`. Pending challenges may include the challenge code; verified bindings do not expose `platform_user_id`. | `Authorization: Bearer <site user token>` |
+| `POST` | `/api/integrations/bindings/challenge` | Creates or refreshes a short-lived binding challenge for one provider. | `Authorization: Bearer <site user token>` |
+| `POST` | `/api/integrations/bindings/revoke` | Revokes the current user's active binding for one provider. | `Authorization: Bearer <site user token>` |
+
+Create challenge request:
+
+```json
+{
+  "provider": "telegram"
+}
+```
+
+Revoke request:
+
+```json
+{
+  "provider": "telegram"
+}
+```
+
+### 7.2 Official Bot Binding Verification Endpoint
+
+`POST /api/integrations/bindings/verify` only consumes a challenge and writes the verified binding. It uses a provider verifier secret, not the official bot read-only query key. This verifier credential cannot read analytics or bound-user data.
+
+```http
+X-API-Key: <provider verifier secret>
+```
+
+```json
+{
+  "provider": "telegram",
+  "challengeCode": "ABCD2345",
+  "platformUserId": "123456789",
+  "displayHandle": "@example"
+}
+```
+
+### 7.3 Official Bot Read-Only User Endpoints
+
+These endpoints require an `official_bot` read-only key with `bot.self.read`. Requests must include `provider` and `platformUserId`; the server resolves the bound site user from that pair. The provider must match the client, so a Telegram bot key cannot query Discord bindings.
+
+```http
+X-API-Key: <official bot read-only key>
+```
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/dev/v1/bot/dashboard` | Bound-user dashboard summary. |
+| `GET` | `/api/dev/v1/bot/self-summary` | Legacy-compatible bound-user summary. |
+| `GET` | `/api/dev/v1/bot/pools` | Pool index grouped by game account display name. |
+| `GET` | `/api/dev/v1/bot/recent-pulls` | Recent high-rarity pull summaries. |
+| `GET` | `/api/dev/v1/bot/pool-detail` | One-pool detail, timeline sections, and share payload. |
+| `GET` | `/api/dev/v1/bot/analysis` | API-first analysis workspace with account and pool switching. |
+| `GET` | `/api/dev/v1/bot/share-card` | Website-sourced single-pool share card image. |
+| `GET` | `/api/dev/v1/bot/pool-log` | Detailed one-pool log file export. |
+
+Bot clients should prefer the `accountRef` and `poolRef` values returned by `/api/dev/v1/bot/analysis` for buttons and menus. `gameUid` and `poolId` are legacy compatibility parameters and must not be shown in user-visible text.
+
+### 7.4 Third-Party Developer Boundary
+
+Third-party developer v1 does not provide personal user-data authorization. Developer keys cannot access bound-user summaries, share cards, or log exports. If third-party user-data access is introduced later, it will use new scopes, an authorization screen, and a revocation model instead of being mixed into `public.read`.
+
+See `docs/integration-api.md` for the full internal integration boundary.
 
 ## 8. Privacy Boundary
 
