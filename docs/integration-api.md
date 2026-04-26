@@ -131,6 +131,77 @@ Query:
 
 Returns one bound user's pool detail, timeline sections, and share payload.
 
+### `GET /api/dev/v1/bot/analysis`
+
+Returns the API-first analysis workspace for a bound user. This endpoint is the preferred data source for official BOT clients and future integrations.
+
+Query:
+
+- `accountRef` optional opaque account selector returned by this endpoint
+- `poolRef` optional opaque pool selector returned by this endpoint
+- `gameUid` / `poolId` legacy internal selectors, kept for backward compatibility
+
+Response highlights:
+
+- `navigation.accounts[]`: game account display names and switchable pool entries
+- `selected.account`: currently selected game account
+- `selected.pool`: currently selected pool summary
+- `selected.detail`: pool analysis detail, timeline sections, and the same share payload used by the website share card
+
+User-facing clients should prefer `ref` fields for callbacks and menus. Do not show `gameUid` or `poolId` in visible text.
+
+### `GET /api/dev/v1/bot/share-card`
+
+Generates a PNG share card for the selected bound-user pool.
+
+Query:
+
+- `poolRef` preferred
+- `accountRef` optional
+- `poolId` / `gameUid` legacy fallback
+- `theme`: `dark` or `light`, default `dark`
+
+Returns:
+
+```json
+{
+  "image": {
+    "file_name": "...png",
+    "mime_type": "image/png",
+    "encoding": "base64",
+    "content_base64": "..."
+  }
+}
+```
+
+The renderer uses the website dashboard share card component and the same `share_payload` / `timeline_sections` produced for the analysis page. If Playwright is unavailable, the endpoint returns a normal API error instead of a fake summary card.
+
+### `GET /api/dev/v1/bot/pool-log`
+
+Exports the selected pool's detailed log file for a bound user.
+
+Query:
+
+- `poolRef` preferred
+- `accountRef` optional
+- `poolId` / `gameUid` legacy fallback
+- `format`: `csv` default, or `json`, `txt`
+
+Returns a base64 file payload:
+
+```json
+{
+  "file": {
+    "file_name": "...csv",
+    "mime_type": "text/csv; charset=utf-8",
+    "encoding": "base64",
+    "content_base64": "..."
+  }
+}
+```
+
+The exported file intentionally omits raw history record IDs, `user_id`, `platform_user_id`, raw `gameUid`, and raw `poolId`. It is still private bound-user data and must only be sent back to the bound platform account.
+
 ## Privacy Boundary
 
 User-visible and third-party outputs must not include:

@@ -29,6 +29,9 @@ import devV1BotRecentPullsHandler from './api/dev/v1/bot/recent-pulls.js'
 import devV1BotPoolsHandler from './api/dev/v1/bot/pools.js'
 import devV1BotDashboardHandler from './api/dev/v1/bot/dashboard.js'
 import devV1BotPoolDetailHandler from './api/dev/v1/bot/pool-detail.js'
+import devV1BotAnalysisHandler from './api/dev/v1/bot/analysis.js'
+import devV1BotShareCardHandler from './api/dev/v1/bot/share-card.js'
+import devV1BotPoolLogHandler from './api/dev/v1/bot/pool-log.js'
 import devV1SiteOverviewHandler from './api/dev/v1/site/overview.js'
 import bindingMeHandler from './api/integrations/bindings/me.js'
 import bindingChallengeHandler from './api/integrations/bindings/challenge.js'
@@ -183,6 +186,9 @@ function createDevApiPlugin() {
     ['/api/dev/v1/bot/pools', devV1BotPoolsHandler],
     ['/api/dev/v1/bot/dashboard', devV1BotDashboardHandler],
     ['/api/dev/v1/bot/pool-detail', devV1BotPoolDetailHandler],
+    ['/api/dev/v1/bot/analysis', devV1BotAnalysisHandler],
+    ['/api/dev/v1/bot/share-card', devV1BotShareCardHandler],
+    ['/api/dev/v1/bot/pool-log', devV1BotPoolLogHandler],
     ['/api/dev/v1/site/overview', devV1SiteOverviewHandler],
     ['/api/integrations/bindings/me', bindingMeHandler],
     ['/api/integrations/bindings/challenge', bindingChallengeHandler],

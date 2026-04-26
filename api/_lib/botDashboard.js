@@ -12,6 +12,31 @@ import { getPoolTimingMeta } from '../../src/utils/poolSelectorDisplay.js';
 
 const BOT_LOCALE = 'zh-CN';
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
+const BOT_REF_VERSION = 1;
+
+function encodeBotRef(payload = {}) {
+  return Buffer.from(JSON.stringify({
+    v: BOT_REF_VERSION,
+    ...payload,
+  }), 'utf8').toString('base64url');
+}
+
+function decodeBotRef(ref) {
+  const value = String(ref || '').trim();
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (payload?.v !== BOT_REF_VERSION) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 function normalizePoolType(type) {
   if (type === 'limited_character' || type === 'limited') return 'limited';
@@ -72,6 +97,34 @@ function getHistoryRecordKey(item) {
 
 function getAccountPoolKey(item) {
   return `${getHistoryGameUid(item)}::${getHistoryPoolId(item)}`;
+}
+
+function buildAccountRef(gameUid) {
+  return encodeBotRef({
+    kind: 'account',
+    gameUid: String(gameUid || '').trim(),
+  });
+}
+
+function buildPoolRef({ gameUid, poolId }) {
+  return encodeBotRef({
+    kind: 'pool',
+    gameUid: String(gameUid || '').trim(),
+    poolId: String(poolId || '').trim(),
+  });
+}
+
+function readSelectionRefs({ accountRef = null, poolRef = null, gameUid = null, poolId = null } = {}) {
+  const decodedAccount = decodeBotRef(accountRef);
+  const decodedPool = decodeBotRef(poolRef);
+
+  return {
+    gameUid: decodedPool?.gameUid
+      || decodedAccount?.gameUid
+      || (gameUid ? String(gameUid).trim() : null),
+    poolId: decodedPool?.poolId
+      || (poolId ? String(poolId).trim() : null),
+  };
 }
 
 function isGiftPull(item) {
@@ -438,6 +491,98 @@ function buildAccountsFromEntries(entries = []) {
   ));
 }
 
+function toAnalysisPoolEntry(entry = {}) {
+  const ref = buildPoolRef({
+    gameUid: entry.game_uid,
+    poolId: entry.pool_id,
+  });
+
+  return {
+    ref,
+    account_ref: buildAccountRef(entry.game_uid),
+    display_name: entry.display_name,
+    pool_type: entry.pool_type,
+    featured: entry.featured || [],
+    total_pulls: entry.total_pulls || 0,
+    current_pity: entry.current_pity || 0,
+    current_pity5: entry.current_pity5 || 0,
+    current_probability: entry.current_probability || 0,
+    has_soft_pity: Boolean(entry.has_soft_pity),
+    is_in_soft_pity: Boolean(entry.is_in_soft_pity),
+    pulls_until_soft_pity: entry.pulls_until_soft_pity || 0,
+    latest_item_name: entry.latest_item_name || null,
+    latest_item_rarity: entry.latest_item_rarity || 0,
+    latest_pull_at: entry.latest_pull_at || null,
+    start_time: entry.start_time || null,
+    end_time: entry.end_time || null,
+    status: entry.status,
+    remaining_label: entry.remaining_label || '',
+    is_active: Boolean(entry.is_active),
+    is_upcoming: Boolean(entry.is_upcoming),
+    is_timed: Boolean(entry.is_timed),
+    actions: {
+      detail_ref: ref,
+      share_ref: ref,
+      log_ref: ref,
+    },
+  };
+}
+
+function toAnalysisAccount(account = {}) {
+  return {
+    ref: buildAccountRef(account.game_uid),
+    display_name: account.display_name || '未命名账号',
+    total_pulls: account.total_pulls || 0,
+    latest_pull_at: account.latest_pull_at || null,
+    pools: (account.pools || []).map(toAnalysisPoolEntry),
+  };
+}
+
+function toAnalysisPoolDetail(detail = null) {
+  if (!detail) {
+    return null;
+  }
+
+  const poolRef = buildPoolRef({
+    gameUid: detail?.account?.game_uid,
+    poolId: detail?.pool?.pool_id,
+  });
+
+  return {
+    account: {
+      ref: buildAccountRef(detail?.account?.game_uid),
+      display_name: detail?.account?.display_name || '未命名账号',
+      total_pulls: detail?.account?.total_pulls || 0,
+      six_star_count: detail?.account?.six_star_count || 0,
+      five_star_count: detail?.account?.five_star_count || 0,
+      pool_count: detail?.account?.pool_count || 0,
+    },
+    pool: {
+      ref: poolRef,
+      account_ref: buildAccountRef(detail?.account?.game_uid),
+      pool_type: detail?.pool?.pool_type || 'standard',
+      display_name: detail?.pool?.display_name || '未知卡池',
+      featured: detail?.pool?.featured || [],
+      status: detail?.pool?.status || 'permanent',
+      remaining_label: detail?.pool?.remaining_label || '',
+      is_active: Boolean(detail?.pool?.is_active),
+      is_upcoming: Boolean(detail?.pool?.is_upcoming),
+      is_timed: Boolean(detail?.pool?.is_timed),
+      start_time: detail?.pool?.start_time || null,
+      end_time: detail?.pool?.end_time || null,
+      actions: {
+        detail_ref: poolRef,
+        share_ref: poolRef,
+        log_ref: poolRef,
+      },
+    },
+    stats: detail.stats || {},
+    recent_records: detail.recent_records || [],
+    timeline_sections: detail.timeline_sections || [],
+    share_payload: detail.share_payload || null,
+  };
+}
+
 function buildLatestHighRarity(history = []) {
   return [...history]
     .sort(sortHistoryDesc)
@@ -497,6 +642,47 @@ export async function fetchBotPoolIndex(adminClient, userId) {
     total_pool_entries: poolEntries.length,
     latest_pool: poolEntries[0] || null,
     accounts,
+  };
+}
+
+export async function fetchBotAnalysis(adminClient, userId, selection = {}) {
+  const { gameUid, poolId } = readSelectionRefs(selection);
+  const poolIndex = await fetchBotPoolIndex(adminClient, userId);
+  const accounts = (poolIndex.accounts || []).map(toAnalysisAccount);
+  const flatPools = (poolIndex.accounts || []).flatMap((account) => account.pools || []);
+  const selectedAccount = gameUid
+    ? accounts.find((account) => account.ref === buildAccountRef(gameUid)) || null
+    : accounts[0] || null;
+  const candidatePools = gameUid
+    ? flatPools.filter((pool) => String(pool.game_uid) === String(gameUid))
+    : flatPools;
+  const selectedRawPool = poolId
+    ? candidatePools.find((pool) => String(pool.pool_id) === String(poolId)) || null
+    : candidatePools[0] || poolIndex.latest_pool || null;
+  const selectedPoolId = selectedRawPool?.pool_id || poolId || null;
+  const selectedGameUid = selectedRawPool?.game_uid || gameUid || null;
+  const selectedDetail = selectedPoolId
+    ? await fetchBotPoolDetail(adminClient, userId, {
+      gameUid: selectedGameUid,
+      poolId: selectedPoolId,
+    })
+    : null;
+
+  return {
+    user: poolIndex.user,
+    navigation: {
+      accounts,
+      selected_account_ref: selectedAccount?.ref || (selectedGameUid ? buildAccountRef(selectedGameUid) : null),
+      selected_pool_ref: selectedRawPool ? buildPoolRef({
+        gameUid: selectedRawPool.game_uid,
+        poolId: selectedRawPool.pool_id,
+      }) : null,
+    },
+    selected: {
+      account: selectedAccount,
+      pool: selectedRawPool ? toAnalysisPoolEntry(selectedRawPool) : null,
+      detail: toAnalysisPoolDetail(selectedDetail),
+    },
   };
 }
 
@@ -638,9 +824,68 @@ export async function fetchBotPoolDetail(adminClient, userId, { gameUid = null, 
   };
 }
 
+export async function fetchBotPoolLog(adminClient, userId, selection = {}) {
+  const { gameUid, poolId } = readSelectionRefs(selection);
+  if (!poolId) {
+    throw {
+      status: 400,
+      message: 'Missing pool selector',
+    };
+  }
+
+  const dataset = await loadBotDataset(adminClient, userId);
+  const matchingByPool = dataset.history.filter((item) => getHistoryPoolId(item) === poolId);
+  if (matchingByPool.length === 0) {
+    return null;
+  }
+
+  const resolvedGameUid = gameUid
+    ? String(gameUid).trim()
+    : getHistoryGameUid([...matchingByPool].sort(sortHistoryDesc)[0]);
+  const currentPool = resolvePoolRow(dataset.poolMap, poolId);
+  const poolHistory = dataset.history
+    .filter((item) => getHistoryGameUid(item) === resolvedGameUid && getHistoryPoolId(item) === poolId)
+    .sort(sortHistoryAsc);
+
+  if (poolHistory.length === 0) {
+    return null;
+  }
+
+  const accountName = buildAccountName(poolHistory, resolvedGameUid);
+  const poolName = localizePoolDisplayName(currentPool);
+  const rows = poolHistory.map((item, index) => ({
+    index: index + 1,
+    time: item.timestamp || null,
+    account_name: accountName,
+    pool_name: poolName,
+    pool_type: normalizePoolType(currentPool.type),
+    item_name: localizeItemName(item),
+    rarity: Number(item.rarity) || 0,
+    is_free: isFreePull(item),
+    is_gift: isGiftPull(item),
+  }));
+
+  return {
+    file_name: `${accountName}_${poolName}_详细日志`.replace(/[\\/:*?"<>|]/g, '_'),
+    account: {
+      ref: buildAccountRef(resolvedGameUid),
+      display_name: accountName,
+    },
+    pool: {
+      ref: buildPoolRef({ gameUid: resolvedGameUid, poolId }),
+      display_name: poolName,
+      pool_type: normalizePoolType(currentPool.type),
+    },
+    total: rows.length,
+    rows,
+  };
+}
+
 export default {
   fetchBotDashboard,
+  fetchBotAnalysis,
   fetchBotPoolIndex,
   fetchBotRecentPulls,
   fetchBotPoolDetail,
+  fetchBotPoolLog,
 };
