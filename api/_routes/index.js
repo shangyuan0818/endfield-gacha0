@@ -1,3 +1,51 @@
+import accountRecoveryRequestHandler from './root/account-recovery-request.js';
+import adminHandler from './root/admin.js';
+import authAccountStatusHandler from './root/auth-account-status.js';
+import authRateLimitHandler from './root/auth-rate-limit.js';
+import automationFeedHandler from './root/automation-feed.js';
+import bootstrapHandler from './root/bootstrap.js';
+import officialAnnouncementImageHandler from './root/official-announcement-image.js';
+import opsAutomationHandler from './root/ops-automation.js';
+import selfDeleteAccountHandler from './root/self-delete-account.js';
+import statsHandler from './root/stats.js';
+import wikiAssetProxyHandler from './root/wiki-asset-proxy.js';
+import wikiProxyHandler from './root/wiki-proxy.js';
+import devApplicationsHandler from './dev/applications/index.js';
+import devApplicationsMeHandler from './dev/applications/me.js';
+import devV1AnnouncementsHandler from './dev/v1/announcements.js';
+import devV1CharacterHandler from './dev/v1/character.js';
+import devV1CharactersHandler from './dev/v1/characters.js';
+import devV1MetaHandler from './dev/v1/meta.js';
+import devV1OpenApiHandler from './dev/v1/openapi.js';
+import devV1PoolHandler from './dev/v1/pool.js';
+import devV1PoolsHandler from './dev/v1/pools.js';
+import devV1BotAnalysisHandler from './dev/v1/bot/analysis.js';
+import devV1BotDashboardHandler from './dev/v1/bot/dashboard.js';
+import devV1BotPoolDetailHandler from './dev/v1/bot/pool-detail.js';
+import devV1BotPoolLogHandler from './dev/v1/bot/pool-log.js';
+import devV1BotPoolsHandler from './dev/v1/bot/pools.js';
+import devV1BotRecentPullsHandler from './dev/v1/bot/recent-pulls.js';
+import devV1BotSelfSummaryHandler from './dev/v1/bot/self-summary.js';
+import devV1SiteOverviewHandler from './dev/v1/site/overview.js';
+import devV1StatsDistributionsHandler from './dev/v1/stats/distributions.js';
+import devV1StatsGlobalHandler from './dev/v1/stats/global.js';
+import devV1StatsItemHandler from './dev/v1/stats/item.js';
+import devV1StatsItemsHandler from './dev/v1/stats/items.js';
+import devV1StatsPoolHandler from './dev/v1/stats/pool.js';
+import devV1StatsPoolsHandler from './dev/v1/stats/pools.js';
+import devV1StatsRankingsHandler from './dev/v1/stats/rankings.js';
+import devV1StatsTrendsHandler from './dev/v1/stats/trends.js';
+import bindingChallengeHandler from './integrations/bindings/challenge.js';
+import bindingMeHandler from './integrations/bindings/me.js';
+import bindingRevokeHandler from './integrations/bindings/revoke.js';
+import bindingVerifyHandler from './integrations/bindings/verify.js';
+import botImportNotifyHandler from './integrations/bot/import-notify.js';
+
+async function devV1BotShareCardHandler(req, res) {
+  const mod = await import('./dev/v1/bot/share-card.js');
+  return mod.default(req, res);
+}
+
 function normalizeRoutePath(path) {
   const pathname = String(path || '').split('?')[0] || '';
   if (!pathname || pathname === '/') {
@@ -6,26 +54,6 @@ function normalizeRoutePath(path) {
 
   return pathname.replace(/\/+$/, '');
 }
-
-function route(modulePath) {
-  return async (req, res) => {
-    const mod = await import(modulePath);
-    return mod.default(req, res);
-  };
-}
-
-const accountRecoveryRequestHandler = route('./root/account-recovery-request.js');
-const adminHandler = route('./root/admin.js');
-const authAccountStatusHandler = route('./root/auth-account-status.js');
-const authRateLimitHandler = route('./root/auth-rate-limit.js');
-const automationFeedHandler = route('./root/automation-feed.js');
-const bootstrapHandler = route('./root/bootstrap.js');
-const officialAnnouncementImageHandler = route('./root/official-announcement-image.js');
-const opsAutomationHandler = route('./root/ops-automation.js');
-const selfDeleteAccountHandler = route('./root/self-delete-account.js');
-const statsHandler = route('./root/stats.js');
-const wikiAssetProxyHandler = route('./root/wiki-asset-proxy.js');
-const wikiProxyHandler = route('./root/wiki-proxy.js');
 
 export const API_ROUTE_ENTRIES = [
   ['/api/account-recovery-request', accountRecoveryRequestHandler],
@@ -45,37 +73,37 @@ export const API_ROUTE_ENTRIES = [
   ['/api/stats', statsHandler],
   ['/api/wiki-asset-proxy', wikiAssetProxyHandler],
   ['/api/wiki-proxy', wikiProxyHandler],
-  ['/api/dev/applications', route('./dev/applications/index.js')],
-  ['/api/dev/applications/me', route('./dev/applications/me.js')],
-  ['/api/dev/v1/announcements', route('./dev/v1/announcements.js')],
-  ['/api/dev/v1/character', route('./dev/v1/character.js')],
-  ['/api/dev/v1/characters', route('./dev/v1/characters.js')],
-  ['/api/dev/v1/meta', route('./dev/v1/meta.js')],
-  ['/api/dev/v1/openapi', route('./dev/v1/openapi.js')],
-  ['/api/dev/v1/pool', route('./dev/v1/pool.js')],
-  ['/api/dev/v1/pools', route('./dev/v1/pools.js')],
-  ['/api/dev/v1/bot/analysis', route('./dev/v1/bot/analysis.js')],
-  ['/api/dev/v1/bot/dashboard', route('./dev/v1/bot/dashboard.js')],
-  ['/api/dev/v1/bot/pool-detail', route('./dev/v1/bot/pool-detail.js')],
-  ['/api/dev/v1/bot/pool-log', route('./dev/v1/bot/pool-log.js')],
-  ['/api/dev/v1/bot/pools', route('./dev/v1/bot/pools.js')],
-  ['/api/dev/v1/bot/recent-pulls', route('./dev/v1/bot/recent-pulls.js')],
-  ['/api/dev/v1/bot/self-summary', route('./dev/v1/bot/self-summary.js')],
-  ['/api/dev/v1/bot/share-card', route('./dev/v1/bot/share-card.js')],
-  ['/api/dev/v1/site/overview', route('./dev/v1/site/overview.js')],
-  ['/api/dev/v1/stats/distributions', route('./dev/v1/stats/distributions.js')],
-  ['/api/dev/v1/stats/global', route('./dev/v1/stats/global.js')],
-  ['/api/dev/v1/stats/item', route('./dev/v1/stats/item.js')],
-  ['/api/dev/v1/stats/items', route('./dev/v1/stats/items.js')],
-  ['/api/dev/v1/stats/pool', route('./dev/v1/stats/pool.js')],
-  ['/api/dev/v1/stats/pools', route('./dev/v1/stats/pools.js')],
-  ['/api/dev/v1/stats/rankings', route('./dev/v1/stats/rankings.js')],
-  ['/api/dev/v1/stats/trends', route('./dev/v1/stats/trends.js')],
-  ['/api/integrations/bindings/challenge', route('./integrations/bindings/challenge.js')],
-  ['/api/integrations/bindings/me', route('./integrations/bindings/me.js')],
-  ['/api/integrations/bindings/revoke', route('./integrations/bindings/revoke.js')],
-  ['/api/integrations/bindings/verify', route('./integrations/bindings/verify.js')],
-  ['/api/integrations/bot/import-notify', route('./integrations/bot/import-notify.js')],
+  ['/api/dev/applications', devApplicationsHandler],
+  ['/api/dev/applications/me', devApplicationsMeHandler],
+  ['/api/dev/v1/announcements', devV1AnnouncementsHandler],
+  ['/api/dev/v1/character', devV1CharacterHandler],
+  ['/api/dev/v1/characters', devV1CharactersHandler],
+  ['/api/dev/v1/meta', devV1MetaHandler],
+  ['/api/dev/v1/openapi', devV1OpenApiHandler],
+  ['/api/dev/v1/pool', devV1PoolHandler],
+  ['/api/dev/v1/pools', devV1PoolsHandler],
+  ['/api/dev/v1/bot/analysis', devV1BotAnalysisHandler],
+  ['/api/dev/v1/bot/dashboard', devV1BotDashboardHandler],
+  ['/api/dev/v1/bot/pool-detail', devV1BotPoolDetailHandler],
+  ['/api/dev/v1/bot/pool-log', devV1BotPoolLogHandler],
+  ['/api/dev/v1/bot/pools', devV1BotPoolsHandler],
+  ['/api/dev/v1/bot/recent-pulls', devV1BotRecentPullsHandler],
+  ['/api/dev/v1/bot/self-summary', devV1BotSelfSummaryHandler],
+  ['/api/dev/v1/bot/share-card', devV1BotShareCardHandler],
+  ['/api/dev/v1/site/overview', devV1SiteOverviewHandler],
+  ['/api/dev/v1/stats/distributions', devV1StatsDistributionsHandler],
+  ['/api/dev/v1/stats/global', devV1StatsGlobalHandler],
+  ['/api/dev/v1/stats/item', devV1StatsItemHandler],
+  ['/api/dev/v1/stats/items', devV1StatsItemsHandler],
+  ['/api/dev/v1/stats/pool', devV1StatsPoolHandler],
+  ['/api/dev/v1/stats/pools', devV1StatsPoolsHandler],
+  ['/api/dev/v1/stats/rankings', devV1StatsRankingsHandler],
+  ['/api/dev/v1/stats/trends', devV1StatsTrendsHandler],
+  ['/api/integrations/bindings/challenge', bindingChallengeHandler],
+  ['/api/integrations/bindings/me', bindingMeHandler],
+  ['/api/integrations/bindings/revoke', bindingRevokeHandler],
+  ['/api/integrations/bindings/verify', bindingVerifyHandler],
+  ['/api/integrations/bot/import-notify', botImportNotifyHandler],
 ];
 
 const API_ROUTE_MAP = new Map(
