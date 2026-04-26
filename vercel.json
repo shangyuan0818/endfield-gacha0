@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/[...path].js": {
+    "api/router.js": {
       "maxDuration": 60
     }
   },
@@ -68,11 +68,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/admin-users", "destination": "/api/admin?route=users" },
-    { "source": "/api/admin-delete-user", "destination": "/api/admin?route=delete-user" },
-    { "source": "/api/admin-user-reset-password", "destination": "/api/admin?route=user-reset-password" },
-    { "source": "/api/admin-reset-recovery-password", "destination": "/api/admin?route=reset-recovery-password" },
-    { "source": "/api/admin-ops-automation", "destination": "/api/admin?route=ops-automation" },
+    { "source": "/api/:path*", "destination": "/api/router?__path=:path*" },
     { "source": "/m/assets/index-(.*).js", "destination": "/m/assets/legacy-mobile-entry.js" },
     { "source": "/m/assets/supabase-vendor-(.*).js", "destination": "/m/assets/legacy-empty.js" },
     { "source": "/((?!api/)(?!.*\\.[^/]+$).*)", "destination": "/index.html" }

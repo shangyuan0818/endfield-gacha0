@@ -11,7 +11,13 @@ function createQueryObject(req) {
 
 function getRequestPath(req) {
   try {
-    return new URL(req.url || '', 'https://example.com').pathname.replace(/\/+$/, '');
+    const url = new URL(req.url || '', 'https://example.com');
+    const rewrittenPath = url.searchParams.get('__path');
+    if (rewrittenPath) {
+      return `/api/${rewrittenPath}`.replace(/\/+$/, '');
+    }
+
+    return url.pathname.replace(/\/+$/, '');
   } catch {
     return '';
   }

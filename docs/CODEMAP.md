@@ -262,8 +262,8 @@
 
 ### 站内 Serverless API
 
-- `api/[...path].js`
-  - Vercel 单一 catch-all 入口，避免 Hobby 计划函数数量超限
+- `api/router.js`
+  - Vercel 单一固定入口，配合 `/api/:path*` rewrite 避免 Hobby 计划函数数量超限
 - `api/_routes/index.js`
   - 站内 API 路由表；本地 Vite dev middleware 与 Vercel catch-all 共用
 - `api/_routes/root/*.js`
