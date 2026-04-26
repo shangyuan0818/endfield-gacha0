@@ -3,8 +3,9 @@ export const SHARE_BRAND_URL = 'ef-gacha.mogujun.icu';
 export const SHARE_BRAND_LINK = 'https://ef-gacha.mogujun.icu/';
 export const SHARE_BRAND_TAGLINE = '导入 · 统计 · 模拟 · 分享';
 export const SHARE_FONT_SANS =
-  '"Space Grotesk", "Judou Sans SE UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Noto Sans SC", "Segoe UI", sans-serif';
-export const SHARE_FONT_MONO = '"IBM Plex Mono", "JetBrains Mono", "SFMono-Regular", "Menlo", "Monaco", "Consolas", monospace';
+  '"Harmony Sans App", "HarmonyOS Sans SC", "HarmonyOS Sans", "PingFang SC", "Microsoft YaHei UI", "Noto Sans SC", "Segoe UI", sans-serif';
+export const SHARE_FONT_MONO =
+  '"Novecento Sans Wide App", "Novecento Sans Wide Bold", "Novecento Sans Wide", "Harmony Sans App", "Segoe UI", sans-serif';
 export const SHARE_CARD_WIDTH = 760;
 export const SHARE_CARD_HEIGHT = 820;
 export const SHARE_CARD_EXPORT_PIXEL_RATIO = 3;

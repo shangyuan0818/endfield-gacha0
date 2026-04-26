@@ -28,19 +28,21 @@
 
 @layer base {
   html {
-    /* Chinese UI defaults to Judou Sans SE; English switches via data-locale. */
-    --font-sans: 'Judou Sans SE UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
-    --font-number: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+    /* Chinese and English UI share Harmony Sans; numeric UI prefers Novecento Sans Wide Bold. */
+    --font-sans: 'Harmony Sans App', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
+    --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-number);
+    --font-code: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     font-family: var(--font-sans);
     background-color: #f4f4f5;
     color: #18181b;
   }
 
   html[data-locale='en-US'] {
-    --font-sans: 'Space Grotesk', 'Judou Sans SE UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
-    --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
-    --font-number: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+    --font-sans: 'Harmony Sans App', 'HarmonyOS Sans', 'HarmonyOS Sans SC', 'Noto Sans SC', system-ui, sans-serif;
+    --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-number);
+    --font-code: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   }
   html.dark {
     background-color: var(--color-endfield-dark);
@@ -58,9 +60,10 @@
   kbd,
   pre,
   samp {
-    font-family: var(--font-mono);
+    font-family: var(--font-code);
   }
 
+  .font-mono,
   .tabular-nums {
     font-family: var(--font-number);
     font-variant-numeric: tabular-nums;

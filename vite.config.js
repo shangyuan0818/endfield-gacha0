@@ -229,7 +229,7 @@ export default defineConfig(({ mode }) => {
       react(),
       createDevApiPlugin(),
       webfontDownload([
-        'https://fonts.googleapis.com/css2?family=Teko:wght@600&family=Noto+Serif+SC:wght@700;900&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap'
+        'https://fonts.googleapis.com/css2?family=Teko:wght@600&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap'
       ])
     ],
     // The app is deployed at the domain root, so generated asset and SW URLs
