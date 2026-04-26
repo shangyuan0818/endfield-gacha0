@@ -329,17 +329,45 @@ export async function runTelegramPollingBot({
           const message = extractMessageEnvelope(update);
           if (message) {
             const reply = await router.handleMessage(message);
-            if (!reply?.text) {
+            if (!reply?.text && !reply?.media?.buffer) {
               continue;
             }
 
-            await sendTelegramMessage({
-              token: config.telegram.token,
-              chatId: message.chatId,
-              replyToMessageId: message.replyToMessageId,
-              text: reply.text,
-              replyMarkup: reply.replyMarkup,
-            });
+            if (reply?.text) {
+              await sendTelegramMessage({
+                token: config.telegram.token,
+                chatId: message.chatId,
+                replyToMessageId: message.replyToMessageId,
+                text: reply.text,
+                replyMarkup: reply.media?.buffer ? undefined : reply.replyMarkup,
+              });
+            }
+
+            if (reply?.media?.buffer) {
+              if (reply.media.kind === 'document') {
+                await sendTelegramDocument({
+                  token: config.telegram.token,
+                  chatId: message.chatId,
+                  replyToMessageId: reply.text ? undefined : message.replyToMessageId,
+                  caption: reply.media.caption,
+                  replyMarkup: reply.replyMarkup,
+                  buffer: reply.media.buffer,
+                  fileName: reply.media.fileName,
+                  mimeType: reply.media.mimeType,
+                });
+              } else {
+                await sendTelegramPhoto({
+                  token: config.telegram.token,
+                  chatId: message.chatId,
+                  replyToMessageId: reply.text ? undefined : message.replyToMessageId,
+                  caption: reply.media.caption,
+                  replyMarkup: reply.replyMarkup,
+                  buffer: reply.media.buffer,
+                  fileName: reply.media.fileName,
+                  mimeType: reply.media.mimeType,
+                });
+              }
+            }
             continue;
           }
 

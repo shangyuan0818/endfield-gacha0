@@ -155,6 +155,55 @@ export class EndfieldApiClient {
     });
   }
 
+  async getAnalysis({ provider, platformUserId, accountRef, poolRef }) {
+    return this.request('/api/dev/v1/bot/analysis', {
+      query: { provider, platformUserId, accountRef, poolRef },
+    });
+  }
+
+  async getShareCard({ provider, platformUserId, accountRef, poolRef, theme = 'dark' }) {
+    const result = await this.request('/api/dev/v1/bot/share-card', {
+      query: { provider, platformUserId, accountRef, poolRef, theme },
+    });
+    const image = result?.image || null;
+    if (!image?.content_base64) {
+      throw new EndfieldApiError('分享图生成失败：API 未返回图片内容。', { status: 502, payload: result });
+    }
+
+    return {
+      kind: 'photo',
+      buffer: Buffer.from(image.content_base64, 'base64'),
+      mimeType: image.mime_type || 'image/png',
+      fileName: image.file_name || 'endfield-gacha-share.png',
+      caption: [
+        result?.account?.display_name,
+        result?.pool?.display_name,
+      ].filter(Boolean).join(' · ') || '终末地抽卡分析分享图',
+    };
+  }
+
+  async getPoolLog({ provider, platformUserId, accountRef, poolRef, format = 'csv' }) {
+    const result = await this.request('/api/dev/v1/bot/pool-log', {
+      query: { provider, platformUserId, accountRef, poolRef, format },
+    });
+    const file = result?.file || null;
+    if (!file?.content_base64) {
+      throw new EndfieldApiError('日志导出失败：API 未返回文件内容。', { status: 502, payload: result });
+    }
+
+    return {
+      kind: 'document',
+      buffer: Buffer.from(file.content_base64, 'base64'),
+      mimeType: file.mime_type || 'text/csv; charset=utf-8',
+      fileName: file.file_name || 'endfield-gacha-pool-log.csv',
+      caption: [
+        result?.account?.display_name,
+        result?.pool?.display_name,
+        `共 ${result?.total || 0} 条记录`,
+      ].filter(Boolean).join(' · '),
+    };
+  }
+
   async getRankings() {
     const result = await this.request('/api/dev/v1/stats/rankings');
     return result?.rankings ?? result?.characterRanking ?? null;

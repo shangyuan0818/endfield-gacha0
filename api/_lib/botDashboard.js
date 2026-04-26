@@ -12,27 +12,39 @@ import { getPoolTimingMeta } from '../../src/utils/poolSelectorDisplay.js';
 
 const BOT_LOCALE = 'zh-CN';
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
-const BOT_REF_VERSION = 1;
-
-function encodeBotRef(payload = {}) {
-  return Buffer.from(JSON.stringify({
-    v: BOT_REF_VERSION,
-    ...payload,
-  }), 'utf8').toString('base64url');
+function encodeRefPayload(value) {
+  return Buffer.from(String(value || ''), 'utf8').toString('base64url');
 }
 
-function decodeBotRef(ref) {
+function decodeRefPayload(value) {
+  return Buffer.from(String(value || ''), 'base64url').toString('utf8');
+}
+
+export function decodeBotRef(ref) {
   const value = String(ref || '').trim();
   if (!value) {
     return null;
   }
 
   try {
-    const payload = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-    if (payload?.v !== BOT_REF_VERSION) {
-      return null;
+    if (value.startsWith('a.')) {
+      const gameUid = decodeRefPayload(value.slice(2)).trim();
+      return gameUid ? { kind: 'account', gameUid } : null;
     }
-    return payload;
+
+    if (value.startsWith('p.')) {
+      const [gameUid = '', poolId = ''] = decodeRefPayload(value.slice(2)).split('|');
+      if (!poolId.trim()) {
+        return null;
+      }
+      return {
+        kind: 'pool',
+        gameUid: gameUid.trim(),
+        poolId: poolId.trim(),
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -100,18 +112,11 @@ function getAccountPoolKey(item) {
 }
 
 function buildAccountRef(gameUid) {
-  return encodeBotRef({
-    kind: 'account',
-    gameUid: String(gameUid || '').trim(),
-  });
+  return `a.${encodeRefPayload(String(gameUid || '').trim())}`;
 }
 
 function buildPoolRef({ gameUid, poolId }) {
-  return encodeBotRef({
-    kind: 'pool',
-    gameUid: String(gameUid || '').trim(),
-    poolId: String(poolId || '').trim(),
-  });
+  return `p.${encodeRefPayload(`${String(gameUid || '').trim()}|${String(poolId || '').trim()}`)}`;
 }
 
 function readSelectionRefs({ accountRef = null, poolRef = null, gameUid = null, poolId = null } = {}) {

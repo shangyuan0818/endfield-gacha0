@@ -59,4 +59,91 @@ describe('EndfieldApiClient', () => {
       },
     });
   });
+
+  it('reads analysis, share image and pool log through the API layer', async () => {
+    const fetchImpl = async (url) => {
+      const pathname = new URL(url).pathname;
+      if (pathname === '/api/dev/v1/bot/analysis') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          text: async () => JSON.stringify({
+            success: true,
+            data: { selected: { pool: { ref: 'pool-ref' } } },
+          }),
+        };
+      }
+      if (pathname === '/api/dev/v1/bot/share-card') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          text: async () => JSON.stringify({
+            success: true,
+            data: {
+              account: { display_name: '老鲤船长' },
+              pool: { display_name: '春雷动，万物生' },
+              image: {
+                file_name: 'share.png',
+                mime_type: 'image/png',
+                content_base64: Buffer.from('png-data').toString('base64'),
+              },
+            },
+          }),
+        };
+      }
+      if (pathname === '/api/dev/v1/bot/pool-log') {
+        return {
+          ok: true,
+          status: 200,
+          headers: { get: () => 'application/json' },
+          text: async () => JSON.stringify({
+            success: true,
+            data: {
+              account: { display_name: '老鲤船长' },
+              pool: { display_name: '春雷动，万物生' },
+              total: 1,
+              file: {
+                file_name: 'log.csv',
+                mime_type: 'text/csv; charset=utf-8',
+                content_base64: Buffer.from('csv-data').toString('base64'),
+              },
+            },
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected path: ${pathname}`);
+    };
+    const client = createClient(fetchImpl);
+
+    await expect(client.getAnalysis({
+      provider: 'telegram',
+      platformUserId: '123456',
+      poolRef: 'pool-ref',
+    })).resolves.toMatchObject({
+      selected: { pool: { ref: 'pool-ref' } },
+    });
+
+    await expect(client.getShareCard({
+      provider: 'telegram',
+      platformUserId: '123456',
+      poolRef: 'pool-ref',
+    })).resolves.toMatchObject({
+      kind: 'photo',
+      fileName: 'share.png',
+      buffer: Buffer.from('png-data'),
+    });
+
+    await expect(client.getPoolLog({
+      provider: 'telegram',
+      platformUserId: '123456',
+      poolRef: 'pool-ref',
+    })).resolves.toMatchObject({
+      kind: 'document',
+      fileName: 'log.csv',
+      buffer: Buffer.from('csv-data'),
+    });
+  });
 });
