@@ -543,7 +543,7 @@ function toAnalysisAccount(account = {}) {
   };
 }
 
-function toAnalysisPoolDetail(detail = null) {
+export function toAnalysisPoolDetail(detail = null) {
   if (!detail) {
     return null;
   }
@@ -625,8 +625,11 @@ export async function fetchBotDashboard(adminClient, userId) {
         account_name: buildAccountName([latestHighRarity], getHistoryGameUid(latestHighRarity)),
       } : null,
       recommended_pool: latestPool ? {
-        game_uid: latestPool.game_uid,
-        pool_id: latestPool.pool_id,
+        ref: buildPoolRef({
+          gameUid: latestPool.game_uid,
+          poolId: latestPool.pool_id,
+        }),
+        account_ref: buildAccountRef(latestPool.game_uid),
         display_name: latestPool.display_name,
         account_name: latestPool.account_name,
         pool_type: latestPool.pool_type,
@@ -645,8 +648,8 @@ export async function fetchBotPoolIndex(adminClient, userId) {
   return {
     user: dataset.user,
     total_pool_entries: poolEntries.length,
-    latest_pool: poolEntries[0] || null,
-    accounts,
+    latest_pool: poolEntries[0] ? toAnalysisPoolEntry(poolEntries[0]) : null,
+    accounts: accounts.map(toAnalysisAccount),
   };
 }
 
@@ -700,20 +703,23 @@ export async function fetchBotRecentPulls(adminClient, userId, limit = 10) {
     .slice(0, safeLimit)
     .map((record) => {
       const pool = resolvePoolRow(dataset.poolMap, getHistoryPoolId(record));
+      const gameUid = getHistoryGameUid(record);
+      const poolId = getHistoryPoolId(record);
+      const poolRef = buildPoolRef({ gameUid, poolId });
       return {
-        id: record.id,
-        game_uid: getHistoryGameUid(record),
-        pool_id: getHistoryPoolId(record),
+        ref: poolRef,
+        account_ref: buildAccountRef(gameUid),
         pool_type: normalizePoolType(pool.type),
         pool_name: pool?.name || null,
         display_name: localizePoolDisplayName(pool),
-        account_name: buildAccountName([record], getHistoryGameUid(record)),
+        account_name: buildAccountName([record], gameUid),
         item_name: localizeItemName(record),
         rarity: record.rarity,
         timestamp: record.timestamp,
-        share_target: {
-          game_uid: getHistoryGameUid(record),
-          pool_id: getHistoryPoolId(record),
+        actions: {
+          detail_ref: poolRef,
+          share_ref: poolRef,
+          log_ref: poolRef,
         },
       };
     });
@@ -893,4 +899,5 @@ export default {
   fetchBotRecentPulls,
   fetchBotPoolDetail,
   fetchBotPoolLog,
+  toAnalysisPoolDetail,
 };

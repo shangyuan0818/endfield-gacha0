@@ -21,6 +21,39 @@ function sanitizeOfficialBotData(data) {
   }
 
   const safeData = JSON.parse(JSON.stringify(data));
+  const sensitiveKeys = new Set([
+    'user_id',
+    'platform_user_id',
+    'game_uid',
+    'gameUid',
+    'pool_id',
+    'poolId',
+    'record_id',
+    'recordId',
+    'share_target',
+  ]);
+
+  function stripSensitiveFields(value) {
+    if (Array.isArray(value)) {
+      value.forEach(stripSensitiveFields);
+      return value;
+    }
+
+    if (!value || typeof value !== 'object') {
+      return value;
+    }
+
+    Object.keys(value).forEach((key) => {
+      if (sensitiveKeys.has(key)) {
+        delete value[key];
+        return;
+      }
+
+      stripSensitiveFields(value[key]);
+    });
+
+    return value;
+  }
 
   if (safeData.user && typeof safeData.user === 'object') {
     delete safeData.user.id;
@@ -40,7 +73,7 @@ function sanitizeOfficialBotData(data) {
     });
   }
 
-  return safeData;
+  return stripSensitiveFields(safeData);
 }
 
 export async function handleOfficialBotSelfApi(req, res, {
