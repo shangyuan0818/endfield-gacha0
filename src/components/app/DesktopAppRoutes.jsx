@@ -8,6 +8,7 @@ const GachaSimulator = lazy(() => import('../../features/simulator/GachaSimulato
 const SummaryView = lazy(() => import('../SummaryView'));
 const AdminPanel = lazy(() => import('../AdminPanel'));
 const SettingsPanel = lazy(() => import('../SettingsPanel'));
+const DeveloperApiDocsPage = lazy(() => import('../docs/DeveloperApiDocsPage'));
 const AboutPanel = lazy(() => import('../AboutPanel'));
 const TicketPanel = lazy(() => import('../TicketPanel'));
 
@@ -96,6 +97,14 @@ export default function DesktopAppRoutes({
         element={
           <Suspense fallback={<TabPanelFallback label={tt('正在加载设置...', 'Loading settings...')} />}>
             <SettingsPanel onDeleteAllData={deleteAllUserData} />
+          </Suspense>
+        }
+      />
+      <Route
+        path="developer-api"
+        element={
+          <Suspense fallback={<TabPanelFallback label={tt('正在加载 API 文档...', 'Loading API docs...')} />}>
+            <DeveloperApiDocsPage />
           </Suspense>
         }
       />

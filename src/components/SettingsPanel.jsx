@@ -1,10 +1,13 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import LocaleSwitcher from './common/LocaleSwitcher.jsx';
+import PlatformBindingsSection from './settings/PlatformBindingsSection.jsx';
+import DeveloperApiSection from './settings/DeveloperApiSection.jsx';
+import UsernameEditDialog from './settings/UsernameEditDialog.jsx';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
 import { deleteOwnAccount } from '../services/selfAccountService';
@@ -13,8 +16,6 @@ import { finalizeDeletedAccountSession } from '../utils/finalizeDeletedAccountSe
 import {
   buildUsernameHandle,
   getPreferredUsername,
-  getUsernameValidationCode,
-  normalizeUsername,
 } from '../utils/usernameValidation.js';
 import {
   formatFreshnessAbsolute,
@@ -55,6 +56,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const setHistory = useHistoryStore(state => state.setHistory);
   const { themeMode, setThemeMode } = useTheme();
   const { loadPublicPools } = useCloudSync({ showToast: () => {} });
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
@@ -68,10 +70,6 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [usernameInput, setUsernameInput] = useState('');
-  const [usernameLoading, setUsernameLoading] = useState(false);
-  const [usernameError, setUsernameError] = useState('');
-  const [usernameSuccess, setUsernameSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const deletePhrase = t('settings.deletePhrase');
@@ -95,12 +93,6 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   }, [getGameAccountsFromHistory, history]);
   const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
   const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
-
-  useEffect(() => {
-    setUsernameInput(currentUsername);
-    setUsernameError('');
-    setUsernameSuccess('');
-  }, [currentUsername]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== deletePhrase) return;
@@ -189,54 +181,13 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     }
   };
 
-  const getLocalizedUsernameValidationMessage = (validationCode) => {
-    switch (validationCode) {
-      case 'required':
-        return t('settings.error.usernameRequired');
-      case 'too_short':
-        return t('settings.error.usernameTooShort');
-      case 'too_long':
-        return t('settings.error.usernameTooLong');
-      case 'invalid_characters':
-        return t('settings.error.usernameInvalid');
-      default:
-        return t('settings.error.usernameUpdateFailed');
-    }
-  };
-
-  const handleUsernameUpdate = async () => {
+  const handleUsernameSubmit = async (normalizedUsername) => {
     if (!user) {
-      setUsernameError(t('settings.error.notLoggedInUsername'));
-      return;
+      throw new Error(t('settings.error.notLoggedInUsername'));
     }
 
-    const normalizedUsername = normalizeUsername(usernameInput);
-    const validationCode = getUsernameValidationCode(normalizedUsername, { required: true });
-    if (validationCode) {
-      setUsernameError(getLocalizedUsernameValidationMessage(validationCode));
-      setUsernameSuccess('');
-      return;
-    }
-
-    if (normalizedUsername === currentUsername) {
-      setUsernameError(t('settings.error.usernameUnchanged'));
-      setUsernameSuccess('');
-      return;
-    }
-
-    setUsernameLoading(true);
-    setUsernameError('');
-    setUsernameSuccess('');
-    try {
-      const updatedUser = await updateOwnUsername(user, normalizedUsername);
-      setUser(updatedUser);
-      setUsernameInput(normalizedUsername);
-      setUsernameSuccess(t('settings.success.usernameUpdated'));
-    } catch (error) {
-      setUsernameError(error?.message || t('settings.error.usernameUpdateFailed'));
-    } finally {
-      setUsernameLoading(false);
-    }
+    const updatedUser = await updateOwnUsername(user, normalizedUsername);
+    setUser(updatedUser);
   };
 
   const getRoleInfo = (role) => {
@@ -295,32 +246,15 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     </div>
                     <span className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate">{currentUsernameHandle}</span>
                   </div>
-                  <input
-                    type="text"
-                    value={usernameInput}
-                    onChange={(event) => setUsernameInput(event.target.value)}
-                    placeholder={t('settings.usernamePlaceholder')}
-                    maxLength={50}
-                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 rounded-sm focus:outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
-                  />
                   <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    {t('settings.usernameFormatHint')}
+                    {t('settings.usernameDialogDesc')}
                   </div>
-                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
-                    {t('settings.usernamePublicHandle', { value: buildUsernameHandle({ ...user, user_metadata: { ...(user?.user_metadata || {}), username: normalizeUsername(usernameInput) || currentUsername } }) })}
-                  </div>
-                  {usernameError ? (
-                    <div className="text-[11px] text-red-600 dark:text-red-400">{usernameError}</div>
-                  ) : null}
-                  {usernameSuccess ? (
-                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400">{usernameSuccess}</div>
-                  ) : null}
                   <button
-                    onClick={handleUsernameUpdate}
-                    disabled={usernameLoading}
+                    type="button"
+                    onClick={() => setShowUsernameModal(true)}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 border border-zinc-900 dark:border-zinc-100 text-xs font-bold tracking-wider transition-all uppercase rounded-sm disabled:opacity-60"
                   >
-                    <User size={14} /> {usernameLoading ? `${t('settings.changeUsername')}...` : t('settings.changeUsername')}
+                    <User size={14} /> {t('settings.changeUsername')}
                   </button>
                 </div>
                 
@@ -399,6 +333,32 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               </div>
             </div>
 
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 relative rounded-sm">
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 bg-zinc-50/50 dark:bg-zinc-950/50">
+            <ShieldCheck size={14} className="text-zinc-500" />
+            <h3 className="font-bold text-xs text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">
+              {t('settings.integration.bindingsTitle')}
+            </h3>
+          </div>
+          <div className="p-4">
+            <PlatformBindingsSection />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 relative rounded-sm">
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 bg-zinc-50/50 dark:bg-zinc-950/50">
+            <Globe size={14} className="text-zinc-500" />
+            <h3 className="font-bold text-xs text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">
+              {t('settings.integration.apiTitle')}
+            </h3>
+          </div>
+          <div className="p-4">
+            <DeveloperApiSection />
           </div>
         </div>
       </div>
@@ -527,6 +487,15 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
           </div>
         </div>
       )}
+
+      <UsernameEditDialog
+        open={showUsernameModal}
+        onClose={() => setShowUsernameModal(false)}
+        user={user}
+        currentUsername={currentUsername}
+        currentUsernameHandle={currentUsernameHandle}
+        onSubmit={handleUsernameSubmit}
+      />
 
       {/* Modals remain structurally similar, just updated dark mode classes slightly for consistency */}
       {/* 修改密码弹窗 */}

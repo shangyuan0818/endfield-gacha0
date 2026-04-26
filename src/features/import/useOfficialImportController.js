@@ -331,6 +331,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
               total: backendResult?.totalRecords || 0,
               newRecords: backendResult?.newRecords || 0,
               duplicates: backendResult?.duplicates || 0,
+              byPool: backendResult?.byPool || {},
+              byPoolType: backendResult?.byPoolType || {},
               partialPools: backendResult?.partialPools || [],
               failedPools: backendResult?.failedPools || []
             },
@@ -343,8 +345,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         setImportSummary({
           total: backendResult?.totalRecords || 0,
           byRarity: { 4: 0, 5: 0, 6: 0 },
-          byPool: {},
-          byPoolType: {},
+          byPool: backendResult?.byPool || {},
+          byPoolType: backendResult?.byPoolType || {},
           sixStars: [],
           fiveStars: [],
           partialPools: backendResult?.partialPools || [],

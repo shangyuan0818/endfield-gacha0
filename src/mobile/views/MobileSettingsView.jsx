@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
-  AlertTriangle, X, Database, LogOut, ChevronRight
+  AlertTriangle, X, Database, LogOut, ChevronRight, Globe
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
@@ -12,6 +12,9 @@ import { useToast } from '../../hooks';
 import { supabase } from '../../supabaseClient';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
+import PlatformBindingsSection from '../../components/settings/PlatformBindingsSection.jsx';
+import DeveloperApiSection from '../../components/settings/DeveloperApiSection.jsx';
+import UsernameEditDialog from '../../components/settings/UsernameEditDialog.jsx';
 import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
@@ -21,8 +24,6 @@ import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccoun
 import {
   buildUsernameHandle,
   getPreferredUsername,
-  getUsernameValidationCode,
-  normalizeUsername,
 } from '../../utils/usernameValidation.js';
 import { MobileSectionTitle, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import {
@@ -71,6 +72,7 @@ function MobileSettingsView() {
   const deletePhrase = t('settings.deletePhrase');
   const deleteAccountPhrase = t('settings.deleteAccountPhrase');
 
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -84,10 +86,6 @@ function MobileSettingsView() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
-  const [usernameInput, setUsernameInput] = useState('');
-  const [usernameLoading, setUsernameLoading] = useState(false);
-  const [usernameError, setUsernameError] = useState('');
-  const [usernameSuccess, setUsernameSuccess] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -111,12 +109,6 @@ function MobileSettingsView() {
   }, [getGameAccountsFromHistory, history]);
   const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
   const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
-
-  useEffect(() => {
-    setUsernameInput(currentUsername);
-    setUsernameError('');
-    setUsernameSuccess('');
-  }, [currentUsername]);
 
   const getRoleInfo = (role) => {
     switch (role) {
@@ -198,54 +190,13 @@ function MobileSettingsView() {
     }
   };
 
-  const getLocalizedUsernameValidationMessage = (validationCode) => {
-    switch (validationCode) {
-      case 'required':
-        return t('settings.error.usernameRequired');
-      case 'too_short':
-        return t('settings.error.usernameTooShort');
-      case 'too_long':
-        return t('settings.error.usernameTooLong');
-      case 'invalid_characters':
-        return t('settings.error.usernameInvalid');
-      default:
-        return t('settings.error.usernameUpdateFailed');
-    }
-  };
-
-  const handleUsernameUpdate = async () => {
+  const handleUsernameSubmit = async (normalizedUsername) => {
     if (!user) {
-      setUsernameError(t('settings.error.notLoggedInUsername'));
-      return;
+      throw new Error(t('settings.error.notLoggedInUsername'));
     }
 
-    const normalizedUsername = normalizeUsername(usernameInput);
-    const validationCode = getUsernameValidationCode(normalizedUsername, { required: true });
-    if (validationCode) {
-      setUsernameError(getLocalizedUsernameValidationMessage(validationCode));
-      setUsernameSuccess('');
-      return;
-    }
-
-    if (normalizedUsername === currentUsername) {
-      setUsernameError(t('settings.error.usernameUnchanged'));
-      setUsernameSuccess('');
-      return;
-    }
-
-    setUsernameLoading(true);
-    setUsernameError('');
-    setUsernameSuccess('');
-    try {
-      const updatedUser = await updateOwnUsername(user, normalizedUsername);
-      setUser(updatedUser);
-      setUsernameInput(normalizedUsername);
-      setUsernameSuccess(t('settings.success.usernameUpdated'));
-    } catch (error) {
-      setUsernameError(error?.message || t('settings.error.usernameUpdateFailed'));
-    } finally {
-      setUsernameLoading(false);
-    }
+    const updatedUser = await updateOwnUsername(user, normalizedUsername);
+    setUser(updatedUser);
   };
 
   const handleDeleteAllData = async () => {
@@ -374,32 +325,15 @@ function MobileSettingsView() {
               <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                 {t('settings.username')}
               </div>
-              <input
-                type="text"
-                value={usernameInput}
-                onChange={(event) => setUsernameInput(event.target.value)}
-                placeholder={t('settings.usernamePlaceholder')}
-                maxLength={50}
-                className="w-full rounded-[0.95rem] border border-zinc-200 bg-white px-3 py-3 text-sm text-slate-800 outline-none transition-all placeholder:text-slate-400 focus:border-endfield-yellow focus:ring-2 focus:ring-endfield-yellow dark:border-white/10 dark:bg-white/[0.03] dark:text-zinc-100 dark:placeholder:text-zinc-500"
-              />
               <div className="text-[11px] leading-5 text-zinc-500 dark:text-zinc-400">
-                {t('settings.usernameFormatHint')}
+                {t('settings.usernameDialogDesc')}
               </div>
-              <div className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-                {t('settings.usernamePublicHandle', { value: buildUsernameHandle({ ...user, user_metadata: { ...(user?.user_metadata || {}), username: normalizeUsername(usernameInput) || currentUsername } }) })}
-              </div>
-              {usernameError ? (
-                <div className="text-[11px] text-red-500">{usernameError}</div>
-              ) : null}
-              {usernameSuccess ? (
-                <div className="text-[11px] text-emerald-500">{usernameSuccess}</div>
-              ) : null}
               <button
-                onClick={handleUsernameUpdate}
-                disabled={usernameLoading}
+                type="button"
+                onClick={() => setShowUsernameModal(true)}
                 className="w-full rounded-[0.95rem] border border-endfield-yellow bg-endfield-yellow/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-amber-700 transition-all hover:bg-endfield-yellow hover:text-black disabled:opacity-60 dark:text-endfield-yellow"
               >
-                {usernameLoading ? `${t('settings.changeUsername')}...` : t('settings.changeUsername')}
+                {t('settings.changeUsername')}
               </button>
             </div>
 
@@ -424,6 +358,18 @@ function MobileSettingsView() {
             <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('settings.mobile.authRequired')}</p>
           </div>
         )}
+      </MobileSettingsSection>
+
+      <MobileSettingsSection title={t('settings.integration.bindingsTitle')} icon={Cloud}>
+        <div className="p-4">
+          <PlatformBindingsSection variant="mobile" />
+        </div>
+      </MobileSettingsSection>
+
+      <MobileSettingsSection title={t('settings.integration.apiTitle')} icon={Globe}>
+        <div className="p-4">
+          <DeveloperApiSection variant="mobile" />
+        </div>
       </MobileSettingsSection>
 
       {/* 外观设置 */}
@@ -650,6 +596,16 @@ function MobileSettingsView() {
 
       {/* 底部留白 */}
       <div className="h-4" />
+
+      <UsernameEditDialog
+        open={showUsernameModal}
+        onClose={() => setShowUsernameModal(false)}
+        user={user}
+        currentUsername={currentUsername}
+        currentUsernameHandle={currentUsernameHandle}
+        onSubmit={handleUsernameSubmit}
+        variant="mobile"
+      />
 
       {/* 修改密码弹窗 */}
       {showPasswordModal && (

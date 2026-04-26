@@ -19,6 +19,7 @@ import MobileTicketView from '../views/MobileTicketView';
 import MobileAnnouncementsView from '../views/MobileAnnouncementsView';
 import MobileMechanicsView from '../views/MobileMechanicsView';
 import MobileRoadmapView from '../views/MobileRoadmapView';
+import DeveloperApiDocsPage from '../../components/docs/DeveloperApiDocsPage';
 import useAuthStore from '../../stores/useAuthStore';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 import { useI18n } from '../../i18n/index.js';
@@ -61,6 +62,7 @@ function MobileLayout() {
           <Route path="dashboard" element={<Navigate to={getMobilePathForTab('details')} replace />} />
           <Route path="simulator" element={<MobileSimulatorView />} />
           <Route path="settings" element={<MobileSettingsView />} />
+          <Route path="developer-api" element={<DeveloperApiDocsPage />} />
           <Route path="about" element={<MobileAboutView />} />
           <Route
             path="admin"

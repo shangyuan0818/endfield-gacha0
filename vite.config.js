@@ -7,6 +7,34 @@ import authAccountStatusHandler from './api/auth-account-status.js'
 import accountRecoveryRequestHandler from './api/account-recovery-request.js'
 import officialAnnouncementImageHandler from './api/official-announcement-image.js'
 import selfDeleteAccountHandler from './api/self-delete-account.js'
+import devApplicationsHandler from './api/dev/applications/index.js'
+import devApplicationsMeHandler from './api/dev/applications/me.js'
+import devV1MetaHandler from './api/dev/v1/meta.js'
+import devV1OpenApiHandler from './api/dev/v1/openapi.js'
+import devV1PoolsHandler from './api/dev/v1/pools.js'
+import devV1PoolHandler from './api/dev/v1/pool.js'
+import devV1CharactersHandler from './api/dev/v1/characters.js'
+import devV1CharacterHandler from './api/dev/v1/character.js'
+import devV1AnnouncementsHandler from './api/dev/v1/announcements.js'
+import devV1StatsGlobalHandler from './api/dev/v1/stats/global.js'
+import devV1StatsRankingsHandler from './api/dev/v1/stats/rankings.js'
+import devV1StatsPoolsHandler from './api/dev/v1/stats/pools.js'
+import devV1StatsPoolHandler from './api/dev/v1/stats/pool.js'
+import devV1StatsItemsHandler from './api/dev/v1/stats/items.js'
+import devV1StatsItemHandler from './api/dev/v1/stats/item.js'
+import devV1StatsTrendsHandler from './api/dev/v1/stats/trends.js'
+import devV1StatsDistributionsHandler from './api/dev/v1/stats/distributions.js'
+import devV1BotSelfSummaryHandler from './api/dev/v1/bot/self-summary.js'
+import devV1BotRecentPullsHandler from './api/dev/v1/bot/recent-pulls.js'
+import devV1BotPoolsHandler from './api/dev/v1/bot/pools.js'
+import devV1BotDashboardHandler from './api/dev/v1/bot/dashboard.js'
+import devV1BotPoolDetailHandler from './api/dev/v1/bot/pool-detail.js'
+import devV1SiteOverviewHandler from './api/dev/v1/site/overview.js'
+import bindingMeHandler from './api/integrations/bindings/me.js'
+import bindingChallengeHandler from './api/integrations/bindings/challenge.js'
+import bindingVerifyHandler from './api/integrations/bindings/verify.js'
+import bindingRevokeHandler from './api/integrations/bindings/revoke.js'
+import botImportNotifyHandler from './api/integrations/bot/import-notify.js'
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -63,6 +91,15 @@ function normalizeRequestPath(url) {
   return pathname.replace(/\/+$/, '')
 }
 
+function readQuery(url) {
+  if (!url) {
+    return {}
+  }
+
+  const searchParams = new URL(url, 'http://localhost').searchParams
+  return Object.fromEntries(searchParams.entries())
+}
+
 function createApiMiddleware(routeHandlers) {
   return async (req, res, next) => {
     const requestPath = normalizeRequestPath(req.url)
@@ -84,6 +121,7 @@ function createApiMiddleware(routeHandlers) {
       } else {
         req.body = {}
       }
+      req.query = readQuery(req.url)
 
       await handler(req, createVercelLikeResponse(res))
     } catch (error) {
@@ -122,7 +160,35 @@ function createDevApiPlugin() {
     ['/api/admin-delete-user', adminHandler],
     ['/api/admin-user-reset-password', adminHandler],
     ['/api/official-announcement-image', officialAnnouncementImageHandler],
-    ['/api/self-delete-account', selfDeleteAccountHandler]
+    ['/api/self-delete-account', selfDeleteAccountHandler],
+    ['/api/dev/applications', devApplicationsHandler],
+    ['/api/dev/applications/me', devApplicationsMeHandler],
+    ['/api/dev/v1/meta', devV1MetaHandler],
+    ['/api/dev/v1/openapi', devV1OpenApiHandler],
+    ['/api/dev/v1/pools', devV1PoolsHandler],
+    ['/api/dev/v1/pool', devV1PoolHandler],
+    ['/api/dev/v1/characters', devV1CharactersHandler],
+    ['/api/dev/v1/character', devV1CharacterHandler],
+    ['/api/dev/v1/announcements', devV1AnnouncementsHandler],
+    ['/api/dev/v1/stats/global', devV1StatsGlobalHandler],
+    ['/api/dev/v1/stats/rankings', devV1StatsRankingsHandler],
+    ['/api/dev/v1/stats/pools', devV1StatsPoolsHandler],
+    ['/api/dev/v1/stats/pool', devV1StatsPoolHandler],
+    ['/api/dev/v1/stats/items', devV1StatsItemsHandler],
+    ['/api/dev/v1/stats/item', devV1StatsItemHandler],
+    ['/api/dev/v1/stats/trends', devV1StatsTrendsHandler],
+    ['/api/dev/v1/stats/distributions', devV1StatsDistributionsHandler],
+    ['/api/dev/v1/bot/self-summary', devV1BotSelfSummaryHandler],
+    ['/api/dev/v1/bot/recent-pulls', devV1BotRecentPullsHandler],
+    ['/api/dev/v1/bot/pools', devV1BotPoolsHandler],
+    ['/api/dev/v1/bot/dashboard', devV1BotDashboardHandler],
+    ['/api/dev/v1/bot/pool-detail', devV1BotPoolDetailHandler],
+    ['/api/dev/v1/site/overview', devV1SiteOverviewHandler],
+    ['/api/integrations/bindings/me', bindingMeHandler],
+    ['/api/integrations/bindings/challenge', bindingChallengeHandler],
+    ['/api/integrations/bindings/verify', bindingVerifyHandler],
+    ['/api/integrations/bindings/revoke', bindingRevokeHandler],
+    ['/api/integrations/bot/import-notify', botImportNotifyHandler]
   ])
   const middleware = createApiMiddleware(routeHandlers)
 

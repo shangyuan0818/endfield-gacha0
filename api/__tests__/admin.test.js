@@ -106,6 +106,47 @@ function createAdminClient({ role = 'super_admin', deleteError = null } = {}) {
   };
 }
 
+function createApiKeyRevokeAdminClient({
+  role = 'super_admin',
+  revokedKey = {
+    id: 'key-1',
+    client_id: 'client-1',
+    key_prefix: 'ek_live_test',
+    label: 'primary',
+    status: 'revoked',
+    revoked_at: '2026-04-26T00:00:00.000Z',
+  },
+  revokeError = null,
+} = {}) {
+  const maybeSingle = vi.fn(async () => ({
+    data: revokedKey,
+    error: revokeError,
+  }));
+  const select = vi.fn(() => ({ maybeSingle }));
+  const eq = vi.fn(() => ({ select }));
+  const update = vi.fn(() => ({ eq }));
+
+  return {
+    from: vi.fn((table) => {
+      if (table === 'profiles') {
+        return createProfilesQuery(role);
+      }
+
+      if (table === 'api_client_keys') {
+        return { update };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+    __apiKeyRevokeMocks: {
+      update,
+      eq,
+      select,
+      maybeSingle,
+    },
+  };
+}
+
 function createRequest({
   method = 'GET',
   url = 'https://example.com/api/admin-users',
@@ -211,6 +252,59 @@ describe('api/admin handler', () => {
     expect(res.body).toEqual({
       success: true,
       userId: 'target-user-id',
+    });
+  });
+
+  it('revokes one developer API key from the admin route', async () => {
+    const adminClient = createApiKeyRevokeAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=api-clients-revoke-key',
+      headers: { authorization: 'Bearer token' },
+      body: { keyId: 'key-1' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.from).toHaveBeenCalledWith('api_client_keys');
+    expect(adminClient.__apiKeyRevokeMocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'revoked',
+      revoked_at: expect.any(String),
+    }));
+    expect(adminClient.__apiKeyRevokeMocks.eq).toHaveBeenCalledWith('id', 'key-1');
+    expect(res.body).toMatchObject({
+      success: true,
+      key: {
+        id: 'key-1',
+        client_id: 'client-1',
+        key_prefix: 'ek_live_test',
+        status: 'revoked',
+      },
+    });
+    expect(JSON.stringify(res.body)).not.toContain('key_hash');
+  });
+
+  it('rejects API key revoke without keyId', async () => {
+    mocks.getSupabaseAdminClient.mockReturnValue(createApiKeyRevokeAdminClient());
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=api-clients-revoke-key',
+      headers: { authorization: 'Bearer token' },
+      body: {},
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Missing keyId',
     });
   });
 });

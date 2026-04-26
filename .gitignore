@@ -65,3 +65,7 @@ src/assets/fonts/judou/*.ttf
 src/generated/fonts/judou/**/index.html
 src/generated/fonts/judou/**/index.proto
 src/generated/fonts/judou/**/reporter.bin
+
+bots/*
+!bots/official/
+!bots/official/**

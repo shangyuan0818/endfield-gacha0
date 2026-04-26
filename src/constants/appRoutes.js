@@ -8,6 +8,7 @@ export const APP_TAB_IDS = [
   'simulator',
   'admin',
   'settings',
+  'developerApi',
   'about',
   'tickets'
 ];
@@ -19,6 +20,7 @@ export const DESKTOP_TAB_ROUTES = {
   simulator: '/simulator',
   admin: '/admin',
   settings: '/settings',
+  developerApi: '/developer-api',
   about: '/about',
   tickets: '/tickets'
 };
@@ -31,6 +33,7 @@ export const MOBILE_TAB_ROUTES = {
   simulator: '/m/simulator',
   admin: '/m/admin',
   settings: '/m/settings',
+  developerApi: '/m/developer-api',
   about: '/m/about',
   tickets: '/m/tickets'
 };

@@ -6,6 +6,25 @@ import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 
 const OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_MARKER = '/api/official-announcement-image?';
 
+function stringifyMarkdownChildren(children) {
+  if (Array.isArray(children)) {
+    return children.map(stringifyMarkdownChildren).join('');
+  }
+  if (children && typeof children === 'object' && 'props' in children) {
+    return stringifyMarkdownChildren(children.props?.children);
+  }
+  return String(children ?? '');
+}
+
+function buildHeadingId(children) {
+  return stringifyMarkdownChildren(children)
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Number}\s_-]+/gu, '')
+    .replace(/\s+/gu, '-')
+    .slice(0, 80) || undefined;
+}
+
 /**
  * 自定义 HTML 净化规则
  * 基于 rehype-sanitize 的 defaultSchema，添加必要的扩展
@@ -52,19 +71,19 @@ const SimpleMarkdown = ({ content, className = '' }) => {
   const components = {
     // 标题
     h1: ({ children }) => (
-      <h1 className="font-black text-2xl mt-5 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
+      <h1 id={buildHeadingId(children)} className="scroll-mt-24 font-black text-2xl mt-5 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
         <span className="w-1.5 h-7 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h1>
     ),
     h2: ({ children }) => (
-      <h2 className="font-black text-xl mt-4 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
+      <h2 id={buildHeadingId(children)} className="scroll-mt-24 font-black text-xl mt-4 mb-2 text-zinc-900 dark:text-white flex items-center gap-3 uppercase tracking-tight">
         <span className="w-1.5 h-6 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h2>
     ),
     h3: ({ children }) => (
-      <h3 className="font-bold text-lg mt-3 mb-1.5 text-zinc-800 dark:text-zinc-100 flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
+      <h3 id={buildHeadingId(children)} className="scroll-mt-24 font-bold text-lg mt-3 mb-1.5 text-zinc-800 dark:text-zinc-100 flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
         <span className="w-1 h-1 bg-amber-500 dark:bg-endfield-yellow inline-block"></span>
         {children}
       </h3>

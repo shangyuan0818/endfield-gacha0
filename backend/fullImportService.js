@@ -147,6 +147,29 @@ function getDefaultPoolName(poolId, type) {
   }
 }
 
+function buildImportPoolSummary(rawResults = []) {
+  const byPool = {};
+  const byPoolType = {};
+
+  (Array.isArray(rawResults) ? rawResults : []).forEach((poolData) => {
+    const { type, poolType, records } = poolData || {};
+
+    (Array.isArray(records) ? records : []).forEach((record) => {
+      const poolId = getOfficialPoolId(record, type, poolType);
+      const normalizedPoolType = getPoolTypeFromId(poolId, type, poolType);
+      const poolName = record.poolName || record.pool_name || getDefaultPoolName(poolId, normalizedPoolType);
+
+      byPool[poolName] = (byPool[poolName] || 0) + 1;
+      byPoolType[normalizedPoolType] = (byPoolType[normalizedPoolType] || 0) + 1;
+    });
+  });
+
+  return {
+    byPool,
+    byPoolType,
+  };
+}
+
 function getRecordTimestamp(record) {
   if (record.gachaTs) {
     const parsed = parseInt(record.gachaTs, 10);
@@ -817,6 +840,7 @@ export async function executeFullImport({
 
     // 10. 完成
     updateProgress({ progress: 100, message: '导入完成' });
+    const poolSummary = buildImportPoolSummary(recordsResult.data.results);
 
     return {
       success: true,
@@ -824,6 +848,8 @@ export async function executeFullImport({
         totalRecords: recordsResult.data.totalRecords,
         newRecords: processedRecords.length,
         duplicates: recordsResult.data.totalRecords - processedRecords.length,
+        byPool: poolSummary.byPool,
+        byPoolType: poolSummary.byPoolType,
         partialPools: recordsResult.data.partial || [],
         failedPools: recordsResult.data.failed || [],
         account: {

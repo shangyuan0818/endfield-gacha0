@@ -237,6 +237,26 @@ export default function GachaAnalyzer() {
   }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const requestedGameUid = String(searchParams.get('gameUid') || '').trim();
+    const requestedPoolId = String(searchParams.get('poolId') || '').trim();
+
+    if (requestedGameUid && requestedGameUid !== currentGameUid) {
+      const requestedAccountExists = gameAccounts.some((account) => account.gameUid === requestedGameUid);
+      if (requestedAccountExists) {
+        switchGameAccount(requestedGameUid);
+      }
+    }
+
+    if (requestedPoolId && requestedPoolId !== currentPoolId) {
+      const requestedPoolExists = poolsArray.some((pool) => pool.id === requestedPoolId);
+      if (requestedPoolExists) {
+        switchPool(requestedPoolId);
+      }
+    }
+  }, [currentGameUid, currentPoolId, gameAccounts, location.search, poolsArray, switchGameAccount, switchPool]);
+
+  useEffect(() => {
     if (activeTab === 'admin' && isAuthPending) {
       return;
     }

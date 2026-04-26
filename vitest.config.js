@@ -11,6 +11,7 @@ export default defineConfig({
     include: [
       'src/**/__tests__/**/*.{test,spec}.{js,jsx}',
       'api/**/__tests__/**/*.{test,spec}.{js,jsx}',
+      'bots/**/__tests__/**/*.{test,spec}.{js,jsx}',
     ],
   },
 });

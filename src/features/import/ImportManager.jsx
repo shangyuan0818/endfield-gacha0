@@ -15,6 +15,7 @@ import {
   filterImportedHistoryRecords,
   prepareOfficialImportPersistenceData,
 } from './importPersistence.js';
+import { notifyOfficialBotImportUpdated } from '../../services/accountIntegrationsService.js';
 import OfficialAPIImport from './OfficialAPIImport';
 import { getPoolName } from './importShared.js';
 import { useI18n } from '../../i18n/index.js';
@@ -108,6 +109,14 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
     metadataEntries.forEach((entry) => {
       saveGameAccountMetadata(entry);
     });
+  }, []);
+
+  const notifyBotImportUpdated = useCallback(async ({ summary, userInfo }) => {
+    try {
+      await notifyOfficialBotImportUpdated({ summary, userInfo });
+    } catch (notifyError) {
+      appLogger.warn('[ImportManager] 官方 BOT 导入通知失败:', notifyError);
+    }
   }, []);
 
   /**
@@ -228,6 +237,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
         current: result.summary?.newRecords || 0,
         total: result.summary?.total || 0
       });
+      void notifyBotImportUpdated({
+        summary: result.summary,
+        userInfo: result.userInfo,
+      });
       return;
     }
 
@@ -313,13 +326,17 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
 
       setImportResult(finalResult);
       setImportStatus(ImportStatus.SUCCESS);
+      void notifyBotImportUpdated({
+        summary: finalResult.summary,
+        userInfo: finalResult.userInfo,
+      });
 
     } catch (error) {
       appLogger.error('[ImportManager] 保存数据失败:', error);
       setImportStatus(ImportStatus.ERROR);
       setErrorMessage(error.message || t('import.errorTitle'));
     }
-  }, [currentPoolId, getExistingSeqIds, loadCloudData, persistImportedAccountMetadata, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, t, user]);
+  }, [currentPoolId, getExistingSeqIds, loadCloudData, notifyBotImportUpdated, persistImportedAccountMetadata, pools, saveHistoryToServer, savePoolsToServer, setHistory, setPools, switchGameAccount, switchPool, t, user]);
 
   const handleReset = useCallback(() => {
     setImportStatus(ImportStatus.IDLE);

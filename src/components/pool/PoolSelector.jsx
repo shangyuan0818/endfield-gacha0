@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Upload, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
 import ImportManager from '../../features/import/ImportManager';
@@ -75,6 +75,7 @@ function CompactFreshnessCard({
 const PoolSelector = () => {
   const { t, locale, formatNumber } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   // 从 stores 获取状态
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -198,6 +199,11 @@ const PoolSelector = () => {
     totalPart,
     pulls: formatNumber(totalPulls)
   });
+  const importRequestedByQuery = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return searchParams.get('import') === 'open';
+  }, [location.search]);
+  const isImportManagerOpen = showImportManager || importRequestedByQuery;
 
   useEffect(() => {
     const preferredAccountUid = gameAccounts[0]?.gameUid || null;
@@ -224,6 +230,26 @@ const PoolSelector = () => {
       switchPool(fallbackPool.id);
     }
   }, [currentPoolId, filteredPools, showOverviewOptions, switchPool]);
+
+  const closeImportManager = useCallback(() => {
+    setShowImportManager(false);
+
+    if (!importRequestedByQuery) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(location.search);
+    searchParams.delete('import');
+    const nextSearch = searchParams.toString();
+
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : '',
+      },
+      { replace: true }
+    );
+  }, [importRequestedByQuery, location.pathname, location.search, navigate]);
 
   return (
     <div className="space-y-4">
@@ -419,14 +445,12 @@ const PoolSelector = () => {
       )}
 
       {/* 导入管理器 */}
-      {showImportManager && (
+      {isImportManagerOpen && (
         <ImportManager
-          isOpen={showImportManager}
-          onClose={() => {
-            setShowImportManager(false);
-          }}
+          isOpen={isImportManagerOpen}
+          onClose={closeImportManager}
           onImportComplete={() => {
-            setShowImportManager(false);
+            closeImportManager();
             navigate(getDesktopPathForTab('dashboard'));
           }}
         />

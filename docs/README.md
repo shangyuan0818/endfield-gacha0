@@ -3,6 +3,8 @@
 仓库内的补充文档统一收口到 `docs/`：
 
 - `docs/CODEMAP.md`：前端代码地图与端到端主路径
+- `docs/developer-api-v1.zh-CN.md` / `docs/developer-api-v1.en-US.md`：开发者 API v1 双语 Wiki 源文档
+- `docs/integration-api.md`：平台绑定与官方 BOT 私有接口边界
 - `docs/screenshots/`：README 和发布页引用的产品截图
 - `docs/reviews/`：设计评审、架构审计、阶段性复盘
 - `docs/email-template/`：认证邮件模板与 SMTP 配置说明
