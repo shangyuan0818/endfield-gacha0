@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Link } from 'react-router-dom';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
@@ -23,6 +24,14 @@ function buildHeadingId(children) {
     .replace(/[^\p{Letter}\p{Number}\s_-]+/gu, '')
     .replace(/\s+/gu, '-')
     .slice(0, 80) || undefined;
+}
+
+function isInternalRouteLink(href) {
+  return typeof href === 'string' && href.startsWith('/') && !href.startsWith('//');
+}
+
+function isHashLink(href) {
+  return typeof href === 'string' && href.startsWith('#');
 }
 
 /**
@@ -112,16 +121,36 @@ const SimpleMarkdown = ({ content, className = '' }) => {
     ),
 
     // 链接
-    a: ({ href, children }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="font-bold text-amber-600 dark:text-endfield-yellow hover:text-amber-700 dark:hover:text-white hover:underline decoration-2 underline-offset-4 transition-colors duration-200"
-      >
-        {children}
-      </a>
-    ),
+    a: ({ href, children }) => {
+      const className = 'font-bold text-amber-600 dark:text-endfield-yellow hover:text-amber-700 dark:hover:text-white hover:underline decoration-2 underline-offset-4 transition-colors duration-200';
+
+      if (isInternalRouteLink(href)) {
+        return (
+          <Link to={href} className={className}>
+            {children}
+          </Link>
+        );
+      }
+
+      if (isHashLink(href)) {
+        return (
+          <a href={href} className={className}>
+            {children}
+          </a>
+        );
+      }
+
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={className}
+        >
+          {children}
+        </a>
+      );
+    },
 
     // 图片 - 支持尺寸调整
     // 语法: ![alt](url "title =宽x高") 或 ![alt](url "=宽") 或 ![alt](url "=宽x高")

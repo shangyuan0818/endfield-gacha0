@@ -30,7 +30,7 @@
   html {
     /* Chinese and English UI share Harmony Sans; numeric UI prefers Novecento Sans Wide Bold. */
     --font-sans: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
-    --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-number: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans SC', 'HarmonyOS Sans', ui-sans-serif, system-ui, sans-serif;
     --font-countdown: 'Novecento Sans Wide Tabular App', var(--font-number);
     --font-mono: var(--font-number);
     --font-code: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
@@ -41,7 +41,7 @@
 
   html[data-locale='en-US'] {
     --font-sans: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans', 'HarmonyOS Sans SC', 'Noto Sans SC', system-ui, sans-serif;
-    --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-number: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans', 'HarmonyOS Sans SC', ui-sans-serif, system-ui, sans-serif;
     --font-countdown: 'Novecento Sans Wide Tabular App', var(--font-number);
     --font-mono: var(--font-number);
     --font-code: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;

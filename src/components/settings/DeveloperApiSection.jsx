@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BookOpen, Copy, ExternalLink, Globe, KeyRound, RefreshCw, Send } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useI18n } from '../../i18n/index.js';
 import { useAuthStore } from '../../stores';
 import {
@@ -135,8 +136,8 @@ export default function DeveloperApiSection({ variant = 'desktop' }) {
         </div>
         <div className={styles.helper}>{t('settings.integration.apiScopeHint')}</div>
         {hasActiveApplication ? (
-          <a
-            href={docsPath}
+          <Link
+            to={docsPath}
             className="inline-flex w-full items-center justify-between gap-3 rounded-sm border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-wider text-amber-700 transition-colors hover:bg-amber-400 hover:text-black dark:border-endfield-yellow/40 dark:bg-endfield-yellow/10 dark:text-endfield-yellow dark:hover:bg-endfield-yellow dark:hover:text-black"
           >
             <span className="inline-flex items-center gap-2">
@@ -144,7 +145,7 @@ export default function DeveloperApiSection({ variant = 'desktop' }) {
               {t('settings.integration.apiOpenDocs')}
             </span>
             <ExternalLink size={13} />
-          </a>
+          </Link>
         ) : (
           <div className={styles.helper}>
             {t('settings.integration.apiDocsAfterApproval')}
