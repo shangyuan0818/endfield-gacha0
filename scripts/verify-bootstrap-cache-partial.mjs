@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import bootstrapHandler, { __internal } from '../api/bootstrap.js';
+import bootstrapHandler, { __internal } from '../api/_routes/root/bootstrap.js';
 
 function createMockReq() {
   return {

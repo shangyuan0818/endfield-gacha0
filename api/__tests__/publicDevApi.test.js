@@ -36,11 +36,11 @@ vi.mock('../_lib/publicAnalytics.js', () => ({
   buildPublicSingleItemStats: mocks.buildPublicSingleItemStats,
 }));
 
-import poolsHandler from '../dev/v1/pools.js';
-import metaHandler from '../dev/v1/meta.js';
-import openApiHandler from '../dev/v1/openapi.js';
-import statsPoolHandler from '../dev/v1/stats/pool.js';
-import statsItemHandler from '../dev/v1/stats/item.js';
+import poolsHandler from '../_routes/dev/v1/pools.js';
+import metaHandler from '../_routes/dev/v1/meta.js';
+import openApiHandler from '../_routes/dev/v1/openapi.js';
+import statsPoolHandler from '../_routes/dev/v1/stats/pool.js';
+import statsItemHandler from '../_routes/dev/v1/stats/item.js';
 import { toPublicPoolDto } from '../_lib/publicCatalog.js';
 
 function createJsonResponseRecorder() {

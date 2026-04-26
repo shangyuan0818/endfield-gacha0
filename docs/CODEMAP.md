@@ -262,18 +262,16 @@
 
 ### 站内 Serverless API
 
-- `api/bootstrap.js`
-  - 公开聚合只读数据
-- `api/auth-rate-limit.js`
-  - 认证入口限流
-- `api/auth-account-status.js`
-  - 账号恢复邮箱状态检查
-- `api/account-recovery-request.js`
-  - 匿名恢复申请
-- `api/admin-reset-recovery-password.js`
-  - 超管设置临时密码
-- `api/self-delete-account.js`
-  - 已登录用户自助删号
+- `api/[...path].js`
+  - Vercel 单一 catch-all 入口，避免 Hobby 计划函数数量超限
+- `api/_routes/index.js`
+  - 站内 API 路由表；本地 Vite dev middleware 与 Vercel catch-all 共用
+- `api/_routes/root/*.js`
+  - `bootstrap`、`stats`、认证限流、账号恢复、后台管理、自助删号等站内 API
+- `api/_routes/dev/**/*.js`
+  - 开发者 API 与 BOT 只读 API
+- `api/_routes/integrations/**/*.js`
+  - 平台绑定与导入通知接口
 
 ### Supabase 主路径
 

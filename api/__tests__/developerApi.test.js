@@ -43,10 +43,10 @@ vi.mock('../_lib/botSummary.js', () => ({
   fetchBotSelfSummary: mocks.fetchBotSelfSummary,
 }));
 
-import devApplicationsHandler from '../dev/applications/index.js';
-import bindingMeHandler from '../integrations/bindings/me.js';
-import bindingVerifyHandler from '../integrations/bindings/verify.js';
-import botSelfSummaryHandler from '../dev/v1/bot/self-summary.js';
+import devApplicationsHandler from '../_routes/dev/applications/index.js';
+import bindingMeHandler from '../_routes/integrations/bindings/me.js';
+import bindingVerifyHandler from '../_routes/integrations/bindings/verify.js';
+import botSelfSummaryHandler from '../_routes/dev/v1/bot/self-summary.js';
 
 function createJsonResponseRecorder() {
   return {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { __internal, handleOfficialAnnouncementsFeed as handler } from '../api/automation-feed.js';
+import { __internal, handleOfficialAnnouncementsFeed as handler } from '../api/_routes/root/automation-feed.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {

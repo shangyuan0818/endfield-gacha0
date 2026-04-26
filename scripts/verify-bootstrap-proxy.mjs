@@ -3,8 +3,8 @@ import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import bootstrapHandler from '../api/bootstrap.js';
-import statsHandler from '../api/stats.js';
+import bootstrapHandler from '../api/_routes/root/bootstrap.js';
+import statsHandler from '../api/_routes/root/stats.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

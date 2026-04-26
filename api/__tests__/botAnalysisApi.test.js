@@ -22,9 +22,9 @@ vi.mock('../_lib/dashboardShareImage.js', () => ({
   renderDashboardShareCardImage: mocks.renderDashboardShareCardImage,
 }));
 
-import analysisHandler from '../dev/v1/bot/analysis.js';
-import poolLogHandler from '../dev/v1/bot/pool-log.js';
-import shareCardHandler from '../dev/v1/bot/share-card.js';
+import analysisHandler from '../_routes/dev/v1/bot/analysis.js';
+import poolLogHandler from '../_routes/dev/v1/bot/pool-log.js';
+import shareCardHandler from '../_routes/dev/v1/bot/share-card.js';
 
 function createJsonResponseRecorder() {
   return {

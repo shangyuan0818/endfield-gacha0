@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildPoolScheduleRecords, handlePoolScheduleFeed } from '../api/automation-feed.js';
+import { buildPoolScheduleRecords, handlePoolScheduleFeed } from '../api/_routes/root/automation-feed.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {

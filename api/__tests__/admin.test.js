@@ -37,7 +37,7 @@ vi.mock('../_lib/runOpsAutomation.js', () => ({
   runOpsAutomationJobs: mocks.runOpsAutomationJobs,
 }));
 
-import handler from '../admin.js';
+import handler from '../_routes/root/admin.js';
 
 function createJsonResponseRecorder() {
   return {

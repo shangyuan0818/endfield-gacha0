@@ -3,7 +3,7 @@ import {
   buildImportNotificationRows,
   buildImportNotificationText,
   resolveCurrentPoolTarget,
-} from '../integrations/bot/import-notify.js';
+} from '../_routes/integrations/bot/import-notify.js';
 
 describe('import notify helpers', () => {
   it('builds import notification text without exposing raw uid and with affected pool names', () => {

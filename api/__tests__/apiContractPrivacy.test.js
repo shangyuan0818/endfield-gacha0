@@ -95,34 +95,34 @@ vi.mock('../_lib/dashboardShareImage.js', () => ({
   renderDashboardShareCardImage: mocks.renderDashboardShareCardImage,
 }));
 
-import metaHandler from '../dev/v1/meta.js';
-import openApiHandler from '../dev/v1/openapi.js';
-import poolsHandler from '../dev/v1/pools.js';
-import poolHandler from '../dev/v1/pool.js';
-import charactersHandler from '../dev/v1/characters.js';
-import characterHandler from '../dev/v1/character.js';
-import announcementsHandler from '../dev/v1/announcements.js';
-import siteOverviewHandler from '../dev/v1/site/overview.js';
-import statsGlobalHandler from '../dev/v1/stats/global.js';
-import statsRankingsHandler from '../dev/v1/stats/rankings.js';
-import statsPoolsHandler from '../dev/v1/stats/pools.js';
-import statsPoolHandler from '../dev/v1/stats/pool.js';
-import statsItemsHandler from '../dev/v1/stats/items.js';
-import statsItemHandler from '../dev/v1/stats/item.js';
-import statsTrendsHandler from '../dev/v1/stats/trends.js';
-import statsDistributionsHandler from '../dev/v1/stats/distributions.js';
-import botDashboardHandler from '../dev/v1/bot/dashboard.js';
-import botPoolsHandler from '../dev/v1/bot/pools.js';
-import botPoolDetailHandler from '../dev/v1/bot/pool-detail.js';
-import botRecentPullsHandler from '../dev/v1/bot/recent-pulls.js';
-import botSelfSummaryHandler from '../dev/v1/bot/self-summary.js';
-import botAnalysisHandler from '../dev/v1/bot/analysis.js';
-import botShareCardHandler from '../dev/v1/bot/share-card.js';
-import botPoolLogHandler from '../dev/v1/bot/pool-log.js';
-import bindingChallengeHandler from '../integrations/bindings/challenge.js';
-import bindingMeHandler from '../integrations/bindings/me.js';
-import bindingVerifyHandler from '../integrations/bindings/verify.js';
-import bindingRevokeHandler from '../integrations/bindings/revoke.js';
+import metaHandler from '../_routes/dev/v1/meta.js';
+import openApiHandler from '../_routes/dev/v1/openapi.js';
+import poolsHandler from '../_routes/dev/v1/pools.js';
+import poolHandler from '../_routes/dev/v1/pool.js';
+import charactersHandler from '../_routes/dev/v1/characters.js';
+import characterHandler from '../_routes/dev/v1/character.js';
+import announcementsHandler from '../_routes/dev/v1/announcements.js';
+import siteOverviewHandler from '../_routes/dev/v1/site/overview.js';
+import statsGlobalHandler from '../_routes/dev/v1/stats/global.js';
+import statsRankingsHandler from '../_routes/dev/v1/stats/rankings.js';
+import statsPoolsHandler from '../_routes/dev/v1/stats/pools.js';
+import statsPoolHandler from '../_routes/dev/v1/stats/pool.js';
+import statsItemsHandler from '../_routes/dev/v1/stats/items.js';
+import statsItemHandler from '../_routes/dev/v1/stats/item.js';
+import statsTrendsHandler from '../_routes/dev/v1/stats/trends.js';
+import statsDistributionsHandler from '../_routes/dev/v1/stats/distributions.js';
+import botDashboardHandler from '../_routes/dev/v1/bot/dashboard.js';
+import botPoolsHandler from '../_routes/dev/v1/bot/pools.js';
+import botPoolDetailHandler from '../_routes/dev/v1/bot/pool-detail.js';
+import botRecentPullsHandler from '../_routes/dev/v1/bot/recent-pulls.js';
+import botSelfSummaryHandler from '../_routes/dev/v1/bot/self-summary.js';
+import botAnalysisHandler from '../_routes/dev/v1/bot/analysis.js';
+import botShareCardHandler from '../_routes/dev/v1/bot/share-card.js';
+import botPoolLogHandler from '../_routes/dev/v1/bot/pool-log.js';
+import bindingChallengeHandler from '../_routes/integrations/bindings/challenge.js';
+import bindingMeHandler from '../_routes/integrations/bindings/me.js';
+import bindingVerifyHandler from '../_routes/integrations/bindings/verify.js';
+import bindingRevokeHandler from '../_routes/integrations/bindings/revoke.js';
 
 function createJsonResponseRecorder() {
   return {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import handler from '../api/ops-automation.js';
+import handler from '../api/_routes/root/ops-automation.js';
 import {
   authorizeOpsAutomationRequest,
   buildOpsAutomationDedupeKey,

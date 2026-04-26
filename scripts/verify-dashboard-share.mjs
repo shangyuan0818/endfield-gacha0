@@ -11,6 +11,8 @@ const TOP_LEVEL_KEYS = [
   'averageItems',
   'featured',
   'hasMergedAccountView',
+  'includeFreePullsInStats',
+  'methodology',
   'notes',
   'overviewFilterLabel',
   'periodLabel',
