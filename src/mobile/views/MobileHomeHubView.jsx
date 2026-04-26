@@ -348,7 +348,7 @@ export default function MobileHomeHubView() {
               <div className="text-[9px] font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 dark:bg-ef-yellow animate-pulse"></span>{t('countdown.system')}</div>
               <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white italic tracking-tighter mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
               <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-4 tracking-widest">{countdown.active ? 'ENDING COUNTDOWN' : 'STARTING COUNTDOWN'}</p>
-              <div className="flex items-baseline gap-1 font-mono font-bold text-4xl tracking-tighter">
+              <div className="flex items-baseline gap-1 countdown-nums font-bold text-4xl tracking-tighter">
                   <span className="text-slate-900 dark:text-white">{String(countdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>

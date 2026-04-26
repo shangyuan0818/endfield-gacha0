@@ -45,13 +45,13 @@ const HeaderPoolTimeInfo = React.memo(() => {
 
       <div className="text-zinc-500 dark:text-zinc-400">
         {isNotStarted ? (
-          <span className="text-blue-500">T-{startsIn}D {startsInHours}H</span>
+          <span className="text-blue-500 countdown-nums">T-{startsIn}D {startsInHours}H</span>
         ) : isExpired ? (
           <span className="text-red-500">{t('header.pool.ended', {}, 'ENDED')}</span>
         ) : isEndingSoon ? (
-          <span className="text-amber-500 font-bold animate-pulse">{remainingDays}D {remainingHours}H LEFT</span>
+          <span className="text-amber-500 font-bold animate-pulse countdown-nums">{remainingDays}D {remainingHours}H LEFT</span>
         ) : (
-          <span>{remainingDays}D {remainingHours}H LEFT</span>
+          <span className="countdown-nums">{remainingDays}D {remainingHours}H LEFT</span>
         )}
       </div>
 

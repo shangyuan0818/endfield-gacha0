@@ -288,7 +288,7 @@ const CountdownTimer = React.memo(function CountdownTimer({
                       item.highlight
                         ? 'text-amber-500 dark:text-endfield-yellow'
                         : 'text-zinc-800 dark:text-white group-hover/time:text-endfield-yellow transition-colors duration-300'
-                    } font-mono tracking-tighter leading-none`}
+                    } countdown-nums tracking-tighter leading-none`}
                   >
                     {formatNum(item.value)}
                   </div>

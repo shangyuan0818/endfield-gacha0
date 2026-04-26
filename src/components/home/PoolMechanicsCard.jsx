@@ -118,7 +118,7 @@ function PoolMechanicsCard({
             </h3>
             <p className="text-xs text-zinc-500 mt-1 font-mono">
               {tt('home.poolMechanics.currentLabel', '当前 UP')}: <span className="text-zinc-700 dark:text-zinc-300 font-bold">{currentUpName}</span>
-              {currentStatus && <span className={`ml-2 ${currentStatus.className}`}>{currentStatus.text}</span>}
+              {currentStatus && <span className={`ml-2 countdown-nums ${currentStatus.className}`}>{currentStatus.text}</span>}
             </p>
           </div>
         </div>

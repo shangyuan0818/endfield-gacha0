@@ -29,8 +29,9 @@
 @layer base {
   html {
     /* Chinese and English UI share Harmony Sans; numeric UI prefers Novecento Sans Wide Bold. */
-    --font-sans: 'Harmony Sans App', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
+    --font-sans: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans SC', 'HarmonyOS Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
     --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-countdown: 'Novecento Sans Wide Tabular App', var(--font-number);
     --font-mono: var(--font-number);
     --font-code: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
     font-family: var(--font-sans);
@@ -39,8 +40,9 @@
   }
 
   html[data-locale='en-US'] {
-    --font-sans: 'Harmony Sans App', 'HarmonyOS Sans', 'HarmonyOS Sans SC', 'Noto Sans SC', system-ui, sans-serif;
+    --font-sans: 'Novecento Sans Wide Digits App', 'Harmony Sans App', 'HarmonyOS Sans', 'HarmonyOS Sans SC', 'Noto Sans SC', system-ui, sans-serif;
     --font-number: 'Novecento Sans Wide App', 'Novecento Sans Wide Bold', 'Novecento Sans Wide', 'Harmony Sans App', ui-sans-serif, system-ui, sans-serif;
+    --font-countdown: 'Novecento Sans Wide Tabular App', var(--font-number);
     --font-mono: var(--font-number);
     --font-code: 'IBM Plex Mono', 'JetBrains Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
   }
@@ -66,7 +68,14 @@
   .font-mono,
   .tabular-nums {
     font-family: var(--font-number);
+    font-variant-numeric: normal;
+    font-feature-settings: 'kern' 1;
+  }
+
+  .countdown-nums {
+    font-family: var(--font-countdown);
     font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1, 'kern' 1;
   }
 
   /* Custom Scrollbar */

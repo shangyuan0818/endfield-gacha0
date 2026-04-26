@@ -330,7 +330,7 @@ export default function MobileHomePageView() {
               <div className="text-[9px] font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 dark:bg-ef-yellow animate-pulse"></span>{t('countdown.system')}</div>
               <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white italic tracking-tighter mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
               <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-4 tracking-widest">{countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
-              <div className="flex items-baseline gap-1 font-mono font-bold text-4xl tracking-tighter">
+              <div className="flex items-baseline gap-1 countdown-nums font-bold text-4xl tracking-tighter">
                   <span className="text-slate-900 dark:text-white">{String(countdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
@@ -367,7 +367,7 @@ export default function MobileHomePageView() {
         <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
             <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{t('countdown.system')}</div>
             <h3 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mb-3 uppercase">{t('home.mobile.nextVersionTitle')}</h3>
-            <div className="flex items-baseline gap-1 font-mono font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
+            <div className="flex items-baseline gap-1 countdown-nums font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
                 <span>{String(nextVersionCountdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                 <span>{String(nextVersionCountdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
                 <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>

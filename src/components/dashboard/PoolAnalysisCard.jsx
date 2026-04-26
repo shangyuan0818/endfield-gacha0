@@ -103,7 +103,7 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
       <span>{formatDate(startDate)} - {formatDate(endDate)}</span>
       <span className="text-slate-300 dark:text-zinc-700">|</span>
       {isNotStarted ? (
-        <span className="text-blue-500">
+        <span className="text-blue-500 countdown-nums">
           {t('dashboard.analysis.startsIn', {
             days: poolInfo.startsIn ?? 0,
             hours: poolInfo.startsInHours ?? 0,
@@ -112,11 +112,11 @@ const PoolTimeInfo = ({ currentPool, t, formatDateTime }) => {
       ) : isExpired ? (
         <span className="text-red-500 font-medium">{t('dashboard.analysis.ended')}</span>
       ) : isEndingSoon ? (
-        <span className="text-amber-500 font-medium animate-pulse">
+        <span className="text-amber-500 font-medium animate-pulse countdown-nums">
           {t('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours })}
         </span>
       ) : (
-        <span className="text-green-500">
+        <span className="text-green-500 countdown-nums">
           {t('dashboard.analysis.remainingTime', { days: remainingDays, hours: remainingHours })}
         </span>
       )}

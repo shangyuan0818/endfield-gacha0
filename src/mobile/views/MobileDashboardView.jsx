@@ -718,7 +718,7 @@ function MobileDashboardView() {
                 <div className="mobile-ux-card-inset mt-3 flex items-center gap-2 border-endfield-yellow/10 bg-endfield-yellow/10 px-3 py-2 text-[11px] text-slate-700 dark:text-zinc-300">
                   <Clock size={12} className="text-endfield-yellow" />
                   <span className="font-bold uppercase tracking-[0.16em] text-slate-500 dark:text-zinc-500">{t('dashboard.pool.status')}</span>
-                  <span className="tabular-nums text-slate-900 dark:text-white">
+                  <span className="countdown-nums text-slate-900 dark:text-white">
                     {t('dashboard.pool.remainingTime', {
                       days: currentUpPool.remainingDays || 0,
                       hours: currentUpPool.remainingHours || 0,
