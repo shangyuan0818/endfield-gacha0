@@ -207,11 +207,11 @@ Query:
 - `limit`
 - `cursor`
 
-Returns public per-pool analytics.
+Returns public per-pool analytics. To avoid scanning the full raw history table during public API requests, v1 only runs bounded count queries for the returned page. `targetSixStar`, `offrateSixStar`, average pity, and per-pool distribution buckets are not computed at request time yet.
 
 ### `GET /api/dev/v1/stats/pool?id=POOL_ID`
 
-Returns single-pool public analytics: total pulls, rarity totals, target/off-target stats, average pull metrics, and distribution buckets.
+Returns single-pool public analytics with total pulls and rarity totals. `targetSixStar`, `offrateSixStar`, average pity, and per-pool distribution buckets require a future dedicated pre-aggregate and are not computed by scanning raw history during API requests.
 
 ### `GET /api/dev/v1/stats/items`
 
@@ -223,7 +223,7 @@ Query:
 - `limit`
 - `cursor`
 
-Returns aggregate drop counts for characters or weapons.
+Returns aggregate drop counts for characters or weapons. Public ranking cache is used first; catalog items outside the ranking cache may be returned with `totalPulls: null`.
 
 ### `GET /api/dev/v1/stats/item?id=ITEM_ID`
 
@@ -232,7 +232,7 @@ Query:
 - `id`: public character / weapon `id` or name
 - `type`: optional `character | weapon` discriminator for same-name entries
 
-Returns one character or weapon aggregate with total drops, rarity, limited flag, pool-type breakdown, and public per-pool occurrence counts.
+Returns one character or weapon aggregate. Items present in the public ranking cache include pool-type breakdowns; uncached items use bounded count queries for total drops.
 
 ### `GET /api/dev/v1/stats/trends`
 
@@ -242,7 +242,7 @@ Query:
 - `granularity`: `day | week`
 - `days`: `7 | 30 | 90`
 
-Returns anonymous trend points.
+Returns anonymous trend points. The endpoint keeps a stable response shape, but it does not generate trends from raw history at request time. Without a dedicated precomputed trend cache, `points` is an empty array with a `source` note.
 
 ### `GET /api/dev/v1/stats/distributions`
 

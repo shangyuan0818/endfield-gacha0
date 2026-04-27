@@ -207,11 +207,11 @@ async function getMeta(apiKey) {
 - `limit`
 - `cursor`
 
-返回按卡池聚合的公开分析。
+返回按卡池聚合的公开分析。为避免公开 API 请求实时扫描全量历史，当前版本只对本次分页返回的卡池执行有限计数查询；`targetSixStar`、`offrateSixStar`、平均出货与单池分布桶暂不在请求期计算。
 
 ### `GET /api/dev/v1/stats/pool?id=POOL_ID`
 
-返回单卡池公开分析：总抽数、稀有度汇总、目标 / 偏移统计、平均出货与分布桶。
+返回单卡池公开分析：总抽数与稀有度汇总。`targetSixStar`、`offrateSixStar`、平均出货与单池分布桶需要后续专用预聚合表支持，当前不会在 API 请求期实时扫描原始历史。
 
 ### `GET /api/dev/v1/stats/items`
 
@@ -223,7 +223,7 @@ async function getMeta(apiKey) {
 - `limit`
 - `cursor`
 
-返回角色 / 武器出货聚合。
+返回角色 / 武器出货聚合。优先使用公开排行缓存；未进入排行缓存的条目仍会返回目录信息，但 `totalPulls` 可能为 `null`。
 
 ### `GET /api/dev/v1/stats/item?id=ITEM_ID`
 
@@ -232,7 +232,7 @@ async function getMeta(apiKey) {
 - `id`：角色 / 武器的公开 `id` 或名称
 - `type`：可选，`character | weapon`，用于同名条目消歧
 
-返回单个角色 / 武器的公开出货聚合，包含总出货次数、稀有度、限定标记、按池类型统计，以及公开卡池维度的出现次数。
+返回单个角色 / 武器的公开出货聚合。进入公开排行缓存的条目会包含池类型统计；未进入缓存的条目会用有限计数查询补充总出货次数。
 
 ### `GET /api/dev/v1/stats/trends`
 
@@ -242,7 +242,7 @@ async function getMeta(apiKey) {
 - `granularity`：`day | week`
 - `days`：`7 | 30 | 90`
 
-返回匿名趋势点。
+返回匿名趋势点。当前趋势端点保留稳定响应结构，但不会实时从原始历史生成趋势；若没有专用预聚合缓存，`points` 会返回空数组并带 `source` 说明。
 
 ### `GET /api/dev/v1/stats/distributions`
 

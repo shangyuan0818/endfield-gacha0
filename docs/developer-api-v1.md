@@ -171,11 +171,11 @@ Query:
 - `limit`
 - `cursor`
 
-Returns per-pool aggregate analytics.
+Returns per-pool aggregate analytics. v1 uses bounded count queries for the returned page and does not scan the full raw history table during public API requests. Target/off-target, average pity, and per-pool distribution buckets require a future pre-aggregate.
 
 ### `GET /api/dev/v1/stats/pool?id=POOL_ID`
 
-Returns a single pool aggregate analytics DTO.
+Returns a single pool aggregate analytics DTO with total pulls and rarity totals. Target/off-target, average pity, and per-pool distribution buckets are not computed from raw history at request time.
 
 ### `GET /api/dev/v1/stats/items`
 
@@ -187,7 +187,7 @@ Query:
 - `limit`
 - `cursor`
 
-Returns character/weapon aggregate drop counts.
+Returns character/weapon aggregate drop counts. Public ranking cache is used first; catalog items outside the ranking cache may have `totalPulls: null`.
 
 ### `GET /api/dev/v1/stats/trends`
 
@@ -197,7 +197,7 @@ Query:
 - `granularity`: `day | week`
 - `days`: `7 | 30 | 90`
 
-Returns anonymous aggregate trend points.
+Returns anonymous aggregate trend points. Without a dedicated precomputed trend cache, `points` is an empty array with a `source` note rather than a live raw-history scan.
 
 ### `GET /api/dev/v1/stats/distributions`
 
