@@ -69,6 +69,16 @@ export async function revokeApiClientKey(keyId) {
   }, 'admin-api-clients-revoke-key');
 }
 
+export async function deleteApiClientKey(keyId) {
+  return fetchAdminRoute('api-clients-delete-key', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ keyId }),
+  }, 'admin-api-clients-delete-key');
+}
+
 export async function rotateApiClientVerifier(clientId) {
   return fetchAdminRoute('api-clients-rotate-verifier', {
     method: 'POST',
@@ -81,6 +91,7 @@ export async function rotateApiClientVerifier(clientId) {
 
 export default {
   loadApiClients,
+  deleteApiClientKey,
   reviewApiClient,
   rotateApiClientKey,
   revokeApiClientKey,

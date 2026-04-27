@@ -21,19 +21,21 @@ http://127.0.0.1:5173
 所有 `/api/dev/v1/*` 公开 API 都必须带开发者 Key。推荐使用 `X-API-Key`：
 
 ```http
-X-API-Key: ek_live_xxx
+X-API-Key: egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 也支持 Bearer：
 
 ```http
-Authorization: Bearer ek_live_xxx
+Authorization: Bearer egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+注意：管理页和设置页长期展示的是 `key_prefix`，只用于识别 Key，不是完整密钥。完整密钥只会在审核通过或轮换后显示一次；复制前缀调用 API 会返回 `401 unauthorized`。
 
 ### 第一个请求
 
 ```bash
-curl -H "X-API-Key: ek_live_xxx" \
+curl -H "X-API-Key: egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   "https://example.com/api/dev/v1/meta"
 ```
 

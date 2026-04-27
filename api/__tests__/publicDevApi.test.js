@@ -82,7 +82,7 @@ describe('public developer API v1', () => {
         rate_limit_tier: 'default',
       },
       key: {
-        key_prefix: 'ek_live_test',
+          key_prefix: 'egk_test_prefix',
       },
     });
     mocks.buildPoolsCatalog.mockResolvedValue({
@@ -118,7 +118,7 @@ describe('public developer API v1', () => {
     });
     expect(mocks.enforceRateLimit).toHaveBeenCalledWith(
       expect.any(Object),
-      'api-key:ek_live_test',
+        'api-key:egk_test_prefix',
       'dev_api_catalog'
     );
     expect(res.body).toMatchObject({

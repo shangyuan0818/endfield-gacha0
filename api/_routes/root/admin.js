@@ -77,6 +77,7 @@ function getAdminRouteConfig(route) {
     case 'api-clients-review':
     case 'api-clients-rotate-key':
     case 'api-clients-revoke-key':
+    case 'api-clients-delete-key':
     case 'api-clients-rotate-verifier':
       return {
         methods: 'POST, OPTIONS',
@@ -881,6 +882,60 @@ async function handleApiClientRevokeKey(req, res, adminClient) {
   }
 }
 
+async function handleApiClientDeleteKey(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const { keyId } = parseRequestBody(req);
+  const normalizedKeyId = String(keyId || '').trim();
+
+  if (!normalizedKeyId) {
+    return res.status(400).json({ success: false, error: 'Missing keyId' });
+  }
+
+  try {
+    const { data: deletedKey, error } = await adminClient
+      .from('api_client_keys')
+      .delete()
+      .eq('id', normalizedKeyId)
+      .select('id, client_id, key_prefix, label, status')
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!deletedKey) {
+      return res.status(404).json({ success: false, error: 'API key not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      key: {
+        id: deletedKey.id,
+        client_id: deletedKey.client_id,
+        key_prefix: deletedKey.key_prefix,
+        label: deletedKey.label,
+        status: deletedKey.status,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to delete API key',
+    });
+  }
+}
+
 async function handleApiClientRotateVerifier(req, res, adminClient) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
@@ -1002,6 +1057,8 @@ export default async function handler(req, res) {
       return handleApiClientRotateKey(req, res, adminClient);
     case 'api-clients-revoke-key':
       return handleApiClientRevokeKey(req, res, adminClient);
+    case 'api-clients-delete-key':
+      return handleApiClientDeleteKey(req, res, adminClient);
     case 'api-clients-rotate-verifier':
       return handleApiClientRotateVerifier(req, res, adminClient);
     default:

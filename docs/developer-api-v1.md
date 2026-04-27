@@ -18,9 +18,11 @@ Every `/api/dev/v1/*` public endpoint requires a developer API key with `public.
 Use one of:
 
 ```http
-X-API-Key: ek_live_xxx
-Authorization: Bearer ek_live_xxx
+X-API-Key: egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Authorization: Bearer egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+The displayed `key_prefix` is only an identifier. It is not the full secret and cannot call the API.
 
 Inactive, revoked, expired, or scope-missing keys return a standard error response.
 

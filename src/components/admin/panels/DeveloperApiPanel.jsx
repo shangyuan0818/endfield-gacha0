@@ -8,8 +8,11 @@ import {
   RotateCw,
   ShieldCheck,
   ShieldOff,
+  Trash2,
+  Users,
 } from 'lucide-react';
 import {
+  deleteApiClientKey,
   loadApiClients,
   revokeApiClientKey,
   reviewApiClient,
@@ -37,6 +40,14 @@ function formatDateTime(value) {
   return date.toLocaleString('zh-CN', { hour12: false });
 }
 
+function getOwnerLabel(client) {
+  return client.owner?.username || client.owner?.email || client.owner_user_id || '未知用户';
+}
+
+function getOwnerKey(client) {
+  return client.owner?.id || client.owner_user_id || 'unknown';
+}
+
 async function copyText(value) {
   if (!value) return false;
   try {
@@ -52,6 +63,7 @@ export default function DeveloperApiPanel({ showToast }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
   const [secretNotice, setSecretNotice] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState('all');
 
   const refresh = async () => {
     setLoading(true);
@@ -74,6 +86,40 @@ export default function DeveloperApiPanel({ showToast }) {
     () => clients.filter((client) => client.client_type === 'developer'),
     [clients]
   );
+  const ownerOptions = useMemo(() => {
+    const seen = new Set();
+    return developerClients
+      .map((client) => ({
+        key: getOwnerKey(client),
+        label: getOwnerLabel(client),
+      }))
+      .filter((owner) => {
+        if (seen.has(owner.key)) return false;
+        seen.add(owner.key);
+        return true;
+      });
+  }, [developerClients]);
+  const filteredDeveloperClients = useMemo(
+    () => ownerFilter === 'all'
+      ? developerClients
+      : developerClients.filter((client) => getOwnerKey(client) === ownerFilter),
+    [developerClients, ownerFilter]
+  );
+  const groupedDeveloperClients = useMemo(() => {
+    const groups = new Map();
+    filteredDeveloperClients.forEach((client) => {
+      const ownerKey = getOwnerKey(client);
+      if (!groups.has(ownerKey)) {
+        groups.set(ownerKey, {
+          key: ownerKey,
+          label: getOwnerLabel(client),
+          clients: [],
+        });
+      }
+      groups.get(ownerKey).clients.push(client);
+    });
+    return [...groups.values()];
+  }, [filteredDeveloperClients]);
   const officialBots = useMemo(
     () => clients.filter((client) => client.client_type === 'official_bot'),
     [clients]
@@ -122,6 +168,20 @@ export default function DeveloperApiPanel({ showToast }) {
     await withRefresh(
       () => revokeApiClientKey(keyRow.id),
       'API Key 已撤销'
+    );
+    setActionLoading('');
+  };
+
+  const handleDeleteKey = async (keyRow) => {
+    const confirmed = window.confirm(`确认永久删除 Key 前缀 ${keyRow.key_prefix}？删除后不会保留在列表中。`);
+    if (!confirmed) {
+      return;
+    }
+
+    setActionLoading(`delete-key:${keyRow.id}`);
+    await withRefresh(
+      () => deleteApiClientKey(keyRow.id),
+      'API Key 已删除'
     );
     setActionLoading('');
   };
@@ -177,107 +237,161 @@ export default function DeveloperApiPanel({ showToast }) {
           <Globe size={16} className="text-endfield-yellow" />
           开发者申请
         </div>
+        <div className="flex flex-col gap-2 border border-zinc-200 bg-zinc-50 p-3 text-xs dark:border-zinc-800 dark:bg-zinc-950/50 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+            <Users size={14} className="text-endfield-yellow" />
+            多用户筛选
+          </div>
+          <select
+            value={ownerFilter}
+            onChange={(event) => setOwnerFilter(event.target.value)}
+            className="min-w-[14rem] border border-zinc-300 bg-white px-3 py-2 text-xs text-slate-700 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
+          >
+            <option value="all">全部用户（{developerClients.length} 个申请）</option>
+            {ownerOptions.map((owner) => (
+              <option key={owner.key} value={owner.key}>
+                {owner.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-3">
           {loading ? (
             <div className="flex items-center justify-center py-10 text-zinc-400">
               <RefreshCw size={18} className="animate-spin" />
             </div>
-          ) : developerClients.length === 0 ? (
+          ) : filteredDeveloperClients.length === 0 ? (
             <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-4 py-6 text-sm text-zinc-500">
               当前没有开发者 API 申请。
             </div>
-          ) : developerClients.map((client) => (
-            <div key={client.id} className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-bold text-slate-800 dark:text-zinc-100">{client.name}</div>
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 break-words">{client.use_case}</div>
-                  <div className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-                    提交人：{client.owner?.username || client.owner?.email || '未知'} · 创建于 {formatDateTime(client.created_at)}
+          ) : groupedDeveloperClients.map((group) => (
+            <div key={group.key} className="space-y-3">
+              <div className="flex items-center gap-2 border-l-2 border-endfield-yellow pl-3 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <Users size={13} />
+                {group.label}
+              </div>
+              {group.clients.map((client) => (
+                <div key={client.id} className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-bold text-slate-800 dark:text-zinc-100">{client.name}</div>
+                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 break-words">{client.use_case}</div>
+                      <div className="mt-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+                        提交人：{getOwnerLabel(client)} · 创建于 {formatDateTime(client.created_at)}
+                      </div>
+                    </div>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(client.status)}`}>
+                      {client.status}
+                    </span>
                   </div>
-                </div>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(client.status)}`}>
-                  {client.status}
-                </span>
-              </div>
 
-              <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                请求 scope：{(client.requested_scopes || []).join(', ') || '无'} · 已授予：{(client.granted_scopes || []).join(', ') || '无'}
-              </div>
-              {client.review_note ? (
-                <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                  审核备注：{client.review_note}
-                </div>
-              ) : null}
+                  <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                    请求 scope：{(client.requested_scopes || []).join(', ') || '无'} · 已授予：{(client.granted_scopes || []).join(', ') || '无'}
+                  </div>
+                  {client.review_note ? (
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                      审核备注：{client.review_note}
+                    </div>
+                  ) : null}
 
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleReview(client.id, 'active')}
-                  disabled={actionLoading === `review:${client.id}:active`}
-                  className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
-                >
-                  通过
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReview(client.id, 'rejected')}
-                  disabled={actionLoading === `review:${client.id}:rejected`}
-                  className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-red-400/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
-                >
-                  拒绝
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleReview(client.id, 'revoked')}
-                  disabled={actionLoading === `review:${client.id}:revoked`}
-                  className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
-                >
-                  撤销
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRotateKey(client)}
-                  disabled={actionLoading === `rotate-key:${client.id}`}
-                  className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  <RotateCw size={12} className="inline-block mr-1" />
-                  轮换 Key
-                </button>
-              </div>
-
-              {(client.keys || []).length > 0 ? (
-                <div className="space-y-2">
-                  {(client.keys || []).map((keyRow) => (
-                    <div key={keyRow.id} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <KeyRound size={13} className="text-endfield-yellow shrink-0" />
-                          <span className="truncate font-semibold text-slate-700 dark:text-zinc-200">{keyRow.label}</span>
-                        </div>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(keyRow.status)}`}>
-                          {keyRow.status}
-                        </span>
-                      </div>
-                      <div className="mt-1 font-mono text-zinc-500">{keyRow.key_prefix}</div>
-                      <div className="mt-1 text-zinc-500 dark:text-zinc-400">
-                        最近使用：{formatDateTime(keyRow.last_used_at)} · 创建：{formatDateTime(keyRow.created_at)}
-                      </div>
-                      {keyRow.status === 'active' ? (
+                  <div className="flex flex-wrap gap-2">
+                    {client.status === 'pending' ? (
+                      <>
                         <button
                           type="button"
-                          onClick={() => handleRevokeKey(keyRow)}
-                          disabled={actionLoading === `revoke-key:${keyRow.id}`}
-                          className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+                          onClick={() => handleReview(client.id, 'active')}
+                          disabled={actionLoading === `review:${client.id}:active`}
+                          className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
                         >
-                          <ShieldOff size={12} />
-                          撤销此 Key
+                          通过
                         </button>
-                      ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleReview(client.id, 'rejected')}
+                          disabled={actionLoading === `review:${client.id}:rejected`}
+                          className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-red-400/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          拒绝
+                        </button>
+                      </>
+                    ) : null}
+                    {client.status === 'active' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleReview(client.id, 'revoked')}
+                        disabled={actionLoading === `review:${client.id}:revoked`}
+                        className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+                      >
+                        撤销应用
+                      </button>
+                    ) : null}
+                    {client.status === 'rejected' || client.status === 'revoked' ? (
+                      <button
+                        type="button"
+                        onClick={() => handleReview(client.id, 'active')}
+                        disabled={actionLoading === `review:${client.id}:active`}
+                        className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-emerald-400/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+                      >
+                        重新启用
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleRotateKey(client)}
+                      disabled={actionLoading === `rotate-key:${client.id}` || client.status !== 'active'}
+                      className="px-3 py-2 text-xs font-bold uppercase tracking-wider border border-zinc-300 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50"
+                    >
+                      <RotateCw size={12} className="inline-block mr-1" />
+                      轮换完整 Key
+                    </button>
+                  </div>
+
+                  {(client.keys || []).length > 0 ? (
+                    <div className="space-y-2">
+                      {(client.keys || []).map((keyRow) => (
+                        <div key={keyRow.id} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-xs">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <KeyRound size={13} className="text-endfield-yellow shrink-0" />
+                              <span className="truncate font-semibold text-slate-700 dark:text-zinc-200">{keyRow.label}</span>
+                            </div>
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(keyRow.status)}`}>
+                              {keyRow.status}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Key 前缀（仅用于识别，不是完整密钥）</div>
+                          <div className="mt-0.5 font-mono text-zinc-500">{keyRow.key_prefix}</div>
+                          <div className="mt-1 text-zinc-500 dark:text-zinc-400">
+                            最近使用：{formatDateTime(keyRow.last_used_at)} · 创建：{formatDateTime(keyRow.created_at)}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {keyRow.status === 'active' ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeKey(keyRow)}
+                                disabled={actionLoading === `revoke-key:${keyRow.id}`}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+                              >
+                                <ShieldOff size={12} />
+                                撤销此 Key
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteKey(keyRow)}
+                              disabled={actionLoading === `delete-key:${keyRow.id}`}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-red-400/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                            >
+                              <Trash2 size={12} />
+                              删除此 Key
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
                 </div>
-              ) : null}
+              ))}
             </div>
           ))}
         </div>
@@ -337,21 +451,33 @@ export default function DeveloperApiPanel({ showToast }) {
                   {(client.keys || []).map((keyRow) => (
                     <div key={keyRow.id} className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-2 text-xs">
                       <div className="font-semibold text-slate-700 dark:text-zinc-200">{keyRow.label}</div>
-                      <div className="mt-1 font-mono text-zinc-500">{keyRow.key_prefix}</div>
+                      <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Key 前缀（仅用于识别）</div>
+                      <div className="mt-0.5 font-mono text-zinc-500">{keyRow.key_prefix}</div>
                       <div className="mt-1 text-zinc-500 dark:text-zinc-400">
                         状态：{keyRow.status} · 最近使用：{formatDateTime(keyRow.last_used_at)}
                       </div>
-                      {keyRow.status === 'active' ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {keyRow.status === 'active' ? (
                         <button
                           type="button"
                           onClick={() => handleRevokeKey(keyRow)}
                           disabled={actionLoading === `revoke-key:${keyRow.id}`}
-                          className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-orange-400/40 bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
                         >
                           <ShieldOff size={12} />
                           撤销此 Key
                         </button>
-                      ) : null}
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteKey(keyRow)}
+                          disabled={actionLoading === `delete-key:${keyRow.id}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold uppercase tracking-wider border border-red-400/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                          <Trash2 size={12} />
+                          删除此 Key
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

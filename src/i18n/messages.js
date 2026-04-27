@@ -441,7 +441,9 @@ const messages = {
     'settings.integration.apiKeyStatus.active': '有效',
     'settings.integration.apiKeyStatus.revoked': '已撤销',
     'settings.integration.apiKeyStatus.pending': '待启用',
+    'settings.integration.apiKeyPrefixLabel': 'Key 前缀（仅用于识别，不是完整密钥）',
     'settings.integration.apiOneTimeSecret': '一次性完整密钥',
+    'settings.integration.apiOneTimeSecretHint': '请立即复制并保存完整密钥。关闭或刷新后这里只会保留前缀，前缀不能用于调用 API。',
     'settings.integration.apiOpenDocs': '打开 API Wiki',
     'settings.integration.apiDocsAfterApproval': '申请通过并生成 API Key 后，将在这里显示双语 API Wiki 与接入方法。',
 
@@ -1802,7 +1804,9 @@ const messages = {
     'settings.integration.apiKeyStatus.active': 'Active',
     'settings.integration.apiKeyStatus.revoked': 'Revoked',
     'settings.integration.apiKeyStatus.pending': 'Pending',
+    'settings.integration.apiKeyPrefixLabel': 'Key prefix (identifier only, not the full secret)',
     'settings.integration.apiOneTimeSecret': 'One-Time Full Secret',
+    'settings.integration.apiOneTimeSecretHint': 'Copy and store the full secret now. After refresh, only the prefix remains, and the prefix cannot call the API.',
     'settings.integration.apiOpenDocs': 'Open API Wiki',
     'settings.integration.apiDocsAfterApproval': 'After your application is approved and an API key is issued, the bilingual API wiki and usage guide will appear here.',
 

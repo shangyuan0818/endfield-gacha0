@@ -221,7 +221,10 @@ export default function DeveloperApiSection({ variant = 'desktop' }) {
                       <KeyRound size={13} className="text-endfield-yellow" />
                       <span className="truncate">{keyRow.label}</span>
                     </div>
-                    <div className="font-mono text-[11px] text-zinc-500 mt-1">{keyRow.key_prefix}</div>
+                    <div className="mt-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                      {t('settings.integration.apiKeyPrefixLabel')}
+                    </div>
+                    <div className="font-mono text-[11px] text-zinc-500 mt-0.5">{keyRow.key_prefix}</div>
                   </div>
                   <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${getStatusTone(keyRow.status)}`}>
                     {t(`settings.integration.apiKeyStatus.${keyRow.status}`)}
@@ -231,6 +234,9 @@ export default function DeveloperApiSection({ variant = 'desktop' }) {
                   <div className="mt-3 space-y-2 rounded-sm border border-endfield-yellow/30 bg-endfield-yellow/5 p-3">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-endfield-yellow">
                       {t('settings.integration.apiOneTimeSecret')}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      {t('settings.integration.apiOneTimeSecretHint')}
                     </div>
                     <div className="font-mono text-[12px] break-all text-slate-800 dark:text-zinc-100">{keyRow.one_time_secret}</div>
                     <button

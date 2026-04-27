@@ -21,19 +21,21 @@ http://127.0.0.1:5173
 Every `/api/dev/v1/*` public endpoint requires a developer API key. Prefer `X-API-Key`:
 
 ```http
-X-API-Key: ek_live_xxx
+X-API-Key: egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Bearer auth is also supported:
 
 ```http
-Authorization: Bearer ek_live_xxx
+Authorization: Bearer egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+Important: the admin page and settings page keep showing `key_prefix` for identification. That prefix is not the full secret. The full secret is shown only once after approval or key rotation; using the prefix alone returns `401 unauthorized`.
 
 ### First Request
 
 ```bash
-curl -H "X-API-Key: ek_live_xxx" \
+curl -H "X-API-Key: egk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   "https://example.com/api/dev/v1/meta"
 ```
 

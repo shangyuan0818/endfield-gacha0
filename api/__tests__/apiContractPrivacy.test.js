@@ -401,7 +401,7 @@ function installPublicMocks() {
       granted_scopes: ['public.read'],
       rate_limit_tier: 'default',
     },
-    key: { key_prefix: 'ek_live_public' },
+    key: { key_prefix: 'egk_public_prefix' },
   });
 
   mocks.buildPoolsCatalog.mockResolvedValue({
@@ -470,7 +470,7 @@ function installOfficialBotMocks() {
       granted_scopes: ['bot.self.read', 'public.read'],
       rate_limit_tier: 'official_bot',
     },
-    key: { key_prefix: 'ek_live_bot' },
+    key: { key_prefix: 'egk_bot_prefix' },
   });
   mocks.resolveVerifiedBinding.mockResolvedValue({
     id: 'binding-private',

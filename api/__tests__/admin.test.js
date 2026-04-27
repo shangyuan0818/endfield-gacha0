@@ -111,7 +111,7 @@ function createApiKeyRevokeAdminClient({
   revokedKey = {
     id: 'key-1',
     client_id: 'client-1',
-    key_prefix: 'ek_live_test',
+    key_prefix: 'egk_test_prefix',
     label: 'primary',
     status: 'revoked',
     revoked_at: '2026-04-26T00:00:00.000Z',
@@ -140,6 +140,46 @@ function createApiKeyRevokeAdminClient({
     }),
     __apiKeyRevokeMocks: {
       update,
+      eq,
+      select,
+      maybeSingle,
+    },
+  };
+}
+
+function createApiKeyDeleteAdminClient({
+  role = 'super_admin',
+  deletedKey = {
+    id: 'key-1',
+    client_id: 'client-1',
+    key_prefix: 'egk_test_prefix',
+    label: 'primary',
+    status: 'revoked',
+  },
+  deleteError = null,
+} = {}) {
+  const maybeSingle = vi.fn(async () => ({
+    data: deletedKey,
+    error: deleteError,
+  }));
+  const select = vi.fn(() => ({ maybeSingle }));
+  const eq = vi.fn(() => ({ select }));
+  const deleteMethod = vi.fn(() => ({ eq }));
+
+  return {
+    from: vi.fn((table) => {
+      if (table === 'profiles') {
+        return createProfilesQuery(role);
+      }
+
+      if (table === 'api_client_keys') {
+        return { delete: deleteMethod };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+    __apiKeyDeleteMocks: {
+      deleteMethod,
       eq,
       select,
       maybeSingle,
@@ -281,7 +321,7 @@ describe('api/admin handler', () => {
       key: {
         id: 'key-1',
         client_id: 'client-1',
-        key_prefix: 'ek_live_test',
+        key_prefix: 'egk_test_prefix',
         status: 'revoked',
       },
     });
@@ -294,6 +334,57 @@ describe('api/admin handler', () => {
     const req = createRequest({
       method: 'POST',
       url: 'https://example.com/api/admin?route=api-clients-revoke-key',
+      headers: { authorization: 'Bearer token' },
+      body: {},
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Missing keyId',
+    });
+  });
+
+  it('deletes one developer API key from the admin route', async () => {
+    const adminClient = createApiKeyDeleteAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=api-clients-delete-key',
+      headers: { authorization: 'Bearer token' },
+      body: { keyId: 'key-1' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.from).toHaveBeenCalledWith('api_client_keys');
+    expect(adminClient.__apiKeyDeleteMocks.deleteMethod).toHaveBeenCalled();
+    expect(adminClient.__apiKeyDeleteMocks.eq).toHaveBeenCalledWith('id', 'key-1');
+    expect(adminClient.__apiKeyDeleteMocks.select).toHaveBeenCalledWith('id, client_id, key_prefix, label, status');
+    expect(res.body).toMatchObject({
+      success: true,
+      key: {
+        id: 'key-1',
+        client_id: 'client-1',
+        key_prefix: 'egk_test_prefix',
+        status: 'revoked',
+      },
+    });
+    expect(JSON.stringify(res.body)).not.toContain('key_hash');
+  });
+
+  it('rejects API key delete without keyId', async () => {
+    mocks.getSupabaseAdminClient.mockReturnValue(createApiKeyDeleteAdminClient());
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=api-clients-delete-key',
       headers: { authorization: 'Bearer token' },
       body: {},
     });

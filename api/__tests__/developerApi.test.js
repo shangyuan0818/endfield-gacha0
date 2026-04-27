@@ -232,7 +232,7 @@ describe('developer api handlers', () => {
     mocks.requireApiClient.mockResolvedValue({
       adminClient: {},
       client: { id: 'bot-client', provider: 'discord', client_type: 'official_bot' },
-      key: { key_prefix: 'ek_live_prefix' },
+        key: { key_prefix: 'egk_bot_prefix' },
     });
   });
 
