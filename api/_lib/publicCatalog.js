@@ -236,6 +236,8 @@ function toPublicAnnouncementDto(announcement, {
       ? announcement?.content_en || announcement?.content || null
       : announcement?.content || announcement?.content_en || null,
     version: announcement?.version || null,
+    type: announcement?.announcement_type || 'update',
+    severity: announcement?.severity || 'info',
     sourceUrl: announcement?.source_url || null,
     publishedAt: announcement?.published_at || announcement?.created_at || null,
     updatedAt: announcement?.updated_at || null,
@@ -395,7 +397,7 @@ export async function fetchAnnouncements(supabase = getSupabaseClient(), {
   const offset = decodeCursor(cursor);
   const { data, error, count } = await supabase
     .from('announcements')
-    .select('id, title, title_en, content, content_en, version, is_active, source_url, published_at, summary, created_at, updated_at', { count: 'exact' })
+    .select('id, title, title_en, content, content_en, version, announcement_type, severity, is_active, source_url, published_at, summary, created_at, updated_at', { count: 'exact' })
     .eq('is_active', true)
     .order('published_at', { ascending: false, nullsFirst: false })
     .range(offset, offset + safeLimit - 1);

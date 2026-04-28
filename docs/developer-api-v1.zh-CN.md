@@ -180,7 +180,10 @@ async function getMeta(apiKey) {
 - `limit`
 - `cursor`
 
-返回公开公告列表。
+返回公开公告列表。公告 DTO 包含 `type` 与 `severity`：
+
+- `type`：`update` 为更新公告，`temporary` 为临时公告。
+- `severity`：`info | maintenance | warning | critical`，主要用于临时公告的颜色和重要程度展示。
 
 ### `GET /api/dev/v1/site/overview`
 

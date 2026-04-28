@@ -10,6 +10,7 @@ import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../util
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
+import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
 
 
 const DEFAULT_LINKS = [
@@ -108,7 +109,11 @@ export default function MobileHomePageView() {
   }, []);
 
   const schedule = useMemo(() => getLimitedPoolSchedule(Array.isArray(pools) ? pools : []), [pools]);
-  const latestAnnouncement = announcements?.[0] || null;
+  const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
+    () => splitSiteAnnouncements(announcements),
+    [announcements]
+  );
+  const latestAnnouncement = temporaryAnnouncements?.[0] || updateAnnouncements?.[0] || null;
   const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
   const latestGameAnnouncement = gameAnnouncements?.[0] || null;
   const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement, 72);
@@ -269,7 +274,7 @@ export default function MobileHomePageView() {
                       <Bell size={16} className="text-amber-500 shrink-0" />
                       {latestAnnouncement && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>}
                   </div>
-                  <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{t('home.siteAnnouncement')}</span>
+                  <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{latestAnnouncement ? getAnnouncementTypeLabel(latestAnnouncement.announcement_type, locale) : t('home.siteAnnouncement')}</span>
                   <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{localizedAnnouncementTitle}</span>
               </div>
               <ChevronRight size={14} className="text-amber-500/50 shrink-0" />

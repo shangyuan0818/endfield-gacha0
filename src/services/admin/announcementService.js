@@ -26,6 +26,8 @@ export async function createAnnouncement(announcementForm) {
       content: announcementForm.content,
       content_en: announcementForm.content_en || null,
       version: announcementForm.version,
+      announcement_type: announcementForm.announcement_type || 'update',
+      severity: announcementForm.severity || 'info',
       is_active: announcementForm.is_active,
       priority: announcementForm.priority
     })
@@ -46,6 +48,8 @@ export async function updateAnnouncement(announcementId, announcementForm) {
       content: announcementForm.content,
       content_en: announcementForm.content_en || null,
       version: announcementForm.version,
+      announcement_type: announcementForm.announcement_type || 'update',
+      severity: announcementForm.severity || 'info',
       is_active: announcementForm.is_active,
       priority: announcementForm.priority,
       updated_at: updatedAt

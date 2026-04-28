@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   ArrowRight,
+  AlertTriangle,
   BarChart3,
   Bell,
   ChevronUp,
@@ -39,6 +40,11 @@ import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
+import {
+  getAnnouncementSeverityMeta,
+  getAnnouncementTypeLabel,
+  splitSiteAnnouncements
+} from '../../utils/announcementMeta.js';
 
 const HomePage = React.memo(() => {
   const { t, isEnglish, locale } = useI18n();
@@ -99,13 +105,22 @@ const HomePage = React.memo(() => {
   }, [isEnglish, nextVersionTargetDate, now, poolSchedule, t]);
 
   const initialCollapseState = getHomeCollapseState();
-  const latestAnnouncement = announcements[0];
+  const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
+    () => splitSiteAnnouncements(announcements),
+    [announcements]
+  );
+  const latestAnnouncement = updateAnnouncements[0] || null;
   const latestAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale);
   const latestAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
+  const latestSiteAnnouncement = useMemo(() => (
+    [...temporaryAnnouncements, ...updateAnnouncements].sort((a, b) => (
+      new Date(b?.updated_at || b?.created_at || 0) - new Date(a?.updated_at || a?.created_at || 0)
+    ))[0] || null
+  ), [temporaryAnnouncements, updateAnnouncements]);
   const latestGameAnnouncement = gameAnnouncements[0] || null;
   const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement);
-  const hasAnnouncementUpdate = latestAnnouncement
-    ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestAnnouncement.updated_at)
+  const hasAnnouncementUpdate = latestSiteAnnouncement
+    ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestSiteAnnouncement.updated_at || latestSiteAnnouncement.created_at)
     : false;
 
   const [showPoolMechanics, setShowPoolMechanics] = useState(!initialCollapseState.poolMechanics);
@@ -277,8 +292,54 @@ const HomePage = React.memo(() => {
         </div>
       </div>
 
-      {(latestAnnouncement || gameAnnouncements.length > 0) && (
+      {(temporaryAnnouncements.length > 0 || latestAnnouncement || gameAnnouncements.length > 0) && (
         <div className="space-y-3">
+          {temporaryAnnouncements.map((announcement) => {
+            const severityMeta = getAnnouncementSeverityMeta(announcement.severity, locale);
+            const title = getLocalizedAnnouncementTitle(announcement, locale);
+            const content = getLocalizedAnnouncementContent(announcement, locale);
+            return (
+              <div key={announcement.id} className={`${severityMeta.card} border rounded-none overflow-hidden`}>
+                <button
+                  onClick={handleToggleAnnouncement}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/30 dark:hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-none shrink-0 relative ${severityMeta.icon}`}>
+                      <AlertTriangle size={20} />
+                      {isAnnouncementNew && (
+                        <span className="absolute -top-1 -right-1 px-1 py-0.5 text-[8px] font-bold bg-red-500 text-white rounded animate-pulse">
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-left min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase tracking-wide ${severityMeta.badge}`}>
+                          {getAnnouncementTypeLabel('temporary', locale)}
+                        </span>
+                        <span className={`text-[10px] px-1.5 py-0.5 font-bold uppercase tracking-wide ${severityMeta.badge}`}>
+                          {severityMeta.displayLabel}
+                        </span>
+                        <h3 className="font-bold truncate">{title}</h3>
+                        {isAnnouncementNew && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">
+                            NEW
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronUp size={20} className={`${severityMeta.chevron} transition-transform duration-300 ${showAnnouncement ? '' : 'rotate-180'}`} />
+                </button>
+
+                <CollapsibleContent isOpen={showAnnouncement}>
+                  <HomeAnnouncementContent content={content} />
+                </CollapsibleContent>
+              </div>
+            );
+          })}
+
           {latestAnnouncement && (
             <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-800 rounded-none overflow-hidden">
               <button
@@ -296,7 +357,7 @@ const HomePage = React.memo(() => {
                   </div>
                     <div className="text-left">
                       <div className="flex items-center gap-2">
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">{t('home.siteAnnouncement')}</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wide">{getAnnouncementTypeLabel('update', locale)}</span>
                       <h3 className="font-bold text-amber-800 dark:text-amber-300">{latestAnnouncementTitle}</h3>
                       {isAnnouncementNew && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-500 text-white rounded animate-pulse">

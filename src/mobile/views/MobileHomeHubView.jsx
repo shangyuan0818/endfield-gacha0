@@ -13,6 +13,7 @@ import SpringPreviewCard from '../../components/home/SpringPreviewCard';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
+import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
 
 const DEFAULT_LINKS = [
   { id: 'yituliu-calculator', title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'bar-chart-2' }, 
@@ -116,7 +117,11 @@ export default function MobileHomeHubView() {
   }, []);
 
   const schedule = useMemo(() => getLimitedPoolSchedule(Array.isArray(pools) ? pools : []), [pools]);
-  const latestAnnouncement = announcements?.[0] || null;
+  const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
+    () => splitSiteAnnouncements(announcements),
+    [announcements]
+  );
+  const latestAnnouncement = temporaryAnnouncements?.[0] || updateAnnouncements?.[0] || null;
   const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
   const localizedAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
   const latestGameAnnouncement = gameAnnouncements?.[0] || null;
@@ -196,7 +201,7 @@ export default function MobileHomeHubView() {
          {latestAnnouncement ? (
           <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-gradient-to-r from-amber-50 dark:from-amber-950/20 to-transparent p-4 mb-4 shadow-sm">
             <div className="flex flex-wrap items-center gap-2 mb-3">
-              <span className="px-2 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold">{t('home.siteAnnouncement')}</span>
+              <span className="px-2 py-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 text-[10px] font-bold">{getAnnouncementTypeLabel(latestAnnouncement.announcement_type, locale)}</span>
               {latestAnnouncement.version ? <span className="px-2 py-0.5 rounded-sm bg-zinc-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 text-[10px] font-bold font-mono">v{latestAnnouncement.version}</span> : null}
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white mb-2">{localizedAnnouncementTitle}</div>
@@ -310,7 +315,7 @@ export default function MobileHomeHubView() {
                       <Bell size={16} className="text-amber-500 shrink-0" />
                       {latestAnnouncement && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>}
                   </div>
-                  <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{t('home.siteAnnouncement')}</span>
+                  <span className="text-[9px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 px-1 py-0.5 rounded font-bold shrink-0">{latestAnnouncement ? getAnnouncementTypeLabel(latestAnnouncement.announcement_type, locale) : t('home.siteAnnouncement')}</span>
                   <span className="text-xs font-bold text-amber-900 dark:text-amber-100 truncate flex-1">{localizedAnnouncementTitle}</span>
               </div>
               <ChevronRight size={14} className="text-amber-500/50 shrink-0" />

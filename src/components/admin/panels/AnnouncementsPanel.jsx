@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Save, X, FileText, Eye, EyeOff } from 'lucide-react';
 import MDEditor from '@uiw/react-md-editor';
+import {
+  ANNOUNCEMENT_SEVERITY_OPTIONS,
+  ANNOUNCEMENT_TYPE_OPTIONS,
+  getAnnouncementSeverityMeta,
+  getAnnouncementTypeLabel,
+  normalizeAnnouncementSeverity,
+  normalizeAnnouncementType
+} from '../../../utils/announcementMeta';
 
 /**
  * 公告管理面板
@@ -20,12 +28,24 @@ const AnnouncementsPanel = ({
     content: '',
     content_en: '',
     version: '1.0.0',
+    announcement_type: 'update',
+    severity: 'info',
     is_active: true,
     priority: 0
   });
 
   const resetAnnouncementForm = () => {
-    setAnnouncementForm({ title: '', title_en: '', content: '', content_en: '', version: '1.0.0', is_active: true, priority: 0 });
+    setAnnouncementForm({
+      title: '',
+      title_en: '',
+      content: '',
+      content_en: '',
+      version: '1.0.0',
+      announcement_type: 'update',
+      severity: 'info',
+      is_active: true,
+      priority: 0
+    });
     setEditingAnnouncement(null);
     setShowAnnouncementForm(false);
   };
@@ -37,6 +57,8 @@ const AnnouncementsPanel = ({
       content: announcement.content,
       content_en: announcement.content_en || '',
       version: announcement.version || '1.0.0',
+      announcement_type: normalizeAnnouncementType(announcement.announcement_type),
+      severity: normalizeAnnouncementSeverity(announcement.severity),
       is_active: announcement.is_active,
       priority: announcement.priority || 0
     });
@@ -124,9 +146,42 @@ const AnnouncementsPanel = ({
                   />
                 </div>
               </div>
-              <div className="text-xs text-amber-700/80 dark:text-amber-300/80 md:self-end">
-                英文字段为可选。英文环境下若未填写，将自动回退到中文公告内容。
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">公告类型</label>
+                  <select
+                    value={announcementForm.announcement_type}
+                    onChange={(e) => setAnnouncementForm(prev => ({
+                      ...prev,
+                      announcement_type: e.target.value,
+                      severity: e.target.value === 'temporary' ? prev.severity : 'info'
+                    }))}
+                    className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                  >
+                    {ANNOUNCEMENT_TYPE_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-1">重要程度</label>
+                  <select
+                    value={announcementForm.severity}
+                    disabled={announcementForm.announcement_type !== 'temporary'}
+                    onChange={(e) => setAnnouncementForm(prev => ({ ...prev, severity: e.target.value }))}
+                    className="w-full px-3 py-2 border border-amber-300 dark:border-amber-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 disabled:opacity-50"
+                  >
+                    {ANNOUNCEMENT_SEVERITY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+            </div>
+
+            <div className="text-xs text-amber-700/80 dark:text-amber-300/80">
+              现有公告默认为更新公告。临时公告用于故障、维护、提示等短期状态，可通过重要程度改变前台颜色。
+              英文字段为可选，英文环境下若未填写，将自动回退到中文公告内容。
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -220,12 +275,27 @@ const AnnouncementsPanel = ({
         </div>
       ) : (
         <div className="space-y-2">
-          {announcements.map(announcement => (
+          {announcements.map(announcement => {
+            const severityMeta = getAnnouncementSeverityMeta(announcement.severity);
+            const announcementType = normalizeAnnouncementType(announcement.announcement_type);
+            return (
             <div key={announcement.id} className={`p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 ${!announcement.is_active ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <h4 className="font-medium text-slate-700 dark:text-zinc-300">{announcement.title}</h4>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                      announcementType === 'temporary'
+                        ? severityMeta.badge
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                    }`}>
+                      {getAnnouncementTypeLabel(announcementType)}
+                    </span>
+                    {announcementType === 'temporary' ? (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${severityMeta.badge}`}>
+                        {severityMeta.label}
+                      </span>
+                    ) : null}
                     {announcement.title_en ? (
                       <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 rounded">
                         EN
@@ -265,7 +335,8 @@ const AnnouncementsPanel = ({
                 </div>
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
     </div>
