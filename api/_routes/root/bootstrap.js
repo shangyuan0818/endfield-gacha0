@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
+import {
+  resolveSupabaseServerKey,
+  resolveSupabaseUrl,
+} from '../../_lib/supabaseEnv.js';
 
 const CACHE_TTL = 60 * 1000;
 
@@ -10,10 +14,8 @@ const cache = {
 };
 
 function getSupabaseClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    || process.env.VITE_SUPABASE_ANON_KEY
-    || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const supabaseKey = resolveSupabaseServerKey();
 
   if (!supabaseUrl || !supabaseKey) {
     return null;

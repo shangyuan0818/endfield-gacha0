@@ -148,12 +148,14 @@ const envBackup = {
   CRON_SECRET: process.env.CRON_SECRET,
   SUPABASE_URL: process.env.SUPABASE_URL,
   VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
+  SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
 };
 
 process.env.CRON_SECRET = 'ops-secret';
 delete process.env.SUPABASE_URL;
 delete process.env.VITE_SUPABASE_URL;
+delete process.env.SUPABASE_SECRET_KEY;
 delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const unauthorizedReq = {
@@ -198,6 +200,12 @@ if (envBackup.SUPABASE_SERVICE_ROLE_KEY === undefined) {
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 } else {
   process.env.SUPABASE_SERVICE_ROLE_KEY = envBackup.SUPABASE_SERVICE_ROLE_KEY;
+}
+
+if (envBackup.SUPABASE_SECRET_KEY === undefined) {
+  delete process.env.SUPABASE_SECRET_KEY;
+} else {
+  process.env.SUPABASE_SECRET_KEY = envBackup.SUPABASE_SECRET_KEY;
 }
 
 console.log('OPS-002 scheduled automation API verification passed');

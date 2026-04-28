@@ -113,9 +113,12 @@ function withHardTimeout(promise, label, timeoutMs) {
 
 async function loadSharedPuzzlePool(difficulty) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+  const supabasePublishableKey = (
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+    || import.meta.env.VITE_SUPABASE_ANON_KEY
+  )?.trim();
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error('Supabase 未配置');
   }
 
@@ -131,8 +134,8 @@ async function loadSharedPuzzlePool(difficulty) {
       requestUrl.toString(),
       {
         headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabasePublishableKey,
+          Authorization: `Bearer ${supabasePublishableKey}`,
           Accept: 'application/json',
         },
       },

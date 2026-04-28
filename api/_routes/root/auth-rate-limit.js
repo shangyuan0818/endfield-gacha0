@@ -4,6 +4,10 @@ import {
   getRequesterKey,
   rejectDisallowedBrowserOrigin
 } from '../../_lib/http.js';
+import {
+  resolveSupabasePublishableKey,
+  resolveSupabaseUrl,
+} from '../../_lib/supabaseEnv.js';
 
 const ACTION_LIMITS = {
   login: { windowMs: 30 * 60 * 1000, max: 10 },
@@ -17,8 +21,8 @@ function isDevelopmentRuntime() {
 }
 
 function getSupabaseClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const supabaseKey = resolveSupabasePublishableKey();
 
   if (!supabaseUrl || !supabaseKey) {
     return null;

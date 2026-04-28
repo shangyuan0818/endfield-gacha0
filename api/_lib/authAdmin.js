@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  resolveSupabasePublishableKey,
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './supabaseEnv.js';
 
 const PAGE_SIZE = 200;
 const MAX_PAGES = 50;
@@ -8,8 +13,8 @@ const PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at, last_
 const PROFILE_CHUNK_SIZE = 25;
 
 export function getSupabaseAdminClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const serviceRoleKey = resolveSupabaseSecretKey();
 
   if (!supabaseUrl || !serviceRoleKey) {
     return null;
@@ -24,8 +29,8 @@ export function getSupabaseAdminClient() {
 }
 
 export function getSupabaseAnonServerClient() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const anonKey = resolveSupabasePublishableKey();
 
   if (!supabaseUrl || !anonKey) {
     return null;
@@ -40,8 +45,8 @@ export function getSupabaseAnonServerClient() {
 }
 
 export function createSupabaseAccessTokenClient(accessToken) {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const anonKey = resolveSupabasePublishableKey();
   const normalizedAccessToken = String(accessToken || '').trim();
 
   if (!supabaseUrl || !anonKey || !normalizedAccessToken) {

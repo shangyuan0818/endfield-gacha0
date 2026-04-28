@@ -19,6 +19,10 @@ import { createClient } from '@supabase/supabase-js';
 import { normalizeEntityNameForMatch } from '../src/utils/canonicalEntityUtils.js';
 import { buildLocalAvatarPath, inferAvatarFileExtension } from '../src/utils/avatarAssetPaths.js';
 import {
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
+import {
   buildTeamStardustLookup,
   findTeamStardustAssetMatch,
   loadTeamStardustAssetCatalog
@@ -231,11 +235,11 @@ function loadEnvironmentFiles() {
 function initSupabase() {
   loadEnvironmentFiles();
 
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = resolveSupabaseUrl();
+  const serviceKey = resolveSupabaseSecretKey();
 
   if (!url || !serviceKey) {
-    console.error('错误: 需要在 .env 中配置 VITE_SUPABASE_URL 和 SUPABASE_SERVICE_ROLE_KEY');
+    console.error('错误: 需要在 .env 中配置 SUPABASE_URL/VITE_SUPABASE_URL 和 SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY');
     process.exit(1);
   }
 

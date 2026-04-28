@@ -5,6 +5,7 @@ import {
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
+import { resolveSupabaseSecretKey } from './supabaseEnv.js';
 
 const API_KEY_TOKEN_PREFIX = 'egk';
 const VERIFIER_TOKEN_PREFIX = 'egv';
@@ -12,7 +13,7 @@ const VERIFIER_TOKEN_PREFIX = 'egv';
 function getSecretEnvelopeKey() {
   const raw = String(
     process.env.API_SECRET_ENCRYPTION_KEY
-      || process.env.SUPABASE_SERVICE_ROLE_KEY
+      || resolveSupabaseSecretKey()
       || ''
   ).trim();
 

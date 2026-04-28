@@ -8,6 +8,7 @@ import {
 } from './opsAutomation.js';
 import { syncAnnouncements } from './syncAnnouncements.js';
 import { syncPools } from './syncPools.js';
+import { hasSupabaseSecretConfig } from './supabaseEnv.js';
 
 const JOB_META = Object.freeze({
   'official-announcements': {
@@ -25,10 +26,7 @@ const JOB_META = Object.freeze({
 });
 
 function hasSupabaseAdminConfig(env = process.env) {
-  return Boolean(
-    (env.VITE_SUPABASE_URL || env.SUPABASE_URL)
-    && env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  return hasSupabaseSecretConfig(env);
 }
 
 function sanitizeSummary(result) {

@@ -1,8 +1,12 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+const SUPABASE_PUBLISHABLE_KEY = Deno.env.get('SUPABASE_PUBLISHABLE_KEY')
+  || Deno.env.get('SUPABASE_ANON_KEY')
+  || '';
+const SUPABASE_SECRET_KEY = Deno.env.get('SUPABASE_SECRET_KEY')
+  || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  || '';
 
 const BASE_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -12,7 +16,7 @@ const BASE_HEADERS = {
 };
 
 function ensureEnv() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY || !SUPABASE_SECRET_KEY) {
     throw new Error('Missing Supabase function environment variables');
   }
 }
@@ -41,7 +45,7 @@ export function jsonResponse(status: number, payload: Record<string, unknown>) {
 
 export function createAdminClient() {
   ensureEnv();
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient(SUPABASE_URL, SUPABASE_SECRET_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false
@@ -53,7 +57,7 @@ export async function requireSuperAdmin(req: Request) {
   ensureEnv();
 
   const token = getBearerToken(req);
-  const callerClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  const callerClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: {
       persistSession: false,
       autoRefreshToken: false

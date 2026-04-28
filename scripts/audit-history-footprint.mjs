@@ -2,6 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  resolveSupabasePublishableKey,
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
 
 const MAX_API_PAGE_SIZE = 1000;
 const DEFAULT_PAGE_SIZE = MAX_API_PAGE_SIZE;
@@ -107,21 +112,14 @@ async function hydrateEnvFiles() {
 }
 
 function resolveCredentials(options) {
-  const supabaseUrl = normalizeText(
-    options.supabaseUrl
-      || process.env.VITE_SUPABASE_URL
-      || process.env.SUPABASE_URL
-  );
-  const serviceRoleKey = normalizeText(process.env.SUPABASE_SERVICE_ROLE_KEY);
-  const anonKey = normalizeText(
-    options.supabaseKey
-      || process.env.VITE_SUPABASE_ANON_KEY
-      || process.env.SUPABASE_ANON_KEY
-  );
-  const supabaseKey = serviceRoleKey || anonKey;
+  const supabaseUrl = normalizeText(options.supabaseUrl) || resolveSupabaseUrl();
+  const serviceRoleKey = resolveSupabaseSecretKey();
+  const explicitKey = normalizeText(options.supabaseKey);
+  const publicKey = resolveSupabasePublishableKey();
+  const supabaseKey = explicitKey || serviceRoleKey || publicKey;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('缺少 Supabase URL 或可用密钥；请配置 VITE_SUPABASE_URL 与 SUPABASE_SERVICE_ROLE_KEY / VITE_SUPABASE_ANON_KEY');
+    throw new Error('缺少 Supabase URL 或可用密钥；请配置 SUPABASE_URL/VITE_SUPABASE_URL 与 SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY 或 SUPABASE_PUBLISHABLE_KEY/VITE_SUPABASE_PUBLISHABLE_KEY');
   }
 
   return {

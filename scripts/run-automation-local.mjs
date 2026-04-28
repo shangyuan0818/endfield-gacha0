@@ -2,15 +2,24 @@
  * 本地开发环境运行自动化同步
  *
  * 用法: npm run automation:local
- * 需要 .env 或 .env.local 中配置 SUPABASE_SERVICE_ROLE_KEY
+ * 需要 .env 或 .env.local 中配置 SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY
  */
 import { config } from 'dotenv';
+import {
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
 
 config({ path: '.env.local' });
 config({ path: '.env' });
 
-const required = ['VITE_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
-const missing = required.filter(k => !process.env[k]);
+const missing = [];
+if (!resolveSupabaseUrl()) {
+  missing.push('SUPABASE_URL 或 VITE_SUPABASE_URL');
+}
+if (!resolveSupabaseSecretKey()) {
+  missing.push('SUPABASE_SECRET_KEY 或 SUPABASE_SERVICE_ROLE_KEY');
+}
 if (missing.length) {
   console.error(`缺少环境变量: ${missing.join(', ')}`);
   console.error('请在 .env 或 .env.local 中配置');

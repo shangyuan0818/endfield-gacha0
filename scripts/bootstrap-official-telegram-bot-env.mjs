@@ -3,6 +3,10 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { createApiKeySecret, createVerifierSecret } from '../api/_lib/devApiSecrets.js';
 import { loadOfficialBotEnv } from '../bots/official/loadEnv.js';
+import {
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
 
 loadOfficialBotEnv();
 
@@ -17,10 +21,26 @@ function getRequiredEnv(name) {
   return value;
 }
 
+function getRequiredSupabaseUrl() {
+  const value = resolveSupabaseUrl();
+  if (!value) {
+    throw new Error('Missing required env: SUPABASE_URL or VITE_SUPABASE_URL');
+  }
+  return value;
+}
+
+function getRequiredSupabaseSecretKey() {
+  const value = resolveSupabaseSecretKey();
+  if (!value) {
+    throw new Error('Missing required env: SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY');
+  }
+  return value;
+}
+
 function createAdminClient() {
   return createClient(
-    getRequiredEnv('VITE_SUPABASE_URL'),
-    getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    getRequiredSupabaseUrl(),
+    getRequiredSupabaseSecretKey(),
     {
       auth: {
         persistSession: false,

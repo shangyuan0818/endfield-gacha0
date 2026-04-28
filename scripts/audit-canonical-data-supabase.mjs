@@ -2,6 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  resolveSupabasePublishableKey,
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
 
 import {
   buildCharacterAuditKey,
@@ -93,17 +98,21 @@ async function ensureEnvLoaded() {
 }
 
 function resolveSupabaseConfig(options) {
-  const supabaseUrl = options.supabaseUrl || process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || null;
-  const supabaseKey = options.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || null;
+  const secretKey = resolveSupabaseSecretKey();
+  const supabaseUrl = normalizeText(options.supabaseUrl) || resolveSupabaseUrl() || null;
+  const supabaseKey = normalizeText(options.supabaseKey)
+    || secretKey
+    || resolveSupabasePublishableKey()
+    || null;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('缺少 Supabase 配置；请提供 --supabase-url / --supabase-key，或在 .env 中配置 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY');
+    throw new Error('缺少 Supabase 配置；请提供 --supabase-url / --supabase-key，或在 .env 中配置 SUPABASE_URL/VITE_SUPABASE_URL + SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY');
   }
 
   return {
     supabaseUrl,
     supabaseKey,
-    authMode: options.supabaseKey || process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role_or_custom' : 'anon',
+    authMode: normalizeText(options.supabaseKey) || (secretKey && supabaseKey === secretKey) ? 'service_role_or_custom' : 'anon_or_public',
   };
 }
 

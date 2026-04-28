@@ -2,6 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
 
 const DEFAULT_PAGE_SIZE = 1000;
 const ENV_FILE_CANDIDATES = [
@@ -86,18 +90,11 @@ async function hydrateEnvFiles() {
 }
 
 function resolveCredentials(options) {
-  const supabaseUrl = normalizeText(
-    options.supabaseUrl
-      || process.env.VITE_SUPABASE_URL
-      || process.env.SUPABASE_URL
-  );
-  const supabaseKey = normalizeText(
-    options.supabaseKey
-      || process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
+  const supabaseUrl = normalizeText(options.supabaseUrl) || resolveSupabaseUrl();
+  const supabaseKey = normalizeText(options.supabaseKey) || resolveSupabaseSecretKey();
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('缺少 VITE_SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY，无法清理 avatars bucket');
+    throw new Error('缺少 SUPABASE_URL/VITE_SUPABASE_URL 或 SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY，无法清理 avatars bucket');
   }
 
   return {

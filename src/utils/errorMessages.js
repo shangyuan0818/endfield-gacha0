@@ -54,15 +54,15 @@ const SUPABASE_ERROR_MAP = {
   },
   'Auth admin not configured': {
     message: '账号恢复服务未启用',
-    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SERVICE_ROLE_KEY 后重启开发服务',
+    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SECRET_KEY（或旧 SUPABASE_SERVICE_ROLE_KEY）后重启开发服务',
   },
   '当前环境未启用安全的账号恢复流程': {
     message: '账号恢复服务未启用',
-    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SERVICE_ROLE_KEY 后重启开发服务',
+    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SECRET_KEY（或旧 SUPABASE_SERVICE_ROLE_KEY）后重启开发服务',
   },
   '当前环境未启用安全的密码找回流程': {
     message: '账号恢复服务未启用',
-    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SERVICE_ROLE_KEY 后重启开发服务',
+    solution: '请在根目录 .env.local 或 backend/.env.local 中配置 SUPABASE_SECRET_KEY（或旧 SUPABASE_SERVICE_ROLE_KEY）后重启开发服务',
   },
 
   // 数据库相关错误

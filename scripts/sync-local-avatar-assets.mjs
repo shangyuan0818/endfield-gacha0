@@ -5,6 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 import { buildLocalAvatarPath, inferAvatarFileExtension } from '../src/utils/avatarAssetPaths.js';
 import { matchSklandImagesToCharacters } from '../src/utils/sklandCatalogImport.js';
 import {
+  resolveSupabaseSecretKey,
+  resolveSupabaseUrl,
+} from './lib/supabaseEnv.mjs';
+import {
   buildTeamStardustLookup,
   findTeamStardustAssetMatch,
   loadTeamStardustAssetCatalog
@@ -138,11 +142,11 @@ function loadEnvironmentFiles() {
 function createSupabaseClient() {
   loadEnvironmentFiles();
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = resolveSupabaseUrl();
+  const serviceRoleKey = resolveSupabaseSecretKey();
 
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('缺少 VITE_SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY，无法写回 characters.avatar_url');
+    throw new Error('缺少 SUPABASE_URL/VITE_SUPABASE_URL 或 SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY，无法写回 characters.avatar_url');
   }
 
   return createClient(supabaseUrl, serviceRoleKey);
@@ -335,7 +339,7 @@ async function main() {
   const supabase = createSupabaseClient();
   const existingCharacters = await loadExistingCharacters(supabase);
   const bucketObjectMap = await collectAvatarBucketObjectMap(supabase);
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const supabaseUrl = resolveSupabaseUrl();
 
   console.log('[sync-local-avatars] 开始同步站点本地头像资源');
   console.log(`[sync-local-avatars] 类型: ${requestedTypes.join(', ')}${options.dryRun ? ' (dry-run)' : ''}`);
