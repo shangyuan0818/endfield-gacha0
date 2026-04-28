@@ -2,7 +2,7 @@ import packageJson from '../../package.json' with { type: 'json' };
 
 export const APP_VERSION = packageJson.version;
 export const APP_VERSION_LABEL = `v${APP_VERSION}`;
-export const APP_BUILD_INFO = 'Build 2026.03.31';
+export const APP_BUILD_INFO = 'Build 2026.04.29';
 
 const DEFAULT_FORCE_REFRESH_TOKEN = '2026-04-28-release-refresh-v2';
 
