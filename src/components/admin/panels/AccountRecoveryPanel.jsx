@@ -10,6 +10,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../../constants/community';
+import VirtualizedList from '../VirtualizedList';
 
 const STATUS_META = {
   pending: { label: '待处理', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
@@ -153,8 +154,13 @@ export default function AccountRecoveryPanel({
           暂无符合条件的恢复申请
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredRequests.map((request) => {
+        <VirtualizedList
+          items={filteredRequests}
+          getKey={(request) => request.id}
+          itemHeight={420}
+          maxHeight={720}
+          className="space-y-3"
+          renderItem={(request) => {
             const statusMeta = STATUS_META[request.status] || STATUS_META.pending;
             const typeMeta = REQUEST_TYPE_META[request.request_type] || REQUEST_TYPE_META.password_reset;
 
@@ -300,8 +306,8 @@ export default function AccountRecoveryPanel({
                 </div>
               </div>
             );
-          })}
-        </div>
+          }}
+        />
       )}
     </div>
   );

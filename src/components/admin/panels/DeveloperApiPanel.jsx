@@ -19,6 +19,7 @@ import {
   rotateApiClientKey,
   rotateApiClientVerifier,
 } from '../../../services/admin/developerApiService.js';
+import VirtualizedList from '../VirtualizedList';
 
 function getStatusTone(status) {
   switch (status) {
@@ -255,7 +256,7 @@ export default function DeveloperApiPanel({ showToast }) {
             ))}
           </select>
         </div>
-        <div className="space-y-3">
+        <div>
           {loading ? (
             <div className="flex items-center justify-center py-10 text-zinc-400">
               <RefreshCw size={18} className="animate-spin" />
@@ -264,14 +265,21 @@ export default function DeveloperApiPanel({ showToast }) {
             <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-4 py-6 text-sm text-zinc-500">
               当前没有开发者 API 申请。
             </div>
-          ) : groupedDeveloperClients.map((group) => (
-            <div key={group.key} className="space-y-3">
-              <div className="flex items-center gap-2 border-l-2 border-endfield-yellow pl-3 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                <Users size={13} />
-                {group.label}
-              </div>
-              {group.clients.map((client) => (
-                <div key={client.id} className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-4 space-y-3">
+          ) : (
+            <VirtualizedList
+              items={groupedDeveloperClients}
+              getKey={(group) => group.key}
+              itemHeight={360}
+              maxHeight={640}
+              className="space-y-3"
+              renderItem={(group) => (
+                <div className="space-y-3 pb-3">
+                  <div className="flex items-center gap-2 border-l-2 border-endfield-yellow pl-3 text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                    <Users size={13} />
+                    {group.label}
+                  </div>
+                  {group.clients.map((client) => (
+                    <div key={client.id} className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/40 p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-bold text-slate-800 dark:text-zinc-100">{client.name}</div>
@@ -390,10 +398,12 @@ export default function DeveloperApiPanel({ showToast }) {
                       ))}
                     </div>
                   ) : null}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))}
+              )}
+            />
+          )}
         </div>
       </section>
 

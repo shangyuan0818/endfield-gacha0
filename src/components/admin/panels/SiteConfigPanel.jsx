@@ -6,6 +6,7 @@ import useSiteConfigStore, {
 } from '../../../stores/useSiteConfigStore';
 import { supabase } from '../../../supabaseClient';
 import { ENTITY_LOCALIZATION_CONFIG_KEY, POOL_LOCALIZATION_CONFIG_KEY } from '../../../utils/gameDataI18n.js';
+import VirtualizedList from '../VirtualizedList';
 
 const CATEGORY_META = {
   legal: { label: '法律合规', icon: Scale, color: 'text-red-600 dark:text-red-400' },
@@ -267,8 +268,13 @@ const SiteConfigPanel = ({ showToast }) => {
             </div>
 
             {/* 配置项列表 */}
-            <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-              {items.map(item => {
+            <VirtualizedList
+              items={items}
+              getKey={(item) => item.key}
+              itemHeight={118}
+              maxHeight={520}
+              className="divide-y divide-zinc-100 dark:divide-zinc-800"
+              renderItem={(item) => {
                 const isJsonField = item.category === 'content' || item.category === 'alert';
                 const isEditing = editingKey === item.key;
 
@@ -317,8 +323,8 @@ const SiteConfigPanel = ({ showToast }) => {
                     )}
                   </div>
                 );
-              })}
-            </div>
+              }}
+            />
           </div>
         );
       })}

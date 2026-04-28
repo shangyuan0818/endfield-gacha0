@@ -12,14 +12,18 @@ async function getAccessToken() {
 
 export async function loadOpsAutomationRuns({
   jobId = 'all',
+  status = 'all',
+  triggerType = 'all',
   limit = 20,
 } = {}) {
   if (!supabase) {
     throw new Error('Supabase 未配置，无法读取自动化审计记录');
   }
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
   const normalizedJobId = normalizeText(jobId);
+  const normalizedStatus = normalizeText(status);
+  const normalizedTriggerType = normalizeText(triggerType);
   let query = supabase
     .from('ops_automation_runs')
     .select([
@@ -43,6 +47,12 @@ export async function loadOpsAutomationRuns({
 
   if (normalizedJobId && normalizedJobId !== 'all') {
     query = query.eq('job_id', normalizedJobId);
+  }
+  if (normalizedStatus && normalizedStatus !== 'all') {
+    query = query.eq('status', normalizedStatus);
+  }
+  if (normalizedTriggerType && normalizedTriggerType !== 'all') {
+    query = query.eq('trigger_type', normalizedTriggerType);
   }
 
   const { data, error } = await executeSupabaseRead(

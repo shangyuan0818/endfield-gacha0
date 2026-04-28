@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Plus, Database, RotateCw, ArrowUpDown, Filter } from 'lucide-react';
 import { usePools } from '../../hooks/admin/usePools';
 import { PoolCard, PoolEditDialog } from './pools';
+import VirtualizedList from './VirtualizedList';
 
 /**
  * 卡池管理界面
@@ -145,20 +146,26 @@ const PoolManagement = ({ showToast }) => {
           <p>{pools.length === 0 ? '暂无卡池' : '未找到匹配的卡池'}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filteredPools.map(pool => (
-            <PoolCard
-              key={pool.pool_id}
-              pool={pool}
-              poolCharacters={poolCharacters}
-              characters={characters}
-              limitedSixStarCharacters={limitedSixStarCharacters}
-              actionLoading={actionLoading}
-              onEdit={startEdit}
-              onDelete={handleDeletePool}
-            />
-          ))}
-        </div>
+        <VirtualizedList
+          items={filteredPools}
+          getKey={(pool) => pool.pool_id}
+          itemHeight={250}
+          maxHeight={720}
+          className="space-y-4 pr-1"
+          renderItem={(pool) => (
+            <div className="pb-4">
+              <PoolCard
+                pool={pool}
+                poolCharacters={poolCharacters}
+                characters={characters}
+                limitedSixStarCharacters={limitedSixStarCharacters}
+                actionLoading={actionLoading}
+                onEdit={startEdit}
+                onDelete={handleDeletePool}
+              />
+            </div>
+          )}
+        />
       )}
 
       {/* 编辑对话框 */}

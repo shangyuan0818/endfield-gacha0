@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -10,6 +10,28 @@ import {
 } from 'lucide-react';
 import { useOpsAutomation } from '../../../hooks/admin';
 import useSiteConfigStore from '../../../stores/useSiteConfigStore';
+import VirtualizedList from '../VirtualizedList';
+
+const JOB_FILTER_OPTIONS = [
+  { value: 'all', label: '全部任务' },
+  { value: 'official-announcements', label: '官方公告同步' },
+  { value: 'pool-schedule', label: '卡池轮换同步' },
+  { value: 'wiki-catalog', label: '图鉴巡检提醒' },
+];
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: '全部状态' },
+  { value: 'success', label: '成功' },
+  { value: 'failure', label: '失败' },
+  { value: 'skipped', label: '跳过' },
+];
+
+const TRIGGER_FILTER_OPTIONS = [
+  { value: 'all', label: '全部来源' },
+  { value: 'manual', label: '手动' },
+  { value: 'cron', label: '定时' },
+  { value: 'api', label: 'API' },
+];
 
 function formatDateTime(value) {
   if (!value) return '未记录';
@@ -62,13 +84,52 @@ function formatRunSummary(summary) {
   return parts.join(' / ');
 }
 
+function RunCard({ run }) {
+  const statusMeta = getStatusMeta(run?.status);
+  return (
+    <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-slate-700 dark:text-zinc-300">
+              {run.job_label || run.job_id}
+            </span>
+            <span className={`text-[11px] px-1.5 py-0.5 rounded ${statusMeta.className}`}>
+              {statusMeta.label}
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-zinc-500">
+              {run.trigger_type}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500">
+            <Clock3 size={12} />
+            {formatDateTime(run.created_at)}
+          </div>
+          {run.error_message && (
+            <div className="mt-2 text-xs text-red-600 dark:text-red-400 line-clamp-2">
+              {run.error_message}
+            </div>
+          )}
+          {formatRunSummary(run.summary) && (
+            <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500 line-clamp-2">
+              {formatRunSummary(run.summary)}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const AutomationPanel = ({ showToast, onNavigate }) => {
   const {
+    filters,
     runs,
     loading,
     syncing,
     forceRefreshing,
     refreshRuns,
+    setFilters,
     triggerSync,
     setupIssue,
   } = useOpsAutomation(showToast);
@@ -86,6 +147,13 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
     const ok = await updateConfig('unregistered_characters', '[]');
     if (ok && showToast) showToast('已清除未收录提醒', 'success');
   };
+
+  const updateFilter = useCallback((key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value,
+    }));
+  }, [setFilters]);
 
   return (
     <div className="space-y-4">
@@ -158,59 +226,70 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
         </span>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <label className="text-xs text-slate-500 dark:text-zinc-400">
+          <span className="block mb-1">任务</span>
+          <select
+            value={filters.jobId}
+            onChange={(event) => updateFilter('jobId', event.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-sm text-slate-700 dark:text-zinc-200"
+          >
+            {JOB_FILTER_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-slate-500 dark:text-zinc-400">
+          <span className="block mb-1">状态</span>
+          <select
+            value={filters.status}
+            onChange={(event) => updateFilter('status', event.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-sm text-slate-700 dark:text-zinc-200"
+          >
+            {STATUS_FILTER_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs text-slate-500 dark:text-zinc-400">
+          <span className="block mb-1">来源</span>
+          <select
+            value={filters.triggerType}
+            onChange={(event) => updateFilter('triggerType', event.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-sm text-slate-700 dark:text-zinc-200"
+          >
+            {TRIGGER_FILTER_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       {setupIssue && (
         <div className="border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-4 text-sm text-amber-800 dark:text-amber-200">
           {setupIssue.message}
         </div>
       )}
 
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 divide-y divide-zinc-100 dark:divide-zinc-800">
+      <div className="bg-white dark:bg-zinc-900">
         {loading ? (
-          <div className="flex items-center justify-center py-16 text-slate-400 dark:text-zinc-500">
+          <div className="flex items-center justify-center py-16 border border-zinc-200 dark:border-zinc-800 text-slate-400 dark:text-zinc-500">
             <RefreshCw size={18} className="animate-spin" />
           </div>
         ) : runs.length === 0 ? (
-          <div className="p-10 text-center text-slate-400 dark:text-zinc-500">
+          <div className="p-10 border border-zinc-200 dark:border-zinc-800 text-center text-slate-400 dark:text-zinc-500">
             <Database size={42} className="mx-auto mb-3 opacity-50" />
             <p>暂无自动化执行记录</p>
           </div>
         ) : (
-          runs.map((run) => {
-            const statusMeta = getStatusMeta(run?.status);
-            return (
-              <div key={run.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-slate-700 dark:text-zinc-300">
-                        {run.job_label || run.job_id}
-                      </span>
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded ${statusMeta.className}`}>
-                        {statusMeta.label}
-                      </span>
-                      <span className="text-[11px] text-slate-500 dark:text-zinc-500">
-                        {run.trigger_type}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-500">
-                      <Clock3 size={12} />
-                      {formatDateTime(run.created_at)}
-                    </div>
-                    {run.error_message && (
-                      <div className="mt-2 text-xs text-red-600 dark:text-red-400">
-                        {run.error_message}
-                      </div>
-                    )}
-                    {formatRunSummary(run.summary) && (
-                      <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
-                        {formatRunSummary(run.summary)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
+          <VirtualizedList
+            items={runs}
+            getKey={(run) => run.id}
+            itemHeight={126}
+            maxHeight={560}
+            className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900"
+            renderItem={(run) => <RunCard run={run} />}
+          />
         )}
       </div>
     </div>

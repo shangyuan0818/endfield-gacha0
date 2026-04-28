@@ -17,6 +17,11 @@ function formatAnnouncementSyncMessage(result, forceRefresh) {
 
 export function useOpsAutomation(showToast) {
   const [runs, setRuns] = useState([]);
+  const [filters, setFilters] = useState({
+    jobId: 'all',
+    status: 'all',
+    triggerType: 'all',
+  });
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
@@ -25,7 +30,10 @@ export function useOpsAutomation(showToast) {
   const loadRuns = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await opsAutomationService.loadOpsAutomationRuns({ limit: 24 });
+      const data = await opsAutomationService.loadOpsAutomationRuns({
+        ...filters,
+        limit: 120,
+      });
       setRuns(data);
       setSetupIssue(null);
     } catch (error) {
@@ -35,7 +43,7 @@ export function useOpsAutomation(showToast) {
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [filters, showToast]);
 
   useEffect(() => {
     loadRuns();
@@ -72,12 +80,14 @@ export function useOpsAutomation(showToast) {
   }, [showToast, loadRuns]);
 
   return {
+    filters,
     runs,
     loading,
     syncing,
     forceRefreshing,
     setupIssue,
     refreshRuns,
+    setFilters,
     triggerSync,
   };
 }
