@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-04-26T15:55:57.958Z
---   5. 覆盖范围: archive/001_init_tables.sql -> active/103_add_public_analytics_api_rate_limits.sql
+--   4. 生成时间: 2026-04-28T11:58:08.213Z
+--   5. 覆盖范围: archive/001_init_tables.sql -> active/104_add_announcement_type_and_severity.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive/001_init_tables.sql
@@ -16492,4 +16492,41 @@ INSERT INTO public.rate_limit_config (action, max_attempts, window_minutes, lock
   ('dev_api_stats_heavy', 120, 60, 10)
 ON CONFLICT (action) DO NOTHING;
 -- <<< END MIGRATION: active/103_add_public_analytics_api_rate_limits.sql
+
+-- >>> BEGIN MIGRATION: active/104_add_announcement_type_and_severity.sql
+-- 104: distinguish update announcements from temporary status-style notices.
+-- Existing rows remain update announcements.
+
+ALTER TABLE public.announcements
+  ADD COLUMN IF NOT EXISTS announcement_type TEXT NOT NULL DEFAULT 'update',
+  ADD COLUMN IF NOT EXISTS severity TEXT NOT NULL DEFAULT 'info';
+
+ALTER TABLE public.announcements
+  DROP CONSTRAINT IF EXISTS announcements_type_check;
+
+ALTER TABLE public.announcements
+  ADD CONSTRAINT announcements_type_check
+  CHECK (announcement_type IN ('update', 'temporary'));
+
+ALTER TABLE public.announcements
+  DROP CONSTRAINT IF EXISTS announcements_severity_check;
+
+ALTER TABLE public.announcements
+  ADD CONSTRAINT announcements_severity_check
+  CHECK (severity IN ('info', 'maintenance', 'warning', 'critical'));
+
+UPDATE public.announcements
+   SET announcement_type = 'update'
+ WHERE announcement_type IS NULL;
+
+UPDATE public.announcements
+   SET severity = 'info'
+ WHERE severity IS NULL;
+
+COMMENT ON COLUMN public.announcements.announcement_type IS
+  '站点公告类型：update 为更新公告，temporary 为临时公告。';
+
+COMMENT ON COLUMN public.announcements.severity IS
+  '临时公告重要程度：info / maintenance / warning / critical。更新公告默认 info。';
+-- <<< END MIGRATION: active/104_add_announcement_type_and_severity.sql
 
