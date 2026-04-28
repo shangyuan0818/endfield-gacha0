@@ -13,6 +13,7 @@ const testCommands = [
   ['node', ['scripts/verify-ops-automation-api.mjs']],
   ['node', ['scripts/verify-official-announcements-feed.mjs']],
   ['node', ['scripts/verify-pool-schedule-feed.mjs']],
+  ['node', ['scripts/verify-force-refresh-gate.mjs']],
   ['node', ['scripts/verify-bootstrap-cache-partial.mjs']],
   ['node', ['scripts/verify-supabase-baseline.mjs']],
 ];

@@ -43,6 +43,7 @@
     "test:ops-automation:api": "node scripts/verify-ops-automation-api.mjs",
     "test:official-announcements-feed": "node scripts/verify-official-announcements-feed.mjs",
     "test:pool-schedule-feed": "node scripts/verify-pool-schedule-feed.mjs",
+    "test:force-refresh-gate": "node scripts/verify-force-refresh-gate.mjs",
     "test:supabase-baseline": "node scripts/verify-supabase-baseline.mjs",
     "test:supabase-baseline:smoke": "node scripts/verify-supabase-baseline-smoke.mjs",
     "test:bootstrap-cache": "node scripts/verify-bootstrap-cache-partial.mjs",

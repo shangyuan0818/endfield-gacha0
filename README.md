@@ -135,6 +135,7 @@ VITE_APP_URL=https://your-domain.vercel.app           # 站点公开地址 / Aut
 VITE_PROXY_URL_CN=https://your-cn-proxy.example.com   # 可选，国服导入代理
 VITE_PROXY_URL_INTL=https://your-intl-proxy.example.com # 可选，国际服导入代理
 VITE_PUZZLE_PLAYER_URL=https://your-player.example.com  # 可选，验证码玩家站
+VITE_APP_FORCE_REFRESH_TOKEN=2026-04-28-release-refresh-v2 # 可选，发布需要强制刷新时 bump；所有访客自动刷新一次
 SUPABASE_SECRET_KEY=sb_secret_xxx                     # 仅服务端使用；旧 SUPABASE_SERVICE_ROLE_KEY 仍兼容
 ```
 
