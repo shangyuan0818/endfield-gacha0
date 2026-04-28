@@ -101,6 +101,17 @@ export function useNotificationBadges() {
         allRecords = [];
       }
 
+      if (cancelled) return;
+
+      const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
+      setAnnouncements(siteRecords);
+
+      if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
+        setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
+      } else {
+        setHasNewAnnouncement(false);
+      }
+
       let gameRecords;
       try {
         gameRecords = await loadOfficialAnnouncementsFeed();
@@ -110,17 +121,7 @@ export function useNotificationBadges() {
 
       if (cancelled) return;
 
-      const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
-      const sortedGameRecords = sortGameAnnouncements(gameRecords);
-
-      setAnnouncements(siteRecords);
-      setGameAnnouncements(sortedGameRecords);
-
-      if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
-        setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
-      } else {
-        setHasNewAnnouncement(false);
-      }
+      setGameAnnouncements(sortGameAnnouncements(gameRecords));
     };
 
     load();
