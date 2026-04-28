@@ -22,6 +22,9 @@ dist-ssr
 # Temp files
 nul
 artifacts/
+scratch/local-only/
+.env.codex-bak-*
+.env.local.codex-bak-*
 # Keep generic scratch archives ignored, but version the Supabase migration archive.
 archive/
 !supabase/archive/
