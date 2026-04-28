@@ -3,7 +3,7 @@
  *
  * 流程：
  *   1. 从鹰角官方新闻 API 获取最新公告列表与详情
- *   2. 对长公告调用 SiliconFlow LLM 生成结构化摘要
+ *   2. 对长公告调用 OpenAI 兼容 LLM 生成结构化摘要
  *   3. 输出到 public/game-announcements.json，随前端一起部署
  *
  * 用法：
@@ -15,8 +15,9 @@
  *   --output    额外输出到指定文件
  *
  * 环境变量：
- *   SILICONFLOW_API_KEY   可选，启用 LLM 摘要
- *   SILICONFLOW_MODEL     可选，覆盖默认模型
+ *   ANNOUNCEMENT_LLM_API_KEY    可选，启用 LLM 摘要
+ *   ANNOUNCEMENT_LLM_BASE_URL   可选，默认 https://x666.me/
+ *   ANNOUNCEMENT_LLM_MODEL      可选，默认 gemini-flash-latest
  */
 
 import fs from 'node:fs';
@@ -170,13 +171,57 @@ function extractImageUrls(html) {
 }
 
 // ---------------------------------------------------------------------------
-// LLM 摘要（SiliconFlow）
+// LLM 摘要（OpenAI 兼容）
 // ---------------------------------------------------------------------------
 
-const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
-const DEFAULT_MODEL = 'deepseek-ai/DeepSeek-V3.2';
-const SUMMARY_TRIGGER_LENGTH = 1400;
+const DEFAULT_LLM_BASE_URL = 'https://x666.me/';
+const DEFAULT_MODEL = 'gemini-flash-latest';
+const LLM_RATE_LIMIT_MAX_CALLS = 25;
+const LLM_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const SUMMARY_INPUT_MAX = 7000;
+const llmRequestTimestamps = [];
+
+function normalizeText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveChatCompletionsUrl(rawValue) {
+  const normalizedValue = normalizeText(rawValue) || DEFAULT_LLM_BASE_URL;
+
+  try {
+    const parsedUrl = new URL(normalizedValue);
+    const normalizedPath = parsedUrl.pathname.replace(/\/+$/u, '');
+
+    if (/\/v1\/chat\/completions$/iu.test(normalizedPath)) {
+      return parsedUrl.toString();
+    }
+
+    parsedUrl.pathname = /\/v1$/iu.test(normalizedPath)
+      ? `${normalizedPath}/chat/completions`
+      : `${normalizedPath}/v1/chat/completions`;
+
+    return parsedUrl.toString();
+  } catch {
+    return normalizedValue;
+  }
+}
+
+async function waitForLlmRateLimit() {
+  const now = Date.now();
+  while (llmRequestTimestamps.length > 0
+    && now - llmRequestTimestamps[0] >= LLM_RATE_LIMIT_WINDOW_MS) {
+    llmRequestTimestamps.shift();
+  }
+
+  if (llmRequestTimestamps.length < LLM_RATE_LIMIT_MAX_CALLS) {
+    llmRequestTimestamps.push(now);
+    return;
+  }
+
+  const waitMs = Math.max(0, LLM_RATE_LIMIT_WINDOW_MS - (now - llmRequestTimestamps[0]) + 50);
+  await new Promise(resolve => setTimeout(resolve, waitMs));
+  await waitForLlmRateLimit();
+}
 
 async function loadPromptTemplate() {
   const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -188,7 +233,8 @@ async function loadPromptTemplate() {
   }
 }
 
-async function summarizeWithLlm(title, summary, plainText, apiKey, model) {
+async function summarizeWithLlm(title, summary, plainText, config) {
+  const apiKey = config?.apiKey;
   if (!apiKey) return null;
 
   const promptTemplate = await loadPromptTemplate();
@@ -203,14 +249,15 @@ async function summarizeWithLlm(title, summary, plainText, apiKey, model) {
   ].filter(Boolean).join('\n\n');
 
   try {
-    const resp = await fetch(SILICONFLOW_API_URL, {
+    await waitForLlmRateLimit();
+    const resp = await fetch(config.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: model || DEFAULT_MODEL,
+        model: config.model || DEFAULT_MODEL,
         messages: [
           { role: 'system', content: promptTemplate },
           { role: 'user', content: userContent },
@@ -245,7 +292,7 @@ function buildHeuristicSummary(summary, plainText) {
 // 构建公告记录
 // ---------------------------------------------------------------------------
 
-async function buildAnnouncementRecord(detail, apiKey, model) {
+async function buildAnnouncementRecord(detail, llmConfig) {
   const cid = String(detail.cid);
   const title = String(detail.title || '');
   const brief = typeof detail.brief === 'string' ? detail.brief.trim() : null;
@@ -264,8 +311,8 @@ async function buildAnnouncementRecord(detail, apiKey, model) {
   let content;
   let summaryMode;
 
-  const llmSummary = apiKey
-    ? await summarizeWithLlm(title, brief, plainText, apiKey, model)
+  const llmSummary = llmConfig?.apiKey
+    ? await summarizeWithLlm(title, brief, plainText, llmConfig)
     : null;
 
   if (llmSummary) {
@@ -297,12 +344,28 @@ async function main() {
   const opts = parseArgs();
   loadEnvFiles();
 
-  const apiKey = process.env.SILICONFLOW_API_KEY || process.env.SILICONFLOW_APIKEY || '';
-  const model = process.env.SILICONFLOW_MODEL || process.env.SILICONFLOW_CHAT_MODEL || '';
+  const llmConfig = {
+    apiKey: process.env.ANNOUNCEMENT_LLM_API_KEY
+      || process.env.SILICONFLOW_API_KEY
+      || process.env.SILICONFLOW_APIKEY
+      || '',
+    model: process.env.ANNOUNCEMENT_LLM_MODEL
+      || process.env.SILICONFLOW_MODEL
+      || process.env.SILICONFLOW_CHAT_MODEL
+      || DEFAULT_MODEL,
+    url: resolveChatCompletionsUrl(
+      process.env.ANNOUNCEMENT_LLM_BASE_URL
+      || process.env.SILICONFLOW_BASE_URL
+      || process.env.SILICONFLOW_API_URL
+      || DEFAULT_LLM_BASE_URL
+    ),
+  };
 
   console.log('\n=== 官方游戏公告抓取 ===');
   console.log(`数量: ${opts.count}${opts.dryRun ? ' (dry-run)' : ''}`);
-  console.log(`LLM 摘要: ${apiKey ? '已配置' : '未配置（将使用启发式摘要）'}\n`);
+  console.log(`LLM 摘要: ${llmConfig.apiKey ? '已配置' : '未配置（将使用启发式摘要）'}`);
+  console.log(`LLM 模型: ${llmConfig.model}`);
+  console.log(`LLM 限流: ${LLM_RATE_LIMIT_MAX_CALLS} 次 / ${LLM_RATE_LIMIT_WINDOW_MS / 60000} 分钟\n`);
 
   // 1. 获取公告列表
   console.log('获取公告列表...');
@@ -326,7 +389,7 @@ async function main() {
     try {
       const detail = await fetchNewsDetail(item.cid);
       const merged = { ...item, ...detail };
-      const record = await buildAnnouncementRecord(merged, apiKey, model);
+      const record = await buildAnnouncementRecord(merged, llmConfig);
       records.push(record);
       console.log(`${record.summary_mode}`);
     } catch (err) {

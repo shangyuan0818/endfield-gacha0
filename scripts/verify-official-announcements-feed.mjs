@@ -47,12 +47,18 @@ assert.deepEqual(
 
 const fetchBackup = globalThis.fetch;
 const envBackup = {
+  ANNOUNCEMENT_LLM_API_KEY: process.env.ANNOUNCEMENT_LLM_API_KEY,
+  ANNOUNCEMENT_LLM_BASE_URL: process.env.ANNOUNCEMENT_LLM_BASE_URL,
+  ANNOUNCEMENT_LLM_MODEL: process.env.ANNOUNCEMENT_LLM_MODEL,
   SILICONFLOW_API_KEY: process.env.SILICONFLOW_API_KEY,
   SILICONFLOW_MODEL: process.env.SILICONFLOW_MODEL,
 };
 
-process.env.SILICONFLOW_API_KEY = 'test-siliconflow-key';
-process.env.SILICONFLOW_MODEL = 'deepseek-ai/DeepSeek-V3.2';
+process.env.ANNOUNCEMENT_LLM_API_KEY = 'test-announcement-llm-key';
+process.env.ANNOUNCEMENT_LLM_BASE_URL = 'https://x666.me/';
+process.env.ANNOUNCEMENT_LLM_MODEL = 'gemini-flash-latest';
+delete process.env.SILICONFLOW_API_KEY;
+delete process.env.SILICONFLOW_MODEL;
 
 globalThis.fetch = async (url) => {
   const normalizedUrl = String(url);
@@ -98,7 +104,7 @@ globalThis.fetch = async (url) => {
     };
   }
 
-  if (normalizedUrl.includes('api.siliconflow.cn/v1/chat/completions')) {
+  if (normalizedUrl === 'https://x666.me/v1/chat/completions') {
     return {
       ok: true,
       status: 200,
@@ -154,6 +160,21 @@ assert.match(
 assert.match(res.payload.records[0].version, /^hg-1773203400-5992$/, 'version 应可从官方时间戳构造');
 
 globalThis.fetch = fetchBackup;
+if (envBackup.ANNOUNCEMENT_LLM_API_KEY === undefined) {
+  delete process.env.ANNOUNCEMENT_LLM_API_KEY;
+} else {
+  process.env.ANNOUNCEMENT_LLM_API_KEY = envBackup.ANNOUNCEMENT_LLM_API_KEY;
+}
+if (envBackup.ANNOUNCEMENT_LLM_BASE_URL === undefined) {
+  delete process.env.ANNOUNCEMENT_LLM_BASE_URL;
+} else {
+  process.env.ANNOUNCEMENT_LLM_BASE_URL = envBackup.ANNOUNCEMENT_LLM_BASE_URL;
+}
+if (envBackup.ANNOUNCEMENT_LLM_MODEL === undefined) {
+  delete process.env.ANNOUNCEMENT_LLM_MODEL;
+} else {
+  process.env.ANNOUNCEMENT_LLM_MODEL = envBackup.ANNOUNCEMENT_LLM_MODEL;
+}
 if (envBackup.SILICONFLOW_API_KEY === undefined) {
   delete process.env.SILICONFLOW_API_KEY;
 } else {

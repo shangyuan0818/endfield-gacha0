@@ -3,12 +3,16 @@ import path from 'node:path';
 
 const OFFICIAL_SITE_ORIGIN = 'https://endfield.hypergryph.com';
 const OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH = '/api/official-announcement-image';
-const SILICONFLOW_API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
-const DEFAULT_SILICONFLOW_MODEL = 'deepseek-ai/DeepSeek-V3.2';
+const DEFAULT_ANNOUNCEMENT_LLM_BASE_URL = 'https://x666.me/';
+const DEFAULT_ANNOUNCEMENT_LLM_MODEL = 'gemini-flash-latest';
+const ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS = 25;
+const ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
 const SUMMARY_TRIGGER_TEXT_LENGTH = 1400;
 const SUMMARY_INPUT_MAX_LENGTH = 7000;
 const SUMMARY_IMAGE_LIMIT = 6;
 const SUMMARY_CACHE = new Map();
+const LLM_REQUEST_TIMESTAMPS = [];
+let llmRequestQueue = Promise.resolve();
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -56,6 +60,57 @@ function truncateText(value, maxLength) {
   }
 
   return `${normalizedValue.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function resolveChatCompletionsUrl(rawValue) {
+  const normalizedValue = normalizeText(rawValue) || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL;
+
+  try {
+    const parsedUrl = new URL(normalizedValue);
+    const normalizedPath = parsedUrl.pathname.replace(/\/+$/u, '');
+
+    if (/\/v1\/chat\/completions$/iu.test(normalizedPath)) {
+      return parsedUrl.toString();
+    }
+
+    parsedUrl.pathname = /\/v1$/iu.test(normalizedPath)
+      ? `${normalizedPath}/chat/completions`
+      : `${normalizedPath}/v1/chat/completions`;
+
+    return parsedUrl.toString();
+  } catch {
+    return normalizedValue;
+  }
+}
+
+async function waitForLlmRateLimit() {
+  const now = Date.now();
+  while (LLM_REQUEST_TIMESTAMPS.length > 0
+    && now - LLM_REQUEST_TIMESTAMPS[0] >= ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS) {
+    LLM_REQUEST_TIMESTAMPS.shift();
+  }
+
+  if (LLM_REQUEST_TIMESTAMPS.length < ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS) {
+    LLM_REQUEST_TIMESTAMPS.push(now);
+    return;
+  }
+
+  const waitMs = Math.max(
+    0,
+    ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS - (now - LLM_REQUEST_TIMESTAMPS[0]) + 50
+  );
+  await new Promise(resolve => setTimeout(resolve, waitMs));
+  await waitForLlmRateLimit();
+}
+
+async function scheduleLlmRequest(task) {
+  const currentTask = llmRequestQueue.then(async () => {
+    await waitForLlmRateLimit();
+    return task();
+  });
+
+  llmRequestQueue = currentTask.catch(() => {});
+  return currentTask;
 }
 
 function extractFirstBulletLine(markdownText) {
@@ -261,14 +316,28 @@ async function readFirstExistingFile(filePaths = []) {
   return '';
 }
 
-async function loadSiliconFlowConfig(env = process.env) {
-  const envApiKey = normalizeText(env.SILICONFLOW_API_KEY || env.SILICONFLOW_APIKEY);
-  const envModel = normalizeText(env.SILICONFLOW_MODEL || env.SILICONFLOW_CHAT_MODEL);
+async function loadAnnouncementLlmConfig(env = process.env) {
+  const envApiKey = normalizeText(
+    env.ANNOUNCEMENT_LLM_API_KEY
+    || env.SILICONFLOW_API_KEY
+    || env.SILICONFLOW_APIKEY
+  );
+  const envModel = normalizeText(
+    env.ANNOUNCEMENT_LLM_MODEL
+    || env.SILICONFLOW_MODEL
+    || env.SILICONFLOW_CHAT_MODEL
+  );
+  const envBaseUrl = normalizeText(
+    env.ANNOUNCEMENT_LLM_BASE_URL
+    || env.SILICONFLOW_BASE_URL
+    || env.SILICONFLOW_API_URL
+  );
 
   if (envApiKey) {
     return {
       apiKey: envApiKey,
-      model: envModel || DEFAULT_SILICONFLOW_MODEL,
+      model: envModel || DEFAULT_ANNOUNCEMENT_LLM_MODEL,
+      url: resolveChatCompletionsUrl(envBaseUrl || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL),
     };
   }
 
@@ -298,23 +367,32 @@ async function loadSiliconFlowConfig(env = process.env) {
   );
 
   const apiKey = normalizeText(
-    configEntries.SILICONFLOW_API_KEY
+    configEntries.ANNOUNCEMENT_LLM_API_KEY
+    || configEntries.SILICONFLOW_API_KEY
     || configEntries.SILICONFLOW_APIKEY
     || configLines.find(line => /^sk-/i.test(line))
   );
   const model = normalizeText(
-    configEntries.SILICONFLOW_MODEL
+    configEntries.ANNOUNCEMENT_LLM_MODEL
+    || configEntries.SILICONFLOW_MODEL
     || configEntries.SILICONFLOW_CHAT_MODEL
     || configLines.find(line => line.includes('/'))
-  ) || DEFAULT_SILICONFLOW_MODEL;
+  ) || DEFAULT_ANNOUNCEMENT_LLM_MODEL;
+  const baseUrl = normalizeText(
+    configEntries.ANNOUNCEMENT_LLM_BASE_URL
+    || configEntries.SILICONFLOW_BASE_URL
+    || configEntries.SILICONFLOW_API_URL
+    || configLines.find(line => /^https?:\/\//i.test(line))
+  ) || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL;
 
   return {
     apiKey,
     model,
+    url: resolveChatCompletionsUrl(baseUrl),
   };
 }
 
-async function summarizeWithSiliconFlow({
+async function summarizeWithAnnouncementLlm({
   title,
   summary,
   plainText,
@@ -335,14 +413,14 @@ async function summarizeWithSiliconFlow({
     return SUMMARY_CACHE.get(cacheKey);
   }
 
-  const config = await loadSiliconFlowConfig(env);
+  const config = await loadAnnouncementLlmConfig(env);
   if (!config.apiKey || typeof fetchImpl !== 'function') {
     SUMMARY_CACHE.set(cacheKey, null);
     return null;
   }
 
   const promptText = truncateText(plainText, SUMMARY_INPUT_MAX_LENGTH);
-  const response = await fetchImpl(SILICONFLOW_API_URL, {
+  const response = await scheduleLlmRequest(() => fetchImpl(config.url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -381,10 +459,10 @@ async function summarizeWithSiliconFlow({
         },
       ],
     }),
-  });
+  }));
 
   if (!response.ok) {
-    throw new Error(`SiliconFlow returned ${response.status} ${response.statusText}`);
+    throw new Error(`Announcement LLM returned ${response.status} ${response.statusText}`);
   }
 
   const payload = await response.json();
@@ -428,7 +506,7 @@ export async function buildAnnouncementDisplayContent({
 
   let structuredSummary = null;
   try {
-    structuredSummary = await summarizeWithSiliconFlow({
+    structuredSummary = await summarizeWithAnnouncementLlm({
       title,
       summary,
       plainText,
@@ -468,15 +546,20 @@ export async function buildAnnouncementDisplayContent({
 }
 
 export const __internal = {
-  DEFAULT_SILICONFLOW_MODEL,
+  ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS,
+  ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS,
+  DEFAULT_ANNOUNCEMENT_LLM_BASE_URL,
+  DEFAULT_ANNOUNCEMENT_LLM_MODEL,
   OFFICIAL_SITE_ORIGIN,
   OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH,
   SUMMARY_TRIGGER_TEXT_LENGTH,
   absolutizeUrl,
   buildHeuristicStructuredSummary,
   extractImageUrlsFromHtml,
+  loadAnnouncementLlmConfig,
   normalizeOfficialHtml,
   proxifyAnnouncementImageUrl,
+  resolveChatCompletionsUrl,
   shouldSummarizeAnnouncement,
   stripHtmlToText,
 };
