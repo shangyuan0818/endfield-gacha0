@@ -7,6 +7,7 @@ import {
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
+import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { useCloudSync } from '../../hooks/app';
 import { useToast } from '../../hooks';
 import { supabase } from '../../supabaseClient';
@@ -67,6 +68,7 @@ function MobileSettingsView() {
   const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt, setUser } = useAuthStore();
   const { pools, setPools, currentPoolId, currentGameUid, switchPool, switchGameAccount } = usePoolStore();
   const { history, setHistory, getGameAccountsFromHistory } = useHistoryStore();
+  const siteVersion = useSiteConfigStore((state) => state.config.site_version || APP_VERSION_LABEL);
   const { toasts, showToast, removeToast } = useToast();
   const { syncToCloud, loadPublicPools, deleteUserDataFromCloud } = useCloudSync({ showToast });
   const deletePhrase = t('settings.deletePhrase');
@@ -591,7 +593,7 @@ function MobileSettingsView() {
       <div className="mobile-ux-card p-4 text-center">
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-white/10" />
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-400">{t('app.brand')}</p>
-        <p className="mt-1 text-[10px] font-mono text-zinc-500">{APP_VERSION_LABEL}</p>
+        <p className="mt-1 text-[10px] font-mono text-zinc-500">{siteVersion}</p>
       </div>
 
       {/* 底部留白 */}

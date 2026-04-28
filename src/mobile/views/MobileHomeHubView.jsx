@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowUpRight, Bell, Calendar, ChevronRight, Clock3, Globe, Info, Layers, Radio, Shield, Sparkles, Star, Swords, Users, BarChart3, Map, BarChart2 } from 'lucide-react';
 import AnnouncementContent from '../../components/home/AnnouncementContent';
 import GameAnnouncementFeed from '../../components/home/GameAnnouncementFeed';
-import { APP_VERSION } from '../../constants/appMeta';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';

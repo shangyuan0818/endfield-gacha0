@@ -13,7 +13,7 @@ import {
   Bot
 } from 'lucide-react';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
-import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../../constants/appMeta';
 import { useI18n } from '../../i18n/index.js';
 import { MobileSectionTitle, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 
@@ -31,7 +31,7 @@ function MobileAboutView() {
   const config = useSiteConfigStore((state) => state.config);
 
   const siteVersion = config.site_version || APP_VERSION_LABEL;
-  const buildInfo = config.build_info || 'Build 2026.02';
+  const buildInfo = config.build_info || APP_BUILD_INFO;
   const authorName = config.author_name || '';
   const authorBilibili = config.author_bilibili || '';
   const githubUrl = config.github_url || '';

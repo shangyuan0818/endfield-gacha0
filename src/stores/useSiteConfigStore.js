@@ -9,11 +9,26 @@ import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/stor
 export const HOME_NEXT_VERSION_TARGET_CONFIG_KEY = 'home_next_version_target_at';
 export const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-04T12:00:00+08:00';
 
+const VERSION_CONFIG_METADATA = {
+  site_version: { label: '站点版本', category: 'general' },
+  build_info: { label: '构建信息', category: 'general' },
+};
+
+function isBlankConfigValue(value) {
+  return value == null || String(value).trim() === '';
+}
+
 function normalizeVersionConfig(config) {
+  const normalizedConfig = config && typeof config === 'object' ? { ...config } : {};
+
   return {
-    ...(config && typeof config === 'object' ? config : {}),
-    site_version: APP_VERSION_LABEL,
-    build_info: APP_BUILD_INFO,
+    ...normalizedConfig,
+    site_version: isBlankConfigValue(normalizedConfig.site_version)
+      ? APP_VERSION_LABEL
+      : normalizedConfig.site_version,
+    build_info: isBlankConfigValue(normalizedConfig.build_info)
+      ? APP_BUILD_INFO
+      : normalizedConfig.build_info,
   };
 }
 
@@ -133,8 +148,9 @@ const useSiteConfigStore = create((set, get) => ({
   updateConfig: async (key, value, meta = {}) => {
     if (!supabase) return false;
     try {
+      const versionMeta = VERSION_CONFIG_METADATA[key];
       const existingValue = Object.prototype.hasOwnProperty.call(get().config, key);
-      const request = existingValue
+      const request = existingValue && !versionMeta
         ? () => supabase
           .from('site_config')
           .update({ value, updated_at: new Date().toISOString() })
@@ -144,8 +160,8 @@ const useSiteConfigStore = create((set, get) => ({
           .upsert({
             key,
             value,
-            label: meta.label || key,
-            category: meta.category || 'general',
+            label: meta.label || versionMeta?.label || key,
+            category: meta.category || versionMeta?.category || 'general',
             updated_at: new Date().toISOString(),
           }, {
             onConflict: 'key'

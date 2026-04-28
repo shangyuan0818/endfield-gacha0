@@ -13,7 +13,7 @@ import {
   Bot,
   Globe,
 } from 'lucide-react';
-import { APP_VERSION } from '../constants/appMeta';
+import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta';
 import useSiteConfigStore, { useJsonConfig } from '../stores/useSiteConfigStore';
 import { useI18n } from '../i18n/index.js';
 
@@ -41,7 +41,8 @@ const AboutPanel = React.memo(() => {
   const authorName = config.author_name || '蘑菇菌__';
   const authorBilibili = config.author_bilibili || 'https://space.bilibili.com/14932613';
   const githubUrl = config.github_url || 'https://github.com/MoguJunn/endfield-gacha';
-  const buildInfo = config.build_info || 'Build 2026';
+  const siteVersion = config.site_version || APP_VERSION_LABEL;
+  const buildInfo = config.build_info || APP_BUILD_INFO;
   const buildVersion = String(buildInfo).replace(/^Build\s*/i, '').trim();
   const features = React.useMemo(() => {
     if (Array.isArray(rawFeatures) && JSON.stringify(rawFeatures) !== JSON.stringify(DEFAULT_FEATURES_ZH)) {
@@ -75,7 +76,7 @@ const AboutPanel = React.memo(() => {
           </h2>
           <p className="text-zinc-400 text-sm tracking-widest uppercase">{t('about.desktopSubtitle')}</p>
           <div className="mt-6 flex items-center gap-4">
-            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">{t('about.versionLabel', { value: APP_VERSION })}</span>
+            <span className="bg-white/10 px-3 py-1 text-xs font-mono border border-white/20">{t('about.versionLabel', { value: siteVersion })}</span>
             <span className="text-zinc-500 text-xs font-mono">{t('about.buildLabel', { value: buildVersion })}</span>
           </div>
         </div>
