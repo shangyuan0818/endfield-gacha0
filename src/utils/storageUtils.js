@@ -31,6 +31,7 @@ export const STORAGE_KEYS = {
   ACCOUNT_METADATA: 'gacha_account_metadata',
   // 首页折叠状态
   HOME_ANNOUNCEMENT_COLLAPSED: 'home_announcement_collapsed',
+  HOME_TEMPORARY_ANNOUNCEMENTS_COLLAPSED: 'home_temporary_announcements_collapsed',
   HOME_GAME_ANNOUNCEMENTS_COLLAPSED: 'home_game_announcements_collapsed',
   HOME_GUIDE_COLLAPSED: 'home_guide_collapsed',
   HOME_POOL_MECHANICS_COLLAPSED: 'home_pool_mechanics_collapsed',
@@ -194,11 +195,12 @@ export const markAsViewed = (lastViewedKey) => {
 
 /**
  * 获取首页折叠状态
- * @returns {{ announcement: boolean, guide: boolean, poolMechanics: boolean, roadmap: boolean }}
+ * @returns {{ announcement: boolean, temporaryAnnouncements: boolean, gameAnnouncements: boolean, guide: boolean, poolMechanics: boolean, roadmap: boolean }}
  */
 export const getHomeCollapseState = () => {
   return {
     announcement: getStorageItem(STORAGE_KEYS.HOME_ANNOUNCEMENT_COLLAPSED, false),
+    temporaryAnnouncements: getStorageItem(STORAGE_KEYS.HOME_TEMPORARY_ANNOUNCEMENTS_COLLAPSED, false),
     gameAnnouncements: getStorageItem(STORAGE_KEYS.HOME_GAME_ANNOUNCEMENTS_COLLAPSED, true),
     guide: getStorageItem(STORAGE_KEYS.HOME_GUIDE_COLLAPSED, false),
     poolMechanics: getStorageItem(STORAGE_KEYS.HOME_POOL_MECHANICS_COLLAPSED, false),
@@ -208,12 +210,13 @@ export const getHomeCollapseState = () => {
 
 /**
  * 保存首页折叠状态
- * @param {'announcement'|'gameAnnouncements'|'guide'|'poolMechanics'|'roadmap'} section - 区域名称
+ * @param {'announcement'|'temporaryAnnouncements'|'gameAnnouncements'|'guide'|'poolMechanics'|'roadmap'} section - 区域名称
  * @param {boolean} collapsed - 是否折叠
  */
 export const setHomeCollapseState = (section, collapsed) => {
   const keyMap = {
     announcement: STORAGE_KEYS.HOME_ANNOUNCEMENT_COLLAPSED,
+    temporaryAnnouncements: STORAGE_KEYS.HOME_TEMPORARY_ANNOUNCEMENTS_COLLAPSED,
     gameAnnouncements: STORAGE_KEYS.HOME_GAME_ANNOUNCEMENTS_COLLAPSED,
     guide: STORAGE_KEYS.HOME_GUIDE_COLLAPSED,
     poolMechanics: STORAGE_KEYS.HOME_POOL_MECHANICS_COLLAPSED,
