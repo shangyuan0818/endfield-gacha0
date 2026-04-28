@@ -33,10 +33,24 @@ function sanitizeOfficialBotData(data) {
     'share_target',
   ]);
 
+  function isSensitiveIdentifierString(value) {
+    const text = String(value || '').trim().toLowerCase();
+    return (
+      /^(special|weapon|wepon|weponbox|pool|chr|char|wpn|manual)_/.test(text)
+      || text === 'standard'
+      || text === 'beginner'
+    );
+  }
+
   function stripSensitiveFields(value) {
     if (Array.isArray(value)) {
-      value.forEach(stripSensitiveFields);
-      return value;
+      return value
+        .map(stripSensitiveFields)
+        .filter((item) => item !== null && item !== undefined && item !== '');
+    }
+
+    if (typeof value === 'string') {
+      return isSensitiveIdentifierString(value) ? null : value;
     }
 
     if (!value || typeof value !== 'object') {
@@ -49,7 +63,13 @@ function sanitizeOfficialBotData(data) {
         return;
       }
 
-      stripSensitiveFields(value[key]);
+      const strippedValue = stripSensitiveFields(value[key]);
+      if (strippedValue === null || strippedValue === undefined || strippedValue === '') {
+        delete value[key];
+        return;
+      }
+
+      value[key] = strippedValue;
     });
 
     return value;

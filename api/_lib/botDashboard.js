@@ -145,11 +145,22 @@ function localizePoolDisplayName(pool) {
 }
 
 function localizeFeaturedList(pool) {
-  return localizePoolFeaturedList(pool, { locale: BOT_LOCALE }).filter(Boolean);
+  return localizePoolFeaturedList(pool, { locale: BOT_LOCALE })
+    .map((name) => String(name || '').trim())
+    .filter((name) => name && !isTechnicalIdentifier(name));
 }
 
 function localizeItemName(item) {
   return localizeHistoryItemName(item, { locale: BOT_LOCALE });
+}
+
+function isTechnicalIdentifier(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return (
+    /^(special|weapon|wepon|weponbox|pool|chr|char|wpn|manual)_/.test(text)
+    || text === 'standard'
+    || text === 'beginner'
+  );
 }
 
 function buildFallbackPool(poolId) {
@@ -655,20 +666,29 @@ export async function fetchBotPoolIndex(adminClient, userId) {
 
 export async function fetchBotAnalysis(adminClient, userId, selection = {}) {
   const { gameUid, poolId } = readSelectionRefs(selection);
-  const poolIndex = await fetchBotPoolIndex(adminClient, userId);
-  const accounts = (poolIndex.accounts || []).map(toAnalysisAccount);
-  const flatPools = (poolIndex.accounts || []).flatMap((account) => account.pools || []);
-  const selectedAccount = gameUid
-    ? accounts.find((account) => account.ref === buildAccountRef(gameUid)) || null
-    : accounts[0] || null;
-  const candidatePools = gameUid
-    ? flatPools.filter((pool) => String(pool.game_uid) === String(gameUid))
+  const dataset = await loadBotDataset(adminClient, userId);
+  const poolEntries = buildAccountPoolEntries(dataset.history, dataset.poolMap);
+  const rawAccounts = buildAccountsFromEntries(poolEntries);
+  const accounts = rawAccounts.map(toAnalysisAccount);
+  const flatPools = rawAccounts.flatMap((account) => account.pools || []);
+  let selectedRawAccount = gameUid
+    ? rawAccounts.find((account) => String(account.game_uid) === String(gameUid)) || null
+    : rawAccounts[0] || null;
+  const candidatePools = selectedRawAccount
+    ? selectedRawAccount.pools || []
     : flatPools;
   const selectedRawPool = poolId
-    ? candidatePools.find((pool) => String(pool.pool_id) === String(poolId)) || null
-    : candidatePools[0] || poolIndex.latest_pool || null;
+    ? candidatePools.find((pool) => String(pool.pool_id) === String(poolId))
+      || flatPools.find((pool) => String(pool.pool_id) === String(poolId))
+      || null
+    : candidatePools[0] || poolEntries[0] || null;
+
+  if (!selectedRawAccount && selectedRawPool?.game_uid) {
+    selectedRawAccount = rawAccounts.find((account) => String(account.game_uid) === String(selectedRawPool.game_uid)) || null;
+  }
+
   const selectedPoolId = selectedRawPool?.pool_id || poolId || null;
-  const selectedGameUid = selectedRawPool?.game_uid || gameUid || null;
+  const selectedGameUid = selectedRawPool?.game_uid || selectedRawAccount?.game_uid || gameUid || null;
   const selectedDetail = selectedPoolId
     ? await fetchBotPoolDetail(adminClient, userId, {
       gameUid: selectedGameUid,
@@ -677,17 +697,17 @@ export async function fetchBotAnalysis(adminClient, userId, selection = {}) {
     : null;
 
   return {
-    user: poolIndex.user,
+    user: dataset.user,
     navigation: {
       accounts,
-      selected_account_ref: selectedAccount?.ref || (selectedGameUid ? buildAccountRef(selectedGameUid) : null),
+      selected_account_ref: selectedRawAccount ? buildAccountRef(selectedRawAccount.game_uid) : (selectedGameUid ? buildAccountRef(selectedGameUid) : null),
       selected_pool_ref: selectedRawPool ? buildPoolRef({
         gameUid: selectedRawPool.game_uid,
         poolId: selectedRawPool.pool_id,
       }) : null,
     },
     selected: {
-      account: selectedAccount,
+      account: selectedRawAccount ? toAnalysisAccount(selectedRawAccount) : null,
       pool: selectedRawPool ? toAnalysisPoolEntry(selectedRawPool) : null,
       detail: toAnalysisPoolDetail(selectedDetail),
     },
