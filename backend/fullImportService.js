@@ -19,8 +19,9 @@ import {
   resolveCharacterAliasMap,
   resolvePoolAliasMap,
 } from './lib/idAliasService.js';
+import { fetchWithNetworkRetry } from './lib/networkFetch.js';
 
-// Supabase Admin 客户端（需要 service_role_key）
+// Supabase Admin 客户端（需要 SUPABASE_SECRET_KEY；旧 service_role_key 仍兼容）
 let supabaseAdmin = null;
 
 /**
@@ -28,10 +29,13 @@ let supabaseAdmin = null;
  */
 export function initSupabaseAdmin(supabaseUrl, serviceRoleKey) {
   if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    throw new Error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY');
   }
 
   supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    global: {
+      fetch: (input, init) => fetchWithNetworkRetry(input, init, { label: 'supabase-admin' })
+    },
     auth: {
       autoRefreshToken: false,
       persistSession: false

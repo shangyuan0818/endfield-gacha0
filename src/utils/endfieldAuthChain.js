@@ -101,7 +101,15 @@ export class NetworkConnectionError extends Error {
   }
 }
 
-async function getCurrentAccessToken() {
+function isSessionNearExpiry(session) {
+  if (!session?.expires_at) {
+    return false;
+  }
+
+  return (session.expires_at * 1000) - Date.now() < 60 * 1000;
+}
+
+async function getCurrentAccessToken(options = {}) {
   if (!supabase) {
     return null;
   }
@@ -111,11 +119,24 @@ async function getCurrentAccessToken() {
     throw new AuthChainError(error.message || '获取登录状态失败', 'session');
   }
 
-  return sessionData?.session?.access_token || null;
+  const session = sessionData?.session || null;
+  if (!session?.access_token) {
+    return null;
+  }
+
+  if (options.forceRefresh || isSessionNearExpiry(session)) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(session);
+    if (refreshError) {
+      throw new AuthChainError('登录状态已过期，请重新登录后再导入数据', 'session');
+    }
+    return refreshData?.session?.access_token || null;
+  }
+
+  return session.access_token;
 }
 
-async function getAuthHeaders(required = false) {
-  const accessToken = await getCurrentAccessToken();
+async function getAuthHeaders(required = false, options = {}) {
+  const accessToken = await getCurrentAccessToken(options);
   if (!accessToken) {
     if (required) {
       throw new AuthChainError('请先登录后再导入数据', 'auth');
@@ -631,7 +652,7 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     throw new AuthChainError('请先登录后再导入数据', 'import-full');
   }
 
-  const authHeaders = await getAuthHeaders(true);
+  const authHeaders = await getAuthHeaders(true, { forceRefresh: true });
 
   if (onProgress) {
     onProgress({
