@@ -18,6 +18,7 @@
  *   ANNOUNCEMENT_LLM_API_KEY    可选，启用 LLM 摘要
  *   ANNOUNCEMENT_LLM_BASE_URL   可选，默认 https://x666.me/
  *   ANNOUNCEMENT_LLM_MODEL      可选，默认 gemini-flash-latest
+ *   ANNOUNCEMENT_LLM_RATE_LIMIT 可选，例如 10/min
  */
 
 import fs from 'node:fs';
@@ -59,11 +60,12 @@ function parseArgs() {
 
 function loadEnvFiles() {
   const __dirname = dirname(fileURLToPath(import.meta.url));
-  const envFiles = [
-    join(__dirname, '..', '.env'),
-    join(__dirname, '..', 'backend', '.env.local'),
-    join(__dirname, '..', '.secrets', 'siliconflow.local'),
-  ];
+    const envFiles = [
+      join(__dirname, '..', '.env'),
+      join(__dirname, '..', 'backend', '.env.local'),
+      join(__dirname, '..', '.secrets', 'siliconflow.local'),
+      join(__dirname, '..', '..', 'hybgyz.api.secret'),
+    ];
 
   for (const envPath of envFiles) {
     try {
@@ -176,13 +178,95 @@ function extractImageUrls(html) {
 
 const DEFAULT_LLM_BASE_URL = 'https://x666.me/';
 const DEFAULT_MODEL = 'gemini-flash-latest';
-const LLM_RATE_LIMIT_MAX_CALLS = 25;
-const LLM_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const LLM_RATE_LIMIT_MAX_CALLS = 10;
+const LLM_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const SUMMARY_INPUT_MAX = 7000;
+const SUMMARY_OUTPUT_MAX_TOKENS = 1600;
 const llmRequestTimestamps = [];
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function parseDurationMs(value, unit) {
+  const amount = Math.max(1, Number(value) || 1);
+  const normalizedUnit = normalizeText(unit).toLowerCase();
+
+  if (normalizedUnit === 'ms') return amount;
+  if (normalizedUnit === 's' || normalizedUnit === '秒') return amount * 1000;
+  if (normalizedUnit === 'h' || normalizedUnit === 'hour' || normalizedUnit === 'hours' || normalizedUnit === '小时') {
+    return amount * 60 * 60 * 1000;
+  }
+
+  return amount * 60 * 1000;
+}
+
+function parseLlmRateLimit(rawValue) {
+  const normalizedValue = normalizeText(rawValue).toLowerCase();
+  if (!normalizedValue) {
+    return { maxCalls: LLM_RATE_LIMIT_MAX_CALLS, windowMs: LLM_RATE_LIMIT_WINDOW_MS };
+  }
+
+  const rpmMatch = /^(\d+)\s*rpm$/iu.exec(normalizedValue);
+  if (rpmMatch) {
+    return { maxCalls: Math.max(1, Number(rpmMatch[1])), windowMs: 60 * 1000 };
+  }
+
+  const leadingWindowMatch = /^(\d+)\s*(ms|s|m|min|minute|minutes|h|hour|hours|分钟|秒|小时)\s*[:/]\s*(\d+)/iu.exec(normalizedValue);
+  if (leadingWindowMatch) {
+    return {
+      maxCalls: Math.max(1, Number(leadingWindowMatch[3])),
+      windowMs: parseDurationMs(leadingWindowMatch[1], leadingWindowMatch[2]),
+    };
+  }
+
+  const callsPerWindowMatch = /(\d+)\s*(?:calls?|次|requests?)?.*?(?:per|每|\/|:)\s*(\d+)\s*(ms|s|m|min|minute|minutes|h|hour|hours|分钟|秒|小时)/iu.exec(normalizedValue);
+  if (callsPerWindowMatch) {
+    return {
+      maxCalls: Math.max(1, Number(callsPerWindowMatch[1])),
+      windowMs: parseDurationMs(callsPerWindowMatch[2], callsPerWindowMatch[3]),
+    };
+  }
+
+  return { maxCalls: LLM_RATE_LIMIT_MAX_CALLS, windowMs: LLM_RATE_LIMIT_WINDOW_MS };
+}
+
+function getMarkdownSectionBody(markdownText, heading) {
+  const lines = String(markdownText || '').split(/\r?\n/u);
+  const targetHeading = normalizeText(heading);
+  const sectionLines = [];
+  let collecting = false;
+
+  for (const line of lines) {
+    const headingMatch = /^##\s+(.+?)\s*$/u.exec(line);
+    if (headingMatch) {
+      if (collecting) break;
+      collecting = normalizeText(headingMatch[1]) === targetHeading;
+      continue;
+    }
+
+    if (collecting) sectionLines.push(line);
+  }
+
+  return normalizeText(sectionLines.join('\n'));
+}
+
+function hasCompleteMarkdownSection(markdownText, heading) {
+  const sectionBody = getMarkdownSectionBody(markdownText, heading);
+  if (!sectionBody) return false;
+
+  return sectionBody
+    .split(/\n+/u)
+    .map(line => normalizeText(line))
+    .some(line => /^[-*]\s+\S/u.test(line) || line.includes('原文未明确说明'));
+}
+
+function isStructuredSummaryComplete(markdownText) {
+  const normalizedText = normalizeText(markdownText);
+  if (!normalizedText.includes('以下为站内整理版摘要')) return false;
+
+  return ['核心内容', '重要时间', '影响与建议']
+    .every(heading => hasCompleteMarkdownSection(normalizedText, heading));
 }
 
 function resolveChatCompletionsUrl(rawValue) {
@@ -206,21 +290,23 @@ function resolveChatCompletionsUrl(rawValue) {
   }
 }
 
-async function waitForLlmRateLimit() {
+async function waitForLlmRateLimit(rateLimit = {}) {
+  const maxCalls = Math.max(1, Number(rateLimit.maxCalls) || LLM_RATE_LIMIT_MAX_CALLS);
+  const windowMs = Math.max(1000, Number(rateLimit.windowMs) || LLM_RATE_LIMIT_WINDOW_MS);
   const now = Date.now();
   while (llmRequestTimestamps.length > 0
-    && now - llmRequestTimestamps[0] >= LLM_RATE_LIMIT_WINDOW_MS) {
+    && now - llmRequestTimestamps[0] >= windowMs) {
     llmRequestTimestamps.shift();
   }
 
-  if (llmRequestTimestamps.length < LLM_RATE_LIMIT_MAX_CALLS) {
+  if (llmRequestTimestamps.length < maxCalls) {
     llmRequestTimestamps.push(now);
     return;
   }
 
-  const waitMs = Math.max(0, LLM_RATE_LIMIT_WINDOW_MS - (now - llmRequestTimestamps[0]) + 50);
+  const waitMs = Math.max(0, windowMs - (now - llmRequestTimestamps[0]) + 50);
   await new Promise(resolve => setTimeout(resolve, waitMs));
-  await waitForLlmRateLimit();
+  await waitForLlmRateLimit(rateLimit);
 }
 
 async function loadPromptTemplate() {
@@ -249,7 +335,7 @@ async function summarizeWithLlm(title, summary, plainText, config) {
   ].filter(Boolean).join('\n\n');
 
   try {
-    await waitForLlmRateLimit();
+    await waitForLlmRateLimit(config.rateLimit);
     const resp = await fetch(config.url, {
       method: 'POST',
       headers: {
@@ -263,7 +349,7 @@ async function summarizeWithLlm(title, summary, plainText, config) {
           { role: 'user', content: userContent },
         ],
         temperature: 0.3,
-        max_tokens: 1200,
+        max_tokens: SUMMARY_OUTPUT_MAX_TOKENS,
       }),
     });
 
@@ -273,7 +359,19 @@ async function summarizeWithLlm(title, summary, plainText, config) {
     }
 
     const result = await resp.json();
-    const content = result?.choices?.[0]?.message?.content?.trim();
+    const choice = result?.choices?.[0];
+    const finishReason = normalizeText(choice?.finish_reason || choice?.finishReason).toLowerCase();
+    if (finishReason.includes('length') || finishReason.includes('max_token')) {
+      console.warn('  LLM 摘要被上游截断，回退到启发式摘要');
+      return null;
+    }
+
+    const content = choice?.message?.content?.trim();
+    if (!isStructuredSummaryComplete(content)) {
+      console.warn('  LLM 摘要结构不完整，回退到启发式摘要');
+      return null;
+    }
+
     return content || null;
   } catch (err) {
     console.error(`  LLM 摘要失败: ${err.message}`);
@@ -359,13 +457,17 @@ async function main() {
       || process.env.SILICONFLOW_API_URL
       || DEFAULT_LLM_BASE_URL
     ),
+    rateLimit: parseLlmRateLimit(
+      process.env.ANNOUNCEMENT_LLM_RATE_LIMIT
+      || process.env.SILICONFLOW_RATE_LIMIT
+    ),
   };
 
   console.log('\n=== 官方游戏公告抓取 ===');
   console.log(`数量: ${opts.count}${opts.dryRun ? ' (dry-run)' : ''}`);
   console.log(`LLM 摘要: ${llmConfig.apiKey ? '已配置' : '未配置（将使用启发式摘要）'}`);
   console.log(`LLM 模型: ${llmConfig.model}`);
-  console.log(`LLM 限流: ${LLM_RATE_LIMIT_MAX_CALLS} 次 / ${LLM_RATE_LIMIT_WINDOW_MS / 60000} 分钟\n`);
+  console.log(`LLM 限流: ${llmConfig.rateLimit.maxCalls} 次 / ${llmConfig.rateLimit.windowMs / 60000} 分钟\n`);
 
   // 1. 获取公告列表
   console.log('获取公告列表...');

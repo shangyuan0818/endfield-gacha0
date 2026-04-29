@@ -31,11 +31,43 @@ function getStatusMeta(status) {
   }
 }
 
+function formatRunSummary(summary) {
+  if (!summary || typeof summary !== 'object') {
+    return '';
+  }
+
+  const parts = [];
+  if (summary.forceRefresh) {
+    parts.push('强制刷新');
+  }
+  if (summary.total != null) {
+    parts.push(`总数 ${summary.total}`);
+  }
+  if (summary.summarized != null) {
+    parts.push(`重算 ${summary.summarized}`);
+  }
+  if (summary.synced != null) {
+    parts.push(`写入 ${summary.synced}`);
+  }
+  if (summary.created != null) {
+    parts.push(`新增 ${summary.created}`);
+  }
+  if (summary.updated != null) {
+    parts.push(`更新 ${summary.updated}`);
+  }
+  if (summary.skipped != null) {
+    parts.push(`跳过 ${summary.skipped}`);
+  }
+
+  return parts.join(' / ');
+}
+
 const AutomationPanel = ({ showToast, onNavigate }) => {
   const {
     runs,
     loading,
     syncing,
+    forceRefreshing,
     refreshRuns,
     triggerSync,
     setupIssue,
@@ -98,11 +130,20 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => triggerSync()}
-          disabled={syncing || loading}
+          disabled={syncing || forceRefreshing || loading}
           className="flex items-center gap-1 px-3 py-2 border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
         >
           {syncing ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
-          {syncing ? '同步中...' : '立即同步公告'}
+          {syncing ? '同步中...' : '增量同步公告'}
+        </button>
+        <button
+          onClick={() => triggerSync({ forceRefresh: true })}
+          disabled={syncing || forceRefreshing || loading}
+          className="flex items-center gap-1 px-3 py-2 border border-red-300 dark:border-red-700 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+          title="重新生成已存在公告的摘要。会调用公告总结 LLM，仅在摘要异常或更换提示词后使用。"
+        >
+          <RefreshCw size={16} className={forceRefreshing ? 'animate-spin' : ''} />
+          {forceRefreshing ? '刷新中...' : '强制刷新摘要'}
         </button>
         <button
           onClick={refreshRuns}
@@ -158,6 +199,11 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
                     {run.error_message && (
                       <div className="mt-2 text-xs text-red-600 dark:text-red-400">
                         {run.error_message}
+                      </div>
+                    )}
+                    {formatRunSummary(run.summary) && (
+                      <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
+                        {formatRunSummary(run.summary)}
                       </div>
                     )}
                   </div>

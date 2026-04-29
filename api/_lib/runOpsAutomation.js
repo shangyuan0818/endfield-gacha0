@@ -37,6 +37,7 @@ function sanitizeSummary(result) {
   const summary = { ...result };
   delete summary.records;
   delete summary.rawRecords;
+  delete summary.updatedRecords;
 
   if (Array.isArray(summary.errors) && summary.errors.length > 20) {
     summary.errors = summary.errors.slice(0, 20);
@@ -49,8 +50,14 @@ function sanitizeSummary(result) {
   return summary;
 }
 
+function sanitizeResponseResults(results = {}) {
+  return Object.fromEntries(
+    Object.entries(results).map(([key, value]) => [key, sanitizeSummary(value)])
+  );
+}
+
 function resolveRunStatus(jobId, result) {
-  if (result?.error) {
+  if (result?.error || (Array.isArray(result?.errors) && result.errors.length > 0)) {
     return 'failure';
   }
 
@@ -119,6 +126,7 @@ async function runSingleAutomationJob(jobId, {
   createdBy = null,
   announcementRecords = null,
   poolResult = null,
+  forceRefresh = false,
 } = {}) {
   const jobMeta = JOB_META[jobId];
   const startedAt = new Date().toISOString();
@@ -129,17 +137,18 @@ async function runSingleAutomationJob(jobId, {
       jobId,
       triggerType,
       createdBy,
+      forceRefresh,
     });
     switch (jobId) {
       case 'official-announcements':
-        result = await syncAnnouncements();
+        result = await syncAnnouncements({ forceRefresh });
         break;
       case 'pool-schedule':
         result = await syncPools(
-          announcementRecords && announcementRecords.length > 0
-            ? announcementRecords
-            : await buildOfficialAnnouncementRecords()
-        );
+            announcementRecords && announcementRecords.length > 0
+              ? announcementRecords
+            : await buildOfficialAnnouncementRecords(undefined, { allowLlm: false })
+          );
         break;
       case 'wiki-catalog':
         result = await detectNewCharacters(poolResult?.unresolvedNames || []);
@@ -185,6 +194,7 @@ export async function runOpsAutomationJobs({
   triggerType = 'api',
   createdBy = null,
   env = process.env,
+  forceRefresh = false,
 } = {}) {
   const jobIds = parseRequestedJobIds(requestedJobIds);
   if (!hasSupabaseAdminConfig(env)) {
@@ -213,6 +223,7 @@ export async function runOpsAutomationJobs({
       triggerType,
       supabase,
       createdBy,
+      forceRefresh,
     });
     results.announcements = announcementResult;
     announcementRecords = announcementResult?.records || announcementResult?.rawRecords || null;
@@ -238,10 +249,17 @@ export async function runOpsAutomationJobs({
     });
   }
 
-  const hasErrors = Object.values(results).some(result => result?.error);
+  const hasErrors = Object.values(results).some(result => (
+    result?.error || (Array.isArray(result?.errors) && result.errors.length > 0)
+  ));
   return {
     ok: !hasErrors,
     status: hasErrors ? 500 : 200,
-    results,
+    results: sanitizeResponseResults(results),
   };
 }
+
+export const __internal = {
+  sanitizeResponseResults,
+  sanitizeSummary,
+};

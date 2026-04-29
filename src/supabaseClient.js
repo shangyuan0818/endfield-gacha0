@@ -1,9 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import appLogger from './utils/appLogger.js';
 
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL
-const supabasePublishableKey = import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY
-  || import.meta.env?.VITE_SUPABASE_ANON_KEY
+function normalizeEnvValue(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+const supabaseUrl = normalizeEnvValue(import.meta.env?.VITE_SUPABASE_URL)
+const supabasePublishableKey = normalizeEnvValue(
+  import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY
+    || import.meta.env?.VITE_SUPABASE_ANON_KEY
+)
 
 if (!supabaseUrl || !supabasePublishableKey) {
   // 仅在开发环境输出警告

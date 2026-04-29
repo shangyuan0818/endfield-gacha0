@@ -427,8 +427,9 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
 }
 
 function readRequestedJobs(req) {
-  if (req.body?.job) {
-    return req.body.job;
+  const body = parseRequestBody(req);
+  if (body?.job) {
+    return body.job;
   }
 
   try {
@@ -436,6 +437,25 @@ function readRequestedJobs(req) {
     return url.searchParams.get('job') || 'all';
   } catch {
     return 'all';
+  }
+}
+
+function readForceRefresh(req) {
+  const body = parseRequestBody(req);
+  if (typeof body?.forceRefresh === 'boolean') {
+    return body.forceRefresh;
+  }
+
+  if (typeof body?.force_refresh === 'boolean') {
+    return body.force_refresh;
+  }
+
+  try {
+    const url = new URL(req.url || '', 'https://example.com');
+    const value = url.searchParams.get('forceRefresh') || url.searchParams.get('force_refresh') || '';
+    return ['1', 'true', 'yes', 'force'].includes(String(value).toLowerCase());
+  } catch {
+    return false;
   }
 }
 
@@ -454,10 +474,12 @@ async function handleOpsAutomation(req, res, adminClient) {
 
   try {
     const requestedJobIds = parseRequestedJobIds(readRequestedJobs(req));
+    const forceRefresh = readForceRefresh(req);
     const runResult = await runOpsAutomationJobs({
       requestedJobIds,
       triggerType: 'manual',
       createdBy: authResult.callerUser.id,
+      forceRefresh,
     });
 
     if (!runResult.ok && runResult.status === 503) {

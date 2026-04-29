@@ -127,6 +127,7 @@ const messages = {
     'home.gameAnnouncement': '游戏公告',
     'home.fromOfficialSite': '来自终末地官网',
     'home.autoSummary': '自动抓取 · LLM 整理摘要',
+    'home.gameAnnouncementFallbackSummary': '近 7 天游戏公告不足 5 条，已用近期历史公告补齐。',
     'home.nextVersionCountdown': '下个版本倒计时',
     'home.nextVersionWaiting': 'Waiting for Next Version',
     'home.nextVersionRelease': '下个版本发布',
@@ -276,6 +277,7 @@ const messages = {
 
     'announcement.timeUnavailable': '时间未提供',
     'announcement.empty': '当前暂无已同步的游戏公告。',
+    'announcement.recentFallbackHint': '近 7 天游戏公告不足 5 条，以下已用最近同步的历史公告补齐。',
     'announcement.viewSource': '查看原文',
     'announcement.expand': '展开公告',
     'announcement.collapse': '收起公告',
@@ -1441,6 +1443,7 @@ const messages = {
     'home.gameAnnouncement': 'Game Notice',
     'home.fromOfficialSite': 'From the Endfield official site',
     'home.autoSummary': 'Auto-collected · LLM summary',
+    'home.gameAnnouncementFallbackSummary': 'Fewer than 5 game notices were published in the last 7 days, so recent historical notices are included.',
     'home.nextVersionCountdown': 'Next Version Countdown',
     'home.nextVersionWaiting': 'Waiting for Next Version',
     'home.nextVersionRelease': 'Next version release',
@@ -1639,6 +1642,7 @@ const messages = {
 
     'announcement.timeUnavailable': 'Time unavailable',
     'announcement.empty': 'No synced game announcements yet.',
+    'announcement.recentFallbackHint': 'Fewer than 5 game notices were published in the last 7 days. Recent historical notices are included below.',
     'announcement.viewSource': 'Source',
     'announcement.expand': 'Expand',
     'announcement.collapse': 'Collapse',

@@ -32,6 +32,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
     () => (Array.isArray(announcements) ? announcements.slice(0, maxItems) : []),
     [announcements, maxItems],
   );
+  const isHistoryFallback = visibleAnnouncements.some(announcement => announcement?.is_recent_history_fallback);
   const [expandedId, setExpandedId] = useState(undefined);
   const effectiveExpandedId = expandedId === undefined
     ? (visibleAnnouncements[0]?.source_id || null)
@@ -55,6 +56,12 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
 
   return (
     <div className="px-4 pb-4 space-y-3">
+      {isHistoryFallback ? (
+        <div className="border border-dashed border-amber-300/70 bg-amber-50/80 px-4 py-3 text-xs font-medium text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/25 dark:text-amber-300">
+          {t('announcement.recentFallbackHint')}
+        </div>
+      ) : null}
+
       {visibleAnnouncements.map((announcement) => {
         const isExpanded = effectiveExpandedId === announcement.source_id;
         const summaryText = getGameAnnouncementSummary(announcement);

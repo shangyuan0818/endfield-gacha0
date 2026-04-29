@@ -4,12 +4,25 @@ import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
 
-function isSiteAnnouncement(record) {
-  return record?.is_active !== false && !record?.source_id;
+const GAME_ANNOUNCEMENT_VISIBLE_DAYS = 7;
+const GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT = 5;
+
+function getRecentGameAnnouncementCutoffIso(now = Date.now()) {
+  return new Date(now - GAME_ANNOUNCEMENT_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
 }
 
 function isGameAnnouncement(record) {
   return record?.is_active !== false && !!record?.source_id;
+}
+
+function isRecentGameAnnouncement(record, cutoffIso = getRecentGameAnnouncementCutoffIso()) {
+  if (!isGameAnnouncement(record)) {
+    return false;
+  }
+
+  const timestamp = new Date(record?.published_at || record?.updated_at || record?.created_at || 0).getTime();
+  const cutoff = new Date(cutoffIso).getTime();
+  return Number.isFinite(timestamp) && timestamp >= cutoff;
 }
 
 function sortByPriority(records) {
@@ -37,15 +50,85 @@ function sortGameAnnouncements(records) {
   });
 }
 
-async function loadAnnouncementsFromDb() {
+function getAnnouncementKey(record) {
+  return String(record?.source_id || record?.id || record?.source_url || record?.title || '');
+}
+
+function buildGameAnnouncementDisplaySet({
+  recentRecords = [],
+  latestRecords = [],
+  cutoffIso = getRecentGameAnnouncementCutoffIso(),
+  limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT,
+}) {
+  const byKey = new Map();
+  const candidates = sortGameAnnouncements([
+    ...(Array.isArray(recentRecords) ? recentRecords : []),
+    ...(Array.isArray(latestRecords) ? latestRecords : []),
+  ]);
+
+  for (const record of candidates) {
+    if (!isGameAnnouncement(record)) {
+      continue;
+    }
+
+    const key = getAnnouncementKey(record);
+    if (!key || byKey.has(key)) {
+      continue;
+    }
+
+    byKey.set(key, {
+      ...record,
+      is_recent_history_fallback: !isRecentGameAnnouncement(record, cutoffIso),
+    });
+
+    if (byKey.size >= limit) {
+      break;
+    }
+  }
+
+  return Array.from(byKey.values());
+}
+
+async function loadSiteAnnouncementsFromDb() {
   if (!supabase) return null;
   const { data, error } = await executeSupabaseRead(
     () => supabase
       .from('announcements')
       .select('*')
       .eq('is_active', true)
+      .is('source_id', null)
       .order('priority', { ascending: false }),
-    { label: 'load announcements', retries: 1 },
+    { label: 'load site announcements', retries: 1 },
+  );
+  return error ? null : (data || []);
+}
+
+async function loadGameAnnouncementsFromDb(cutoffIso = getRecentGameAnnouncementCutoffIso()) {
+  if (!supabase) return null;
+  const { data, error } = await executeSupabaseRead(
+    () => supabase
+      .from('announcements')
+      .select('*')
+      .eq('is_active', true)
+      .not('source_id', 'is', null)
+      .gte('published_at', cutoffIso)
+      .order('published_at', { ascending: false }),
+    { label: 'load game announcements', retries: 1 },
+  );
+  return error ? null : (data || []);
+}
+
+async function loadLatestGameAnnouncementsFromDb(limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT) {
+  if (!supabase) return null;
+  const { data, error } = await executeSupabaseRead(
+    () => supabase
+      .from('announcements')
+      .select('*')
+      .eq('is_active', true)
+      .not('source_id', 'is', null)
+      .order('published_at', { ascending: false })
+      .limit(limit),
+    { label: 'load latest game announcements', retries: 1 },
   );
   return error ? null : (data || []);
 }
@@ -59,7 +142,9 @@ async function loadAnnouncementsFromLocal() {
   return resp.json();
 }
 
-async function loadOfficialAnnouncementsFeed() {
+async function loadOfficialAnnouncementsFeed({
+  cutoffIso = getRecentGameAnnouncementCutoffIso(),
+} = {}) {
   const resp = await fetchWithTimeout('/api/automation-feed?job=official-announcements', undefined, {
     label: 'load official announcements feed',
     timeoutMs: 20000,
@@ -75,7 +160,13 @@ async function loadOfficialAnnouncementsFeed() {
     throw new Error(payload?.error || 'invalid official announcements feed payload');
   }
 
-  return payload.records;
+  const records = payload.records.filter(record => isGameAnnouncement(record));
+  const recentRecords = records.filter(record => isRecentGameAnnouncement(record, cutoffIso));
+  return buildGameAnnouncementDisplaySet({
+    recentRecords,
+    latestRecords: records,
+    cutoffIso,
+  });
 }
 
 export function useNotificationBadges() {
@@ -93,30 +184,58 @@ export function useNotificationBadges() {
     let cancelled = false;
 
     const load = async () => {
-      let allRecords;
+      const cutoffIso = getRecentGameAnnouncementCutoffIso();
+      let siteRecords;
       try {
-        const dbRecords = await loadAnnouncementsFromDb();
-        allRecords = dbRecords ?? await loadAnnouncementsFromLocal();
+        const dbRecords = await loadSiteAnnouncementsFromDb();
+        siteRecords = dbRecords ?? await loadAnnouncementsFromLocal();
       } catch {
-        allRecords = [];
+        siteRecords = [];
       }
 
       if (cancelled) return;
 
-      const siteRecords = sortByPriority(allRecords.filter(isSiteAnnouncement));
-      setAnnouncements(siteRecords);
+      const sortedSiteRecords = sortByPriority(siteRecords);
+      setAnnouncements(sortedSiteRecords);
 
-      if (siteRecords.length > 0 && siteRecords[0]?.updated_at) {
-        setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, siteRecords[0].updated_at));
+      if (sortedSiteRecords.length > 0 && sortedSiteRecords[0]?.updated_at) {
+        setHasNewAnnouncement(hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, sortedSiteRecords[0].updated_at));
       } else {
         setHasNewAnnouncement(false);
       }
 
-      let gameRecords;
+      let dbGameRecords = [];
       try {
-        gameRecords = await loadOfficialAnnouncementsFeed();
+        dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
       } catch {
-        gameRecords = allRecords.filter(isGameAnnouncement);
+        dbGameRecords = [];
+      }
+
+      let latestDbGameRecords = [];
+      try {
+        latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
+      } catch {
+        latestDbGameRecords = [];
+      }
+
+      let gameRecords = buildGameAnnouncementDisplaySet({
+        recentRecords: dbGameRecords,
+        latestRecords: latestDbGameRecords,
+        cutoffIso,
+      });
+
+      if (gameRecords.length < GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT) {
+        try {
+          const feedRecords = await loadOfficialAnnouncementsFeed({ cutoffIso });
+          gameRecords = buildGameAnnouncementDisplaySet({
+            recentRecords: gameRecords.filter(record => !record?.is_recent_history_fallback),
+            // Prefer the live feed when DB still contains an older generated summary for the same source_id.
+            latestRecords: [...feedRecords, ...gameRecords],
+            cutoffIso,
+          });
+        } catch {
+          // keep database-derived records
+        }
       }
 
       if (cancelled) return;

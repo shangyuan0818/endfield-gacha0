@@ -1,5 +1,8 @@
 import { rejectDisallowedBrowserOrigin } from './http.js';
-import { buildAnnouncementDisplayContent } from './officialAnnouncementPresentation.js';
+import {
+  buildAnnouncementDisplayContent,
+  normalizeOfficialHtml,
+} from './officialAnnouncementPresentation.js';
 
 const OFFICIAL_NEWS_BASE_URL = 'https://web-news.hypergryph.com/api';
 const DEFAULT_PAGE_SIZE = 10;
@@ -25,8 +28,8 @@ function buildPublishedAt(displayTime) {
   return new Date(Number(displayTime) * 1000).toISOString();
 }
 
-async function fetchOfficialNewsJson(url) {
-  const response = await fetch(url, {
+async function fetchOfficialNewsJson(url, fetchImpl = globalThis.fetch) {
+  const response = await fetchImpl(url, {
     headers: {
       Accept: 'application/json',
     },
@@ -44,7 +47,7 @@ async function fetchOfficialNewsJson(url) {
   return result?.data ?? null;
 }
 
-async function fetchOfficialNewsList(pageSize = DEFAULT_PAGE_SIZE) {
+async function fetchOfficialNewsList(pageSize = DEFAULT_PAGE_SIZE, fetchImpl = globalThis.fetch) {
   const query = new URLSearchParams({
     lang: 'zh-cn',
     code: 'endfield_web',
@@ -52,30 +55,29 @@ async function fetchOfficialNewsList(pageSize = DEFAULT_PAGE_SIZE) {
     pageSize: String(pageSize),
   });
 
-  return fetchOfficialNewsJson(`${OFFICIAL_NEWS_BASE_URL}/bulletin?${query.toString()}`);
+  return fetchOfficialNewsJson(`${OFFICIAL_NEWS_BASE_URL}/bulletin?${query.toString()}`, fetchImpl);
 }
 
-async function fetchOfficialNewsDetail(cid) {
+async function fetchOfficialNewsDetail(cid, fetchImpl = globalThis.fetch) {
   const query = new URLSearchParams({
     lang: 'zh-cn',
     code: 'endfield_web',
   });
 
-  return fetchOfficialNewsJson(`${OFFICIAL_NEWS_BASE_URL}/bulletin/${cid}?${query.toString()}`);
+  return fetchOfficialNewsJson(`${OFFICIAL_NEWS_BASE_URL}/bulletin/${cid}?${query.toString()}`, fetchImpl);
 }
 
-export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
+export async function buildOfficialAnnouncementSourceRecords(pageSize = DEFAULT_PAGE_SIZE, {
   fetchImpl = globalThis.fetch,
-  env = process.env,
 } = {}) {
-  const listPayload = await fetchOfficialNewsList(pageSize);
+  const listPayload = await fetchOfficialNewsList(pageSize, fetchImpl);
   const list = Array.isArray(listPayload?.list) ? listPayload.list : [];
 
   const details = await Promise.all(
     list
       .filter(item => item?.cid && item?.title)
       .map(async (item) => {
-        const detail = await fetchOfficialNewsDetail(item.cid);
+        const detail = await fetchOfficialNewsDetail(item.cid, fetchImpl);
         return {
           ...item,
           ...detail,
@@ -83,36 +85,75 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
       })
   );
 
-  return Promise.all(details.map(async (detail) => {
+  return details.map((detail) => {
     const publishedAt = buildPublishedAt(detail.displayTime);
     const sourceUrl = buildOfficialArticleUrl(detail.cid);
     const normalizedSummary = typeof detail.brief === 'string' && detail.brief.trim()
       ? detail.brief.trim()
       : null;
-    const presentation = await buildAnnouncementDisplayContent({
-      title: String(detail.title || ''),
-      summary: normalizedSummary,
-      rawHtml: detail.data || '',
-      sourceUrl,
-      publishedAt,
-      fetchImpl,
-      env,
-    });
+    const rawContent = normalizeOfficialHtml(detail.data || '', sourceUrl);
 
     return {
       source_id: String(detail.cid),
-      title: String(detail.title),
-      summary: presentation.summaryText || normalizedSummary,
-      content: presentation.content,
-      raw_content: presentation.rawContent,
-      image_urls: presentation.imageUrls,
-      summary_mode: presentation.summaryMode,
+      title: String(detail.title || ''),
+      summary: normalizedSummary,
+      raw_content: rawContent,
       version: buildVersion(detail.displayTime, detail.cid),
       published_at: publishedAt,
       source_url: sourceUrl,
       is_active: true,
     };
+  });
+}
+
+export async function buildOfficialAnnouncementRecordsFromSources(sourceRecords = [], {
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  allowLlm = false,
+  bypassLlmCache = false,
+} = {}) {
+  return Promise.all(sourceRecords.map(async (detail) => {
+    const presentation = await buildAnnouncementDisplayContent({
+      title: detail.title,
+      summary: detail.summary,
+      rawHtml: detail.raw_content || '',
+      sourceUrl: detail.source_url,
+      publishedAt: detail.published_at,
+      fetchImpl,
+      env,
+      allowLlm,
+      bypassLlmCache,
+    });
+
+    return {
+      source_id: detail.source_id,
+      title: detail.title,
+      summary: presentation.summaryText || detail.summary,
+      content: presentation.content,
+      raw_content: presentation.rawContent,
+      image_urls: presentation.imageUrls,
+      summary_mode: presentation.summaryMode,
+      version: detail.version,
+      published_at: detail.published_at,
+      source_url: detail.source_url,
+      is_active: true,
+    };
   }));
+}
+
+export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  allowLlm = false,
+  bypassLlmCache = false,
+} = {}) {
+  const sourceRecords = await buildOfficialAnnouncementSourceRecords(pageSize, { fetchImpl });
+  return buildOfficialAnnouncementRecordsFromSources(sourceRecords, {
+    fetchImpl,
+    env,
+    allowLlm,
+    bypassLlmCache,
+  });
 }
 
 export async function handleOfficialAnnouncementsFeed(req, res) {
@@ -146,7 +187,9 @@ export async function handleOfficialAnnouncementsFeed(req, res) {
   }
 
   try {
-    const records = await buildOfficialAnnouncementRecords(DEFAULT_PAGE_SIZE);
+    const records = await buildOfficialAnnouncementRecords(DEFAULT_PAGE_SIZE, {
+      allowLlm: false,
+    });
     cache.records = records;
     cache.fetchedAt = now;
 
@@ -179,6 +222,8 @@ export default async function handler(req, res) {
 
 export const __internal = {
   buildOfficialAnnouncementRecords,
+  buildOfficialAnnouncementRecordsFromSources,
+  buildOfficialAnnouncementSourceRecords,
   buildOfficialArticleUrl,
   buildVersion,
 };

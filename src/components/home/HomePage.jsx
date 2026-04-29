@@ -119,6 +119,9 @@ const HomePage = React.memo(() => {
   ), [temporaryAnnouncements, updateAnnouncements]);
   const latestGameAnnouncement = gameAnnouncements[0] || null;
   const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement);
+  const isGameAnnouncementHistoryFallback = gameAnnouncements.some(
+    announcement => announcement?.is_recent_history_fallback
+  );
   const hasAnnouncementUpdate = latestSiteAnnouncement
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestSiteAnnouncement.updated_at || latestSiteAnnouncement.created_at)
     : false;
@@ -405,7 +408,9 @@ const HomePage = React.memo(() => {
                       </h3>
                     </div>
                     <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">
-                      {latestGameAnnouncementSummary || t('home.autoSummary')}
+                      {isGameAnnouncementHistoryFallback
+                        ? t('home.gameAnnouncementFallbackSummary')
+                        : (latestGameAnnouncementSummary || t('home.autoSummary'))}
                     </p>
                   </div>
                 </div>

@@ -433,7 +433,7 @@ export async function handlePoolScheduleFeed(req, res, {
     // 直接调用函数获取公告，避免 HTTP 自调用
     const announcementRecords = getAnnouncements
       ? await getAnnouncements()
-      : await buildOfficialAnnouncementRecords();
+      : await buildOfficialAnnouncementRecords(undefined, { allowLlm: false });
 
     const supabase = getSupabase();
     const [characters, currentPools] = await Promise.all([

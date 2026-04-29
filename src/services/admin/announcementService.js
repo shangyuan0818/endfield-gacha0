@@ -6,6 +6,7 @@ export async function loadAnnouncements() {
     () => supabase
       .from('announcements')
       .select('*')
+      .is('source_id', null)
       .order('priority', { ascending: false }),
     {
       label: 'loadAnnouncements',

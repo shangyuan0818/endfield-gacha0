@@ -5,14 +5,28 @@ const OFFICIAL_SITE_ORIGIN = 'https://endfield.hypergryph.com';
 const OFFICIAL_ANNOUNCEMENT_IMAGE_PROXY_PATH = '/api/official-announcement-image';
 const DEFAULT_ANNOUNCEMENT_LLM_BASE_URL = 'https://x666.me/';
 const DEFAULT_ANNOUNCEMENT_LLM_MODEL = 'gemini-flash-latest';
-const ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS = 25;
-const ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS = 10;
+const DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const SUMMARY_TRIGGER_TEXT_LENGTH = 1400;
 const SUMMARY_INPUT_MAX_LENGTH = 7000;
+const SUMMARY_OUTPUT_MAX_TOKENS = 1600;
 const SUMMARY_IMAGE_LIMIT = 6;
 const SUMMARY_CACHE = new Map();
 const LLM_REQUEST_TIMESTAMPS = [];
 let llmRequestQueue = Promise.resolve();
+let announcementSummaryPromptPromise = null;
+
+const DEFAULT_ANNOUNCEMENT_SUMMARY_PROMPT = [
+  '你是终末地官网公告整理助手。',
+  '任务：把官方长公告改写成站内可读短简报，不搬运原文长段落。',
+  '只允许基于给定原文事实输出，不得补充未出现的信息；官方短摘要与正文重复时以正文为准。',
+  '不要逐平台复读规则。',
+  '> 以下为站内整理版摘要，细节以官方原文为准。',
+  '必须包含“## 摘要”和“## 要点”；有明确时间再加“## 时间”，有奖励/补偿/限制再加“## 注意”。',
+  '“摘要”写 1 段，80-160 个汉字；“要点”写 2-5 条，每条只表达一个信息点。',
+  '不要重复同一句话或同一意思；不要输出半句话；不要使用“…”或“...”省略结尾。',
+  '总长度建议 350-700 个汉字，以完整清晰优先；不要输出表格、代码块或额外结尾。',
+].join('\n');
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -62,6 +76,64 @@ function truncateText(value, maxLength) {
   return `${normalizedValue.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
 }
 
+function parseAnnouncementLlmRateLimit(rawValue) {
+  const normalizedValue = normalizeText(rawValue).toLowerCase();
+  if (!normalizedValue) {
+    return {
+      maxCalls: DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS,
+      windowMs: DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS,
+    };
+  }
+
+  const rpmMatch = /^(\d+)\s*rpm$/iu.exec(normalizedValue);
+  if (rpmMatch) {
+    return {
+      maxCalls: Math.max(1, Number(rpmMatch[1])),
+      windowMs: 60 * 1000,
+    };
+  }
+
+  const leadingWindowMatch = /^(\d+)\s*(ms|s|m|min|minute|minutes|h|hour|hours|分钟|秒|小时)\s*[:/]\s*(\d+)/iu.exec(normalizedValue);
+  if (leadingWindowMatch) {
+    return {
+      maxCalls: Math.max(1, Number(leadingWindowMatch[3])),
+      windowMs: parseDurationMs(leadingWindowMatch[1], leadingWindowMatch[2]),
+    };
+  }
+
+  const callsPerWindowMatch = /(\d+)\s*(?:calls?|次|requests?)?.*?(?:per|每|\/|:)\s*(\d+)\s*(ms|s|m|min|minute|minutes|h|hour|hours|分钟|秒|小时)/iu.exec(normalizedValue);
+  if (callsPerWindowMatch) {
+    return {
+      maxCalls: Math.max(1, Number(callsPerWindowMatch[1])),
+      windowMs: parseDurationMs(callsPerWindowMatch[2], callsPerWindowMatch[3]),
+    };
+  }
+
+  return {
+    maxCalls: DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS,
+    windowMs: DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS,
+  };
+}
+
+function parseDurationMs(value, unit) {
+  const amount = Math.max(1, Number(value) || 1);
+  const normalizedUnit = normalizeText(unit).toLowerCase();
+
+  if (normalizedUnit === 'ms') {
+    return amount;
+  }
+
+  if (normalizedUnit === 's' || normalizedUnit === '秒') {
+    return amount * 1000;
+  }
+
+  if (normalizedUnit === 'h' || normalizedUnit === 'hour' || normalizedUnit === 'hours' || normalizedUnit === '小时') {
+    return amount * 60 * 60 * 1000;
+  }
+
+  return amount * 60 * 1000;
+}
+
 function resolveChatCompletionsUrl(rawValue) {
   const normalizedValue = normalizeText(rawValue) || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL;
 
@@ -83,29 +155,37 @@ function resolveChatCompletionsUrl(rawValue) {
   }
 }
 
-async function waitForLlmRateLimit() {
+async function waitForLlmRateLimit(rateLimit = {}) {
+  const maxCalls = Math.max(
+    1,
+    Number(rateLimit.maxCalls) || DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS
+  );
+  const windowMs = Math.max(
+    1000,
+    Number(rateLimit.windowMs) || DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS
+  );
   const now = Date.now();
   while (LLM_REQUEST_TIMESTAMPS.length > 0
-    && now - LLM_REQUEST_TIMESTAMPS[0] >= ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS) {
+    && now - LLM_REQUEST_TIMESTAMPS[0] >= windowMs) {
     LLM_REQUEST_TIMESTAMPS.shift();
   }
 
-  if (LLM_REQUEST_TIMESTAMPS.length < ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS) {
+  if (LLM_REQUEST_TIMESTAMPS.length < maxCalls) {
     LLM_REQUEST_TIMESTAMPS.push(now);
     return;
   }
 
   const waitMs = Math.max(
     0,
-    ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS - (now - LLM_REQUEST_TIMESTAMPS[0]) + 50
+    windowMs - (now - LLM_REQUEST_TIMESTAMPS[0]) + 50
   );
   await new Promise(resolve => setTimeout(resolve, waitMs));
-  await waitForLlmRateLimit();
+  await waitForLlmRateLimit(rateLimit);
 }
 
-async function scheduleLlmRequest(task) {
+async function scheduleLlmRequest(task, rateLimit) {
   const currentTask = llmRequestQueue.then(async () => {
-    await waitForLlmRateLimit();
+    await waitForLlmRateLimit(rateLimit);
     return task();
   });
 
@@ -122,6 +202,141 @@ function extractFirstBulletLine(markdownText) {
     .filter(line => !/^##\s/u.test(line));
 
   return lines[0] || '';
+}
+
+function getMarkdownSectionBody(markdownText, heading) {
+  const lines = String(markdownText || '').split(/\r?\n/u);
+  const targetHeading = normalizeText(heading);
+  const sectionLines = [];
+  let collecting = false;
+
+  for (const line of lines) {
+    const headingMatch = /^##\s+(.+?)\s*$/u.exec(line);
+    if (headingMatch) {
+      if (collecting) {
+        break;
+      }
+
+      collecting = normalizeText(headingMatch[1]) === targetHeading;
+      continue;
+    }
+
+    if (collecting) {
+      sectionLines.push(line);
+    }
+  }
+
+  return normalizeText(sectionLines.join('\n'));
+}
+
+function hasCompleteMarkdownSection(markdownText, heading) {
+  const sectionBody = getMarkdownSectionBody(markdownText, heading);
+  if (!sectionBody) {
+    return false;
+  }
+
+  return sectionBody
+    .split(/\n+/u)
+    .map(line => normalizeText(line))
+    .some(line => /^[-*]\s+\S/u.test(line) || line.includes('原文未明确说明'));
+}
+
+function hasNonEmptyMarkdownSection(markdownText, heading) {
+  const sectionBody = getMarkdownSectionBody(markdownText, heading);
+  if (!sectionBody) {
+    return false;
+  }
+
+  return sectionBody
+    .split(/\n+/u)
+    .map(line => normalizeText(line.replace(/^[-*]\s*/u, '')))
+    .some(Boolean);
+}
+
+function countMarkdownSectionBullets(markdownText, heading) {
+  return getMarkdownSectionBody(markdownText, heading)
+    .split(/\n+/u)
+    .map(line => normalizeText(line))
+    .filter(line => /^[-*]\s+\S/u.test(line))
+    .length;
+}
+
+function isStructuredSummaryComplete(markdownText) {
+  const normalizedText = normalizeText(markdownText);
+  if (!normalizedText) {
+    return false;
+  }
+
+  if (!normalizedText.includes('以下为站内整理版摘要')) {
+    return false;
+  }
+
+  const hasLegacyStructure = ['核心内容', '重要时间', '影响与建议']
+    .every(heading => hasCompleteMarkdownSection(normalizedText, heading));
+  const hasBriefStructure = hasNonEmptyMarkdownSection(normalizedText, '摘要')
+    && countMarkdownSectionBullets(normalizedText, '要点') >= 2;
+
+  return (hasLegacyStructure || hasBriefStructure) && isStructuredSummaryUseful(normalizedText);
+}
+
+function extractStructuredSummaryStatements(markdownText) {
+  return String(markdownText || '')
+    .split(/\r?\n/u)
+    .map(line => normalizeText(line))
+    .filter(Boolean)
+    .filter(line => !line.startsWith('> '))
+    .filter(line => !/^##\s/u.test(line))
+    .map(line => normalizeText(line.replace(/^[-*]\s+/u, '')))
+    .filter(Boolean);
+}
+
+function normalizeBulletFingerprint(value) {
+  return normalizeText(value)
+    .replace(/^管理员[，,:：]\s*/u, '')
+    .replace(/[，,。.；;：:！!？?、\s「」『』《》（）()【】[\]]+/gu, '')
+    .slice(0, 56);
+}
+
+function areSummaryFingerprintsSimilar(a, b) {
+  if (!a || !b) {
+    return false;
+  }
+
+  if (a === b) {
+    return true;
+  }
+
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  return shorter.length >= 24 && longer.includes(shorter);
+}
+
+function isStructuredSummaryUseful(markdownText) {
+  const statements = extractStructuredSummaryStatements(markdownText);
+  if (statements.length < 3) {
+    return false;
+  }
+
+  if (statements.some(item => item.length > 220
+    || /[…]|\.{3}/u.test(item)
+    || /^管理员[，,:：]/u.test(item)
+    || /^◆/u.test(item))) {
+    return false;
+  }
+
+  const seenFingerprints = new Set();
+  for (const statement of statements) {
+    const fingerprint = normalizeBulletFingerprint(statement);
+    if (!fingerprint || fingerprint === '原文未明确说明') {
+      continue;
+    }
+
+    if (Array.from(seenFingerprints).some(existing => areSummaryFingerprintsSimilar(existing, fingerprint))) {
+      return false;
+    }
+    seenFingerprints.add(fingerprint);
+  }
+
+  return true;
 }
 
 function buildAnnouncementSummaryText({ title, summary, plainText, structuredSummary }) {
@@ -256,52 +471,149 @@ function buildImageGalleryMarkdown(imageUrls = []) {
   return lines.join('\n');
 }
 
+function normalizeSummaryCandidate(value) {
+  return normalizeText(value)
+    .replace(/^[-*•◆]\s*/u, '')
+    .replace(/^▼\/{2}\s*/u, '')
+    .replace(/^■\s*/u, '')
+    .replace(/^亲爱的?管理员[：:,，]?\s*/u, '')
+    .replace(/^管理员[：:,，]\s*/u, '')
+    .replace(/[▼◆■●]/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function ensureSentencePunctuation(value) {
+  const normalizedValue = normalizeText(value);
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return /[。！？；）】]$/u.test(normalizedValue)
+    ? normalizedValue
+    : `${normalizedValue}。`;
+}
+
+function compactSummaryPoint(value, maxLength) {
+  const normalizedValue = normalizeSummaryCandidate(value)
+    .replace(/[…]|\.{3}/gu, '')
+    .trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  if (normalizedValue.length <= maxLength) {
+    return ensureSentencePunctuation(normalizedValue);
+  }
+
+  const punctuationMatches = Array.from(normalizedValue.matchAll(/[。！？；]/gu))
+    .map(match => Number(match.index) + 1)
+    .filter(index => index >= 28 && index <= maxLength);
+  if (punctuationMatches.length > 0) {
+    return normalizedValue.slice(0, punctuationMatches.at(-1)).trim();
+  }
+
+  const softBreakMatches = Array.from(normalizedValue.matchAll(/[，、：:]/gu))
+    .map(match => Number(match.index) + 1)
+    .filter(index => index >= 36 && index <= maxLength - 1);
+  if (softBreakMatches.length > 0) {
+    return ensureSentencePunctuation(normalizedValue.slice(0, softBreakMatches.at(-1)).trim());
+  }
+
+  return '';
+}
+
+function splitSummaryCandidates(plainText) {
+  return String(plainText || '')
+    .split(/\n+|(?<=[。！？；])/u)
+    .map(normalizeSummaryCandidate)
+    .filter(line => line.length >= 8)
+    .filter(line => !/^返回|^首页|^更多|^分享|^点击/u.test(line));
+}
+
+function collectUniqueSummaryPoints(candidates, limit, maxLength) {
+  const points = [];
+  const seen = new Set();
+
+  for (const candidate of candidates) {
+    const point = compactSummaryPoint(candidate, maxLength);
+    const fingerprint = normalizeBulletFingerprint(point);
+    if (!fingerprint || seen.has(fingerprint)) {
+      continue;
+    }
+
+    seen.add(fingerprint);
+    points.push(point);
+    if (points.length >= limit) {
+      break;
+    }
+  }
+
+  return points;
+}
+
 function buildHeuristicStructuredSummary({
   summary,
   plainText,
 }) {
-  const lines = plainText
-    .split(/\n+/)
-    .map(line => normalizeText(line))
-    .filter(Boolean);
+  const candidates = splitSummaryCandidates(plainText);
+  const normalizedSummary = normalizeSummaryCandidate(summary);
 
-  const corePoints = [];
-  if (normalizeText(summary)) {
-    corePoints.push(normalizeText(summary));
+  const coreCandidates = [
+    normalizedSummary,
+    ...candidates.filter(line => /(活动|公告|版本|寻访|卡池|维护|征集|奖励|补偿|更新)/u.test(line)),
+    ...candidates,
+  ].filter(Boolean);
+  const corePoints = collectUniqueSummaryPoints(coreCandidates, 5, 140);
+
+  const timelineLines = collectUniqueSummaryPoints(
+    candidates.filter(line => /(\d{4}[年/-]\d{1,2}|\d{1,2}[月/-]\d{1,2}|\d{1,2}:\d{2}|时间|开放|开启|关闭|截止|结束|维护|版本)/u.test(line)),
+    3,
+    120
+  );
+
+  const actionLines = collectUniqueSummaryPoints(
+    candidates.filter(line => /(范围|条件|奖励|补偿|领取|解锁|参与|概率|提升|说明|注意|建议|前往|查看|确认)/u.test(line)),
+    3,
+    120
+  );
+
+  const brief = compactSummaryPoint(corePoints[0] || normalizedSummary || candidates[0], 160)
+    || '这是一则官方游戏公告，包含版本、活动或运营相关信息。';
+  const keyPoints = corePoints.filter(point => normalizeBulletFingerprint(point) !== normalizeBulletFingerprint(brief));
+  let displayKeyPoints = keyPoints.length >= 2
+    ? keyPoints.slice(0, 5)
+    : [...keyPoints, ...collectUniqueSummaryPoints(candidates, 5, 140)]
+      .filter((point, index, list) => list.findIndex(item => normalizeBulletFingerprint(item) === normalizeBulletFingerprint(point)) === index)
+      .filter(point => normalizeBulletFingerprint(point) !== normalizeBulletFingerprint(brief))
+      .slice(0, 5);
+  if (displayKeyPoints.length < 2) {
+    displayKeyPoints = [
+      ...displayKeyPoints,
+      '如需确认完整规则、奖励、限制或后续调整，请以官方原文为准。',
+      '站内摘要仅保留关键信息，公告配图与详细条款仍可在原文查看。',
+    ].slice(0, 2);
   }
 
-  lines.forEach((line) => {
-    if (corePoints.length >= 4) {
-      return;
-    }
-
-    if (!corePoints.includes(line)) {
-      corePoints.push(truncateText(line, 90));
-    }
-  });
-
-  const timelineLines = lines
-    .filter(line => /(时间|开放|开启|关闭|截止|维护|版本)/.test(line))
-    .slice(0, 4)
-    .map(line => truncateText(line, 90));
-
-  const actionLines = lines
-    .filter(line => /(范围|条件|奖励|补偿|领取|解锁|参与|概率|提升|说明|注意)/.test(line))
-    .slice(0, 4)
-    .map(line => truncateText(line, 90));
-
-  return [
+  const sections = [
     '> 以下为站内整理版摘要，细节以官方原文为准。',
     '',
-    '## 核心内容',
-    ...(corePoints.length > 0 ? corePoints.map(item => `- ${item}`) : ['- 原文未明确说明。']),
+    '## 摘要',
+    brief,
     '',
-    '## 重要时间',
-    ...(timelineLines.length > 0 ? timelineLines.map(item => `- ${item}`) : ['- 原文未明确说明。']),
-    '',
-    '## 影响与建议',
-    ...(actionLines.length > 0 ? actionLines.map(item => `- ${item}`) : ['- 请查看官方原文确认完整细则。']),
-  ].join('\n');
+    '## 要点',
+    ...(displayKeyPoints.length > 0 ? displayKeyPoints.map(item => `- ${item}`) : ['- 完整规则与细节请以官方原文为准。']),
+  ];
+
+  if (timelineLines.length > 0) {
+    sections.push('', '## 时间', ...timelineLines.map(item => `- ${item}`));
+  }
+
+  if (actionLines.length > 0) {
+    sections.push('', '## 注意', ...actionLines.map(item => `- ${item}`));
+  }
+
+  return sections.join('\n');
 }
 
 async function readFirstExistingFile(filePaths = []) {
@@ -314,6 +626,18 @@ async function readFirstExistingFile(filePaths = []) {
   }
 
   return '';
+}
+
+async function loadAnnouncementSummaryPrompt() {
+  if (!announcementSummaryPromptPromise) {
+    announcementSummaryPromptPromise = readFirstExistingFile([
+      new URL('./announcement-summary-prompt.md', import.meta.url),
+      path.resolve(process.cwd(), 'api', '_lib', 'announcement-summary-prompt.md'),
+      path.resolve(process.cwd(), 'gacha-analyzer', 'api', '_lib', 'announcement-summary-prompt.md'),
+    ]).then(content => normalizeText(content) || DEFAULT_ANNOUNCEMENT_SUMMARY_PROMPT);
+  }
+
+  return announcementSummaryPromptPromise;
 }
 
 async function loadAnnouncementLlmConfig(env = process.env) {
@@ -332,18 +656,24 @@ async function loadAnnouncementLlmConfig(env = process.env) {
     || env.SILICONFLOW_BASE_URL
     || env.SILICONFLOW_API_URL
   );
+  const envRateLimit = normalizeText(
+    env.ANNOUNCEMENT_LLM_RATE_LIMIT
+    || env.SILICONFLOW_RATE_LIMIT
+  );
 
   if (envApiKey) {
     return {
       apiKey: envApiKey,
       model: envModel || DEFAULT_ANNOUNCEMENT_LLM_MODEL,
       url: resolveChatCompletionsUrl(envBaseUrl || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL),
+      rateLimit: parseAnnouncementLlmRateLimit(envRateLimit),
     };
   }
 
   const configText = await readFirstExistingFile([
     path.resolve(process.cwd(), '.secrets', 'siliconflow.local'),
     path.resolve(process.cwd(), '.secrets', 'siliconflow-api-key.local'),
+    path.resolve(process.cwd(), '..', 'hybgyz.api.secret'),
   ]);
 
   const configLines = configText
@@ -384,11 +714,16 @@ async function loadAnnouncementLlmConfig(env = process.env) {
     || configEntries.SILICONFLOW_API_URL
     || configLines.find(line => /^https?:\/\//i.test(line))
   ) || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL;
+  const rateLimit = normalizeText(
+    configEntries.ANNOUNCEMENT_LLM_RATE_LIMIT
+    || configEntries.SILICONFLOW_RATE_LIMIT
+  );
 
   return {
     apiKey,
     model,
     url: resolveChatCompletionsUrl(baseUrl),
+    rateLimit: parseAnnouncementLlmRateLimit(rateLimit),
   };
 }
 
@@ -400,23 +735,27 @@ async function summarizeWithAnnouncementLlm({
   publishedAt,
   fetchImpl = globalThis.fetch,
   env = process.env,
+  bypassCache = false,
 }) {
+  const config = await loadAnnouncementLlmConfig(env);
+  if (!config.apiKey || typeof fetchImpl !== 'function') {
+    return null;
+  }
+
+  const systemPrompt = await loadAnnouncementSummaryPrompt();
   const cacheKey = JSON.stringify({
     title,
     summary,
     sourceUrl,
     publishedAt,
+    model: config.model,
+    url: config.url,
+    prompt: systemPrompt,
     text: plainText.slice(0, SUMMARY_INPUT_MAX_LENGTH),
   });
 
-  if (SUMMARY_CACHE.has(cacheKey)) {
+  if (!bypassCache && SUMMARY_CACHE.has(cacheKey)) {
     return SUMMARY_CACHE.get(cacheKey);
-  }
-
-  const config = await loadAnnouncementLlmConfig(env);
-  if (!config.apiKey || typeof fetchImpl !== 'function') {
-    SUMMARY_CACHE.set(cacheKey, null);
-    return null;
   }
 
   const promptText = truncateText(plainText, SUMMARY_INPUT_MAX_LENGTH);
@@ -429,22 +768,12 @@ async function summarizeWithAnnouncementLlm({
     body: JSON.stringify({
       model: config.model,
       temperature: 0.2,
-      max_tokens: 800,
+      max_tokens: SUMMARY_OUTPUT_MAX_TOKENS,
       stream: false,
       messages: [
         {
           role: 'system',
-          content: [
-            '你是终末地官网公告整理助手。',
-            '只允许基于给定原文事实输出，不得补充未出现的信息。',
-            '输出必须是中文 Markdown，结构固定：',
-            '1. > 一行提示：以下为站内整理版摘要，细节以官方原文为准。',
-            '2. ## 核心内容',
-            '3. ## 重要时间',
-            '4. ## 影响与建议',
-            '每个小节使用 2-5 条无序列表；没有信息就写“原文未明确说明”。',
-            '不要输出表格，不要输出代码块，不要输出任何额外前言或结尾。'
-          ].join('\n'),
+          content: systemPrompt,
         },
         {
           role: 'user',
@@ -459,14 +788,26 @@ async function summarizeWithAnnouncementLlm({
         },
       ],
     }),
-  }));
+  }), config.rateLimit);
 
   if (!response.ok) {
     throw new Error(`Announcement LLM returned ${response.status} ${response.statusText}`);
   }
 
   const payload = await response.json();
-  const content = normalizeText(payload?.choices?.[0]?.message?.content);
+  const choice = payload?.choices?.[0];
+  const finishReason = normalizeText(choice?.finish_reason || choice?.finishReason).toLowerCase();
+  if (finishReason.includes('length') || finishReason.includes('max_token')) {
+    SUMMARY_CACHE.set(cacheKey, null);
+    return null;
+  }
+
+  const content = normalizeText(choice?.message?.content);
+  if (!isStructuredSummaryComplete(content)) {
+    SUMMARY_CACHE.set(cacheKey, null);
+    return null;
+  }
+
   SUMMARY_CACHE.set(cacheKey, content || null);
   return content || null;
 }
@@ -484,6 +825,8 @@ export async function buildAnnouncementDisplayContent({
   publishedAt,
   fetchImpl = globalThis.fetch,
   env = process.env,
+  allowLlm = false,
+  bypassLlmCache = false,
 }) {
   const normalizedRawHtml = normalizeOfficialHtml(rawHtml, sourceUrl);
   const plainText = stripHtmlToText(normalizedRawHtml);
@@ -505,18 +848,21 @@ export async function buildAnnouncementDisplayContent({
   }
 
   let structuredSummary = null;
-  try {
-    structuredSummary = await summarizeWithAnnouncementLlm({
-      title,
-      summary,
-      plainText,
-      sourceUrl,
-      publishedAt,
-      fetchImpl,
-      env,
-    });
-  } catch {
-    structuredSummary = null;
+  if (allowLlm) {
+    try {
+      structuredSummary = await summarizeWithAnnouncementLlm({
+        title,
+        summary,
+        plainText,
+        sourceUrl,
+        publishedAt,
+        fetchImpl,
+        env,
+        bypassCache: bypassLlmCache,
+      });
+    } catch {
+      structuredSummary = null;
+    }
   }
 
   const fallbackSummary = buildHeuristicStructuredSummary({
@@ -546,8 +892,8 @@ export async function buildAnnouncementDisplayContent({
 }
 
 export const __internal = {
-  ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS,
-  ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS,
+  DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_MAX_CALLS,
+  DEFAULT_ANNOUNCEMENT_LLM_RATE_LIMIT_WINDOW_MS,
   DEFAULT_ANNOUNCEMENT_LLM_BASE_URL,
   DEFAULT_ANNOUNCEMENT_LLM_MODEL,
   OFFICIAL_SITE_ORIGIN,
@@ -557,9 +903,12 @@ export const __internal = {
   buildHeuristicStructuredSummary,
   extractImageUrlsFromHtml,
   loadAnnouncementLlmConfig,
+  loadAnnouncementSummaryPrompt,
   normalizeOfficialHtml,
+  parseAnnouncementLlmRateLimit,
   proxifyAnnouncementImageUrl,
   resolveChatCompletionsUrl,
+  isStructuredSummaryComplete,
   shouldSummarizeAnnouncement,
   stripHtmlToText,
 };
