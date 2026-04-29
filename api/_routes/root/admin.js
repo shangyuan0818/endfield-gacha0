@@ -459,6 +459,39 @@ function readForceRefresh(req) {
   }
 }
 
+function readAnnouncementRefreshMode(req) {
+  const body = parseRequestBody(req);
+  const bodyValue = body?.refreshMode || body?.refresh_mode || body?.announcementRefreshMode;
+  if (bodyValue) {
+    return String(bodyValue);
+  }
+
+  try {
+    const url = new URL(req.url || '', 'https://example.com');
+    return url.searchParams.get('refreshMode') || url.searchParams.get('refresh_mode') || '';
+  } catch {
+    return '';
+  }
+}
+
+function readAnnouncementLimit(req) {
+  const body = parseRequestBody(req);
+  const bodyValue = body?.announcementLimit || body?.announcement_limit || body?.limit;
+  if (bodyValue != null && bodyValue !== '') {
+    return bodyValue;
+  }
+
+  try {
+    const url = new URL(req.url || '', 'https://example.com');
+    return url.searchParams.get('announcementLimit')
+      || url.searchParams.get('announcement_limit')
+      || url.searchParams.get('limit')
+      || null;
+  } catch {
+    return null;
+  }
+}
+
 async function handleOpsAutomation(req, res, adminClient) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
@@ -475,11 +508,15 @@ async function handleOpsAutomation(req, res, adminClient) {
   try {
     const requestedJobIds = parseRequestedJobIds(readRequestedJobs(req));
     const forceRefresh = readForceRefresh(req);
+    const refreshMode = readAnnouncementRefreshMode(req);
+    const announcementLimit = readAnnouncementLimit(req);
     const runResult = await runOpsAutomationJobs({
       requestedJobIds,
       triggerType: 'manual',
       createdBy: authResult.callerUser.id,
       forceRefresh,
+      refreshMode,
+      announcementLimit,
     });
 
     if (!runResult.ok && runResult.status === 503) {

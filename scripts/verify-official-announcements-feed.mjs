@@ -157,10 +157,28 @@ assert.equal(
   syncAnnouncementsInternal.shouldRefreshAnnouncementRecord(
     { source_id: 'notice-1', version: 'v1', content: '已有摘要' },
     { source_id: 'notice-1', version: 'v1' },
-    { forceRefresh: true },
+    { refreshMode: 'summary' },
+  ),
+  false,
+  '强制刷新摘要只应重算需要总结的长公告',
+);
+assert.equal(
+  syncAnnouncementsInternal.shouldRefreshAnnouncementRecord(
+    { source_id: 'notice-1', version: 'v1', content: '已有摘要' },
+    { source_id: 'notice-1', title: '版本更新说明', version: 'v1', raw_content: '长公告正文'.repeat(260) },
+    { refreshMode: 'summary' },
   ),
   true,
-  '强制刷新应重算同版本公告',
+  '强制刷新摘要应重算需要总结的长公告',
+);
+assert.equal(
+  syncAnnouncementsInternal.shouldRefreshAnnouncementRecord(
+    { source_id: 'notice-1', version: 'v1', content: '已有摘要' },
+    { source_id: 'notice-1', version: 'v1' },
+    { refreshMode: 'all' },
+  ),
+  true,
+  '强制刷新全部公告应覆盖同版本公告',
 );
 assert.ok(
   syncAnnouncementsInternal.GAME_ANNOUNCEMENT_PRIORITY >= 0
@@ -199,27 +217,127 @@ assert.deepEqual(
   { announcements: { synced: 1 } },
   '自动化接口响应不应把公告原始记录数组回传给管理页',
 );
+assert.equal(
+  syncAnnouncementsInternal.normalizeAnnouncementRefreshMode({ forceRefresh: true }),
+  'summary',
+  '旧 forceRefresh=true 应兼容映射为强制刷新摘要',
+);
+assert.equal(
+  syncAnnouncementsInternal.normalizeAnnouncementRefreshMode({ refreshMode: 'all' }),
+  'all',
+  '强制刷新全部公告应使用 all 模式',
+);
+assert.equal(
+  syncAnnouncementsInternal.normalizeAnnouncementRefreshLimit('20'),
+  20,
+  '强制刷新全部公告应允许指定抓取条数',
+);
+assert.equal(
+  syncAnnouncementsInternal.normalizeAnnouncementRefreshLimit('999'),
+  syncAnnouncementsInternal.MAX_REFRESH_PAGE_SIZE,
+  '强制刷新全部公告条数应有上限，避免一次性触发过多 LLM 调用',
+);
+assert.equal(
+  syncAnnouncementsInternal.normalizeAnnouncementRefreshLimit('0'),
+  syncAnnouncementsInternal.MIN_REFRESH_PAGE_SIZE,
+  '强制刷新全部公告条数应有下限',
+);
 {
-  const cutoffIso = syncAnnouncementsInternal.getRecentAnnouncementCutoffIso(
-    Date.parse('2026-04-29T00:00:00.000Z'),
-    7,
+  const observedHeaders = [];
+  const partialRecords = await __internal.buildOfficialAnnouncementSourceRecords(2, {
+    fetchImpl: async (url, options = {}) => {
+      observedHeaders.push(options.headers || {});
+      const normalizedUrl = String(url);
+      if (normalizedUrl.includes('/bulletin?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: 0,
+            data: {
+              list: [
+                { cid: 'ok-1', title: '可用公告', displayTime: 1773203400, brief: '摘要' },
+                { cid: 'bad-1', title: '失败公告', displayTime: 1773203401, brief: '摘要' },
+              ],
+            },
+          }),
+        };
+      }
+
+      if (normalizedUrl.includes('/bulletin/bad-1?')) {
+        throw new Error('detail fetch failed');
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          code: 0,
+          data: {
+            cid: 'ok-1',
+            title: '可用公告',
+            displayTime: 1773203400,
+            brief: '摘要',
+            data: '<p>短公告正文</p>',
+          },
+        }),
+      };
+    },
+  });
+  assert.equal(partialRecords.length, 1, '单条公告详情失败不应中断整批公告同步');
+  assert.ok(
+    observedHeaders.every(headers => String(headers?.Referer || '').includes('endfield.hypergryph.com')),
+    '官方公告抓取应携带官网 Referer，降低生产环境被源站拒绝的概率',
   );
-  assert.equal(cutoffIso, '2026-04-22T00:00:00.000Z', '强制刷新窗口应按最近 7 天计算');
-  assert.equal(
-    syncAnnouncementsInternal.isRecentAnnouncementSourceRecord(
-      { published_at: '2026-04-22T00:00:00.000Z' },
-      cutoffIso,
-    ),
-    true,
-    '强制刷新应包含窗口边界当天的公告',
-  );
-  assert.equal(
-    syncAnnouncementsInternal.isRecentAnnouncementSourceRecord(
-      { published_at: '2026-04-21T23:59:59.999Z' },
-      cutoffIso,
-    ),
-    false,
-    '强制刷新不应重算超过 7 天的公告',
+}
+{
+  const operations = [];
+  const fallbackRecords = await syncAnnouncementsInternal.loadExistingAnnouncementSourceRecords({
+    from(table) {
+      operations.push(['from', table]);
+      return {
+        select(columns) {
+          operations.push(['select', columns]);
+          return this;
+        },
+        eq(column, value) {
+          operations.push(['eq', column, value]);
+          return this;
+        },
+        not(column, operator, value) {
+          operations.push(['not', column, operator, value]);
+          return this;
+        },
+        order(column, options) {
+          operations.push(['order', column, options?.ascending]);
+          return this;
+        },
+        limit(value) {
+          operations.push(['limit', value]);
+          return Promise.resolve({
+            data: [
+              {
+                id: 'db-1',
+                source_id: '9343',
+                title: '「春晓时」版本更新说明',
+                summary: '已有摘要',
+                content: '<p>数据库正文</p>',
+                version: 'hg-db',
+                published_at: '2026-04-17T05:00:00.000Z',
+                source_url: 'https://endfield.hypergryph.com/news/9343',
+                is_active: true,
+              },
+            ],
+            error: null,
+          });
+        },
+      };
+    },
+  }, 5);
+  assert.equal(fallbackRecords.length, 1, '源站抓取失败时应可从数据库现有游戏公告回退');
+  assert.equal(fallbackRecords[0].raw_content, '<p>数据库正文</p>', '数据库回退记录应保留可重算正文');
+  assert.deepEqual(
+    operations.filter(([name]) => name === 'not')[0],
+    ['not', 'source_id', 'is', null],
+    '数据库回退只应读取游戏公告，不应混入站点公告',
   );
 }
 {
@@ -396,9 +514,8 @@ assert.equal(res.payload?.success, true, 'official-announcements-feed 应返回 
 assert.equal(res.payload?.records?.length, 1, 'official-announcements-feed 应输出标准化记录');
 assert.equal(res.payload.records[0].source_id, '5992', '记录应保留官方 cid 作为 source_id');
 assert.equal(res.payload.records[0].summary, '亲爱的管理员：测试摘要', '公告摘要应保留或派生为可展示短摘要');
-assert.match(res.payload.records[0].content, /## 摘要/, '长公告应生成结构化摘要内容');
-assert.equal(res.payload.records[0].summary_mode, 'heuristic', '公共公告 feed 不应触发 LLM，应使用启发式摘要');
-assert.match(res.payload.records[0].content, /原公告配图/, '长公告摘要应补上原公告配图区');
+assert.doesNotMatch(res.payload.records[0].content, /## 摘要/, '公共公告 feed 不应生成伪摘要');
+assert.equal(res.payload.records[0].summary_mode, 'raw', '公共公告 feed 不应触发 LLM 或启发式总结，应保留原文');
 assert.match(
   res.payload.records[0].raw_content,
   /\/api\/official-announcement-image\?url=https%3A%2F%2Fendfield\.hypergryph\.com%2Fimages%2Ftest-banner\.png/,
@@ -414,6 +531,7 @@ const llmPresentation = await buildAnnouncementDisplayContent({
   publishedAt: '2026-03-11T04:30:00.000Z',
   env: process.env,
   allowLlm: true,
+  allowHeuristicSummary: false,
   fetchImpl: async (url) => {
     if (String(url) !== 'https://x666.me/v1/chat/completions') {
       throw new Error(`Unexpected LLM URL: ${url}`);
@@ -438,6 +556,42 @@ const llmPresentation = await buildAnnouncementDisplayContent({
 });
 
 assert.equal(llmPresentation.summaryMode, 'llm', '受控同步路径显式 allowLlm=true 时仍可使用 LLM 摘要');
+assert.match(
+  llmPresentation.content,
+  /以下为站内整理版摘要/,
+  '禁用启发式摘要时，LLM 成功仍应保存带摘要标记的站内摘要',
+);
+
+const failedLlmPresentation = await buildAnnouncementDisplayContent({
+  title: '「春晓时」版本创作征集活动',
+  summary: '测试摘要',
+  rawHtml: `<p>${'超长正文内容'.repeat(260)}</p>`,
+  sourceUrl: 'https://endfield.hypergryph.com/news/7221',
+  publishedAt: '2026-04-20T05:00:00.000Z',
+  env: process.env,
+  allowLlm: true,
+  allowHeuristicSummary: false,
+  fetchImpl: async () => ({
+    ok: false,
+    status: 401,
+    statusText: 'Unauthorized',
+    text: async () => JSON.stringify({
+      error: {
+        message: 'invalid api key',
+      },
+    }),
+  }),
+});
+assert.equal(
+  failedLlmPresentation.summaryMode,
+  'llm_failed',
+  '受控同步路径中 LLM 失败必须显式标记，不能静默当作原文成功',
+);
+assert.match(
+  failedLlmPresentation.summaryError,
+  /401|Unauthorized|invalid api key/,
+  'LLM 失败原因应保留给管理页执行记录排查',
+);
 
 globalThis.fetch = fetchBackup;
 if (envBackup.ANNOUNCEMENT_LLM_API_KEY === undefined) {

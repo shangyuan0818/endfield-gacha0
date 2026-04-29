@@ -3,9 +3,18 @@ import {
   buildAnnouncementDisplayContent,
   normalizeOfficialHtml,
 } from './officialAnnouncementPresentation.js';
+import { getSupabaseAdminClient } from './authAdmin.js';
 
 const OFFICIAL_NEWS_BASE_URL = 'https://web-news.hypergryph.com/api';
 const DEFAULT_PAGE_SIZE = 10;
+const OFFICIAL_NEWS_REQUEST_TIMEOUT_MS = 15000;
+const OFFICIAL_NEWS_HEADERS = Object.freeze({
+  Accept: 'application/json, text/plain, */*',
+  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+  Referer: 'https://endfield.hypergryph.com/',
+  Origin: 'https://endfield.hypergryph.com',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+});
 const cache = {
   records: null,
   fetchedAt: 0,
@@ -28,12 +37,62 @@ function buildPublishedAt(displayTime) {
   return new Date(Number(displayTime) * 1000).toISOString();
 }
 
+async function loadOfficialAnnouncementRecordsFromDatabase(limit = DEFAULT_PAGE_SIZE) {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('source_id, title, summary, content, version, published_at, source_url, is_active')
+    .eq('is_active', true)
+    .not('source_id', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || [])
+    .filter(record => record?.source_id && record?.title)
+    .map(record => ({
+      source_id: String(record.source_id),
+      title: record.title,
+      summary: record.summary || record.title,
+      content: record.content || record.summary || record.title,
+      raw_content: record.content || '',
+      image_urls: [],
+      summary_mode: 'database',
+      summary_error: null,
+      version: record.version || `db-${record.source_id}`,
+      published_at: record.published_at || null,
+      source_url: record.source_url || null,
+      is_active: record.is_active !== false,
+    }));
+}
+
 async function fetchOfficialNewsJson(url, fetchImpl = globalThis.fetch) {
-  const response = await fetchImpl(url, {
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), OFFICIAL_NEWS_REQUEST_TIMEOUT_MS)
+    : null;
+
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      headers: OFFICIAL_NEWS_HEADERS,
+      signal: controller?.signal,
+    });
+  } catch (error) {
+    const reason = error?.name === 'AbortError'
+      ? `timeout after ${OFFICIAL_NEWS_REQUEST_TIMEOUT_MS}ms`
+      : (error?.message || String(error));
+    throw new Error(`Official news API fetch failed: ${reason}`);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     throw new Error(`Official news API returned ${response.status} ${response.statusText}`);
@@ -73,17 +132,24 @@ export async function buildOfficialAnnouncementSourceRecords(pageSize = DEFAULT_
   const listPayload = await fetchOfficialNewsList(pageSize, fetchImpl);
   const list = Array.isArray(listPayload?.list) ? listPayload.list : [];
 
-  const details = await Promise.all(
-    list
-      .filter(item => item?.cid && item?.title)
-      .map(async (item) => {
-        const detail = await fetchOfficialNewsDetail(item.cid, fetchImpl);
-        return {
-          ...item,
-          ...detail,
-        };
-      })
+  const validList = list.filter(item => item?.cid && item?.title);
+  const detailResults = await Promise.allSettled(
+    validList.map(async (item) => {
+      const detail = await fetchOfficialNewsDetail(item.cid, fetchImpl);
+      return {
+        ...item,
+        ...detail,
+      };
+    })
   );
+  const details = detailResults
+    .filter(result => result.status === 'fulfilled')
+    .map(result => result.value);
+
+  if (validList.length > 0 && details.length === 0) {
+    const firstError = detailResults.find(result => result.status === 'rejected')?.reason;
+    throw new Error(`Official news detail API failed for all records: ${firstError?.message || 'unknown error'}`);
+  }
 
   return details.map((detail) => {
     const publishedAt = buildPublishedAt(detail.displayTime);
@@ -111,6 +177,7 @@ export async function buildOfficialAnnouncementRecordsFromSources(sourceRecords 
   env = process.env,
   allowLlm = false,
   bypassLlmCache = false,
+  allowHeuristicSummary = true,
 } = {}) {
   return Promise.all(sourceRecords.map(async (detail) => {
     const presentation = await buildAnnouncementDisplayContent({
@@ -123,6 +190,7 @@ export async function buildOfficialAnnouncementRecordsFromSources(sourceRecords 
       env,
       allowLlm,
       bypassLlmCache,
+      allowHeuristicSummary,
     });
 
     return {
@@ -133,6 +201,7 @@ export async function buildOfficialAnnouncementRecordsFromSources(sourceRecords 
       raw_content: presentation.rawContent,
       image_urls: presentation.imageUrls,
       summary_mode: presentation.summaryMode,
+      summary_error: presentation.summaryError || null,
       version: detail.version,
       published_at: detail.published_at,
       source_url: detail.source_url,
@@ -146,6 +215,7 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
   env = process.env,
   allowLlm = false,
   bypassLlmCache = false,
+  allowHeuristicSummary = true,
 } = {}) {
   const sourceRecords = await buildOfficialAnnouncementSourceRecords(pageSize, { fetchImpl });
   return buildOfficialAnnouncementRecordsFromSources(sourceRecords, {
@@ -153,6 +223,7 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
     env,
     allowLlm,
     bypassLlmCache,
+    allowHeuristicSummary,
   });
 }
 
@@ -189,6 +260,7 @@ export async function handleOfficialAnnouncementsFeed(req, res) {
   try {
     const records = await buildOfficialAnnouncementRecords(DEFAULT_PAGE_SIZE, {
       allowLlm: false,
+      allowHeuristicSummary: false,
     });
     cache.records = records;
     cache.fetchedAt = now;
@@ -209,6 +281,23 @@ export async function handleOfficialAnnouncementsFeed(req, res) {
       });
     }
 
+    try {
+      const records = await loadOfficialAnnouncementRecordsFromDatabase(DEFAULT_PAGE_SIZE);
+      if (records.length > 0) {
+        cache.records = records;
+        cache.fetchedAt = now;
+        return res.status(200).json({
+          success: true,
+          cached: false,
+          databaseFallback: true,
+          records,
+          warning: error?.message || 'Official announcement feed refresh failed',
+        });
+      }
+    } catch {
+      // Fall through to the original source-fetch error below.
+    }
+
     return res.status(500).json({
       success: false,
       error: error?.message || 'Failed to build official announcements feed',
@@ -226,4 +315,5 @@ export const __internal = {
   buildOfficialAnnouncementSourceRecords,
   buildOfficialArticleUrl,
   buildVersion,
+  loadOfficialAnnouncementRecordsFromDatabase,
 };

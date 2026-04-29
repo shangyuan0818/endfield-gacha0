@@ -1,18 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as opsAutomationService from '../../services/admin/opsAutomationService';
 
-function formatAnnouncementSyncMessage(result, forceRefresh) {
+function formatAnnouncementSyncMessage(result, refreshMode) {
   const summary = result?.announcements || {};
   const synced = Number(summary.synced || 0);
   const summarized = Number(summary.summarized || 0);
   const skipped = Number(summary.skipped || 0);
   const total = Number(summary.total || 0);
+  const summaryFailed = Number(summary.summaryFailed || 0);
+  const announcementLimit = Number(summary.announcementLimit || 0);
+  const mode = summary.refreshMode || refreshMode || 'incremental';
+  const limitSuffix = mode === 'all' && announcementLimit > 0 ? `，范围 ${announcementLimit} 条` : '';
+  const firstSummaryError = Array.isArray(summary.summaryErrors)
+    ? summary.summaryErrors.find(error => error?.error)
+    : null;
+  const failureSuffix = summaryFailed > 0
+    ? `，摘要失败 ${summaryFailed} 条${firstSummaryError ? `（首个原因：${firstSummaryError.error}）` : ''}`
+    : '';
 
-  if (forceRefresh) {
-    return `公告摘要强制刷新完成：重算 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条`;
+  if (mode === 'all') {
+    return `全部公告强制刷新完成：处理 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${limitSuffix}${failureSuffix}`;
   }
 
-  return `公告增量同步完成：新处理 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条`;
+  if (mode === 'summary') {
+    return `公告摘要强制刷新完成：重算 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${failureSuffix}`;
+  }
+
+  return `公告增量同步完成：新处理 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${failureSuffix}`;
 }
 
 export function useOpsAutomation(showToast) {
@@ -25,6 +39,7 @@ export function useOpsAutomation(showToast) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
+  const [fullRefreshing, setFullRefreshing] = useState(false);
   const [setupIssue, setSetupIssue] = useState(null);
 
   const loadRuns = useCallback(async () => {
@@ -53,25 +68,35 @@ export function useOpsAutomation(showToast) {
     await loadRuns();
   }, [loadRuns]);
 
-  const triggerSync = useCallback(async ({ forceRefresh = false } = {}) => {
-    if (forceRefresh) {
+  const triggerSync = useCallback(async ({
+    forceRefresh = false,
+    refreshMode = forceRefresh ? 'summary' : 'incremental',
+    announcementLimit = null,
+  } = {}) => {
+    if (refreshMode === 'all') {
+      setFullRefreshing(true);
+    } else if (refreshMode === 'summary') {
       setForceRefreshing(true);
     } else {
       setSyncing(true);
     }
     try {
       const result = await opsAutomationService.triggerManualSync('official-announcements', {
-        forceRefresh,
+        forceRefresh: forceRefresh || refreshMode !== 'incremental',
+        refreshMode,
+        announcementLimit,
       });
       if (showToast) {
-        showToast(formatAnnouncementSyncMessage(result, forceRefresh), 'success');
+        showToast(formatAnnouncementSyncMessage(result, refreshMode), 'success');
       }
       await loadRuns();
       return result;
     } catch (error) {
       if (showToast) showToast(`公告同步失败: ${error.message}`, 'error');
     } finally {
-      if (forceRefresh) {
+      if (refreshMode === 'all') {
+        setFullRefreshing(false);
+      } else if (refreshMode === 'summary') {
         setForceRefreshing(false);
       } else {
         setSyncing(false);
@@ -85,6 +110,7 @@ export function useOpsAutomation(showToast) {
     loading,
     syncing,
     forceRefreshing,
+    fullRefreshing,
     setupIssue,
     refreshRuns,
     setFilters,

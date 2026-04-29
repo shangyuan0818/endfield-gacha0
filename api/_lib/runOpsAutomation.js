@@ -43,6 +43,10 @@ function sanitizeSummary(result) {
     summary.errors = summary.errors.slice(0, 20);
   }
 
+  if (Array.isArray(summary.summaryErrors) && summary.summaryErrors.length > 20) {
+    summary.summaryErrors = summary.summaryErrors.slice(0, 20);
+  }
+
   if (Array.isArray(summary.unresolvedNames) && summary.unresolvedNames.length > 50) {
     summary.unresolvedNames = summary.unresolvedNames.slice(0, 50);
   }
@@ -127,6 +131,8 @@ async function runSingleAutomationJob(jobId, {
   announcementRecords = null,
   poolResult = null,
   forceRefresh = false,
+  refreshMode = null,
+  announcementLimit = null,
 } = {}) {
   const jobMeta = JOB_META[jobId];
   const startedAt = new Date().toISOString();
@@ -138,10 +144,11 @@ async function runSingleAutomationJob(jobId, {
       triggerType,
       createdBy,
       forceRefresh,
+      refreshMode,
     });
     switch (jobId) {
       case 'official-announcements':
-        result = await syncAnnouncements({ forceRefresh });
+        result = await syncAnnouncements({ forceRefresh, refreshMode, announcementLimit });
         break;
       case 'pool-schedule':
         result = await syncPools(
@@ -195,6 +202,8 @@ export async function runOpsAutomationJobs({
   createdBy = null,
   env = process.env,
   forceRefresh = false,
+  refreshMode = null,
+  announcementLimit = null,
 } = {}) {
   const jobIds = parseRequestedJobIds(requestedJobIds);
   if (!hasSupabaseAdminConfig(env)) {
@@ -224,6 +233,8 @@ export async function runOpsAutomationJobs({
       supabase,
       createdBy,
       forceRefresh,
+      refreshMode,
+      announcementLimit,
     });
     results.announcements = announcementResult;
     announcementRecords = announcementResult?.records || announcementResult?.rawRecords || null;

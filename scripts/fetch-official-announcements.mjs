@@ -19,6 +19,7 @@
  *   ANNOUNCEMENT_LLM_BASE_URL   可选，默认 https://x666.me/
  *   ANNOUNCEMENT_LLM_MODEL      可选，默认 gemini-flash-latest
  *   ANNOUNCEMENT_LLM_RATE_LIMIT 可选，例如 10/min
+ *   DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DEEPSEEK_MODEL 兼容 DeepSeek 专用变量
  */
 
 import fs from 'node:fs';
@@ -65,6 +66,7 @@ function loadEnvFiles() {
       join(__dirname, '..', 'backend', '.env.local'),
       join(__dirname, '..', '.secrets', 'siliconflow.local'),
       join(__dirname, '..', '..', 'hybgyz.api.secret'),
+      join(__dirname, '..', '..', 'deepseek.api.key.secret'),
     ];
 
   for (const envPath of envFiles) {
@@ -73,11 +75,26 @@ function loadEnvFiles() {
       for (const line of content.split('\n')) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith('#')) continue;
-        const eq = trimmed.indexOf('=');
-        if (eq === -1) continue;
-        const key = trimmed.slice(0, eq).trim();
-        const val = trimmed.slice(eq + 1).trim();
-        if (!process.env[key]) process.env[key] = val;
+        if (/^sk-/i.test(trimmed)) {
+          process.env.ANNOUNCEMENT_LLM_API_KEY = trimmed;
+          continue;
+        }
+        if (/^https?:\/\//i.test(trimmed)) {
+          process.env.ANNOUNCEMENT_LLM_BASE_URL = trimmed;
+          continue;
+        }
+
+        const separatorIndex = trimmed.includes('=')
+          ? trimmed.indexOf('=')
+          : trimmed.indexOf(':');
+        if (separatorIndex === -1) continue;
+        const key = trimmed.slice(0, separatorIndex).trim();
+        const val = trimmed.slice(separatorIndex + 1).trim();
+        if (/^model$/iu.test(key)) {
+          process.env.ANNOUNCEMENT_LLM_MODEL = val;
+        } else if (!process.env[key] || envPath.includes('deepseek.api.key.secret')) {
+          process.env[key] = val;
+        }
       }
     } catch {
       // 文件不存在
@@ -251,6 +268,10 @@ function getMarkdownSectionBody(markdownText, heading) {
   return normalizeText(sectionLines.join('\n'));
 }
 
+function isMarkdownListItem(line) {
+  return /^[-*]\s+\S/u.test(line) || /^\d+[.)]\s+\S/u.test(line);
+}
+
 function hasCompleteMarkdownSection(markdownText, heading) {
   const sectionBody = getMarkdownSectionBody(markdownText, heading);
   if (!sectionBody) return false;
@@ -258,7 +279,7 @@ function hasCompleteMarkdownSection(markdownText, heading) {
   return sectionBody
     .split(/\n+/u)
     .map(line => normalizeText(line))
-    .some(line => /^[-*]\s+\S/u.test(line) || line.includes('原文未明确说明'));
+    .some(line => isMarkdownListItem(line) || line.includes('原文未明确说明'));
 }
 
 function isStructuredSummaryComplete(markdownText) {
@@ -444,21 +465,25 @@ async function main() {
 
   const llmConfig = {
     apiKey: process.env.ANNOUNCEMENT_LLM_API_KEY
+      || process.env.DEEPSEEK_API_KEY
       || process.env.SILICONFLOW_API_KEY
       || process.env.SILICONFLOW_APIKEY
       || '',
     model: process.env.ANNOUNCEMENT_LLM_MODEL
+      || process.env.DEEPSEEK_MODEL
       || process.env.SILICONFLOW_MODEL
       || process.env.SILICONFLOW_CHAT_MODEL
       || DEFAULT_MODEL,
     url: resolveChatCompletionsUrl(
       process.env.ANNOUNCEMENT_LLM_BASE_URL
+      || process.env.DEEPSEEK_BASE_URL
       || process.env.SILICONFLOW_BASE_URL
       || process.env.SILICONFLOW_API_URL
       || DEFAULT_LLM_BASE_URL
     ),
     rateLimit: parseLlmRateLimit(
       process.env.ANNOUNCEMENT_LLM_RATE_LIMIT
+      || process.env.DEEPSEEK_RATE_LIMIT
       || process.env.SILICONFLOW_RATE_LIMIT
     ),
   };

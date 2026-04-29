@@ -51,7 +51,7 @@ function decodeHtmlEntities(value) {
     .replace(/&#39;/gi, "'");
 }
 
-function stripHtmlToText(value) {
+export function stripHtmlToText(value) {
   return decodeHtmlEntities(
     String(value || '')
       .replace(/<br\s*\/?>/gi, '\n')
@@ -229,6 +229,14 @@ function getMarkdownSectionBody(markdownText, heading) {
   return normalizeText(sectionLines.join('\n'));
 }
 
+function isMarkdownListItem(line) {
+  return /^[-*]\s+\S/u.test(line) || /^\d+[.)]\s+\S/u.test(line);
+}
+
+function stripMarkdownListPrefix(line) {
+  return normalizeText(line.replace(/^(?:[-*]|\d+[.)])\s+/u, ''));
+}
+
 function hasCompleteMarkdownSection(markdownText, heading) {
   const sectionBody = getMarkdownSectionBody(markdownText, heading);
   if (!sectionBody) {
@@ -238,7 +246,7 @@ function hasCompleteMarkdownSection(markdownText, heading) {
   return sectionBody
     .split(/\n+/u)
     .map(line => normalizeText(line))
-    .some(line => /^[-*]\s+\S/u.test(line) || line.includes('原文未明确说明'));
+    .some(line => isMarkdownListItem(line) || line.includes('原文未明确说明'));
 }
 
 function hasNonEmptyMarkdownSection(markdownText, heading) {
@@ -257,7 +265,7 @@ function countMarkdownSectionBullets(markdownText, heading) {
   return getMarkdownSectionBody(markdownText, heading)
     .split(/\n+/u)
     .map(line => normalizeText(line))
-    .filter(line => /^[-*]\s+\S/u.test(line))
+    .filter(line => isMarkdownListItem(line))
     .length;
 }
 
@@ -286,7 +294,7 @@ function extractStructuredSummaryStatements(markdownText) {
     .filter(Boolean)
     .filter(line => !line.startsWith('> '))
     .filter(line => !/^##\s/u.test(line))
-    .map(line => normalizeText(line.replace(/^[-*]\s+/u, '')))
+    .map(stripMarkdownListPrefix)
     .filter(Boolean);
 }
 
@@ -628,6 +636,22 @@ async function readFirstExistingFile(filePaths = []) {
   return '';
 }
 
+async function readExistingFiles(filePaths = []) {
+  const contents = [];
+  for (const filePath of filePaths) {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      if (normalizeText(content)) {
+        contents.push(content);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return contents;
+}
+
 async function loadAnnouncementSummaryPrompt() {
   if (!announcementSummaryPromptPromise) {
     announcementSummaryPromptPromise = readFirstExistingFile([
@@ -643,21 +667,25 @@ async function loadAnnouncementSummaryPrompt() {
 async function loadAnnouncementLlmConfig(env = process.env) {
   const envApiKey = normalizeText(
     env.ANNOUNCEMENT_LLM_API_KEY
+    || env.DEEPSEEK_API_KEY
     || env.SILICONFLOW_API_KEY
     || env.SILICONFLOW_APIKEY
   );
   const envModel = normalizeText(
     env.ANNOUNCEMENT_LLM_MODEL
+    || env.DEEPSEEK_MODEL
     || env.SILICONFLOW_MODEL
     || env.SILICONFLOW_CHAT_MODEL
   );
   const envBaseUrl = normalizeText(
     env.ANNOUNCEMENT_LLM_BASE_URL
+    || env.DEEPSEEK_BASE_URL
     || env.SILICONFLOW_BASE_URL
     || env.SILICONFLOW_API_URL
   );
   const envRateLimit = normalizeText(
     env.ANNOUNCEMENT_LLM_RATE_LIMIT
+    || env.DEEPSEEK_RATE_LIMIT
     || env.SILICONFLOW_RATE_LIMIT
   );
 
@@ -670,11 +698,13 @@ async function loadAnnouncementLlmConfig(env = process.env) {
     };
   }
 
-  const configText = await readFirstExistingFile([
+  const configTexts = await readExistingFiles([
     path.resolve(process.cwd(), '.secrets', 'siliconflow.local'),
     path.resolve(process.cwd(), '.secrets', 'siliconflow-api-key.local'),
     path.resolve(process.cwd(), '..', 'hybgyz.api.secret'),
+    path.resolve(process.cwd(), '..', 'deepseek.api.key.secret'),
   ]);
+  const configText = configTexts.join('\n');
 
   const configLines = configText
     .split(/\r?\n/)
@@ -685,7 +715,9 @@ async function loadAnnouncementLlmConfig(env = process.env) {
     configLines
       .filter(line => !line.startsWith('#'))
       .map((line) => {
-        const separatorIndex = line.indexOf('=');
+        const separatorIndex = line.includes('=')
+          ? line.indexOf('=')
+          : line.indexOf(':');
         if (separatorIndex <= 0) {
           return [line, ''];
         }
@@ -695,27 +727,37 @@ async function loadAnnouncementLlmConfig(env = process.env) {
         return [key, value];
       })
   );
+  const reversedConfigLines = [...configLines].reverse();
+  const rawApiKey = reversedConfigLines.find(line => /^sk-/i.test(line));
+  const rawModel = reversedConfigLines.find(line => /^(?:model|模型)\s*[:=]/iu.test(line))?.split(/[:=]/u, 2)?.[1]
+    || reversedConfigLines.find(line => /^[\w.-]+\/[\w.-]+$/iu.test(line))
+    || reversedConfigLines.find(line => /^deepseek[-\w.]*$/iu.test(line));
+  const rawBaseUrl = reversedConfigLines.find(line => /^https?:\/\//i.test(line));
 
   const apiKey = normalizeText(
-    configEntries.ANNOUNCEMENT_LLM_API_KEY
+    rawApiKey
+    || configEntries.ANNOUNCEMENT_LLM_API_KEY
+    || configEntries.DEEPSEEK_API_KEY
     || configEntries.SILICONFLOW_API_KEY
     || configEntries.SILICONFLOW_APIKEY
-    || configLines.find(line => /^sk-/i.test(line))
   );
   const model = normalizeText(
-    configEntries.ANNOUNCEMENT_LLM_MODEL
+    rawModel
+    || configEntries.ANNOUNCEMENT_LLM_MODEL
+    || configEntries.DEEPSEEK_MODEL
     || configEntries.SILICONFLOW_MODEL
     || configEntries.SILICONFLOW_CHAT_MODEL
-    || configLines.find(line => line.includes('/'))
   ) || DEFAULT_ANNOUNCEMENT_LLM_MODEL;
   const baseUrl = normalizeText(
-    configEntries.ANNOUNCEMENT_LLM_BASE_URL
+    rawBaseUrl
+    || configEntries.ANNOUNCEMENT_LLM_BASE_URL
+    || configEntries.DEEPSEEK_BASE_URL
     || configEntries.SILICONFLOW_BASE_URL
     || configEntries.SILICONFLOW_API_URL
-    || configLines.find(line => /^https?:\/\//i.test(line))
   ) || DEFAULT_ANNOUNCEMENT_LLM_BASE_URL;
   const rateLimit = normalizeText(
     configEntries.ANNOUNCEMENT_LLM_RATE_LIMIT
+    || configEntries.DEEPSEEK_RATE_LIMIT
     || configEntries.SILICONFLOW_RATE_LIMIT
   );
 
@@ -739,7 +781,7 @@ async function summarizeWithAnnouncementLlm({
 }) {
   const config = await loadAnnouncementLlmConfig(env);
   if (!config.apiKey || typeof fetchImpl !== 'function') {
-    return null;
+    throw new Error('Announcement LLM API key is not configured');
   }
 
   const systemPrompt = await loadAnnouncementSummaryPrompt();
@@ -791,7 +833,25 @@ async function summarizeWithAnnouncementLlm({
   }), config.rateLimit);
 
   if (!response.ok) {
-    throw new Error(`Announcement LLM returned ${response.status} ${response.statusText}`);
+    const errorText = typeof response.text === 'function'
+      ? normalizeText(await response.text().catch(() => ''))
+      : '';
+    let upstreamMessage = errorText;
+    try {
+      const errorPayload = JSON.parse(errorText);
+      upstreamMessage = normalizeText(
+        errorPayload?.error?.message
+        || errorPayload?.message
+        || errorText
+      );
+    } catch {
+      // keep raw text
+    }
+
+    const detail = upstreamMessage
+      ? `: ${truncateText(upstreamMessage, 240)}`
+      : '';
+    throw new Error(`Announcement LLM returned ${response.status} ${response.statusText}${detail}`);
   }
 
   const payload = await response.json();
@@ -799,20 +859,24 @@ async function summarizeWithAnnouncementLlm({
   const finishReason = normalizeText(choice?.finish_reason || choice?.finishReason).toLowerCase();
   if (finishReason.includes('length') || finishReason.includes('max_token')) {
     SUMMARY_CACHE.set(cacheKey, null);
-    return null;
+    throw new Error('Announcement LLM response was truncated');
   }
 
   const content = normalizeText(choice?.message?.content);
   if (!isStructuredSummaryComplete(content)) {
     SUMMARY_CACHE.set(cacheKey, null);
-    return null;
+    throw new Error('Announcement LLM response did not match the required summary format');
   }
 
   SUMMARY_CACHE.set(cacheKey, content || null);
-  return content || null;
+  if (!content) {
+    throw new Error('Announcement LLM returned empty content');
+  }
+
+  return content;
 }
 
-function shouldSummarizeAnnouncement({ title, plainText }) {
+export function shouldSummarizeAnnouncement({ title, plainText }) {
   return normalizeText(plainText).length >= SUMMARY_TRIGGER_TEXT_LENGTH
     || normalizeText(title).includes('版本更新说明');
 }
@@ -827,6 +891,7 @@ export async function buildAnnouncementDisplayContent({
   env = process.env,
   allowLlm = false,
   bypassLlmCache = false,
+  allowHeuristicSummary = true,
 }) {
   const normalizedRawHtml = normalizeOfficialHtml(rawHtml, sourceUrl);
   const plainText = stripHtmlToText(normalizedRawHtml);
@@ -848,6 +913,7 @@ export async function buildAnnouncementDisplayContent({
   }
 
   let structuredSummary = null;
+  let llmError = null;
   if (allowLlm) {
     try {
       structuredSummary = await summarizeWithAnnouncementLlm({
@@ -860,9 +926,48 @@ export async function buildAnnouncementDisplayContent({
         env,
         bypassCache: bypassLlmCache,
       });
-    } catch {
+    } catch (error) {
       structuredSummary = null;
+      llmError = error;
     }
+  }
+
+  if (structuredSummary) {
+    const displayContent = [
+      structuredSummary,
+      buildImageGalleryMarkdown(imageUrls),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    return {
+      content: displayContent,
+      rawContent: normalizedRawHtml,
+      imageUrls,
+      summaryMode: 'llm',
+      summaryText: buildAnnouncementSummaryText({
+        title,
+        summary,
+        plainText,
+        structuredSummary,
+      }),
+    };
+  }
+
+  if (!allowHeuristicSummary) {
+    return {
+      content: normalizedRawHtml,
+      rawContent: normalizedRawHtml,
+      imageUrls,
+      summaryMode: allowLlm && llmError ? 'llm_failed' : 'raw',
+      summaryError: allowLlm && llmError ? llmError.message : undefined,
+      summaryText: buildAnnouncementSummaryText({
+        title,
+        summary,
+        plainText,
+        structuredSummary: null,
+      }),
+    };
   }
 
   const fallbackSummary = buildHeuristicStructuredSummary({
@@ -881,12 +986,13 @@ export async function buildAnnouncementDisplayContent({
     content: displayContent,
     rawContent: normalizedRawHtml,
     imageUrls,
-    summaryMode: structuredSummary ? 'llm' : 'heuristic',
+    summaryMode: 'heuristic',
+    summaryError: llmError?.message,
     summaryText: buildAnnouncementSummaryText({
       title,
       summary,
       plainText,
-      structuredSummary: structuredSummary || fallbackSummary,
+      structuredSummary: fallbackSummary,
     }),
   };
 }

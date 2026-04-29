@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   AlertTriangle,
   Bot,
@@ -33,6 +33,17 @@ const TRIGGER_FILTER_OPTIONS = [
   { value: 'api', label: 'API' },
 ];
 
+const FULL_REFRESH_LIMIT_OPTIONS = [10, 20, 50, 100];
+
+function normalizeFullRefreshLimit(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return 50;
+  }
+
+  return Math.min(100, Math.max(1, Math.floor(numericValue)));
+}
+
 function formatDateTime(value) {
   if (!value) return '未记录';
   const date = new Date(value);
@@ -60,13 +71,19 @@ function formatRunSummary(summary) {
 
   const parts = [];
   if (summary.forceRefresh) {
-    parts.push('强制刷新');
+    parts.push(summary.refreshMode === 'all' ? '强制刷新全部' : '强制刷新摘要');
+  }
+  if (summary.refreshMode === 'all' && summary.announcementLimit != null) {
+    parts.push(`范围 ${summary.announcementLimit}`);
   }
   if (summary.total != null) {
     parts.push(`总数 ${summary.total}`);
   }
   if (summary.summarized != null) {
     parts.push(`重算 ${summary.summarized}`);
+  }
+  if (summary.summaryFailed) {
+    parts.push(`摘要失败 ${summary.summaryFailed}`);
   }
   if (summary.synced != null) {
     parts.push(`写入 ${summary.synced}`);
@@ -84,8 +101,23 @@ function formatRunSummary(summary) {
   return parts.join(' / ');
 }
 
+function normalizeSummaryErrors(summary) {
+  if (!summary || !Array.isArray(summary.summaryErrors)) {
+    return [];
+  }
+
+  return summary.summaryErrors
+    .map((item) => ({
+      sourceId: String(item?.source_id || '').trim(),
+      title: String(item?.title || '').trim(),
+      error: String(item?.error || '').trim(),
+    }))
+    .filter(item => item.title || item.error || item.sourceId);
+}
+
 function RunCard({ run }) {
   const statusMeta = getStatusMeta(run?.status);
+  const summaryErrors = normalizeSummaryErrors(run?.summary);
   return (
     <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <div className="flex items-start justify-between gap-3">
@@ -115,6 +147,30 @@ function RunCard({ run }) {
               {formatRunSummary(run.summary)}
             </div>
           )}
+          {summaryErrors.length > 0 && (
+            <div className="mt-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+              <div className="font-medium">摘要失败原因</div>
+              <div className="mt-1 space-y-1">
+                {summaryErrors.slice(0, 5).map((item, index) => (
+                  <div key={`${item.sourceId || item.title || 'summary-error'}-${index}`} className="leading-relaxed">
+                    <span className="font-medium">
+                      {item.title || item.sourceId || `公告 ${index + 1}`}
+                    </span>
+                    {item.error && (
+                      <span className="ml-1 break-all text-amber-700 dark:text-amber-300">
+                        {item.error}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {summaryErrors.length > 5 && (
+                <div className="mt-1 text-amber-700 dark:text-amber-300">
+                  另有 {summaryErrors.length - 5} 条失败详情已截断。
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -128,6 +184,7 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
     loading,
     syncing,
     forceRefreshing,
+    fullRefreshing,
     refreshRuns,
     setFilters,
     triggerSync,
@@ -136,6 +193,7 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
 
   const unregisteredRaw = useSiteConfigStore(s => s.config.unregistered_characters);
   const updateConfig = useSiteConfigStore(s => s.updateConfig);
+  const [fullRefreshLimit, setFullRefreshLimit] = useState(50);
 
   let unregisteredList = [];
   try {
@@ -154,6 +212,10 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
       [key]: value,
     }));
   }, [setFilters]);
+
+  const updateFullRefreshLimit = useCallback((value) => {
+    setFullRefreshLimit(normalizeFullRefreshLimit(value));
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -198,24 +260,65 @@ const AutomationPanel = ({ showToast, onNavigate }) => {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => triggerSync()}
-          disabled={syncing || forceRefreshing || loading}
+          disabled={syncing || forceRefreshing || fullRefreshing || loading}
           className="flex items-center gap-1 px-3 py-2 border border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-50"
         >
           {syncing ? <RefreshCw size={16} className="animate-spin" /> : <Play size={16} />}
           {syncing ? '同步中...' : '增量同步公告'}
         </button>
         <button
-          onClick={() => triggerSync({ forceRefresh: true })}
-          disabled={syncing || forceRefreshing || loading}
+          onClick={() => triggerSync({ refreshMode: 'summary' })}
+          disabled={syncing || forceRefreshing || fullRefreshing || loading}
           className="flex items-center gap-1 px-3 py-2 border border-red-300 dark:border-red-700 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
-          title="重新生成已存在公告的摘要。会调用公告总结 LLM，仅在摘要异常或更换提示词后使用。"
+          title="重新抓取公告，只对需要总结的长公告重新生成摘要并覆盖已有内容。"
         >
           <RefreshCw size={16} className={forceRefreshing ? 'animate-spin' : ''} />
           {forceRefreshing ? '刷新中...' : '强制刷新摘要'}
         </button>
         <button
+          onClick={() => triggerSync({
+            refreshMode: 'all',
+            announcementLimit: fullRefreshLimit,
+          })}
+          disabled={syncing || forceRefreshing || fullRefreshing || loading}
+          className="flex items-center gap-1 px-3 py-2 border border-purple-300 dark:border-purple-700 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors disabled:opacity-50"
+          title={`重新抓取并覆盖最近 ${fullRefreshLimit} 条官方公告。长公告会调用 LLM，总结失败时保留官方原文。`}
+        >
+          <RefreshCw size={16} className={fullRefreshing ? 'animate-spin' : ''} />
+          {fullRefreshing ? '刷新中...' : `强制刷新 ${fullRefreshLimit} 条公告`}
+        </button>
+        <div className="flex flex-wrap items-center gap-1 text-xs text-slate-500 dark:text-zinc-500">
+          <span>范围</span>
+          {FULL_REFRESH_LIMIT_OPTIONS.map(limit => (
+            <button
+              key={limit}
+              type="button"
+              onClick={() => updateFullRefreshLimit(limit)}
+              disabled={syncing || forceRefreshing || fullRefreshing || loading}
+              className={`px-2 py-1 border transition-colors disabled:opacity-50 ${
+                fullRefreshLimit === limit
+                  ? 'border-purple-400 bg-purple-50 text-purple-700 dark:border-purple-600 dark:bg-purple-900/30 dark:text-purple-200'
+                  : 'border-zinc-200 text-slate-500 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {limit}
+            </button>
+          ))}
+          <input
+            type="number"
+            min="1"
+            max="100"
+            value={fullRefreshLimit}
+            onChange={(event) => updateFullRefreshLimit(event.target.value)}
+            disabled={syncing || forceRefreshing || fullRefreshing || loading}
+            className="w-20 px-2 py-1 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-slate-700 dark:text-zinc-200 disabled:opacity-50"
+            aria-label="强制刷新全部公告条数"
+          />
+          <span>条</span>
+        </div>
+        <button
           onClick={refreshRuns}
-          disabled={loading}
+          disabled={loading || syncing || forceRefreshing || fullRefreshing}
           className="flex items-center gap-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 text-sm text-slate-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
