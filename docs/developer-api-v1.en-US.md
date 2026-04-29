@@ -183,7 +183,7 @@ Query:
 Returns public announcements. Announcement DTOs include `type` and `severity`:
 
 - `type`: `update` for release/update announcements, `temporary` for temporary status notices.
-- `severity`: `info | maintenance | warning | critical`, mainly used by temporary notices for color and importance.
+- `severity`: `info | success | maintenance | warning | critical`, mainly used by temporary notices for color and importance.
 
 ### `GET /api/dev/v1/site/overview`
 

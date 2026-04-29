@@ -144,7 +144,7 @@ Query:
 - `limit`
 - `cursor`
 
-Returns active public announcement DTOs. Each DTO includes `type` (`update` or `temporary`) and `severity` (`info`, `maintenance`, `warning`, or `critical`).
+Returns active public announcement DTOs. Each DTO includes `type` (`update` or `temporary`) and `severity` (`info`, `success`, `maintenance`, `warning`, or `critical`).
 
 ### `GET /api/dev/v1/site/overview`
 

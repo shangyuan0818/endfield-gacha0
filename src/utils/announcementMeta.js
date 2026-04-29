@@ -5,6 +5,7 @@ export const ANNOUNCEMENT_TYPE_OPTIONS = [
 
 export const ANNOUNCEMENT_SEVERITY_OPTIONS = [
   { value: 'info', label: '普通', labelEn: 'Info' },
+  { value: 'success', label: '恢复', labelEn: 'Resolved' },
   { value: 'maintenance', label: '维护', labelEn: 'Maintenance' },
   { value: 'warning', label: '警告', labelEn: 'Warning' },
   { value: 'critical', label: '重要', labelEn: 'Critical' },
@@ -18,6 +19,14 @@ const SEVERITY_STYLES = {
     badge: 'bg-sky-200 text-sky-800 dark:bg-sky-900/70 dark:text-sky-200',
     icon: 'bg-sky-100 text-sky-600 dark:bg-sky-900/50 dark:text-sky-300',
     chevron: 'text-sky-500',
+  },
+  success: {
+    label: '恢复',
+    labelEn: 'Resolved',
+    card: 'border-emerald-200 bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-950 dark:border-emerald-800/50 dark:from-emerald-950/30 dark:to-green-950/20 dark:text-emerald-100',
+    badge: 'bg-emerald-200 text-emerald-800 dark:bg-emerald-900/70 dark:text-emerald-200',
+    icon: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-300',
+    chevron: 'text-emerald-500',
   },
   maintenance: {
     label: '维护',
