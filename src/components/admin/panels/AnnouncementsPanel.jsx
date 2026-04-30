@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { Plus, Edit2, Trash2, Save, X, FileText, Eye, EyeOff } from 'lucide-react';
-import MDEditor from '@uiw/react-md-editor';
 import {
   ANNOUNCEMENT_SEVERITY_OPTIONS,
   ANNOUNCEMENT_TYPE_OPTIONS,
@@ -9,6 +8,29 @@ import {
   normalizeAnnouncementSeverity,
   normalizeAnnouncementType
 } from '../../../utils/announcementMeta';
+
+const MDEditor = lazy(() => import('@uiw/react-md-editor'));
+
+function MarkdownEditorField({ value, onChange }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-[300px] border border-amber-300/70 dark:border-amber-700/70 bg-white/70 dark:bg-zinc-900/70 flex items-center justify-center text-sm text-amber-700 dark:text-amber-300">
+          正在加载 Markdown 编辑器...
+        </div>
+      }
+    >
+      <MDEditor
+        value={value}
+        onChange={onChange}
+        height={300}
+        preview="live"
+        hideToolbar={false}
+        enableScroll={true}
+      />
+    </Suspense>
+  );
+}
 
 /**
  * 公告管理面板
@@ -190,23 +212,15 @@ const AnnouncementsPanel = ({
                   中文内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
                 </label>
                 <div data-color-mode="light" className="dark:hidden">
-                  <MDEditor
+                  <MarkdownEditorField
                     value={announcementForm.content}
                     onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                    height={300}
-                    preview="live"
-                    hideToolbar={false}
-                    enableScroll={true}
                   />
                 </div>
                 <div data-color-mode="dark" className="hidden dark:block">
-                  <MDEditor
+                  <MarkdownEditorField
                     value={announcementForm.content}
                     onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                    height={300}
-                    preview="live"
-                    hideToolbar={false}
-                    enableScroll={true}
                   />
                 </div>
               </div>
@@ -216,23 +230,15 @@ const AnnouncementsPanel = ({
                   英文内容 <span className="text-xs opacity-75">(Markdown 编辑器，可选)</span>
                 </label>
                 <div data-color-mode="light" className="dark:hidden">
-                  <MDEditor
+                  <MarkdownEditorField
                     value={announcementForm.content_en}
                     onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
-                    height={300}
-                    preview="live"
-                    hideToolbar={false}
-                    enableScroll={true}
                   />
                 </div>
                 <div data-color-mode="dark" className="hidden dark:block">
-                  <MDEditor
+                  <MarkdownEditorField
                     value={announcementForm.content_en}
                     onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
-                    height={300}
-                    preview="live"
-                    hideToolbar={false}
-                    enableScroll={true}
                   />
                 </div>
               </div>

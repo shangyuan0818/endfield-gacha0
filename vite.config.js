@@ -160,15 +160,49 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (!id.includes('node_modules')) {
+            const normalizedId = id.replaceAll('\\', '/')
+            if (!normalizedId.includes('node_modules')) {
               return
             }
 
-            if (id.includes('@supabase/')) {
+            if (
+              normalizedId.includes('/node_modules/react/') ||
+              normalizedId.includes('/node_modules/react-dom/') ||
+              normalizedId.includes('/node_modules/react-router-dom/') ||
+              normalizedId.includes('/node_modules/@remix-run/router/')
+            ) {
+              return 'react-vendor'
+            }
+
+            if (normalizedId.includes('@supabase/')) {
               return 'supabase-vendor'
             }
 
-            if (id.includes('canvas-confetti')) {
+            if (normalizedId.includes('/node_modules/prismjs/')) {
+              return 'markdown-highlighter-vendor'
+            }
+
+            if (
+              normalizedId.includes('/node_modules/@uiw/') ||
+              normalizedId.includes('/node_modules/rehype') ||
+              normalizedId.includes('/node_modules/remark') ||
+              normalizedId.includes('/node_modules/unified') ||
+              normalizedId.includes('/node_modules/micromark') ||
+              normalizedId.includes('/node_modules/mdast') ||
+              normalizedId.includes('/node_modules/hast') ||
+              normalizedId.includes('/node_modules/vfile')
+            ) {
+              return 'markdown-editor-vendor'
+            }
+
+            if (
+              normalizedId.includes('/node_modules/recharts/') ||
+              normalizedId.includes('/node_modules/d3-')
+            ) {
+              return 'charts-vendor'
+            }
+
+            if (normalizedId.includes('canvas-confetti')) {
               return 'effects-vendor'
             }
           }
