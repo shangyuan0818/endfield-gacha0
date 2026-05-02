@@ -161,6 +161,10 @@ export default defineConfig(({ mode }) => {
         output: {
           manualChunks(id) {
             const normalizedId = id.replaceAll('\\', '/')
+            if (normalizedId.includes('commonjsHelpers.js')) {
+              return 'shared-vendor'
+            }
+
             if (!normalizedId.includes('node_modules')) {
               return
             }
