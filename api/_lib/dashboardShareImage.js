@@ -12,6 +12,43 @@ import {
 
 let playwrightBrowserPromise = null;
 
+function isServerlessChromiumRuntime() {
+  return process.platform === 'linux' && Boolean(
+    process.env.VERCEL
+    || process.env.AWS_EXECUTION_ENV
+    || process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
+}
+
+function getSafeErrorInfo(error) {
+  return {
+    name: error?.name || 'Error',
+    message: error?.message || String(error || 'Unknown error'),
+    stack: error?.stack || null,
+  };
+}
+
+async function launchPlaywrightBrowser() {
+  if (isServerlessChromiumRuntime()) {
+    const [
+      { chromium: playwrightChromium },
+      { default: serverlessChromium },
+    ] = await Promise.all([
+      import('playwright-core'),
+      import('@sparticuz/chromium'),
+    ]);
+
+    return playwrightChromium.launch({
+      args: serverlessChromium.args,
+      executablePath: await serverlessChromium.executablePath(),
+      headless: true,
+    });
+  }
+
+  const { chromium } = await import('playwright');
+  return chromium.launch({ headless: true });
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -189,8 +226,7 @@ function renderTimelineSections(sections = []) {
 
 async function getPlaywrightBrowser() {
   if (!playwrightBrowserPromise) {
-    playwrightBrowserPromise = import('playwright')
-      .then(({ chromium }) => chromium.launch({ headless: true }))
+    playwrightBrowserPromise = launchPlaywrightBrowser()
       .catch((error) => {
         playwrightBrowserPromise = null;
         throw error;
@@ -673,7 +709,8 @@ export async function renderDashboardShareCardImage(detail, {
   let browser;
   try {
     browser = await getPlaywrightBrowser();
-  } catch {
+  } catch (error) {
+    console.error('[dashboard-share-image] Browser launch failed', getSafeErrorInfo(error));
     throw {
       status: 503,
       message: 'Share card rendering environment is not ready',
