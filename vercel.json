@@ -3,11 +3,7 @@
   "functions": {
     "api/router.js": {
       "maxDuration": 60,
-      "includeFiles": [
-        "node_modules/@sparticuz/chromium/bin/**",
-        "src/assets/fonts/harmony/*.woff2",
-        "src/assets/fonts/novecento/*.otf"
-      ]
+      "includeFiles": "{node_modules/@sparticuz/chromium/bin/**,src/assets/fonts/harmony/*.woff2,src/assets/fonts/novecento/*.otf}"
     }
   },
   "headers": [
@@ -73,7 +69,7 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/router?__path=:path*" },
+    { "source": "/api/(.*)", "destination": "/api/router?__path=/$1" },
     { "source": "/m/assets/index-(.*).js", "destination": "/m/assets/legacy-mobile-entry.js" },
     { "source": "/m/assets/supabase-vendor-(.*).js", "destination": "/m/assets/legacy-empty.js" },
     { "source": "/((?!api/)(?!.*\\.[^/]+$).*)", "destination": "/index.html" }
