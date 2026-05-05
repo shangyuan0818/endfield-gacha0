@@ -31,6 +31,17 @@ function readScopedEnv(env, provider, suffix, fallbackKeys = []) {
   return '';
 }
 
+function readTelegramProxyUrl(env) {
+  return String(
+    env.TELEGRAM_OFFICIAL_BOT_PROXY_URL
+    || env.HTTPS_PROXY
+    || env.https_proxy
+    || env.HTTP_PROXY
+    || env.http_proxy
+    || '',
+  ).trim();
+}
+
 export function createOfficialBotConfig({
   provider = process.env.OFFICIAL_BOT_PROVIDER || 'telegram',
   env = process.env,
@@ -58,6 +69,7 @@ export function createOfficialBotConfig({
     requestTimeoutMs: parseInteger(env.OFFICIAL_BOT_REQUEST_TIMEOUT_MS, 30000),
     telegram: {
       token: String(env.TELEGRAM_OFFICIAL_BOT_TOKEN || '').trim(),
+      proxyUrl: readTelegramProxyUrl(env),
       pollIntervalMs: parseInteger(env.TELEGRAM_OFFICIAL_BOT_POLL_INTERVAL_MS, 1500),
       longPollSeconds: parseInteger(env.TELEGRAM_OFFICIAL_BOT_LONG_POLL_SECONDS, 20),
     },

@@ -1,4 +1,6 @@
+import https from 'node:https';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createOfficialBotConfig } from '../config.js';
 import { sendTelegramMessage, splitTelegramText } from '../adapters/telegram.js';
 
 describe('telegram adapter', () => {
@@ -72,5 +74,71 @@ describe('telegram adapter', () => {
     expect(body.reply_markup).toEqual({
       inline_keyboard: [[{ text: '有效按钮', callback_data: 'valid-callback' }]],
     });
+  });
+
+  it('reads Telegram proxy from scoped env before generic proxy env', () => {
+    const config = createOfficialBotConfig({
+      provider: 'telegram',
+      env: {
+        OFFICIAL_BOT_BASE_URL: 'https://example.com',
+        OFFICIAL_BOT_PUBLIC_API_KEY: 'public-key',
+        OFFICIAL_BOT_VERIFIER_SECRET: 'secret',
+        TELEGRAM_OFFICIAL_BOT_TOKEN: 'telegram-token',
+        TELEGRAM_OFFICIAL_BOT_PROXY_URL: 'http://127.0.0.1:7890',
+        HTTPS_PROXY: 'http://127.0.0.1:8888',
+      },
+    });
+
+    expect(config.telegram.proxyUrl).toBe('http://127.0.0.1:7890');
+  });
+
+  it('uses an HTTPS request path instead of global fetch when proxyUrl is provided', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const requestMock = vi.spyOn(https, 'request').mockImplementation((url, options, callback) => {
+      expect(String(url)).toBe('https://api.telegram.org/bottoken/sendMessage');
+      expect(options.agent).toBeTruthy();
+      expect(options.headers).toMatchObject({ 'Content-Type': 'application/json' });
+
+      const listeners = new Map();
+      const request = {
+        on: vi.fn((event, handler) => {
+          listeners.set(event, handler);
+          return request;
+        }),
+        write: vi.fn((payload) => {
+          expect(JSON.parse(String(payload))).toMatchObject({ chat_id: '1001', text: '代理测试' });
+        }),
+        end: vi.fn(() => {
+          const response = {
+            statusCode: 200,
+            setEncoding: vi.fn(),
+            on: vi.fn((event, handler) => {
+              if (event === 'data') {
+                handler('{"ok":true,"result":{"message_id":1}}');
+              }
+              if (event === 'end') {
+                handler();
+              }
+              return response;
+            }),
+          };
+          callback(response);
+        }),
+        destroy: vi.fn((error) => listeners.get('error')?.(error)),
+      };
+      return request;
+    });
+
+    await sendTelegramMessage({
+      token: 'token',
+      chatId: '1001',
+      text: '代理测试',
+      proxyUrl: 'http://127.0.0.1:7890',
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestMock).toHaveBeenCalledTimes(1);
   });
 });

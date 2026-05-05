@@ -1,11 +1,113 @@
+import https from 'node:https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const MAX_TELEGRAM_TEXT_LENGTH = 3900;
+const TELEGRAM_REQUEST_TIMEOUT_MS = 35000;
 
 function buildTelegramBaseUrl(token) {
   return `https://api.telegram.org/bot${token}`;
+}
+
+function buildProxyAgent(proxyUrl) {
+  const normalizedProxyUrl = String(proxyUrl || '').trim();
+  return normalizedProxyUrl ? new HttpsProxyAgent(normalizedProxyUrl) : undefined;
+}
+
+function getNetworkErrorMessage(error) {
+  const reason = error?.cause?.code || error?.code || error?.cause?.message || error?.message || 'fetch failed';
+  return String(reason);
+}
+
+function parseJsonPayload(rawBody) {
+  if (!rawBody) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    return null;
+  }
+}
+
+function requestTelegramViaHttps({ url, methodName, headers, body, agent }) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, {
+      method: 'POST',
+      agent,
+      headers,
+      timeout: TELEGRAM_REQUEST_TIMEOUT_MS,
+    }, (response) => {
+      let rawBody = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        rawBody += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          ok: response.statusCode >= 200 && response.statusCode < 300,
+          status: response.statusCode || 0,
+          json: async () => parseJsonPayload(rawBody),
+        });
+      });
+    });
+
+    request.on('timeout', () => {
+      request.destroy(new Error(`Telegram API ${methodName} request timeout`));
+    });
+    request.on('error', reject);
+
+    if (body) {
+      request.write(body);
+    }
+    request.end();
+  });
+}
+
+async function requestTelegram(baseUrl, methodName, { headers, body, formData, proxyUrl } = {}) {
+  const url = `${baseUrl}/${methodName}`;
+  const proxyAgent = buildProxyAgent(proxyUrl);
+
+  try {
+    if (proxyAgent) {
+      if (formData) {
+        const formResponse = new Response(formData);
+        const arrayBuffer = await formResponse.arrayBuffer();
+        const multipartBody = Buffer.from(arrayBuffer);
+        return requestTelegramViaHttps({
+          url,
+          methodName,
+          agent: proxyAgent,
+          headers: {
+            ...Object.fromEntries(formResponse.headers),
+            'Content-Length': String(multipartBody.byteLength),
+          },
+          body: multipartBody,
+        });
+      }
+
+      return requestTelegramViaHttps({
+        url,
+        methodName,
+        agent: proxyAgent,
+        headers,
+        body,
+      });
+    }
+
+    return await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData || body,
+      signal: AbortSignal.timeout(TELEGRAM_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new Error(`Telegram API ${methodName} network request failed: ${getNetworkErrorMessage(error)}`);
+  }
 }
 
 function getTelegramDisplayHandle(user) {
@@ -20,20 +122,14 @@ function getTelegramDisplayHandle(user) {
   return [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
 }
 
-async function requestTelegramJson(baseUrl, methodName, body) {
-  let response;
-  try {
-    response = await fetch(`${baseUrl}/${methodName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(35000),
-    });
-  } catch (error) {
-    throw new Error(`Telegram API ${methodName} network request failed: ${error?.message || 'fetch failed'}`);
-  }
+async function requestTelegramJson(baseUrl, methodName, body, { proxyUrl } = {}) {
+  const response = await requestTelegram(baseUrl, methodName, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    proxyUrl,
+  });
 
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload?.ok !== true) {
@@ -43,17 +139,11 @@ async function requestTelegramJson(baseUrl, methodName, body) {
   return payload.result;
 }
 
-async function requestTelegramForm(baseUrl, methodName, formData) {
-  let response;
-  try {
-    response = await fetch(`${baseUrl}/${methodName}`, {
-      method: 'POST',
-      body: formData,
-      signal: AbortSignal.timeout(35000),
-    });
-  } catch (error) {
-    throw new Error(`Telegram API ${methodName} network request failed: ${error?.message || 'fetch failed'}`);
-  }
+async function requestTelegramForm(baseUrl, methodName, formData, { proxyUrl } = {}) {
+  const response = await requestTelegram(baseUrl, methodName, {
+    formData,
+    proxyUrl,
+  });
 
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload?.ok !== true) {
@@ -214,6 +304,7 @@ export async function sendTelegramMessage({
   text,
   replyToMessageId,
   replyMarkup,
+  proxyUrl,
 }) {
   const baseUrl = buildTelegramBaseUrl(token);
   const chunks = splitTelegramText(text);
@@ -234,7 +325,7 @@ export async function sendTelegramMessage({
       body.reply_markup = normalizedReplyMarkup;
     }
 
-    lastResult = await requestTelegramJson(baseUrl, 'sendMessage', body);
+    lastResult = await requestTelegramJson(baseUrl, 'sendMessage', body, { proxyUrl });
   }
 
   return lastResult;
@@ -249,6 +340,7 @@ export async function sendTelegramPhoto({
   buffer,
   fileName = 'share-card.png',
   mimeType = 'image/png',
+  proxyUrl,
 }) {
   const normalizedReplyMarkup = normalizeTelegramReplyMarkup(replyMarkup);
   const formData = new FormData();
@@ -264,7 +356,7 @@ export async function sendTelegramPhoto({
   }
   formData.set('photo', new Blob([buffer], { type: mimeType }), fileName);
 
-  return requestTelegramForm(buildTelegramBaseUrl(token), 'sendPhoto', formData);
+  return requestTelegramForm(buildTelegramBaseUrl(token), 'sendPhoto', formData, { proxyUrl });
 }
 
 export async function sendTelegramDocument({
@@ -276,6 +368,7 @@ export async function sendTelegramDocument({
   buffer,
   fileName = 'share-card.svg',
   mimeType = 'image/svg+xml',
+  proxyUrl,
 }) {
   const normalizedReplyMarkup = normalizeTelegramReplyMarkup(replyMarkup);
   const formData = new FormData();
@@ -291,7 +384,7 @@ export async function sendTelegramDocument({
   }
   formData.set('document', new Blob([buffer], { type: mimeType }), fileName);
 
-  return requestTelegramForm(buildTelegramBaseUrl(token), 'sendDocument', formData);
+  return requestTelegramForm(buildTelegramBaseUrl(token), 'sendDocument', formData, { proxyUrl });
 }
 
 export async function answerTelegramCallback({
@@ -299,12 +392,13 @@ export async function answerTelegramCallback({
   callbackId,
   text,
   showAlert = false,
+  proxyUrl,
 }) {
   return requestTelegramJson(buildTelegramBaseUrl(token), 'answerCallbackQuery', {
     callback_query_id: callbackId,
     text,
     show_alert: showAlert,
-  });
+  }, { proxyUrl });
 }
 
 export async function runTelegramPollingBot({
@@ -313,6 +407,7 @@ export async function runTelegramPollingBot({
   logger = { info: () => {}, error: () => {} },
 }) {
   const baseUrl = buildTelegramBaseUrl(config.telegram.token);
+  const proxyUrl = config.telegram.proxyUrl;
   let offset = 0;
 
   for (;;) {
@@ -321,7 +416,7 @@ export async function runTelegramPollingBot({
         offset,
         timeout: config.telegram.longPollSeconds,
         allowed_updates: ['message', 'edited_message', 'callback_query'],
-      });
+      }, { proxyUrl });
 
       for (const update of updates || []) {
         offset = Math.max(offset, Number(update.update_id || 0) + 1);
@@ -340,6 +435,7 @@ export async function runTelegramPollingBot({
                 replyToMessageId: message.replyToMessageId,
                 text: reply.text,
                 replyMarkup: reply.media?.buffer ? undefined : reply.replyMarkup,
+                proxyUrl,
               });
             }
 
@@ -354,6 +450,7 @@ export async function runTelegramPollingBot({
                   buffer: reply.media.buffer,
                   fileName: reply.media.fileName,
                   mimeType: reply.media.mimeType,
+                  proxyUrl,
                 });
               } else {
                 await sendTelegramPhoto({
@@ -365,6 +462,7 @@ export async function runTelegramPollingBot({
                   buffer: reply.media.buffer,
                   fileName: reply.media.fileName,
                   mimeType: reply.media.mimeType,
+                  proxyUrl,
                 });
               }
             }
@@ -383,6 +481,7 @@ export async function runTelegramPollingBot({
               callbackId: callback.callbackId,
               text: callbackReply.ackText,
               showAlert: false,
+              proxyUrl,
             });
           }
 
@@ -393,6 +492,7 @@ export async function runTelegramPollingBot({
               replyToMessageId: callback.replyToMessageId,
               text: callbackReply.text,
               replyMarkup: callbackReply.replyMarkup,
+              proxyUrl,
             });
           }
 
@@ -407,6 +507,7 @@ export async function runTelegramPollingBot({
                 buffer: callbackReply.media.buffer,
                 fileName: callbackReply.media.fileName,
                 mimeType: callbackReply.media.mimeType,
+                proxyUrl,
               });
             } else {
               await sendTelegramPhoto({
@@ -418,6 +519,7 @@ export async function runTelegramPollingBot({
                 buffer: callbackReply.media.buffer,
                 fileName: callbackReply.media.fileName,
                 mimeType: callbackReply.media.mimeType,
+                proxyUrl,
               });
             }
           }
