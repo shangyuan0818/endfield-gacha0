@@ -10,7 +10,7 @@ describe('dashboard share image renderer', () => {
     expect(mod.buildDashboardShareCardHtml).toEqual(expect.any(Function));
   });
 
-  it('builds share-card HTML from API detail payloads without React components', async () => {
+  it('builds share-card HTML from the same React component used by the dashboard', async () => {
     const { buildDashboardShareCardHtml } = await import('../_lib/dashboardShareImage.js');
     const html = buildDashboardShareCardHtml({
       payload: {
@@ -23,9 +23,13 @@ describe('dashboard share image renderer', () => {
         totalNodes: 1,
         summaryItems: [
           { id: 'total-pulls', label: '总抽数', value: '33', hint: 'PULLS' },
+          { id: 'target-six', label: '目标 6★', value: '1' },
         ],
         averageItems: [
           { id: 'avg-6-target', label: 'UP 6★', value: '33.00 抽' },
+        ],
+        resourceItems: [
+          { id: 'jade-spent', label: '嵌金玉消耗', value: '16500' },
         ],
         notes: '已脱敏分享卡',
       },
@@ -46,7 +50,19 @@ describe('dashboard share image renderer', () => {
               resultSummary: '33 抽获得 6★',
               pulls: 33,
               stageKind: 'up',
-              dropBadges: [{ label: '庄方宜', rarity: 6, count: 1 }],
+              leadBadge: {
+                label: '庄方宜',
+                rarity: 6,
+                avatarUrl: 'https://example.com/avatar.png',
+              },
+              dropBadges: [
+                {
+                  label: '庄方宜',
+                  rarity: 6,
+                  count: 1,
+                  avatarUrl: 'https://example.com/avatar.png',
+                },
+              ],
             },
           ],
         },
@@ -54,8 +70,11 @@ describe('dashboard share image renderer', () => {
     });
 
     expect(html).toContain('share-card-capture-root');
+    expect(html).toContain('HarmonyOS_Sans_SC_Medium.woff2');
+    expect(html).toContain('Novecento-Wide-Bold.otf');
     expect(html).toContain('春雷动，万物生');
     expect(html).toContain('庄方宜');
-    expect(html).not.toContain('DashboardShareCard');
+    expect(html).toContain('https://example.com/avatar.png');
+    expect(html).toContain('/resource-icons/item_diamond.webp');
   });
 });

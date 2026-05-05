@@ -157,8 +157,8 @@ export function isEnglishLocale(locale = getAppLocale()) {
   return normalizeLocale(locale) === 'en-US';
 }
 
-export function I18nProvider({ children }) {
-  const [locale, setLocaleState] = useState(() => getAppLocale());
+export function I18nProvider({ children, initialLocale = null }) {
+  const [locale, setLocaleState] = useState(() => normalizeLocale(initialLocale || getAppLocale()));
 
   useEffect(() => {
     applyAppLocale(locale);
