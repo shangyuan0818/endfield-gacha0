@@ -161,6 +161,25 @@ describe('createOfficialBotRouter API-first implementation', () => {
     expect(reply.text).toContain('尚未完成绑定');
   });
 
+  it('does not expose raw upstream 500 messages on /start', async () => {
+    const apiClient = createApiClient({
+      getAnalysis: vi.fn().mockRejectedValue(
+        new EndfieldApiError('Internal server error', { status: 500 })
+      ),
+    });
+    const router = createRouter(apiClient);
+
+    const reply = await router.handleMessage({
+      text: '/start',
+      platformUserId: '1001',
+      displayHandle: '@tester',
+      isPrivateChat: true,
+    });
+
+    expect(reply.text).toContain('BOT 服务暂时异常');
+    expect(reply.text).not.toContain('Internal server error');
+  });
+
   it('blocks sensitive commands in group chats', async () => {
     const router = createRouter(createApiClient());
 

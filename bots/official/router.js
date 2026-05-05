@@ -447,6 +447,7 @@ function mapError(error) {
     if (error.status === 404) return '当前平台账号尚未完成绑定。请先使用 /bind 获取绑定指引。';
     if (error.status === 429) return '请求过于频繁，请稍后再试。';
     if (error.status === 401 || error.status === 403) return 'BOT 服务鉴权异常，请联系站点管理员检查密钥配置。';
+    if (error.status >= 500) return 'BOT 服务暂时异常，请稍后再试；如果持续出现，请联系站点管理员检查 API 服务状态。';
   }
   return error?.message || '服务暂时不可用，请稍后重试。';
 }
