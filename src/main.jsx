@@ -5,6 +5,7 @@ import { Analytics } from '@vercel/analytics/react'
 import './registerAppFonts.js'
 import './index.css'
 import AppRouter from './AppRouter'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 import { preloadPublicBootstrap } from './services/bootstrapService'
 import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 import { appLogger } from './utils/appLogger.js'
@@ -12,6 +13,7 @@ import { prepareFreshNavigation } from './utils/serviceWorkerRecovery.js'
 import { I18nProvider } from './i18n/index.js'
 import { installRuntimeObservability } from './utils/runtimeObservability.js'
 import { readStorageValue, STORAGE_KEYS } from './utils/storageUtils.js'
+import { markAppMounted, renderAppCrashFallback } from './utils/appCrashFallback.js'
 
 function syncDeviceRedirect() {
   const preference = readStorageValue(STORAGE_KEYS.PLATFORM_PREFERENCE, null, { raw: true });
@@ -48,18 +50,27 @@ async function bootstrapApp() {
     });
   });
 
-  createRoot(document.getElementById('root')).render(
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    throw new Error('Root element #root was not found');
+  }
+
+  createRoot(rootElement).render(
     <StrictMode>
       <I18nProvider>
         <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <AppRouter />
+          <ErrorBoundary>
+            <AppRouter />
+          </ErrorBoundary>
         </BrowserRouter>
       </I18nProvider>
       <Analytics />
     </StrictMode>,
   );
+  markAppMounted();
 }
 
 bootstrapApp().catch((error) => {
   appLogger.error('应用启动失败:', error);
+  renderAppCrashFallback(error, { phase: 'bootstrap', force: true });
 });

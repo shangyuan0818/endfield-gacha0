@@ -127,6 +127,29 @@ assert.deepEqual(
   { maxCalls: 10, windowMs: 60 * 1000 },
   '公告 LLM 限流配置应支持 RPM 写法',
 );
+{
+  const llmConfig = await presentationInternal.loadAnnouncementLlmConfig({
+    ANNOUNCEMENT_LLM_API_KEY: 'test-announcement-llm-key',
+    ANNOUNCEMENT_LLM_BASE_URL: 'https://llm.example.com/v1',
+    ANNOUNCEMENT_LLM_MODEL: 'announcement-model',
+    ANNOUNCEMENT_LLM_RATE_LIMIT: '12RPM',
+  });
+  assert.deepEqual(
+    {
+      hasApiKey: Boolean(llmConfig.apiKey),
+      model: llmConfig.model,
+      url: llmConfig.url,
+      rateLimit: llmConfig.rateLimit,
+    },
+    {
+      hasApiKey: true,
+      model: 'announcement-model',
+      url: 'https://llm.example.com/v1/chat/completions',
+      rateLimit: { maxCalls: 12, windowMs: 60 * 1000 },
+    },
+    '公告 LLM env 应解析出 key、chat completions URL、模型名与 RPM 限流',
+  );
+}
 assert.equal(
   syncAnnouncementsInternal.isAnnouncementRecordChanged(
     { source_id: 'notice-1', title: '旧公告', content: '坏摘要', summary: '旧摘要', version: 'v1', published_at: '2026-04-29T00:00:00.000Z', source_url: 'https://example.com', is_active: true, priority: -100 },
@@ -434,6 +457,48 @@ assert.doesNotMatch(
   /[…]|\.{3}/u,
   '截断回退内容不应再使用省略号硬截断',
 );
+{
+  let llmCallCount = 0;
+  const cacheProbeOptions = {
+    title: '缓存命中长公告',
+    summary: '缓存摘要',
+    rawHtml: `<p>${'缓存测试正文'.repeat(260)}</p>`,
+    sourceUrl: 'https://endfield.hypergryph.com/news/cache-probe',
+    publishedAt: '2026-05-05T00:00:00.000Z',
+    env: {
+      ANNOUNCEMENT_LLM_API_KEY: 'test-announcement-llm-key',
+      ANNOUNCEMENT_LLM_BASE_URL: 'https://llm-cache.example.com/',
+      ANNOUNCEMENT_LLM_MODEL: 'announcement-cache-model',
+    },
+    allowLlm: true,
+    allowHeuristicSummary: false,
+    fetchImpl: async () => {
+      llmCallCount += 1;
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({
+          choices: [
+            {
+              finish_reason: 'stop',
+              message: {
+                content: completeStructuredSummary,
+              },
+            },
+          ],
+        }),
+      };
+    },
+  };
+
+  const firstCachedPresentation = await buildAnnouncementDisplayContent(cacheProbeOptions);
+  const secondCachedPresentation = await buildAnnouncementDisplayContent(cacheProbeOptions);
+
+  assert.equal(firstCachedPresentation.summaryMode, 'llm', '首次长公告应可使用 LLM 摘要');
+  assert.equal(secondCachedPresentation.summaryMode, 'llm', '同一长公告第二次应复用 LLM 摘要缓存');
+  assert.equal(llmCallCount, 1, '同一长公告重复构建不应重复消耗 LLM 调用');
+}
 
 const fetchBackup = globalThis.fetch;
 const envBackup = {

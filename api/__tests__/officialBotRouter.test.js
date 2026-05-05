@@ -234,6 +234,85 @@ describe('createOfficialBotRouter API-first implementation', () => {
     expect(reply.text).toContain('账号：老鲤船长');
   });
 
+  it('uses API action refs for pool detail, share and log callbacks', async () => {
+    const analysis = createAnalysis();
+    const actionRefs = {
+      detail_ref: 'p.detail_action_ref',
+      share_ref: 'p.share_action_ref',
+      log_ref: 'p.log_action_ref',
+    };
+    analysis.navigation.accounts[0].pools[0].actions = actionRefs;
+    analysis.selected.pool.actions = actionRefs;
+    analysis.selected.detail.pool.actions = actionRefs;
+
+    const apiClient = createApiClient({
+      getAnalysis: vi.fn().mockResolvedValue(analysis),
+      getShareCard: vi.fn().mockResolvedValue({
+        kind: 'photo',
+        buffer: Buffer.from('png-data'),
+        mimeType: 'image/png',
+        fileName: 'share.png',
+      }),
+      getPoolLog: vi.fn().mockResolvedValue({
+        kind: 'document',
+        buffer: Buffer.from('csv-data'),
+        mimeType: 'text/csv; charset=utf-8',
+        fileName: 'pool-log.csv',
+      }),
+    });
+    const router = createRouter(apiClient);
+
+    const listReply = await router.handleMessage({
+      text: '/pools',
+      platformUserId: '1001',
+      displayHandle: '@tester',
+      isPrivateChat: true,
+    });
+    const listButtons = listReply.replyMarkup.inline_keyboard.flat();
+
+    expect(listButtons.some((button) => button.callback_data === 'pool|p.detail_action_ref')).toBe(true);
+    expect(listButtons.some((button) => button.callback_data === 'share|p.share_action_ref')).toBe(true);
+    expect(listButtons.some((button) => button.callback_data === `pool|${POOL_REF}`)).toBe(false);
+
+    const detailReply = await router.handleCallback({
+      data: 'pool|p.detail_action_ref',
+      platformUserId: '1001',
+      isPrivateChat: true,
+    });
+    const detailButtons = detailReply.replyMarkup.inline_keyboard.flat();
+
+    expect(apiClient.getAnalysis).toHaveBeenCalledWith({
+      provider: 'telegram',
+      platformUserId: '1001',
+      poolRef: 'p.detail_action_ref',
+    });
+    expect(detailButtons.some((button) => button.callback_data === 'share|p.share_action_ref')).toBe(true);
+    expect(detailButtons.some((button) => button.callback_data === 'log|p.log_action_ref|csv')).toBe(true);
+
+    await router.handleCallback({
+      data: 'share|p.share_action_ref',
+      platformUserId: '1001',
+      isPrivateChat: true,
+    });
+    await router.handleCallback({
+      data: 'log|p.log_action_ref|csv',
+      platformUserId: '1001',
+      isPrivateChat: true,
+    });
+
+    expect(apiClient.getShareCard).toHaveBeenCalledWith({
+      provider: 'telegram',
+      platformUserId: '1001',
+      poolRef: 'p.share_action_ref',
+    });
+    expect(apiClient.getPoolLog).toHaveBeenCalledWith({
+      provider: 'telegram',
+      platformUserId: '1001',
+      poolRef: 'p.log_action_ref',
+      format: 'csv',
+    });
+  });
+
   it('renders pool detail with timeline and export actions', async () => {
     const apiClient = createApiClient();
     const router = createRouter(apiClient);

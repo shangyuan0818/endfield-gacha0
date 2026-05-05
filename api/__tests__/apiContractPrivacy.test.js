@@ -199,6 +199,24 @@ function expectNoPrivateIdentifiers(payload) {
   });
 }
 
+function toContractShape(value) {
+  if (Array.isArray(value)) {
+    return value.length > 0 ? [toContractShape(value[0])] : [];
+  }
+
+  if (value === null) {
+    return 'null';
+  }
+
+  if (typeof value !== 'object') {
+    return typeof value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, nestedValue]) => [key, toContractShape(nestedValue)])
+  );
+}
+
 function createChain(result = { data: null, error: null }) {
   const chain = {
     select: vi.fn(() => chain),
@@ -622,6 +640,99 @@ describe('public API v1 contract and privacy', () => {
     expectNoPrivateIdentifiers(res.body);
   });
 
+  it('keeps the public pools field contract stable', async () => {
+    const res = await call(poolsHandler, { query: { type: 'limited' } });
+
+    expectV1Success(res);
+    expect(toContractShape(res.body)).toMatchInlineSnapshot(`
+      {
+        "data": {
+          "page": {
+            "hasMore": "boolean",
+            "limit": "number",
+            "nextCursor": "null",
+            "total": "number",
+          },
+          "pools": [
+            {
+              "id": "string",
+              "name": "string",
+              "type": "string",
+            },
+          ],
+        },
+        "meta": {
+          "apiVersion": "string",
+          "cache": "string",
+          "generatedAt": "string",
+          "rateLimit": {
+            "action": "string",
+            "allowed": "boolean",
+            "remaining": "number",
+            "retryAfter": "number",
+          },
+          "requestId": "string",
+        },
+        "success": "boolean",
+      }
+    `);
+    expectNoPrivateIdentifiers(res.body);
+  });
+
+  it('returns a standard rate-limit error contract', async () => {
+    mocks.enforceRateLimit.mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      retry_after: 30,
+      reason: 'dev_api_catalog quota exceeded',
+    });
+
+    const res = await call(poolsHandler);
+
+    expect(res.statusCode).toBe(429);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'rate_limited',
+        message: 'dev_api_catalog quota exceeded',
+        details: {
+          retryAfter: 30,
+        },
+      },
+      meta: {
+        apiVersion: 'v1',
+        rateLimit: {
+          action: 'dev_api_catalog',
+          allowed: false,
+          remaining: 0,
+          retryAfter: 30,
+        },
+      },
+    });
+    expect(mocks.buildPoolsCatalog).not.toHaveBeenCalled();
+    expectNoPrivateIdentifiers(res.body);
+  });
+
+  it('returns a standard method error contract before handler execution', async () => {
+    const res = await call(poolsHandler, { method: 'POST' });
+
+    expect(res.statusCode).toBe(405);
+    expect(res.getHeader('Allow')).toBe('GET');
+    expect(res.body).toMatchObject({
+      success: false,
+      error: {
+        code: 'method_not_allowed',
+        message: 'Method POST not allowed',
+      },
+      meta: {
+        apiVersion: 'v1',
+      },
+    });
+    expect(mocks.requireApiClient).not.toHaveBeenCalled();
+    expect(mocks.buildPoolsCatalog).not.toHaveBeenCalled();
+    expectNoPrivateIdentifiers(res.body);
+  });
+
   it('sanitizes internal errors from public endpoints', async () => {
     mocks.buildPoolsCatalog.mockRejectedValue(new Error('SQL relation "history" leaked user_id'));
 
@@ -674,6 +785,84 @@ describe('official bot API contract and privacy', () => {
       display_handle: '@tester',
       status: 'verified',
     });
+    expectNoPrivateIdentifiers(res.body);
+  });
+
+  it('keeps the official bot analysis field contract stable', async () => {
+    const res = await call(botAnalysisHandler, {
+      query: {
+        provider: 'telegram',
+        platformUserId: 'tg-private',
+        poolRef: 'p.MTU0NTYwNjQzMXxzcGVjaWFsXzFfMl8x',
+      },
+    });
+
+    expectV1Success(res);
+    expect(toContractShape(res.body)).toMatchInlineSnapshot(`
+      {
+        "data": {
+          "binding": {
+            "display_handle": "string",
+            "provider": "string",
+            "status": "string",
+            "verified_at": "string",
+          },
+          "navigation": {
+            "accounts": [
+              {
+                "display_name": "string",
+                "ref": "string",
+              },
+            ],
+          },
+          "selected": {
+            "account": {
+              "display_name": "string",
+              "ref": "string",
+            },
+            "detail": {
+              "account": {
+                "display_name": "string",
+              },
+              "pool": {
+                "display_name": "string",
+              },
+              "share_payload": {
+                "poolName": "string",
+              },
+              "timeline_sections": [
+                {
+                  "entries": [
+                    {
+                      "pulls": "number",
+                    },
+                  ],
+                },
+              ],
+            },
+            "pool": {
+              "display_name": "string",
+              "ref": "string",
+            },
+          },
+          "user": {
+            "username": "string",
+          },
+        },
+        "meta": {
+          "apiVersion": "string",
+          "cache": "string",
+          "generatedAt": "string",
+          "rateLimit": {
+            "action": "string",
+            "allowed": "boolean",
+            "remaining": "number",
+            "retryAfter": "number",
+          },
+        },
+        "success": "boolean",
+      }
+    `);
     expectNoPrivateIdentifiers(res.body);
   });
 

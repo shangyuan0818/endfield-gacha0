@@ -1,0 +1,41 @@
+// @vitest-environment node
+
+import { describe, expect, it } from 'vitest';
+import {
+  getApiRouteEntries,
+  getApiRouteHandler,
+} from '../_routes/index.js';
+import { buildDevApiOpenApiSpec } from '../_lib/devApiOpenApi.js';
+
+const OFFICIAL_BOT_PATHS = [
+  '/api/dev/v1/bot/analysis',
+  '/api/dev/v1/bot/dashboard',
+  '/api/dev/v1/bot/pool-detail',
+  '/api/dev/v1/bot/pool-log',
+  '/api/dev/v1/bot/pools',
+  '/api/dev/v1/bot/recent-pulls',
+  '/api/dev/v1/bot/self-summary',
+  '/api/dev/v1/bot/share-card',
+];
+
+describe('API route registry', () => {
+  it('registers every public v1 OpenAPI path in the single-function router map', () => {
+    const openApiPaths = Object.keys(buildDevApiOpenApiSpec().paths);
+    const routeEntries = new Map(getApiRouteEntries());
+
+    expect(openApiPaths.length).toBeGreaterThan(0);
+    openApiPaths.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+
+  it('registers all official bot private v1 endpoints', () => {
+    const routeEntries = new Map(getApiRouteEntries());
+
+    OFFICIAL_BOT_PATHS.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+});

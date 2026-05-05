@@ -51,6 +51,15 @@ function callback(prefix, ...parts) {
   return [prefix, ...parts.map((part) => String(part ?? ''))].join('|');
 }
 
+function getPoolActionRef(poolOrRef, action = 'detail') {
+  if (typeof poolOrRef === 'string') {
+    return poolOrRef.trim();
+  }
+
+  const actionKey = `${action}_ref`;
+  return String(poolOrRef?.actions?.[actionKey] || poolOrRef?.ref || '').trim();
+}
+
 function parseCallback(data) {
   const [prefix = '', ...parts] = String(data || '').split('|');
   return { prefix, parts };
@@ -107,11 +116,15 @@ function buildHomeRows({ isBound, siteUrl }) {
   ];
 }
 
-function buildDetailRows(poolRef, siteUrl) {
+function buildDetailRows(poolOrRef, siteUrl) {
+  const detailRef = getPoolActionRef(poolOrRef, 'detail');
+  const shareRef = getPoolActionRef(poolOrRef, 'share');
+  const logRef = getPoolActionRef(poolOrRef, 'log');
+
   return [
     [
-      { text: '发送分享图', callback_data: callback(SHARE_PREFIX, poolRef) },
-      { text: '导出日志', callback_data: callback(LOG_PREFIX, poolRef, 'csv') },
+      { text: '发送分享图', callback_data: callback(SHARE_PREFIX, shareRef) },
+      { text: '导出日志', callback_data: callback(LOG_PREFIX, logRef, 'csv') },
     ],
     [
       { text: '返回池列表', callback_data: callback(NAV_PREFIX, 'pools') },
@@ -152,8 +165,8 @@ function buildPoolsRows({ analysis, pageIndex = 0 }) {
 
   page.items.forEach((pool) => {
     rows.push([
-      { text: `详情 · ${safeName(pool.display_name, '未知卡池')}`.slice(0, 52), callback_data: callback(POOL_PREFIX, pool.ref) },
-      { text: '分享图', callback_data: callback(SHARE_PREFIX, pool.ref) },
+      { text: `详情 · ${safeName(pool.display_name, '未知卡池')}`.slice(0, 52), callback_data: callback(POOL_PREFIX, getPoolActionRef(pool, 'detail')) },
+      { text: '分享图', callback_data: callback(SHARE_PREFIX, getPoolActionRef(pool, 'share')) },
     ]);
   });
 
@@ -181,8 +194,8 @@ function buildAccountRows(analysis, accountRef) {
   }
 
   const rows = (account.pools || []).slice(0, 8).map((pool) => ([
-    { text: `详情 · ${safeName(pool.display_name, '未知卡池')}`.slice(0, 52), callback_data: callback(POOL_PREFIX, pool.ref) },
-    { text: '分享图', callback_data: callback(SHARE_PREFIX, pool.ref) },
+    { text: `详情 · ${safeName(pool.display_name, '未知卡池')}`.slice(0, 52), callback_data: callback(POOL_PREFIX, getPoolActionRef(pool, 'detail')) },
+    { text: '分享图', callback_data: callback(SHARE_PREFIX, getPoolActionRef(pool, 'share')) },
   ]));
   rows.push([{ text: '返回全部账号', callback_data: callback(NAV_PREFIX, 'pools') }]);
 
@@ -482,10 +495,10 @@ export function createOfficialBotRouter({
 
   async function renderMe(platformUserId) {
     const analysis = await loadAnalysis(platformUserId);
-    const poolRef = analysis.selected?.pool?.ref || analysis.selected?.detail?.pool?.ref || null;
+    const selectedPool = analysis.selected?.pool || analysis.selected?.detail?.pool || null;
     return {
       text: formatMe(analysis),
-      replyMarkup: buildInlineKeyboard(poolRef ? buildDetailRows(poolRef, siteUrl) : buildHomeRows({ isBound: true, siteUrl })),
+      replyMarkup: buildInlineKeyboard(selectedPool ? buildDetailRows(selectedPool, siteUrl) : buildHomeRows({ isBound: true, siteUrl })),
     };
   }
 
@@ -510,10 +523,10 @@ export function createOfficialBotRouter({
   async function renderPool(platformUserId, poolRef) {
     const analysis = await loadAnalysis(platformUserId, { poolRef });
     const detail = analysis.selected?.detail || null;
-    const selectedPoolRef = detail?.pool?.ref || poolRef;
+    const selectedPool = detail?.pool || analysis.selected?.pool || { ref: poolRef };
     return {
       text: formatDetail(detail),
-      replyMarkup: buildInlineKeyboard(buildDetailRows(selectedPoolRef, siteUrl)),
+      replyMarkup: buildInlineKeyboard(buildDetailRows(selectedPool, siteUrl)),
     };
   }
 
@@ -554,7 +567,7 @@ export function createOfficialBotRouter({
     return {
       text: '分享图已生成。',
       media,
-      replyMarkup: buildInlineKeyboard(buildDetailRows(poolRef, siteUrl)),
+      replyMarkup: buildInlineKeyboard(buildDetailRows({ ref: poolRef }, siteUrl)),
     };
   }
 
@@ -563,7 +576,7 @@ export function createOfficialBotRouter({
     return {
       text: '详细日志已导出。',
       media,
-      replyMarkup: buildInlineKeyboard(buildDetailRows(poolRef, siteUrl)),
+      replyMarkup: buildInlineKeyboard(buildDetailRows({ ref: poolRef }, siteUrl)),
     };
   }
 
