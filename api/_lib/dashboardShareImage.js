@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { renderDashboardShareCardMarkup } from '../_generated/dashboardShareCardRenderer.mjs';
 import { buildDashboardShareCardFileName } from '../../src/utils/dashboardShare.js';
@@ -8,6 +9,7 @@ import {
 } from '../../src/utils/shareBranding.js';
 
 let playwrightBrowserPromise = null;
+const fontDataUrlPromises = new Map();
 
 function isServerlessChromiumRuntime() {
   return process.platform === 'linux' && Boolean(
@@ -66,17 +68,43 @@ function escapeHtmlAttribute(value) {
     .replace(/>/g, '&gt;');
 }
 
-function fontUrl(relativePath) {
-  return new URL(relativePath, import.meta.url).href;
+function fontFileUrl(relativePath) {
+  return new URL(relativePath, import.meta.url);
 }
 
-function buildServerFontCss() {
-  const harmonyMedium = fontUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Medium.woff2');
-  const harmonyBold = fontUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Bold.woff2');
-  const harmonyScMedium = fontUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Medium.woff2');
-  const harmonyScBold = fontUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Bold.woff2');
-  const novecentoBold = fontUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold.otf');
-  const novecentoTabular = fontUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold-Tabular.otf');
+function fontFilePath(relativePath) {
+  return fileURLToPath(fontFileUrl(relativePath));
+}
+
+function getFontDataUrl(relativePath, mimeType) {
+  const cacheKey = `${mimeType}:${relativePath}`;
+  if (!fontDataUrlPromises.has(cacheKey)) {
+    fontDataUrlPromises.set(
+      cacheKey,
+      readFile(fontFilePath(relativePath))
+        .then((buffer) => `data:${mimeType};base64,${buffer.toString('base64')}`)
+    );
+  }
+
+  return fontDataUrlPromises.get(cacheKey);
+}
+
+async function buildServerFontCss() {
+  const [
+    harmonyMedium,
+    harmonyBold,
+    harmonyScMedium,
+    harmonyScBold,
+    novecentoBold,
+    novecentoTabular,
+  ] = await Promise.all([
+    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Medium.woff2', 'font/woff2'),
+    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Bold.woff2', 'font/woff2'),
+    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Medium.woff2', 'font/woff2'),
+    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Bold.woff2', 'font/woff2'),
+    getFontDataUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold.otf', 'font/otf'),
+    getFontDataUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold-Tabular.otf', 'font/otf'),
+  ]);
 
   return `
     @font-face {
@@ -135,7 +163,7 @@ function buildServerFontCss() {
   `;
 }
 
-export function buildDashboardShareCardHtml({
+export async function buildDashboardShareCardHtml({
   payload,
   sections,
   theme = 'dark',
@@ -150,6 +178,7 @@ export function buildDashboardShareCardHtml({
   const baseUrl = process.env.PUBLIC_SITE_URL
     || process.env.VITE_PUBLIC_SITE_URL
     || SHARE_BRAND_LINK;
+  const fontCss = await buildServerFontCss();
 
   return `<!doctype html>
 <html lang="${escapeHtmlAttribute(locale)}">
@@ -157,7 +186,7 @@ export function buildDashboardShareCardHtml({
     <meta charset="utf-8" />
     <base href="${escapeHtmlAttribute(baseUrl)}" />
     <style>
-      ${buildServerFontCss()}
+      ${fontCss}
       * { box-sizing: border-box; }
       html, body {
         margin: 0;
@@ -251,7 +280,7 @@ export async function renderDashboardShareCardImage(detail, {
   });
 
   try {
-    await page.setContent(buildDashboardShareCardHtml({ payload, sections, theme, locale }), {
+    await page.setContent(await buildDashboardShareCardHtml({ payload, sections, theme, locale }), {
       waitUntil: 'load',
     });
     await waitForShareCardAssets(page);
@@ -278,5 +307,5 @@ export default {
 export const __dashboardShareImageInternals = {
   buildServerFontCss,
   waitForShareCardAssets,
-  fontUrl: (relativePath) => fileURLToPath(fontUrl(relativePath)),
+  fontFilePath,
 };

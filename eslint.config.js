@@ -6,7 +6,7 @@ import prettier from 'eslint-config-prettier'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'api/_generated/**']),
+  globalIgnores(['dist', '.vercel/output/**', 'api/_generated/**']),
 
   // 前端源码 (browser 环境)
   {

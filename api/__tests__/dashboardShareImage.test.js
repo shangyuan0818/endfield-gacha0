@@ -12,7 +12,7 @@ describe('dashboard share image renderer', () => {
 
   it('builds share-card HTML from the same React component used by the dashboard', async () => {
     const { buildDashboardShareCardHtml } = await import('../_lib/dashboardShareImage.js');
-    const html = buildDashboardShareCardHtml({
+    const html = await buildDashboardShareCardHtml({
       payload: {
         scopeLabel: '卡池详情',
         poolName: '春雷动，万物生',
@@ -70,8 +70,8 @@ describe('dashboard share image renderer', () => {
     });
 
     expect(html).toContain('share-card-capture-root');
-    expect(html).toContain('HarmonyOS_Sans_SC_Medium.woff2');
-    expect(html).toContain('Novecento-Wide-Bold.otf');
+    expect(html).toContain('data:font/woff2;base64');
+    expect(html).toContain('data:font/otf;base64');
     expect(html).toContain('春雷动，万物生');
     expect(html).toContain('庄方宜');
     expect(html).toContain('https://example.com/avatar.png');
