@@ -1,7 +1,7 @@
 import https from 'node:https';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createOfficialBotConfig } from '../config.js';
-import { sendTelegramMessage, splitTelegramText } from '../adapters/telegram.js';
+import { processTelegramUpdate, sendTelegramMessage, splitTelegramText } from '../adapters/telegram.js';
 
 describe('telegram adapter', () => {
   afterEach(() => {
@@ -140,5 +140,74 @@ describe('telegram adapter', () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not block callback media replies when Telegram acknowledgement is already expired', async () => {
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).endsWith('/answerCallbackQuery')) {
+        return {
+          ok: false,
+          json: async () => ({
+            ok: false,
+            description: 'Bad Request: query is too old and response timeout expired or query ID is invalid',
+          }),
+        };
+      }
+
+      if (String(url).endsWith('/sendPhoto')) {
+        return {
+          ok: true,
+          json: async () => ({ ok: true, result: { message_id: 2 } }),
+        };
+      }
+
+      throw new Error(`Unexpected Telegram method: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const logger = { info: vi.fn(), error: vi.fn() };
+    const router = {
+      handleCallback: vi.fn().mockResolvedValue({
+        media: {
+          kind: 'photo',
+          buffer: Buffer.from('png-data'),
+          mimeType: 'image/png',
+          fileName: 'share.png',
+          caption: '分享图',
+        },
+      }),
+    };
+
+    await processTelegramUpdate({
+      update: {
+        update_id: 100,
+        callback_query: {
+          id: 'expired-callback',
+          data: 'share|p.test',
+          from: { id: 1001, username: 'tester' },
+          message: {
+            message_id: 20,
+            chat: { id: 1001, type: 'private' },
+          },
+        },
+      },
+      config: {
+        telegram: {
+          token: 'token',
+        },
+      },
+      router,
+      logger,
+    });
+
+    expect(router.handleCallback).toHaveBeenCalledWith(expect.objectContaining({
+      callbackId: 'expired-callback',
+      data: 'share|p.test',
+    }));
+    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual([
+      'https://api.telegram.org/bottoken/answerCallbackQuery',
+      'https://api.telegram.org/bottoken/sendPhoto',
+    ]);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Telegram callback acknowledgement failed'));
   });
 });

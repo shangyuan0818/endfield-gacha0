@@ -401,6 +401,128 @@ export async function answerTelegramCallback({
   }, { proxyUrl });
 }
 
+function getImmediateCallbackAckText(data) {
+  const prefix = String(data || '').split('|')[0];
+  if (prefix === 'share') return '正在生成分享图';
+  if (prefix === 'log') return '正在导出日志';
+  return '处理中';
+}
+
+async function acknowledgeTelegramCallback({
+  config,
+  callback,
+  text,
+  proxyUrl,
+  logger,
+}) {
+  if (!callback?.callbackId) {
+    return;
+  }
+
+  try {
+    await answerTelegramCallback({
+      token: config.telegram.token,
+      callbackId: callback.callbackId,
+      text,
+      showAlert: false,
+      proxyUrl,
+    });
+  } catch (error) {
+    logger.error(`Telegram callback acknowledgement failed | update_id=${callback.updateId ?? 'unknown'} | ${error?.message || error}`);
+  }
+}
+
+async function sendTelegramReply({
+  config,
+  envelope,
+  reply,
+  proxyUrl,
+}) {
+  if (!reply?.text && !reply?.media?.buffer) {
+    return;
+  }
+
+  if (reply?.text) {
+    await sendTelegramMessage({
+      token: config.telegram.token,
+      chatId: envelope.chatId,
+      replyToMessageId: envelope.replyToMessageId,
+      text: reply.text,
+      replyMarkup: reply.media?.buffer ? undefined : reply.replyMarkup,
+      proxyUrl,
+    });
+  }
+
+  if (reply?.media?.buffer) {
+    if (reply.media.kind === 'document') {
+      await sendTelegramDocument({
+        token: config.telegram.token,
+        chatId: envelope.chatId,
+        replyToMessageId: reply.text ? undefined : envelope.replyToMessageId,
+        caption: reply.media.caption,
+        replyMarkup: reply.replyMarkup,
+        buffer: reply.media.buffer,
+        fileName: reply.media.fileName,
+        mimeType: reply.media.mimeType,
+        proxyUrl,
+      });
+    } else {
+      await sendTelegramPhoto({
+        token: config.telegram.token,
+        chatId: envelope.chatId,
+        replyToMessageId: reply.text ? undefined : envelope.replyToMessageId,
+        caption: reply.media.caption,
+        replyMarkup: reply.replyMarkup,
+        buffer: reply.media.buffer,
+        fileName: reply.media.fileName,
+        mimeType: reply.media.mimeType,
+        proxyUrl,
+      });
+    }
+  }
+}
+
+export async function processTelegramUpdate({
+  update,
+  config,
+  router,
+  logger = { info: () => {}, error: () => {} },
+}) {
+  const proxyUrl = config.telegram.proxyUrl;
+  const message = extractMessageEnvelope(update);
+  if (message) {
+    const reply = await router.handleMessage(message);
+    await sendTelegramReply({
+      config,
+      envelope: message,
+      reply,
+      proxyUrl,
+    });
+    return;
+  }
+
+  const callback = extractCallbackEnvelope(update);
+  if (!callback) {
+    return;
+  }
+
+  await acknowledgeTelegramCallback({
+    config,
+    callback,
+    text: getImmediateCallbackAckText(callback.data),
+    proxyUrl,
+    logger,
+  });
+
+  const callbackReply = await router.handleCallback?.(callback);
+  await sendTelegramReply({
+    config,
+    envelope: callback,
+    reply: callbackReply,
+    proxyUrl,
+  });
+}
+
 export async function runTelegramPollingBot({
   config,
   router,
@@ -421,108 +543,7 @@ export async function runTelegramPollingBot({
       for (const update of updates || []) {
         offset = Math.max(offset, Number(update.update_id || 0) + 1);
         try {
-          const message = extractMessageEnvelope(update);
-          if (message) {
-            const reply = await router.handleMessage(message);
-            if (!reply?.text && !reply?.media?.buffer) {
-              continue;
-            }
-
-            if (reply?.text) {
-              await sendTelegramMessage({
-                token: config.telegram.token,
-                chatId: message.chatId,
-                replyToMessageId: message.replyToMessageId,
-                text: reply.text,
-                replyMarkup: reply.media?.buffer ? undefined : reply.replyMarkup,
-                proxyUrl,
-              });
-            }
-
-            if (reply?.media?.buffer) {
-              if (reply.media.kind === 'document') {
-                await sendTelegramDocument({
-                  token: config.telegram.token,
-                  chatId: message.chatId,
-                  replyToMessageId: reply.text ? undefined : message.replyToMessageId,
-                  caption: reply.media.caption,
-                  replyMarkup: reply.replyMarkup,
-                  buffer: reply.media.buffer,
-                  fileName: reply.media.fileName,
-                  mimeType: reply.media.mimeType,
-                  proxyUrl,
-                });
-              } else {
-                await sendTelegramPhoto({
-                  token: config.telegram.token,
-                  chatId: message.chatId,
-                  replyToMessageId: reply.text ? undefined : message.replyToMessageId,
-                  caption: reply.media.caption,
-                  replyMarkup: reply.replyMarkup,
-                  buffer: reply.media.buffer,
-                  fileName: reply.media.fileName,
-                  mimeType: reply.media.mimeType,
-                  proxyUrl,
-                });
-              }
-            }
-            continue;
-          }
-
-          const callback = extractCallbackEnvelope(update);
-          if (!callback) {
-            continue;
-          }
-
-          const callbackReply = await router.handleCallback?.(callback);
-          if (callbackReply?.ackText) {
-            await answerTelegramCallback({
-              token: config.telegram.token,
-              callbackId: callback.callbackId,
-              text: callbackReply.ackText,
-              showAlert: false,
-              proxyUrl,
-            });
-          }
-
-          if (callbackReply?.text) {
-            await sendTelegramMessage({
-              token: config.telegram.token,
-              chatId: callback.chatId,
-              replyToMessageId: callback.replyToMessageId,
-              text: callbackReply.text,
-              replyMarkup: callbackReply.replyMarkup,
-              proxyUrl,
-            });
-          }
-
-          if (callbackReply?.media?.buffer) {
-            if (callbackReply.media.kind === 'document') {
-              await sendTelegramDocument({
-                token: config.telegram.token,
-                chatId: callback.chatId,
-                replyToMessageId: callback.replyToMessageId,
-                caption: callbackReply.media.caption,
-                replyMarkup: callbackReply.replyMarkup,
-                buffer: callbackReply.media.buffer,
-                fileName: callbackReply.media.fileName,
-                mimeType: callbackReply.media.mimeType,
-                proxyUrl,
-              });
-            } else {
-              await sendTelegramPhoto({
-                token: config.telegram.token,
-                chatId: callback.chatId,
-                replyToMessageId: callback.replyToMessageId,
-                caption: callbackReply.media.caption,
-                replyMarkup: callbackReply.replyMarkup,
-                buffer: callbackReply.media.buffer,
-                fileName: callbackReply.media.fileName,
-                mimeType: callbackReply.media.mimeType,
-                proxyUrl,
-              });
-            }
-          }
+          await processTelegramUpdate({ update, config, router, logger });
         } catch (error) {
           logger.error(`Telegram update handling failed | update_id=${update?.update_id ?? 'unknown'} | ${error?.message || error}`);
         }
@@ -540,4 +561,5 @@ export default {
   sendTelegramPhoto,
   sendTelegramDocument,
   answerTelegramCallback,
+  processTelegramUpdate,
 };
