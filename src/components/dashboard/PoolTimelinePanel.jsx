@@ -5,6 +5,7 @@ import {
   countDashboardTimelineNodes
 } from '../../utils/dashboardTimelineSections.js';
 import { useI18n } from '../../i18n/index.js';
+import { getTimelineStageElementId } from '../../utils/poolTimelineView.js';
 import { getTimelineBarColor, getTimelineTextBadgeStyle } from '../../utils/timelineVisuals.js';
 
 function formatAverage(value, t) {
@@ -233,7 +234,7 @@ function MetricItem({ label, value, mobile = false }) {
   );
 }
 
-function TimelineStageCard({ entry, sectionType, featured, t, mobile = false, showFiveStarDrops = true }) {
+function TimelineStageCard({ entry, sectionId, sectionType, featured, t, mobile = false, showFiveStarDrops = true }) {
   const compact = entry.stageKind === 'fiveStar';
   const visibleBadges = getVisibleDropBadges(entry, showFiveStarDrops);
   const resultSummary = getVisibleResultSummary(entry, showFiveStarDrops);
@@ -246,7 +247,7 @@ function TimelineStageCard({ entry, sectionType, featured, t, mobile = false, sh
   );
 
   return (
-    <div className="relative flex gap-3 sm:gap-5 group">
+    <div id={getTimelineStageElementId(sectionId, entry.id)} className="relative flex gap-3 sm:gap-5 group">
       <div className={`flex flex-col items-center shrink-0 relative z-10 ${compact ? 'w-10 sm:w-12' : 'w-12 sm:w-16'}`}>
         <StagePortrait entry={entry} featured={featured} compact={compact} t={t} />
         <span className={`mt-2 font-black font-mono ${mobile ? 'text-slate-500 dark:text-zinc-500' : 'text-zinc-500 dark:text-zinc-400'} ${compact ? 'text-[9px] sm:text-[10px]' : 'text-[10px] sm:text-[11px]'}`}>
@@ -358,6 +359,7 @@ function TimelineSectionCard({ section, isOverview, embedded, t, mobile = false,
               <TimelineStageCard
                 key={entry.id}
                 entry={entry}
+                sectionId={section.id}
                 sectionType={section.type}
                 featured={section.featured}
                 t={t}

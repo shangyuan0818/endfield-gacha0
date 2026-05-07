@@ -1,8 +1,10 @@
 import { useMemo } from 'react';
 import { RARITY_CONFIG, EXTRA_POOL_RULES, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy.js';
+import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
+import { characterCache } from '../../utils/characterUtils.js';
 
 const PITY_LIMITS = {
   extra: EXTRA_POOL_RULES.sixStarPity,
@@ -149,7 +151,11 @@ export function useSummaryStats(history, pools, user) {
   const normalizedMyHistory = useMemo(() => {
     const poolMap = new Map();
     myPools.forEach(p => {
-      poolMap.set(p.id, { type: p.type, upCharacter: p.up_character });
+      [p.id, p.pool_id].forEach((poolId) => {
+        if (poolId) {
+          poolMap.set(poolId, { type: p.type, upCharacter: p.up_character });
+        }
+      });
     });
 
     return annotatedMyHistory.map(h => {
@@ -217,8 +223,12 @@ export function useSummaryStats(history, pools, user) {
     const poolTypeMap = new Map();
     const poolMetaMap = new Map();
     myPools.forEach(p => {
-      poolTypeMap.set(p.id, p.type);
-      poolMetaMap.set(p.id, { type: p.type, upCharacter: p.upCharacter || p.up_character || null });
+      [p.id, p.pool_id].forEach((poolId) => {
+        if (poolId) {
+          poolTypeMap.set(poolId, p.type);
+          poolMetaMap.set(poolId, { type: p.type, upCharacter: p.upCharacter || p.up_character || null });
+        }
+      });
     });
 
     // ── Phase 1: 单次遍历 normalizedMyHistory ──
@@ -291,6 +301,36 @@ export function useSummaryStats(history, pools, user) {
         typeData.counts[nr]++;
       }
     }
+
+    const allQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll()
+    });
+    const characterQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll(),
+      includePoolTypes: ['extra', 'limited', 'standard']
+    });
+    const extraQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll(),
+      includePoolTypes: ['extra']
+    });
+    const limitedQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll(),
+      includePoolTypes: ['limited']
+    });
+    const standardQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll(),
+      includePoolTypes: ['standard']
+    });
+    const weaponQuotaLedger = buildQuotaLedgerFromHistory(normalizedMyHistory, {
+      pools: myPools,
+      characters: characterCache.getAll(),
+      includePoolTypes: ['weapon']
+    });
 
     // ── Phase 2: 按池独立计算保底/区间/赠送/分布 ──
     // 每个池独立追踪保底计数器，与时间线视图一致
@@ -524,31 +564,36 @@ export function useSummaryStats(history, pools, user) {
       characterPulls: data.byType.extra.total,
       chargedCharacterPulls: chargedPullsByType.extra,
       counts: data.byType.extra.counts,
-      arsenalGainCounts: data.byType.extra.counts
+      arsenalGainCounts: data.byType.extra.counts,
+      quotaLedger: extraQuotaLedger
     });
     data.byType.limited.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.limited.total,
       chargedCharacterPulls: chargedPullsByType.limited,
       counts: data.byType.limited.counts,
-      arsenalGainCounts: data.byType.limited.counts
+      arsenalGainCounts: data.byType.limited.counts,
+      quotaLedger: limitedQuotaLedger
     });
     data.byType.standard.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.standard.total,
       chargedCharacterPulls: standardChargedPulls,
       counts: data.byType.standard.counts,
-      arsenalGainCounts: data.byType.standard.counts
+      arsenalGainCounts: data.byType.standard.counts,
+      quotaLedger: standardQuotaLedger
     });
     data.byType.weapon.resources = buildResourceSummaryFromAggregates({
       weaponPulls: data.byType.weapon.total,
       chargedWeaponPulls: weaponChargedPulls,
       counts: data.byType.weapon.counts,
-      arsenalGainCounts: {}
+      arsenalGainCounts: {},
+      quotaLedger: weaponQuotaLedger
     });
     data.byType.character.resources = buildResourceSummaryFromAggregates({
       characterPulls: data.byType.character.total,
       chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
       counts: characterCounts,
-      arsenalGainCounts: characterCounts
+      arsenalGainCounts: characterCounts,
+      quotaLedger: characterQuotaLedger
     });
 
     data.byType.limited.pityListExcludingFree = limitedPityListExcludingFree;
@@ -577,7 +622,8 @@ export function useSummaryStats(history, pools, user) {
       chargedCharacterPulls: limitedChargedPulls + standardChargedPulls,
       chargedWeaponPulls: weaponChargedPulls,
       counts: data.counts,
-      arsenalGainCounts: characterCounts
+      arsenalGainCounts: characterCounts,
+      quotaLedger: allQuotaLedger
     });
 
     if (cacheKey) {

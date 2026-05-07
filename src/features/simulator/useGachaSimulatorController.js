@@ -395,18 +395,21 @@ export function useGachaSimulatorController() {
     () =>
       simulatorPools.map((pool) => {
         if (pool.id === currentSimPoolId && simulator) {
+          const state = currentSimulatorState || simulator.exportState();
           return {
+            ...state,
+            poolId: pool.id,
             poolType: pool.type,
-            ...(currentSimulatorState || simulator.exportState()),
           };
         }
 
-        return (
-          loadSimulatorState(pool.id, simulatorStorageScope) || {
-            poolType: pool.type,
-            pullHistory: [],
-          }
-        );
+        const savedState = loadSimulatorState(pool.id, simulatorStorageScope) || {};
+        return {
+          ...savedState,
+          poolId: pool.id,
+          poolType: pool.type,
+          pullHistory: Array.isArray(savedState.pullHistory) ? savedState.pullHistory : [],
+        };
       }),
     [currentSimPoolId, currentSimulatorState, simulator, simulatorPools, simulatorStorageScope]
   );

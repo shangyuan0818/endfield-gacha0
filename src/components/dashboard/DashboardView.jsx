@@ -302,6 +302,15 @@ const DashboardView = ({ showToast }) => {
       setShowShareMenu(true);
     }
   }, [location.search]);
+  React.useEffect(() => {
+    const state = location.state || {};
+    if (state.dashboardCharViewMode === 'waterfall') {
+      setCharViewMode('waterfall');
+    }
+    if (state.dashboardOverviewPoolFilter) {
+      setAllOverviewPoolFilter(state.dashboardOverviewPoolFilter);
+    }
+  }, [location.state, setCharViewMode]);
   const allOverviewFilterOptions = React.useMemo(
     () => ALL_OVERVIEW_FILTER_OPTIONS.map((option) => ({
       ...option,

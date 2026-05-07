@@ -1,6 +1,7 @@
 import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
+import { buildQuotaLedgerFromHistory } from './quotaEconomy.js';
 import { resolveCharacterRecordByName } from './characterUtils.js';
 
 const CHAR_PITY_LIMIT = LIMITED_POOL_RULES.sixStarPity;
@@ -139,7 +140,9 @@ export function buildDashboardOverviewSplitStats({
   includeFreePullsInStats = false
 } = {}) {
   const poolTypeById = new Map(
-    selectedPools.map((pool) => [pool.id, normalizePoolType(pool.type)])
+    selectedPools.flatMap((pool) => (
+      [pool?.id, pool?.pool_id].map((poolId) => [poolId, normalizePoolType(pool?.type)])
+    )).filter(([poolId]) => Boolean(poolId))
   );
 
   const buckets = {
@@ -156,7 +159,8 @@ export function buildDashboardOverviewSplitStats({
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
       _chargedWeaponPulls: 0,
-      _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }
+      _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
+      _quotaHistory: []
     },
     weapon: {
       ...createBucketAccumulator(),
@@ -171,7 +175,8 @@ export function buildDashboardOverviewSplitStats({
       _weaponPulls: 0,
       _chargedCharacterPulls: 0,
       _chargedWeaponPulls: 0,
-      _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 }
+      _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
+      _quotaHistory: []
     }
   };
 
@@ -197,7 +202,10 @@ export function buildDashboardOverviewSplitStats({
     sortedPulls.forEach((item) => {
       const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
       const isFree = item?.isFree === true || item?.is_free === true;
-      if (isGift || (!includeFreePullsInStats && isFree)) return;
+      if (isGift) return;
+
+      bucket._quotaHistory.push(item);
+      if (!includeFreePullsInStats && isFree) return;
 
       bucket.total += 1;
       tempCounter += 1;
@@ -294,7 +302,10 @@ export function buildDashboardOverviewSplitStats({
       chargedCharacterPulls: bucket._chargedCharacterPulls,
       chargedWeaponPulls: bucket._chargedWeaponPulls,
       counts: bucket.counts,
-      arsenalGainCounts: bucket._arsenalGainCounts
+      arsenalGainCounts: bucket._arsenalGainCounts,
+      quotaLedger: buildQuotaLedgerFromHistory(bucket._quotaHistory, {
+        pools: selectedPools,
+      })
     });
 
     delete bucket._allSixStarPulls;
@@ -307,6 +318,7 @@ export function buildDashboardOverviewSplitStats({
     delete bucket._chargedCharacterPulls;
     delete bucket._chargedWeaponPulls;
     delete bucket._arsenalGainCounts;
+    delete bucket._quotaHistory;
   });
 
   return buckets;

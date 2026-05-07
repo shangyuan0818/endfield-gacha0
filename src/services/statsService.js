@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient.js';
 import { RARITY_CONFIG, EXTRA_POOL_RULES, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
-import { buildResourceSummaryFromAggregates } from '../utils/resourceEconomy.js';
+import { buildResourceSummaryFromAggregates, buildWeaponQuotaSummaryFromCounts } from '../utils/resourceEconomy.js';
+import { normalizeGlobalCharacterCatalog } from '../utils/quotaEconomy.js';
 import {
   SUPABASE_RPC_TIMEOUT_MS,
   executeSupabaseRpc,
@@ -19,6 +20,7 @@ import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/stor
 
 const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
+const CHARACTER_CATALOG_CACHE_TTL = 120 * 1000;
 const STATS_API_TIMEOUT_MS = 25000;
 const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 const EXPECTED_LIMITED_UP_DISPLAY_COUNT = 6;
@@ -29,6 +31,12 @@ const globalStatsRequestState = {
 };
 
 const characterRankingRequestState = {
+  data: null,
+  fetchedAt: 0,
+  promise: null
+};
+
+const characterCatalogRequestState = {
   data: null,
   fetchedAt: 0,
   promise: null
@@ -97,6 +105,32 @@ async function fetchGlobalSummaryDirect() {
   }
 
   const { data, error } = await runRpcWithTimeout('get_global_stats_cached');
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+async function fetchCharacterCatalogDirect() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_character_catalog_stats_cached');
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
+}
+
+async function fetchCharacterCatalogUncached() {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data, error } = await runRpcWithTimeout('get_character_catalog_stats');
   if (error) {
     throw error;
   }
@@ -202,6 +236,7 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     weaponGiftLimited: 0,
     weaponGiftStandard: 0,
     giftTotal: 0,
+    characterCatalog: null,
     resources: buildResourceSummaryFromAggregates(),
     meta: {
       status: 'empty',
@@ -321,6 +356,9 @@ function processTypeStats(typeData) {
   const chargedPulls = Number(typeData.chargedPulls ?? total) || 0;
   const counts = typeData.counts || {};
   const normalizedType = typeData.poolType || null;
+  const quotaSummary = normalizedType === 'weapon'
+    ? buildWeaponQuotaSummaryFromCounts(counts)
+    : typeData.quotaSummary || typeData.quotaAggregate || null;
 
   return {
     total,
@@ -349,7 +387,8 @@ function processTypeStats(typeData) {
       chargedCharacterPulls: normalizedType === 'weapon' ? 0 : chargedPulls,
       chargedWeaponPulls: normalizedType === 'weapon' ? chargedPulls : 0,
       counts,
-      arsenalGainCounts: normalizedType === 'weapon' ? {} : counts
+      arsenalGainCounts: normalizedType === 'weapon' ? {} : counts,
+      quotaSummary
     })
   };
 }
@@ -373,6 +412,61 @@ function mergeDistributions(...sources) {
   });
 
   return merged.map(item => ({ ...item, count: item.limited + item.standard }));
+}
+
+function mergeCatalogQuotaIntoSummary(stats, catalog) {
+  if (!stats || !catalog?.summary?.quota) {
+    return stats;
+  }
+
+  const hasQuotaValue = (quota) => [
+    'aicQuotaDirect',
+    'aicQuotaConvertible',
+    'aicQuotaTotalPotential',
+    'bondQuotaDirect',
+    'endpointQuotaConvertible',
+    'trustTokensGained',
+    'excessTrustTokens'
+  ].some((key) => Number(quota?.[key] || 0) > 0);
+  const totalQuota = catalog.summary.quota;
+  const weaponQuota = hasQuotaValue(catalog.summary.weaponQuota)
+    ? catalog.summary.weaponQuota
+    : buildWeaponQuotaSummaryFromCounts(stats.byType?.weapon?.counts || {});
+  const characterQuota = hasQuotaValue(catalog.summary.characterQuota) ? catalog.summary.characterQuota : {
+    ...totalQuota,
+    aicQuotaDirect: Math.max(Number(totalQuota.aicQuotaDirect || 0) - Number(weaponQuota.aicQuotaDirect || 0), 0),
+    aicQuotaTotalPotential: Math.max(
+      Number(totalQuota.aicQuotaTotalPotential || 0) - Number(weaponQuota.aicQuotaTotalPotential || 0),
+      0
+    )
+  };
+  const mergedResources = {
+    ...(stats.resources || {}),
+    ...totalQuota
+  };
+
+  return {
+    ...stats,
+    characterCatalog: catalog,
+    resources: mergedResources,
+    byType: {
+      ...(stats.byType || {}),
+      character: {
+        ...(stats.byType?.character || {}),
+        resources: {
+          ...(stats.byType?.character?.resources || {}),
+          ...characterQuota
+        }
+      },
+      weapon: {
+        ...(stats.byType?.weapon || {}),
+        resources: {
+          ...(stats.byType?.weapon?.resources || {}),
+          ...weaponQuota
+        }
+      }
+    }
+  };
 }
 
 export function normalizeGlobalStats(rpcData) {
@@ -539,22 +633,37 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
     return await runCachedRequest(
       globalStatsRequestState,
       async () => {
-        const apiPayload = await fetchStatsApi('global_summary').catch(() => null);
+        const [apiPayload, catalogPayload] = await Promise.all([
+          fetchStatsApi('global_summary').catch(() => null),
+          getCharacterCatalogStats(forceRefresh).catch(() => null)
+        ]);
         if (apiPayload?.globalSummary) {
-          const normalizedFromApi = withStatsMeta(normalizeGlobalStats(apiPayload.globalSummary), {
+          const normalizedFromApi = withStatsMeta(
+            mergeCatalogQuotaIntoSummary(
+              normalizeGlobalStats(apiPayload.globalSummary),
+              catalogPayload
+            ),
+            {
             source: 'api',
             fetchedAt: Date.now()
-          });
+            }
+          );
           writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromApi);
           return normalizedFromApi;
         }
 
         const directSummary = await fetchGlobalSummaryDirect().catch(() => null);
         if (directSummary) {
-          const normalizedFromDirect = withStatsMeta(normalizeGlobalStats(directSummary), {
+          const normalizedFromDirect = withStatsMeta(
+            mergeCatalogQuotaIntoSummary(
+              normalizeGlobalStats(directSummary),
+              catalogPayload
+            ),
+            {
             source: 'supabase-direct',
             fetchedAt: Date.now()
-          });
+            }
+          );
           writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromDirect);
           return normalizedFromDirect;
         }
@@ -599,6 +708,42 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
       source: 'timeout',
       lastErrorCode: error?.code || null
     });
+  }
+}
+
+export async function getCharacterCatalogStats(forceRefresh = false) {
+  try {
+    return await runCachedRequest(
+      characterCatalogRequestState,
+      async () => {
+        const apiPayload = await fetchStatsApi('character_catalog').catch(() => null);
+        if (apiPayload?.characterCatalog) {
+          const normalizedFromApi = normalizeGlobalCharacterCatalog(apiPayload.characterCatalog);
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromApi);
+          return normalizedFromApi;
+        }
+
+        const directCatalog = await fetchCharacterCatalogDirect().catch(() => null);
+        if (directCatalog) {
+          const normalizedFromDirect = normalizeGlobalCharacterCatalog(directCatalog);
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromDirect);
+          return normalizedFromDirect;
+        }
+
+        const uncachedCatalog = await fetchCharacterCatalogUncached().catch(() => null);
+        if (uncachedCatalog) {
+          const normalizedFromUncached = normalizeGlobalCharacterCatalog(uncachedCatalog);
+          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromUncached);
+          return normalizedFromUncached;
+        }
+
+        return readPersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT);
+      },
+      { cacheTtl: CHARACTER_CATALOG_CACHE_TTL, forceRefresh }
+    );
+  } catch (error) {
+    logStatsFailure('获取角色图鉴', error);
+    return characterCatalogRequestState.data || readPersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT) || null;
   }
 }
 

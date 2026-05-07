@@ -9,7 +9,7 @@ import { localizeEntityName } from '../../utils/gameDataI18n.js';
  * 显示角色出货排名，支持领奖台样式布局
  * FEAT-010 增强：支持 UP/歪出分类、常驻池 TOP5
  */
-const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false, denseFlatLayout = false }) => {
+const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatLayout = false, denseFlatLayout = false, singleColumn = false }) => {
   const { t, locale } = useI18n();
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
 
@@ -155,7 +155,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
       <div className="h-full">
         <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider pl-1 border-l-2 border-zinc-300 dark:border-zinc-700 mb-3">{label}</div>
         {/* 领奖台 TOP3 */}
-        <div className="flex items-end justify-center gap-3">
+        <div className="flex items-end justify-center gap-2">
           {podium.map((char) => {
             const rank = top.indexOf(char); // 0=1st, 1=2nd, 2=3rd
             const isFirst = rank === 0;
@@ -208,7 +208,7 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
 
         {/* 第4、5名（如果有）*/}
         {remaining.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap justify-center gap-x-3 gap-y-2">
+          <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 flex flex-wrap justify-center gap-x-2 gap-y-2">
             {remaining.map((char, idx) => {
               const actualRank = idx + 4; // 第4、5名
               const charData = characterCache.searchByName(char.name, false);
@@ -239,13 +239,13 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
   };
 
   return (
-    <div className="space-y-2 h-full flex flex-col">
+    <div className="space-y-2">
       <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 text-[10px] uppercase font-bold mb-2 shrink-0">
         <Trophy size={12} />
         <span>{title || tt('summary.ranking.title', '出货排名')}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1 grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-8 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800 content-start">
+      <div className={`grid ${singleColumn ? 'grid-cols-1' : 'grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]'} content-start ${denseFlatLayout ? 'gap-3' : 'gap-x-6 gap-y-8'} pr-1 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800`}>
         {poolType === 'all' ? (
           <>
             {/* 限定池：UP六星 */}

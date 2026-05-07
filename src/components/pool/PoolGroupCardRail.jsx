@@ -416,6 +416,24 @@ const PoolGroupCardRail = ({
                 autoExpanded: false
               };
           const showExpanded = expanded || autoExpanded;
+          const selectDefaultPoolInGroup = () => {
+            const activePool = group.pools.find((pool) => pool.selectorTiming?.isActive);
+            const fallbackPool = activePool || group.pools[0];
+            if (fallbackPool?.id) {
+              onSelectPool?.(fallbackPool.id);
+            }
+          };
+          const toggleGroupCollapse = () => {
+            setCollapsedGroupTypes((current) => {
+              const next = new Set(current);
+              if (next.has(group.type)) {
+                next.delete(group.type);
+              } else {
+                next.add(group.type);
+              }
+              return next;
+            });
+          };
 
           return (
             <div key={group.type} className="flex flex-nowrap items-end gap-2">
@@ -425,15 +443,11 @@ const PoolGroupCardRail = ({
                 collapsed={isGroupCollapsed}
                 t={t}
                 onToggle={() => {
-                  setCollapsedGroupTypes((current) => {
-                    const next = new Set(current);
-                    if (next.has(group.type)) {
-                      next.delete(group.type);
-                    } else {
-                      next.add(group.type);
-                    }
-                    return next;
-                  });
+                  if (!showGroupOverviewCards && !hasSelectedPool) {
+                    selectDefaultPoolInGroup();
+                    return;
+                  }
+                  toggleGroupCollapse();
                 }}
               />
 

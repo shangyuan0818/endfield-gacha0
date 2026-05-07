@@ -1,19 +1,34 @@
 import { getAppLocale, getMessage } from '../i18n/index.js';
+import {
+  buildQuotaLedgerFromSimulatorStates,
+  calculateWeaponQuotaFromCounts,
+  normalizeQuotaSummary
+} from './quotaEconomy.js';
 
 const JADE_ICON_URL = '/resource-icons/item_diamond.webp';
 const ORIGINITE_ICON_URL = '/resource-icons/item_originium_recharge.webp';
 const ARSENAL_ICON_URL = '/resource-icons/item_gachabyproducts_weapongold.webp';
+const AIC_QUOTA_ICON_URL = '/resource-icons/item_gachabyproducts_weaponticket.png';
+const BOND_QUOTA_ICON_URL = '/resource-icons/item_gachabyproducts_charticket.png';
+const ENDPOINT_QUOTA_ICON_URL = '/resource-icons/item_gachabyproducts_potentialticket.png';
 
 export const RESOURCE_ICON_URLS = {
   jade: JADE_ICON_URL,
   originite: ORIGINITE_ICON_URL,
-  arsenalQuota: ARSENAL_ICON_URL
+  arsenalQuota: ARSENAL_ICON_URL,
+  aicQuota: AIC_QUOTA_ICON_URL,
+  bondQuota: BOND_QUOTA_ICON_URL,
+  endpointQuota: ENDPOINT_QUOTA_ICON_URL
 };
 
 export const RESOURCE_LABELS = {
   jade: '嵌金玉',
   originite: '衍质源石',
-  arsenalQuota: '武库配额'
+  arsenalQuota: '武库配额',
+  aicQuota: '集成配额 / AIC Quota',
+  bondQuota: '保障配额 / Bond Quota',
+  endpointQuota: '终点配额 / Endpoint Quota',
+  trustToken: '信物'
 };
 
 export function getLocalizedResourceLabel(resourceKey, locale = getAppLocale()) {
@@ -27,6 +42,22 @@ export function getLocalizedResourceLabel(resourceKey, locale = getAppLocale()) 
 
   if (resourceKey === 'arsenalQuota') {
     return getMessage('resource.arsenalQuota', {}, locale);
+  }
+
+  if (resourceKey === 'aicQuota') {
+    return getMessage('resource.aicQuota', {}, locale);
+  }
+
+  if (resourceKey === 'bondQuota') {
+    return getMessage('resource.bondQuota', {}, locale);
+  }
+
+  if (resourceKey === 'endpointQuota') {
+    return getMessage('resource.endpointQuota', {}, locale);
+  }
+
+  if (resourceKey === 'trustToken') {
+    return getMessage('resource.trustToken', {}, locale);
   }
 
   return RESOURCE_LABELS[resourceKey] || resourceKey;
@@ -180,6 +211,8 @@ export function buildResourceSummaryFromAggregates({
   chargedWeaponPulls = weaponPulls,
   counts = {},
   arsenalGainCounts = counts,
+  quotaLedger = null,
+  quotaSummary = null,
   settings = DEFAULT_RESOURCE_RULES
 } = {}) {
   const normalizedSettings = normalizeResourceSettings(settings);
@@ -191,6 +224,7 @@ export function buildResourceSummaryFromAggregates({
   const originiteEquivalent = jadeSpent / normalizedSettings.originiteToJadeRate;
   const arsenalSpent = normalizedChargedWeaponPulls * getWeaponSingleQuotaCost(normalizedSettings);
   const arsenalGained = calculateArsenalQuotaGainFromCounts(arsenalGainCounts, normalizedSettings);
+  const normalizedQuota = normalizeQuotaSummary(quotaSummary || quotaLedger?.quota || quotaLedger || {});
 
   return {
     characterPulls: normalizedCharacterPulls,
@@ -201,8 +235,13 @@ export function buildResourceSummaryFromAggregates({
     originiteEquivalent,
     arsenalSpent,
     arsenalGained,
-    arsenalNet: arsenalGained - arsenalSpent
+    arsenalNet: arsenalGained - arsenalSpent,
+    ...normalizedQuota
   };
+}
+
+export function buildWeaponQuotaSummaryFromCounts(counts = {}) {
+  return calculateWeaponQuotaFromCounts(counts);
 }
 
 export function buildPoolResourceSummary({
@@ -210,6 +249,7 @@ export function buildPoolResourceSummary({
   totalPulls = 0,
   chargedPulls = totalPulls,
   counts = {},
+  quotaLedger = null,
   settings = DEFAULT_RESOURCE_RULES
 } = {}) {
   const normalizedPoolType = normalizePoolType(poolType);
@@ -221,6 +261,7 @@ export function buildPoolResourceSummary({
     chargedWeaponPulls: normalizedPoolType === 'weapon' ? chargedPulls : 0,
     counts,
     arsenalGainCounts: normalizedPoolType === 'weapon' ? {} : counts,
+    quotaLedger,
     settings
   });
 }
@@ -257,6 +298,7 @@ function countPaidHistory(history = []) {
 
 export function buildSimulatorResourceLedger(simulatorStates = [], settings = DEFAULT_SIMULATOR_RESOURCE_SETTINGS) {
   const normalizedSettings = normalizeResourceSettings(settings);
+  const quotaLedger = buildQuotaLedgerFromSimulatorStates(simulatorStates);
 
   const aggregate = simulatorStates.reduce((accumulator, state) => {
     const poolType = normalizePoolType(state?.poolType);
@@ -297,6 +339,7 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
     weaponPulls: aggregate.weaponPulls,
     counts: totalCounts,
     arsenalGainCounts: aggregate.characterCounts,
+    quotaLedger,
     settings: normalizedSettings
   });
 
@@ -326,6 +369,9 @@ export function buildSimulatorResourceLedger(simulatorStates = [], settings = DE
     baseJade: normalizedSettings.baseJade,
     baseOriginite: normalizedSettings.baseOriginite,
     baseArsenalQuota: normalizedSettings.baseArsenalQuota,
+    characterQuota: quotaLedger.characterQuota,
+    weaponQuota: quotaLedger.weaponQuota,
+    quotaCharacters: quotaLedger.characterRows,
     manualConvertedOriginite,
     manualConvertedJade,
     originiteSpent,
@@ -440,6 +486,7 @@ export default {
   calculateArsenalQuotaRewardForRarity,
   buildResourceSummaryFromAggregates,
   buildPoolResourceSummary,
+  buildWeaponQuotaSummaryFromCounts,
   buildSimulatorResourceLedger,
   getOriginiteConversionPlanForJadeCost,
   getSimulatorPullCost,

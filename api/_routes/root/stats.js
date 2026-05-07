@@ -17,10 +17,20 @@ const cache = {
   globalSummary: null,
   globalSummaryLastFetch: 0,
   characterRanking: null,
-  characterRankingLastFetch: 0
+  characterRankingLastFetch: 0,
+  characterCatalog: null,
+  characterCatalogLastFetch: 0
 };
 
 const CACHE_TTL = 60 * 1000; // 60秒缓存
+const PRIVATE_CHARACTER_CATALOG_KEYS = new Set([
+  'user_id',
+  'game_uid',
+  'history_id',
+  'record_id',
+  'platform_user_id',
+  'email'
+]);
 
 // 创建 Supabase 客户端
 function getSupabaseClient() {
@@ -108,6 +118,26 @@ function sortPoolCatalogRecords(left, right) {
   return String(left?.pool_id || left?.id || '').localeCompare(String(right?.pool_id || right?.id || ''));
 }
 
+function stripPrivateCharacterCatalogFields(value) {
+  if (Array.isArray(value)) {
+    return value.map(stripPrivateCharacterCatalogFields);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !PRIVATE_CHARACTER_CATALOG_KEYS.has(key))
+      .map(([key, nestedValue]) => [key, stripPrivateCharacterCatalogFields(nestedValue)])
+  );
+}
+
+function sanitizeCharacterCatalog(catalog) {
+  return catalog ? stripPrivateCharacterCatalogFields(catalog) : null;
+}
+
 async function fetchPublicProfilesMap(supabase, userIds = []) {
   const uniqueIds = [...new Set((userIds || []).filter(Boolean))];
   if (uniqueIds.length === 0) {
@@ -193,6 +223,8 @@ export default async function handler(req, res) {
         return await handleGlobalSummary(supabase, res, now);
       case 'character_ranking':
         return await handleCharacterRanking(supabase, res, now);
+      case 'character_catalog':
+        return await handleCharacterCatalog(supabase, res, now);
       case 'all':
         return await handleAll(supabase, res, now);
       default:
@@ -226,13 +258,16 @@ function getCachedData(type) {
       return { globalSummary: cache.globalSummary ?? null };
     case 'character_ranking':
       return { characterRanking: cache.characterRanking ?? null };
+    case 'character_catalog':
+      return { characterCatalog: sanitizeCharacterCatalog(cache.characterCatalog) };
     case 'all':
       return {
         pools: cache.pools ?? [],
         poolCatalog: cache.poolCatalog ?? [],
         characters: cache.characters ?? [],
         globalSummary: cache.globalSummary ?? null,
-        characterRanking: cache.characterRanking ?? null
+        characterRanking: cache.characterRanking ?? null,
+        characterCatalog: sanitizeCharacterCatalog(cache.characterCatalog)
       };
     default:
       return {};
@@ -362,6 +397,30 @@ async function handleCharacterRanking(supabase, res, now) {
   });
 }
 
+async function handleCharacterCatalog(supabase, res, now) {
+  if (cache.characterCatalog !== null && now - cache.characterCatalogLastFetch < CACHE_TTL) {
+    return res.status(200).json({
+      success: true,
+      cached: true,
+      data: { characterCatalog: sanitizeCharacterCatalog(cache.characterCatalog) }
+    });
+  }
+
+  const { data, error } = await supabase.rpc('get_character_catalog_stats_cached');
+  if (error) {
+    throw error;
+  }
+
+  cache.characterCatalog = sanitizeCharacterCatalog(data);
+  cache.characterCatalogLastFetch = now;
+
+  return res.status(200).json({
+    success: true,
+    cached: false,
+    data: { characterCatalog: cache.characterCatalog }
+  });
+}
+
 // 处理所有数据（一次性获取）
 async function handleAll(supabase, res, now) {
   const result = {
@@ -369,11 +428,19 @@ async function handleAll(supabase, res, now) {
     poolCatalog: [],
     characters: [],
     globalSummary: null,
-    characterRanking: null
+    characterRanking: null,
+    characterCatalog: null
   };
 
   // 并行获取所有数据
-  const [poolsResult, poolCatalogResult, charactersResult, globalSummaryResult, characterRankingResult] = await Promise.allSettled([
+  const [
+    poolsResult,
+    poolCatalogResult,
+    charactersResult,
+    globalSummaryResult,
+    characterRankingResult,
+    characterCatalogResult
+  ] = await Promise.allSettled([
     fetchVisiblePools(supabase),
     fetchPoolCatalog(supabase),
     supabase
@@ -381,7 +448,8 @@ async function handleAll(supabase, res, now) {
       .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
       .order('name'),
     supabase.rpc('get_global_stats_cached'),
-    supabase.rpc('get_character_ranking_stats_cached')
+    supabase.rpc('get_character_ranking_stats_cached'),
+    supabase.rpc('get_character_catalog_stats_cached')
   ]);
 
   // 处理卡池
@@ -424,6 +492,14 @@ async function handleAll(supabase, res, now) {
     cache.characterRankingLastFetch = now;
   } else if (cache.characterRanking !== null) {
     result.characterRanking = cache.characterRanking;
+  }
+
+  if (characterCatalogResult.status === 'fulfilled' && !characterCatalogResult.value.error) {
+    result.characterCatalog = sanitizeCharacterCatalog(characterCatalogResult.value.data);
+    cache.characterCatalog = result.characterCatalog;
+    cache.characterCatalogLastFetch = now;
+  } else if (cache.characterCatalog !== null) {
+    result.characterCatalog = sanitizeCharacterCatalog(cache.characterCatalog);
   }
 
   return res.status(200).json({

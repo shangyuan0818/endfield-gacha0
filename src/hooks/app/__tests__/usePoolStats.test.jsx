@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { usePoolStats } from '../usePoolStats.js';
+import { buildPoolResourceSummary } from '../../../utils/resourceEconomy.js';
 
 vi.mock('../../../stores/useHistoryStore.js', () => ({
   default: (selector) => selector({
@@ -107,6 +108,62 @@ describe('usePoolStats', () => {
       pity5: 0,
       isInherited: false,
     });
+  });
+
+  it('passes current-pool quota ledger into resource summary', () => {
+    vi.mocked(buildPoolResourceSummary).mockClear();
+
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'e1',
+        rarity: 4,
+        poolId: 'pool_extra',
+        timestamp: '2026-05-01T10:00:00.000Z',
+        seqId: '1',
+        character_name: '四星A',
+      },
+      {
+        id: 'e2',
+        rarity: 5,
+        poolId: 'pool_extra',
+        timestamp: '2026-05-01T10:01:00.000Z',
+        seqId: '2',
+        character_name: '五星A',
+      },
+      {
+        id: 'e3',
+        rarity: 4,
+        poolId: 'pool_extra',
+        timestamp: '2026-05-01T10:02:00.000Z',
+        seqId: '3',
+        character_name: '免费四星',
+        isFree: true,
+      },
+    ];
+
+    renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_extra',
+        type: 'extra',
+        isGroupMode: false,
+      },
+      selectedPools: [
+        { id: 'pool_extra', type: 'extra' },
+      ],
+    }));
+
+    expect(buildPoolResourceSummary).toHaveBeenCalledWith(expect.objectContaining({
+      poolType: 'extra',
+      totalPulls: 2,
+      chargedPulls: 2,
+      quotaLedger: expect.objectContaining({
+        quota: expect.objectContaining({
+          aicQuotaDirect: 90,
+          bondQuotaDirect: 3,
+        }),
+      }),
+    }));
   });
 
   it('uses cross-pool limited history when inherited pity should carry over', () => {

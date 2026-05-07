@@ -350,6 +350,24 @@ const SimulatorToolbar = ({
         value: Number(resourceLedger?.arsenalSpent || 0),
         icon: RESOURCE_ICON_URLS.arsenalQuota,
       },
+      {
+        key: 'aicQuotaTotalPotential',
+        label: t('simulator.resource.cumulative.aicQuotaTotalPotential'),
+        value: Number(resourceLedger?.aicQuotaTotalPotential || 0),
+        icon: RESOURCE_ICON_URLS.aicQuota,
+      },
+      {
+        key: 'bondQuotaDirect',
+        label: t('simulator.resource.cumulative.bondQuotaDirect'),
+        value: Number(resourceLedger?.bondQuotaDirect || 0),
+        icon: RESOURCE_ICON_URLS.bondQuota,
+      },
+      {
+        key: 'endpointQuotaConvertible',
+        label: t('simulator.resource.cumulative.endpointQuotaConvertible'),
+        value: Number(resourceLedger?.endpointQuotaConvertible || 0),
+        icon: RESOURCE_ICON_URLS.endpointQuota,
+      },
     ],
     [resourceLedger, t]
   );
@@ -448,7 +466,7 @@ const SimulatorToolbar = ({
             <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-bold mb-2">
               {t('simulator.toolbar.cumulative')}
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7 gap-2">
               {cumulativeItems.map((item) => (
                 <CumulativeChip key={item.key} icon={item.icon} label={item.label} value={item.value} locale={locale} />
               ))}

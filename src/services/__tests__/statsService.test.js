@@ -22,6 +22,7 @@ vi.mock('../../utils/storageUtils.js', () => ({
   STORAGE_KEYS: {
     GLOBAL_SUMMARY_STATS_SNAPSHOT: 'global-summary',
     CHARACTER_RANKING_SNAPSHOT: 'character-ranking',
+    CHARACTER_CATALOG_SNAPSHOT: 'character-catalog',
     USER_RANKING_SNAPSHOT_PREFIX: 'user-ranking:',
   },
   readStorageValue: vi.fn(() => null),

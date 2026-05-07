@@ -1,50 +1,88 @@
 import React from 'react';
-import { BarChart3, Cloud, Globe, Layers, Star, Swords } from 'lucide-react';
+import { BarChart3, BookOpen, Cloud, Globe, Layers, User } from 'lucide-react';
 import usePoolStore from '../../stores/usePoolStore';
 import useHistoryStore from '../../stores/useHistoryStore';
 import useAppStore from '../../stores/useAppStore';
 import useAuthStore from '../../stores/useAuthStore';
-import { useSummaryViewState } from '../../hooks/summary';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel.jsx';
+import { CharacterCatalogView, ChartSection } from '../../components/summary';
+import { getTooltipStyle, useSummaryViewState, useThemeDetection } from '../../hooks/summary';
 import { useI18n } from '../../i18n/index.js';
-import {
-  MobilePage,
-  MobilePillTabs,
-  MobileSectionTitle,
-  MobileStatusBadge
-} from '../components/ux/MobilePrimitives.jsx';
 
-function SmallStat({ label, value, accent = 'text-white' }) {
+function StatCard({ icon: Icon, label, value, hint, tone = 'text-slate-900 dark:text-white' }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/55 p-3">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{label}</div>
-      <div className={`mt-2 tabular-nums text-xl font-black ${accent}`}>{value}</div>
+    <div className="rounded-xl border border-zinc-200 bg-white/80 p-3 shadow-sm backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-900/70">
+      <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-zinc-500">
+        {Icon && <Icon size={12} />}
+        {label}
+      </div>
+      <div className={`mt-1.5 break-words font-mono text-xl font-black leading-tight ${tone}`}>{value}</div>
+      {hint && <div className="mt-1 text-[9px] leading-tight text-slate-500 dark:text-zinc-500">{hint}</div>}
     </div>
   );
 }
 
-function TypeCard({ title, subtitle, total, six, avgPity, avgPityUp, accent = 'text-white' }) {
+function TypeCard({ title, total, six, avgPity, avgPityUp, targetVsOff, targetRate, subtitle, breakdownLines }) {
   const { t } = useI18n();
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-[#111] p-4">
-      <div className="flex items-center justify-between gap-3 border-b border-dashed border-zinc-800 pb-3">
-        <div>
-          <div className="text-sm font-black text-white">{title}</div>
-          <div className="mt-1 text-[11px] text-zinc-500">{subtitle}</div>
+    <div className="rounded-xl border border-zinc-200 bg-white/80 p-3 shadow-sm backdrop-blur-xl dark:border-zinc-800/50 dark:bg-zinc-900/70">
+      <div className="mb-3 flex items-center justify-between gap-2 border-b border-dashed border-zinc-200 pb-2.5 dark:border-zinc-800">
+        <div className="min-w-0">
+          <div className="truncate text-xs font-black text-slate-900 dark:text-white">{title}</div>
+          {subtitle ? <div className="mt-0.5 truncate text-[9px] font-mono text-slate-500 dark:text-zinc-500">{subtitle}</div> : null}
         </div>
-        <div className={`rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.14em] ${accent} border-current/20 bg-white/5`}>
-          6★
+        <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-400">6★</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <StatCard label={t('summary.metric.totalPulls')} value={total} />
+        <StatCard label="6★" value={six} tone="text-amber-600 dark:text-amber-400" />
+        <StatCard label={t('stats.avgSix')} value={avgPity} tone="text-indigo-600 dark:text-indigo-400" />
+        <StatCard label={t('stats.avgTarget')} value={avgPityUp} tone="text-emerald-600 dark:text-emerald-400" />
+        {targetVsOff ? (
+          <StatCard
+            label={t('summary.metric.targetVsOff', {}, '不歪/歪')}
+            value={targetVsOff}
+            hint={targetRate ? `${t('summary.metric.targetRate', {}, '不歪率')}: ${targetRate}` : undefined}
+            tone="text-slate-900 dark:text-white"
+          />
+        ) : null}
+      </div>
+      {breakdownLines?.length ? (
+        <div className="mt-3 space-y-1.5 border-t border-zinc-200 pt-2.5 font-mono text-[9px] text-slate-500 dark:border-zinc-800 dark:text-zinc-500">
+          {breakdownLines.map((line) => (
+            <div key={line.label} className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-sm ${line.colorClass}`} />
+              <span className="min-w-0 flex-1 truncate">{line.label}: {line.total}</span>
+              <span className="shrink-0 text-slate-700 dark:text-zinc-300">{line.avg}</span>
+            </div>
+          ))}
         </div>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-y-4 gap-x-3 text-[11px]">
-        <div><div className="text-zinc-500">{t('summary.metric.totalPulls')}</div><div className="mt-1 tabular-nums text-xl font-black text-white">{total}</div></div>
-        <div><div className="text-zinc-500">6★</div><div className={`mt-1 tabular-nums text-xl font-black ${accent}`}>{six}</div></div>
-        <div><div className="text-zinc-500">{t('stats.avgSix')}</div><div className="mt-1 tabular-nums text-lg font-black text-indigo-400">{avgPity}</div></div>
-        <div><div className="text-zinc-500">{t('stats.avgTarget')}</div><div className="mt-1 tabular-nums text-lg font-black text-emerald-400">{avgPityUp}</div></div>
-      </div>
+      ) : null}
     </div>
   );
+}
+
+function formatAverageValue(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric.toFixed(1) : '-';
+}
+
+function getPoolAverageSixValue(poolStats) {
+  const avgExcludingFree = Number(poolStats?.avgPityExcludingFree);
+  if (Number.isFinite(avgExcludingFree) && avgExcludingFree > 0) {
+    return avgExcludingFree;
+  }
+
+  const avgWithFree = Number(poolStats?.avgPity);
+  return Number.isFinite(avgWithFree) && avgWithFree > 0 ? avgWithFree : null;
+}
+
+function formatPercentValue(formatNumber, value, digits = 1) {
+  return `${formatNumber(Number(value) || 0, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  })}%`;
 }
 
 function MobileStatsView() {
@@ -55,11 +93,19 @@ function MobileStatsView() {
   const globalStatsLoading = useAppStore((state) => state.globalStatsLoading);
   const fetchGlobalStats = useAppStore((state) => state.fetchGlobalStats);
   const { t, formatNumber } = useI18n();
+  const isDark = useThemeDetection();
+  const tooltipStyle = React.useMemo(() => getTooltipStyle(isDark), [isDark]);
+  const [activePage, setActivePage] = React.useState('overview');
   const {
+    dataSource,
+    setDataSource,
     poolTypeFilter,
     setPoolTypeFilter,
+    localStats,
     currentStats,
+    chartDisplayData,
     ranking,
+    isRankingLoading,
     filterOptions
   } = useSummaryViewState({
     history,
@@ -69,260 +115,235 @@ function MobileStatsView() {
     fetchGlobalStats,
     variant: 'mobile',
     initialDataSource: 'global',
-    lockedDataSource: 'global',
     initialPoolTypeFilter: 'all'
   });
+
+  const loading = dataSource === 'global' ? (globalStatsLoading || !currentStats) : !currentStats;
   const totalContributors = Number(currentStats?.totalContributors ?? currentStats?.totalUsers ?? 0) || 0;
   const contributorRegionStats = currentStats?.contributorsByRegion || null;
-  const contributorCn = Number(contributorRegionStats?.cn || 0) || 0;
-  const contributorIntl = Number(contributorRegionStats?.intl || 0) || 0;
-
-  const limitedRanking = ranking?.limited || {};
-  const upHits = limitedRanking.sixStarUpExcludingFree ?? limitedRanking.sixStarUpCount ?? 0;
-  const offStandardHits = limitedRanking.sixStarOffStandardExcludingFree ?? limitedRanking.sixStarOffStandardCount ?? 0;
-  const offLimitedHits = limitedRanking.sixStarOffLimitedExcludingFree ?? limitedRanking.sixStarOffLimitedCount ?? 0;
-  const sparkCount = currentStats?.byType?.limited?.sparkCount || 0;
-  const limitedTotalSix = Number(upHits) + Number(offStandardHits) + Number(offLimitedHits);
-  const onRate = limitedTotalSix > 0 ? `${((Number(upHits) / limitedTotalSix) * 100).toFixed(1)}%` : '0.0%';
-  const loading = globalStatsLoading || !currentStats;
-  const formatAverageValue = React.useCallback((value) => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric > 0 ? numeric.toFixed(1) : '-';
-  }, []);
-  const getPoolAverageSixValue = React.useCallback((poolStats) => {
-    const avgExcludingFree = Number(poolStats?.avgPityExcludingFree);
-    if (Number.isFinite(avgExcludingFree) && avgExcludingFree > 0) {
-      return avgExcludingFree;
-    }
-
-    const avgWithFree = Number(poolStats?.avgPity);
-    return Number.isFinite(avgWithFree) && avgWithFree > 0 ? avgWithFree : null;
-  }, []);
-  const combinedCharacterAverageSix = React.useMemo(() => {
-    const limitedPool = currentStats?.byType?.limited || {};
-    const standardPool = currentStats?.byType?.standard || {};
-    const limitedSix = Number(limitedPool.six || 0);
-    const standardSix = Number(standardPool.six || 0);
-    const totalSix = limitedSix + standardSix;
-
-    if (totalSix <= 0) {
-      return null;
-    }
-
-    const limitedAvgExcludingFree = Number(limitedPool.avgPityExcludingFree);
-    const standardAvgExcludingFree = Number(standardPool.avgPityExcludingFree || standardPool.avgPity);
-    if (Number.isFinite(limitedAvgExcludingFree) && limitedAvgExcludingFree > 0) {
-      const weightedExcludingFree = (
-        limitedAvgExcludingFree * limitedSix
-        + (Number.isFinite(standardAvgExcludingFree) ? standardAvgExcludingFree : 0) * standardSix
-      ) / totalSix;
-      return Number.isFinite(weightedExcludingFree) ? weightedExcludingFree : null;
-    }
-
-    const limitedAvg = Number(limitedPool.avgPity);
-    const standardAvg = Number(standardPool.avgPity);
-    const weighted = (
-      (Number.isFinite(limitedAvg) ? limitedAvg : 0) * limitedSix
-      + (Number.isFinite(standardAvg) ? standardAvg : 0) * standardSix
-    ) / totalSix;
-
-    return Number.isFinite(weighted) ? weighted : null;
-  }, [currentStats]);
+  const pageOptions = [
+    { value: 'overview', label: t('summary.page.overview', {}, '统计概览'), icon: BarChart3 },
+    { value: 'catalog', label: t('characterCatalog.title', {}, '角色图鉴'), icon: BookOpen }
+  ];
+  const sourceOptions = [
+    { value: 'global', label: t('summary.source.global', {}, '全服数据'), icon: Cloud },
+    { value: 'local', label: t('summary.source.local', {}, '我的数据'), icon: User }
+  ];
+  const characterStats = currentStats?.byType?.character || {};
+  const weaponStats = currentStats?.byType?.weapon || {};
+  const extraStats = currentStats?.byType?.extra || {};
+  const limitedStats = currentStats?.byType?.limited || {};
+  const standardStats = currentStats?.byType?.standard || {};
+  const formatCount = React.useCallback((value) => formatNumber(Number(value) || 0), [formatNumber]);
+  const formatPercent = React.useCallback((value, digits = 1) => formatPercentValue(formatNumber, value, digits), [formatNumber]);
+  const renderChartSections = () => (
+    chartDisplayData?.charts?.length ? (
+      <div className="space-y-3">
+        {chartDisplayData.charts.map((chart, index) => (
+          <ChartSection
+            key={`${chart.title}-${index}`}
+            title={chart.title}
+            subtitle={chart.subtitle}
+            color={chart.color}
+            data={chart.data}
+            isGlobal={chartDisplayData.isGlobal}
+            tooltipStyle={tooltipStyle}
+            isDark={isDark}
+            mobile
+          />
+        ))}
+      </div>
+    ) : null
+  );
 
   return (
-    <div className="flex-1 h-full overflow-y-auto overflow-x-hidden slide-right-enter scroll-smooth w-full flex flex-col pb-20">
-        {/* Fixed Top Controls */}
-        <div className="pt-6 pb-3 px-4 bg-white/95 dark:bg-ef-dark/95 backdrop-blur-xl z-20 border-b border-zinc-200 dark:border-zinc-800/50 shrink-0">
-            <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-black tracking-widest text-slate-900 dark:text-white">{t('nav.stats')}</h1>
-            </div>
-
-            {/* Pill Tabs for Pool Selection */}
-            <div className="flex bg-zinc-100 dark:bg-zinc-900/80 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-x-auto scrollbar-hide">
-                {filterOptions.map((option) => (
-                    <button
-                        key={option.value}
-                        onClick={() => setPoolTypeFilter(option.value)}
-                        className={`flex-1 min-w-[70px] shrink-0 py-1.5 px-2 text-[11px] font-bold rounded-md transition-all ${
-                            poolTypeFilter === option.value
-                            ? 'bg-zinc-200 dark:bg-zinc-800 text-slate-900 dark:text-white shadow-sm'
-                            : 'text-slate-500 dark:text-zinc-500 hover:text-slate-700 dark:text-zinc-300'
-                        }`}
-                    >
-                        {option.label}
-                    </button>
-                ))}
-            </div>
+    <div className="flex h-full w-full flex-1 flex-col overflow-x-hidden overflow-y-auto pb-20 slide-right-enter scroll-smooth">
+      <div className="shrink-0 border-b border-zinc-200 bg-white/95 px-3 pb-2.5 pt-4 backdrop-blur-xl dark:border-zinc-800/50 dark:bg-ef-dark/95">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-xl font-black tracking-wider text-slate-900 dark:text-white">{t('nav.stats')}</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-6">
-            {/* Title Bar */}
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-200 dark:border-zinc-800">
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-                        <Globe size={16} />
-                    </div>
-                    <div>
-                        <h2 className="font-bold text-sm text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                            {t('summary.ranking.globalStats')}
-                        </h2>
-                        <span className="text-slate-500 dark:text-zinc-500 text-[9px] font-mono block mt-0.5">TARGET // {filterOptions.find(o => o.value === poolTypeFilter)?.label || 'ALL'}</span>
-                    </div>
+        <div className="mb-1.5 flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+          {pageOptions.map((option) => {
+            const Icon = option.icon;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setActivePage(option.value)}
+                className={`flex min-w-[6rem] flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold transition-all ${
+                  activePage === option.value
+                    ? 'bg-zinc-200 text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300'
+                }`}
+              >
+                <Icon size={12} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {activePage === 'overview' ? (
+          <div className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+            {filterOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setPoolTypeFilter(option.value)}
+                className={`min-w-[62px] flex-1 shrink-0 rounded-md px-2 py-1 text-[10px] font-bold transition-all ${
+                  poolTypeFilter === option.value
+                    ? 'bg-zinc-200 text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+            {sourceOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setDataSource(option.value)}
+                  className={`flex min-w-[6rem] flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-bold transition-all ${
+                    dataSource === option.value
+                      ? 'bg-zinc-200 text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-white'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-zinc-500 dark:hover:text-zinc-300'
+                  }`}
+                >
+                <Icon size={12} />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-3 pb-6 pt-3">
+        {activePage === 'catalog' ? (
+          <CharacterCatalogView
+            dataSource={dataSource}
+            setDataSource={setDataSource}
+            history={history}
+            pools={pools}
+            user={user}
+            globalStats={globalStats}
+            localStats={localStats}
+            currentStats={currentStats}
+            fetchGlobalStats={fetchGlobalStats}
+            globalStatsLoading={globalStatsLoading}
+            ranking={ranking}
+            isRankingLoading={isRankingLoading}
+            mobile
+          />
+        ) : (
+          <>
+            <div className="mb-3 flex items-center justify-between border-b border-zinc-200 pb-2 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="rounded-md bg-indigo-100 p-1.5 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
+                  <Globe size={14} />
                 </div>
-                <div className="text-right">
-                    <span className="block text-[8px] text-slate-500 dark:text-zinc-500 uppercase font-mono tracking-widest">{t('stats.contributors')}</span>
-                    <span className="text-sm font-bold text-slate-700 dark:text-zinc-300 font-mono">{formatNumber(totalContributors)}</span>
-                    {contributorRegionStats ? (
-                      <div className="mt-1 flex flex-wrap justify-end gap-1 text-[9px] font-mono text-slate-500 dark:text-zinc-500">
-                        <span>{t('summary.metric.cn')}: {formatNumber(contributorCn)}</span>
-                        <span>{t('summary.metric.intl')}: {formatNumber(contributorIntl)}</span>
-                      </div>
-                    ) : null}
+                <div>
+                  <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                    {dataSource === 'global' ? t('summary.source.global', {}, '全服数据') : t('summary.source.local', {}, '我的数据')}
+                  </h2>
+                  <span className="mt-0.5 block font-mono text-[9px] text-slate-500 dark:text-zinc-500">
+                    TARGET // {filterOptions.find((option) => option.value === poolTypeFilter)?.label || 'ALL'}
+                  </span>
                 </div>
+              </div>
+              <div className="text-right">
+                <span className="block font-mono text-[8px] uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('stats.contributors')}</span>
+                <span className="font-mono text-xs font-bold text-slate-700 dark:text-zinc-300">{formatNumber(totalContributors)}</span>
+                {contributorRegionStats ? (
+                  <div className="mt-1 flex flex-wrap justify-end gap-1 font-mono text-[9px] text-slate-500 dark:text-zinc-500">
+                    <span>{t('summary.metric.cn')}: {formatNumber(contributorRegionStats.cn || 0)}</span>
+                    <span>{t('summary.metric.intl')}: {formatNumber(contributorRegionStats.intl || 0)}</span>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {loading ? (
-                <div className="py-20 text-center text-sm font-mono text-slate-500 dark:text-zinc-500">{t('common.loading')}</div>
+              <div className="py-20 text-center font-mono text-sm text-slate-500 dark:text-zinc-500">{t('common.loading')}</div>
             ) : poolTypeFilter === 'all' ? (
-                <div className="space-y-4">
-                    {/* Total Pulls */}
-                    <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm border-zinc-200 dark:border-zinc-800/50 p-4 relative overflow-hidden group/stat rounded-xl flex items-center justify-between">
-                        <div>
-                            <div className="text-slate-600 dark:text-zinc-400 text-[10px] font-bold uppercase tracking-wider mb-1">{t('summary.metric.totalPulls')}</div>
-                            <div className="text-3xl font-black text-slate-900 dark:text-white font-mono">{formatNumber(currentStats?.total || 0)}</div>
-                        </div>
-                        <Layers size={40} className="text-slate-200 dark:text-zinc-800 opacity-50" />
-                    </div>
+              <div className="space-y-3">
+                <StatCard
+                  icon={Layers}
+                  label={t('summary.metric.totalPulls')}
+                  value={formatNumber(currentStats?.total || 0)}
+                />
 
-                    {/* Limited Pool UP Analysis */}
-                    <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm border-zinc-200 dark:border-zinc-800/50 p-4 rounded-xl">
-                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
-                            <Star size={14} className="text-amber-500" />
-                            <h4 className="font-bold text-[11px] text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{t('summary.ranking.limitedUpSix')}</h4>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-y-4 gap-x-3">
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> {t('summary.metric.limitedUpSix')}
-                                </div>
-                                <div className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-500">{formatNumber(upHits)}</div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.limitedUpSixHint')}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span> {t('summary.metric.offStandardSix')}
-                                </div>
-                                <div className="text-lg font-bold font-mono text-rose-600 dark:text-rose-500">{formatNumber(offStandardHits)}</div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.offStandardSixHint')}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span> {t('summary.metric.offLimitedSix')}
-                                </div>
-                                <div className="text-lg font-bold font-mono text-orange-600 dark:text-orange-500">{formatNumber(offLimitedHits)}</div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.offLimitedSixHint')}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> {t('summary.metric.sparkCount')}
-                                </div>
-                                <div className="text-lg font-bold font-mono text-red-500">{formatNumber(sparkCount)}</div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.sparkCountHint')}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('summary.metric.winRate')}</div>
-                                <div className="text-lg font-bold font-mono text-indigo-600 dark:text-indigo-500">{onRate}</div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.winRateHint')}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('summary.metric.limitedRate')}</div>
-                                <div className="text-lg font-bold font-mono text-amber-600 dark:text-amber-500">
-                                   {limitedTotalSix > 0 ? `${(((Number(upHits) + Number(offLimitedHits)) / limitedTotalSix) * 100).toFixed(1)}%` : '0.0%'}
-                                </div>
-                                <div className="text-[8px] text-slate-500 dark:text-zinc-500 font-mono">{t('summary.metric.limitedRateHint')}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Character Pool Stats */}
-                    <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm border-zinc-200 dark:border-zinc-800/50 p-4 rounded-xl">
-                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
-                            <Star size={14} className="text-violet-500" />
-                            <h4 className="font-bold text-[11px] text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{t('home.poolMechanics.cards.limited.title')} & {t('home.poolMechanics.cards.standard.title')}</h4>
-                            <span className="text-[8px] text-slate-500 dark:text-zinc-500 ml-auto font-mono">COMBINED</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-y-4 gap-x-3">
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('summary.metric.totalPulls')}</div>
-                                <div className="text-lg font-bold font-mono text-slate-900 dark:text-zinc-200">{formatNumber((currentStats?.byType?.limited?.total || 0) + (currentStats?.byType?.standard?.total || 0))}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">6★</div>
-                                <div className="text-lg font-bold font-mono text-amber-500">{formatNumber((currentStats?.byType?.limited?.six || 0) + (currentStats?.byType?.standard?.six || 0))}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('stats.avgSix')}</div>
-                                <div className="text-lg font-bold font-mono text-indigo-500">
-                                   {formatAverageValue(combinedCharacterAverageSix)}
-                                </div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('stats.avgTarget')}</div>
-                                <div className="text-lg font-bold font-mono text-emerald-500">{formatAverageValue(currentStats?.byType?.character?.avgPityUp || currentStats?.byType?.limited?.avgPityUp)}</div>
-                            </div>
-                        </div>
-                        <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800/50 flex flex-col gap-2 text-[10px] font-mono">
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-zinc-400">
-                                <span className="w-1.5 h-1.5 bg-emerald-500/50 rounded-sm"></span>  
-                                <span>{t('home.poolMechanics.cards.limited.title')}: {formatNumber(currentStats?.byType?.limited?.total || 0)}</span>
-                                <span className="ml-auto text-emerald-600 dark:text-emerald-500">{formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.limited))} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-zinc-400">
-                                <span className="w-1.5 h-1.5 bg-indigo-500/50 rounded-sm"></span>   
-                                <span>{t('home.poolMechanics.cards.standard.title')}: {formatNumber(currentStats?.byType?.standard?.total || 0)}</span>
-                                <span className="ml-auto text-indigo-600 dark:text-indigo-400">{formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.standard))} {t('overview.unit.pullsPerItem').replace('/', '')}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Weapon Pool Stats */}
-                    <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-zinc-200 dark:border-white/5 shadow-sm border-zinc-200 dark:border-zinc-800/50 p-4 rounded-xl mb-6">
-                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-zinc-200 dark:border-zinc-800 border-dashed">
-                            <Swords size={14} className="text-slate-400" />
-                            <h4 className="font-bold text-[11px] text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{t('home.poolMechanics.cards.weapon.title')}</h4>
-                        </div>
-                        <div className="grid grid-cols-2 gap-y-4 gap-x-3">
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('summary.metric.totalPulls')}</div>
-                                <div className="text-lg font-bold font-mono text-slate-900 dark:text-zinc-200">{formatNumber(currentStats?.byType?.weapon?.total || 0)}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">6★</div>
-                                <div className="text-lg font-bold font-mono text-amber-500">{formatNumber(currentStats?.byType?.weapon?.six || 0)}</div>
-                            </div>
-                            <div className="space-y-0.5">
-                                <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold">{t('stats.avgSix')}</div>
-                                <div className="text-lg font-bold font-mono text-indigo-600 dark:text-indigo-500">{(currentStats?.byType?.weapon?.avgPity || 0).toFixed(1)}</div>
-                            </div>
-                        </div>
-                    </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <TypeCard
+                    title={t('summary.section.characterBannerData', {}, '角色池数据')}
+                    subtitle={t('summary.section.characterBannerSubtitle', {}, '附加 + 限定 + 常驻')}
+                    total={formatNumber(characterStats.total || 0)}
+                    six={<>{formatCount(characterStats.six || 0)}{currentStats.charGift > 0 ? <span className="ml-1 text-xs text-purple-500">+{formatCount(currentStats.charGift)}</span> : null}</>}
+                    avgPity={formatAverageValue(getPoolAverageSixValue(characterStats))}
+                    avgPityUp={formatAverageValue(characterStats.avgPityUp || characterStats.avgPityTarget)}
+                    targetVsOff={<><span className="text-emerald-500">{formatCount(characterStats.limitedSix ?? characterStats.sixStarLimited ?? 0)}</span><span className="mx-1 text-zinc-400">/</span><span className="text-rose-500">{formatCount(Math.max(Number(characterStats.six || 0) - Number(characterStats.limitedSix ?? characterStats.sixStarLimited ?? 0), 0))}</span></>}
+                    targetRate={formatPercent(Number(characterStats.six || 0) > 0 ? (Number(characterStats.limitedSix ?? characterStats.sixStarLimited ?? 0) / Number(characterStats.six || 0)) * 100 : 0)}
+                    breakdownLines={[
+                      { colorClass: 'bg-cyan-500/60', label: t('summary.scope.extra', {}, '附加寻访'), total: `${formatCount(extraStats.total || 0)} ${t('summary.metric.pullsUnit', {}, '抽')}`, avg: `${formatAverageValue(getPoolAverageSixValue(extraStats))} ${t('summary.metric.averageShort', {}, '平均')}` },
+                      { colorClass: 'bg-emerald-500/60', label: t('summary.scope.limited', {}, '限定角色池'), total: `${formatCount(limitedStats.total || 0)} ${t('summary.metric.pullsUnit', {}, '抽')}`, avg: `${formatAverageValue(getPoolAverageSixValue(limitedStats))} ${t('summary.metric.averageShort', {}, '平均')}` },
+                      { colorClass: 'bg-indigo-500/60', label: t('summary.scope.standard', {}, '常驻池'), total: `${formatCount(standardStats.total || 0)} ${t('summary.metric.pullsUnit', {}, '抽')}`, avg: `${formatAverageValue(getPoolAverageSixValue(standardStats))} ${t('summary.metric.averageShort', {}, '平均')}` }
+                    ]}
+                  />
+                  <TypeCard
+                    title={t('summary.section.weaponBannerData', {}, '武器池数据')}
+                    total={formatNumber(weaponStats.total || 0)}
+                    six={<>{formatCount(weaponStats.six || 0)}{(currentStats.weaponGiftLimited > 0 || currentStats.weaponGiftStandard > 0) ? <span className="ml-1 text-xs text-purple-500">+{formatCount((currentStats.weaponGiftLimited || 0) + (currentStats.weaponGiftStandard || 0))}</span> : null}</>}
+                    avgPity={formatAverageValue(getPoolAverageSixValue(weaponStats))}
+                    avgPityUp={formatAverageValue(weaponStats.avgPityUp || weaponStats.avgPityTarget)}
+                    targetVsOff={<><span className="text-emerald-500">{formatCount(weaponStats.limitedSix ?? weaponStats.sixStarLimited ?? 0)}</span><span className="mx-1 text-zinc-400">/</span><span className="text-rose-500">{formatCount(Math.max(Number(weaponStats.six || 0) - Number(weaponStats.limitedSix ?? weaponStats.sixStarLimited ?? 0), 0))}</span></>}
+                    targetRate={formatPercent(Number(weaponStats.six || 0) > 0 ? (Number(weaponStats.limitedSix ?? weaponStats.sixStarLimited ?? 0) / Number(weaponStats.six || 0)) * 100 : 0)}
+                  />
                 </div>
+
+                {currentStats?.resources && (
+                  <ResourceSummaryPanel
+                    title={t('summary.section.allResourceSummary', {}, '全卡池资源统计')}
+                    resources={currentStats.resources}
+                    variant="all"
+                    mobile
+                  />
+                )}
+                {renderChartSections()}
+              </div>
             ) : (
-                <div className="space-y-4">
-                    {/* Specific Pool Type Stats using TypeCard equivalent */}
-                    <TypeCard
-                        title={filterOptions.find(o => o.value === poolTypeFilter)?.label || poolTypeFilter}
-                        subtitle={t('stats.totalPullsSubtitle')}
-                        total={formatNumber(currentStats?.byType?.[poolTypeFilter]?.total || 0)}
-                        six={formatNumber(currentStats?.byType?.[poolTypeFilter]?.six || 0)}
-                        avgPity={formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.[poolTypeFilter]))}
-                        avgPityUp={formatAverageValue(currentStats?.byType?.[poolTypeFilter]?.avgPityUp)}
-                        accent="text-white"
-                    />
-                </div>
+              <div className="space-y-3">
+                <TypeCard
+                  title={filterOptions.find((option) => option.value === poolTypeFilter)?.label || poolTypeFilter}
+                  total={formatNumber(currentStats?.byType?.[poolTypeFilter]?.total || 0)}
+                  six={formatNumber(currentStats?.byType?.[poolTypeFilter]?.six || 0)}
+                  avgPity={formatAverageValue(getPoolAverageSixValue(currentStats?.byType?.[poolTypeFilter]))}
+                  avgPityUp={formatAverageValue(currentStats?.byType?.[poolTypeFilter]?.avgPityUp)}
+                  targetVsOff={<><span className="text-emerald-500">{formatCount(currentStats?.byType?.[poolTypeFilter]?.limitedSix ?? currentStats?.byType?.[poolTypeFilter]?.sixStarLimited ?? 0)}</span><span className="mx-1 text-zinc-400">/</span><span className="text-rose-500">{formatCount(Math.max(Number(currentStats?.byType?.[poolTypeFilter]?.six || 0) - Number(currentStats?.byType?.[poolTypeFilter]?.limitedSix ?? currentStats?.byType?.[poolTypeFilter]?.sixStarLimited ?? 0), 0))}</span></>}
+                  targetRate={formatPercent(Number(currentStats?.byType?.[poolTypeFilter]?.six || 0) > 0 ? (Number(currentStats?.byType?.[poolTypeFilter]?.limitedSix ?? currentStats?.byType?.[poolTypeFilter]?.sixStarLimited ?? 0) / Number(currentStats?.byType?.[poolTypeFilter]?.six || 0)) * 100 : 0)}
+                />
+                {currentStats?.resources && (
+                  <ResourceSummaryPanel
+                    title={poolTypeFilter === 'weapon'
+                      ? t('summary.section.weaponResourceSummary', {}, '武器池资源统计')
+                      : t('summary.section.characterResourceSummary', {}, '角色池资源统计')}
+                    resources={currentStats.resources}
+                    variant={poolTypeFilter === 'weapon' ? 'weapon' : 'character'}
+                    mobile
+                  />
+                )}
+                {renderChartSections()}
+              </div>
             )}
-        </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

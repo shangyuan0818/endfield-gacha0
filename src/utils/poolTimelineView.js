@@ -5,6 +5,7 @@ import {
   isInfoBookHistoryPull
 } from './historyInfoBook.js';
 import { getPoolTimingMeta, normalizePoolGroupType } from './poolSelectorDisplay.js';
+import { compareHistoryTimelineAsc } from './historyTimelineSort.js';
 import {
   EXTRA_POOL_RULES,
   LIMITED_POOL_RULES,
@@ -60,12 +61,32 @@ function getHistoryTimestamp(item) {
 }
 
 function sortHistoryAsc(left, right) {
-  const timeDiff = getHistoryTimestamp(left) - getHistoryTimestamp(right);
-  if (timeDiff !== 0) {
-    return timeDiff;
+  const timelineDiff = compareHistoryTimelineAsc(left, right);
+  if (timelineDiff !== 0) {
+    return timelineDiff;
   }
-
   return getHistorySeqId(left) - getHistorySeqId(right);
+}
+
+function sanitizeTimelineDomId(value) {
+  return encodeURIComponent(String(value || 'unknown')).replace(/%/g, '_');
+}
+
+export function getTimelineStageElementId(sectionId, entryId) {
+  return `timeline-stage-${sanitizeTimelineDomId(sectionId)}-${sanitizeTimelineDomId(entryId)}`;
+}
+
+function getSourceRecordKeys(items = []) {
+  return (Array.isArray(items) ? items : [])
+    .map(getHistoryRecordKey)
+    .filter(Boolean);
+}
+
+function isGuaranteedHistoryPull(item) {
+  return item?.specialType === 'guaranteed'
+    || item?.special_type === 'guaranteed'
+    || item?.isSpark === true
+    || item?.isGuaranteed === true;
 }
 
 function roundScaleMax(value, minimum) {
@@ -584,7 +605,8 @@ function buildCurrentStageEntry(pool, pendingPaidCount, currentPityValue, suppor
         locale
       ),
     dropBadges: supportBadges,
-    highestRarity: supportBadges.some((badge) => Number(badge?.rarity) >= 5) ? 5 : 0
+    highestRarity: supportBadges.some((badge) => Number(badge?.rarity) >= 5) ? 5 : 0,
+    sourceRecordKeys: getSourceRecordKeys(supportItems)
   };
 }
 
@@ -627,7 +649,8 @@ function buildStageEntries({
           ),
         dropBadges: createDropBadges(summary.highRarityItems, locale),
         highlightStageKind: milestone.highlightStageKind || milestone.stageKind,
-        highestRarity: milestone.highestRarity || Number(summary.primaryHighRarity?.rarity) || 0
+        highestRarity: milestone.highestRarity || Number(summary.primaryHighRarity?.rarity) || 0,
+        sourceRecordKeys: getSourceRecordKeys(group)
       });
       return;
     }
@@ -660,9 +683,10 @@ function buildStageEntries({
           summary.primaryHighRarity,
           localizePoolFeaturedName(pool, { locale }) || localizeEntityName(pool?.up_character || pool?.upCharacter || '?', { locale }),
           locale
-        ),
+      ),
       dropBadges: createDropBadges(mergedSupportItems, locale),
-      highestRarity: milestone.highestRarity || 6
+      highestRarity: milestone.highestRarity || 6,
+      sourceRecordKeys: getSourceRecordKeys(mergeBadgeItems(pendingSupportItems, group))
     });
     pendingPaidCount = 0;
     pendingSupportItems = [];
@@ -816,7 +840,109 @@ export function buildOverviewTimelineSections({
     .filter(Boolean);
 }
 
+export function buildLimitedCrossPoolPityMap(history = []) {
+  const sorted = [...(Array.isArray(history) ? history : [])].sort(sortHistoryAsc);
+  const map = new Map();
+  let sixPity = 0;
+  let fivePity = 0;
+
+  sorted
+    .filter((item) => !isGiftHistoryPull(item))
+    .forEach((item) => {
+      const isFree = isFreeHistoryPull(item);
+      const recordKey = getHistoryRecordKey(item);
+
+      if (!isFree) {
+        sixPity += 1;
+        fivePity += 1;
+      }
+
+      if (Number(item?.rarity) >= 5 && recordKey) {
+        map.set(recordKey, {
+          sixStarPity: isFree ? 'free' : (Number(item?.rarity) >= 6 ? sixPity : null),
+          fiveStarPity: isFree ? 'free' : fivePity
+        });
+      }
+
+      if (!isFree) {
+        if (Number(item?.rarity) >= 6) {
+          sixPity = 0;
+        }
+        if (Number(item?.rarity) >= 5) {
+          fivePity = 0;
+        }
+      }
+    });
+
+  return map;
+}
+
+export function buildTimelineAcquisitionIndex({
+  pools = [],
+  history = [],
+  crossPoolPityMap = null,
+  locale = getAppLocale()
+} = {}) {
+  const sections = buildOverviewTimelineSections({
+    pools,
+    history,
+    crossPoolPityMap,
+    disablePityState: false,
+    locale
+  });
+  const recordByKey = new Map();
+  (Array.isArray(history) ? history : []).forEach((item) => {
+    const key = getHistoryRecordKey(item);
+    if (key) {
+      recordByKey.set(key, item);
+    }
+  });
+
+  const byRecordKey = new Map();
+  sections.forEach((section) => {
+    (section.entries || []).forEach((entry) => {
+      const elementId = getTimelineStageElementId(section.id, entry.id);
+      (entry.sourceRecordKeys || []).forEach((recordKey) => {
+        const record = recordByKey.get(recordKey);
+        if (!record) {
+          return;
+        }
+
+        let kind = 'normal';
+        let pulls = entry.pulls;
+        if (isFreeHistoryPull(record)) {
+          kind = 'free';
+          pulls = null;
+        } else if (isGiftHistoryPull(record)) {
+          kind = 'cycle';
+        } else if (isGuaranteedHistoryPull(record)) {
+          kind = 'pity';
+        }
+
+        byRecordKey.set(recordKey, {
+          pulls,
+          kind,
+          timelineElementId: elementId,
+          timelineEntryId: entry.id,
+          timelineSectionId: section.id,
+          poolId: section.id,
+          poolName: section.title,
+          timestamp: record?.timestamp || record?.gacha_time || null
+        });
+      });
+    });
+  });
+
+  return {
+    sections,
+    byRecordKey
+  };
+}
+
 export default {
   buildSinglePoolTimelineSection,
-  buildOverviewTimelineSections
+  buildOverviewTimelineSections,
+  buildLimitedCrossPoolPityMap,
+  buildTimelineAcquisitionIndex,
+  getTimelineStageElementId
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Star, Calculator, Clock, FileText,
   Layers, Swords, User, PieChart as PieChartIcon,
@@ -47,6 +48,7 @@ import {
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 import { localizeDashboardChartItems } from '../../utils/dashboardChartLabels.js';
+import { usePoolStore } from '../../stores';
 
 const PIE_LABEL_MIN_PERCENT = 0.05;
 const PIE_LABEL_RADIAN = Math.PI / 180;
@@ -115,6 +117,9 @@ function getDistributionVariant(poolType) {
  * 移动端卡池分析视图 - 工业风重构版 (中文)
  */
 function MobileDashboardView() {
+  const location = useLocation();
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const switchPool = usePoolStore(state => state.switchPool);
   const { isDark } = useTheme();
   const { t, formatNumber, isEnglish, locale, formatDateTime } = useI18n();
   const { toasts, showToast, removeToast } = useToast();
@@ -179,6 +184,35 @@ function MobileDashboardView() {
     dashboardResourceSummary,
     resourceSummaryVariant
   } = useDashboardViewState();
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const requestedPoolId = String(searchParams.get('poolId') || '').trim();
+    if (requestedPoolId && requestedPoolId !== currentPoolId) {
+      switchPool(requestedPoolId);
+    }
+  }, [currentPoolId, location.search, switchPool]);
+
+  React.useEffect(() => {
+    const state = location.state || {};
+    if (state.dashboardCharViewMode === 'waterfall') {
+      setCharViewMode('waterfall');
+    }
+    if (!state.scrollTo) {
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      const target = document.getElementById(state.scrollTo);
+      if (!target) {
+        return;
+      }
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('guide-highlight-flash');
+      setTimeout(() => target.classList.remove('guide-highlight-flash'), 3000);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [location.state, setCharViewMode]);
   const localizedCurrentPoolName = React.useMemo(() => localizePoolName(currentPool, { locale }), [currentPool, locale]);
   const localizedCurrentUpName = React.useMemo(() => {
     const localizedFeaturedList = localizePoolFeaturedList(currentPool, {

@@ -13,6 +13,7 @@ import {
   recordHitIntervalPull
 } from '../../utils/pityIntervals.js';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy.js';
+import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory.js';
 
 function isGiftPull(pull) {
@@ -137,7 +138,7 @@ export function usePoolStats({
   const poolTypeById = useMemo(() => (
     new Map(
       (Array.isArray(selectedPools) ? selectedPools : [])
-        .map((pool) => [pool?.id, normalizePoolType(pool?.type)])
+        .flatMap((pool) => [pool?.id, pool?.pool_id].map((poolId) => [poolId, normalizePoolType(pool?.type)]))
         .filter(([poolId]) => Boolean(poolId))
     )
   ), [selectedPools]);
@@ -175,8 +176,9 @@ export function usePoolStats({
       return normalizedPoolType;
     };
     const paidPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
-    const validPullsList = normalizedCurrentPoolHistory.filter((item) => (
-      !isGiftPull(item) && (includeFreePullsInStats || !isFreePull(item))
+    const quotaPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item));
+    const validPullsList = quotaPullsList.filter((item) => (
+      includeFreePullsInStats || !isFreePull(item)
     ));
     const chargedPullsList = validPullsList.filter((item) => !isFreePull(item) && !isInfoBookHistoryPull(item));
     const total = validPullsList.length;
@@ -235,11 +237,18 @@ export function usePoolStats({
       }
     });
 
+    const quotaPools = currentPool?.isGroupMode
+      ? selectedPools
+      : [currentPool, ...(Array.isArray(selectedPools) ? selectedPools : [])];
+    const quotaLedger = buildQuotaLedgerFromHistory(quotaPullsList, {
+      pools: quotaPools,
+    });
     const resourceSummary = buildPoolResourceSummary({
       poolType: normalizedPoolType,
       totalPulls: total,
       chargedPulls: chargedPullsList.length,
-      counts: { ...counts }
+      counts: { ...counts },
+      quotaLedger
     });
 
     const totalSixStar = counts[6] + counts['6_std'];
@@ -487,7 +496,7 @@ export function usePoolStats({
       resourceSummary
     };
   }, [
-    currentPool.isGroupMode,
+    currentPool,
     includeFreePullsInStats,
     isExtraPool,
     isLimitedPool,
@@ -496,7 +505,8 @@ export function usePoolStats({
     limitedCrossPoolPityMap,
     normalizedCurrentPoolHistory,
     normalizedPoolType,
-    poolTypeById
+    poolTypeById,
+    selectedPools
   ]);
 
   // 跨池保底继承计算（始终计算，不受当前池是否有数据限制）

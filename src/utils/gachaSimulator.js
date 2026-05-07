@@ -563,7 +563,7 @@ export class GachaSimulator {
    * 重置模拟器
    */
   reset() {
-    this.state = createInitialState(this.state.poolType);
+    this.state = createInitialState(this.poolType);
     this.notifyListeners();
   }
 
@@ -572,9 +572,11 @@ export class GachaSimulator {
    * @param {Object} savedState - 保存的状态
    */
   importState(savedState) {
+    const { poolType: _storedPoolType, ...stateWithoutPoolType } = savedState || {};
     this.state = {
-      ...createInitialState(this.state.poolType),
-      ...savedState
+      ...createInitialState(this.poolType),
+      ...stateWithoutPoolType,
+      poolType: this.poolType
     };
     this.notifyListeners();
   }
@@ -586,6 +588,7 @@ export class GachaSimulator {
   exportState() {
     return {
       ...this.state,
+      poolType: this.poolType,
       // 移除UI状态
       isAnimating: undefined,
       lastPullResult: undefined,

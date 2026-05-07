@@ -4,6 +4,7 @@ import { getCurrentUpPoolInfo } from '../../utils/poolTimeUtils';
 import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { isInfoBookHistoryPull } from '../../utils/historyInfoBook';
 import { buildResourceSummaryFromAggregates } from '../../utils/resourceEconomy';
+import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
 import { buildCharacterStats } from '../../utils/dashboardCharacterStats';
 import { getPoolFeaturedLead } from '../../utils/poolFeaturedResolver.js';
 import { useCurrentPoolData } from './useCurrentPoolData';
@@ -196,9 +197,14 @@ export function useDashboardViewState() {
       return stats.resourceSummary;
     }
 
-    const poolTypeById = new Map(selectedPools.map((pool) => [pool.id, normalizePoolType(pool.type)]));
+    const poolTypeById = new Map(
+      selectedPools.flatMap((pool) => (
+        [pool?.id, pool?.pool_id].map((poolId) => [poolId, normalizePoolType(pool?.type)])
+      )).filter(([poolId]) => Boolean(poolId))
+    );
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
     const arsenalGainCounts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
+    const quotaHistory = [];
     let characterPulls = 0;
     let weaponPulls = 0;
     let chargedCharacterPulls = 0;
@@ -207,7 +213,12 @@ export function useDashboardViewState() {
     currentPoolHistory.forEach((item) => {
       const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
       const isFree = item?.isFree === true || item?.is_free === true;
-      if (isGift || (!includeFreePullsInStats && isFree)) {
+      if (isGift) {
+        return;
+      }
+
+      quotaHistory.push(item);
+      if (!includeFreePullsInStats && isFree) {
         return;
       }
 
@@ -252,7 +263,10 @@ export function useDashboardViewState() {
         5: arsenalGainCounts[5] + counts[5],
         4: arsenalGainCounts[4] + counts[4]
       },
-      arsenalGainCounts
+      arsenalGainCounts,
+      quotaLedger: buildQuotaLedgerFromHistory(quotaHistory, {
+        pools: selectedPools,
+      })
     });
   }, [currentPoolHistory, includeFreePullsInStats, isAllPoolsOverview, selectedPools, stats.resourceSummary]);
 
