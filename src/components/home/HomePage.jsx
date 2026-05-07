@@ -11,7 +11,13 @@ import {
   Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { getCurrentUpPoolInfo, getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import {
+  getActiveHomeCountdownPools,
+  getCurrentUpPoolInfo,
+  getHomeRotationPoolSchedule,
+  getLimitedPoolCountdownState,
+  getLimitedPoolSchedule
+} from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import useSiteConfigStore, {
   DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
@@ -71,11 +77,12 @@ const HomePage = React.memo(() => {
     return () => clearInterval(timer);
   }, []);
 
-  const poolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
+  const limitedPoolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
+  const poolSchedule = useMemo(() => getHomeRotationPoolSchedule(poolsArray), [poolsArray]);
   const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray, now), [poolsArray, now]);
 
   const countdowns = useMemo(() => {
-    let main = getLimitedPoolCountdownState(poolSchedule, now);
+    let main = getLimitedPoolCountdownState(limitedPoolSchedule, now);
 
     if (main) {
       const localizedBannerName = localizeEntityName(main.name, {
@@ -93,6 +100,27 @@ const HomePage = React.memo(() => {
       };
     }
 
+    const activeHomeCountdownPools = getActiveHomeCountdownPools(poolsArray, now);
+    const secondaryPools = main?.isActive && activeHomeCountdownPools.length > 1
+      ? activeHomeCountdownPools.filter((pool) => !(pool.poolType === 'limited' && pool.name === main.name))
+      : [];
+    const secondary = secondaryPools[0] || null;
+    let secondaryCountdown = null;
+
+    if (secondary) {
+      const localizedSecondaryName = secondary.poolType === 'limited'
+        ? localizeEntityName(secondary.name, {
+          locale: isEnglish ? 'en-US' : 'zh-CN',
+          type: 'character'
+        }) || secondary.name
+        : secondary.displayName || secondary.name;
+      secondaryCountdown = {
+        ...secondary,
+        title: t('home.poolEndingCountdown', { name: localizedSecondaryName }),
+        subTitle: t('home.poolEndingSubtitle', { name: localizedSecondaryName })
+      };
+    }
+
     if (!main) {
       main = {
         targetDate: nextVersionTargetDate,
@@ -101,8 +129,8 @@ const HomePage = React.memo(() => {
       };
     }
 
-    return { main };
-  }, [isEnglish, nextVersionTargetDate, now, poolSchedule, t]);
+    return { main, secondary: secondaryCountdown };
+  }, [isEnglish, limitedPoolSchedule, nextVersionTargetDate, now, poolsArray, t]);
 
   const initialCollapseState = getHomeCollapseState();
   const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
@@ -437,6 +465,18 @@ const HomePage = React.memo(() => {
             />
           )}
         </div>
+        {countdowns.secondary && (
+          <div className="relative">
+            <CountdownTimer
+              targetDate={countdowns.secondary.targetDate}
+              title={countdowns.secondary.title}
+              subTitle={countdowns.secondary.subTitle}
+              link={null}
+              characterName={countdowns.secondary.poolType === 'limited' ? countdowns.secondary.name : null}
+              bgImage={countdowns.secondary.backgroundImage}
+            />
+          </div>
+        )}
 
         <HomeRotationScheduleCard poolSchedule={poolSchedule} now={now} />
 

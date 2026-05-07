@@ -3,6 +3,19 @@ import { RefreshCw, User } from 'lucide-react';
 import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
+import { getPoolFeaturedLabel, getPoolSelectorFeaturedCharacters } from '../../utils/poolSelectorDisplay.js';
+
+function getFeaturedTextFontClass(featuredText = '') {
+  if (featuredText.length > 42) {
+    return 'text-[9px] leading-[1.2]';
+  }
+
+  if (featuredText.length > 28) {
+    return 'text-[10px] leading-[1.25]';
+  }
+
+  return 'text-[11px] leading-4';
+}
 
 const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSchedule, now }) {
   const { t, formatDateTime, locale } = useI18n();
@@ -60,26 +73,49 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
           {poolSchedule.map((pool, index) => {
             const poolStart = new Date(pool.startDate);
             const poolEnd = new Date(pool.endDate);
+            const poolData = pool.poolData || pool;
+            const isExtraPool = pool.poolType === 'extra' || poolData.type === 'extra';
             const isPast = now >= poolEnd;
+            const isActivePool = now >= poolStart && now < poolEnd;
             const offset = currentActiveIndex === -1 ? null : index - currentActiveIndex;
-            const isCurrent = offset === 0;
-            const isInPool = offset !== null && offset >= -2 && offset <= 0;
+            const isCurrent = isActivePool;
+            const isInPool = !isExtraPool && offset !== null && offset >= -2 && offset <= 0;
 
             let statusLabel = null;
             if (isCurrent) {
-              statusLabel = tt('home.rotation.status.current', 'Current UP');
+              statusLabel = isExtraPool
+                ? tt('home.rotation.status.currentPool', 'Current Pool')
+                : tt('home.rotation.status.current', 'Current UP');
             } else if (offset === -1) {
               statusLabel = tt('home.rotation.status.inPoolSecond', 'Leaves in 2');
             } else if (offset === -2) {
               statusLabel = tt('home.rotation.status.inPoolNext', 'Leaves Next');
             } else if (offset === 1) {
-              statusLabel = tt('home.rotation.status.next', 'Next UP');
+              statusLabel = isExtraPool
+                ? tt('home.rotation.status.nextPool', 'Next Pool')
+                : tt('home.rotation.status.next', 'Next UP');
             } else if (offset === 2) {
               statusLabel = tt('home.rotation.status.nextNext', 'UP After Next');
             }
 
             const avatarUrl = getCharacterAvatarUrl(pool.name);
-            const localizedPoolName = localizeEntityName(pool.name, { locale, type: 'character' }) || pool.name;
+            const localizedPoolName = isExtraPool
+              ? pool.displayName || pool.name
+              : localizeEntityName(pool.name, { locale, type: 'character' }) || pool.name;
+            const featuredCharacterNames = isExtraPool
+              ? getPoolSelectorFeaturedCharacters(poolData, { locale })
+              : [];
+            const featuredText = featuredCharacterNames.join(' / ');
+            const featuredLabel = isExtraPool ? getPoolFeaturedLabel(poolData, { locale, short: true }) : '';
+            const avatarLookupNames = isExtraPool
+              ? (Array.isArray(pool.featuredNames) && pool.featuredNames.length > 0
+                ? pool.featuredNames
+                : featuredCharacterNames).slice(0, 4)
+              : [];
+            const extraAvatarUrls = avatarLookupNames
+              .map((name) => getCharacterAvatarUrl(name))
+              .filter(Boolean)
+              .slice(0, 4);
 
             let containerClass = 'bg-zinc-50 dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400';
             if (isCurrent) {
@@ -91,20 +127,37 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             }
 
             return (
-              <React.Fragment key={pool.name}>
+              <React.Fragment key={pool.id || pool.name}>
                 <div 
                   ref={index === focusIndex ? focusItemRef : null}
-                  className={`shrink-0 px-4 py-3 rounded-lg text-xs font-mono transition-all border ${containerClass} min-w-[200px] flex flex-col justify-center relative`}
+                  className={`shrink-0 px-4 py-3 rounded-lg text-xs font-mono transition-all border ${containerClass} ${isExtraPool ? 'min-w-[240px]' : 'min-w-[200px]'} flex flex-col justify-center relative`}
                 >
                   <div className="font-bold flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
+                    <div className={`${isExtraPool ? 'w-12 h-10 rounded-sm' : 'w-8 h-8 rounded-full'} flex items-center justify-center shrink-0 overflow-hidden ${
                       isCurrent
                         ? 'bg-gradient-to-br from-orange-400 to-pink-500 ring-2 ring-endfield-yellow/50'
                         : isInPool
                           ? 'bg-blue-200 dark:bg-blue-800/50'
                           : 'bg-zinc-200 dark:bg-zinc-700/50'
                     }`}>
-                      {avatarUrl ? (
+                      {isExtraPool ? (
+                        extraAvatarUrls.length > 0 ? (
+                          <div className="grid grid-cols-2 grid-rows-2 h-full w-full">
+                            {extraAvatarUrls.map((url, avatarIndex) => (
+                              <img
+                                key={`${url}-${avatarIndex}`}
+                                src={url}
+                                alt={featuredCharacterNames[avatarIndex] || localizedPoolName}
+                                className={`h-full w-full object-cover object-center ${isPast ? 'grayscale opacity-50' : ''}`}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="w-full h-full items-center justify-center text-white/80 flex">
+                            <User size={14} />
+                          </div>
+                        )
+                      ) : avatarUrl ? (
                         <img
                           src={avatarUrl}
                           alt={localizedPoolName}
@@ -115,14 +168,16 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
                           }}
                         />
                       ) : null}
-                      <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
+                      {!isExtraPool && (
+                        <div className={`w-full h-full items-center justify-center text-white/80 ${avatarUrl ? 'hidden' : 'flex'}`}>
                         <User size={14} />
                       </div>
+                      )}
                       </div>
                       <div className="flex flex-col">
                       <div className="flex items-center gap-2">
                         <span className={`text-sm truncate max-w-[100px] ${isPast && !isInPool ? 'line-through opacity-50' : ''}`}>{localizedPoolName}</span>
-                        {isCurrent && <span className="text-[9px] font-bold bg-endfield-yellow/20 px-1 py-0.5 rounded text-amber-500 dark:text-endfield-yellow">UP</span>}
+                        {isCurrent && !isExtraPool && <span className="text-[9px] font-bold bg-endfield-yellow/20 px-1 py-0.5 rounded text-amber-500 dark:text-endfield-yellow">UP</span>}
                         {isInPool && !isCurrent && <span className="text-[9px] bg-blue-500/10 px-1 py-0.5 rounded opacity-80">{tt('home.rotation.inPoolBadge', 'IN POOL')}</span>}
                       </div>
                       {statusLabel && (
@@ -132,6 +187,14 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
                           'text-zinc-400 dark:text-zinc-500'
                         }`}>
                           {statusLabel}
+                        </div>
+                      )}
+                      {isExtraPool && featuredText && (
+                        <div className="mt-0.5 border-l-2 border-cyan-500/40 pl-1.5 max-w-[150px]">
+                          <span className="block text-[9px] leading-3 text-cyan-600 dark:text-cyan-300 opacity-80">{featuredLabel}</span>
+                          <span className={`block line-clamp-2 text-zinc-700 dark:text-zinc-200 ${getFeaturedTextFontClass(featuredText)}`}>
+                            {featuredText}
+                          </span>
                         </div>
                       )}
                     </div>
