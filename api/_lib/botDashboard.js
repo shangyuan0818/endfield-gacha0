@@ -6,7 +6,8 @@ import { normalizeIsStandard } from '../../src/utils/index.js';
 import { buildDashboardTimelineSections } from '../../src/utils/dashboardTimelineSections.js';
 import { buildDashboardSharePayload } from '../../src/utils/dashboardShare.js';
 import { getPoolAnalysisPityState } from '../../src/utils/poolAnalysisPity.js';
-import { fetchVisiblePools } from './publicCatalog.js';
+import { characterCache } from '../../src/utils/characterUtils.js';
+import { fetchCharacters, fetchVisiblePools } from './publicCatalog.js';
 import { localizeHistoryItemName, localizePoolFeaturedList, localizePoolName } from '../../src/utils/gameDataI18n.js';
 import { getPoolTimingMeta } from '../../src/utils/poolSelectorDisplay.js';
 
@@ -386,7 +387,7 @@ function buildAccountName(records = [], fallback = '未命名账号') {
 }
 
 async function loadBotDataset(adminClient, userId) {
-  const [profileResult, historyResult, visiblePools] = await Promise.all([
+  const [profileResult, historyResult, visiblePools, characters] = await Promise.all([
     adminClient
       .from('public_profiles')
       .select('id, username, role')
@@ -398,10 +399,16 @@ async function loadBotDataset(adminClient, userId) {
       .select('id, record_id, game_uid, pool_id, item_name, rarity, timestamp, is_free, special_type, seq_id, nick_name')
       .eq('user_id', userId),
     fetchVisiblePools(adminClient),
+    fetchCharacters(adminClient).catch(() => []),
   ]);
 
   if (profileResult.error) throw profileResult.error;
   if (historyResult.error) throw historyResult.error;
+
+  if (Array.isArray(characters) && characters.length > 0) {
+    characterCache.applyCharacters(characters);
+    characterCache.finishLoading();
+  }
 
   const poolMap = new Map((visiblePools || []).map((pool) => [pool.id || pool.pool_id, pool]));
   const history = buildAnnotatedHistory(historyResult.data || [], poolMap);

@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   fetchVisiblePools: vi.fn(),
+  fetchCharacters: vi.fn(),
+  characterCacheApplyCharacters: vi.fn(),
+  characterCacheFinishLoading: vi.fn(),
   useHistoryStoreState: {
     historyFilter: 'all',
   },
@@ -15,7 +18,23 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../_lib/publicCatalog.js', () => ({
   fetchVisiblePools: mocks.fetchVisiblePools,
+  fetchCharacters: mocks.fetchCharacters,
 }));
+
+vi.mock('../../src/utils/characterUtils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    characterCache: {
+      applyCharacters: mocks.characterCacheApplyCharacters,
+      finishLoading: mocks.characterCacheFinishLoading,
+      getAll: vi.fn(() => []),
+      getById: vi.fn(() => null),
+      isLoaded: vi.fn(() => true),
+      searchByName: vi.fn(() => null),
+    },
+  };
+});
 
 vi.mock('../../src/stores/useHistoryStore.js', () => ({
   default: {
@@ -113,6 +132,26 @@ describe('fetchBotAnalysis', () => {
         end_time: '2026-05-22T04:00:00.000Z',
       },
     ]);
+    mocks.fetchCharacters.mockResolvedValue([
+      {
+        id: 'char_zhuangfangyi',
+        name: '庄方宜',
+        avatar_url: '/avatars/characters/char_zhuangfangyi.webp',
+        rarity: 6,
+        type: 'character',
+        aliases: [],
+        is_limited: true,
+      },
+      {
+        id: 'char_langwei',
+        name: '狼卫',
+        avatar_url: '/avatars/characters/char_langwei.webp',
+        rarity: 5,
+        type: 'character',
+        aliases: [],
+        is_limited: false,
+      },
+    ]);
     mocks.usePoolStats.mockReturnValue({
       stats: {
         total: 2,
@@ -156,7 +195,24 @@ describe('fetchBotAnalysis', () => {
     expect(analysis.selected.detail.timeline_sections).toHaveLength(1);
     expect(analysis.selected.detail.share_payload.poolName).toBe('春雷动，万物生');
     expect(analysis.selected.pool.featured).toEqual(['庄方宜']);
+    expect(mocks.fetchCharacters).toHaveBeenCalledTimes(2);
+    expect(mocks.characterCacheApplyCharacters).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        name: '庄方宜',
+        avatar_url: '/avatars/characters/char_zhuangfangyi.webp',
+      }),
+    ]));
+    expect(mocks.characterCacheFinishLoading).toHaveBeenCalled();
     expect(body).not.toContain('special_1');
     expect(body).not.toContain('1545606431');
+  });
+
+  it('keeps BOT analysis available when character catalog hydration fails', async () => {
+    mocks.fetchCharacters.mockRejectedValue(new Error('character table unavailable'));
+
+    const analysis = await fetchBotAnalysis(createAdminClient(), 'user-1');
+
+    expect(analysis.selected.detail.timeline_sections).toHaveLength(1);
+    expect(mocks.characterCacheApplyCharacters).not.toHaveBeenCalled();
   });
 });
