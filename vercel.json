@@ -3,7 +3,7 @@
   "functions": {
     "api/router.js": {
       "maxDuration": 60,
-      "includeFiles": "{node_modules/@sparticuz/chromium/bin/**,src/assets/fonts/harmony/*.woff2,src/assets/fonts/novecento/*.otf}"
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
     }
   },
   "headers": [

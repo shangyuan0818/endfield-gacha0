@@ -10,6 +10,32 @@ import {
 
 let playwrightBrowserPromise = null;
 const fontDataUrlPromises = new Map();
+const SERVER_FONT_FILES = {
+  harmonyMedium: {
+    mimeType: 'font/woff2',
+    url: new URL('../../src/assets/fonts/harmony/HarmonyOS_Sans_Medium.woff2', import.meta.url),
+  },
+  harmonyBold: {
+    mimeType: 'font/woff2',
+    url: new URL('../../src/assets/fonts/harmony/HarmonyOS_Sans_Bold.woff2', import.meta.url),
+  },
+  harmonyScMedium: {
+    mimeType: 'font/woff2',
+    url: new URL('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Medium.woff2', import.meta.url),
+  },
+  harmonyScBold: {
+    mimeType: 'font/woff2',
+    url: new URL('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Bold.woff2', import.meta.url),
+  },
+  novecentoBold: {
+    mimeType: 'font/otf',
+    url: new URL('../../src/assets/fonts/novecento/Novecento-Wide-Bold.otf', import.meta.url),
+  },
+  novecentoTabular: {
+    mimeType: 'font/otf',
+    url: new URL('../../src/assets/fonts/novecento/Novecento-Wide-Bold-Tabular.otf', import.meta.url),
+  },
+};
 
 function isServerlessChromiumRuntime() {
   return process.platform === 'linux' && Boolean(
@@ -76,13 +102,13 @@ function fontFilePath(relativePath) {
   return fileURLToPath(fontFileUrl(relativePath));
 }
 
-function getFontDataUrl(relativePath, mimeType) {
-  const cacheKey = `${mimeType}:${relativePath}`;
+function getFontDataUrl(fontFile) {
+  const cacheKey = `${fontFile.mimeType}:${fontFile.url.href}`;
   if (!fontDataUrlPromises.has(cacheKey)) {
     fontDataUrlPromises.set(
       cacheKey,
-      readFile(fontFilePath(relativePath))
-        .then((buffer) => `data:${mimeType};base64,${buffer.toString('base64')}`)
+      readFile(fontFile.url)
+        .then((buffer) => `data:${fontFile.mimeType};base64,${buffer.toString('base64')}`)
     );
   }
 
@@ -98,12 +124,12 @@ async function buildServerFontCss() {
     novecentoBold,
     novecentoTabular,
   ] = await Promise.all([
-    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Medium.woff2', 'font/woff2'),
-    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_Bold.woff2', 'font/woff2'),
-    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Medium.woff2', 'font/woff2'),
-    getFontDataUrl('../../src/assets/fonts/harmony/HarmonyOS_Sans_SC_Bold.woff2', 'font/woff2'),
-    getFontDataUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold.otf', 'font/otf'),
-    getFontDataUrl('../../src/assets/fonts/novecento/Novecento-Wide-Bold-Tabular.otf', 'font/otf'),
+    getFontDataUrl(SERVER_FONT_FILES.harmonyMedium),
+    getFontDataUrl(SERVER_FONT_FILES.harmonyBold),
+    getFontDataUrl(SERVER_FONT_FILES.harmonyScMedium),
+    getFontDataUrl(SERVER_FONT_FILES.harmonyScBold),
+    getFontDataUrl(SERVER_FONT_FILES.novecentoBold),
+    getFontDataUrl(SERVER_FONT_FILES.novecentoTabular),
   ]);
 
   return `
@@ -308,4 +334,5 @@ export const __dashboardShareImageInternals = {
   buildServerFontCss,
   waitForShareCardAssets,
   fontFilePath,
+  SERVER_FONT_FILES,
 };
