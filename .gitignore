@@ -69,6 +69,9 @@ src/generated/fonts/judou/**/index.html
 src/generated/fonts/judou/**/index.proto
 src/generated/fonts/judou/**/reporter.bin
 
+# Harmony SC subsets are generated from checked-in woff2 sources during predev/prebuild.
+src/generated/fonts/harmony/
+
 bots/*
 !bots/official/
 !bots/official/**

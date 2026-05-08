@@ -1,3 +1,6 @@
+@import '../../generated/fonts/harmony/sc-medium/result.css';
+@import '../../generated/fonts/harmony/sc-bold/result.css';
+
 @font-face {
   font-family: 'Harmony Sans App';
   src: url('./harmony/HarmonyOS_Sans_Medium.woff2') format('woff2');
@@ -32,22 +35,6 @@
     U+2200-22FF,
     U+25A0-27BF,
     U+FE00-FE0F;
-}
-
-@font-face {
-  font-family: 'Harmony Sans App';
-  src: url('./harmony/HarmonyOS_Sans_SC_Medium.woff2') format('woff2');
-  font-display: swap;
-  font-style: normal;
-  font-weight: 400 600;
-}
-
-@font-face {
-  font-family: 'Harmony Sans App';
-  src: url('./harmony/HarmonyOS_Sans_SC_Bold.woff2') format('woff2');
-  font-display: swap;
-  font-style: normal;
-  font-weight: 700 900;
 }
 
 @font-face {
