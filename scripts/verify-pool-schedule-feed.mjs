@@ -65,6 +65,11 @@ const sampleCharacters = [
   { id: 'char_jerpeta', name: '洁尔佩塔', aliases: [], type: 'character' },
   { id: 'char_yujin', name: '余烬', aliases: [], type: 'character' },
   { id: 'char_luoxi', name: '洛茜', aliases: [], type: 'character' },
+  { id: 'char_zhuangfangyi', name: '庄方宜', aliases: [], type: 'character' },
+  { id: 'char_yujin_2', name: '黎风', aliases: [], type: 'character' },
+  { id: 'char_aierdaila', name: '艾尔黛拉', aliases: [], type: 'character' },
+  { id: 'char_bieli', name: '别礼', aliases: [], type: 'character' },
+  { id: 'char_junwei', name: '骏卫', aliases: [], type: 'character' },
   { id: 'wpn_luocao', name: '落草', aliases: ['落草（手铳）'], type: 'weapon' },
   { id: 'wpn_tonglei', name: '同类相食', aliases: ['同类相食（手铳）'], type: 'weapon' },
   { id: 'wpn_xiezi', name: '楔子', aliases: ['楔子（手铳）'], type: 'weapon' },
@@ -133,6 +138,30 @@ assert.deepEqual(
   '武器池应解析并映射 featured_characters',
 );
 assert.equal(futureWeapon.end_time, '2026-05-19T04:00:00.000Z', '后续申领池应按 3 个卡池周期推断结束时间');
+
+const gameBulletinPoolRecords = buildPoolScheduleRecords([
+  {
+    source_id: 'game-bulletin:8966',
+    title: '「春雷动，万物生」特许寻访',
+    raw_content: `
+      <p>· 开放时间：「春晓时」版本开启后 - 2026/05/22 11:59（服务器时间）</p>
+      <p>· 「春雷动，万物生」特许寻访中，概率提升的6星干员为【庄方宜】。</p>
+      <p>· 「春雷动，万物生」特许寻访中，全部可能出现的6星干员包括：庄方宜/洛茜/汤汤/余烬/黎风/艾尔黛拉/别礼/骏卫。</p>
+    `,
+    source_url: 'https://ef-webview.hypergryph.com/page/game_bulletin#8966',
+  },
+], {
+  characters: sampleCharacters,
+  currentPools: [],
+});
+assert.equal(gameBulletinPoolRecords.length, 1, '游戏内分段寻访公告应能解析为卡池');
+assert.equal(gameBulletinPoolRecords[0].name, '春雷动，万物生', '游戏内寻访公告应保留卡池标题');
+assert.equal(gameBulletinPoolRecords[0].up_character, '庄方宜', '游戏内寻访公告应从单独 UP 行解析 UP 角色');
+assert.deepEqual(
+  gameBulletinPoolRecords[0].featured_characters,
+  ['char_zhuangfangyi', 'char_luoxi', 'char_tangtang', 'char_yujin', 'char_yujin_2', 'char_aierdaila', 'char_bieli', 'char_junwei'],
+  '游戏内寻访公告应从单独名单行解析全部 6 星阵容',
+);
 
 // ---------------------------------------------------------------------------
 // 任务注册检查

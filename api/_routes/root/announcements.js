@@ -80,6 +80,36 @@ function createEmptyPayload() {
   };
 }
 
+function inferAnnouncementSourceMeta(record = {}) {
+  const sourceId = String(record.source_id || '');
+  const sourceUrl = String(record.source_url || '');
+  const isGameBulletin = sourceId.startsWith('game-bulletin:') || sourceUrl.includes('game_bulletin');
+  let sourceCategory = isGameBulletin ? 'game' : 'official';
+
+  if (isGameBulletin) {
+    try {
+      const url = new URL(sourceUrl);
+      sourceCategory = url.searchParams.get('tab') || sourceCategory;
+    } catch {
+      sourceCategory = 'game';
+    }
+  }
+
+  if (!sourceId) {
+    return record;
+  }
+
+  return {
+    ...record,
+    source_kind: isGameBulletin ? 'game-bulletin' : 'official-site',
+    source_category: sourceCategory,
+  };
+}
+
+function decorateAnnouncementRecords(records) {
+  return (Array.isArray(records) ? records : []).map(inferAnnouncementSourceMeta);
+}
+
 function mergePayload(previousPayload, nextPartialPayload) {
   const previous = previousPayload || createEmptyPayload();
   const next = nextPartialPayload || {};
@@ -104,7 +134,7 @@ async function fetchSiteAnnouncements(supabase) {
     throw error;
   }
 
-  return data || [];
+  return decorateAnnouncementRecords(data || []);
 }
 
 async function fetchRecentGameAnnouncements(supabase, cutoffIso) {
@@ -120,7 +150,7 @@ async function fetchRecentGameAnnouncements(supabase, cutoffIso) {
     throw error;
   }
 
-  return data || [];
+  return decorateAnnouncementRecords(data || []);
 }
 
 async function fetchLatestGameAnnouncements(supabase, limit) {
@@ -136,7 +166,7 @@ async function fetchLatestGameAnnouncements(supabase, limit) {
     throw error;
   }
 
-  return data || [];
+  return decorateAnnouncementRecords(data || []);
 }
 
 async function fetchAnnouncementsPayload(supabase, query, previousPayload) {

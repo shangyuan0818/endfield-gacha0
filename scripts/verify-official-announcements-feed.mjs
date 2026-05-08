@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 
 import { __internal, handleOfficialAnnouncementsFeed as handler } from '../api/_routes/root/automation-feed.js';
 import {
+  __internal as gameBulletinInternal,
+  buildGameBulletinSourceRecords,
+} from '../api/_lib/gameBulletinFeed.js';
+import {
   __internal as presentationInternal,
   buildAnnouncementDisplayContent,
 } from '../api/_lib/officialAnnouncementPresentation.js';
@@ -41,6 +45,138 @@ assert.equal(
   'https://endfield.hypergryph.com/news/5992',
   '官方公告原文链接应可直接构造',
 );
+assert.match(
+  gameBulletinInternal.buildAggregateUrl(),
+  /code=endfield_5SD9TN/,
+  '游戏内公告聚合接口必须携带游戏内 bulletin code',
+);
+assert.doesNotMatch(
+  gameBulletinInternal.buildAggregateUrl(),
+  /u8_token/,
+  '游戏内公告聚合接口不得依赖玩家 u8_token',
+);
+{
+  const gameBulletinRecords = await buildGameBulletinSourceRecords(2, {
+    fetchImpl: async (url) => {
+      const normalizedUrl = String(url);
+      assert.match(normalizedUrl, /bulletin\/v2\/aggregate/, '游戏内公告应优先读取聚合接口');
+      assert.doesNotMatch(normalizedUrl, /u8_token/, '游戏内公告请求不得包含玩家 token');
+      return {
+        ok: true,
+        json: async () => ({
+          code: 0,
+          data: {
+            list: [
+              {
+                cid: '8966',
+                tab: 'events',
+                displayType: 'rich_text',
+                startAt: 1776380400,
+                title: '春雷动，万物生\\n特许寻访',
+                header: '「春雷动，万物生」特许寻访',
+                data: {
+                  html: '<p>「春雷动，万物生」特许寻访中，6星干员【庄方宜】获取概率提升。</p>',
+                },
+                version: 1776247175,
+              },
+              {
+                cid: '2106',
+                tab: 'news',
+                displayType: 'picture',
+                startAt: 1776744000,
+                title: '春晓时系列\\n衍生品现已开售',
+                data: {
+                  url: 'https://web.hycdn.cn/upload/image/test.jpg',
+                  link: 'https://example.com/product',
+                },
+                version: 1776655284,
+              },
+            ],
+          },
+        }),
+      };
+    },
+  });
+
+  assert.equal(gameBulletinRecords.length, 2, '游戏内公告应同时标准化 rich_text 与 picture 公告');
+  assert.equal(gameBulletinRecords[0].source_id, 'game-bulletin:8966', '游戏内公告 source_id 应带来源前缀，避免与官网 cid 冲突');
+  assert.equal(gameBulletinRecords[0].title, '「春雷动，万物生」特许寻访', '游戏内公告标题应优先使用 header');
+  assert.match(gameBulletinRecords[0].raw_content, /庄方宜/, 'rich_text 公告应保留正文 HTML');
+  assert.match(gameBulletinRecords[1].raw_content, /<img/, 'picture 公告应转换为可展示图片 HTML');
+  assert.match(gameBulletinRecords[1].raw_content, /查看详情/, 'picture 公告应保留跳转链接');
+}
+{
+  const preferredRecords = await __internal.buildPreferredAnnouncementSourceRecords(1, {
+    fetchImpl: async (url) => {
+      const normalizedUrl = String(url);
+      if (normalizedUrl.includes('game-hub.hypergryph.com')) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: 0,
+            data: {
+              list: [
+                {
+                  cid: '8966',
+                  tab: 'events',
+                  displayType: 'rich_text',
+                  startAt: 1776380400,
+                  title: '春雷动，万物生\\n特许寻访',
+                  header: '「春雷动，万物生」特许寻访',
+                  data: { html: '<p>游戏内公告正文</p>' },
+                  version: 1776247175,
+                },
+              ],
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected fallback URL: ${url}`);
+    },
+  });
+  assert.equal(preferredRecords[0].source_id, 'game-bulletin:8966', '默认公告源应优先使用游戏内公告');
+}
+{
+  const fallbackRecords = await __internal.buildPreferredAnnouncementSourceRecords(1, {
+    fetchImpl: async (url) => {
+      const normalizedUrl = String(url);
+      if (normalizedUrl.includes('game-hub.hypergryph.com')) {
+        return {
+          ok: true,
+          json: async () => ({ code: 1500, msg: 'Info not found', data: {} }),
+        };
+      }
+      if (normalizedUrl.includes('/bulletin?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: 0,
+            data: {
+              list: [{ cid: '5992', title: '官网公告', displayTime: 1773203400, brief: '摘要' }],
+            },
+          }),
+        };
+      }
+      if (normalizedUrl.includes('/bulletin/5992?')) {
+        return {
+          ok: true,
+          json: async () => ({
+            code: 0,
+            data: {
+              cid: '5992',
+              title: '官网公告',
+              displayTime: 1773203400,
+              brief: '摘要',
+              data: '<p>官网公告正文</p>',
+            },
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    },
+  });
+  assert.equal(fallbackRecords[0].source_id, '5992', '游戏内公告失败时应回退官网公告源');
+}
 
 const runnableJobs = getDefaultRunnableJobIds({}, {
   baseUrl: 'https://example.com',

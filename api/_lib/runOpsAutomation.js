@@ -1,5 +1,5 @@
 import { getSupabaseAdminClient } from './authAdmin.js';
-import { buildOfficialAnnouncementRecords } from './officialAnnouncementsFeed.js';
+import { buildPreferredAnnouncementRecords } from './officialAnnouncementsFeed.js';
 import { detectNewCharacters } from './detectNewCharacters.js';
 import { serverLogger } from './serverLogger.js';
 import {
@@ -154,7 +154,7 @@ async function runSingleAutomationJob(jobId, {
         result = await syncPools(
             announcementRecords && announcementRecords.length > 0
               ? announcementRecords
-            : await buildOfficialAnnouncementRecords(undefined, { allowLlm: false })
+            : await buildPreferredAnnouncementRecords(undefined, { allowLlm: false })
           );
         break;
       case 'wiki-catalog':

@@ -6,6 +6,7 @@ import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
 
 const GAME_ANNOUNCEMENT_VISIBLE_DAYS = 7;
 const GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT = 5;
+const GAME_ANNOUNCEMENT_SOURCE_GROUPS = Object.freeze(['game', 'official']);
 
 function getRecentGameAnnouncementCutoffIso(now = Date.now()) {
   return new Date(now - GAME_ANNOUNCEMENT_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -13,6 +14,43 @@ function getRecentGameAnnouncementCutoffIso(now = Date.now()) {
 
 function isGameAnnouncement(record) {
   return record?.is_active !== false && !!record?.source_id;
+}
+
+function getAnnouncementSourceGroup(record = {}) {
+  const sourceKind = String(record?.source_kind || '').toLowerCase();
+  const sourceId = String(record?.source_id || '');
+  const sourceUrl = String(record?.source_url || '');
+
+  if (sourceKind === 'game-bulletin' || sourceId.startsWith('game-bulletin:') || sourceUrl.includes('game_bulletin')) {
+    return 'game';
+  }
+
+  return 'official';
+}
+
+function withAnnouncementSourceMeta(record = {}) {
+  if (!record?.source_id) {
+    return record;
+  }
+
+  const sourceGroup = getAnnouncementSourceGroup(record);
+  let sourceCategory = record.source_category || sourceGroup;
+
+  if (sourceGroup === 'game') {
+    try {
+      const sourceUrl = new URL(String(record?.source_url || ''));
+      sourceCategory = sourceUrl.searchParams.get('tab') || sourceCategory;
+    } catch {
+      sourceCategory = sourceCategory || 'game';
+    }
+  }
+
+  return {
+    ...record,
+    source_kind: sourceGroup === 'game' ? 'game-bulletin' : 'official-site',
+    source_category: sourceCategory,
+    source_group: sourceGroup,
+  };
 }
 
 function isRecentGameAnnouncement(record, cutoffIso = getRecentGameAnnouncementCutoffIso()) {
@@ -61,13 +99,19 @@ function buildGameAnnouncementDisplaySet({
   limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT,
 }) {
   const byKey = new Map();
+  const countsBySource = new Map(GAME_ANNOUNCEMENT_SOURCE_GROUPS.map(group => [group, 0]));
   const candidates = sortGameAnnouncements([
     ...(Array.isArray(recentRecords) ? recentRecords : []),
     ...(Array.isArray(latestRecords) ? latestRecords : []),
-  ]);
+  ].map(withAnnouncementSourceMeta));
 
   for (const record of candidates) {
     if (!isGameAnnouncement(record)) {
+      continue;
+    }
+
+    const sourceGroup = getAnnouncementSourceGroup(record);
+    if ((countsBySource.get(sourceGroup) || 0) >= limit) {
       continue;
     }
 
@@ -80,8 +124,9 @@ function buildGameAnnouncementDisplaySet({
       ...record,
       is_recent_history_fallback: !isRecentGameAnnouncement(record, cutoffIso),
     });
+    countsBySource.set(sourceGroup, (countsBySource.get(sourceGroup) || 0) + 1);
 
-    if (byKey.size >= limit) {
+    if (GAME_ANNOUNCEMENT_SOURCE_GROUPS.every(group => (countsBySource.get(group) || 0) >= limit)) {
       break;
     }
   }
@@ -118,7 +163,7 @@ async function loadGameAnnouncementsFromDb(cutoffIso = getRecentGameAnnouncement
   return error ? null : (data || []);
 }
 
-async function loadLatestGameAnnouncementsFromDb(limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT) {
+async function loadLatestGameAnnouncementsFromDb(limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length) {
   if (!supabase) return null;
   const { data, error } = await executeSupabaseRead(
     () => supabase
@@ -152,7 +197,7 @@ async function loadAnnouncementsFromApi({
 
   const searchParams = new URLSearchParams();
   searchParams.set('cutoffIso', cutoffIso);
-  searchParams.set('limit', String(limit));
+  searchParams.set('limit', String(limit * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length));
 
   const { response, data } = await fetchJsonWithTimeout(
     `/api/announcements?${searchParams.toString()}`,
@@ -271,7 +316,12 @@ export function useNotificationBadges() {
         cutoffIso,
       });
 
-      if (gameRecords.length < GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT) {
+      const sourceGroups = new Set(gameRecords.map(getAnnouncementSourceGroup));
+
+      if (
+        gameRecords.length < GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length
+        || GAME_ANNOUNCEMENT_SOURCE_GROUPS.some(group => !sourceGroups.has(group))
+      ) {
         try {
           const feedRecords = await loadOfficialAnnouncementsFeed({ cutoffIso });
           gameRecords = buildGameAnnouncementDisplaySet({

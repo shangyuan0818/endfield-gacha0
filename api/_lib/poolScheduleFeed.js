@@ -1,5 +1,5 @@
 import { getSupabaseAnonServerClient } from './authAdmin.js';
-import { buildOfficialAnnouncementRecords } from './officialAnnouncementsFeed.js';
+import { buildPreferredAnnouncementRecords } from './officialAnnouncementsFeed.js';
 import {
   buildManualPoolId,
   normalizeEntityNameForMatch,
@@ -146,7 +146,8 @@ function extractUpCharacter(line, type) {
     const m = /概率提升的6星武器为【([^】]+)】/.exec(line || '');
     return m ? stripParenthesizedSuffix(m[1]) : null;
   }
-  const m = /6星干员【([^】]+)】获取概率提升/.exec(line || '');
+  const m = /6星干员【([^】]+)】获取概率提升/.exec(line || '')
+    || /概率提升的6星干员为【([^】]+)】/.exec(line || '');
   return m ? m[1].trim() : null;
 }
 
@@ -155,16 +156,15 @@ function extractUpCharacter(line, type) {
 // ---------------------------------------------------------------------------
 
 function parseStandaloneLimitedNotice(record) {
-  const titleMatch = /^(?:公测庆典)?「([^」]+)」特许寻访说明$/.exec(record?.title || '');
+  const titleMatch = /^(?:公测庆典)?「([^」]+)」特许寻访(?:说明)?$/.exec(record?.title || '');
   if (!titleMatch) return [];
 
   const lines = stripHtmlToTextLines(record?.raw_content || record?.content || '');
   const timeLine = lines.find(l => l.includes('开放时间'));
-  const detailLine = lines.find(l =>
-    l.includes('获取概率提升') && l.includes('全部可能出现的6星干员包括')
-  );
+  const upLine = lines.find(l => l.includes('获取概率提升') || l.includes('概率提升的6星干员')) || '';
+  const featuredLine = lines.find(l => l.includes('全部可能出现的6星干员包括')) || upLine;
 
-  const up = extractUpCharacter(detailLine, 'limited');
+  const up = extractUpCharacter(upLine, 'limited');
   if (!up) return [];
 
   const timeRange = parseTimeRange(timeLine);
@@ -174,7 +174,7 @@ function parseStandaloneLimitedNotice(record) {
     source_title: cleanPoolLabel(titleMatch[1]),
     source_url: record?.source_url || null,
     up_character: up,
-    featured_character_names: extractFeaturedNames(detailLine),
+    featured_character_names: extractFeaturedNames(featuredLine),
     start_time: timeRange.start_time,
     end_time: timeRange.end_time,
   }];
@@ -213,13 +213,18 @@ function parseVersionUpdateSections(record) {
 
   const parsed = sections.map(section => {
     const timeLine = section.lines.find(l => l.includes('开放时间')) || '';
-    const detailLine = section.lines.find(l =>
+    const upLine = section.lines.find(l =>
       section.type === 'weapon'
-        ? l.includes('概率提升的6星武器为') && l.includes('全部可能出现的6星武器包括')
-        : l.includes('获取概率提升') && l.includes('全部可能出现的6星干员包括')
+        ? l.includes('概率提升的6星武器为')
+        : l.includes('获取概率提升') || l.includes('概率提升的6星干员')
     ) || '';
+    const featuredLine = section.lines.find(l =>
+      section.type === 'weapon'
+        ? l.includes('全部可能出现的6星武器包括')
+        : l.includes('全部可能出现的6星干员包括')
+    ) || upLine;
 
-    const up = extractUpCharacter(detailLine, section.type);
+    const up = extractUpCharacter(upLine, section.type);
     if (!up) return null;
 
     const timeRange = parseTimeRange(timeLine);
@@ -230,7 +235,7 @@ function parseVersionUpdateSections(record) {
       source_title: section.label,
       source_url: section.source_url,
       up_character: up,
-      featured_character_names: extractFeaturedNames(detailLine),
+      featured_character_names: extractFeaturedNames(featuredLine),
       start_time: timeRange.start_time,
       end_time: timeRange.end_time,
       hasVersionStartHint: hasVersionStartHint(timeLine),
@@ -433,7 +438,7 @@ export async function handlePoolScheduleFeed(req, res, {
     // 直接调用函数获取公告，避免 HTTP 自调用
     const announcementRecords = getAnnouncements
       ? await getAnnouncements()
-      : await buildOfficialAnnouncementRecords(undefined, { allowLlm: false });
+      : await buildPreferredAnnouncementRecords(undefined, { allowLlm: false });
 
     const supabase = getSupabase();
     const [characters, currentPools] = await Promise.all([

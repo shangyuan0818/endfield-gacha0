@@ -4,9 +4,11 @@ import {
   normalizeOfficialHtml,
 } from './officialAnnouncementPresentation.js';
 import { getSupabaseAdminClient } from './authAdmin.js';
+import { buildGameBulletinSourceRecords } from './gameBulletinFeed.js';
 
 const OFFICIAL_NEWS_BASE_URL = 'https://web-news.hypergryph.com/api';
 const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_GAME_BULLETIN_PAGE_SIZE = 30;
 const OFFICIAL_NEWS_REQUEST_TIMEOUT_MS = 15000;
 const OFFICIAL_NEWS_HEADERS = Object.freeze({
   Accept: 'application/json, text/plain, */*',
@@ -168,6 +170,8 @@ export async function buildOfficialAnnouncementSourceRecords(pageSize = DEFAULT_
       published_at: publishedAt,
       source_url: sourceUrl,
       is_active: true,
+      source_kind: 'official-site',
+      source_category: 'official',
     };
   });
 }
@@ -206,8 +210,64 @@ export async function buildOfficialAnnouncementRecordsFromSources(sourceRecords 
       published_at: detail.published_at,
       source_url: detail.source_url,
       is_active: true,
+      source_kind: detail.source_kind || null,
+      source_category: detail.source_category || detail.tab || null,
+      display_type: detail.display_type || null,
     };
   }));
+}
+
+export async function buildCombinedAnnouncementSourceRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  const requestedPageSize = Number(pageSize) || DEFAULT_PAGE_SIZE;
+  const [gameResult, officialResult] = await Promise.allSettled([
+    buildGameBulletinSourceRecords(
+      Math.max(requestedPageSize, DEFAULT_GAME_BULLETIN_PAGE_SIZE),
+      { fetchImpl }
+    ),
+    buildOfficialAnnouncementSourceRecords(requestedPageSize, { fetchImpl }),
+  ]);
+
+  const records = [];
+  const errors = [];
+
+  if (gameResult.status === 'fulfilled') {
+    records.push(...gameResult.value);
+  } else {
+    errors.push(`Game bulletin source failed: ${gameResult.reason?.message || 'unknown error'}`);
+  }
+
+  if (officialResult.status === 'fulfilled') {
+    records.push(...officialResult.value);
+  } else {
+    errors.push(`Official news source failed: ${officialResult.reason?.message || 'unknown error'}`);
+  }
+
+  if (records.length === 0) {
+    throw new Error(errors.join('; ') || 'No announcement source returned records');
+  }
+
+  return records.sort((a, b) => (
+    new Date(b?.published_at || 0) - new Date(a?.published_at || 0)
+  ));
+}
+
+export async function buildCombinedAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  allowLlm = false,
+  bypassLlmCache = false,
+  allowHeuristicSummary = true,
+} = {}) {
+  const sourceRecords = await buildCombinedAnnouncementSourceRecords(pageSize, { fetchImpl });
+  return buildOfficialAnnouncementRecordsFromSources(sourceRecords, {
+    fetchImpl,
+    env,
+    allowLlm,
+    bypassLlmCache,
+    allowHeuristicSummary,
+  });
 }
 
 export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
@@ -218,6 +278,43 @@ export async function buildOfficialAnnouncementRecords(pageSize = DEFAULT_PAGE_S
   allowHeuristicSummary = true,
 } = {}) {
   const sourceRecords = await buildOfficialAnnouncementSourceRecords(pageSize, { fetchImpl });
+  return buildOfficialAnnouncementRecordsFromSources(sourceRecords, {
+    fetchImpl,
+    env,
+    allowLlm,
+    bypassLlmCache,
+    allowHeuristicSummary,
+  });
+}
+
+export async function buildPreferredAnnouncementSourceRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+} = {}) {
+  try {
+    return await buildGameBulletinSourceRecords(
+      Math.max(Number(pageSize) || DEFAULT_PAGE_SIZE, DEFAULT_GAME_BULLETIN_PAGE_SIZE),
+      { fetchImpl }
+    );
+  } catch (gameBulletinError) {
+    try {
+      return await buildOfficialAnnouncementSourceRecords(pageSize, { fetchImpl });
+    } catch (officialNewsError) {
+      throw new Error([
+        `Game bulletin source failed: ${gameBulletinError?.message || 'unknown error'}`,
+        `Official news source failed: ${officialNewsError?.message || 'unknown error'}`,
+      ].join('; '));
+    }
+  }
+}
+
+export async function buildPreferredAnnouncementRecords(pageSize = DEFAULT_PAGE_SIZE, {
+  fetchImpl = globalThis.fetch,
+  env = process.env,
+  allowLlm = false,
+  bypassLlmCache = false,
+  allowHeuristicSummary = true,
+} = {}) {
+  const sourceRecords = await buildPreferredAnnouncementSourceRecords(pageSize, { fetchImpl });
   return buildOfficialAnnouncementRecordsFromSources(sourceRecords, {
     fetchImpl,
     env,
@@ -258,7 +355,7 @@ export async function handleOfficialAnnouncementsFeed(req, res) {
   }
 
   try {
-    const records = await buildOfficialAnnouncementRecords(DEFAULT_PAGE_SIZE, {
+    const records = await buildCombinedAnnouncementRecords(DEFAULT_PAGE_SIZE, {
       allowLlm: false,
       allowHeuristicSummary: false,
     });
@@ -313,6 +410,10 @@ export const __internal = {
   buildOfficialAnnouncementRecords,
   buildOfficialAnnouncementRecordsFromSources,
   buildOfficialAnnouncementSourceRecords,
+  buildCombinedAnnouncementRecords,
+  buildCombinedAnnouncementSourceRecords,
+  buildPreferredAnnouncementRecords,
+  buildPreferredAnnouncementSourceRecords,
   buildOfficialArticleUrl,
   buildVersion,
   loadOfficialAnnouncementRecordsFromDatabase,

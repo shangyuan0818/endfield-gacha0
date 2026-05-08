@@ -1,7 +1,7 @@
 import { getSupabaseAdminClient } from './authAdmin.js';
 import {
+  buildCombinedAnnouncementSourceRecords,
   buildOfficialAnnouncementRecordsFromSources,
-  buildOfficialAnnouncementSourceRecords,
 } from './officialAnnouncementsFeed.js';
 import {
   shouldSummarizeAnnouncement,
@@ -206,7 +206,7 @@ export async function syncAnnouncements({
   let sourceFallbackUsed = false;
   let rawRecords = [];
   try {
-    rawRecords = await buildOfficialAnnouncementSourceRecords(pageSize);
+    rawRecords = await buildCombinedAnnouncementSourceRecords(pageSize);
   } catch (error) {
     sourceFetchError = error;
     if (normalizedRefreshMode === ANNOUNCEMENT_REFRESH_MODES.INCREMENTAL) {
