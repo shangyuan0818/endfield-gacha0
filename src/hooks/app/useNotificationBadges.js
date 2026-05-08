@@ -248,6 +248,7 @@ export function useNotificationBadges() {
   const userRole = useAuthStore(state => state.userRole);
   const setAnnouncements = useAppStore(state => state.setAnnouncements);
   const setGameAnnouncements = useAppStore(state => state.setGameAnnouncements);
+  const setGameAnnouncementDigest = useAppStore(state => state.setGameAnnouncementDigest);
 
   const isSuperAdmin = userRole === 'super_admin';
 
@@ -338,11 +339,12 @@ export function useNotificationBadges() {
       if (cancelled) return;
 
       setGameAnnouncements(sortGameAnnouncements(gameRecords));
+      setGameAnnouncementDigest(apiPayload?.gameAnnouncementDigest || null);
     };
 
     load();
     return () => { cancelled = true; };
-  }, [setAnnouncements, setGameAnnouncements, isSuperAdmin]);
+  }, [setAnnouncements, setGameAnnouncements, setGameAnnouncementDigest, isSuperAdmin]);
 
   useEffect(() => {
     const load = async () => {

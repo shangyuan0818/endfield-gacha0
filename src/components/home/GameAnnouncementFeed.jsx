@@ -87,7 +87,6 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
     () => groupedAnnouncements.flatMap(group => group.items),
     [groupedAnnouncements],
   );
-  const isHistoryFallback = visibleAnnouncements.some(announcement => announcement?.is_recent_history_fallback);
   const [expandedGroupIds, setExpandedGroupIds] = useState(() => new Set(['game']));
   const [expandedId, setExpandedId] = useState(undefined);
   const effectiveExpandedId = expandedId === undefined
@@ -112,12 +111,6 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
 
   return (
     <div className="px-4 pb-4 space-y-3">
-      {isHistoryFallback ? (
-        <div className="border border-dashed border-amber-300/70 bg-amber-50/80 px-4 py-3 text-xs font-medium text-amber-700 dark:border-amber-800/60 dark:bg-amber-950/25 dark:text-amber-300">
-          {t('announcement.recentFallbackHint')}
-        </div>
-      ) : null}
-
       {groupedAnnouncements.map((group) => {
         const isGroupExpanded = expandedGroupIds.has(group.id);
         return (

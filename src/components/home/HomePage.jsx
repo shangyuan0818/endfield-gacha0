@@ -45,7 +45,7 @@ import { useAppStore, useAuthStore } from '../../stores';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
-import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
+import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import {
   getAnnouncementSeverityMeta,
   getAnnouncementTypeLabel,
@@ -57,6 +57,7 @@ const HomePage = React.memo(() => {
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
+  const storedGameAnnouncementDigest = useAppStore((state) => state.gameAnnouncementDigest);
   const pools = usePoolStore((state) => state.pools);
   const nextVersionTargetConfigValue = useSiteConfigStore(
     (state) => state.config[HOME_NEXT_VERSION_TARGET_CONFIG_KEY]
@@ -145,10 +146,9 @@ const HomePage = React.memo(() => {
       new Date(b?.updated_at || b?.created_at || 0) - new Date(a?.updated_at || a?.created_at || 0)
     ))[0] || null
   ), [temporaryAnnouncements, updateAnnouncements]);
-  const latestGameAnnouncement = gameAnnouncements[0] || null;
-  const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement);
-  const isGameAnnouncementHistoryFallback = gameAnnouncements.some(
-    announcement => announcement?.is_recent_history_fallback
+  const gameAnnouncementDigest = useMemo(
+    () => resolveGameAnnouncementDigest(storedGameAnnouncementDigest, gameAnnouncements, t),
+    [gameAnnouncements, storedGameAnnouncementDigest, t]
   );
   const hasAnnouncementUpdate = latestSiteAnnouncement
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestSiteAnnouncement.updated_at || latestSiteAnnouncement.created_at)
@@ -432,13 +432,11 @@ const HomePage = React.memo(() => {
                       <div className="flex items-center gap-2">
                       <span className="text-[10px] px-1.5 py-0.5 bg-orange-200 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 font-bold uppercase tracking-wide">{t('home.gameAnnouncement')}</span>
                       <h3 className="font-bold text-amber-700 dark:text-amber-400">
-                        {latestGameAnnouncement?.title || t('home.fromOfficialSite')}
+                        {gameAnnouncementDigest.title}
                       </h3>
                     </div>
                     <p className="text-[11px] text-amber-600/60 dark:text-amber-500/50 mt-0.5">
-                      {isGameAnnouncementHistoryFallback
-                        ? t('home.gameAnnouncementFallbackSummary')
-                        : (latestGameAnnouncementSummary || t('home.autoSummary'))}
+                      {gameAnnouncementDigest.subtitle}
                     </p>
                   </div>
                 </div>

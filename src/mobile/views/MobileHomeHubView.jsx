@@ -11,7 +11,7 @@ import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../util
 import SpringPreviewCard from '../../components/home/SpringPreviewCard';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
-import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
+import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
 
 const DEFAULT_LINKS = [
@@ -96,6 +96,7 @@ export default function MobileHomeHubView() {
   const user = useAuthStore((state) => state.user);
   const announcements = useAppStore((state) => state.announcements);
   const gameAnnouncements = useAppStore((state) => state.gameAnnouncements);
+  const storedGameAnnouncementDigest = useAppStore((state) => state.gameAnnouncementDigest);
   const pools = usePoolStore((state) => state.pools);
   const getConfig = useSiteConfigStore((state) => state.getConfig);
   const links = useJsonConfig('home_friendly_links', DEFAULT_LINKS);
@@ -123,8 +124,10 @@ export default function MobileHomeHubView() {
   const latestAnnouncement = temporaryAnnouncements?.[0] || updateAnnouncements?.[0] || null;
   const localizedAnnouncementTitle = getLocalizedAnnouncementTitle(latestAnnouncement, locale) || t('announcement.empty');
   const localizedAnnouncementContent = getLocalizedAnnouncementContent(latestAnnouncement, locale);
-  const latestGameAnnouncement = gameAnnouncements?.[0] || null;
-  const latestGameAnnouncementSummary = getGameAnnouncementSummary(latestGameAnnouncement, 72);
+  const gameAnnouncementDigest = useMemo(
+    () => resolveGameAnnouncementDigest(storedGameAnnouncementDigest, gameAnnouncements, t),
+    [gameAnnouncements, storedGameAnnouncementDigest, t]
+  );
   
   const translatedLinks = useMemo(() => (Array.isArray(links) ? links : []).map((item, index) => ({
     ...item,
@@ -325,11 +328,11 @@ export default function MobileHomeHubView() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-400 px-1 py-0.5 rounded font-bold shrink-0">{t('home.gameAnnouncement')}</span>
-                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate">{latestGameAnnouncement?.title || t('announcement.empty')}</span>
+                      <span className="text-xs font-bold text-slate-700 dark:text-zinc-300 truncate">{gameAnnouncementDigest.title}</span>
                     </div>
-                    {latestGameAnnouncementSummary ? (
+                    {gameAnnouncementDigest.subtitle ? (
                       <div className="mt-0.5 text-[10px] text-slate-500 dark:text-zinc-400 truncate">
-                        {latestGameAnnouncementSummary}
+                        {gameAnnouncementDigest.subtitle}
                       </div>
                     ) : null}
                   </div>

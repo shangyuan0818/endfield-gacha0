@@ -4,6 +4,7 @@ import {
   resolveSupabaseServerKey,
   resolveSupabaseUrl,
 } from '../../_lib/supabaseEnv.js';
+import { getStoredGameAnnouncementDigest } from '../../_lib/gameAnnouncementDigest.js';
 
 const CACHE_TTL = 60 * 1000;
 const DEFAULT_GAME_LIMIT = 5;
@@ -76,7 +77,8 @@ function createEmptyPayload() {
   return {
     siteAnnouncements: [],
     recentGameAnnouncements: [],
-    latestGameAnnouncements: []
+    latestGameAnnouncements: [],
+    gameAnnouncementDigest: null
   };
 }
 
@@ -117,7 +119,8 @@ function mergePayload(previousPayload, nextPartialPayload) {
   return {
     siteAnnouncements: next.siteAnnouncements ?? previous.siteAnnouncements ?? [],
     recentGameAnnouncements: next.recentGameAnnouncements ?? previous.recentGameAnnouncements ?? [],
-    latestGameAnnouncements: next.latestGameAnnouncements ?? previous.latestGameAnnouncements ?? []
+    latestGameAnnouncements: next.latestGameAnnouncements ?? previous.latestGameAnnouncements ?? [],
+    gameAnnouncementDigest: next.gameAnnouncementDigest ?? previous.gameAnnouncementDigest ?? null
   };
 }
 
@@ -170,19 +173,21 @@ async function fetchLatestGameAnnouncements(supabase, limit) {
 }
 
 async function fetchAnnouncementsPayload(supabase, query, previousPayload) {
-  const [siteResult, recentGameResult, latestGameResult] = await Promise.allSettled([
+  const [siteResult, recentGameResult, latestGameResult, digestResult] = await Promise.allSettled([
     fetchSiteAnnouncements(supabase),
     fetchRecentGameAnnouncements(supabase, query.cutoffIso),
-    fetchLatestGameAnnouncements(supabase, query.limit)
+    fetchLatestGameAnnouncements(supabase, query.limit),
+    getStoredGameAnnouncementDigest(supabase)
   ]);
 
   const payload = mergePayload(previousPayload, {
     siteAnnouncements: siteResult.status === 'fulfilled' ? siteResult.value : undefined,
     recentGameAnnouncements: recentGameResult.status === 'fulfilled' ? recentGameResult.value : undefined,
-    latestGameAnnouncements: latestGameResult.status === 'fulfilled' ? latestGameResult.value : undefined
+    latestGameAnnouncements: latestGameResult.status === 'fulfilled' ? latestGameResult.value : undefined,
+    gameAnnouncementDigest: digestResult.status === 'fulfilled' ? digestResult.value : undefined
   });
 
-  const partial = [siteResult, recentGameResult, latestGameResult]
+  const partial = [siteResult, recentGameResult, latestGameResult, digestResult]
     .some((result) => result.status === 'rejected');
 
   return {

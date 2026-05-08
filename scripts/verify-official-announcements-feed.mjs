@@ -11,6 +11,7 @@ import {
 } from '../api/_lib/officialAnnouncementPresentation.js';
 import { __internal as syncAnnouncementsInternal } from '../api/_lib/syncAnnouncements.js';
 import { __internal as runOpsAutomationInternal } from '../api/_lib/runOpsAutomation.js';
+import { __internal as digestInternal, refreshGameAnnouncementDigest } from '../api/_lib/gameAnnouncementDigest.js';
 import { getDefaultRunnableJobIds } from '../api/_lib/opsAutomation.js';
 
 function createMockResponse() {
@@ -723,6 +724,47 @@ assert.match(
   '原始正文中的相对图片地址应被归一化并改写为站内代理地址'
 );
 assert.match(res.payload.records[0].version, /^hg-1773203400-5992$/, 'version 应可从官方时间戳构造');
+
+{
+  const digest = digestInternal.parseDigestJson(JSON.stringify({
+    title: '近期公告速览',
+    subtitle: '游戏内活动、更新修复与官网同步公告集中更新。',
+  }));
+
+  assert.equal(digest.title, '近期公告速览', 'LLM 聚合摘要应解析 JSON 标题');
+  assert.equal(digest.mode, 'llm', 'LLM 聚合摘要成功时应标记 llm 模式');
+}
+
+{
+  const cachedValue = {
+    title: '此前生成标题',
+    subtitle: '此前生成的公告聚合摘要应在空窗口内继续保留。',
+    mode: 'llm',
+    fingerprint: 'old-cache',
+  };
+  const operations = [];
+  const mockSupabase = {
+    from(table) {
+      assert.equal(table, 'site_config', '公告聚合摘要应读取 site_config');
+      return {
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle: async () => ({ data: { value: JSON.stringify(cachedValue) }, error: null }),
+        upsert: async (row) => {
+          operations.push(row);
+          return { error: null };
+        },
+      };
+    },
+  };
+
+  const refreshResult = await refreshGameAnnouncementDigest(mockSupabase, [], {
+    now: Date.parse('2026-05-09T00:00:00.000Z'),
+  });
+  assert.equal(refreshResult.updated, false, '7-15 天内没有公告时不应覆盖已有聚合摘要');
+  assert.equal(refreshResult.digest.title, cachedValue.title, '空窗口应保留之前生成的标题');
+  assert.equal(operations.length, 0, '保留缓存时不应写入新的空摘要');
+}
 
 const llmPresentation = await buildAnnouncementDisplayContent({
   title: '「河流的女儿」特许寻访说明',

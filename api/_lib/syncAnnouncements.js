@@ -7,6 +7,7 @@ import {
   shouldSummarizeAnnouncement,
   stripHtmlToText,
 } from './officialAnnouncementPresentation.js';
+import { refreshGameAnnouncementDigest } from './gameAnnouncementDigest.js';
 
 const DEFAULT_PAGE_SIZE = 10;
 const FULL_REFRESH_PAGE_SIZE = 50;
@@ -244,6 +245,18 @@ export async function syncAnnouncements({
   const sourceWarning = sourceFetchError
     ? `官方公告源抓取失败，已使用数据库现有公告重算：${sourceFetchError.message}`
     : undefined;
+  let digestRefreshResult = null;
+  let digestWarning = undefined;
+
+  try {
+    digestRefreshResult = await refreshGameAnnouncementDigest(supabase, rawRecords, {
+      forceRefresh: normalizedRefreshMode !== ANNOUNCEMENT_REFRESH_MODES.INCREMENTAL,
+    });
+  } catch (error) {
+    digestWarning = `首页公告聚合摘要刷新失败：${error?.message || '未知错误'}`;
+  }
+
+  const sourceDigestWarning = buildWarningMessage(sourceWarning, digestWarning);
 
   const sourceIds = rawRecords.map(record => String(record.source_id));
 
@@ -261,8 +274,9 @@ export async function syncAnnouncements({
       refreshMode: normalizedRefreshMode,
       announcementLimit: pageSize,
       sourceFallbackUsed,
-      warning: sourceWarning,
+      warning: sourceDigestWarning,
       error: selectError.message,
+      digest: digestRefreshResult,
       records: rawRecords,
       rawRecords,
     };
@@ -289,7 +303,8 @@ export async function syncAnnouncements({
       refreshMode: normalizedRefreshMode,
       announcementLimit: pageSize,
       sourceFallbackUsed,
-      warning: sourceWarning,
+      warning: sourceDigestWarning,
+      digest: digestRefreshResult,
       records: rawRecords,
       rawRecords,
     };
@@ -310,7 +325,7 @@ export async function syncAnnouncements({
   const summaryWarning = summaryFailed > 0
     ? `LLM 摘要失败 ${summaryFailed} 条，已保留数据库现有内容，未用原文覆盖摘要`
     : undefined;
-  const syncWarning = buildWarningMessage(sourceWarning, summaryWarning);
+  const syncWarning = buildWarningMessage(sourceDigestWarning, summaryWarning);
   const persistableRecords = records.filter(record => record.summary_mode !== 'llm_failed');
 
   const persistRecords = persistableRecords.map(record => normalizePersistedAnnouncementRecord({
@@ -347,6 +362,7 @@ export async function syncAnnouncements({
       warning: syncWarning,
       summaryFailed,
       summaryErrors: summaryErrors.length > 0 ? summaryErrors : undefined,
+      digest: digestRefreshResult,
       records: rawRecords,
       updatedRecords: records,
       rawRecords,
@@ -390,6 +406,7 @@ export async function syncAnnouncements({
     warning: syncWarning,
     summaryFailed,
     summaryErrors: summaryErrors.length > 0 ? summaryErrors : undefined,
+    digest: digestRefreshResult,
     error: errors.length > 0 && synced === 0 ? '公告写入数据库失败' : undefined,
     errors: errors.length > 0 ? errors : undefined,
     records: rawRecords,
