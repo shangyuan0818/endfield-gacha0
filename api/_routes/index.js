@@ -1,11 +1,14 @@
 import accountRecoveryRequestHandler from './root/account-recovery-request.js';
 import adminHandler from './root/admin.js';
+import announcementsHandler from './root/announcements.js';
 import authAccountStatusHandler from './root/auth-account-status.js';
 import authRateLimitHandler from './root/auth-rate-limit.js';
 import automationFeedHandler from './root/automation-feed.js';
 import bootstrapHandler from './root/bootstrap.js';
 import officialAnnouncementImageHandler from './root/official-announcement-image.js';
 import opsAutomationHandler from './root/ops-automation.js';
+import poolRostersHandler from './root/pool-rosters.js';
+import puzzlesHandler from './root/puzzles.js';
 import selfDeleteAccountHandler from './root/self-delete-account.js';
 import statsHandler from './root/stats.js';
 import wikiAssetProxyHandler from './root/wiki-asset-proxy.js';
@@ -63,12 +66,15 @@ export const API_ROUTE_ENTRIES = [
   ['/api/admin-users', adminHandler],
   ['/api/admin-delete-user', adminHandler],
   ['/api/admin-user-reset-password', adminHandler],
+  ['/api/announcements', announcementsHandler],
   ['/api/auth-account-status', authAccountStatusHandler],
   ['/api/auth-rate-limit', authRateLimitHandler],
   ['/api/automation-feed', automationFeedHandler],
   ['/api/bootstrap', bootstrapHandler],
   ['/api/official-announcement-image', officialAnnouncementImageHandler],
   ['/api/ops-automation', opsAutomationHandler],
+  ['/api/pool-rosters', poolRostersHandler],
+  ['/api/puzzles', puzzlesHandler],
   ['/api/self-delete-account', selfDeleteAccountHandler],
   ['/api/stats', statsHandler],
   ['/api/wiki-asset-proxy', wikiAssetProxyHandler],

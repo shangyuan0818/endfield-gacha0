@@ -15,7 +15,7 @@ import { normalizeIsStandard } from '../../utils';
 import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { compareHistoryTimelineAsc } from '../../utils/historyTimelineSort.js';
-import { resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { fetchPoolRosterRecordsBatch, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
 import { useI18n } from '../../i18n/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
@@ -117,21 +117,28 @@ export function useCurrentPoolData() {
         return;
       }
 
+      const poolIds = rosterCandidates.map((pool) => getPoolId(pool)).filter(Boolean);
+      const recordsByPoolId = await fetchPoolRosterRecordsBatch(poolIds).catch(() => null);
+      const hasBatchRecords = recordsByPoolId instanceof Map;
+
       const rosterEntries = await Promise.all(rosterCandidates.map(async (pool) => {
+        const poolId = getPoolId(pool);
         const normalizedPoolType = normalizePoolType(pool?.type);
         const currentUpName = pool?.up_character || pool?.upCharacter || null;
         const roster = await resolvePoolRosterBuckets({
-          poolId: getPoolId(pool),
+          poolId,
           expectedType: getRosterExpectedType(normalizedPoolType),
           currentUpName,
           poolType: getRosterPoolType(normalizedPoolType),
           poolInfo: pool,
           mergeStrategy: normalizedPoolType === 'limited' ? 'fill-missing' : 'append',
+          explicitRecords: hasBatchRecords ? (recordsByPoolId.get(poolId) || []) : null,
+          skipExplicitFetch: hasBatchRecords,
         }).catch(() => null);
 
         const featuredCharacters = Array.isArray(roster?.sixStar) ? roster.sixStar.filter(Boolean) : [];
         return [
-          getPoolId(pool),
+          poolId,
           featuredCharacters.length > 0
             ? {
                 roster,

@@ -1,8 +1,23 @@
 import { supabase } from '../supabaseClient.js';
+import { fetchJsonWithTimeout } from '../services/supabaseRequest.js';
 import { characterCache, getLimitedCharacterPoolStatus } from './characterUtils.js';
+
+const POOL_ROSTER_API_CACHE_TTL = 5 * 60 * 1000;
+const POOL_ROSTER_API_TIMEOUT_MS = 15000;
+
+const batchRecordsCache = new Map();
+const batchRecordsInFlight = new Map();
 
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizePoolId(value) {
+  if (value == null) {
+    return '';
+  }
+
+  return String(value).trim();
 }
 
 function inferExpectedPoolKey(expectedType) {
@@ -73,7 +88,7 @@ function ensureLeadingName(items = [], leadingName = null) {
   return [normalizedLeading, ...deduped.filter((item) => item !== normalizedLeading)];
 }
 
-function buildBucketsFromPoolCharacters(records = [], { expectedType = 'character', currentUpName = null } = {}) {
+export function buildBucketsFromPoolCharacters(records = [], { expectedType = 'character', currentUpName = null } = {}) {
   const buckets = {
     up: [],
     offBanner: [],
@@ -304,18 +319,118 @@ export async function fetchPoolRosterBuckets(poolId, { expectedType = 'character
   });
 }
 
+function createBatchCacheKey(poolIds = []) {
+  return Array.from(new Set(poolIds.map(normalizePoolId).filter(Boolean)))
+    .sort()
+    .join(',');
+}
+
+function normalizeBatchPayload(poolIds = [], payload = {}) {
+  const requestedPoolIds = Array.from(new Set(poolIds.map(normalizePoolId).filter(Boolean)));
+  const recordMap = new Map(requestedPoolIds.map((poolId) => [poolId, []]));
+  const poolRosters = payload?.poolRosters && typeof payload.poolRosters === 'object'
+    ? payload.poolRosters
+    : {};
+
+  Object.entries(poolRosters).forEach(([poolId, records]) => {
+    const normalizedPoolId = normalizePoolId(poolId);
+    if (!normalizedPoolId || !Array.isArray(records)) {
+      return;
+    }
+
+    recordMap.set(normalizedPoolId, records);
+  });
+
+  return recordMap;
+}
+
+export async function fetchPoolRosterRecordsBatch(poolIds = [], { forceRefresh = false } = {}) {
+  const normalizedPoolIds = Array.from(new Set(poolIds.map(normalizePoolId).filter(Boolean)));
+  if (normalizedPoolIds.length === 0) {
+    return new Map();
+  }
+
+  if (!import.meta.env?.PROD && !forceRefresh) {
+    return null;
+  }
+
+  const cacheKey = createBatchCacheKey(normalizedPoolIds);
+  const now = Date.now();
+  const cached = batchRecordsCache.get(cacheKey);
+  if (!forceRefresh && cached && now - cached.lastFetch < POOL_ROSTER_API_CACHE_TTL) {
+    return cached.recordsByPoolId;
+  }
+
+  if (batchRecordsInFlight.has(cacheKey)) {
+    return batchRecordsInFlight.get(cacheKey);
+  }
+
+  const request = (async () => {
+    const searchParams = new URLSearchParams();
+    searchParams.set('poolIds', normalizedPoolIds.join(','));
+
+    const { response, data } = await fetchJsonWithTimeout(
+      `/api/pool-rosters?${searchParams.toString()}`,
+      undefined,
+      {
+        label: 'load pool rosters',
+        timeoutMs: POOL_ROSTER_API_TIMEOUT_MS,
+        retries: 1
+      }
+    );
+
+    if (!response.ok || data?.success !== true) {
+      throw new Error(data?.error || `pool rosters request failed with ${response.status}`);
+    }
+
+    const recordsByPoolId = normalizeBatchPayload(normalizedPoolIds, data?.data);
+    batchRecordsCache.set(cacheKey, {
+      recordsByPoolId,
+      lastFetch: Date.now()
+    });
+
+    return recordsByPoolId;
+  })().catch(() => null).finally(() => {
+    batchRecordsInFlight.delete(cacheKey);
+  });
+
+  batchRecordsInFlight.set(cacheKey, request);
+  return request;
+}
+
 export async function resolvePoolRosterBuckets({
   poolId,
   expectedType = 'character',
   currentUpName = null,
   poolType = expectedType === 'weapon' ? 'weapon' : 'limited',
   poolInfo = null,
-  mergeStrategy = 'append'
+  mergeStrategy = 'append',
+  explicitRecords = null,
+  skipExplicitFetch = false
 } = {}) {
-  const explicitBuckets = await fetchPoolRosterBuckets(poolId, {
-    expectedType,
-    currentUpName
-  });
+  let explicitBuckets = null;
+
+  if (Array.isArray(explicitRecords)) {
+    explicitBuckets = buildBucketsFromPoolCharacters(explicitRecords, {
+      expectedType,
+      currentUpName
+    });
+  } else if (!skipExplicitFetch) {
+    const batchRecords = await fetchPoolRosterRecordsBatch([poolId]).catch(() => null);
+    const normalizedPoolId = normalizePoolId(poolId);
+
+    if (batchRecords instanceof Map && batchRecords.has(normalizedPoolId)) {
+      explicitBuckets = buildBucketsFromPoolCharacters(batchRecords.get(normalizedPoolId) || [], {
+        expectedType,
+        currentUpName
+      });
+    } else {
+      explicitBuckets = await fetchPoolRosterBuckets(poolId, {
+        expectedType,
+        currentUpName
+      });
+    }
+  }
 
   const fallbackBuckets = buildDynamicRosterBuckets({
     expectedType,

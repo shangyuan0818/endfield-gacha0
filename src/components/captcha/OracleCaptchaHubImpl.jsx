@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MinecraftCaptcha from '../MinecraftCaptcha';
 import TerminalPowCaptcha from './TerminalPowCaptcha';
 import EnhancedPuzzleCaptcha from './EnhancedPuzzleCaptchaImpl';
-import { fetchWithTimeout } from '../../services/supabaseRequest';
+import { fetchJsonWithTimeout, fetchWithTimeout } from '../../services/supabaseRequest';
 import { buildPlayerUrl, expandPuzzle } from './puzzleUtils';
 import { readNumberStorageValue, readStorageValue, STORAGE_KEYS, writeNumberStorageValue, writeStorageValue } from '../../utils/storageUtils.js';
 import './CaptchaPuzzleOracle.css';
@@ -111,7 +111,38 @@ function withHardTimeout(promise, label, timeoutMs) {
   });
 }
 
-async function loadSharedPuzzlePool(difficulty) {
+function normalizePuzzleRows(rows, fallbackDifficulty) {
+  return (rows ?? []).map((row) => ({
+    id: row.id,
+    author: row.author || '',
+    difficulty: row.difficulty || fallbackDifficulty,
+    puzzle: expandPuzzle(row.data),
+  }));
+}
+
+async function loadSharedPuzzlePoolFromApi(difficulty) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('difficulty', String(difficulty));
+  searchParams.set('limit', '80');
+
+  const { response, data } = await fetchJsonWithTimeout(
+    `/api/puzzles?${searchParams.toString()}`,
+    undefined,
+    {
+      label: 'captcha puzzle pool api read',
+      timeoutMs: CAPTCHA_PUZZLE_READ_TIMEOUT_MS,
+      retries: 1,
+    },
+  );
+
+  if (!response.ok || data?.success !== true) {
+    throw new Error(data?.error || `Puzzle API ${response.status}`);
+  }
+
+  return normalizePuzzleRows(data?.data?.puzzles, difficulty);
+}
+
+async function loadSharedPuzzlePoolFromDb(difficulty) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
   const supabasePublishableKey = (
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -155,12 +186,18 @@ async function loadSharedPuzzlePool(difficulty) {
 
   const data = await response.json();
 
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    author: row.author || '',
-    difficulty: row.difficulty || difficulty,
-    puzzle: expandPuzzle(row.data),
-  }));
+  return normalizePuzzleRows(data, difficulty);
+}
+
+async function loadSharedPuzzlePool(difficulty) {
+  if (import.meta.env?.PROD) {
+    const apiRows = await loadSharedPuzzlePoolFromApi(difficulty).catch(() => null);
+    if (Array.isArray(apiRows)) {
+      return apiRows;
+    }
+  }
+
+  return loadSharedPuzzlePoolFromDb(difficulty);
 }
 
 function CaptchaShell({ modeRail, children, placeholderRight = true, noticeMessage, onRetryRemote, isMobile = false }) {

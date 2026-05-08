@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRequest';
+import { executeSupabaseRead, fetchJsonWithTimeout, fetchWithTimeout } from '../../services/supabaseRequest';
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
@@ -142,6 +142,31 @@ async function loadAnnouncementsFromLocal() {
   return resp.json();
 }
 
+async function loadAnnouncementsFromApi({
+  cutoffIso = getRecentGameAnnouncementCutoffIso(),
+  limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT,
+} = {}) {
+  const searchParams = new URLSearchParams();
+  searchParams.set('cutoffIso', cutoffIso);
+  searchParams.set('limit', String(limit));
+
+  const { response, data } = await fetchJsonWithTimeout(
+    `/api/announcements?${searchParams.toString()}`,
+    undefined,
+    {
+      label: 'load announcements api',
+      timeoutMs: 15000,
+      retries: 1,
+    }
+  );
+
+  if (!response.ok || data?.success !== true) {
+    throw new Error(data?.error || `announcements api returned ${response.status}`);
+  }
+
+  return data?.data || null;
+}
+
 async function loadOfficialAnnouncementsFeed({
   cutoffIso = getRecentGameAnnouncementCutoffIso(),
 } = {}) {
@@ -185,12 +210,23 @@ export function useNotificationBadges() {
 
     const load = async () => {
       const cutoffIso = getRecentGameAnnouncementCutoffIso();
-      let siteRecords;
+      let apiPayload = null;
       try {
-        const dbRecords = await loadSiteAnnouncementsFromDb();
-        siteRecords = dbRecords ?? await loadAnnouncementsFromLocal();
+        apiPayload = await loadAnnouncementsFromApi({ cutoffIso });
       } catch {
-        siteRecords = [];
+        apiPayload = null;
+      }
+
+      let siteRecords;
+      if (apiPayload) {
+        siteRecords = Array.isArray(apiPayload.siteAnnouncements) ? apiPayload.siteAnnouncements : [];
+      } else {
+        try {
+          const dbRecords = await loadSiteAnnouncementsFromDb();
+          siteRecords = dbRecords ?? await loadAnnouncementsFromLocal();
+        } catch {
+          siteRecords = [];
+        }
       }
 
       if (cancelled) return;
@@ -204,18 +240,25 @@ export function useNotificationBadges() {
         setHasNewAnnouncement(false);
       }
 
-      let dbGameRecords = [];
-      try {
-        dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
-      } catch {
-        dbGameRecords = [];
-      }
+      let dbGameRecords = Array.isArray(apiPayload?.recentGameAnnouncements)
+        ? apiPayload.recentGameAnnouncements
+        : [];
+      let latestDbGameRecords = Array.isArray(apiPayload?.latestGameAnnouncements)
+        ? apiPayload.latestGameAnnouncements
+        : [];
 
-      let latestDbGameRecords = [];
-      try {
-        latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
-      } catch {
-        latestDbGameRecords = [];
+      if (!apiPayload) {
+        try {
+          dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
+        } catch {
+          dbGameRecords = [];
+        }
+
+        try {
+          latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
+        } catch {
+          latestDbGameRecords = [];
+        }
       }
 
       let gameRecords = buildGameAnnouncementDisplaySet({
