@@ -146,6 +146,10 @@ async function loadAnnouncementsFromApi({
   cutoffIso = getRecentGameAnnouncementCutoffIso(),
   limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT,
 } = {}) {
+  if (!import.meta.env?.PROD) {
+    return null;
+  }
+
   const searchParams = new URLSearchParams();
   searchParams.set('cutoffIso', cutoffIso);
   searchParams.set('limit', String(limit));

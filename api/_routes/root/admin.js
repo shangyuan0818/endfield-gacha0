@@ -121,7 +121,7 @@ async function verifySuperAdmin(req, adminClient, { useAnonServerClient = false 
 
   const userResult = useAnonServerClient
     ? await callerClient.auth.getUser(token)
-    : await callerClient.auth.getUser();
+    : await callerClient.auth.getUser(token);
 
   const callerUser = userResult?.data?.user;
   if (userResult?.error || !callerUser?.id) {

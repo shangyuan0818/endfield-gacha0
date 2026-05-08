@@ -3,7 +3,7 @@ function normalizeEnvValue(value) {
 }
 
 export function resolveSupabaseUrl(env = process.env) {
-  return normalizeEnvValue(env.SUPABASE_URL || env.VITE_SUPABASE_URL);
+  return normalizeEnvValue(env.VITE_SUPABASE_URL || env.SUPABASE_URL);
 }
 
 export function resolveSupabaseSecretKey(env = process.env) {
