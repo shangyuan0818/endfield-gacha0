@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react-swc'
-import webfontDownload from 'vite-plugin-webfont-dl'
 import { getApiRouteEntries } from './api/_routes/index.js'
 
 function readJsonBody(req) {
@@ -148,10 +147,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      createDevApiPlugin(),
-      webfontDownload([
-        'https://fonts.googleapis.com/css2?family=Teko:wght@600&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap'
-      ])
+      createDevApiPlugin()
     ],
     // The app is deployed at the domain root, so generated asset and SW URLs
     // must stay absolute across nested SPA routes like /m/summary.

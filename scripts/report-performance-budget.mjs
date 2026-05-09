@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
@@ -19,6 +19,9 @@ const KEY_PATHS = [
   'public',
   'dist',
   '.vercel',
+  '.vercel/output',
+  '.vercel/output/static',
+  '.vercel/output/functions',
   '.git',
 ]
 
@@ -91,6 +94,40 @@ async function listFiles(targetPath) {
   }
 
   return files
+}
+
+async function findFilesByName(targetPath, fileName) {
+  let entry
+  try {
+    entry = await stat(targetPath)
+  } catch {
+    return []
+  }
+
+  if (!entry.isDirectory()) {
+    return path.basename(targetPath) === fileName ? [targetPath] : []
+  }
+
+  const matches = []
+  const entries = await readdir(targetPath, { withFileTypes: true })
+  for (const child of entries) {
+    const childPath = path.join(targetPath, child.name)
+    if (child.isDirectory()) {
+      matches.push(...await findFilesByName(childPath, fileName))
+    } else if (child.isFile() && child.name === fileName) {
+      matches.push(childPath)
+    }
+  }
+
+  return matches
+}
+
+async function readJsonFile(filePath) {
+  try {
+    return JSON.parse(await readFile(filePath, 'utf8'))
+  } catch {
+    return null
+  }
 }
 
 async function gitTrackedFiles() {
@@ -175,12 +212,69 @@ async function buildDistSummary() {
   }
 }
 
+async function buildVercelOutputSummary() {
+  const outputRoot = path.join(repoRoot, '.vercel', 'output')
+  const staticPath = path.join(outputRoot, 'static')
+  const functionsPath = path.join(outputRoot, 'functions')
+  const configFiles = await findFilesByName(functionsPath, '.vc-config.json')
+  const functions = []
+  let includeFilesTotal = 0
+
+  for (const configFile of configFiles) {
+    const config = await readJsonFile(configFile)
+    if (!config) {
+      continue
+    }
+
+    const functionDir = path.dirname(configFile)
+    const filePathMap = config.filePathMap || {}
+    const includeFiles = []
+    let includeFilesSize = 0
+
+    for (const filePath of Object.keys(filePathMap)) {
+      const sourcePath = path.join(repoRoot, filePath)
+      try {
+        const fileStat = await stat(sourcePath)
+        includeFilesSize += fileStat.size
+        includeFiles.push({
+          path: filePath.replaceAll('\\', '/'),
+          sizeMiB: formatMiB(fileStat.size),
+        })
+      } catch {
+        includeFiles.push({
+          path: filePath.replaceAll('\\', '/'),
+          sizeMiB: null,
+        })
+      }
+    }
+
+    includeFilesTotal += includeFilesSize
+    functions.push({
+      path: path.relative(outputRoot, functionDir).replaceAll('\\', '/'),
+      handler: config.handler || null,
+      runtime: config.runtime || null,
+      sizeMiB: formatMiB(await pathSize(functionDir)),
+      includeFilesMiB: formatMiB(includeFilesSize),
+      includeFiles: includeFiles.sort((a, b) => (b.sizeMiB || 0) - (a.sizeMiB || 0)),
+    })
+  }
+
+  functions.sort((a, b) => b.sizeMiB - a.sizeMiB)
+  return {
+    staticMiB: formatMiB(await pathSize(staticPath)),
+    functionsMiB: formatMiB(await pathSize(functionsPath)),
+    includeFilesMiB: formatMiB(includeFilesTotal),
+    functions,
+  }
+}
+
 async function main() {
   const report = {
     generatedAt: new Date().toISOString(),
     paths: await buildPathSummary(),
     trackedFiles: await buildTrackedFileSummary(),
     dist: await buildDistSummary(),
+    vercelOutput: await buildVercelOutputSummary(),
   }
 
   await mkdir(path.dirname(outputPath), { recursive: true })
@@ -189,6 +283,9 @@ async function main() {
   console.log('Performance budget report')
   console.log(`- tracked files: ${report.trackedFiles.count}, ${report.trackedFiles.sizeMiB} MiB`)
   console.log(`- dist assets: ${report.dist.totalAssetsMiB} MiB`)
+  console.log(`- vercel static: ${report.vercelOutput.staticMiB} MiB`)
+  console.log(`- vercel functions: ${report.vercelOutput.functionsMiB} MiB`)
+  console.log(`- vercel function includeFiles: ${report.vercelOutput.includeFilesMiB} MiB`)
   console.log(`- report: ${path.relative(repoRoot, outputPath)}`)
   console.log('')
   console.log('Largest tracked files:')
@@ -199,6 +296,17 @@ async function main() {
   console.log('Largest dist assets:')
   for (const file of report.dist.largest.slice(0, 10)) {
     console.log(`  ${String(file.sizeMiB).padStart(7)} MiB  ${file.path}`)
+  }
+
+  if (report.vercelOutput.functions.length > 0) {
+    console.log('')
+    console.log('Vercel functions:')
+    for (const fn of report.vercelOutput.functions.slice(0, 10)) {
+      console.log(`  ${String(fn.sizeMiB).padStart(7)} MiB  ${fn.path} (${fn.runtime || 'unknown'})`)
+      if (fn.includeFilesMiB > 0) {
+        console.log(`           includeFiles: ${fn.includeFilesMiB} MiB`)
+      }
+    }
   }
 
   if (report.dist.warnings.length > 0) {
