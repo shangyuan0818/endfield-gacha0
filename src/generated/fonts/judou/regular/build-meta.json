@@ -1,8 +1,0 @@
-{
-  "version": "judou-sans-se-wasm-v2",
-  "family": "Judou Sans SE UI",
-  "key": "regular",
-  "weight": "400",
-  "sourceFile": "src/assets/fonts/judou/JudouSEHans-Regular.ttf",
-  "sourceHash": "017a356e23cc3c1db6d253931b15a2daa67d435f379be78e92389f98b0b1462e"
-}

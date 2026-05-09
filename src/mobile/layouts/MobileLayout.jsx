@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import MobileHeader from '../components/MobileHeader';
 import MobileTabBar from '../components/MobileTabBar';
@@ -19,10 +19,19 @@ import MobileTicketView from '../views/MobileTicketView';
 import MobileAnnouncementsView from '../views/MobileAnnouncementsView';
 import MobileMechanicsView from '../views/MobileMechanicsView';
 import MobileRoadmapView from '../views/MobileRoadmapView';
-import DeveloperApiDocsPage from '../../components/docs/DeveloperApiDocsPage';
 import useAuthStore from '../../stores/useAuthStore';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 import { useI18n } from '../../i18n/index.js';
+
+const DeveloperApiDocsPage = lazy(() => import('../../components/docs/DeveloperApiDocsPage'));
+
+function MobileRouteFallback({ label }) {
+  return (
+    <div className="p-6 text-sm text-zinc-400">
+      {label}
+    </div>
+  );
+}
 
 /**
  * 移动端主布局 (重构版)
@@ -62,7 +71,14 @@ function MobileLayout() {
           <Route path="dashboard" element={<Navigate to={getMobilePathForTab('details')} replace />} />
           <Route path="simulator" element={<MobileSimulatorView />} />
           <Route path="settings" element={<MobileSettingsView />} />
-          <Route path="developer-api" element={<DeveloperApiDocsPage />} />
+          <Route
+            path="developer-api"
+            element={
+              <Suspense fallback={<MobileRouteFallback label={t('common.loading')} />}>
+                <DeveloperApiDocsPage />
+              </Suspense>
+            }
+          />
           <Route path="about" element={<MobileAboutView />} />
           <Route
             path="admin"

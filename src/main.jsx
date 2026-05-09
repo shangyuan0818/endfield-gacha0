@@ -10,7 +10,7 @@ import { preloadPublicBootstrap } from './services/bootstrapService'
 import { getDeviceRedirectTarget } from './utils/deviceRedirect.js'
 import { appLogger } from './utils/appLogger.js'
 import { prepareFreshNavigation } from './utils/serviceWorkerRecovery.js'
-import { I18nProvider } from './i18n/index.js'
+import { I18nProvider, ensureLocaleMessages, getAppLocale } from './i18n/index.js'
 import { installRuntimeObservability } from './utils/runtimeObservability.js'
 import { readStorageValue, STORAGE_KEYS } from './utils/storageUtils.js'
 import { markAppMounted, renderAppCrashFallback } from './utils/appCrashFallback.js'
@@ -54,6 +54,8 @@ async function bootstrapApp() {
   if (!rootElement) {
     throw new Error('Root element #root was not found');
   }
+
+  await ensureLocaleMessages(getAppLocale());
 
   createRoot(rootElement).render(
     <StrictMode>

@@ -6,36 +6,10 @@ import { fileURLToPath } from 'node:url'
 import { fontSplit } from 'cn-font-split'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const judouSourceDir = path.join(repoRoot, 'src', 'assets', 'fonts', 'judou')
-const judouOutputRoot = path.join(repoRoot, 'src', 'generated', 'fonts', 'judou')
-const judouFontFamily = 'Judou Sans SE UI'
 const harmonySourceDir = path.join(repoRoot, 'src', 'assets', 'fonts', 'harmony')
 const harmonyOutputRoot = path.join(repoRoot, 'src', 'generated', 'fonts', 'harmony')
 const harmonyFontFamily = 'Harmony Sans App'
 const generatedDebugArtifacts = ['index.html', 'index.proto', 'reporter.bin']
-
-const judouFontJobs = [
-  {
-    key: 'regular',
-    weight: '400',
-    sourceFile: 'JudouSEHans-Regular.ttf'
-  },
-  {
-    key: 'medium',
-    weight: '500',
-    sourceFile: 'JudouSEHans-Medium.ttf'
-  },
-  {
-    key: 'bold',
-    weight: '700',
-    sourceFile: 'JudouSEHans-Bold.ttf'
-  },
-  {
-    key: 'heavy',
-    weight: '900',
-    sourceFile: 'JudouSEHans-Heavy.ttf'
-  }
-]
 
 const harmonyFontJobs = [
   {
@@ -77,21 +51,45 @@ async function cleanupGeneratedArtifacts(outDir) {
 }
 
 async function writeBuildMeta({ outputRoot, version, family, key, weight, sourcePath, sourceBuffer }) {
+  const sourceHash = createHash('sha256').update(sourceBuffer).digest('hex')
   const meta = {
     version,
     family,
     key,
     weight,
     sourceFile: path.relative(repoRoot, sourcePath).replaceAll(path.sep, '/'),
-    sourceHash: createHash('sha256').update(sourceBuffer).digest('hex')
+    sourceHash
   }
   await writeFile(buildMetaPath(outputRoot, key), `${JSON.stringify(meta, null, 2)}\n`, 'utf8')
+}
+
+async function isGeneratedSubsetCurrent({ outputRoot, version, family, key, weight, sourcePath, sourceBuffer }) {
+  if (!existsSync(resultCssPath(outputRoot, key)) || !existsSync(buildMetaPath(outputRoot, key))) {
+    return false
+  }
+
+  try {
+    const meta = JSON.parse(await readFile(buildMetaPath(outputRoot, key), 'utf8'))
+    return meta.version === version &&
+      meta.family === family &&
+      meta.key === key &&
+      meta.weight === weight &&
+      meta.sourceFile === path.relative(repoRoot, sourcePath).replaceAll(path.sep, '/') &&
+      meta.sourceHash === createHash('sha256').update(sourceBuffer).digest('hex')
+  } catch {
+    return false
+  }
 }
 
 async function buildFontSubset({ sourceDir, outputRoot, family, version, key, weight, sourceFile }) {
   const sourcePath = path.join(sourceDir, sourceFile)
   const outDir = path.join(outputRoot, key)
   const sourceBuffer = await readFile(sourcePath)
+
+  if (await isGeneratedSubsetCurrent({ outputRoot, version, family, key, weight, sourcePath, sourceBuffer })) {
+    console.log(`[fonts] Reusing ${key} (${weight}) from ${sourceFile}`)
+    return
+  }
 
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })
@@ -158,16 +156,6 @@ async function prepareFontFamily({
 }
 
 async function main() {
-  await prepareFontFamily({
-    label: 'Judou',
-    sourceDir: judouSourceDir,
-    outputRoot: judouOutputRoot,
-    family: judouFontFamily,
-    version: 'judou-sans-se-wasm-v2',
-    fontJobs: judouFontJobs,
-    allowCheckedInFallback: true
-  })
-
   await prepareFontFamily({
     label: 'Harmony SC',
     sourceDir: harmonySourceDir,

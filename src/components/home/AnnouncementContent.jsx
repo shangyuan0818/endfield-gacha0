@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
-import SimpleMarkdown from '../SimpleMarkdown';
 import { useI18n } from '../../i18n/index.js';
+
+const SimpleMarkdown = lazy(() => import('../SimpleMarkdown.jsx'));
 
 const AnnouncementContent = React.memo(function AnnouncementContent({ content }) {
   const { t } = useI18n();
@@ -45,10 +46,18 @@ const AnnouncementContent = React.memo(function AnnouncementContent({ content })
             scrollbarColor: 'rgb(251 191 36) transparent',
           }}
         >
-          <SimpleMarkdown
-            content={content}
-            className="text-sm text-slate-700 dark:text-zinc-300"
-          />
+          <Suspense
+            fallback={
+              <div className="py-3 text-sm text-slate-500 dark:text-zinc-500">
+                {t('common.loading')}
+              </div>
+            }
+          >
+            <SimpleMarkdown
+              content={content}
+              className="text-sm text-slate-700 dark:text-zinc-300"
+            />
+          </Suspense>
           <div className="h-8"></div>
         </div>
         {canScroll && (

@@ -375,7 +375,7 @@ const HomePage = React.memo(() => {
                   <ChevronUp size={20} className={`${severityMeta.chevron} transition-transform duration-300 ${showTemporaryAnnouncements ? '' : 'rotate-180'}`} />
                 </button>
 
-                <CollapsibleContent isOpen={showTemporaryAnnouncements}>
+                <CollapsibleContent isOpen={showTemporaryAnnouncements} unmountOnClose>
                   <HomeAnnouncementContent content={content} />
                 </CollapsibleContent>
               </div>
@@ -412,7 +412,7 @@ const HomePage = React.memo(() => {
                 <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showUpdateAnnouncement ? '' : 'rotate-180'}`} />
               </button>
 
-              <CollapsibleContent isOpen={showUpdateAnnouncement}>
+              <CollapsibleContent isOpen={showUpdateAnnouncement} unmountOnClose>
                 <HomeAnnouncementContent content={latestAnnouncementContent} />
               </CollapsibleContent>
             </div>
@@ -443,7 +443,7 @@ const HomePage = React.memo(() => {
                 <ChevronUp size={20} className={`text-amber-400 transition-transform duration-300 ${showGameAnnouncements ? '' : 'rotate-180'}`} />
               </button>
 
-              <CollapsibleContent isOpen={showGameAnnouncements}>
+              <CollapsibleContent isOpen={showGameAnnouncements} unmountOnClose>
                 <GameAnnouncementFeed announcements={gameAnnouncements} maxItems={5} />
               </CollapsibleContent>
             </div>

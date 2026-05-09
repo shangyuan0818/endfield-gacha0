@@ -9,26 +9,51 @@ import {
   normalizeAnnouncementType
 } from '../../../utils/announcementMeta';
 
-const MDEditor = lazy(() => import('@uiw/react-md-editor'));
+const SimpleMarkdown = lazy(() => import('../../SimpleMarkdown.jsx'));
 
-function MarkdownEditorField({ value, onChange }) {
+function MarkdownEditorField({ value, onChange, placeholder }) {
+  const [showPreview, setShowPreview] = useState(false);
+  const hasContent = Boolean(String(value || '').trim());
+
   return (
-    <Suspense
-      fallback={
-        <div className="h-[300px] border border-amber-300/70 dark:border-amber-700/70 bg-white/70 dark:bg-zinc-900/70 flex items-center justify-center text-sm text-amber-700 dark:text-amber-300">
-          正在加载 Markdown 编辑器...
-        </div>
-      }
-    >
-      <MDEditor
+    <div className="border border-amber-300/70 bg-white dark:border-amber-700/70 dark:bg-zinc-950">
+      <div className="flex items-center justify-between border-b border-amber-200/80 bg-amber-50/80 px-3 py-2 dark:border-amber-800/70 dark:bg-amber-950/30">
+        <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
+          Markdown
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowPreview((prev) => !prev)}
+          className="inline-flex items-center gap-1.5 border border-amber-300 px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+        >
+          {showPreview ? <EyeOff size={13} /> : <Eye size={13} />}
+          {showPreview ? '隐藏预览' : '预览'}
+        </button>
+      </div>
+      <textarea
         value={value}
-        onChange={onChange}
-        height={300}
-        preview="live"
-        hideToolbar={false}
-        enableScroll={true}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="h-[300px] w-full resize-y bg-white px-3 py-2 font-mono text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400 dark:bg-zinc-950 dark:text-zinc-200 dark:placeholder:text-zinc-600"
       />
-    </Suspense>
+      {showPreview ? (
+        <div className="border-t border-amber-200/80 bg-white px-3 py-3 dark:border-amber-800/70 dark:bg-zinc-950">
+          {hasContent ? (
+            <Suspense
+              fallback={
+                <div className="py-4 text-sm text-slate-500 dark:text-zinc-500">
+                  正在加载预览...
+                </div>
+              }
+            >
+              <SimpleMarkdown content={value} className="text-sm text-slate-700 dark:text-zinc-300" />
+            </Suspense>
+          ) : (
+            <div className="py-4 text-sm text-slate-400 dark:text-zinc-600">暂无内容可预览</div>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -209,38 +234,24 @@ const AnnouncementsPanel = ({
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
-                  中文内容 <span className="text-xs opacity-75">(Markdown 编辑器)</span>
+                  中文内容 <span className="text-xs opacity-75">(Markdown)</span>
                 </label>
-                <div data-color-mode="light" className="dark:hidden">
-                  <MarkdownEditorField
-                    value={announcementForm.content}
-                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                  />
-                </div>
-                <div data-color-mode="dark" className="hidden dark:block">
-                  <MarkdownEditorField
-                    value={announcementForm.content}
-                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
-                  />
-                </div>
+                <MarkdownEditorField
+                  value={announcementForm.content}
+                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content: val || '' }))}
+                  placeholder="输入中文公告内容，支持 Markdown。"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-amber-700 dark:text-amber-300 mb-2">
-                  英文内容 <span className="text-xs opacity-75">(Markdown 编辑器，可选)</span>
+                  英文内容 <span className="text-xs opacity-75">(Markdown，可选)</span>
                 </label>
-                <div data-color-mode="light" className="dark:hidden">
-                  <MarkdownEditorField
-                    value={announcementForm.content_en}
-                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
-                  />
-                </div>
-                <div data-color-mode="dark" className="hidden dark:block">
-                  <MarkdownEditorField
-                    value={announcementForm.content_en}
-                    onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
-                  />
-                </div>
+                <MarkdownEditorField
+                  value={announcementForm.content_en}
+                  onChange={(val) => setAnnouncementForm(prev => ({ ...prev, content_en: val || '' }))}
+                  placeholder="Optional English announcement content. Markdown is supported."
+                />
               </div>
             </div>
 

@@ -10,11 +10,13 @@ const STORAGE_PREFIX = 'gacha_';
 export const STORAGE_KEYS = {
   THEME_MODE: 'theme',
   APP_LOCALE: 'app_locale',
+  APP_LOCALE_MODE: 'app_locale_mode_v2',
   PLATFORM_PREFERENCE: 'platform-preference',
   CURRENT_POOL_ID: 'gacha_current_pool_id',
   CURRENT_GAME_UID: 'gacha_current_game_uid',
   DASHBOARD_INCLUDE_FREE_PULLS: 'dashboard_include_free_pulls',
   DASHBOARD_SHARE_THEME: 'dashboard_share_theme',
+  DASHBOARD_SHARE_THEME_MODE: 'dashboard_share_theme_mode_v2',
   CAPTCHA_MODE_PREFERENCE: 'captchaModePreference',
   PUZZLE_CAPTCHA_DIFFICULTY: 'puzzleCaptchaDifficulty',
   PUZZLE_CAPTCHA_CONSTRAINT_MODE: 'puzzleCaptchaConstraintMode',

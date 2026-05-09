@@ -1,0 +1,35 @@
+# Local dependencies and build outputs
+node_modules
+dist
+dist-ssr
+.vercel
+coverage
+test-results
+artifacts
+scratch
+.codex-chrome-profile
+
+# Local diagnostics and preview logs
+*.log
+*.tmp
+*.bak
+.preview.pid
+preview.*.log
+tmp-vite-api-debug.log
+
+# Local secrets and environment files
+.env
+.env.local
+.env.*.local
+.secrets
+
+# Database snapshots and manual large artifacts are not runtime inputs.
+supabase/manual
+supabase/.temp
+
+# Local source fonts are used only for manual regeneration.
+src/assets/fonts/judou/*.zip
+src/assets/fonts/judou/*.ttf
+
+# Retired generated subsets are not runtime inputs.
+src/generated/fonts/judou

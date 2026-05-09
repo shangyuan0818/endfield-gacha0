@@ -1,8 +1,0 @@
-{
-  "version": "judou-sans-se-wasm-v2",
-  "family": "Judou Sans SE UI",
-  "key": "bold",
-  "weight": "700",
-  "sourceFile": "src/assets/fonts/judou/JudouSEHans-Bold.ttf",
-  "sourceHash": "9605b8d7421ec65d53c5fabd2a0f54b0689477edfe1907986673a3e546915991"
-}

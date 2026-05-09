@@ -60,6 +60,7 @@ import { localizeEntityName, localizePoolFeaturedName, localizePoolName } from '
 import appLogger from '../../utils/appLogger.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../../utils/storageUtils.js';
 import { localizeDashboardChartItems } from '../../utils/dashboardChartLabels.js';
+import { normalizeShareThemeMode, resolveShareThemeMode } from '../../utils/shareThemeMode.js';
 
 const PIE_LABEL_MIN_PERCENT = 0.05;
 const PIE_LABEL_RADIAN = Math.PI / 180;
@@ -240,16 +241,14 @@ const DashboardView = ({ showToast }) => {
   const [showTimelineFiveStarDrops, setShowTimelineFiveStarDrops] = React.useState(true);
   const [clipboardImageWarmState, setClipboardImageWarmState] = React.useState('idle');
   const [clipboardImageReadyKey, setClipboardImageReadyKey] = React.useState(null);
-  const [shareTheme, setShareTheme] = React.useState(() => {
+  const [shareThemeMode, setShareThemeMode] = React.useState(() => {
     if (typeof window === 'undefined') {
-      return 'light';
+      return 'system';
     }
 
-    return (
-      readStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, null, { raw: true }) ||
-      (document.documentElement.classList.contains('dark') ? 'dark' : 'light')
-    );
+    return normalizeShareThemeMode(readStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME_MODE, null, { raw: true }));
   });
+  const resolvedShareTheme = React.useMemo(() => resolveShareThemeMode(shareThemeMode, isDark), [isDark, shareThemeMode]);
   const shareCardRef = React.useRef(null);
   const shareMenuRef = React.useRef(null);
   const shareImageCacheRef = React.useRef({
@@ -706,11 +705,11 @@ const DashboardView = ({ showToast }) => {
     hasActiveShareData && activeSharePayload
       ? JSON.stringify({
           locale,
-          theme: shareTheme,
+          theme: resolvedShareTheme,
           payload: activeSharePayload,
         })
       : null
-  ), [activeSharePayload, hasActiveShareData, locale, shareTheme]);
+  ), [activeSharePayload, hasActiveShareData, locale, resolvedShareTheme]);
   const canOpenShareMenu = hasDashboardShareData || customShareCandidatePools.length > 0;
   const supportsNativeImageShare = React.useMemo(() => {
     if (typeof window === 'undefined' || typeof File === 'undefined' || typeof navigator?.share !== 'function') {
@@ -771,8 +770,8 @@ const DashboardView = ({ showToast }) => {
       return;
     }
 
-    writeStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME, shareTheme, { raw: true });
-  }, [shareTheme]);
+    writeStorageValue(STORAGE_KEYS.DASHBOARD_SHARE_THEME_MODE, shareThemeMode, { raw: true });
+  }, [shareThemeMode]);
 
   const activeShareAction = shareActionFeedback.action;
   const shareTriggerLabel =
@@ -825,7 +824,7 @@ const DashboardView = ({ showToast }) => {
 
     const cacheKey = JSON.stringify({
       locale,
-      theme: shareTheme,
+      theme: resolvedShareTheme,
       payload: activeSharePayload,
     });
     const cacheBucket = 'full';
@@ -841,7 +840,7 @@ const DashboardView = ({ showToast }) => {
     }
 
     const renderPromise = renderShareCardToBlob(cardNode, {
-      backgroundColor: shareTheme === 'dark' ? '#09090b' : '#f4f4f5',
+      backgroundColor: resolvedShareTheme === 'dark' ? '#09090b' : '#f4f4f5',
     })
       .then((blob) => {
         shareImageCacheRef.current[cacheBucket] = {
@@ -871,7 +870,7 @@ const DashboardView = ({ showToast }) => {
     };
 
     return renderPromise;
-  }, [activeSharePayload, locale, shareTheme, waitForShareCard]);
+  }, [activeSharePayload, locale, resolvedShareTheme, waitForShareCard]);
 
   const prewarmClipboardShareImage = React.useCallback(() => {
     if (!supportsClipboardImageCopy || !hasActiveShareData || !activeSharePayload) {
@@ -1156,7 +1155,7 @@ const DashboardView = ({ showToast }) => {
             ref={shareCardRef}
             payload={activeSharePayload}
             sections={activeTimelineSections}
-            theme={shareTheme}
+            theme={resolvedShareTheme}
             showFiveStarDrops={showTimelineFiveStarDrops}
           />
         </div>
@@ -1900,10 +1899,22 @@ const DashboardView = ({ showToast }) => {
                           <div className="mt-2 flex border border-zinc-200 dark:border-zinc-700 rounded-sm overflow-hidden">
                             <button
                               type="button"
-                              onClick={() => setShareTheme('light')}
+                              onClick={() => setShareThemeMode('system')}
                               disabled={isShareActionBusy}
                               className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
-                                shareTheme === 'light'
+                                shareThemeMode === 'system'
+                                  ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
+                                  : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
+                              } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
+                            >
+                              {t('settings.theme.system')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShareThemeMode('light')}
+                              disabled={isShareActionBusy}
+                              className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
+                                shareThemeMode === 'light'
                                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
                                   : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                               } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}
@@ -1912,10 +1923,10 @@ const DashboardView = ({ showToast }) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setShareTheme('dark')}
+                              onClick={() => setShareThemeMode('dark')}
                               disabled={isShareActionBusy}
                               className={`flex-1 px-2 py-1 text-[11px] font-medium transition-colors ${
-                                shareTheme === 'dark'
+                                shareThemeMode === 'dark'
                                   ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100'
                                   : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800'
                               } ${isShareActionBusy ? 'cursor-not-allowed opacity-60' : ''}`}

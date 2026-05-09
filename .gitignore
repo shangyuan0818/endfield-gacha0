@@ -64,13 +64,11 @@ src/assets/fonts/judou/*.zip
 src/assets/fonts/judou/*.ttf
 !src/assets/fonts/judou/OFL.txt
 
-# Keep only checked-in Judou subsets, not cn-font-split debug artifacts.
-src/generated/fonts/judou/**/index.html
-src/generated/fonts/judou/**/index.proto
-src/generated/fonts/judou/**/reporter.bin
-
 # Harmony SC subsets are generated from checked-in woff2 sources during predev/prebuild.
 src/generated/fonts/harmony/
+
+# Retired Judou subsets are not referenced by the app font entrypoint.
+src/generated/fonts/judou/
 
 bots/*
 !bots/official/
