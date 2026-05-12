@@ -3,6 +3,7 @@ import { executeSupabaseRead, fetchJsonWithTimeout, fetchWithTimeout } from '../
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
+import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 
 const GAME_ANNOUNCEMENT_VISIBLE_DAYS = 7;
 const GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT = 5;
@@ -134,6 +135,21 @@ function buildGameAnnouncementDisplaySet({
   return Array.from(byKey.values());
 }
 
+function appendPinnedGameCalendarRecord(records = [], candidates = []) {
+  const calendar = findGameAnnouncementCalendarImage(candidates);
+  const announcement = calendar?.announcement ? withAnnouncementSourceMeta(calendar.announcement) : null;
+  if (!announcement || !getAnnouncementKey(announcement)) {
+    return records;
+  }
+
+  const key = getAnnouncementKey(announcement);
+  if (records.some(record => getAnnouncementKey(record) === key)) {
+    return records;
+  }
+
+  return [...records, announcement];
+}
+
 async function loadSiteAnnouncementsFromDb() {
   if (!supabase) return null;
   const { data, error } = await executeSupabaseRead(
@@ -236,11 +252,12 @@ async function loadOfficialAnnouncementsFeed({
 
   const records = payload.records.filter(record => isGameAnnouncement(record));
   const recentRecords = records.filter(record => isRecentGameAnnouncement(record, cutoffIso));
-  return buildGameAnnouncementDisplaySet({
+  const displayRecords = buildGameAnnouncementDisplaySet({
     recentRecords,
     latestRecords: records,
     cutoffIso,
   });
+  return appendPinnedGameCalendarRecord(displayRecords, records);
 }
 
 export function useNotificationBadges() {
@@ -318,10 +335,12 @@ export function useNotificationBadges() {
       });
 
       const sourceGroups = new Set(gameRecords.map(getAnnouncementSourceGroup));
+      const hasGameCalendarCandidate = Boolean(findGameAnnouncementCalendarImage(gameRecords));
 
       if (
         gameRecords.length < GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length
         || GAME_ANNOUNCEMENT_SOURCE_GROUPS.some(group => !sourceGroups.has(group))
+        || !hasGameCalendarCandidate
       ) {
         try {
           const feedRecords = await loadOfficialAnnouncementsFeed({ cutoffIso });
@@ -331,6 +350,7 @@ export function useNotificationBadges() {
             latestRecords: [...feedRecords, ...gameRecords],
             cutoffIso,
           });
+          gameRecords = appendPinnedGameCalendarRecord(gameRecords, [...feedRecords, ...gameRecords]);
         } catch {
           // keep database-derived records
         }

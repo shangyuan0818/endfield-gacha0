@@ -5,10 +5,13 @@ import {
   BarChart3,
   Bell,
   ChevronUp,
+  Image,
+  Maximize2,
   Shield,
   Sparkles,
   Star,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import {
@@ -45,6 +48,7 @@ import { useAppStore, useAuthStore } from '../../stores';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
+import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import {
   getAnnouncementSeverityMeta,
@@ -150,6 +154,10 @@ const HomePage = React.memo(() => {
     () => resolveGameAnnouncementDigest(storedGameAnnouncementDigest, gameAnnouncements, t),
     [gameAnnouncements, storedGameAnnouncementDigest, t]
   );
+  const gameAnnouncementCalendar = useMemo(
+    () => findGameAnnouncementCalendarImage(gameAnnouncements),
+    [gameAnnouncements]
+  );
   const hasAnnouncementUpdate = latestSiteAnnouncement
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestSiteAnnouncement.updated_at || latestSiteAnnouncement.created_at)
     : false;
@@ -164,6 +172,8 @@ const HomePage = React.memo(() => {
     hasAnnouncementUpdate ? true : !initialCollapseState.temporaryAnnouncements
   );
   const [showGameAnnouncements, setShowGameAnnouncements] = useState(!initialCollapseState.gameAnnouncements);
+  const [showGameCalendar, setShowGameCalendar] = useState(!initialCollapseState.gameCalendar);
+  const [expandedGameCalendarImage, setExpandedGameCalendarImage] = useState(null);
   const [isAnnouncementNew, setIsAnnouncementNew] = useState(hasAnnouncementUpdate);
 
   const handleTogglePoolMechanics = useCallback(() => {
@@ -210,6 +220,14 @@ const HomePage = React.memo(() => {
     setShowGameAnnouncements((prev) => {
       const next = !prev;
       setHomeCollapseState('gameAnnouncements', !next);
+      return next;
+    });
+  }, []);
+
+  const handleToggleGameCalendar = useCallback(() => {
+    setShowGameCalendar((prev) => {
+      const next = !prev;
+      setHomeCollapseState('gameCalendar', !next);
       return next;
     });
   }, []);
@@ -448,6 +466,79 @@ const HomePage = React.memo(() => {
               </CollapsibleContent>
             </div>
           )}
+        </div>
+      )}
+
+      {gameAnnouncementCalendar && (
+        <div className="bg-gradient-to-r from-cyan-50/70 to-blue-50/60 dark:from-cyan-950/20 dark:to-blue-950/20 border border-cyan-200/70 dark:border-cyan-800/50 rounded-none overflow-hidden">
+          <button
+            type="button"
+            onClick={handleToggleGameCalendar}
+            className="w-full px-4 py-3 flex items-center justify-between gap-4 hover:bg-cyan-100/30 dark:hover:bg-cyan-900/20 transition-colors"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="p-2 bg-cyan-100/80 dark:bg-cyan-900/25 text-cyan-600 dark:text-cyan-400 shrink-0">
+                <Image size={18} />
+              </div>
+              <div className="min-w-0 text-left">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 text-[10px] px-1.5 py-0.5 bg-cyan-200 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 font-bold uppercase tracking-wide">{t('home.gameCalendar')}</span>
+                  <h3 className="min-w-0 truncate font-bold text-cyan-700 dark:text-cyan-300">
+                    {gameAnnouncementCalendar.title || t('home.gameCalendarTitle')}
+                  </h3>
+                </div>
+              </div>
+            </div>
+            <ChevronUp size={20} className={`shrink-0 text-cyan-400 transition-transform duration-300 ${showGameCalendar ? '' : 'rotate-180'}`} />
+          </button>
+
+          <CollapsibleContent isOpen={showGameCalendar} unmountOnClose>
+            <div className="px-4 pb-4">
+              <button
+                type="button"
+                onClick={() => setExpandedGameCalendarImage(gameAnnouncementCalendar.imageUrl)}
+                className="group relative block w-full overflow-hidden border border-cyan-200 bg-white/70 p-2 text-left transition-colors hover:border-cyan-400 dark:border-cyan-900/50 dark:bg-zinc-950/30"
+                aria-label={t('home.gameCalendarOpen')}
+              >
+                <img
+                  src={gameAnnouncementCalendar.imageUrl}
+                  alt={t('home.gameCalendarImageAlt')}
+                  loading="lazy"
+                  decoding="async"
+                  className="max-h-[400px] w-full object-contain"
+                />
+                <span className="absolute right-3 top-3 inline-flex items-center gap-1 border border-cyan-300 bg-white/90 px-2 py-1 text-[11px] font-bold text-cyan-700 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 dark:border-cyan-700 dark:bg-zinc-950/90 dark:text-cyan-300">
+                  <Maximize2 size={12} />
+                  {t('home.gameCalendarOpen')}
+                </span>
+              </button>
+            </div>
+          </CollapsibleContent>
+        </div>
+      )}
+
+      {expandedGameCalendarImage && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setExpandedGameCalendarImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('home.gameCalendarOpen')}
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 border border-white/20 bg-black/40 p-2 text-white transition-colors hover:border-red-400 hover:text-red-300"
+            onClick={() => setExpandedGameCalendarImage(null)}
+            aria-label={t('common.close')}
+          >
+            <X size={22} />
+          </button>
+          <img
+            src={expandedGameCalendarImage}
+            alt={t('home.gameCalendarImageAlt')}
+            className="max-h-[90vh] max-w-[94vw] object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
         </div>
       )}
 

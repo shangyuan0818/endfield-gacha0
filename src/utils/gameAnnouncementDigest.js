@@ -1,3 +1,5 @@
+import { sanitizeAnnouncementTitle } from './announcementLocale.js';
+
 function getAnnouncementSourceGroup(announcement = {}) {
   const sourceKind = String(announcement?.source_kind || '').toLowerCase();
   const sourceGroup = String(announcement?.source_group || '').toLowerCase();
@@ -35,6 +37,44 @@ function getGameAnnouncementCategory(announcement = {}) {
   return 'unknown';
 }
 
+function normalizeDigestTopic(value) {
+  return sanitizeAnnouncementTitle(value)
+    .replace(/^【([^】]{2,18})】/u, '$1 ')
+    .replace(/^(公告|活动|游戏公告|资讯速报)[:：\s-]*/u, '')
+    .replace(/(公告|开启公告|即将开启|限时开启|说明)$/u, '')
+    .replace(/[《》「」]/gu, '')
+    .trim();
+}
+
+function truncateText(value, maxLength) {
+  const text = sanitizeAnnouncementTitle(value);
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+}
+
+function buildDigestTopicList(records = []) {
+  const seen = new Set();
+  const topics = [];
+
+  for (const record of records) {
+    const topic = normalizeDigestTopic(record.title || record.summary || '');
+    if (!topic || seen.has(topic)) {
+      continue;
+    }
+
+    seen.add(topic);
+    topics.push(topic.length > 10 ? `${topic.slice(0, 9)}…` : topic);
+    if (topics.length >= 3) {
+      break;
+    }
+  }
+
+  return topics;
+}
+
 export function buildGameAnnouncementDigest(announcements = [], t) {
   const records = Array.isArray(announcements) ? announcements : [];
   const gameRecords = records.filter(record => getAnnouncementSourceGroup(record) === 'game');
@@ -64,14 +104,19 @@ export function buildGameAnnouncementDigest(announcements = [], t) {
   }
 
   const latestGameRecord = gameRecords[0] || records[0] || null;
-  const subtitle = sourceParts.length > 0
-    ? sourceParts.join(' · ')
-    : t('home.autoSummary');
+  const topics = buildDigestTopicList(gameRecords.length > 0 ? gameRecords : records);
+  const subtitle = topics.length > 0
+    ? truncateText(`重点关注 ${topics.join('、')} 等近期公告，展开后可查看原文与摘要。`, 96)
+    : (sourceParts.length > 0
+      ? sourceParts.join(' · ')
+      : t('home.autoSummary'));
 
   return {
-    title: gameRecords.length > 0
-      ? t('announcement.digest.title')
-      : t('announcement.digest.fallbackTitle'),
+    title: topics.length > 0
+      ? truncateText(`近期公告：${topics.join('、')}`, 32)
+      : (gameRecords.length > 0
+        ? t('announcement.digest.title')
+        : t('announcement.digest.fallbackTitle')),
     subtitle,
     latestGameRecord,
   };

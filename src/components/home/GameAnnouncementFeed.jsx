@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ChevronDown, ExternalLink, Radio } from 'lucide-react';
 import AnnouncementContent from './AnnouncementContent';
 import { formatAppDateTime, useI18n } from '../../i18n/index.js';
+import { getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { getGameAnnouncementSummary } from '../../utils/gameAnnouncementSummary.js';
 
 function formatPublishedAt(value, locale, fallback) {
@@ -150,6 +151,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
                   const isExpanded = effectiveExpandedId === announcement.source_id;
                   const summaryText = getGameAnnouncementSummary(announcement);
                   const categoryLabel = getGameBulletinCategoryLabel(announcement, t);
+                  const title = getLocalizedAnnouncementTitle(announcement, locale) || t('announcement.empty');
 
                   return (
                     <div key={announcement.source_id}>
@@ -157,7 +159,7 @@ const GameAnnouncementFeed = React.memo(function GameAnnouncementFeed({
                         <div className="min-w-0">
                           <div className="mt-1 flex items-start justify-between gap-3">
                             <h4 className="font-bold text-zinc-800 dark:text-zinc-100 break-words min-w-0 flex-1">
-                              {announcement.title}
+                              {title}
                             </h4>
                             {announcement.source_url ? (
                               <a

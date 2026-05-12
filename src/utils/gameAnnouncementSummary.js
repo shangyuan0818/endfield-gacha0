@@ -1,5 +1,6 @@
 function stripAnnouncementMarkup(value) {
   return String(value || '')
+    .replace(/\\n|\/n/giu, '\n')
     .replace(/<br\s*\/?>/giu, '\n')
     .replace(/<\/(p|div|li|h[1-6])>/giu, '\n')
     .replace(/<[^>]+>/gu, ' ')

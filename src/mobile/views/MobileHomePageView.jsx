@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Bell, Calendar, ChevronRight, Globe, Layers, Radio, Shield, Sparkles, Star, Users, BarChart3, Map, BarChart2 } from 'lucide-react';
+import { ArrowUpRight, Bell, Calendar, ChevronRight, Globe, Image as ImageIcon, Layers, Maximize2, Radio, Shield, Sparkles, Star, Users, X, BarChart3, Map, BarChart2 } from 'lucide-react';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';
@@ -10,6 +10,7 @@ import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../util
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
+import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
 
 
@@ -94,6 +95,8 @@ export default function MobileHomePageView() {
   const links = useJsonConfig('home_friendly_links', DEFAULT_LINKS);
   const roadmap = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP);
   const [now, setNow] = useState(new Date());
+  const [showGameCalendar, setShowGameCalendar] = useState(false);
+  const [expandedGameCalendarImage, setExpandedGameCalendarImage] = useState(null);
   const heroSlogan = t(
     'home.mobile.heroLead',
     {},
@@ -119,6 +122,10 @@ export default function MobileHomePageView() {
   const gameAnnouncementDigest = useMemo(
     () => resolveGameAnnouncementDigest(storedGameAnnouncementDigest, gameAnnouncements, t),
     [gameAnnouncements, storedGameAnnouncementDigest, t]
+  );
+  const gameAnnouncementCalendar = useMemo(
+    () => findGameAnnouncementCalendarImage(gameAnnouncements),
+    [gameAnnouncements]
   );
   
   const translatedLinks = useMemo(() => (Array.isArray(links) ? links : []).map((item, index) => ({
@@ -300,6 +307,77 @@ export default function MobileHomePageView() {
               <ChevronRight size={14} className="text-slate-400 dark:text-zinc-600 shrink-0" />
           </div>
       </div>
+
+      {gameAnnouncementCalendar ? (
+        <div className="mb-6 overflow-hidden rounded-xl border border-cyan-200 dark:border-cyan-800/40 bg-gradient-to-r from-cyan-50 dark:from-cyan-950/25 to-white dark:to-zinc-950">
+          <button
+            type="button"
+            onClick={() => setShowGameCalendar((value) => !value)}
+            className="flex w-full items-center justify-between gap-3 p-3 text-left"
+            aria-expanded={showGameCalendar}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-200 dark:border-cyan-800/50 bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300">
+                <ImageIcon size={15} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="shrink-0 rounded bg-cyan-100 dark:bg-cyan-900/50 px-1 py-0.5 text-[9px] font-bold text-cyan-700 dark:text-cyan-300">{t('home.gameCalendar')}</span>
+                  <span className="truncate text-xs font-bold text-cyan-900 dark:text-cyan-100">{gameAnnouncementCalendar.title || t('home.gameCalendarTitle')}</span>
+                </div>
+              </div>
+            </div>
+            <ChevronRight size={14} className={`shrink-0 text-cyan-500 transition-transform ${showGameCalendar ? 'rotate-90' : ''}`} />
+          </button>
+          {showGameCalendar ? (
+            <div className="px-3 pb-3">
+              <button
+                type="button"
+                onClick={() => setExpandedGameCalendarImage(gameAnnouncementCalendar.imageUrl)}
+                className="group relative block w-full overflow-hidden rounded-lg border border-cyan-200 dark:border-cyan-900/60 bg-white/80 dark:bg-black/30 p-2"
+                aria-label={t('home.gameCalendarOpen')}
+              >
+                <img
+                  src={gameAnnouncementCalendar.imageUrl}
+                  alt={t('home.gameCalendarImageAlt')}
+                  loading="lazy"
+                  decoding="async"
+                  className="max-h-72 w-full object-contain"
+                />
+                <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded border border-cyan-300 bg-white/90 px-2 py-1 text-[10px] font-bold text-cyan-700 shadow-sm dark:border-cyan-700 dark:bg-zinc-950/90 dark:text-cyan-300">
+                  <Maximize2 size={11} />
+                  {t('home.gameCalendarOpen')}
+                </span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {expandedGameCalendarImage ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm"
+          onClick={() => setExpandedGameCalendarImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('home.gameCalendarOpen')}
+        >
+          <button
+            type="button"
+            className="absolute right-3 top-3 rounded-full border border-white/20 bg-black/40 p-2 text-white"
+            onClick={() => setExpandedGameCalendarImage(null)}
+            aria-label={t('common.close')}
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={expandedGameCalendarImage}
+            alt={t('home.gameCalendarImageAlt')}
+            className="max-h-[88vh] max-w-[94vw] object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         {featureLinks.map((item) => {
