@@ -1,6 +1,6 @@
-import { createElement } from 'react';
+import { createElement, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarRange, Database, Download, FileJson, Filter, RotateCcw, X } from 'lucide-react';
+import { CalendarRange, CheckCircle, Database, Download, ExternalLink, FileJson, Filter, RotateCcw, X } from 'lucide-react';
 import { useI18n } from '../../i18n/index.js';
 import { localizePoolName } from '../../utils/gameDataI18n.js';
 import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
@@ -11,6 +11,11 @@ function ExportActionCard({
   badge,
   onClick,
   disabled,
+  completed,
+  busy,
+  followupLinks = [],
+  completedTitle,
+  completedDescription,
   accent = 'yellow'
 }) {
   const accentClasses = {
@@ -20,11 +25,41 @@ function ExportActionCard({
     violet: 'hover:border-violet-500 hover:bg-violet-500/10 hover:text-violet-700 dark:hover:text-violet-300'
   }[accent] || 'hover:border-yellow-500 hover:bg-yellow-500/10 hover:text-yellow-700 dark:hover:text-endfield-yellow';
 
+  if (completed) {
+    return (
+      <div className="flex min-h-[96px] w-full items-start gap-3 border border-emerald-500/40 bg-emerald-50 p-3 text-left text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-current/40">
+          <CheckCircle size={18} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-black leading-5">{completedTitle}</span>
+          <span className="mt-1 block text-[11px] leading-4 opacity-80">{completedDescription}</span>
+          {followupLinks.length > 0 && (
+            <span className="mt-3 flex flex-wrap gap-2">
+              {followupLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 border border-current/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors hover:bg-emerald-500/10"
+                >
+                  {link.label}
+                  <ExternalLink size={10} />
+                </a>
+              ))}
+            </span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || busy}
       className={`flex min-h-[76px] w-full items-center gap-3 border border-zinc-200 bg-white p-3 text-left text-slate-600 transition-colors disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:border-zinc-200 disabled:hover:bg-white dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:disabled:text-zinc-700 dark:disabled:hover:border-zinc-800 dark:disabled:hover:bg-zinc-950 ${accentClasses}`}
     >
       <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-current/40">
@@ -33,7 +68,7 @@ function ExportActionCard({
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-black leading-5">{title}</span>
         <span className="mt-1 inline-flex border border-current/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider opacity-75">
-          {badge}
+          {busy ? '...' : badge}
         </span>
       </span>
     </button>
@@ -62,10 +97,59 @@ export default function DataExportOptionsModal({
   onExportEndgachaKwerTopPlainTXT
 }) {
   const { t } = useI18n();
+  const [completedActionId, setCompletedActionId] = useState(null);
+  const [exportingActionId, setExportingActionId] = useState(null);
 
   if (!isOpen) {
     return null;
   }
+
+  const resetAndClearCompletion = () => {
+    setCompletedActionId(null);
+    onReset();
+  };
+
+  const updateOptionAndClearCompletion = (key, value) => {
+    setCompletedActionId(null);
+    onUpdateOption(key, value);
+  };
+
+  const runExportAction = async (actionId, handler) => {
+    if (!canExport || typeof handler !== 'function' || exportingActionId) {
+      return;
+    }
+
+    setExportingActionId(actionId);
+    let succeeded = false;
+    try {
+      succeeded = await handler();
+    } finally {
+      setExportingActionId(null);
+    }
+
+    if (succeeded) {
+      setCompletedActionId(actionId);
+    }
+  };
+
+  const commonCompletedProps = (actionId, followupLinks = []) => ({
+    completed: completedActionId === actionId,
+    busy: exportingActionId === actionId,
+    completedTitle: t('records.export.followupTitle'),
+    completedDescription: t('records.export.followupDescription'),
+    followupLinks
+  });
+  const endfieldGachaLinks = [
+    { label: t('import.fileWizard.github'), href: 'https://github.com/bhaoo/endfield-gacha' },
+    { label: t('import.fileWizard.release'), href: 'https://github.com/bhaoo/endfield-gacha/releases/latest' }
+  ];
+  const helperLinks = [
+    { label: t('import.fileWizard.github'), href: 'https://github.com/xccccya/EndfieldGachaHelper' },
+    { label: t('import.fileWizard.release'), href: 'https://github.com/xccccya/EndfieldGachaHelper/releases/latest' }
+  ];
+  const endgachaLinks = [
+    { label: t('import.fileWizard.website'), href: 'https://endgacha.kwer.top/' }
+  ];
 
   const modal = (
     <div
@@ -94,7 +178,7 @@ export default function DataExportOptionsModal({
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={onReset}
+              onClick={resetAndClearCompletion}
               className="inline-flex items-center gap-1.5 border border-zinc-200 px-2.5 py-2 text-[11px] font-bold text-slate-500 transition-colors hover:border-yellow-500 hover:text-yellow-600 dark:border-zinc-800 dark:text-zinc-400 dark:hover:border-yellow-500 dark:hover:text-endfield-yellow"
             >
               <RotateCcw size={12} />
@@ -119,7 +203,7 @@ export default function DataExportOptionsModal({
             </label>
             <select
               value={exportOptions.poolFilter}
-              onChange={(event) => onUpdateOption('poolFilter', event.target.value)}
+              onChange={(event) => updateOptionAndClearCompletion('poolFilter', event.target.value)}
               className="w-full border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
             >
               <option value="current">{t('records.export.poolScopeCurrent')}</option>
@@ -129,7 +213,7 @@ export default function DataExportOptionsModal({
             {exportOptions.poolFilter === 'specific' && (
               <select
                 value={exportOptions.poolId}
-                onChange={(event) => onUpdateOption('poolId', event.target.value)}
+                onChange={(event) => updateOptionAndClearCompletion('poolId', event.target.value)}
                 className="w-full border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
               >
                 <option value="">{t('records.export.poolPlaceholder')}</option>
@@ -148,7 +232,7 @@ export default function DataExportOptionsModal({
             </label>
             <select
               value={exportOptions.accountFilter}
-              onChange={(event) => onUpdateOption('accountFilter', event.target.value)}
+              onChange={(event) => updateOptionAndClearCompletion('accountFilter', event.target.value)}
               className="w-full border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
             >
               <option value="all">{t('records.export.accountScopeAll')}</option>
@@ -158,7 +242,7 @@ export default function DataExportOptionsModal({
             {exportOptions.accountFilter === 'specific' && (
               <select
                 value={exportOptions.gameUid}
-                onChange={(event) => onUpdateOption('gameUid', event.target.value)}
+                onChange={(event) => updateOptionAndClearCompletion('gameUid', event.target.value)}
                 className="w-full border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
               >
                 <option value="">{t('records.export.accountPlaceholder')}</option>
@@ -180,13 +264,13 @@ export default function DataExportOptionsModal({
               <input
                 type="date"
                 value={exportOptions.dateFrom}
-                onChange={(event) => onUpdateOption('dateFrom', event.target.value)}
+                onChange={(event) => updateOptionAndClearCompletion('dateFrom', event.target.value)}
                 className="min-w-0 border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
               />
               <input
                 type="date"
                 value={exportOptions.dateTo}
-                onChange={(event) => onUpdateOption('dateTo', event.target.value)}
+                onChange={(event) => updateOptionAndClearCompletion('dateTo', event.target.value)}
                 className="min-w-0 border border-zinc-200 bg-white px-3 py-2.5 text-sm text-slate-700 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
               />
             </div>
@@ -205,64 +289,72 @@ export default function DataExportOptionsModal({
               icon={FileJson}
               title={t('records.export.json')}
               badge="JSON"
-              onClick={onExportJSON}
+              onClick={() => runExportAction('internal_json', onExportJSON)}
               disabled={!canExport}
+              {...commonCompletedProps('internal_json')}
             />
             <ExportActionCard
               icon={Download}
               title={t('records.export.csv')}
               badge="CSV"
-              onClick={onExportCSV}
+              onClick={() => runExportAction('internal_csv', onExportCSV)}
               disabled={!canExport}
               accent="green"
+              {...commonCompletedProps('internal_csv')}
             />
             <ExportActionCard
               icon={Database}
               title={t('records.export.endfieldGachaUserDataZip')}
               badge="userData ZIP"
-              onClick={onExportEndfieldGachaUserDataZip}
+              onClick={() => runExportAction('endfield_gacha_userdata', onExportEndfieldGachaUserDataZip)}
               disabled={!canExport}
               accent="cyan"
+              {...commonCompletedProps('endfield_gacha_userdata', endfieldGachaLinks)}
             />
             <ExportActionCard
               icon={FileJson}
               title={t('records.export.endfieldGachaHelperJson')}
               badge="Helper JSON"
-              onClick={onExportEndfieldGachaHelperJSON}
+              onClick={() => runExportAction('helper_json', onExportEndfieldGachaHelperJSON)}
               disabled={!canExport}
               accent="violet"
+              {...commonCompletedProps('helper_json', helperLinks)}
             />
             <ExportActionCard
               icon={Download}
               title={t('records.export.endfieldGachaHelperCsv')}
               badge="Helper CSV"
-              onClick={onExportEndfieldGachaHelperCSV}
+              onClick={() => runExportAction('helper_csv', onExportEndfieldGachaHelperCSV)}
               disabled={!canExport}
               accent="violet"
+              {...commonCompletedProps('helper_csv', helperLinks)}
             />
             <ExportActionCard
               icon={Database}
               title={t('records.export.endfieldGachaHelperUserDataZip')}
               badge="SQLite ZIP"
-              onClick={onExportEndfieldGachaHelperUserDataZip}
+              onClick={() => runExportAction('helper_userdata', onExportEndfieldGachaHelperUserDataZip)}
               disabled={!canExport}
               accent="violet"
+              {...commonCompletedProps('helper_userdata', helperLinks)}
             />
             <ExportActionCard
               icon={FileJson}
               title={t('records.export.endgachaPlainJson')}
               badge="endgacha JSON"
-              onClick={onExportEndgachaKwerTopPlainJSON}
+              onClick={() => runExportAction('endgacha_json', onExportEndgachaKwerTopPlainJSON)}
               disabled={!canExport}
               accent="cyan"
+              {...commonCompletedProps('endgacha_json', endgachaLinks)}
             />
             <ExportActionCard
               icon={Download}
               title={t('records.export.endgachaPlainTxt')}
               badge="endgacha TXT"
-              onClick={onExportEndgachaKwerTopPlainTXT}
+              onClick={() => runExportAction('endgacha_txt', onExportEndgachaKwerTopPlainTXT)}
               disabled={!canExport}
               accent="cyan"
+              {...commonCompletedProps('endgacha_txt', endgachaLinks)}
             />
           </div>
         </div>

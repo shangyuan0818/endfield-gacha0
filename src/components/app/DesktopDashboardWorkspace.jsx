@@ -89,12 +89,11 @@ function RecordsSectionTitleBar({
   const canExport = canExportWithSpecificPool && canExportWithSpecificAccount;
   const resetExportOptions = () => setExportOptions(buildDefaultExportOptions());
 
-  const runExport = (handler) => {
+  const runExport = async (handler) => {
     if (!canExport || typeof handler !== 'function') {
-      return;
+      return false;
     }
-    handler(buildExportOptions());
-    closeExportMenu();
+    return handler(buildExportOptions());
   };
 
   const handleImportClick = (event) => {
@@ -133,7 +132,7 @@ function RecordsSectionTitleBar({
               className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
             >
               <Upload size={14} />
-              {t('overview.action.import')}
+              {t('records.importPoolFile')}
             </button>
           )}
           <button
@@ -142,7 +141,7 @@ function RecordsSectionTitleBar({
             className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
           >
             <Download size={14} />
-            {t('records.export.trigger')}
+            {t('records.exportPoolFile')}
           </button>
           <ChevronDown size={20} className="ml-1 text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
         </div>

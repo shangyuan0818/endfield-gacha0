@@ -131,6 +131,9 @@ export default function DataImportWizardModal({
             badge="JSON / TXT"
             description={t('import.fileWizard.endgacha.desc')}
             note={t('import.fileWizard.endgacha.note')}
+            links={[
+              { label: t('import.fileWizard.website'), href: 'https://endgacha.kwer.top/' }
+            ]}
             accept=".json,.txt"
             onImportFile={onImportFile}
             actionLabel={t('import.fileWizard.chooseFile')}

@@ -128,48 +128,50 @@ export function useDataExportImport({
       });
       if (payload.history.length === 0) {
         showToast('所选条件下无数据可导出', 'warning');
-        return;
+        return false;
       }
 
       const file = await buildExportContent(formatId, payload);
       triggerFileDownload(file.content, file.mimeType, file.extension, file.fileName);
+      return true;
     } catch (error) {
       showToast(`导出失败：${error?.message || '导出模块加载失败'}`, 'error');
+      return false;
     }
   }, [currentGameUid, currentPoolId, history, pools, showToast, triggerFileDownload, user?.id]);
 
   // 通用导出函数 - JSON
   const handleExportJSON = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'internal_json_v3');
+    return exportByFormat(scopeOrOptions, 'internal_json_v3');
   }, [exportByFormat]);
 
   // 通用导出函数 - CSV
   const handleExportCSV = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'internal_csv_flat');
+    return exportByFormat(scopeOrOptions, 'internal_csv_flat');
   }, [exportByFormat]);
 
   const handleExportEndfieldGachaUserDataZip = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'bhaoo_endfield_gacha_userdata_zip');
+    return exportByFormat(scopeOrOptions, 'bhaoo_endfield_gacha_userdata_zip');
   }, [exportByFormat]);
 
   const handleExportEndfieldGachaHelperJSON = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_json');
+    return exportByFormat(scopeOrOptions, 'endfield_gacha_helper_json');
   }, [exportByFormat]);
 
   const handleExportEndfieldGachaHelperCSV = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_csv');
+    return exportByFormat(scopeOrOptions, 'endfield_gacha_helper_csv');
   }, [exportByFormat]);
 
   const handleExportEndfieldGachaHelperUserDataZip = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_userdata_zip');
+    return exportByFormat(scopeOrOptions, 'endfield_gacha_helper_userdata_zip');
   }, [exportByFormat]);
 
   const handleExportEndgachaKwerTopPlainJSON = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_json');
+    return exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_json');
   }, [exportByFormat]);
 
   const handleExportEndgachaKwerTopPlainTXT = useCallback((scopeOrOptions) => {
-    exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_txt');
+    return exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_txt');
   }, [exportByFormat]);
 
   // 导入文件处理
