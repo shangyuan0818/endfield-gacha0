@@ -8,7 +8,8 @@ import {
   User,
   ArrowRight,
   Clock,
-  Loader2
+  Loader2,
+  Upload
 } from 'lucide-react';
 import { ImportStatus } from '../importStatus';
 import { getPoolName } from '../importShared';
@@ -152,6 +153,7 @@ export default function OfficialImportContent({
   onSourceChange,
   onTokenChange,
   onStartImport,
+  onOpenFileImport,
   onSelectAccount,
   onCancel,
   onReset,
@@ -196,14 +198,30 @@ export default function OfficialImportContent({
   };
 
   return (
-    <div className="space-y-6">
-      <div className={`inline-flex items-center gap-2 border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
-        <span className="opacity-80">{t('import.official.healthLabel')}</span>
-        <span>{t(health.key)}</span>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className={`inline-flex w-fit items-center gap-2 border px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.24em] transition-colors ${healthToneClasses[health.tone] || healthToneClasses.healthy}`} style={{ clipPath: 'polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%)' }}>
+          <span className="opacity-80">{t('import.official.healthLabel')}</span>
+          <span>{t(health.key)}</span>
+        </div>
+        {status === ImportStatus.IDLE && typeof onOpenFileImport === 'function' && (
+          <button
+            type="button"
+            onClick={onOpenFileImport}
+            className="group inline-flex items-center justify-between gap-3 border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-left text-[11px] leading-4 text-cyan-700 transition-colors hover:border-cyan-500 hover:bg-cyan-500/15 dark:text-cyan-300"
+            style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+          >
+            <Upload size={14} className="shrink-0 text-cyan-600 transition-transform group-hover:-translate-y-0.5 dark:text-cyan-300" />
+            <span className="min-w-0">
+              <span className="block font-bold uppercase tracking-widest">{t('import.official.fileImportHintTitle')}</span>
+              <span className="block text-cyan-700/75 dark:text-cyan-300/75">{t('import.official.fileImportHintDesc')}</span>
+            </span>
+          </button>
+        )}
       </div>
       {status === ImportStatus.IDLE && (
-        <div className="bg-slate-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 p-4 sm:p-6 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
-          <div className="mb-6">
+        <div className="bg-slate-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 p-4 sm:p-5 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%)' }}>
+          <div className="mb-4">
             <div className="text-[11px] text-slate-600 dark:text-zinc-400 font-bold uppercase tracking-widest mb-3">
               {t('import.official.sourceLabel')}
             </div>

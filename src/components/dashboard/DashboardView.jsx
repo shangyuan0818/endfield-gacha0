@@ -229,7 +229,7 @@ const FreePullStatsToggle = ({ enabled, onToggle, t }) => (
 /**
  * 仪表盘视图组件
  */
-const DashboardView = ({ showToast }) => {
+const DashboardView = ({ showToast, onOpenImportWizard }) => {
   const location = useLocation();
   const { isDark } = useTheme();
   const { t, formatNumber, isEnglish, locale } = useI18n();
@@ -1119,7 +1119,7 @@ const DashboardView = ({ showToast }) => {
       <div className="space-y-6">
         {/* 卡池选择器 - 显示导入提示 */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
-          <PoolSelector />
+          <PoolSelector onOpenImportWizard={onOpenImportWizard} />
         </div>
 
         {/* 欢迎提示 */}
@@ -1132,6 +1132,16 @@ const DashboardView = ({ showToast }) => {
             <p className="text-sm text-slate-500 dark:text-zinc-500 max-w-md mx-auto">
               {t('dashboard.empty.startRecordBody')}
             </p>
+            {typeof onOpenImportWizard === 'function' && (
+              <button
+                type="button"
+                onClick={onOpenImportWizard}
+                className="mt-6 inline-flex items-center justify-center gap-2 border border-yellow-500 bg-endfield-yellow px-5 py-2.5 text-xs font-black uppercase tracking-wider text-black transition-colors hover:bg-yellow-400"
+              >
+                <Upload size={14} />
+                {t('dashboard.empty.openFileImport')}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -1164,7 +1174,7 @@ const DashboardView = ({ showToast }) => {
       {/* 卡池选择器 & 顶部状态栏 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <PoolSelector />
+          <PoolSelector onOpenImportWizard={onOpenImportWizard} />
         </div>
       </div>
 

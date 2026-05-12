@@ -38,9 +38,15 @@ export default function DesktopAppRoutes({
   handleUpdateItem,
   handleDeleteItem,
   handleDeleteGroup,
-  handleImportFile,
+  openImportWizard,
   handleExportJSON,
-  handleExportCSV
+  handleExportCSV,
+  handleExportEndfieldGachaUserDataZip,
+  handleExportEndfieldGachaHelperJSON,
+  handleExportEndfieldGachaHelperCSV,
+  handleExportEndfieldGachaHelperUserDataZip,
+  handleExportEndgachaKwerTopPlainJSON,
+  handleExportEndgachaKwerTopPlainTXT
 }) {
   const { isEnglish } = useI18n();
   const tt = (zh, en) => (isEnglish ? en : zh);
@@ -78,9 +84,15 @@ export default function DesktopAppRoutes({
             handleUpdateItem={handleUpdateItem}
             handleDeleteItem={handleDeleteItem}
             handleDeleteGroup={handleDeleteGroup}
-            handleImportFile={handleImportFile}
+            openImportWizard={openImportWizard}
             handleExportJSON={handleExportJSON}
             handleExportCSV={handleExportCSV}
+            handleExportEndfieldGachaUserDataZip={handleExportEndfieldGachaUserDataZip}
+            handleExportEndfieldGachaHelperJSON={handleExportEndfieldGachaHelperJSON}
+            handleExportEndfieldGachaHelperCSV={handleExportEndfieldGachaHelperCSV}
+            handleExportEndfieldGachaHelperUserDataZip={handleExportEndfieldGachaHelperUserDataZip}
+            handleExportEndgachaKwerTopPlainJSON={handleExportEndgachaKwerTopPlainJSON}
+            handleExportEndgachaKwerTopPlainTXT={handleExportEndgachaKwerTopPlainTXT}
           />
         }
       />

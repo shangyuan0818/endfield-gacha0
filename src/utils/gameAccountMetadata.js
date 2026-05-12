@@ -64,6 +64,8 @@ export function normalizeGameAccountMetadata(metadata = {}) {
     return null;
   }
 
+  const rawHgUid = normalizeString(metadata.hgUid || metadata.hg_uid || metadata.bindingUid || metadata.binding_uid);
+  const hgUid = rawHgUid && rawHgUid !== gameUid ? rawHgUid : null;
   const channelMasterId = normalizeString(metadata.channelMasterId || metadata.channel_master_id);
   const channelName = normalizeString(metadata.channelName || metadata.channel_name);
   const serverId = normalizeString(metadata.serverId || metadata.server_id);
@@ -95,6 +97,7 @@ export function normalizeGameAccountMetadata(metadata = {}) {
   return {
     gameUid,
     nickName,
+    hgUid,
     channelMasterId,
     channelName,
     serverId,
@@ -138,6 +141,7 @@ function buildAccountMetadataFromHistoryRecord(record) {
     gameUid: getHistoryRecordGameUid(record),
     nickName: record?.nick_name || record?.nickName,
     channelName: record?.channel_name || record?.channelName,
+    hgUid: record?.hg_uid || record?.hgUid,
     channelMasterId: record?.channel_master_id || record?.channelMasterId,
     serverId: record?.server_id || record?.serverId,
     region: record?.region || record?.serverRegion,

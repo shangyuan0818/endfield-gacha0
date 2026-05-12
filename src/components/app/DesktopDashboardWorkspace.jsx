@@ -1,7 +1,12 @@
-import React, { Suspense, lazy } from 'react';
-import { ChevronDown, History, LogIn, Lock } from 'lucide-react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
+import { ChevronDown, Download, History, LogIn, Lock, Upload } from 'lucide-react';
 import EditItemModal from '../modals/EditItemModal';
+import DataExportOptionsModal from '../modals/DataExportOptionsModal.jsx';
 import { useI18n } from '../../i18n/index.js';
+import { useHistoryStore, usePoolStore } from '../../stores';
+import { useCurrentPoolData } from '../../hooks';
+import { isPoolGroupId } from '../../stores/usePoolStore';
+import { localizePoolName } from '../../utils/gameDataI18n.js';
 
 const DashboardView = lazy(() => import('../dashboard/DashboardView'));
 const RecordsView = lazy(() => import('../records/RecordsView'));
@@ -17,6 +22,157 @@ function TabPanelFallback({ label = '正在加载模块...' }) {
   );
 }
 
+function RecordsSectionTitleBar({
+  canEdit,
+  currentPool: fallbackCurrentPool,
+  openImportWizard,
+  handleExportJSON,
+  handleExportCSV,
+  handleExportEndfieldGachaUserDataZip,
+  handleExportEndfieldGachaHelperJSON,
+  handleExportEndfieldGachaHelperCSV,
+  handleExportEndfieldGachaHelperUserDataZip,
+  handleExportEndgachaKwerTopPlainJSON,
+  handleExportEndgachaKwerTopPlainTXT
+}) {
+  const { isEnglish, locale, t } = useI18n();
+  const tt = (zh, en) => (isEnglish ? en : zh);
+  const pools = usePoolStore(state => state.pools);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
+  const { currentPool } = useCurrentPoolData();
+  const activePool = currentPool || fallbackCurrentPool;
+  const currentPoolName = localizePoolName(activePool, { locale }) || activePool?.name || t('records.unknownPool');
+  const poolOptions = useMemo(
+    () => [...(Array.isArray(pools) ? pools : [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN')),
+    [pools]
+  );
+  const gameAccounts = getGameAccountsFromHistory();
+
+  const buildDefaultExportOptions = () => ({
+    poolFilter: 'current',
+    poolId: !isPoolGroupId(currentPoolId) && currentPoolId ? currentPoolId : '',
+    accountFilter: currentGameUid ? 'current' : 'all',
+    gameUid: currentGameUid || '',
+    dateFrom: '',
+    dateTo: ''
+  });
+
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportOptions, setExportOptions] = useState(buildDefaultExportOptions);
+
+  const closeExportMenu = () => {
+    if (showExportMenu) {
+      setShowExportMenu(false);
+    }
+  };
+
+  const updateExportOption = (key, value) => {
+    setExportOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const buildExportOptions = () => ({
+    poolFilter: exportOptions.poolFilter,
+    poolId: exportOptions.poolFilter === 'specific' ? exportOptions.poolId || null : null,
+    accountFilter: exportOptions.accountFilter,
+    gameUid: exportOptions.accountFilter === 'specific' ? exportOptions.gameUid || null : null,
+    dateFrom: exportOptions.dateFrom,
+    dateTo: exportOptions.dateTo
+  });
+
+  const canExportWithSpecificPool = exportOptions.poolFilter !== 'specific' || Boolean(exportOptions.poolId);
+  const canExportWithSpecificAccount = exportOptions.accountFilter !== 'specific' || Boolean(exportOptions.gameUid);
+  const canExport = canExportWithSpecificPool && canExportWithSpecificAccount;
+  const resetExportOptions = () => setExportOptions(buildDefaultExportOptions());
+
+  const runExport = (handler) => {
+    if (!canExport || typeof handler !== 'function') {
+      return;
+    }
+    handler(buildExportOptions());
+    closeExportMenu();
+  };
+
+  const handleImportClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openImportWizard();
+  };
+
+  const handleExportClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setExportOptions(buildDefaultExportOptions());
+    setShowExportMenu(true);
+  };
+
+  return (
+    <>
+      <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+            <History size={18} /> {tt('详细日志', 'Detailed Records')}
+          </span>
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">
+            {t('records.currentPoolContext')}
+          </span>
+          <span className="min-w-0 max-w-[280px] truncate border border-yellow-500/30 bg-yellow-50 px-2 py-1 text-xs font-bold text-yellow-600 dark:bg-yellow-900/20 dark:text-endfield-yellow">
+            {currentPoolName}
+          </span>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {canEdit && (
+            <button
+              type="button"
+              onClick={handleImportClick}
+              className="text-xs bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-300 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
+            >
+              <Upload size={14} />
+              {t('overview.action.import')}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleExportClick}
+            className="text-xs bg-slate-800 text-white hover:bg-slate-700 px-3 py-1.5 rounded-none flex items-center gap-2 transition-colors shadow-sm"
+          >
+            <Download size={14} />
+            {t('records.export.trigger')}
+          </button>
+          <ChevronDown size={20} className="ml-1 text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
+        </div>
+      </summary>
+
+      <DataExportOptionsModal
+        isOpen={showExportMenu}
+        onClose={closeExportMenu}
+        onReset={resetExportOptions}
+        exportOptions={exportOptions}
+        onUpdateOption={updateExportOption}
+        canExport={canExport}
+        currentPoolName={currentPoolName}
+        currentGameUid={currentGameUid}
+        poolOptions={poolOptions}
+        gameAccounts={gameAccounts}
+        locale={locale}
+        onExportJSON={() => runExport(handleExportJSON)}
+        onExportCSV={() => runExport(handleExportCSV)}
+        onExportEndfieldGachaUserDataZip={() => runExport(handleExportEndfieldGachaUserDataZip)}
+        onExportEndfieldGachaHelperJSON={() => runExport(handleExportEndfieldGachaHelperJSON)}
+        onExportEndfieldGachaHelperCSV={() => runExport(handleExportEndfieldGachaHelperCSV)}
+        onExportEndfieldGachaHelperUserDataZip={() => runExport(handleExportEndfieldGachaHelperUserDataZip)}
+        onExportEndgachaKwerTopPlainJSON={() => runExport(handleExportEndgachaKwerTopPlainJSON)}
+        onExportEndgachaKwerTopPlainTXT={() => runExport(handleExportEndgachaKwerTopPlainTXT)}
+      />
+    </>
+  );
+}
+
 export default function DesktopDashboardWorkspace({
   user,
   showToast,
@@ -28,9 +184,15 @@ export default function DesktopDashboardWorkspace({
   handleUpdateItem,
   handleDeleteItem,
   handleDeleteGroup,
-  handleImportFile,
+  openImportWizard,
   handleExportJSON,
-  handleExportCSV
+  handleExportCSV,
+  handleExportEndfieldGachaUserDataZip,
+  handleExportEndfieldGachaHelperJSON,
+  handleExportEndfieldGachaHelperCSV,
+  handleExportEndfieldGachaHelperUserDataZip,
+  handleExportEndgachaKwerTopPlainJSON,
+  handleExportEndgachaKwerTopPlainTXT
 }) {
   const { isEnglish } = useI18n();
   const tt = (zh, en) => (isEnglish ? en : zh);
@@ -67,25 +229,29 @@ export default function DesktopDashboardWorkspace({
       {user && (
         <div className="animate-fade-in">
           <Suspense fallback={<TabPanelFallback label={tt('正在加载卡池分析...', 'Loading banner analysis...')} />}>
-            <DashboardView showToast={showToast} />
+            <DashboardView showToast={showToast} onOpenImportWizard={openImportWizard} />
           </Suspense>
 
           <div className="mt-6">
             <details id="guide-export-section" className="group">
-              <summary className="bg-white dark:bg-zinc-900 rounded-none shadow-sm border border-zinc-200 dark:border-zinc-800 px-4 py-3 cursor-pointer flex items-center justify-between hover:bg-slate-50 dark:hover:bg-zinc-800 transition-colors">
-                <span className="font-bold text-slate-700 dark:text-zinc-300 flex items-center gap-2">
-                  <History size={18} /> {tt('详细日志', 'Detailed Records')}
-                </span>
-                <ChevronDown size={20} className="text-slate-400 dark:text-zinc-500 group-open:rotate-180 transition-transform" />
-              </summary>
+              <RecordsSectionTitleBar
+                canEdit={canEdit}
+                currentPool={currentPool}
+                openImportWizard={openImportWizard}
+                handleExportJSON={handleExportJSON}
+                handleExportCSV={handleExportCSV}
+                handleExportEndfieldGachaUserDataZip={handleExportEndfieldGachaUserDataZip}
+                handleExportEndfieldGachaHelperJSON={handleExportEndfieldGachaHelperJSON}
+                handleExportEndfieldGachaHelperCSV={handleExportEndfieldGachaHelperCSV}
+                handleExportEndfieldGachaHelperUserDataZip={handleExportEndfieldGachaHelperUserDataZip}
+                handleExportEndgachaKwerTopPlainJSON={handleExportEndgachaKwerTopPlainJSON}
+                handleExportEndgachaKwerTopPlainTXT={handleExportEndgachaKwerTopPlainTXT}
+              />
               <div className="mt-2">
                 <Suspense fallback={<TabPanelFallback label={tt('正在加载详细日志...', 'Loading detailed records...')} />}>
                   <RecordsView
                     onEdit={setEditItemState}
                     onDeleteGroup={handleDeleteGroup}
-                    onImportFile={handleImportFile}
-                    onExportJSON={handleExportJSON}
-                    onExportCSV={handleExportCSV}
                   />
                 </Suspense>
               </div>

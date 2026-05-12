@@ -106,6 +106,7 @@ const legacyValidation = validateAndNormalizeImportData({
 assert.equal(legacyValidation.valid, true, `旧版 JSON 也应可导入: ${legacyValidation.errors.join('; ')}`);
 assert.equal(legacyValidation.normalizedData.pools[0].type, 'weapon', 'limited_weapon 应归一化为运行时 weapon');
 assert.equal(legacyValidation.normalizedData.history[0].name, '限定武器', '旧版 item_name 应归一化为运行时 name');
-assert.equal(getHistoryImportDedupKey(legacyValidation.normalizedData.history[0]), 'seq:9001', '导入 dedupe 应优先使用 seqId');
+assert.equal(getHistoryImportDedupKey(legacyValidation.normalizedData.history[0]), 'uid:1000999999:pool:weaponbox_1_0_1:seq:9001', '导入 dedupe 应优先使用账号与卡池隔离后的 seqId');
+assert.equal(getHistoryImportDedupKey({ seq_id: '9001' }), 'seq:9001', '无账号记录应保持旧 seqId 去重键');
 
 console.log('BUG-030 export/import round-trip verification passed');

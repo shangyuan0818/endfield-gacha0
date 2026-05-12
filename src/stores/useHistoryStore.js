@@ -22,6 +22,7 @@ function getHistoryAccountMetadata(record, storedMetadata = null) {
     gameUid: getHistoryGameUid(record),
     nickName: getHistoryNickName(record),
     channelName: record?.channel_name || record?.channelName || storedMetadata?.channelName,
+    hgUid: record?.hg_uid || record?.hgUid || storedMetadata?.hgUid,
     channelMasterId: record?.channel_master_id || record?.channelMasterId || storedMetadata?.channelMasterId,
     serverId: record?.server_id || record?.serverId || storedMetadata?.serverId,
     region: record?.region || record?.serverRegion || storedMetadata?.region,
@@ -276,6 +277,7 @@ const useHistoryStore = create((set, get) => ({
             gameUid,
             nickName: metadata?.nickName || getHistoryNickName(h), // 优先使用昵称，否则使用 UID
             channelName: metadata?.channelName || null,
+            hgUid: metadata?.hgUid || null,
             channelMasterId: metadata?.channelMasterId || null,
             serverId: metadata?.serverId || null,
             region: metadata?.region || null,
@@ -292,6 +294,7 @@ const useHistoryStore = create((set, get) => ({
             ...accountMap.get(gameUid),
             nickName: metadata.nickName || accountMap.get(gameUid).nickName,
             channelName: metadata.channelName || accountMap.get(gameUid).channelName,
+            hgUid: metadata.hgUid || accountMap.get(gameUid).hgUid,
             channelMasterId: metadata.channelMasterId || accountMap.get(gameUid).channelMasterId,
             serverId: metadata.serverId || accountMap.get(gameUid).serverId,
             region: metadata.region || accountMap.get(gameUid).region,

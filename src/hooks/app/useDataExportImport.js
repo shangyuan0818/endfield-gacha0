@@ -3,17 +3,47 @@ import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
 import {
-  buildExportContent,
-  buildExportPayload
-} from '../../utils/dataExport';
-import {
-  getHistoryImportDedupKey,
-  validateAndNormalizeImportData
-} from '../../utils/dataImport.js';
-import {
   buildImportedGameAccountMetadataEntries,
   saveGameAccountMetadata
 } from '../../utils/gameAccountMetadata.js';
+
+function normalizeImportAccountOverride(accountOverride = null) {
+  if (!accountOverride || typeof accountOverride !== 'object') {
+    return null;
+  }
+
+  const gameUid = String(accountOverride.gameUid || accountOverride.game_uid || '').trim();
+  const nickName = String(accountOverride.nickName || accountOverride.nick_name || '').trim();
+
+  if (!gameUid || !nickName) {
+    return null;
+  }
+
+  return { gameUid, nickName };
+}
+
+function applyImportAccountOverride(importedData, accountOverride = null) {
+  const normalizedAccount = normalizeImportAccountOverride(accountOverride);
+  if (!normalizedAccount) {
+    return importedData;
+  }
+
+  return {
+    ...importedData,
+    accounts: [{
+      ...(Array.isArray(importedData.accounts) ? importedData.accounts[0] : {}),
+      gameUid: normalizedAccount.gameUid,
+      nickName: normalizedAccount.nickName
+    }],
+    history: (importedData.history || []).map((record) => ({
+      ...record,
+      gameUid: normalizedAccount.gameUid,
+      game_uid: normalizedAccount.gameUid,
+      nickName: normalizedAccount.nickName,
+      nick_name: normalizedAccount.nickName
+    }))
+  };
+}
 
 /**
  * 数据导入导出 Hook
@@ -36,6 +66,15 @@ export function useDataExportImport({
   const { savePoolToCloud, saveHistoryToCloud, loadCloudData } = cloudSync;
 
   const [pendingImport, setPendingImport] = useState(null);
+  const [importWizardOpen, setImportWizardOpen] = useState(false);
+
+  const openImportWizard = useCallback(() => {
+    setImportWizardOpen(true);
+  }, []);
+
+  const closeImportWizard = useCallback(() => {
+    setImportWizardOpen(false);
+  }, []);
 
   const getRecordGameUid = useCallback((record) => (
     record?.gameUid || record?.game_uid || null
@@ -61,7 +100,7 @@ export function useDataExportImport({
     return importedAccountUid || availableGameUids[0] || null;
   }, [currentGameUid, getRecordGameUid]);
 
-  const triggerFileDownload = useCallback((content, mimeType, extension) => {
+  const triggerFileDownload = useCallback((content, mimeType, extension, fileName = '') => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -69,32 +108,35 @@ export function useDataExportImport({
     const now = new Date();
     const pad = n => n.toString().padStart(2, '0');
     const timeStr = `${now.getFullYear().toString().slice(-2)}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-    link.download = `endfield-gacha-export-${timeStr}.${extension}`;
+    link.download = fileName || `endfield-gacha-export-${timeStr}.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }, []);
 
-  const buildPayload = useCallback((options) => buildExportPayload({
-    history,
-    pools: Array.isArray(pools) ? pools : [],
-    currentPoolId,
-    currentGameUid,
-    currentUserId: user?.id || null,
-    options
-  }), [currentGameUid, currentPoolId, history, pools, user?.id]);
+  const exportByFormat = useCallback(async (scopeOrOptions, formatId) => {
+    try {
+      const { buildExportContent, buildExportPayload } = await import('../../utils/dataExport.js');
+      const payload = buildExportPayload({
+        history,
+        pools: Array.isArray(pools) ? pools : [],
+        currentPoolId,
+        currentGameUid,
+        currentUserId: user?.id || null,
+        options: scopeOrOptions
+      });
+      if (payload.history.length === 0) {
+        showToast('所选条件下无数据可导出', 'warning');
+        return;
+      }
 
-  const exportByFormat = useCallback((scopeOrOptions, formatId) => {
-    const payload = buildPayload(scopeOrOptions);
-    if (payload.history.length === 0) {
-      showToast('所选条件下无数据可导出', 'warning');
-      return;
+      const file = await buildExportContent(formatId, payload);
+      triggerFileDownload(file.content, file.mimeType, file.extension, file.fileName);
+    } catch (error) {
+      showToast(`导出失败：${error?.message || '导出模块加载失败'}`, 'error');
     }
-
-    const file = buildExportContent(formatId, payload);
-    triggerFileDownload(file.content, file.mimeType, file.extension);
-  }, [buildPayload, showToast, triggerFileDownload]);
+  }, [currentGameUid, currentPoolId, history, pools, showToast, triggerFileDownload, user?.id]);
 
   // 通用导出函数 - JSON
   const handleExportJSON = useCallback((scopeOrOptions) => {
@@ -104,6 +146,30 @@ export function useDataExportImport({
   // 通用导出函数 - CSV
   const handleExportCSV = useCallback((scopeOrOptions) => {
     exportByFormat(scopeOrOptions, 'internal_csv_flat');
+  }, [exportByFormat]);
+
+  const handleExportEndfieldGachaUserDataZip = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'bhaoo_endfield_gacha_userdata_zip');
+  }, [exportByFormat]);
+
+  const handleExportEndfieldGachaHelperJSON = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_json');
+  }, [exportByFormat]);
+
+  const handleExportEndfieldGachaHelperCSV = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_csv');
+  }, [exportByFormat]);
+
+  const handleExportEndfieldGachaHelperUserDataZip = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'endfield_gacha_helper_userdata_zip');
+  }, [exportByFormat]);
+
+  const handleExportEndgachaKwerTopPlainJSON = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_json');
+  }, [exportByFormat]);
+
+  const handleExportEndgachaKwerTopPlainTXT = useCallback((scopeOrOptions) => {
+    exportByFormat(scopeOrOptions, 'endgacha_kwer_top_plain_txt');
   }, [exportByFormat]);
 
   // 导入文件处理
@@ -121,11 +187,21 @@ export function useDataExportImport({
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const importedData = JSON.parse(e.target.result);
+        const [
+          { parseImportFileContent },
+          { validateAndNormalizeImportData }
+        ] = await Promise.all([
+          import('../../utils/dataImportFileParser.js'),
+          import('../../utils/dataImport.js')
+        ]);
+        const importedData = await parseImportFileContent(e.target.result, {
+          fileName: file.name
+        });
 
         const validation = validateAndNormalizeImportData(importedData, {
           existingPools: pools,
-          currentUserId: user?.id || null
+          currentUserId: user?.id || null,
+          sourceFileName: file.name
         });
         if (!validation.valid) {
           showToast(`数据验证失败：\n${validation.errors.slice(0, 3).join('\n')}`, 'error');
@@ -139,20 +215,27 @@ export function useDataExportImport({
           willSyncToCloud,
           stats: validation.stats
         });
+        closeImportWizard();
 
-      } catch {
-        showToast("导入失败：文件解析错误。请确保是合法的JSON文件。", 'error');
+      } catch (error) {
+        showToast(`导入失败：${error?.message || '文件解析错误，请确认导入文件格式。'}`, 'error');
       }
       event.target.value = '';
     };
-    reader.readAsText(file);
-  }, [pools, showToast, user]);
+    if (file.name.toLowerCase().endsWith('.xlsx')) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
+  }, [closeImportWizard, pools, showToast, user]);
 
   // 确认导入
-  const confirmImport = useCallback(async () => {
+  const confirmImport = useCallback(async (options = {}) => {
     if (!pendingImport) return;
 
-    const { data: importedData, willSyncToCloud } = pendingImport;
+    const { getHistoryImportDedupKey } = await import('../../utils/dataImport.js');
+    const { willSyncToCloud } = pendingImport;
+    const importedData = applyImportAccountOverride(pendingImport.data, options.accountOverride);
 
     const newPools = [...(pools || [])];
     const existingPoolIds = new Set(newPools.map(pool => pool?.id).filter(Boolean));
@@ -256,9 +339,18 @@ export function useDataExportImport({
   return {
     pendingImport,
     setPendingImport,
+    importWizardOpen,
+    openImportWizard,
+    closeImportWizard,
     handleExportJSON,
     handleExportCSV,
+    handleExportEndfieldGachaUserDataZip,
     handleImportFile,
+    handleExportEndfieldGachaHelperJSON,
+    handleExportEndfieldGachaHelperCSV,
+    handleExportEndfieldGachaHelperUserDataZip,
+    handleExportEndgachaKwerTopPlainJSON,
+    handleExportEndgachaKwerTopPlainTXT,
     confirmImport
   };
 }

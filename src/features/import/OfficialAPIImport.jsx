@@ -5,6 +5,7 @@ import { useOfficialImportController } from './useOfficialImportController';
 export default function OfficialAPIImport({
   onImportComplete,
   onBack: _onBack,
+  onOpenFileImport,
   onFetchStatusChange,
   userId
 }) {
@@ -67,6 +68,7 @@ export default function OfficialAPIImport({
       onSourceChange={handleSourceChange}
       onTokenChange={handleInputChange}
       onStartImport={handleImport}
+      onOpenFileImport={onOpenFileImport}
       onSelectAccount={handleAccountSelect}
       onCancel={handleCancel}
       onReset={handleReset}

@@ -69,7 +69,7 @@ const ImportProgressBar = ({ progress, status, message, t }) => {
 /**
  * ImportManager 组件 V3
  */
-export default function ImportManager({ isOpen, onClose, onImportComplete }) {
+export default function ImportManager({ isOpen, onClose, onImportComplete, onOpenFileImport }) {
   const { t, formatNumber } = useI18n();
   const [importStatus, setImportStatus] = useState(ImportStatus.IDLE);
   const [importResult, setImportResult] = useState(null);
@@ -444,7 +444,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
            </div>
         </div>
 
-        <div className="p-8 relative">
+        <div className="p-6 relative">
           {/* 未登录提示 */}
           {!user && (
             <div className="mb-6 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
@@ -602,6 +602,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete }) {
             <OfficialAPIImport
               onImportComplete={handleAPIImportComplete}
               onBack={handleClose}
+              onOpenFileImport={onOpenFileImport}
               onFetchStatusChange={handleFetchStatusChange}
               userId={user.id}
             />

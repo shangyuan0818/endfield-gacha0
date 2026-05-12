@@ -190,6 +190,7 @@ function normalizeImportedHistoryRecord(record, context) {
     gameUid: record?.gameUid || record?.game_uid,
     nickName: record?.nickName || record?.nick_name,
     channelName: record?.channelName || record?.channel_name,
+    hgUid: record?.hgUid || record?.hg_uid,
     channelMasterId: record?.channelMasterId || record?.channel_master_id,
     serverId: record?.serverId || record?.server_id,
     region: record?.region || record?.serverRegion,
@@ -274,6 +275,8 @@ function normalizeImportedHistoryRecord(record, context) {
       nick_name: metadata?.nickName || normalizeString(record?.nickName || record?.nick_name),
       channelName: metadata?.channelName || null,
       channel_name: metadata?.channelName || null,
+      hgUid: metadata?.hgUid || null,
+      hg_uid: metadata?.hgUid || null,
       channelMasterId: metadata?.channelMasterId || null,
       channel_master_id: metadata?.channelMasterId || null,
       serverId: metadata?.serverId || null,
@@ -288,12 +291,20 @@ function normalizeImportedHistoryRecord(record, context) {
 
 export function getHistoryImportDedupKey(record) {
   const seqId = normalizeString(record?.seqId || record?.seq_id);
+  const gameUid = normalizeString(record?.gameUid || record?.game_uid);
+  const poolId = normalizeString(record?.poolId || record?.pool_id);
   if (seqId) {
-    return `seq:${seqId}`;
+    const accountPrefix = gameUid ? `uid:${gameUid}:` : '';
+    const poolPrefix = poolId ? `pool:${poolId}:` : '';
+    return `${accountPrefix}${poolPrefix}seq:${seqId}`;
   }
 
   const recordId = normalizeRecordIdValue(record?.id ?? record?.record_id);
-  return recordId === null ? null : `id:${String(recordId)}`;
+  if (recordId === null) {
+    return null;
+  }
+
+  return gameUid ? `uid:${gameUid}:id:${String(recordId)}` : `id:${String(recordId)}`;
 }
 
 export function validateAndNormalizeImportData(data, options = {}) {
@@ -308,12 +319,12 @@ export function validateAndNormalizeImportData(data, options = {}) {
   if (!detectedFormat) {
     return {
       valid: false,
-      errors: ['暂不支持该导入格式；当前仅兼容站内 JSON v3 与站内旧版 JSON'],
+      errors: ['暂不支持该导入格式；当前兼容站内 JSON、endfield-gacha Excel、EndfieldGachaHelper JSON/CSV、endgacha.kwer.top JSON/TXT'],
     };
   }
 
   try {
-    sourceData = prepareImportPayload(data, detectedFormat);
+    sourceData = prepareImportPayload(data, detectedFormat, options);
   } catch (error) {
     return {
       valid: false,
@@ -419,6 +430,8 @@ export function validateAndNormalizeImportData(data, options = {}) {
       sourceFormatLabel: detectedFormat.label,
       schemaVersion: normalizeString(sourceData.schemaVersion || sourceData.version),
       importedAt: normalizeString(sourceData.exportTime || sourceData.exportedAt) || new Date().toISOString(),
+      accountInfoMissing: sourceData.accountInfoMissing === true,
+      importWarningCodes: Array.isArray(sourceData.importWarningCodes) ? [...sourceData.importWarningCodes] : [],
       filters: sourceData.filters || null,
       summary: sourceData.summary || null,
       pools: normalizedPools,

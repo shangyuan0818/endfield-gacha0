@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import Footer from './components/layout/Footer';
 import GachaModals from './components/modals/GachaModals';
+import DataImportWizardModal from './components/modals/DataImportWizardModal';
 import { LoadingBar } from './components/ui';
 import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight } from './hooks';
 import { useAuthStore, useAppStore, useHistoryStore, usePoolStore } from './stores';
@@ -216,8 +217,17 @@ export default function GachaAnalyzer() {
   const {
     pendingImport,
     setPendingImport,
+    importWizardOpen,
+    openImportWizard,
+    closeImportWizard,
     handleExportJSON,
     handleExportCSV,
+    handleExportEndfieldGachaUserDataZip,
+    handleExportEndfieldGachaHelperJSON,
+    handleExportEndfieldGachaHelperCSV,
+    handleExportEndfieldGachaHelperUserDataZip,
+    handleExportEndgachaKwerTopPlainJSON,
+    handleExportEndgachaKwerTopPlainTXT,
     handleImportFile,
     confirmImport
   } = useDataExportImport({ showToast, cloudSync });
@@ -335,9 +345,15 @@ export default function GachaAnalyzer() {
           handleUpdateItem={handleUpdateItem}
           handleDeleteItem={handleDeleteItem}
           handleDeleteGroup={handleDeleteGroup}
-          handleImportFile={handleImportFile}
+          openImportWizard={openImportWizard}
           handleExportJSON={handleExportJSON}
           handleExportCSV={handleExportCSV}
+          handleExportEndfieldGachaUserDataZip={handleExportEndfieldGachaUserDataZip}
+          handleExportEndfieldGachaHelperJSON={handleExportEndfieldGachaHelperJSON}
+          handleExportEndfieldGachaHelperCSV={handleExportEndfieldGachaHelperCSV}
+          handleExportEndfieldGachaHelperUserDataZip={handleExportEndfieldGachaHelperUserDataZip}
+          handleExportEndgachaKwerTopPlainJSON={handleExportEndgachaKwerTopPlainJSON}
+          handleExportEndgachaKwerTopPlainTXT={handleExportEndgachaKwerTopPlainTXT}
         />
       </main>
 
@@ -345,6 +361,12 @@ export default function GachaAnalyzer() {
       <Footer />
 
       {/* --- 全局弹窗 --- */}
+      <DataImportWizardModal
+        isOpen={importWizardOpen}
+        onClose={closeImportWizard}
+        onImportFile={handleImportFile}
+      />
+
       <GachaModals
         knownDrawers={knownDrawers}
         showToast={showToast}

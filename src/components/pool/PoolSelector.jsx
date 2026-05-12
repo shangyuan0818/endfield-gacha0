@@ -72,7 +72,7 @@ function CompactFreshnessCard({
  * 卡池选择器组件 V3 (Technical Style)
  * 卡池管理功能已移至管理页面，仅超管可操作
  */
-const PoolSelector = () => {
+const PoolSelector = ({ onOpenImportWizard }) => {
   const { t, locale, formatNumber } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
@@ -250,6 +250,13 @@ const PoolSelector = () => {
       { replace: true }
     );
   }, [importRequestedByQuery, location.pathname, location.search, navigate]);
+
+  const handleOpenFileImport = useCallback(() => {
+    closeImportManager();
+    if (typeof onOpenImportWizard === 'function') {
+      onOpenImportWizard();
+    }
+  }, [closeImportManager, onOpenImportWizard]);
 
   return (
     <div className="space-y-4">
@@ -449,6 +456,7 @@ const PoolSelector = () => {
         <ImportManager
           isOpen={isImportManagerOpen}
           onClose={closeImportManager}
+          onOpenFileImport={handleOpenFileImport}
           onImportComplete={() => {
             closeImportManager();
             navigate(getDesktopPathForTab('dashboard'));

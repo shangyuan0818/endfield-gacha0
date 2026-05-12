@@ -226,10 +226,9 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
               return (
                 <div
                   key={item.id}
-                  onClick={canEdit ? (e) => { e.stopPropagation(); onEdit(item); } : undefined}
                   className={`
                     relative flex flex-col items-center p-2 border-2 transition-all
-                    ${canEdit ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
+                    cursor-default
                     ${borderColor} ${bgColor}
                     ${isFree ? 'ring-2 ring-blue-300 dark:ring-blue-700' : ''}
                   `}
