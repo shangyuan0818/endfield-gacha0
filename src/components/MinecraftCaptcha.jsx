@@ -44,6 +44,67 @@ const ITEMS = {
   magma_cream: { name: '岩浆膏', image: '/captcha/items/Magma_Cream_JE2_BE2.png' }
 };
 
+const MAX_STACK = 64;
+
+function getClientPoint(event) {
+  const touch = event?.touches?.[0] || event?.changedTouches?.[0];
+  if (touch) {
+    return { clientX: touch.clientX, clientY: touch.clientY };
+  }
+
+  if (Number.isFinite(event?.clientX) && Number.isFinite(event?.clientY)) {
+    return { clientX: event.clientX, clientY: event.clientY };
+  }
+
+  return null;
+}
+
+function isPointInsideRect(point, rect) {
+  return (
+    point.clientX >= rect.left
+    && point.clientX <= rect.right
+    && point.clientY >= rect.top
+    && point.clientY <= rect.bottom
+  );
+}
+
+function returnItemToSlots(slots, item, preferredIndex) {
+  const nextSlots = [...slots];
+  const normalizedIndex = Number.isInteger(preferredIndex) ? preferredIndex : -1;
+  const preferredSlot = nextSlots[normalizedIndex];
+
+  if (normalizedIndex >= 0 && normalizedIndex < nextSlots.length) {
+    if (!preferredSlot) {
+      nextSlots[normalizedIndex] = item;
+      return nextSlots;
+    }
+
+    if (preferredSlot.type === item.type && preferredSlot.count < MAX_STACK) {
+      const totalCount = preferredSlot.count + item.count;
+      const mergedCount = Math.min(totalCount, MAX_STACK);
+      const remainingCount = totalCount - mergedCount;
+      nextSlots[normalizedIndex] = { type: preferredSlot.type, count: mergedCount };
+
+      if (remainingCount <= 0) {
+        return nextSlots;
+      }
+
+      const emptySlot = nextSlots.findIndex(slot => slot === null);
+      if (emptySlot !== -1) {
+        nextSlots[emptySlot] = { type: item.type, count: remainingCount };
+      }
+      return nextSlots;
+    }
+  }
+
+  const emptySlot = nextSlots.findIndex(slot => slot === null);
+  if (emptySlot !== -1) {
+    nextSlots[emptySlot] = item;
+  }
+
+  return nextSlots;
+}
+
 const MinecraftCaptcha = ({ onVerified }) => {
   // 初始库存
   const [inventory, setInventory] = useState([
@@ -68,72 +129,158 @@ const MinecraftCaptcha = ({ onVerified }) => {
 
   // 容器引用
   const containerRef = React.useRef(null);
+  const heldItemRef = React.useRef(null);
+  const heldItemSourceRef = React.useRef(null);
 
-  // 监听鼠标移动 - 参考实现使用 document 级别监听
   React.useEffect(() => {
-    if (!heldItem) return;
+    heldItemRef.current = heldItem;
+    heldItemSourceRef.current = heldItemSource;
+  }, [heldItem, heldItemSource]);
 
-    const handleMouseMove = (e) => {
+  const clearHeldItem = React.useCallback(() => {
+    heldItemRef.current = null;
+    heldItemSourceRef.current = null;
+    setHeldItem(null);
+    setHeldItemSource(null);
+  }, []);
+
+  const returnHeldItemToSource = React.useCallback(() => {
+    const itemToReturn = heldItemRef.current;
+    const source = heldItemSourceRef.current;
+
+    if (!itemToReturn || !source) {
+      return;
+    }
+
+    heldItemRef.current = null;
+    heldItemSourceRef.current = null;
+
+    if (source.type === 'inventory') {
+      setInventory(previousInventory => returnItemToSlots(previousInventory, itemToReturn, source.index));
+    } else if (source.type === 'crafting') {
+      setCraftingGrid(previousGrid => returnItemToSlots(previousGrid, itemToReturn, source.index));
+    }
+
+    setHeldItem(null);
+    setHeldItemSource(null);
+  }, []);
+
+  const updateMousePosition = React.useCallback((event) => {
+    const container = containerRef.current;
+    const point = getClientPoint(event);
+
+    if (!container || !point) {
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    setMousePos({
+      x: point.clientX - rect.left,
+      y: point.clientY - rect.top
+    });
+  }, []);
+
+  // 监听指针移动和离开路径，避免手持物品状态遗留后卡住验证界面。
+  React.useEffect(() => {
+    if (!heldItem) return undefined;
+
+    const isEventInsideContainer = (event) => {
       const container = containerRef.current;
-      if (!container) return;
+      if (!container) {
+        return true;
+      }
 
-      // 获取容器位置
-      const rect = container.getBoundingClientRect();
-      // 计算相对于容器的坐标（用于 absolute 定位）
-      setMousePos({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      const point = getClientPoint(event);
+      if (point) {
+        return isPointInsideRect(point, container.getBoundingClientRect());
+      }
+
+      return typeof Node !== 'undefined' && event.target instanceof Node
+        ? container.contains(event.target)
+        : true;
     };
 
-    // 在 document 级别监听，确保拖拽物品时鼠标可以移出容器
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('touchmove', handleMouseMove);
+    const handlePointerMove = (event) => {
+      if (event.type === 'touchmove' && event.cancelable) {
+        event.preventDefault();
+      }
+      updateMousePosition(event);
+    };
 
-    // 禁用右键菜单
+    const handleOutsideInteraction = (event) => {
+      if (!isEventInsideContainer(event)) {
+        returnHeldItemToSource();
+      }
+    };
+
+    const handleCancel = () => {
+      returnHeldItemToSource();
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        returnHeldItemToSource();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        returnHeldItemToSource();
+      }
+    };
+
     const preventContextMenu = (e) => e.preventDefault();
+    const supportsPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+
+    // 在 document 级别监听，确保拖拽物品时鼠标/触控可以移出容器。
+    document.addEventListener('mousemove', handlePointerMove);
+    document.addEventListener('touchmove', handlePointerMove, { passive: false });
     document.addEventListener('contextmenu', preventContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleCancel);
+
+    if (supportsPointerEvents) {
+      document.addEventListener('pointerdown', handleOutsideInteraction, true);
+      document.addEventListener('pointerup', handleOutsideInteraction, true);
+      document.addEventListener('pointercancel', handleCancel, true);
+    } else {
+      document.addEventListener('mousedown', handleOutsideInteraction, true);
+      document.addEventListener('mouseup', handleOutsideInteraction, true);
+      document.addEventListener('touchstart', handleOutsideInteraction, true);
+      document.addEventListener('touchend', handleOutsideInteraction, true);
+      document.addEventListener('touchcancel', handleCancel, true);
+    }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('touchmove', handleMouseMove);
+      document.removeEventListener('mousemove', handlePointerMove);
+      document.removeEventListener('touchmove', handlePointerMove);
       document.removeEventListener('contextmenu', preventContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleCancel);
+
+      if (supportsPointerEvents) {
+        document.removeEventListener('pointerdown', handleOutsideInteraction, true);
+        document.removeEventListener('pointerup', handleOutsideInteraction, true);
+        document.removeEventListener('pointercancel', handleCancel, true);
+      } else {
+        document.removeEventListener('mousedown', handleOutsideInteraction, true);
+        document.removeEventListener('mouseup', handleOutsideInteraction, true);
+        document.removeEventListener('touchstart', handleOutsideInteraction, true);
+        document.removeEventListener('touchend', handleOutsideInteraction, true);
+        document.removeEventListener('touchcancel', handleCancel, true);
+      }
     };
-  }, [heldItem]);
+  }, [heldItem, returnHeldItemToSource, updateMousePosition]);
 
   // 监听鼠标离开容器 - 自动放回物品
   React.useEffect(() => {
     const container = containerRef.current;
-    if (!container || !heldItem) return;
+    if (!container || !heldItem) return undefined;
 
     const handleMouseLeave = () => {
-      // 鼠标离开容器，自动放回物品
-      if (heldItemSource) {
-        const { type: sourceType, index: sourceIndex } = heldItemSource;
-
-        if (sourceType === 'inventory') {
-          const newInventory = [...inventory];
-          // 放回原位或找空位
-          if (newInventory[sourceIndex] === null) {
-            newInventory[sourceIndex] = heldItem;
-          } else {
-            const emptySlot = newInventory.findIndex(slot => slot === null);
-            if (emptySlot !== -1) {
-              newInventory[emptySlot] = heldItem;
-            }
-          }
-          setInventory(newInventory);
-        } else if (sourceType === 'crafting') {
-          const newGrid = [...craftingGrid];
-          if (newGrid[sourceIndex] === null) {
-            newGrid[sourceIndex] = heldItem;
-          }
-          setCraftingGrid(newGrid);
-        }
-
-        setHeldItem(null);
-        setHeldItemSource(null);
-      }
+      returnHeldItemToSource();
     };
 
     container.addEventListener('mouseleave', handleMouseLeave);
@@ -141,7 +288,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
     return () => {
       container.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [heldItem, heldItemSource, inventory, craftingGrid]);
+  }, [heldItem, returnHeldItemToSource]);
 
   // 实时计算输出
   const calculateOutput = (gridItems) => {
@@ -206,14 +353,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
     if (!heldItem && slotItem) {
       // 空手点击有物品的格子 → 拾起全部
       // 立即更新鼠标位置，避免闪烁
-      const container = containerRef.current;
-      if (container && e) {
-        const rect = container.getBoundingClientRect();
-        setMousePos({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
-      }
+      updateMousePosition(e);
 
       const newSlots = [...slots];
       newSlots[index] = null;
@@ -225,22 +365,20 @@ const MinecraftCaptcha = ({ onVerified }) => {
       const newSlots = [...slots];
       newSlots[index] = heldItem;
       setSlots(newSlots);
-      setHeldItem(null);
-      setHeldItemSource(null);
+      clearHeldItem();
     } else if (heldItem && slotItem) {
       // 手持物品点击有物品的格子
       if (heldItem.type === slotItem.type) {
         // 同类物品 → 堆叠合并
         const totalCount = heldItem.count + slotItem.count;
-        const maxStack = 64; // MC最大堆叠数
+        const maxStack = MAX_STACK; // MC最大堆叠数
 
         if (totalCount <= maxStack) {
           // 全部合并
           const newSlots = [...slots];
           newSlots[index] = { type: slotItem.type, count: totalCount };
           setSlots(newSlots);
-          setHeldItem(null);
-          setHeldItemSource(null);
+          clearHeldItem();
         } else {
           // 超过最大堆叠，部分合并
           const newSlots = [...slots];
@@ -276,14 +414,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
     if (!heldItem && slotItem) {
       // 空手右键有物品的格子 → 拾起一半（向上取整）
       // 立即更新鼠标位置，避免闪烁
-      const container = containerRef.current;
-      if (container && e) {
-        const rect = container.getBoundingClientRect();
-        setMousePos({
-          x: e.clientX - rect.left,
-          y: e.clientY - rect.top
-        });
-      }
+      updateMousePosition(e);
 
       const pickCount = Math.ceil(slotItem.count / 2);
       const remainCount = slotItem.count - pickCount;
@@ -309,14 +440,13 @@ const MinecraftCaptcha = ({ onVerified }) => {
         const newSlots = [...slots];
         newSlots[index] = heldItem;
         setSlots(newSlots);
-        setHeldItem(null);
-        setHeldItemSource(null); // 清除来源记录
+        clearHeldItem(); // 清除来源记录
       }
     } else if (heldItem && slotItem) {
       // 手持物品右键有物品的格子
       if (heldItem.type === slotItem.type) {
         // 同类物品 → 放下1个（堆叠）
-        const maxStack = 64;
+        const maxStack = MAX_STACK;
         if (slotItem.count < maxStack && heldItem.count > 0) {
           const newSlots = [...slots];
           newSlots[index] = { type: slotItem.type, count: slotItem.count + 1 };
@@ -324,8 +454,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           if (heldItem.count > 1) {
             setHeldItem({ type: heldItem.type, count: heldItem.count - 1 });
           } else {
-            setHeldItem(null);
-            setHeldItemSource(null); // 清除来源记录
+            clearHeldItem(); // 清除来源记录
           }
         }
       } else {
@@ -405,7 +534,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
       null, null, null
     ]);
     setCraftingGrid(Array(9).fill(null));
-    setHeldItem(null);
+    clearHeldItem();
   };
 
   // 渲染物品槽
@@ -553,6 +682,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           title="重置"
         />
         <button
+          type="button"
           className={`verify-button ${isWrong ? 'verify-button-wrong' : ''}`}
           onClick={handleVerify}
         >
@@ -570,6 +700,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           margin: 0 auto;
           background: white;
           user-select: none;
+          touch-action: manipulation;
         }
 
         .captcha-title {
@@ -632,6 +763,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           justify-content: center;
           position: relative;
           transition: background-color 0.1s;
+          touch-action: manipulation;
         }
 
         .crafting-slot:hover {
@@ -705,6 +837,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           cursor: pointer;
           transition: transform 0.5s;
           opacity: 0.7;
+          touch-action: manipulation;
         }
 
         .captcha-refresh:hover {
@@ -722,6 +855,7 @@ const MinecraftCaptcha = ({ onVerified }) => {
           padding: 10px 30px;
           transition: all 0.15s;
           text-transform: uppercase;
+          touch-action: manipulation;
         }
 
         .verify-button:hover {
