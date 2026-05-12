@@ -5,7 +5,10 @@ import {
   isInfoBookHistoryPull
 } from './historyInfoBook.js';
 import { getPoolTimingMeta, normalizePoolGroupType } from './poolSelectorDisplay.js';
-import { compareHistoryTimelineAsc } from './historyTimelineSort.js';
+import {
+  compareHistoryTimelineAsc,
+  getHistoryTimelineTimestampMs
+} from './historyTimelineSort.js';
 import {
   EXTRA_POOL_RULES,
   LIMITED_POOL_RULES,
@@ -58,6 +61,16 @@ function getHistoryTimestamp(item) {
 
   const parsed = new Date(item?.timestamp || item?.gacha_time || 0).getTime();
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getHistoryBatchKey(item) {
+  const explicitBatchId = item?.batchId || item?.batch_id;
+  if (explicitBatchId !== null && explicitBatchId !== undefined && String(explicitBatchId).trim()) {
+    return `batch:${String(explicitBatchId).trim()}`;
+  }
+
+  const timestamp = getHistoryTimelineTimestampMs(item);
+  return timestamp > 0 ? `time:${timestamp}` : null;
 }
 
 function sortHistoryAsc(left, right) {
@@ -419,6 +432,7 @@ function summarizeGroup(group = []) {
   const primarySixStar = sixStars.length > 0 ? sixStars[sixStars.length - 1] : null;
   const primaryHighRarity = highRarityItems.length > 0 ? highRarityItems[highRarityItems.length - 1] : null;
   const timestampSource = primarySixStar || primaryHighRarity || group[group.length - 1] || group[0] || null;
+  const sourceBatchKeys = Array.from(new Set(highRarityItems.map(getHistoryBatchKey).filter(Boolean)));
 
   return {
     paidCount,
@@ -438,7 +452,9 @@ function summarizeGroup(group = []) {
     highRarityItems,
     dropBadges: createDropBadges(highRarityItems),
     groupSize: group.length,
-    timestamp: timestampSource?.timestamp || timestampSource?.gacha_time || null
+    timestamp: timestampSource?.timestamp || timestampSource?.gacha_time || null,
+    primaryBatchKey: getHistoryBatchKey(primarySixStar || primaryHighRarity),
+    sourceBatchKeys
   };
 }
 
@@ -650,7 +666,9 @@ function buildStageEntries({
         dropBadges: createDropBadges(summary.highRarityItems, locale),
         highlightStageKind: milestone.highlightStageKind || milestone.stageKind,
         highestRarity: milestone.highestRarity || Number(summary.primaryHighRarity?.rarity) || 0,
-        sourceRecordKeys: getSourceRecordKeys(group)
+        sourceRecordKeys: getSourceRecordKeys(group),
+        sourceBatchKeys: summary.sourceBatchKeys,
+        multiDropBatchKey: summary.primaryBatchKey
       });
       return;
     }
@@ -686,7 +704,9 @@ function buildStageEntries({
       ),
       dropBadges: createDropBadges(mergedSupportItems, locale),
       highestRarity: milestone.highestRarity || 6,
-      sourceRecordKeys: getSourceRecordKeys(mergeBadgeItems(pendingSupportItems, group))
+      sourceRecordKeys: getSourceRecordKeys(mergeBadgeItems(pendingSupportItems, group)),
+      sourceBatchKeys: summary.sourceBatchKeys,
+      multiDropBatchKey: summary.primaryBatchKey
     });
     pendingPaidCount = 0;
     pendingSupportItems = [];

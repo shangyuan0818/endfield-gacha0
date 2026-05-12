@@ -111,6 +111,37 @@ function normalizeSimulatorRoster(roster) {
   };
 }
 
+function normalizeRosterForCompare(roster) {
+  if (!roster) {
+    return null;
+  }
+
+  const mapEntry = (entry) => {
+    if (typeof entry === 'string') {
+      return entry.trim();
+    }
+
+    return [
+      String(entry?.id || '').trim(),
+      String(entry?.name || '').trim(),
+      Number(entry?.rarity) || 0,
+      Boolean(entry?.isUp),
+    ];
+  };
+  const mapEntries = (items) => (Array.isArray(items) ? items.map(mapEntry) : []);
+
+  return {
+    up: mapEntries(roster.up),
+    offBanner: mapEntries(roster.offBanner),
+    fiveStar: mapEntries(roster.fiveStar),
+    fourStar: mapEntries(roster.fourStar),
+  };
+}
+
+function areSimulatorRostersEqual(left, right) {
+  return JSON.stringify(normalizeRosterForCompare(left)) === JSON.stringify(normalizeRosterForCompare(right));
+}
+
 function isAggregateSimulatorPool(pool) {
   const rawId = String(pool?.id || pool?.pool_id || '').trim();
   const rawName = String(pool?.name || '').trim();
@@ -480,8 +511,6 @@ export function useGachaSimulatorController() {
   const singlePullDisabledReason = getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
   const tenPullDisabledReason = getPullDisabledReason(currentPullCosts.ten, canAffordTenPull);
   const currentSimPoolIdValue = currentSimPool?.id ?? null;
-  const currentSimPoolFeaturedCharacters = currentSimPool?.featured_characters ?? null;
-  const currentSimPoolUpCharacter = currentSimPool?.up_character ?? null;
   const currentSimPoolFeaturedLead = currentSimPoolSource ? getPoolFeaturedLead(currentSimPoolSource) : null;
 
   useEffect(() => {
@@ -512,13 +541,15 @@ export function useGachaSimulatorController() {
           || mergedRoster.fourStar.length > 0)
       ) {
         if (!cancelled) {
-          setPoolCharactersList(mergedRoster);
+          setPoolCharactersList((currentRoster) =>
+            areSimulatorRostersEqual(currentRoster, mergedRoster) ? currentRoster : mergedRoster
+          );
         }
         return;
       }
       appLogger.warn('[GachaSimulator] 当前卡池未配置显式阵容，模拟器已禁用默认回退');
       if (!cancelled) {
-        setPoolCharactersList(null);
+        setPoolCharactersList((currentRoster) => (currentRoster === null ? currentRoster : null));
       }
     };
 
@@ -529,11 +560,8 @@ export function useGachaSimulatorController() {
   }, [
     currentSimPool,
     currentPoolType,
-    currentSimPoolFeaturedCharacters,
     currentSimPoolFeaturedLead,
-    currentSimPoolIdValue,
-    currentSimPoolSource,
-    currentSimPoolUpCharacter
+    currentSimPoolIdValue
   ]);
 
   useEffect(() => {

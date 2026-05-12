@@ -193,8 +193,61 @@ export default function DesktopDashboardWorkspace({
   handleExportEndgachaKwerTopPlainJSON,
   handleExportEndgachaKwerTopPlainTXT
 }) {
-  const { isEnglish } = useI18n();
+  const { isEnglish, locale, t } = useI18n();
   const tt = (zh, en) => (isEnglish ? en : zh);
+  const pools = usePoolStore(state => state.pools);
+  const currentPoolId = usePoolStore(state => state.currentPoolId);
+  const currentGameUid = usePoolStore(state => state.currentGameUid);
+  const getGameAccountsFromHistory = useHistoryStore(state => state.getGameAccountsFromHistory);
+  const { currentPool: storeCurrentPool } = useCurrentPoolData();
+  const activeExportPool = storeCurrentPool || currentPool;
+  const exportCurrentPoolName = localizePoolName(activeExportPool, { locale }) || activeExportPool?.name || t('records.unknownPool');
+  const exportPoolOptions = useMemo(
+    () => [...(Array.isArray(pools) ? pools : [])].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'zh-CN')),
+    [pools]
+  );
+  const exportGameAccounts = getGameAccountsFromHistory();
+
+  const buildDefaultExportOptions = () => ({
+    poolFilter: 'current',
+    poolId: !isPoolGroupId(currentPoolId) && currentPoolId ? currentPoolId : '',
+    accountFilter: currentGameUid ? 'current' : 'all',
+    gameUid: currentGameUid || '',
+    dateFrom: '',
+    dateTo: ''
+  });
+  const [showQuickExportMenu, setShowQuickExportMenu] = useState(false);
+  const [quickExportOptions, setQuickExportOptions] = useState(buildDefaultExportOptions);
+  const closeQuickExportMenu = () => setShowQuickExportMenu(false);
+  const openQuickExportMenu = () => {
+    setQuickExportOptions(buildDefaultExportOptions());
+    setShowQuickExportMenu(true);
+  };
+  const updateQuickExportOption = (key, value) => {
+    setQuickExportOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+  const resetQuickExportOptions = () => setQuickExportOptions(buildDefaultExportOptions());
+  const buildQuickExportOptions = () => ({
+    poolFilter: quickExportOptions.poolFilter,
+    poolId: quickExportOptions.poolFilter === 'specific' ? quickExportOptions.poolId || null : null,
+    accountFilter: quickExportOptions.accountFilter,
+    gameUid: quickExportOptions.accountFilter === 'specific' ? quickExportOptions.gameUid || null : null,
+    dateFrom: quickExportOptions.dateFrom,
+    dateTo: quickExportOptions.dateTo
+  });
+  const canQuickExport = (
+    (quickExportOptions.poolFilter !== 'specific' || Boolean(quickExportOptions.poolId))
+    && (quickExportOptions.accountFilter !== 'specific' || Boolean(quickExportOptions.gameUid))
+  );
+  const runQuickExport = async (handler) => {
+    if (!canQuickExport || typeof handler !== 'function') {
+      return false;
+    }
+    return handler(buildQuickExportOptions());
+  };
 
   return (
     <>
@@ -228,7 +281,11 @@ export default function DesktopDashboardWorkspace({
       {user && (
         <div className="animate-fade-in">
           <Suspense fallback={<TabPanelFallback label={tt('正在加载卡池分析...', 'Loading banner analysis...')} />}>
-            <DashboardView showToast={showToast} onOpenImportWizard={openImportWizard} />
+            <DashboardView
+              showToast={showToast}
+              onOpenImportWizard={openImportWizard}
+              onOpenExportOptions={openQuickExportMenu}
+            />
           </Suspense>
 
           <div className="mt-6">
@@ -266,6 +323,28 @@ export default function DesktopDashboardWorkspace({
               onDelete={handleDeleteItem}
             />
           )}
+
+          <DataExportOptionsModal
+            isOpen={showQuickExportMenu}
+            onClose={closeQuickExportMenu}
+            onReset={resetQuickExportOptions}
+            exportOptions={quickExportOptions}
+            onUpdateOption={updateQuickExportOption}
+            canExport={canQuickExport}
+            currentPoolName={exportCurrentPoolName}
+            currentGameUid={currentGameUid}
+            poolOptions={exportPoolOptions}
+            gameAccounts={exportGameAccounts}
+            locale={locale}
+            onExportJSON={() => runQuickExport(handleExportJSON)}
+            onExportCSV={() => runQuickExport(handleExportCSV)}
+            onExportEndfieldGachaUserDataZip={() => runQuickExport(handleExportEndfieldGachaUserDataZip)}
+            onExportEndfieldGachaHelperJSON={() => runQuickExport(handleExportEndfieldGachaHelperJSON)}
+            onExportEndfieldGachaHelperCSV={() => runQuickExport(handleExportEndfieldGachaHelperCSV)}
+            onExportEndfieldGachaHelperUserDataZip={() => runQuickExport(handleExportEndfieldGachaHelperUserDataZip)}
+            onExportEndgachaKwerTopPlainJSON={() => runQuickExport(handleExportEndgachaKwerTopPlainJSON)}
+            onExportEndgachaKwerTopPlainTXT={() => runQuickExport(handleExportEndgachaKwerTopPlainTXT)}
+          />
         </div>
       )}
     </>

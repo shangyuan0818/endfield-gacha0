@@ -229,7 +229,7 @@ const FreePullStatsToggle = ({ enabled, onToggle, t }) => (
 /**
  * 仪表盘视图组件
  */
-const DashboardView = ({ showToast, onOpenImportWizard }) => {
+const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) => {
   const location = useLocation();
   const { isDark } = useTheme();
   const { t, formatNumber, isEnglish, locale } = useI18n();
@@ -1119,7 +1119,7 @@ const DashboardView = ({ showToast, onOpenImportWizard }) => {
       <div className="space-y-6">
         {/* 卡池选择器 - 显示导入提示 */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
-          <PoolSelector onOpenImportWizard={onOpenImportWizard} />
+          <PoolSelector onOpenImportWizard={onOpenImportWizard} onOpenExportOptions={onOpenExportOptions} />
         </div>
 
         {/* 欢迎提示 */}
@@ -1174,7 +1174,7 @@ const DashboardView = ({ showToast, onOpenImportWizard }) => {
       {/* 卡池选择器 & 顶部状态栏 */}
       <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <PoolSelector onOpenImportWizard={onOpenImportWizard} />
+          <PoolSelector onOpenImportWizard={onOpenImportWizard} onOpenExportOptions={onOpenExportOptions} />
         </div>
       </div>
 
@@ -1376,14 +1376,14 @@ const DashboardView = ({ showToast, onOpenImportWizard }) => {
                   title={t('dashboard.resources.groupTitle', { name: characterPoolLabel })}
                   resources={splitOverviewStats.character.resourceSummary}
                   variant="character"
-                  stacked={true}
+                  layout="fixed3"
                   className="bg-white dark:bg-zinc-900 shadow-sm"
                 />
                 <ResourceSummaryPanel
                   title={t('dashboard.resources.groupTitle', { name: weaponPoolLabel })}
                   resources={splitOverviewStats.weapon.resourceSummary}
                   variant="weapon"
-                  stacked={true}
+                  layout="fixed3"
                   className="bg-white dark:bg-zinc-900 shadow-sm"
                 />
               </div>

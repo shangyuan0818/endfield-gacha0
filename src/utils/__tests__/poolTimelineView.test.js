@@ -182,4 +182,56 @@ describe('poolTimelineView', () => {
     expect(section.entries.some((entry) => entry.isCurrentStage)).toBe(false);
   });
 
+  it('annotates adjacent six-star milestones from the same ten-pull batch', () => {
+    const pool = {
+      id: 'pool_weapon',
+      type: 'weapon',
+      name: '行舟申领',
+      up_character: '孤舟',
+      start_time: '2026-04-17T00:00:00.000Z',
+      end_time: '2026-06-07T00:00:00.000Z',
+    };
+    const history = [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        id: `w${index + 1}`,
+        poolId: 'pool_weapon',
+        rarity: 4,
+        item_name: `武器${index + 1}`,
+        timestamp: '2026-04-17T10:00:00.000Z',
+        batchId: 'batch_same_ten',
+        seqId: String(index + 1),
+      })),
+      {
+        id: 'w9',
+        poolId: 'pool_weapon',
+        rarity: 6,
+        item_name: '遗忘',
+        timestamp: '2026-04-17T10:00:00.000Z',
+        batchId: 'batch_same_ten',
+        seqId: '9',
+        isStandard: true,
+      },
+      {
+        id: 'w10',
+        poolId: 'pool_weapon',
+        rarity: 6,
+        item_name: '孤舟',
+        timestamp: '2026-04-17T10:00:00.000Z',
+        batchId: 'batch_same_ten',
+        seqId: '10',
+        isStandard: false,
+      },
+    ];
+
+    const section = buildSinglePoolTimelineSection({
+      pool,
+      history,
+      locale: 'zh-CN',
+    });
+    const sixStarEntries = section.entries.filter((entry) => Number(entry.highestRarity) >= 6);
+
+    expect(sixStarEntries).toHaveLength(2);
+    expect(new Set(sixStarEntries.map((entry) => entry.multiDropBatchKey))).toEqual(new Set(['batch:batch_same_ten']));
+  });
+
 });

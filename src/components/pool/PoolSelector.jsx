@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Upload, User, Search, X, ChevronDown } from 'lucide-react';
+import { Download, Upload, User, Search, X, ChevronDown } from 'lucide-react';
 import { usePoolStore, useAuthStore, useHistoryStore } from '../../stores';
 import ImportManager from '../../features/import/ImportManager';
 import PoolGroupCardRail from './PoolGroupCardRail';
@@ -72,7 +72,7 @@ function CompactFreshnessCard({
  * 卡池选择器组件 V3 (Technical Style)
  * 卡池管理功能已移至管理页面，仅超管可操作
  */
-const PoolSelector = ({ onOpenImportWizard }) => {
+const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
   const { t, locale, formatNumber } = useI18n();
   const navigate = useNavigate();
   const location = useLocation();
@@ -265,16 +265,29 @@ const PoolSelector = ({ onOpenImportWizard }) => {
         {/* 导入按钮 & 账号切换 */}
         <div className="flex items-center gap-3">
           {user ? (
-            <button
-              id="guide-import-btn"
-              onClick={() => setShowImportManager(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-bold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
-              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
-            >
-              <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
-              <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform duration-300 relative z-10" />
-              <span className="relative z-10">{t('pool.selector.import')}</span>
-            </button>
+            <>
+              <button
+                id="guide-import-btn"
+                onClick={() => setShowImportManager(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-400 text-black text-[11px] font-bold uppercase tracking-widest transition-all duration-300 hover:shadow-[0_0_15px_rgba(234,179,8,0.4)] active:scale-95 group relative overflow-hidden"
+                style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+              >
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-transform duration-700 ease-in-out" />
+                <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform duration-300 relative z-10" />
+                <span className="relative z-10">{t('pool.selector.import')}</span>
+              </button>
+              {typeof onOpenExportOptions === 'function' && (
+                <button
+                  type="button"
+                  onClick={onOpenExportOptions}
+                  className="flex items-center gap-2 border border-zinc-300 bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-700 transition-all duration-300 hover:border-yellow-500 hover:text-yellow-600 hover:shadow-[0_0_15px_rgba(234,179,8,0.15)] active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-yellow-500 dark:hover:text-yellow-500"
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+                >
+                  <Download size={14} />
+                  <span>{t('records.exportPoolFile')}</span>
+                </button>
+              )}
+            </>
           ) : (
             <div id="guide-import-btn" className="text-xs text-slate-500 dark:text-zinc-400">
               {t('pool.selector.loginToImport')}

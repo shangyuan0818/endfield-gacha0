@@ -153,6 +153,8 @@ const ResourceSummaryPanel = ({
   const getGridTemplateColumns = (sectionLayout = layout, sectionStacked = stacked) => (
     mobile
       ? 'repeat(2, minmax(0, 1fr))'
+      : sectionLayout === 'fixed3'
+      ? 'repeat(3, minmax(0, 1fr))'
       : compact || sectionStacked
       ? 'minmax(0, 1fr)'
       : sectionLayout === 'grouped'
