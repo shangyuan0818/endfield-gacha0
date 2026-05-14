@@ -27,11 +27,13 @@ export default function LimitedUpAnalysisStrip({
   mobile = false
 }) {
   const limitedUpEntries = (ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || []).slice(0, 6);
+  const extraRanking = ranking?.extra || {};
 
   if (!currentStats && !ranking && !loading) {
     return null;
   }
 
+  const extraUpCount = extraRanking.sixStarUpExcludingFree ?? extraRanking.sixStarUpCount ?? currentStats?.byType?.extra?.sixStarLimited ?? 0;
   const upCount = ranking?.limited?.sixStarUpExcludingFree ?? ranking?.limited?.sixStarUpCount ?? 0;
   const offCount = ranking?.limited?.sixStarOffExcludingFree ?? ranking?.limited?.sixStarOffCount ?? 0;
   const offStd = ranking?.limited?.sixStarOffStandardCount ?? 0;
@@ -40,6 +42,14 @@ export default function LimitedUpAnalysisStrip({
   const totalOff = Number(offStd || 0) + Number(offLtd || 0);
 
   const metrics = [
+    {
+      key: 'extra-up',
+      label: tt('summary.metric.extraUpSix', '附加 6★'),
+      value: extraUpCount || '-',
+      hint: tt('summary.metric.extraUpSixHint', '附加寻访目标6★'),
+      tone: 'text-cyan-500',
+      dot: 'bg-cyan-500'
+    },
     {
       key: 'up',
       label: tt('summary.metric.upSixNoMiss', 'UP 6★ (不歪)'),

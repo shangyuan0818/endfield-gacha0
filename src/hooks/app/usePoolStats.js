@@ -93,7 +93,7 @@ function isLimitedCharacterOffrate(pull) {
 }
 
 function isTargetSixStarPull(pull, poolType) {
-  return isTargetCapablePool(poolType) && !pull.isStandard;
+  return isTargetCapablePool(poolType) && (poolType === 'extra' || !pull.isStandard);
 }
 
 function isLimitedSixStarPull(pull, poolType) {
@@ -101,7 +101,7 @@ function isLimitedSixStarPull(pull, poolType) {
     return false;
   }
 
-  if (!pull.isStandard) {
+  if (poolType === 'extra' || !pull.isStandard) {
     return true;
   }
 

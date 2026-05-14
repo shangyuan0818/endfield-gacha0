@@ -65,6 +65,8 @@ const SORT_OPTIONS = ['ownershipRate', 'ownerUsers', 'fullPotentialRate', 'rarit
 const SORT_DIRECTION_OPTIONS = ['desc', 'asc'];
 
 const RANKING_SECTION_LABEL_KEYS = {
+  extraUp: 'characterCatalog.ranking.extraUp',
+  extraFive: 'characterCatalog.ranking.extraFive',
   limitedUp: 'characterCatalog.ranking.limitedUp',
   limitedOffStandard: 'characterCatalog.ranking.limitedOffStandard',
   limitedOffLimited: 'characterCatalog.ranking.limitedOffLimited',
@@ -1370,7 +1372,7 @@ export default function CharacterCatalogView({
           title={activeDataSource === 'global'
             ? tt('summary.section.otherRankingGlobal', '全服出货排名 (其他)')
             : tt('summary.section.otherRankingLocal', '我的出货排名 (其他)')}
-          visibleSections={['limitedOff', 'standard', 'limitedFive', 'standardFive']}
+          visibleSections={['extraUp', 'limitedOff', 'standard', 'extraFive', 'limitedFive', 'standardFive']}
           flatLayout={mobile}
           denseFlatLayout={mobile}
           singleColumn={mobile}

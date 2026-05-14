@@ -28,6 +28,10 @@ function isLimitedCharacterPool(type) {
   return normalizedType === 'limited' || normalizedType === 'extra';
 }
 
+function isTargetSixStarPull(item, poolType) {
+  return isTargetCapablePool(poolType) && (normalizePoolType(poolType) === 'extra' || !item?.isStandard);
+}
+
 function readExplicitLimitedFlag(item) {
   const value = item?.item_is_limited
     ?? item?.itemIsLimited
@@ -227,7 +231,7 @@ export function buildDashboardOverviewSplitStats({
       const rarity = Number(item?.rarity) || 0;
 
       if (rarity >= 6) {
-        const isTargetSixStar = isTargetCapablePool(poolType) && !item?.isStandard;
+        const isTargetSixStar = isTargetSixStarPull(item, poolType);
         const isLimitedSixStar = isLimitedCharacterPool(poolType)
           && (isTargetSixStar || isLimitedCharacterOffrate(item));
 

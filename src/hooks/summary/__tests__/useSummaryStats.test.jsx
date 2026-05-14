@@ -18,7 +18,7 @@ describe('useSummaryStats', () => {
     ];
     const history = [
       { id: 1, user_id: 'user-1', pool_id: 'pool-extra', rarity: 4, item_name: '四星A' },
-      { id: 2, user_id: 'user-1', pool_id: 'pool-extra', rarity: 6, item_name: '附加六星A' },
+      { id: 2, user_id: 'user-1', pool_id: 'pool-extra', rarity: 6, item_name: '附加六星A', isStandard: true },
       { id: 3, user_id: 'user-1', pool_id: 'pool-limited', rarity: 4, item_name: '四星B' },
       { id: 4, user_id: 'user-1', pool_id: 'pool-limited', rarity: 4, item_name: '四星C' },
       { id: 5, user_id: 'user-1', pool_id: 'pool-limited', rarity: 6, item_name: '洛茜' },

@@ -109,4 +109,33 @@ describe('normalizeGlobalStats', () => {
       { range: '71-80', limited: 0, standard: 0, count: 0 },
     ]);
   });
+
+  it('normalizes extra banner stats as target-only six-star data', () => {
+    const normalized = normalizeGlobalStats({
+      totalPulls: 2,
+      counts: { '6': 1, '6_std': 0, '5': 0, '4': 1 },
+      byType: {
+        extra: {
+          total: 2,
+          chargedPulls: 2,
+          six: 1,
+          sixStarLimited: 1,
+          sixStarStandard: 0,
+          avgPity: '2.0',
+          avgPityTarget: '2.0',
+          counts: { '6': 1, '6_std': 0, '5': 0, '4': 1 },
+          distribution: [{ range: '1-10', limited: 1, standard: 0 }],
+        },
+      },
+    });
+
+    expect(normalized.byType.extra.total).toBe(2);
+    expect(normalized.byType.extra.sixStarLimited).toBe(1);
+    expect(normalized.byType.extra.sixStarStandard).toBe(0);
+    expect(normalized.byType.extra.avgPityTarget).toBe('2.0');
+    expect(normalized.byType.character.total).toBe(2);
+    expect(normalized.byType.character.sixStarLimited).toBe(1);
+    expect(normalized.byType.character.sixStarStandard).toBe(0);
+    expect(normalized.byType.character.avgPityTarget).toBe('2.0');
+  });
 });

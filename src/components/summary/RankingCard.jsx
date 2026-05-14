@@ -25,6 +25,15 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
         fiveStar: limited.fiveStar || []
       };
     }
+    if (poolType === 'extra') {
+      const extra = ranking.extra || {};
+      return {
+        sixStarUp: extra.sixStarUp || extra.sixStar || [],
+        sixStarOff: extra.sixStarOff || [],
+        sixStar: extra.sixStar || [],
+        fiveStar: extra.fiveStar || []
+      };
+    }
     if (poolType === 'standard') {
       return {
         sixStar: ranking.standard?.sixStar || [],
@@ -42,10 +51,13 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
     }
     // all: 合并限定池和常驻池
     return {
-      sixStarUp: ranking.limited?.sixStarUp || ranking.limited?.sixStar || [],
+      sixStarUp: [
+        ...(ranking.extra?.sixStarUp || ranking.extra?.sixStar || []),
+        ...(ranking.limited?.sixStarUp || ranking.limited?.sixStar || [])
+      ].sort((a, b) => b.count - a.count).slice(0, 6),
       sixStarOff: ranking.limited?.sixStarOff || [],
-      sixStar: [...(ranking.limited?.sixStar || []), ...(ranking.standard?.sixStar || [])].sort((a, b) => b.count - a.count).slice(0, 5),
-      fiveStar: [...(ranking.limited?.fiveStar || []), ...(ranking.standard?.fiveStar || [])].sort((a, b) => b.count - a.count).slice(0, 5)
+      sixStar: [...(ranking.extra?.sixStar || []), ...(ranking.limited?.sixStar || []), ...(ranking.standard?.sixStar || [])].sort((a, b) => b.count - a.count).slice(0, 5),
+      fiveStar: [...(ranking.extra?.fiveStar || []), ...(ranking.limited?.fiveStar || []), ...(ranking.standard?.fiveStar || [])].sort((a, b) => b.count - a.count).slice(0, 5)
     };
   };
 
@@ -76,6 +88,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
     if (!visibleSections) return hasSixStarUp || hasSixStarOff || hasSixStar || hasFiveStar;
 
     if (visibleSections.includes('limitedUp') && hasSixStarUp) return true;
+    if (visibleSections.includes('extraUp') && ranking.extra?.sixStarUp?.length > 0) return true;
+    if (visibleSections.includes('extraFive') && ranking.extra?.fiveStar?.length > 0) return true;
     if (visibleSections.includes('limitedOff') && hasSixStarOff) return true;
     if (visibleSections.includes('standard') && hasSixStar) return true;
     if (visibleSections.includes('fiveStar') && hasFiveStar) return true; // 'fiveStar' covers both limited/standard 5*
@@ -248,6 +262,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
       <div className={`grid ${singleColumn ? 'grid-cols-1' : 'grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]'} content-start ${denseFlatLayout ? 'gap-3' : 'gap-x-6 gap-y-8'} pr-1 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-800`}>
         {poolType === 'all' ? (
           <>
+            {/* 附加寻访：目标六星 */}
+            {isSectionVisible('extraUp') && renderRankingRow(ranking.extra?.sixStarUp || ranking.extra?.sixStar, 6, tt('summary.ranking.extraUpSix', '附加寻访 6★'), 'extra', 5)}
             {/* 限定池：UP六星 */}
             {isSectionVisible('limitedUp') && renderRankingRow(ranking.limited?.sixStarUp || ranking.limited?.sixStar, 6, tt('summary.ranking.limitedUpSix', '限定池 UP 6★'), 'limited', 5)}
             {/* 限定池：歪出六星 */}
@@ -256,6 +272,8 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
             {isSectionVisible('standard') && renderRankingRow(ranking.standard?.sixStar, 6, tt('summary.ranking.standardSix', '常驻池 6★'), 'standard', 5)}
             {/* 限定池5星 */}
             {isSectionVisible('limitedFive') && renderRankingRow(ranking.limited?.fiveStar, 5, tt('summary.ranking.limitedFive', '限定池 5★'), 'limited', 5)}
+            {/* 附加寻访5星 */}
+            {isSectionVisible('extraFive') && renderRankingRow(ranking.extra?.fiveStar, 5, tt('summary.ranking.extraFive', '附加寻访 5★'), 'extra', 5)}
             {/* 常驻池5星 */}
             {isSectionVisible('standardFive') && renderRankingRow(ranking.standard?.fiveStar, 5, tt('summary.ranking.standardFive', '常驻池 5★'), 'standard', 5)}
           </>
@@ -269,6 +287,11 @@ const RankingCard = ({ ranking, loading, poolType, title, visibleSections, flatL
           <>
             {isSectionVisible('standard') && renderRankingRow(rankData.sixStar, 6, tt('summary.ranking.standardSix', '常驻池 6★'), poolType, 5)}
             {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, tt('summary.ranking.standardFive', '常驻池 5★'), poolType)}
+          </>
+        ) : poolType === 'extra' ? (
+          <>
+            {isSectionVisible('limitedUp') && renderRankingRow(rankData.sixStarUp, 6, tt('summary.ranking.extraUpSix', '附加寻访 6★'), poolType, 5)}
+            {isSectionVisible('fiveStar') && renderRankingRow(rankData.fiveStar, 5, tt('summary.ranking.extraFive', '附加寻访 5★'), poolType)}
           </>
         ) : poolType === 'weapon' ? (
           <>

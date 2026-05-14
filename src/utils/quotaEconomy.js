@@ -518,6 +518,8 @@ export function buildQuotaLedgerFromSimulatorStates(states = []) {
 function mergeRankingInfoByName(ranking = {}) {
   const result = new Map();
   const sections = [
+    ['extraUp', ranking?.extra?.sixStarUp || ranking?.extra?.sixStar || []],
+    ['extraFive', ranking?.extra?.fiveStar || []],
     ['limitedUp', ranking?.limited?.sixStarUp || ranking?.limited?.sixStar || []],
     ['limitedOffStandard', ranking?.limited?.sixStarOff || []],
     ['limitedOffLimited', ranking?.limited?.sixStarOffLimited || []],

@@ -120,6 +120,10 @@ function normalizePoolType(type) {
   return 'standard';
 }
 
+function isTargetSixStarByPoolType(item, poolType) {
+  return poolType === 'extra' || !item?.isStandard;
+}
+
 /**
  * 统计数据计算 Hook
  * 计算本地用户的抽卡统计数据
@@ -279,7 +283,8 @@ export function useSummaryStats(history, pools, user) {
       // 稀有度计数
       const r = item.rarity;
       if (r === 6) {
-        if (item.isStandard) {
+        const isTargetSixStar = isTargetSixStarByPoolType(item, type);
+        if (!isTargetSixStar) {
           data.counts['6_std']++;
           typeData.counts['6_std']++;
         } else {
@@ -288,7 +293,7 @@ export function useSummaryStats(history, pools, user) {
         }
         data.sixStar++;
         typeData.six++;
-        if (!item.isStandard && typeData.limitedSix !== undefined) {
+        if (isTargetSixStar && typeData.limitedSix !== undefined) {
           typeData.limitedSix++;
         }
       } else if (r === 5) {
@@ -390,7 +395,7 @@ export function useSummaryStats(history, pools, user) {
         cumulativePullCount++;
 
         if (pull.rarity === 6) {
-          const isUp = !pull.isStandard;
+          const isUp = isTargetSixStarByPoolType(pull, type);
           let isSpark = false;
           if (type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
             isSpark = true;
@@ -407,14 +412,14 @@ export function useSummaryStats(history, pools, user) {
           if (!globalDistBuckets[bucketIdx]) {
             globalDistBuckets[bucketIdx] = { limited: 0, standard: 0, guaranteed: 0 };
           }
-          if (!pull.isStandard) globalDistBuckets[bucketIdx].limited++;
+          if (isUp) globalDistBuckets[bucketIdx].limited++;
           else globalDistBuckets[bucketIdx].standard++;
           if (pull.specialType === 'guaranteed') globalDistBuckets[bucketIdx].guaranteed++;
 
           if (!typeDistBuckets[type][bucketIdx]) {
             typeDistBuckets[type][bucketIdx] = { limited: 0, standard: 0 };
           }
-          if (!pull.isStandard) typeDistBuckets[type][bucketIdx].limited++;
+          if (isUp) typeDistBuckets[type][bucketIdx].limited++;
           else typeDistBuckets[type][bucketIdx].standard++;
 
           typePitySums[type].sum += tempCounter;
@@ -439,7 +444,7 @@ export function useSummaryStats(history, pools, user) {
 
           data.byType[type].pityList.push({
             count: tempCounter,
-            isStandard: pull.isStandard,
+            isStandard: !isUp,
             isFree: isFree,
             isSpark
           });

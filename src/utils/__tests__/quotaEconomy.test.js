@@ -8,6 +8,7 @@ import {
   calculateCharacterQuotaForCopy,
   calculateWeaponQuotaFromCounts,
   calculateWeaponQuotaForCopy,
+  attachRankingInfoToCatalogRows,
   normalizeGlobalCharacterCatalog
 } from '../quotaEconomy.js';
 import { hasPrivateIdentifierFields } from '../characterCatalogViewModel.js';
@@ -88,6 +89,27 @@ describe('quotaEconomy', () => {
       aicQuotaDirect: 50,
       bondQuotaDirect: 0,
     });
+  });
+
+  it('attaches extra banner ranking information to catalog rows', () => {
+    const catalog = attachRankingInfoToCatalogRows({
+      rows: [
+        { id: 'char_alpha', name: 'Alpha', rarity: 6 },
+        { id: 'char_beta', name: 'Beta', rarity: 5 },
+      ],
+    }, {
+      extra: {
+        sixStarUp: [{ name: 'Alpha', count: 3 }],
+        fiveStar: [{ name: 'Beta', count: 2 }],
+      },
+    });
+
+    expect(catalog.rows[0].rankingInfo).toEqual([
+      { section: 'extraUp', rank: 1, count: 3 },
+    ]);
+    expect(catalog.rows[1].rankingInfo).toEqual([
+      { section: 'extraFive', rank: 1, count: 2 },
+    ]);
   });
 
   it('adds extra-pool Bond quota for simulator paid pulls and free ten expedited pulls', () => {

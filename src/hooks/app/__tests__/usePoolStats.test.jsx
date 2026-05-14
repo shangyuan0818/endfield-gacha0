@@ -166,6 +166,49 @@ describe('usePoolStats', () => {
     }));
   });
 
+  it('counts extra banner six stars as target hits even when legacy records are marked standard', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'e1',
+        rarity: 4,
+        poolId: 'pool_extra',
+        timestamp: '2026-05-14T10:00:00.000Z',
+        seqId: '1',
+      },
+      {
+        id: 'e2',
+        rarity: 6,
+        isStandard: true,
+        poolId: 'pool_extra',
+        timestamp: '2026-05-14T10:01:00.000Z',
+        seqId: '2',
+        character_name: '莱万汀',
+      },
+    ];
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_extra',
+        type: 'extra',
+        isGroupMode: false,
+      },
+      selectedPools: [
+        { id: 'pool_extra', type: 'extra' },
+      ],
+    }));
+
+    expect(result.current.stats.counts).toMatchObject({
+      6: 1,
+      '6_std': 0,
+      4: 1,
+    });
+    expect(result.current.stats.upSixStarCount).toBe(1);
+    expect(result.current.stats.stdSixStarCount).toBe(0);
+    expect(result.current.stats.avgPullCost[6]).toBe('2.00');
+    expect(result.current.stats.avgPullCost['6_limited']).toBe('2.00');
+  });
+
   it('uses cross-pool limited history when inherited pity should carry over', () => {
     const allLimitedHistory = [
       {
