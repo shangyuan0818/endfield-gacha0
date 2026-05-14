@@ -37,6 +37,18 @@ describe('useSummaryStats', () => {
       '6_std': 0,
     });
     expect(result.current.byType.extra.avgPityUp).toBe('2.0');
+    expect(result.current.byType.extra.resources).toMatchObject({
+      aicQuotaDirect: 60,
+      bondQuotaDirect: 2,
+    });
+    expect(result.current.byType.limited.resources).toMatchObject({
+      aicQuotaDirect: 90,
+      bondQuotaDirect: 0,
+    });
+    expect(result.current.byType.standard.resources).toMatchObject({
+      aicQuotaDirect: 30,
+      bondQuotaDirect: 0,
+    });
 
     expect(result.current.byType.character.total).toBe(6);
     expect(result.current.byType.character.six).toBe(3);

@@ -138,4 +138,82 @@ describe('normalizeGlobalStats', () => {
     expect(normalized.byType.character.sixStarStandard).toBe(0);
     expect(normalized.byType.character.avgPityTarget).toBe('2.0');
   });
+
+  it('uses pool-type quota summaries for global classified resource cards', () => {
+    const normalized = normalizeGlobalStats({
+      totalPulls: 16,
+      counts: { '6': 3, '6_std': 1, '5': 3, '4': 9 },
+      byType: {
+        extra: {
+          total: 3,
+          chargedPulls: 2,
+          six: 1,
+          sixStarLimited: 1,
+          counts: { '6': 1, '6_std': 0, '5': 1, '4': 1 },
+          quotaSummary: {
+            aicQuotaDirect: 60,
+            aicQuotaConvertible: 0,
+            aicQuotaTotalPotential: 60,
+            bondQuotaDirect: 3,
+            endpointQuotaConvertible: 0,
+          },
+        },
+        limited: {
+          total: 5,
+          chargedPulls: 5,
+          six: 1,
+          sixStarLimited: 1,
+          counts: { '6': 1, '6_std': 0, '5': 1, '4': 3 },
+          quotaSummary: {
+            aicQuotaDirect: 90,
+            aicQuotaConvertible: 20,
+            aicQuotaTotalPotential: 110,
+            bondQuotaDirect: 10,
+            endpointQuotaConvertible: 0,
+          },
+        },
+        standard: {
+          total: 4,
+          chargedPulls: 4,
+          six: 1,
+          sixStarStandard: 1,
+          counts: { '6': 0, '6_std': 1, '5': 1, '4': 2 },
+          quotaSummary: {
+            aicQuotaDirect: 30,
+            aicQuotaConvertible: 5,
+            aicQuotaTotalPotential: 35,
+            bondQuotaDirect: 0,
+            endpointQuotaConvertible: 0,
+          },
+        },
+        weapon: {
+          total: 4,
+          chargedPulls: 4,
+          six: 1,
+          counts: { '6': 1, '6_std': 0, '5': 0, '4': 3 },
+        },
+      },
+    });
+
+    expect(normalized.byType.extra.resources).toMatchObject({
+      chargedCharacterPulls: 2,
+      aicQuotaDirect: 60,
+      bondQuotaDirect: 3,
+    });
+    expect(normalized.byType.limited.resources).toMatchObject({
+      aicQuotaDirect: 90,
+      aicQuotaConvertible: 20,
+      aicQuotaTotalPotential: 110,
+      bondQuotaDirect: 10,
+    });
+    expect(normalized.byType.standard.resources).toMatchObject({
+      aicQuotaDirect: 30,
+      aicQuotaConvertible: 5,
+      aicQuotaTotalPotential: 35,
+    });
+    expect(normalized.byType.weapon.resources).toMatchObject({
+      chargedWeaponPulls: 4,
+      aicQuotaDirect: 50,
+    });
+  });
 });
