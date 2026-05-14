@@ -18,6 +18,7 @@ import {
 } from './summary';
 import ResourceSummaryPanel from './resources/ResourceSummaryPanel';
 import { useThemeDetection, getTooltipStyle, useSummaryViewState } from '../hooks/summary';
+import { getCombinedCharacterAverageDisplay } from '../utils/summaryAverageDisplay.js';
 
 function MetricCard({ icon: Icon, label, value, hint, tone = 'text-slate-900 dark:text-white' }) {
   return (
@@ -125,63 +126,12 @@ function OverviewAllPoolsLegacy({ currentStats, dataSource, ranking, formatCount
     const totalExcludingFree = extraSixTotal + Number(limitedSixExcludingFree || 0) + standardSixTotal;
     return totalExcludingFree === totalSix ? null : totalSix;
   })();
-  const characterAvgDisplay = (() => {
-    const extraAvgExcludingFree = extraStats.avgPityExcludingFree || extraStats.avgPity;
-    const limitedAvgExcludingFree = limitedStats.avgPityExcludingFree;
-    const standardAvgExcludingFree = standardStats.avgPityExcludingFree || standardStats.avgPity;
-    const extraSix = Number(extraStats.six || 0);
-    const limitedSix = Number(limitedStats.six || 0);
-    const standardSix = Number(standardStats.six || 0);
-    const totalSix = extraSix + limitedSix + standardSix;
-
-    if (totalSix === 0) return '-';
-    if (characterStats.avgPityExcludingFree) return characterStats.avgPityExcludingFree;
-    if (limitedAvgExcludingFree || extraAvgExcludingFree) {
-      const weighted = (
-        (parseFloat(extraAvgExcludingFree) || 0) * extraSix
-        + (parseFloat(limitedAvgExcludingFree) || 0) * limitedSix
-        + (parseFloat(standardAvgExcludingFree) || 0) * standardSix
-      ) / totalSix;
-      return Number.isFinite(weighted) ? weighted.toFixed(1) : '-';
-    }
-
-    const weighted = (
-      (parseFloat(extraStats.avgPity) || 0) * extraSix
-      + (parseFloat(limitedStats.avgPity) || 0) * limitedSix
-      + (parseFloat(standardStats.avgPity) || 0) * standardSix
-    ) / totalSix;
-    return Number.isFinite(weighted) ? weighted.toFixed(1) : '-';
-  })();
-  const characterAvgWithFree = (() => {
-    const extraAvg = extraStats.avgPity;
-    const extraAvgExcludingFree = extraStats.avgPityExcludingFree || extraAvg;
-    const limitedAvg = limitedStats.avgPity;
-    const limitedAvgExcludingFree = limitedStats.avgPityExcludingFree;
-    const standardAvg = standardStats.avgPity;
-    const standardAvgExcludingFree = standardStats.avgPityExcludingFree || standardAvg;
-    const extraSix = Number(extraStats.six || 0);
-    const limitedSix = Number(limitedStats.six || 0);
-    const standardSix = Number(standardStats.six || 0);
-    const totalSix = extraSix + limitedSix + standardSix;
-
-    if (totalSix === 0 || (!limitedAvgExcludingFree && !extraAvgExcludingFree)) {
-      return null;
-    }
-
-    const weightedWithFree = (
-      (parseFloat(extraAvg) || 0) * extraSix
-      + (parseFloat(limitedAvg) || 0) * limitedSix
-      + (parseFloat(standardAvg) || 0) * standardSix
-    ) / totalSix;
-    const weightedExcludingFree = (
-      (parseFloat(extraAvgExcludingFree) || 0) * extraSix
-      + (parseFloat(limitedAvgExcludingFree) || 0) * limitedSix
-      + (parseFloat(standardAvgExcludingFree) || 0) * standardSix
-    ) / totalSix;
-
-    if (!Number.isFinite(weightedWithFree) || !Number.isFinite(weightedExcludingFree)) return null;
-    return Math.abs(weightedWithFree - weightedExcludingFree) < 0.1 ? null : weightedWithFree.toFixed(1);
-  })();
+  const characterAverageDisplay = getCombinedCharacterAverageDisplay({
+    characterStats,
+    extraStats,
+    limitedStats,
+    standardStats
+  });
 
   return (
     <div className="space-y-4">
@@ -208,8 +158,8 @@ function OverviewAllPoolsLegacy({ currentStats, dataSource, ranking, formatCount
             />
             <LegacyStat
               label={tt('summary.metric.avgSixStarDrop', '六星平均出货')}
-              value={characterAvgDisplay}
-              hint={characterAvgWithFree !== null ? <>{tt('summary.metric.withFree', '含免费')}: <span className="text-zinc-400">{characterAvgWithFree}</span></> : tt('summary.metric.avgAllSixHint', '全部6★ 抽/个')}
+              value={characterAverageDisplay.value}
+              hint={characterAverageDisplay.withFree !== null ? <>{tt('summary.metric.withFree', '含免费')}: <span className="text-zinc-400">{characterAverageDisplay.withFree}</span></> : tt('summary.metric.avgAllSixHint', '全部6★ 抽/个')}
               tone="text-indigo-500"
             />
             {(characterStats.avgPityUp || limitedStats.avgPityUp) && (
