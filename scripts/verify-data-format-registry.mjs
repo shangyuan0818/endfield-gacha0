@@ -338,10 +338,27 @@ const exportPayload = buildExportPayload({
       hgUid: '363879170',
       hg_uid: '363879170',
     },
+    {
+      id: 1004,
+      poolId: 'joint_1_2_2',
+      pool_id: 'joint_1_2_2',
+      name: '洁尔佩塔',
+      item_name: '洁尔佩塔',
+      character_id: 'chr_0013_aglina',
+      rarity: 6,
+      isStandard: false,
+      is_standard: false,
+      timestamp: '2026-05-14T08:00:00.000Z',
+      gameUid: 'role-001',
+      game_uid: 'role-001',
+      hgUid: '363879170',
+      hg_uid: '363879170',
+    },
   ],
   pools: [
     ...currentPayload.pools,
     { id: 'weaponbox_1_0_1', name: '武器测试池', type: 'weapon' },
+    { id: 'joint_1_2_2', name: '辉光庆典', type: 'extra' },
   ],
   currentPoolId: null,
   currentGameUid: null,
@@ -372,7 +389,7 @@ assert.ok(endgachaPlainTxtExport.fileName.startsWith('endgacha-kwer-top-export-'
 assert.ok(jsonExport.content.includes('"schemaVersion": "3.0.0"'), 'JSON 导出内容应包含 schemaVersion');
 assert.ok(csvExport.content.startsWith('\uFEFFschema_version,'), 'CSV 导出内容应带 BOM 和表头');
 const internalJsonExportData = JSON.parse(jsonExport.content);
-assert.equal(internalJsonExportData.history.length, 2, 'JSON 导出应保留历史记录');
+assert.equal(internalJsonExportData.history.length, 3, 'JSON 导出应保留历史记录');
 assert.equal(internalJsonExportData.history[0].id, 1001, 'JSON 导出应保留记录 ID');
 assert.equal('seq_id' in internalJsonExportData.history[0], false, 'JSON 导出不应重复输出 snake_case seq_id');
 assert.equal('batch_id' in internalJsonExportData.history[0], false, 'JSON 导出不应重复输出 snake_case batch_id');
@@ -394,7 +411,7 @@ assert.equal(endgachaPlainTxtRoundtrip.normalizedData.accountInfoMissing, true, 
 assert.equal(endgachaPlainTxtRoundtrip.normalizedData.history.find(record => record.name === '测试角色')?.rarity, 6, 'endgacha.kwer.top TXT roundtrip 应保留 6★');
 const helperExportData = JSON.parse(helperExport.content);
 assert.equal(helperExportData.schemaVersion, 2, 'Helper JSON 导出应使用 schemaVersion 2');
-assert.equal(helperExportData.records.length, 1, 'Helper JSON 导出应包含角色记录');
+assert.equal(helperExportData.records.length, 2, 'Helper JSON 导出应包含角色与附加寻访记录');
 assert.equal(helperExportData.weaponRecords.length, 1, 'Helper JSON 导出应包含武器记录');
 assert.match(helperExportData.records[0].uid, /^\d+:/, 'Helper JSON 导出 UID 应带服务器前缀');
 assert.equal(helperExportData.accounts[0].hgUid, '363879170', 'Helper JSON 导出应包含同步所需 hgUid');
@@ -406,8 +423,9 @@ const bhaooPoolInfo = decodeZipJson('userData/gachaData/poolInfo.json');
 const bhaooAccountFileName = Object.keys(userDataZipEntries).find(path => /^userData\/gachaData\/.+\.json$/.test(path) && !path.endsWith('/poolInfo.json'));
 const bhaooAccountData = decodeZipJson(bhaooAccountFileName);
 assert.equal(bhaooUserDataConfig.currentUser, bhaooUserDataConfig.users[0].key, 'EndfieldGacha userData config 应指向当前用户');
-assert.equal(bhaooPoolInfo.length, 2, 'EndfieldGacha userData 应包含卡池信息');
+assert.equal(bhaooPoolInfo.length, 3, 'EndfieldGacha userData 应包含卡池信息');
 assert.equal(bhaooAccountData.character.E_CharacterGachaPoolType_Special.length, 1, 'EndfieldGacha userData 应包含角色记录');
+assert.equal(bhaooAccountData.character.E_CharacterGachaPoolType_Joint.length, 1, 'EndfieldGacha userData 应包含 Joint 附加寻访记录');
 assert.equal(bhaooAccountData.weapon.weaponbox_1_0_1.length, 1, 'EndfieldGacha userData 应包含武器记录');
 const helperUserDataZipEntries = unzipSync(helperUserDataExport.content);
 const helperDbBytes = helperUserDataZipEntries['userdata/efgacha.db'];
@@ -421,7 +439,8 @@ const helperCharRows = helperDb.exec('SELECT uid, pool_id, char_name FROM gacha_
 const helperWeaponRows = helperDb.exec('SELECT uid, pool_id, weapon_name FROM weapon_records ORDER BY record_uid')[0]?.values || [];
 assert.equal(helperAccountRows.length, 1, 'Helper userdata 数据库应包含账号');
 assert.equal(helperAccountRows[0][1], '363879170', 'Helper userdata 数据库账号应写入 hg_uid');
-assert.equal(helperCharRows.length, 1, 'Helper userdata 数据库应包含角色记录');
+assert.equal(helperCharRows.length, 2, 'Helper userdata 数据库应包含角色与附加寻访记录');
+assert.ok(helperCharRows.some((row) => row[1] === 'joint_1_2_2'), 'Helper userdata 数据库应保留 Joint poolId');
 assert.equal(helperWeaponRows.length, 1, 'Helper userdata 数据库应包含武器记录');
 helperDb.close();
 

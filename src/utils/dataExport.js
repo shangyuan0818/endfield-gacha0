@@ -99,6 +99,8 @@ function normalizeIsStandard(record) {
 
 function normalizePoolTypeLabel(poolType) {
   switch (poolType) {
+    case 'extra':
+      return '附加寻访';
     case 'limited':
     case 'limited_character':
       return '限定角色池';
@@ -871,6 +873,9 @@ function normalizeEndfieldGachaPoolType(poolType) {
       return 'constant';
     case 'beginner':
       return 'beginner';
+    case 'extra':
+    case 'joint':
+      return 'joint';
     default:
       return 'special';
   }
@@ -882,6 +887,8 @@ function getEndfieldGachaCharacterPoolBucket(poolType) {
       return 'E_CharacterGachaPoolType_Standard';
     case 'beginner':
       return 'E_CharacterGachaPoolType_Beginner';
+    case 'joint':
+      return 'E_CharacterGachaPoolType_Joint';
     default:
       return 'E_CharacterGachaPoolType_Special';
   }
@@ -931,6 +938,7 @@ function buildEndfieldGachaUserDataRecords(payload, gameUid) {
   const poolLookup = buildPoolLookup(payload.pools || []);
   const character = {
     E_CharacterGachaPoolType_Beginner: [],
+    E_CharacterGachaPoolType_Joint: [],
     E_CharacterGachaPoolType_Special: [],
     E_CharacterGachaPoolType_Standard: []
   };

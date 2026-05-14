@@ -47,6 +47,7 @@ appLogger.info('[AuthChain] VITE_PROXY_URL:', import.meta.env.VITE_PROXY_URL);
 export const POOL_TYPES = {
   CHARACTER: {
     SPECIAL: 'E_CharacterGachaPoolType_Special',   // 限定池（特许寻访）
+    JOINT: 'E_CharacterGachaPoolType_Joint',       // 附加寻访（辉光庆典）
     STANDARD: 'E_CharacterGachaPoolType_Standard', // 常驻池（基础寻访）
     BEGINNER: 'E_CharacterGachaPoolType_Beginner'  // 新手池（启程寻访）
   }
@@ -719,6 +720,7 @@ export async function fetchAllGachaRecordsConcurrent(u8Token, serverId = '1', on
       source: normalizeImportSource(source),
       pools: [
         { type: 'char', poolType: POOL_TYPES.CHARACTER.SPECIAL },   // 限定角色池
+        { type: 'char', poolType: POOL_TYPES.CHARACTER.JOINT },     // 附加寻访
         { type: 'char', poolType: POOL_TYPES.CHARACTER.STANDARD },  // 常驻角色池
         { type: 'char', poolType: POOL_TYPES.CHARACTER.BEGINNER },  // 新手池
         { type: 'weapon' }  // 武器池
@@ -778,6 +780,7 @@ function processRecordsBatchResult(result, onProgress) {
   const allRecords = [];
   const poolTypeMap = {
     [POOL_TYPES.CHARACTER.SPECIAL]: 'limited_character',
+    [POOL_TYPES.CHARACTER.JOINT]: 'extra',
     [POOL_TYPES.CHARACTER.STANDARD]: 'standard',
     [POOL_TYPES.CHARACTER.BEGINNER]: 'beginner',
     'weapon': 'limited_weapon',
@@ -802,6 +805,7 @@ function processRecordsBatchResult(result, onProgress) {
     const failedNames = failedPools.map(f => {
       if (f.type === 'weapon') return '武器池';
       if (f.poolType?.includes('Special')) return '限定角色池';
+      if (f.poolType?.includes('Joint')) return '附加寻访';
       if (f.poolType?.includes('Standard')) return '常驻角色池';
       if (f.poolType?.includes('Beginner')) return '新手池';
       return f.type || '未知卡池';
@@ -837,7 +841,18 @@ export async function fetchAllGachaRecords(u8Token, onProgress, source = 'cn', s
   }, onProgress);
   allRecords.push(...specialRecords.map(r => ({ ...r, _poolType: 'limited_character' })));
 
-  // 2. 常驻角色池（基础寻访）
+  // 2. 附加寻访
+  if (onProgress) onProgress('正在获取附加寻访记录...');
+  await delay(1500 + Math.random() * 1000);
+  const jointRecords = await fetchAllPoolRecords(u8Token, {
+    type: 'char',
+    poolType: POOL_TYPES.CHARACTER.JOINT,
+    source,
+    serverId
+  }, onProgress);
+  allRecords.push(...jointRecords.map(r => ({ ...r, _poolType: 'extra' })));
+
+  // 3. 常驻角色池（基础寻访）
   if (onProgress) onProgress('正在获取常驻角色池记录...');
   await delay(1500 + Math.random() * 1000);
   const standardRecords = await fetchAllPoolRecords(u8Token, {
@@ -848,7 +863,7 @@ export async function fetchAllGachaRecords(u8Token, onProgress, source = 'cn', s
   }, onProgress);
   allRecords.push(...standardRecords.map(r => ({ ...r, _poolType: 'standard' })));
 
-  // 3. 新手池（启程寻访）
+  // 4. 新手池（启程寻访）
   if (onProgress) onProgress('正在获取新手池记录...');
   await delay(1500 + Math.random() * 1000);
   const beginnerRecords = await fetchAllPoolRecords(u8Token, {
@@ -859,7 +874,7 @@ export async function fetchAllGachaRecords(u8Token, onProgress, source = 'cn', s
   }, onProgress);
   allRecords.push(...beginnerRecords.map(r => ({ ...r, _poolType: 'beginner' })));
 
-  // 4. 武器池
+  // 5. 武器池
   if (onProgress) onProgress('正在获取武器池记录...');
   await delay(2000 + Math.random() * 1000);
   const weaponRecords = await fetchAllPoolRecords(u8Token, {

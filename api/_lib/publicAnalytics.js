@@ -93,6 +93,7 @@ function normalizePoolType(type, poolId = '') {
   if (type === 'limited_weapon' || type === 'weapon') return 'weapon';
   if (type === 'extra') return 'extra';
   if (type === 'beginner' || type === 'standard') return 'standard';
+  if (String(poolId).startsWith('joint_') || String(poolId).startsWith('extra_')) return 'extra';
   if (String(poolId).startsWith('special_')) return 'limited';
   if (String(poolId).startsWith('weapon') || String(poolId).startsWith('wepon')) return 'weapon';
   return 'standard';

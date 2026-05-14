@@ -104,6 +104,7 @@ export function classifyPoolIdSource(poolId) {
   if (
     normalized === 'standard'
     || normalized === 'beginner'
+    || normalized.startsWith('joint_')
     || normalized.startsWith('special_')
     || normalized.startsWith('weponbox_')
     || normalized.startsWith('weaponbox_')
@@ -117,6 +118,7 @@ export function classifyPoolIdSource(poolId) {
 
   if (
     normalized.startsWith('pool_limited_')
+    || normalized.startsWith('pool_extra_')
     || normalized.startsWith('pool_weapon_')
     || normalized.startsWith('pool_standard_')
     || normalized.startsWith('pool_beginner_')

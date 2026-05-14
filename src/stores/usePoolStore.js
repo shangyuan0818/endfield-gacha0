@@ -24,6 +24,8 @@ export {
  * 卡池类型映射：官方 poolId 前缀 -> 本地类型
  */
 const POOL_TYPE_MAP = {
+  'joint': 'extra',                    // 附加寻访
+  'extra': 'extra',                    // 附加寻访（本地兼容）
   'special': 'limited_character',      // 限定角色池（特许寻访）
   'standard': 'standard',              // 常驻池（基础寻访）
   'beginner': 'beginner',              // 新手池（启程寻访）

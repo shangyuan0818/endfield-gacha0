@@ -121,4 +121,35 @@ assert.equal(newRecords.length, 1, '已有 seq 记录应在前端去重阶段被
 assert.equal(duplicateCount, 1, '去重统计应正确计数');
 assert.equal(newRecords[0].seqId, '1002', '未命中去重键的记录应保留');
 
+const jointPrepared = await prepareOfficialImportPersistenceData({
+  supabase,
+  records: [
+    {
+      pool_id: 'joint_1_2_2',
+      pool_name: '辉光庆典',
+      name: '洁尔佩塔',
+      character_id: 'chr_0013_aglina',
+      rarity: 6,
+      isLimited: false,
+      batchId: 'batch-joint',
+      seqId: '682',
+      pity: 40,
+      isNew: false,
+      isFree: false,
+      timestamp: '2026-05-14T08:00:00.000Z',
+    },
+  ],
+  userInfo: {
+    gameUid: '1000123456',
+    nickName: '测试账号',
+  },
+  pools: [],
+});
+
+assert.equal(jointPrepared.poolEntries.length, 1, 'Joint 官方池应创建一个 canonical 卡池目录');
+assert.equal(jointPrepared.poolEntries[0].id, 'joint_1_2_2', 'Joint 卡池目录应保留官方 poolId');
+assert.equal(jointPrepared.poolEntries[0].type, 'extra', 'Joint 官方池应归一化为 extra');
+assert.equal(jointPrepared.historyRecords[0].poolId, 'joint_1_2_2', 'Joint 历史记录应保留卡池维度去重键');
+assert.equal(jointPrepared.historyRecords[0].isStandard, false, '附加寻访 6 星不应因缺少单 UP 而标为常驻歪出');
+
 console.log('ARCH-020 import persistence verification passed');

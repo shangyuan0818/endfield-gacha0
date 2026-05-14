@@ -111,7 +111,7 @@ function buildPreviewRecords(records, serverId, t) {
       pool_name: record.poolName,
       isNew: record.isNew || false,
       isFree: record.isFree || false,
-      isLimited: poolType === 'limited_character' || poolType === 'limited_weapon',
+      isLimited: poolType === 'extra' || poolType === 'limited_character' || poolType === 'limited_weapon',
       seqId: record.seqId,
       recordType: record.charId ? 'character' : 'weapon',
       serverId: resolvedServerId,
@@ -380,6 +380,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
             if (cancelRef.current) return;
             setStatusMessage(message);
             if (message.includes('限定角色')) setProgress(50);
+            else if (message.includes('附加')) setProgress(55);
             else if (message.includes('常驻角色')) setProgress(60);
             else if (message.includes('新手')) setProgress(70);
             else if (message.includes('武器')) setProgress(80);

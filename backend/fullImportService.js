@@ -91,6 +91,7 @@ function simpleStringHash(str) {
 }
 
 const POOL_TYPE_MAP = {
+  joint: 'extra',
   extra: 'extra',
   special: 'limited',
   standard: 'standard',
@@ -101,6 +102,7 @@ const POOL_TYPE_MAP = {
 };
 
 const POOL_TYPE_ENUM_MAP = {
+  E_CharacterGachaPoolType_Joint: 'extra',
   E_CharacterGachaPoolType_Special: 'limited',
   E_CharacterGachaPoolType_Standard: 'standard',
   E_CharacterGachaPoolType_Beginner: 'beginner'
@@ -109,6 +111,7 @@ const POOL_TYPE_ENUM_MAP = {
 function getFallbackPoolId(type, poolType) {
   if (type === 'extra') return 'extra';
   if (type === 'weapon') return 'weaponbox';
+  if (poolType === 'E_CharacterGachaPoolType_Joint') return 'joint';
   if (poolType === 'E_CharacterGachaPoolType_Special') return 'special';
   if (poolType === 'E_CharacterGachaPoolType_Standard') return 'standard';
   if (poolType === 'E_CharacterGachaPoolType_Beginner') return 'beginner';
@@ -252,7 +255,11 @@ function normalizeIsStandard(record, poolType, upCharacter) {
     return true;
   }
 
-  if (poolType === 'extra' || poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
+  if (poolType === 'extra') {
+    return false;
+  }
+
+  if (poolType === 'limited' || poolType === 'limited_character' || poolType === 'weapon' || poolType === 'limited_weapon') {
     if (upCharacter) {
       const characterName = record.character_name || record.item_name || record.name || record.charName || record.weaponName || '';
       return !characterName.includes(upCharacter) && !upCharacter.includes(characterName);

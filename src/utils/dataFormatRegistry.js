@@ -103,7 +103,13 @@ function inferPoolType({ poolId, category, poolType, poolGachaType } = {}) {
     return 'beginner';
   }
 
-  if (normalizedPoolType === 'extra' || prefix === 'extra') {
+  if (
+    normalizedPoolType === 'extra'
+    || normalizedPoolType === 'joint'
+    || normalizedPoolType.includes('joint')
+    || prefix === 'extra'
+    || prefix === 'joint'
+  ) {
     return 'extra';
   }
 
@@ -145,6 +151,7 @@ const ENDGACHA_KWER_POOL_NAME_TO_ID = Object.freeze({
   '河流的女儿': 'special_1_1_1',
   '狼珀': 'special_1_1_2',
   '春雷动，万物生': 'special_1_2_1',
+  '辉光庆典': 'joint_1_2_2',
   '熔铸申领': 'weponbox_1_0_1',
   '迅行申领': 'weponbox_1_0_3',
   '绯珀申领': 'weponbox_1_1_2',
@@ -184,6 +191,9 @@ function inferEndgachaPoolType(poolId, poolName) {
   }
   if (normalizedPoolName.includes('启程')) {
     return 'beginner';
+  }
+  if (normalizedPoolName.includes('辉光') || normalizedPoolName.includes('庆典') || normalizedPoolName.includes('附加')) {
+    return 'extra';
   }
   return inferPoolType({ poolId });
 }

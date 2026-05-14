@@ -25,6 +25,7 @@ export const ENDFIELD_API = {
   // 角色卡池类型
   CHARACTER_POOL_TYPES: {
     SPECIAL: 'E_CharacterGachaPoolType_Special',   // 限定池（特许寻访）
+    JOINT: 'E_CharacterGachaPoolType_Joint',       // 附加寻访（辉光庆典）
     STANDARD: 'E_CharacterGachaPoolType_Standard', // 常驻池（基础寻访）
     BEGINNER: 'E_CharacterGachaPoolType_Beginner'  // 新手池（启程寻访）
   },
@@ -42,6 +43,7 @@ export const ENDFIELD_API = {
 export const POOL_TYPE_MAP = {
   // 角色池
   'extra': 'extra',                    // 附加寻访（预留本地映射）
+  'joint': 'extra',                    // 官方附加寻访
   'special': 'limited_character',      // 限定角色池（特许寻访）
   'standard': 'standard',              // 常驻池（基础寻访）
   'beginner': 'beginner',              // 新手池（启程寻访）
@@ -177,7 +179,8 @@ export function convertRecord(apiRecord, recordType = 'character') {
   const localPoolType = mapPoolType(poolId);
 
   // 判断是否限定
-  const isLimited = localPoolType === 'limited_character' ||
+  const isLimited = localPoolType === 'extra' ||
+                    localPoolType === 'limited_character' ||
                     localPoolType === 'limited_weapon';
 
   return {

@@ -10,6 +10,7 @@ function normalizePoolType(type) {
 
 function inferPoolTypeFromPoolId(poolId) {
   const normalized = String(poolId || '').toLowerCase();
+  if (normalized.startsWith('joint_') || normalized.startsWith('extra_')) return 'extra';
   if (normalized.startsWith('special_')) return 'limited';
   if (normalized.startsWith('weapon') || normalized.startsWith('wepon')) return 'weapon';
   if (normalized === 'beginner') return 'standard';

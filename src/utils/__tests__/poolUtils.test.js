@@ -18,10 +18,10 @@ describe('poolUtils', () => {
     expect(normalizeIsStandard({ rarity: 6 }, 'beginner')).toBe(true);
   });
 
-  it('treats six-stars in extra pools like limited banners', () => {
+  it('treats every six-star in extra pools as an in-pool target', () => {
     expect(normalizeIsStandard({ rarity: 6, character_name: '佩丽卡' }, 'extra', '佩丽卡')).toBe(false);
-    expect(normalizeIsStandard({ rarity: 6, item_name: '其他六星' }, 'extra', '佩丽卡')).toBe(true);
-    expect(normalizeIsStandard({ rarity: 6, isLimited: false }, 'extra')).toBe(true);
+    expect(normalizeIsStandard({ rarity: 6, item_name: '洁尔佩塔' }, 'extra', '莱万汀')).toBe(false);
+    expect(normalizeIsStandard({ rarity: 6, isLimited: false }, 'extra')).toBe(false);
   });
 
   it('derives limited off-banner state from up character name when available', () => {

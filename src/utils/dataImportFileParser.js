@@ -257,7 +257,7 @@ function inferPoolType(poolId, category) {
   if (normalized.startsWith('beginner')) {
     return 'beginner';
   }
-  if (normalized.startsWith('extra')) {
+  if (normalized.startsWith('extra') || normalized.startsWith('joint')) {
     return 'extra';
   }
   return 'limited';

@@ -27,9 +27,13 @@ export function normalizeIsStandard(record, poolType, upCharacter) {
     return true;
   }
 
+  // 附加寻访：该池所有可能出现的 6 星都属于本池目标范围，不按单 UP 判断歪出
+  if (poolType === 'extra') {
+    return false;
+  }
+
   // 限定池/武器池
-  if (poolType === 'extra' ||
-      poolType === 'limited' || poolType === 'limited_character' ||
+  if (poolType === 'limited' || poolType === 'limited_character' ||
       poolType === 'weapon' || poolType === 'limited_weapon') {
     // 有 UP 角色信息：通过角色名匹配判断
     if (upCharacter) {

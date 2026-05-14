@@ -61,6 +61,7 @@ function normalizePoolType(type) {
 
 function inferPoolTypeFromPoolId(poolId) {
   const normalized = String(poolId || '').toLowerCase();
+  if (normalized.startsWith('joint_') || normalized.startsWith('extra_')) return 'extra';
   if (normalized.startsWith('special_')) return 'limited';
   if (normalized.startsWith('weapon') || normalized.startsWith('wepon')) return 'weapon';
   if (normalized === 'beginner') return 'standard';
@@ -158,7 +159,7 @@ function localizeItemName(item) {
 function isTechnicalIdentifier(value) {
   const text = String(value || '').trim().toLowerCase();
   return (
-    /^(special|weapon|wepon|weponbox|pool|chr|char|wpn|manual)_/.test(text)
+    /^(joint|extra|special|weapon|wepon|weponbox|pool|chr|char|wpn|manual)_/.test(text)
     || text === 'standard'
     || text === 'beginner'
   );

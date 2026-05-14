@@ -11,6 +11,8 @@ function inferPoolTypeFromId(poolId) {
 
   const prefix = String(poolId).split('_')[0].toLowerCase();
   const typeMap = {
+    joint: 'extra',
+    extra: 'extra',
     special: 'limited',
     standard: 'standard',
     beginner: 'beginner',
@@ -88,7 +90,9 @@ function buildImportedHistoryRecords({
     const poolHash = simpleStringHash(record.pool_id || 'unknown');
     const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
     const numericId = (poolHash * 10000000) + seqNum;
-    const poolType = poolTypeMap.get(record.pool_id) || poolTypeMap.get(canonicalPoolId) || 'unknown';
+    const poolType = poolTypeMap.get(record.pool_id)
+      || poolTypeMap.get(canonicalPoolId)
+      || inferPoolTypeFromId(canonicalPoolId || record.pool_id);
     const upCharacter = poolUpCharacterMap.get(record.pool_id) || poolUpCharacterMap.get(canonicalPoolId);
     const isStandard = normalizeIsStandard(record, poolType, upCharacter);
 

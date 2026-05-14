@@ -164,6 +164,10 @@ function resolvePoolType(record, poolTypeLookup) {
     return 'weapon';
   }
 
+  if (String(poolId || '').startsWith('joint_') || String(poolId || '').startsWith('extra_')) {
+    return 'extra';
+  }
+
   if (String(poolId || '').startsWith('special_')) {
     return 'limited';
   }
