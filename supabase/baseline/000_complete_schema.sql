@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-05-14T07:54:07.340Z
---   5. 覆盖范围: archive/001_init_tables.sql -> active/110_add_pool_type_quota_to_global_stats.sql
+--   4. 生成时间: 2026-05-14T11:55:39.080Z
+--   5. 覆盖范围: archive/001_init_tables.sql -> active/111_bump_site_version_430.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive/001_init_tables.sql
@@ -18381,4 +18381,10 @@ ALTER FUNCTION public.get_global_stats_cached(INT)
 
 GRANT EXECUTE ON FUNCTION public.get_global_stats_cached(INT) TO anon, authenticated;
 -- <<< END MIGRATION: active/110_add_pool_type_quota_to_global_stats.sql
+
+-- >>> BEGIN MIGRATION: active/111_bump_site_version_430.sql
+UPDATE public.site_config
+SET value = 'v4.3.0'
+WHERE key = 'site_version';
+-- <<< END MIGRATION: active/111_bump_site_version_430.sql
 
