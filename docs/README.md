@@ -10,6 +10,7 @@
 - `docs/SELF_HOSTED_MAIL.md`：自建邮件平台选型、投递基础设施、outbox / suppression / 防刷预算边界和后续决策点
 - `docs/STALWART_DEPLOYMENT_GUIDE.md`：Stalwart-first 自建邮件部署步骤、同机资源边界、DNS 清单和 Cloudflare Email 边界
 - `docs/RELEASE_CHECKLIST.md`：发布前检查清单
+- `docs/GIT_WORKFLOW.md`：从 `v4.5.0` 起执行的分支、提交和历史整理规则
 - `docs/developer-api-v1.zh-CN.md` / `docs/developer-api-v1.en-US.md`：开发者 API v1 双语 Wiki 源文档
 - `docs/integration-api.md`：平台绑定与官方 BOT 私有接口边界
 - `docs/screenshots/`：README 和发布页引用的产品截图

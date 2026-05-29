@@ -53,6 +53,7 @@ npm run perf:report
 | [docs/CODEMAP.md](docs/CODEMAP.md) | 代码入口和主要模块索引 |
 | [supabase/README.md](supabase/README.md) | Supabase baseline、迁移归档和手工 SQL 边界 |
 | [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | 发布检查清单 |
+| [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | 从 `v4.5.0` 起执行的分支、提交和历史整理规则 |
 
 ## 仓库边界
 
