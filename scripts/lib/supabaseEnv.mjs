@@ -1,9 +1,40 @@
 function normalizeEnvValue(value) {
-  return String(value || '').trim();
+  const trimmed = String(value || '').trim();
+  const quoted = trimmed.match(/^(['"])(.*)\1$/);
+  return quoted ? quoted[2].trim() : trimmed;
+}
+
+function isPlaceholderSupabaseUrl(value) {
+  const normalized = normalizeEnvValue(value).toLowerCase();
+  return !normalized
+    || normalized.includes('your-project-ref')
+    || normalized.includes('your-supabase')
+    || normalized === 'supabase_url'
+    || normalized === 'https://example.supabase.co';
+}
+
+function isValidSupabaseUrl(value) {
+  if (isPlaceholderSupabaseUrl(value)) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(normalizeEnvValue(value));
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function resolveFirstValidUrl(values = []) {
+  return values.map(normalizeEnvValue).find(isValidSupabaseUrl) || '';
 }
 
 export function resolveSupabaseUrl(env = process.env) {
-  return normalizeEnvValue(env.VITE_SUPABASE_URL || env.SUPABASE_URL);
+  return resolveFirstValidUrl([
+    env.SUPABASE_URL,
+    env.VITE_SUPABASE_URL,
+  ]);
 }
 
 export function resolveSupabaseSecretKey(env = process.env) {

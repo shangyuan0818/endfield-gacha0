@@ -197,7 +197,7 @@ function buildAccountRows(analysis, accountRef) {
     { text: `详情 · ${safeName(pool.display_name, '未知卡池')}`.slice(0, 52), callback_data: callback(POOL_PREFIX, getPoolActionRef(pool, 'detail')) },
     { text: '分享图', callback_data: callback(SHARE_PREFIX, getPoolActionRef(pool, 'share')) },
   ]));
-  rows.push([{ text: '返回全部账号', callback_data: callback(NAV_PREFIX, 'pools') }]);
+  rows.push([{ text: '返回账号列表', callback_data: callback(NAV_PREFIX, 'pools') }]);
 
   const lines = [
     `账号：${safeName(account.display_name)}`,

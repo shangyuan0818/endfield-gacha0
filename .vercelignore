@@ -7,12 +7,17 @@ coverage
 test-results
 artifacts
 scratch
+.agent-tmp
 .codex-chrome-profile
+playwright-report
 
 # Local diagnostics and preview logs
 *.log
 *.tmp
 *.bak
+.preview.pid
+preview.*.log
+tmp-vite-api-debug.log
 .preview.pid
 preview.*.log
 tmp-vite-api-debug.log

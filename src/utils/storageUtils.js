@@ -47,6 +47,7 @@ export const STORAGE_KEYS = {
   ADMIN_LAST_VIEWED: 'admin_last_viewed',
   // 工单最后查看时间
   TICKETS_LAST_VIEWED: 'tickets_last_viewed',
+  DURABLE_NOTIFICATIONS: 'durable_notifications_v1',
 };
 
 function hasStorage() {

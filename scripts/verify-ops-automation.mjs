@@ -8,6 +8,7 @@ import {
   buildManualReviewBundle,
   writeJsonArtifact,
 } from './lib/opsAutomationCore.mjs';
+import { __internal as runOpsAutomationInternal } from '../api/_lib/runOpsAutomation.js';
 import { getOpsAutomationJob } from './lib/opsAutomationJobRegistry.mjs';
 import { runOpsAutomation } from './run-ops-automation.mjs';
 
@@ -180,4 +181,174 @@ const writtenBundle = JSON.parse(await readFile(bundlePath, 'utf8'));
 assert.equal(writtenReport.summary.added, 1, 'CLI 审计报告应正确写出新增数量');
 assert.equal(writtenBundle.review.requiresApproval, true, 'CLI 审核包应要求人工确认');
 
-console.log('OPS-002 automation foundation verification passed');
+const retryDelays = [];
+const retryResult = await runOpsAutomationInternal.runWithRetry({
+  jobId: 'official-announcements',
+  retry: { maxAttempts: 2, baseDelayMs: 5, maxDelayMs: 5 },
+  wait: async (ms) => {
+    retryDelays.push(ms);
+  },
+  task: async ({ attempt }) => (
+    attempt === 1
+      ? { error: 'Official news API fetch failed: timeout after 15000ms' }
+      : { synced: 1, created: 1, total: 1 }
+  ),
+});
+
+assert.equal(retryResult.attempts.length, 2, '硬失败应按 job retry 配置重试');
+assert.equal(retryResult.attempts[0].retryable, true, '源站超时应被标记为可重试');
+assert.deepEqual(retryDelays, [5], '重试应记录退避时间');
+assert.equal(retryResult.result.synced, 1, '重试成功后应返回最终成功结果');
+
+const writeFailureRetry = await runOpsAutomationInternal.runWithRetry({
+  jobId: 'pool-schedule',
+  retry: { maxAttempts: 2, baseDelayMs: 5, maxDelayMs: 5 },
+  wait: async () => {},
+  task: async ({ attempt }) => (
+    attempt === 1
+      ? { errors: [{ error: 'database write failed: upsert pool schedule' }] }
+      : { parsed: 1, created: 1 }
+  ),
+});
+assert.equal(writeFailureRetry.attempts.length, 2, '无写入的结构化 errors 硬失败也应重试');
+assert.equal(writeFailureRetry.attempts[0].failureType, 'database_write', '结构化 errors 应保留失败分类');
+assert.equal(writeFailureRetry.result.created, 1, '结构化 errors 重试成功后应返回最终结果');
+
+const runContext = runOpsAutomationInternal.createRunContext({
+  requestedJobIds: ['official-announcements'],
+  triggerType: 'manual',
+  createdBy: 'super-admin-id',
+  forceRefresh: true,
+  refreshMode: 'summary',
+});
+const partialResult = {
+  synced: 1,
+  created: 1,
+  total: 2,
+  summaryFailed: 1,
+  summaryErrors: [{ source_id: 'notice-failed', title: '失败公告', error: 'LLM quota exceeded' }],
+};
+const partialNode = runOpsAutomationInternal.buildAutomationNodeSummary({
+  jobId: 'official-announcements',
+  result: partialResult,
+  runContext,
+  startedAt: '2026-05-22T00:00:00.000Z',
+  finishedAt: '2026-05-22T00:00:01.000Z',
+  durationMs: 1000,
+  attempts: retryResult.attempts,
+  input: { sourceTag: 'fixture' },
+  status: 'success',
+  dedupeKey: null,
+});
+const partialArtifacts = runOpsAutomationInternal.buildAutomationJobArtifacts({
+  jobId: 'official-announcements',
+  result: partialResult,
+  node: partialNode,
+  runContext,
+  persistAction: 'inserted',
+});
+
+assert.equal(partialNode.presentationStatus, 'partial', 'LLM 摘要失败但有写入时应标记为部分成功');
+assert.equal(partialNode.failureType, 'llm', '部分成功应保留失败分类');
+assert.equal(partialArtifacts.summary.ops.presentationStatus, 'partial', 'summary.ops 应持久化展示状态');
+assert.equal(partialArtifacts.reviewBundle.review.published, true, '有实际写入时审核包应标记已发布');
+assert.equal(partialArtifacts.reviewBundle.review.partial, true, '审核包应保留部分成功语义');
+
+const cacheRefreshCalls = [];
+const cacheRefreshUpserts = [];
+const cacheRefreshSupabase = {
+  rpc(name) {
+    cacheRefreshCalls.push(name);
+    return Promise.resolve({
+      data: {
+        refreshedPools: 2,
+        refreshedTrendRows: 6,
+        updatedAt: '2026-06-05T12:00:00.000Z',
+      },
+      error: null,
+    });
+  },
+  from(table) {
+    assert.equal(table, 'site_config', '公共缓存刷新应只更新 site_config epoch');
+    return {
+      upsert(record, options) {
+        cacheRefreshUpserts.push([record, options]);
+        return Promise.resolve({ error: null });
+      },
+    };
+  },
+};
+
+const cacheInvalidatedResult = await runOpsAutomationInternal.invalidatePublicCacheAfterMutation(
+  cacheRefreshSupabase,
+  'pool-schedule',
+  { parsed: 1, updated: 1 },
+  { triggerType: 'manual' },
+);
+
+assert.deepEqual(cacheRefreshCalls, ['refresh_public_analytics_cache'], '卡池同步写入后应刷新公共统计聚合缓存');
+assert.equal(cacheInvalidatedResult.cacheInvalidation.ok, true, '公共缓存版本刷新成功应写入节点 meta');
+assert.equal(cacheInvalidatedResult.cacheInvalidation.scope, 'pools', '卡池同步应刷新 pools scope');
+assert.equal(cacheInvalidatedResult.cacheInvalidation.analyticsRefresh.refreshedTrendRows, 6, '节点 meta 应暴露趋势缓存刷新结果');
+assert.equal(cacheRefreshUpserts.length, 1, '统计刷新后仍应 bump 公共缓存版本');
+
+const failedRefreshSupabase = {
+  rpc(name) {
+    assert.equal(name, 'refresh_public_analytics_cache');
+    return Promise.resolve({
+      data: null,
+      error: { message: 'refresh function timeout' },
+    });
+  },
+  from(table) {
+    assert.equal(table, 'site_config');
+    return {
+      upsert() {
+        return Promise.resolve({ error: null });
+      },
+    };
+  },
+};
+
+const cacheInvalidationPartial = await runOpsAutomationInternal.invalidatePublicCacheAfterMutation(
+  failedRefreshSupabase,
+  'pool-schedule',
+  { parsed: 1, created: 1 },
+  { triggerType: 'cron' },
+);
+
+assert.equal(cacheInvalidationPartial.cacheInvalidation.ok, true, '统计缓存刷新失败不应阻断公共缓存版本 bump');
+assert.equal(cacheInvalidationPartial.cacheInvalidation.analyticsRefresh.ok, false, '失败结果应保留在 cacheInvalidation meta');
+assert.match(cacheInvalidationPartial.warning, /公共统计缓存刷新失败/, '统计缓存刷新失败应写入 warning');
+
+const persistCalls = [];
+const mockSupabase = {
+  from(table) {
+    assert.equal(table, 'ops_automation_runs', '持久化应写入 ops_automation_runs');
+    return {
+      insert(record) {
+        persistCalls.push(['insert', record.summary?.ops?.persistAction, record.review_bundle?.persistAction]);
+        return Promise.resolve({ error: null });
+      },
+    };
+  },
+};
+
+const persistResult = await runOpsAutomationInternal.persistAutomationRun(mockSupabase, {
+  job_id: 'official-announcements',
+  job_label: '官方公告同步',
+  trigger_type: 'manual',
+  status: 'success',
+  dedupe_key: null,
+  summary: partialArtifacts.summary,
+  top_changed_fields: partialArtifacts.topChangedFields,
+  preview: partialArtifacts.preview,
+  review_bundle: partialArtifacts.reviewBundle,
+  started_at: '2026-05-22T00:00:00.000Z',
+  finished_at: '2026-05-22T00:00:01.000Z',
+});
+
+assert.equal(persistResult.action, 'inserted', '无 dedupe key 的手动运行应插入新记录');
+assert.deepEqual(persistCalls, [['insert', 'inserted', 'inserted']], '持久化记录应写入 persistAction');
+
+console.log('OPS-006 automation reliability verification passed');

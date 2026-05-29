@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import handler from '../api/_routes/root/ops-automation.js';
+import { __internal as runOpsAutomationInternal } from '../api/_lib/runOpsAutomation.js';
 import {
   authorizeOpsAutomationRequest,
   buildOpsAutomationDedupeKey,
@@ -144,6 +145,26 @@ assert.equal(
   'cron 调度应生成按天去重键',
 );
 
+const automationPayload = runOpsAutomationInternal.buildOpsAutomationHttpPayload({
+  ok: true,
+  partial: true,
+  results: {
+    announcements: { synced: 1, meta: { presentationStatus: 'partial' } },
+  },
+  jobGraph: [
+    {
+      id: 'official-announcements',
+      presentationStatus: 'partial',
+      retryCount: 1,
+      failureType: 'llm',
+    },
+  ],
+});
+assert.equal(automationPayload.success, true, '自动化 HTTP payload 应保留 success=true');
+assert.equal(automationPayload.partial, true, '自动化 HTTP payload 应暴露 partial');
+assert.equal(automationPayload.jobGraph[0].failureType, 'llm', '自动化 HTTP payload 应暴露 jobGraph 失败分类');
+assert.equal(automationPayload.announcements.synced, 1, '自动化 HTTP payload 应保留旧 announcements 字段');
+
 const envBackup = {
   CRON_SECRET: process.env.CRON_SECRET,
   SUPABASE_URL: process.env.SUPABASE_URL,
@@ -208,4 +229,4 @@ if (envBackup.SUPABASE_SECRET_KEY === undefined) {
   process.env.SUPABASE_SECRET_KEY = envBackup.SUPABASE_SECRET_KEY;
 }
 
-console.log('OPS-002 scheduled automation API verification passed');
+console.log('OPS-006 scheduled automation API verification passed');

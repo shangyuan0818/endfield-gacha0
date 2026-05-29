@@ -24,6 +24,10 @@ function normalizeImportSource(source) {
   return source === 'intl' ? 'intl' : 'cn';
 }
 
+function normalizeFullImportMode(mode) {
+  return mode === 'full' ? 'full' : 'incremental';
+}
+
 function resolveProxyRoot(source = 'cn') {
   const normalizedSource = normalizeImportSource(source);
 
@@ -647,8 +651,9 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
   throw new AuthChainError('等待导入超时，请稍后重试', 'import-timeout');
 }
 
-export async function importAllRecordsFullyOnBackend(initialToken, accountIndex, userId, onProgress, source = 'cn') {
+export async function importAllRecordsFullyOnBackend(initialToken, accountIndex, userId, onProgress, source = 'cn', options = {}) {
   const proxyBase = getProxyBase(source);
+  const importMode = normalizeFullImportMode(options?.importMode);
   if (!userId) {
     throw new AuthChainError('请先登录后再导入数据', 'import-full');
   }
@@ -673,7 +678,8 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
       token: initialToken,
       accountIndex,
       userId,
-      source: normalizeImportSource(source)
+      source: normalizeImportSource(source),
+      importMode
     })
   }, {
     priority: 4,

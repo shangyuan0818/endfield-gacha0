@@ -167,6 +167,8 @@ export function buildDevApiOpenApiSpec({
           { name: 'metric', in: 'query', schema: { type: 'string', enum: ['pulls', 'six_star', 'five_star'], default: 'pulls' } },
           { name: 'granularity', in: 'query', schema: { type: 'string', enum: ['day', 'week'], default: 'day' } },
           { name: 'days', in: 'query', schema: { type: 'integer', enum: [7, 30, 90], default: 30 } },
+          { name: 'poolType', in: 'query', schema: { type: 'string', enum: ['all', 'limited', 'extra', 'standard', 'weapon'], default: 'all' } },
+          { name: 'poolId', in: 'query', schema: { type: 'string' } },
         ],
       }),
       '/api/dev/v1/stats/distributions': endpoint('Public pity distribution buckets', {

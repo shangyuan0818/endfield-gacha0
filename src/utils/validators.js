@@ -1,5 +1,9 @@
 // 数据校验工具函数
 import { LIMITED_POOL_RULES, STANDARD_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
+import {
+  getPasswordCharacterGroups,
+  validateAccountPassword,
+} from './authSecurity.js';
 import { getUsernameValidationCode } from './usernameValidation.js';
 
 /**
@@ -390,18 +394,15 @@ export const validateUserData = (data, isCreating = true) => {
     if (!data.password || typeof data.password !== 'string') {
       errors.push('密码不能为空');
     } else {
-      // 密码强度验证
-      if (data.password.length < 8) {
+      const passwordValidation = validateAccountPassword(data.password);
+      if (passwordValidation.errors.includes('too_short')) {
         errors.push('密码至少需要8位字符');
       }
-      if (data.password.length > 100) {
+      if (passwordValidation.errors.includes('too_long')) {
         errors.push('密码长度不能超过100位');
       }
-      // 建议包含字母和数字
-      const hasLetter = /[a-zA-Z]/.test(data.password);
-      const hasNumber = /[0-9]/.test(data.password);
-      if (!hasLetter || !hasNumber) {
-        errors.push('密码建议包含字母和数字');
+      if (passwordValidation.errors.includes('too_simple')) {
+        errors.push('密码需要至少包含两类字符，例如字母和数字');
       }
     }
   }
@@ -464,24 +465,22 @@ export const validatePasswordStrength = (password) => {
     return { isValid: false, strength, errors };
   }
 
-  // 长度检查
-  if (password.length < 8) {
+  const validation = validateAccountPassword(password);
+
+  if (validation.errors.includes('too_short')) {
     errors.push('密码至少需要8位字符');
+  }
+
+  if (validation.errors.includes('too_long')) {
+    errors.push('密码长度不能超过100位');
   }
 
   if (password.length >= 8) strength = 'medium';
   if (password.length >= 12) strength = 'strong';
 
-  // 复杂度检查
-  const hasLower = /[a-z]/.test(password);
-  const hasUpper = /[A-Z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-
-  const complexityCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
-
+  const complexityCount = getPasswordCharacterGroups(password);
   if (complexityCount < 2) {
-    errors.push('密码建议包含字母和数字');
+    errors.push('密码需要至少包含两类字符，例如字母和数字');
     strength = 'weak';
   } else if (complexityCount >= 3 && password.length >= 12) {
     strength = 'strong';

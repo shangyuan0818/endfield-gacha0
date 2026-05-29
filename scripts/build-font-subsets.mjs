@@ -3,7 +3,6 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { fontSplit } from 'cn-font-split'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const harmonySourceDir = path.join(repoRoot, 'src', 'assets', 'fonts', 'harmony')
@@ -94,6 +93,7 @@ async function buildFontSubset({ sourceDir, outputRoot, family, version, key, we
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })
 
+  const { fontSplit } = await import('cn-font-split')
   await fontSplit({
     input: new Uint8Array(sourceBuffer),
     outDir,

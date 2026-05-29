@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 .preview.pid
+preview.*.log
+playwright-report/
+.agent-tmp/
+.codex-chrome-profile/
 .secrets/
 
 # Environment variables
@@ -42,6 +46,7 @@ backend/*
 backend/lib/*
 !backend/lib/canonicalEntityUtils.js
 !backend/lib/idAliasService.js
+!backend/lib/officialImportIncremental.js
 dev-proxy.js
 api/hg-proxy.js
 
@@ -73,3 +78,5 @@ src/generated/fonts/judou/
 bots/*
 !bots/official/
 !bots/official/**
+backend/lib/canonicalEntityUtils.js
+backend/lib/idAliasService.js
