@@ -5,9 +5,12 @@ import { normalizeGlobalCharacterCatalog } from '../utils/quotaEconomy.js';
 import {
   SUPABASE_RPC_TIMEOUT_MS,
   executeSupabaseRpc,
-  fetchWithTimeout,
   isRetryableSupabaseError,
 } from './supabaseRequest.js';
+import {
+  fetchPublicApiJson,
+  shouldAllowPublicSupabaseFallback,
+} from './publicResourceClient.js';
 import { appLogger } from '../utils/appLogger.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
@@ -22,7 +25,6 @@ const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
 const CHARACTER_CATALOG_CACHE_TTL = 120 * 1000;
 const STATS_API_TIMEOUT_MS = 25000;
-const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 const EXPECTED_LIMITED_UP_DISPLAY_COUNT = 6;
 const globalStatsRequestState = {
   data: null,
@@ -72,31 +74,14 @@ function withStatsMeta(stats, meta = {}) {
 }
 
 async function fetchStatsApi(type) {
-  if (IS_LOCAL_DEV) {
-    return null;
-  }
-
-  const response = await fetchWithTimeout(`/api/stats?type=${type}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }, {
+  const result = await fetchPublicApiJson('/api/stats', {
+    params: { type },
     label: `stats api ${type}`,
     timeoutMs: STATS_API_TIMEOUT_MS,
     retries: 1
   });
 
-  if (!response.ok) {
-    throw new Error(`stats api ${type} failed with ${response.status}`);
-  }
-
-  const result = await response.json();
-  if (!result?.success) {
-    throw new Error(result?.error || `stats api ${type} returned failure`);
-  }
-
-  return result.data || null;
+  return result?.data || null;
 }
 
 async function fetchGlobalSummaryDirect() {
@@ -652,20 +637,22 @@ export async function getGlobalSummaryStats(forceRefresh = false) {
           return normalizedFromApi;
         }
 
-        const directSummary = await fetchGlobalSummaryDirect().catch(() => null);
-        if (directSummary) {
-          const normalizedFromDirect = withStatsMeta(
-            mergeCatalogQuotaIntoSummary(
-              normalizeGlobalStats(directSummary),
-              catalogPayload
-            ),
-            {
-            source: 'supabase-direct',
-            fetchedAt: Date.now()
-            }
-          );
-          writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromDirect);
-          return normalizedFromDirect;
+        if (shouldAllowPublicSupabaseFallback()) {
+          const directSummary = await fetchGlobalSummaryDirect().catch(() => null);
+          if (directSummary) {
+            const normalizedFromDirect = withStatsMeta(
+              mergeCatalogQuotaIntoSummary(
+                normalizeGlobalStats(directSummary),
+                catalogPayload
+              ),
+              {
+              source: 'supabase-direct',
+              fetchedAt: Date.now()
+              }
+            );
+            writePersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT, normalizedFromDirect);
+            return normalizedFromDirect;
+          }
         }
 
         const persistedSnapshot = readPersistedSnapshot(STORAGE_KEYS.GLOBAL_SUMMARY_STATS_SNAPSHOT);
@@ -723,18 +710,20 @@ export async function getCharacterCatalogStats(forceRefresh = false) {
           return normalizedFromApi;
         }
 
-        const directCatalog = await fetchCharacterCatalogDirect().catch(() => null);
-        if (directCatalog) {
-          const normalizedFromDirect = normalizeGlobalCharacterCatalog(directCatalog);
-          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromDirect);
-          return normalizedFromDirect;
-        }
+        if (shouldAllowPublicSupabaseFallback()) {
+          const directCatalog = await fetchCharacterCatalogDirect().catch(() => null);
+          if (directCatalog) {
+            const normalizedFromDirect = normalizeGlobalCharacterCatalog(directCatalog);
+            writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromDirect);
+            return normalizedFromDirect;
+          }
 
-        const uncachedCatalog = await fetchCharacterCatalogUncached().catch(() => null);
-        if (uncachedCatalog) {
-          const normalizedFromUncached = normalizeGlobalCharacterCatalog(uncachedCatalog);
-          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromUncached);
-          return normalizedFromUncached;
+          const uncachedCatalog = await fetchCharacterCatalogUncached().catch(() => null);
+          if (uncachedCatalog) {
+            const normalizedFromUncached = normalizeGlobalCharacterCatalog(uncachedCatalog);
+            writePersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT, normalizedFromUncached);
+            return normalizedFromUncached;
+          }
         }
 
         return readPersistedSnapshot(STORAGE_KEYS.CHARACTER_CATALOG_SNAPSHOT);
@@ -763,16 +752,18 @@ export async function getCharacterRankingStats(forceRefresh = false) {
           return apiPayload.characterRanking;
         }
 
-        const directRanking = await fetchCharacterRankingDirect().catch(() => null);
-        if (directRanking && !shouldBypassRankingCache(directRanking)) {
-          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, directRanking);
-          return directRanking;
-        }
+        if (shouldAllowPublicSupabaseFallback()) {
+          const directRanking = await fetchCharacterRankingDirect().catch(() => null);
+          if (directRanking && !shouldBypassRankingCache(directRanking)) {
+            writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, directRanking);
+            return directRanking;
+          }
 
-        const uncachedRanking = await fetchCharacterRankingUncached().catch(() => null);
-        if (uncachedRanking) {
-          writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, uncachedRanking);
-          return uncachedRanking;
+          const uncachedRanking = await fetchCharacterRankingUncached().catch(() => null);
+          if (uncachedRanking) {
+            writePersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT, uncachedRanking);
+            return uncachedRanking;
+          }
         }
 
         return readPersistedSnapshot(STORAGE_KEYS.CHARACTER_RANKING_SNAPSHOT);

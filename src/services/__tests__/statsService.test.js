@@ -7,6 +7,7 @@ vi.mock('../../supabaseClient.js', () => ({
 vi.mock('../supabaseRequest.js', () => ({
   SUPABASE_RPC_TIMEOUT_MS: 30000,
   executeSupabaseRpc: vi.fn(),
+  fetchJsonWithTimeout: vi.fn(),
   fetchWithTimeout: vi.fn(),
   isRetryableSupabaseError: vi.fn(() => false),
 }));

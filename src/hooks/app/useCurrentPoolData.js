@@ -16,6 +16,7 @@ import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { buildPoolSelectorGroups, getPoolTypeLabel } from '../../utils/poolSelectorDisplay';
 import { compareHistoryTimelineAsc } from '../../utils/historyTimelineSort.js';
 import { fetchPoolRosterRecordsBatch, resolvePoolRosterBuckets } from '../../utils/poolRoster.js';
+import { filterHistoryForEffectiveGameUid, resolveEffectiveGameUid } from '../../utils/accountScopeUtils.js';
 import { useI18n } from '../../i18n/index.js';
 
 const LIMITED_POOL_TYPES = new Set(['limited', 'limited_character']);
@@ -26,10 +27,6 @@ function getPoolId(pool) {
 
 function getHistoryPoolId(item) {
   return item.poolId || item.pool_id || null;
-}
-
-function getHistoryGameUid(item) {
-  return item.game_uid || item.gameUid || null;
 }
 
 function getHistoryRecordKey(item) {
@@ -48,14 +45,6 @@ function sortByTimeline(a, b) {
   }
 
   return getHistorySeqId(a) - getHistorySeqId(b);
-}
-
-function matchesCurrentGameUid(item, currentGameUid) {
-  if (!currentGameUid) {
-    return true;
-  }
-
-  return getHistoryGameUid(item) === currentGameUid;
 }
 
 function normalizePoolType(type) {
@@ -181,23 +170,18 @@ export function useCurrentPoolData() {
 
     return historyArray.filter((item) => item.user_id === user.id);
   }, [historyArray, user?.id]);
-  const mergedAccountCount = useMemo(() => (
-    new Set(
-      ownedHistoryArray
-        .map((item) => getHistoryGameUid(item))
-        .filter(Boolean)
-    ).size
-  ), [ownedHistoryArray]);
-  const hasMergedAccountView = !currentGameUid && mergedAccountCount > 1;
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    historyRecords: ownedHistoryArray,
+  }), [currentGameUid, ownedHistoryArray]);
+  const hasMergedAccountView = false;
   const accountHistoryArray = useMemo(() => {
     if (!user?.id) {
       return [];
     }
 
-    return ownedHistoryArray.filter(item =>
-      matchesCurrentGameUid(item, currentGameUid)
-    );
-  }, [currentGameUid, ownedHistoryArray, user?.id]);
+    return filterHistoryForEffectiveGameUid(ownedHistoryArray, effectiveGameUid);
+  }, [effectiveGameUid, ownedHistoryArray, user?.id]);
   const annotatedAccountHistoryArray = useMemo(
     () => annotateInfoBookPulls(accountHistoryArray, poolsArray),
     [accountHistoryArray, poolsArray]

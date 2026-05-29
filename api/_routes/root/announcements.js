@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
 import {
+  buildPublicCacheKey,
+  PUBLIC_CACHE_CONTROL,
+  readRequestCacheVersion,
+  resolvePublicCacheVersion,
+  sendPublicJson,
+} from '../../_lib/publicCache.js';
+import {
   resolveSupabaseServerKey,
   resolveSupabaseUrl,
 } from '../../_lib/supabaseEnv.js';
@@ -211,7 +218,7 @@ async function getFreshPayload(supabase, query, cacheKey, previousPayload) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', PUBLIC_CACHE_CONTROL);
 
   if (rejectDisallowedBrowserOrigin(req, res, {
     methods: 'GET, OPTIONS'
@@ -231,26 +238,36 @@ export default async function handler(req, res) {
   }
 
   const query = parseQuery(req);
-  const cacheKey = getCacheKey(query);
   const now = Date.now();
+  const supabase = getSupabaseClient();
+  const cacheVersion = await resolvePublicCacheVersion(supabase, {
+    requestVersion: readRequestCacheVersion(req)
+  });
+  const cacheKey = buildPublicCacheKey(['announcements', getCacheKey(query), `v${cacheVersion}`]);
   const cached = cacheByKey.get(cacheKey);
 
   if (cached && now - cached.lastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: true,
       partial: Boolean(cached.partial),
-      data: cached.payload
+      data: cached.payload,
+      source: 'memory-cache',
+      cacheKey,
+      cacheVersion,
+      lastFetch: cached.lastFetch
     });
   }
 
-  const supabase = getSupabaseClient();
   if (!supabase) {
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: true,
       partial: true,
       data: cached?.payload || createEmptyPayload(),
+      source: cached ? 'memory-cache' : 'default',
+      stale: Boolean(cached),
+      cacheKey,
+      cacheVersion,
+      lastFetch: cached?.lastFetch || 0,
       message: 'Database not configured, returning cached/default data'
     });
   }
@@ -263,18 +280,25 @@ export default async function handler(req, res) {
       lastFetch: Date.now()
     });
 
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: false,
       partial,
-      data: payload
+      data: payload,
+      source: partial ? 'origin-partial' : 'origin',
+      cacheKey,
+      cacheVersion,
+      lastFetch: cacheByKey.get(cacheKey)?.lastFetch || Date.now()
     });
   } catch (error) {
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: Boolean(cached),
       partial: true,
       data: cached?.payload || createEmptyPayload(),
+      source: cached ? 'memory-cache' : 'default',
+      stale: Boolean(cached),
+      cacheKey,
+      cacheVersion,
+      lastFetch: cached?.lastFetch || 0,
       message: error?.message || 'Failed to load announcements'
     });
   }

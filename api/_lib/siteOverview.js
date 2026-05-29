@@ -1,7 +1,7 @@
 import { fetchVisiblePools } from './publicCatalog.js';
 
 const HOME_NEXT_VERSION_TARGET_CONFIG_KEY = 'home_next_version_target_at';
-const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-04T12:00:00+08:00';
+const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-05T12:00:00+08:00';
 
 function normalizePoolType(type) {
   if (type === 'limited_character' || type === 'limited') return 'limited';

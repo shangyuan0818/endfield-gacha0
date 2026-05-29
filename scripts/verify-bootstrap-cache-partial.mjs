@@ -52,6 +52,11 @@ async function invokeHandlerWithCache({ partial }) {
 const cachedPartialResponse = await invokeHandlerWithCache({ partial: true });
 assert.equal(cachedPartialResponse.cached, true, '缓存命中应返回 cached=true');
 assert.equal(cachedPartialResponse.partial, true, '缓存命中时应保留 partial=true');
+assert.equal(cachedPartialResponse.meta?.source, 'memory-cache', '缓存命中应标记 source=memory-cache');
+assert.equal(cachedPartialResponse.meta?.partial, true, 'meta.partial 应与顶层 partial 一致');
+assert.equal(cachedPartialResponse.meta?.stale, false, '新鲜内存缓存不应标记 stale');
+assert.equal(cachedPartialResponse.meta?.cacheKey, 'bootstrap:v0', 'bootstrap 缓存 key 应包含公共缓存版本');
+assert.equal(cachedPartialResponse.meta?.cacheVersion, '0', 'bootstrap meta 应包含 cacheVersion');
 assert.deepEqual(
   cachedPartialResponse.data,
   {
@@ -64,5 +69,6 @@ assert.deepEqual(
 const cachedFullResponse = await invokeHandlerWithCache({ partial: false });
 assert.equal(cachedFullResponse.cached, true, '缓存命中应返回 cached=true');
 assert.equal(cachedFullResponse.partial, false, '完整缓存命中时应返回 partial=false');
+assert.equal(cachedFullResponse.meta?.partial, false, '完整缓存命中时 meta.partial=false');
 
 console.log('BUG-034 bootstrap cache partial verification passed');

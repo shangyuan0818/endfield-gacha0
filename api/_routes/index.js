@@ -1,16 +1,26 @@
 import accountRecoveryRequestHandler from './root/account-recovery-request.js';
+import accountEmailActionHandler from './root/account-email-action.js';
+import accountEmailVerifyHandler from './root/account-email-verify.js';
+import accountSecurityStateHandler from './root/account-security-state.js';
 import adminHandler from './root/admin.js';
 import announcementsHandler from './root/announcements.js';
+import authEmailActionHandler from './root/auth-email-action.js';
 import authAccountStatusHandler from './root/auth-account-status.js';
+import authPowChallengeHandler from './root/auth-pow-challenge.js';
 import authRateLimitHandler from './root/auth-rate-limit.js';
 import automationFeedHandler from './root/automation-feed.js';
 import bootstrapHandler from './root/bootstrap.js';
+import mailInboundHandler from './root/mail-inbound.js';
+import mailDeliveryFeedbackHandler from './root/mail-delivery-feedback.js';
+import mailOutboxWorkerHandler from './root/mail-outbox-worker.js';
 import officialAnnouncementImageHandler from './root/official-announcement-image.js';
 import opsAutomationHandler from './root/ops-automation.js';
 import poolRostersHandler from './root/pool-rosters.js';
+import publicCacheVersionHandler from './root/public-cache-version.js';
 import puzzlesHandler from './root/puzzles.js';
 import selfDeleteAccountHandler from './root/self-delete-account.js';
 import statsHandler from './root/stats.js';
+import ticketReplyHandler from './root/ticket-reply.js';
 import wikiAssetProxyHandler from './root/wiki-asset-proxy.js';
 import wikiProxyHandler from './root/wiki-proxy.js';
 import devApplicationsHandler from './dev/applications/index.js';
@@ -60,23 +70,39 @@ function normalizeRoutePath(path) {
 
 export const API_ROUTE_ENTRIES = [
   ['/api/account-recovery-request', accountRecoveryRequestHandler],
+  ['/api/account-email-action', accountEmailActionHandler],
+  ['/api/account-email-verify', accountEmailVerifyHandler],
+  ['/api/account-security-state', accountSecurityStateHandler],
   ['/api/admin', adminHandler],
   ['/api/admin-ops-automation', adminHandler],
+  ['/api/admin-mail-alert', adminHandler],
+  ['/api/admin-mail-budget-config', adminHandler],
+  ['/api/admin-mail-outbox-drain', adminHandler],
+  ['/api/admin-mail-smoke-test', adminHandler],
+  ['/api/admin-public-cache-bump', adminHandler],
   ['/api/admin-reset-recovery-password', adminHandler],
+  ['/api/admin-site-health', adminHandler],
   ['/api/admin-users', adminHandler],
   ['/api/admin-delete-user', adminHandler],
   ['/api/admin-user-reset-password', adminHandler],
   ['/api/announcements', announcementsHandler],
   ['/api/auth-account-status', authAccountStatusHandler],
+  ['/api/auth-email-action', authEmailActionHandler],
+  ['/api/auth-pow-challenge', authPowChallengeHandler],
   ['/api/auth-rate-limit', authRateLimitHandler],
   ['/api/automation-feed', automationFeedHandler],
   ['/api/bootstrap', bootstrapHandler],
+  ['/api/mail-delivery-feedback', mailDeliveryFeedbackHandler],
+  ['/api/mail-inbound', mailInboundHandler],
+  ['/api/mail-outbox-worker', mailOutboxWorkerHandler],
   ['/api/official-announcement-image', officialAnnouncementImageHandler],
   ['/api/ops-automation', opsAutomationHandler],
   ['/api/pool-rosters', poolRostersHandler],
+  ['/api/public-cache-version', publicCacheVersionHandler],
   ['/api/puzzles', puzzlesHandler],
   ['/api/self-delete-account', selfDeleteAccountHandler],
   ['/api/stats', statsHandler],
+  ['/api/tickets/reply', ticketReplyHandler],
   ['/api/wiki-asset-proxy', wikiAssetProxyHandler],
   ['/api/wiki-proxy', wikiProxyHandler],
   ['/api/dev/applications', devApplicationsHandler],

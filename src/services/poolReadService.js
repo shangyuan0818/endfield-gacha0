@@ -1,10 +1,13 @@
 import { supabase } from '../supabaseClient';
 import { loadPublicProfilesMap } from './publicProfileService';
-import { executeSupabaseRead, executeSupabaseRpc, fetchWithTimeout } from './supabaseRequest';
+import { executeSupabaseRead, executeSupabaseRpc } from './supabaseRequest';
+import {
+  fetchPublicApiJson,
+  shouldAllowPublicSupabaseFallback,
+} from './publicResourceClient';
 
 const PUBLIC_STATS_API_TIMEOUT_MS = 25000;
 const PUBLIC_DATA_CACHE_TTL = 60 * 1000;
-const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
 const requestState = {
   visiblePools: {
@@ -55,29 +58,12 @@ async function runCachedCollectionRequest(state, fetcher, { forceRefresh = false
 }
 
 async function fetchPublicPoolCollection(type) {
-  if (IS_LOCAL_DEV) {
-    return null;
-  }
-
-  const response = await fetchWithTimeout(`/api/stats?type=${type}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }, {
+  const result = await fetchPublicApiJson('/api/stats', {
+    params: { type },
     label: `public ${type} api`,
     timeoutMs: PUBLIC_STATS_API_TIMEOUT_MS,
     retries: 1
   });
-
-  if (!response.ok) {
-    throw new Error(`public ${type} api failed with ${response.status}`);
-  }
-
-  const result = await response.json();
-  if (!result?.success) {
-    throw new Error(result?.error || `public ${type} api returned failure`);
-  }
 
   return Array.isArray(result?.data?.pools) ? result.data.pools : null;
 }
@@ -225,7 +211,7 @@ export async function loadVisiblePools(options = {}) {
       return dedupeVisiblePoolRecords(apiPools).map(formatVisiblePoolRecord);
     }
 
-    if (!supabase) {
+    if (!shouldAllowPublicSupabaseFallback() || !supabase) {
       return [];
     }
 
@@ -273,6 +259,10 @@ export async function loadPoolsByIds(poolIds) {
     return cachedPools.sort(sortVisiblePoolRecords);
   }
 
+  if (!shouldAllowPublicSupabaseFallback() || !supabase) {
+    return cachedPools.sort(sortVisiblePoolRecords);
+  }
+
   const poolRows = await loadPoolRowsByIds(missingIds);
   if (poolRows.length === 0) {
     return cachedPools.sort(sortVisiblePoolRecords);
@@ -301,7 +291,7 @@ export async function loadAllPoolsForCatalog(options = {}) {
       return dedupeVisiblePoolRecords(apiPools).map(formatVisiblePoolRecord);
     }
 
-    if (!supabase) {
+    if (!shouldAllowPublicSupabaseFallback() || !supabase) {
       return [];
     }
 

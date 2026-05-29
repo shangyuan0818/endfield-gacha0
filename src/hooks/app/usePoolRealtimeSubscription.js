@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '../../supabaseClient';
+import { isSupabaseRealtimeEnabled, supabase } from '../../supabaseClient';
 import { usePoolStore, useAuthStore } from '../../stores';
 import { formatVisiblePoolRecord } from '../../services/poolReadService';
 
@@ -66,7 +66,7 @@ export function usePoolRealtimeSubscription({ showToast }) {
 
   // 订阅只在组件挂载时执行一次
   useEffect(() => {
-    if (!supabase || !canEdit) return;
+    if (!supabase || !canEdit || !isSupabaseRealtimeEnabled()) return;
 
     // 订阅 pools 表的所有变化
     const channel = supabase

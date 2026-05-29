@@ -89,6 +89,7 @@ function getPoolStatus(pool, nowMs = Date.now()) {
 }
 
 function normalizePoolType(type, poolId = '') {
+  if (type === 'all') return 'all';
   if (type === 'limited_character' || type === 'limited') return 'limited';
   if (type === 'limited_weapon' || type === 'weapon') return 'weapon';
   if (type === 'extra') return 'extra';
@@ -147,6 +148,253 @@ function normalizeSummaryCounter(raw = {}) {
       targetSixStar: raw.avgPityTarget ?? raw.avgPityUp ?? null,
     },
     distribution: normalizeDistribution(raw.distribution),
+  };
+}
+
+function isUnavailablePreaggregateError(error) {
+  if (!error) {
+    return false;
+  }
+
+  const code = String(error.code || '').trim();
+  const message = String(error.message || error.details || '').toLowerCase();
+  return ['42P01', '42703', 'PGRST204', 'PGRST205'].includes(code)
+    || message.includes('public_pool_analytics_cache')
+    || message.includes('public_pool_trend_cache')
+    || message.includes('relation')
+    || message.includes('schema cache');
+}
+
+function buildAnalyticsMeta({
+  source,
+  partial,
+  poolId = null,
+  cacheScope = 'public_pool_analytics',
+  updatedAt = null,
+  sourceVersion = null,
+  warning = null,
+  missingFields = [],
+} = {}) {
+  const cacheVersion = sourceVersion || updatedAt || null;
+  return {
+    source,
+    partial: partial === true,
+    missingFields,
+    cacheKey: cacheVersion && poolId ? `${cacheScope}:${poolId}:${cacheVersion}` : null,
+    cacheVersion,
+    updatedAt,
+    ...(warning ? { warning } : {}),
+  };
+}
+
+function buildTrendAnalyticsMeta({
+  source,
+  partial,
+  metric,
+  granularity,
+  days,
+  poolType = 'all',
+  poolId = null,
+  updatedAt = null,
+  sourceVersion = null,
+  warning = null,
+} = {}) {
+  const scopeId = poolId || poolType || 'all';
+  return buildAnalyticsMeta({
+    source,
+    partial,
+    poolId: `${metric}:${granularity}:${days}:${scopeId}`,
+    cacheScope: 'public_pool_trends',
+    updatedAt,
+    sourceVersion,
+    warning,
+    missingFields: partial ? ['points'] : [],
+  });
+}
+
+function normalizePreaggregatedPoolStats(row = {}) {
+  const rarityCounts = row.rarity_counts || row.rarityCounts || {};
+  const updatedAt = row.updated_at || row.updatedAt || null;
+  const sourceVersion = row.source_version || row.sourceVersion || null;
+  const poolId = row.pool_id || row.poolId || null;
+
+  return {
+    firstPullAt: row.first_pull_at || row.firstPullAt || null,
+    lastPullAt: row.last_pull_at || row.lastPullAt || null,
+    stats: {
+      totalPulls: toNumber(row.total_pulls ?? row.totalPulls, 0),
+      totalPullsWithFree: toNumber(row.total_pulls_with_free ?? row.totalPullsWithFree ?? row.total_pulls ?? row.totalPulls, 0),
+      freePullCount: toNumber(row.free_pull_count ?? row.freePullCount, 0),
+      rarityCounts: {
+        4: toNumber(rarityCounts[4] ?? rarityCounts['4'], 0),
+        5: toNumber(rarityCounts[5] ?? rarityCounts['5'], 0),
+        6: toNumber(rarityCounts[6] ?? rarityCounts['6'], 0),
+      },
+      targetSixStar: toNumber(row.target_six_star ?? row.targetSixStar, 0),
+      offrateSixStar: toNumber(row.offrate_six_star ?? row.offrateSixStar, 0),
+      averagePity: {
+        sixStar: row.avg_pity_six_star ?? row.averagePity?.sixStar ?? null,
+        fiveStar: row.avg_pity_five_star ?? row.averagePity?.fiveStar ?? null,
+        targetSixStar: row.avg_pity_target_six_star ?? row.averagePity?.targetSixStar ?? null,
+      },
+      distribution: normalizeDistribution(row.distribution),
+      source: 'preaggregated_pool_cache',
+      analyticsMeta: buildAnalyticsMeta({
+        source: 'preaggregated_pool_cache',
+        partial: false,
+        poolId,
+        updatedAt,
+        sourceVersion,
+      }),
+    },
+  };
+}
+
+function buildMissingPreaggregateMeta({
+  poolId,
+  warning = null,
+} = {}) {
+  return buildAnalyticsMeta({
+    source: 'bounded_count_queries',
+    partial: true,
+    poolId,
+    warning,
+    missingFields: [
+      'targetSixStar',
+      'offrateSixStar',
+      'averagePity.sixStar',
+      'averagePity.fiveStar',
+      'averagePity.targetSixStar',
+      'distribution',
+    ],
+  });
+}
+
+async function fetchPoolAnalyticsCache(adminClient, poolIds = []) {
+  const ids = [...new Set((poolIds || []).map(normalizeQueryValue).filter(Boolean))];
+  if (ids.length === 0) {
+    return {
+      available: true,
+      rowsByPoolId: new Map(),
+    };
+  }
+
+  const { data, error } = await adminClient
+    .from('public_pool_analytics_cache')
+    .select('pool_id, pool_type, total_pulls, total_pulls_with_free, free_pull_count, rarity_counts, target_six_star, offrate_six_star, avg_pity_six_star, avg_pity_five_star, avg_pity_target_six_star, distribution, first_pull_at, last_pull_at, updated_at, source_version')
+    .in('pool_id', ids);
+
+  if (error) {
+    if (isUnavailablePreaggregateError(error)) {
+      return {
+        available: false,
+        rowsByPoolId: new Map(),
+        warning: 'public_pool_analytics_cache_unavailable',
+      };
+    }
+
+    throw error;
+  }
+
+  return {
+    available: true,
+    rowsByPoolId: new Map((data || []).map(row => [normalizeQueryValue(row?.pool_id), row])),
+  };
+}
+
+function normalizeTrendMetric(metric) {
+  const normalizedMetric = normalizeQueryValue(metric).toLowerCase();
+  return ['pulls', 'six_star', 'five_star'].includes(normalizedMetric) ? normalizedMetric : 'pulls';
+}
+
+function normalizeTrendGranularity(granularity) {
+  return normalizeQueryValue(granularity).toLowerCase() === 'week' ? 'week' : 'day';
+}
+
+function normalizeTrendDays(days) {
+  const numericDays = Number(days);
+  return [7, 30, 90].includes(numericDays) ? numericDays : 30;
+}
+
+function normalizeTrendScope(query = {}) {
+  const poolId = normalizeQueryValue(query.poolId || query.pool_id);
+  const rawPoolType = normalizeQueryValue(query.poolType || query.pool_type || 'all').toLowerCase();
+  const poolType = ['all', 'limited', 'extra', 'standard', 'weapon'].includes(rawPoolType)
+    ? rawPoolType
+    : 'all';
+
+  return {
+    poolId: poolId || null,
+    poolType: poolId ? (poolType || 'all') : poolType,
+  };
+}
+
+function normalizeTrendPoint(row = {}) {
+  const period = row.period_start || row.periodStart || null;
+  const updatedAt = row.updated_at || row.updatedAt || null;
+  const sourceVersion = row.source_version || row.sourceVersion || null;
+
+  return {
+    period,
+    value: toNumber(row.value, 0),
+    ...(sourceVersion ? { sourceVersion } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
+  };
+}
+
+function pickLatestTrendVersion(rows = []) {
+  const sortedRows = [...rows].sort((left, right) => {
+    const leftUpdated = parseDateMs(left?.updated_at || left?.updatedAt);
+    const rightUpdated = parseDateMs(right?.updated_at || right?.updatedAt);
+    return rightUpdated - leftUpdated;
+  });
+  const latest = sortedRows[0] || null;
+  return {
+    updatedAt: latest?.updated_at || latest?.updatedAt || null,
+    sourceVersion: latest?.source_version || latest?.sourceVersion || null,
+  };
+}
+
+async function fetchPublicTrendCache(adminClient, {
+  metric,
+  granularity,
+  days,
+  poolType = 'all',
+  poolId = null,
+} = {}) {
+  let query = adminClient
+    .from('public_pool_trend_cache')
+    .select('metric, granularity, period_start, pool_type, pool_id, value, source_version, updated_at')
+    .eq('metric', metric)
+    .eq('granularity', granularity);
+
+  if (poolId) {
+    query = query.eq('pool_id', poolId);
+  } else if (poolType && poolType !== 'all') {
+    query = query.eq('pool_type', poolType).eq('pool_id', 'all');
+  } else {
+    query = query.eq('pool_type', 'all').eq('pool_id', 'all');
+  }
+
+  const { data, error } = await query
+    .order('period_start', { ascending: false })
+    .limit(days);
+
+  if (error) {
+    if (isUnavailablePreaggregateError(error)) {
+      return {
+        available: false,
+        rows: [],
+        warning: 'public_pool_trend_cache_unavailable',
+      };
+    }
+
+    throw error;
+  }
+
+  return {
+    available: true,
+    rows: Array.isArray(data) ? data : [],
   };
 }
 
@@ -237,6 +485,31 @@ async function buildScopedCounter(adminClient, applyFilters) {
       },
       distribution: [],
       source: 'bounded_count_queries',
+      analyticsMeta: buildMissingPreaggregateMeta(),
+    },
+  };
+}
+
+async function buildPoolCounter(adminClient, poolId, preaggregateState) {
+  const normalizedPoolId = normalizeQueryValue(poolId);
+  const preaggregatedRow = preaggregateState?.rowsByPoolId?.get(normalizedPoolId);
+  if (preaggregatedRow) {
+    return normalizePreaggregatedPoolStats(preaggregatedRow);
+  }
+
+  const counter = await buildScopedCounter(
+    adminClient,
+    (historyQuery) => historyQuery.eq('pool_id', normalizedPoolId)
+  );
+
+  return {
+    ...counter,
+    stats: {
+      ...counter.stats,
+      analyticsMeta: buildMissingPreaggregateMeta({
+        poolId: normalizedPoolId,
+        warning: preaggregateState?.available === false ? preaggregateState.warning : 'public_pool_analytics_cache_miss',
+      }),
     },
   };
 }
@@ -357,13 +630,12 @@ export async function buildPublicPoolStats(adminClient, query = {}) {
     defaultValue: HEAVY_PAGE_DEFAULT,
     max: HEAVY_PAGE_MAX,
   });
+  const poolIds = items.map(item => item.pool.id || item.pool.pool_id).filter(Boolean);
+  const preaggregateState = await fetchPoolAnalyticsCache(adminClient, poolIds);
 
   const poolStats = await Promise.all(items.map(async (item) => {
     const poolId = item.pool.id || item.pool.pool_id;
-    const counter = await buildScopedCounter(
-      adminClient,
-      (historyQuery) => historyQuery.eq('pool_id', poolId)
-    );
+    const counter = await buildPoolCounter(adminClient, poolId, preaggregateState);
 
     return {
       pool: toPublicPoolDto(item.pool, { nowMs }),
@@ -391,10 +663,9 @@ export async function buildPublicSinglePoolStats(adminClient, {
     return null;
   }
 
-  const counter = await buildScopedCounter(
-    adminClient,
-    (historyQuery) => historyQuery.eq('pool_id', pool.id || pool.pool_id)
-  );
+  const poolId = pool.id || pool.pool_id;
+  const preaggregateState = await fetchPoolAnalyticsCache(adminClient, [poolId]);
+  const counter = await buildPoolCounter(adminClient, poolId, preaggregateState);
 
   return {
     pool: {
@@ -516,19 +787,67 @@ export async function buildPublicSingleItemStats(adminClient, {
 }
 
 export async function buildPublicTrends(adminClient, query = {}) {
-  const metric = ['pulls', 'six_star', 'five_star'].includes(query.metric)
-    ? query.metric
-    : 'pulls';
-  const granularity = query.granularity === 'week' ? 'week' : 'day';
-  const days = [7, 30, 90].includes(Number(query.days)) ? Number(query.days) : 30;
+  const metric = normalizeTrendMetric(query.metric);
+  const granularity = normalizeTrendGranularity(query.granularity);
+  const days = normalizeTrendDays(query.days);
+  const { poolType, poolId } = normalizeTrendScope(query);
+  const trendState = await fetchPublicTrendCache(adminClient, {
+    metric,
+    granularity,
+    days,
+    poolType,
+    poolId,
+  });
+
+  if (trendState.available === false) {
+    return {
+      metric,
+      granularity,
+      days,
+      poolType,
+      poolId,
+      points: [],
+      source: 'trend_cache_unavailable',
+      analyticsMeta: buildTrendAnalyticsMeta({
+        source: 'trend_cache_unavailable',
+        partial: true,
+        metric,
+        granularity,
+        days,
+        poolType,
+        poolId,
+        warning: trendState.warning,
+      }),
+    };
+  }
+
+  const points = trendState.rows
+    .map(normalizeTrendPoint)
+    .filter((point) => point.period)
+    .sort((left, right) => parseDateMs(left.period) - parseDateMs(right.period));
+  const version = pickLatestTrendVersion(trendState.rows);
+  const source = points.length > 0 ? 'preaggregated_trend_cache' : 'trend_cache_miss';
 
   return {
     metric,
     granularity,
     days,
-    points: [],
-    source: 'trend_cache_not_available',
-    note: 'Trend buckets require a dedicated precomputed aggregate and are intentionally not computed from raw history during API requests.',
+    poolType,
+    poolId,
+    points,
+    source,
+    analyticsMeta: buildTrendAnalyticsMeta({
+      source,
+      partial: points.length === 0,
+      metric,
+      granularity,
+      days,
+      poolType,
+      poolId,
+      updatedAt: version.updatedAt,
+      sourceVersion: version.sourceVersion,
+      warning: points.length === 0 ? 'public_pool_trend_cache_miss' : null,
+    }),
   };
 }
 

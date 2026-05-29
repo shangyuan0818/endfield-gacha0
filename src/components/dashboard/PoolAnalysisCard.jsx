@@ -157,6 +157,35 @@ const StatCard = ({ label, value, subValue, footer, progress, progressColor, ext
   </div>
 );
 
+function FeaturedRosterSummary({ names = [], fallback = null }) {
+  const visibleNames = Array.isArray(names) ? names.filter(Boolean) : [];
+  if (visibleNames.length === 0 && fallback) {
+    return <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{fallback}</div>;
+  }
+
+  if (visibleNames.length <= 1) {
+    return <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{visibleNames[0] || '-'}</div>;
+  }
+
+  return (
+    <div className="flex max-w-[280px] flex-wrap justify-end gap-1">
+      {visibleNames.slice(0, 4).map((name) => (
+        <span
+          key={name}
+          className="rounded-full border border-cyan-300/60 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-bold text-cyan-700 dark:border-cyan-500/30 dark:text-cyan-300"
+        >
+          {name}
+        </span>
+      ))}
+      {visibleNames.length > 4 && (
+        <span className="rounded-full border border-zinc-200 bg-zinc-100 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+          +{visibleNames.length - 4}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
  * 武器池赠送进度组件
  */
@@ -224,9 +253,7 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
     locale,
     type: isWeapon ? 'weapon' : 'character'
   });
-  const localizedUpCharacter = isExtra && localizedFeaturedCharacters.length > 0
-    ? localizedFeaturedCharacters.join(' / ')
-    : localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
+  const localizedUpCharacter = localizePoolFeaturedName(currentPool, { locale }) || localizeEntityName(currentPool?.up_character || currentPool?.upCharacter || '', {
       locale,
       type: isWeapon ? 'weapon' : 'character'
     });
@@ -279,11 +306,15 @@ const PoolAnalysisCard = ({ currentPool, stats, effectivePity, checkLimitedInFir
            </h3>
            {/* UP角色显示 */}
            {!isStandard && localizedUpCharacter && (
-             <div className="text-right">
+             <div className="min-w-0 text-right">
                 <div className="text-[11px] text-slate-500 dark:text-zinc-400 uppercase font-medium">
                   {isExtra ? t('simulator.analysis.featuredRoster') : isWeapon ? t('dashboard.pool.upWeapon') : t('dashboard.pool.upCharacter')}
                 </div>
-                <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{localizedUpCharacter}</div>
+                {isExtra ? (
+                  <FeaturedRosterSummary names={localizedFeaturedCharacters} fallback={localizedUpCharacter} />
+                ) : (
+                  <div className="text-sm font-bold text-slate-800 dark:text-zinc-200">{localizedUpCharacter}</div>
+                )}
              </div>
            )}
         </div>

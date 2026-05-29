@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
+import {
+  buildPublicCacheKey,
+  PUBLIC_CACHE_CONTROL,
+  readRequestCacheVersion,
+  resolvePublicCacheVersion,
+  sendPublicJson,
+} from '../../_lib/publicCache.js';
 import { serverLogger } from '../../_lib/serverLogger.js';
 import {
   resolveSupabaseServerKey,
@@ -19,7 +26,8 @@ const cache = {
   characterRanking: null,
   characterRankingLastFetch: 0,
   characterCatalog: null,
-  characterCatalogLastFetch: 0
+  characterCatalogLastFetch: 0,
+  metaByType: {}
 };
 
 const CACHE_TTL = 60 * 1000; // 60秒缓存
@@ -182,7 +190,7 @@ async function fetchPoolCatalog(supabase) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', PUBLIC_CACHE_CONTROL);
 
   if (rejectDisallowedBrowserOrigin(req, res, { methods: 'GET, OPTIONS' })) {
     return;
@@ -198,35 +206,44 @@ export default async function handler(req, res) {
 
   const { type } = req.query;
   const now = Date.now();
+  const supabase = getSupabaseClient();
+  const cacheVersion = await resolvePublicCacheVersion(supabase, {
+    requestVersion: readRequestCacheVersion(req)
+  });
+  const cacheKey = getStatsPublicCacheKey(type, cacheVersion);
+  const context = { cacheKey, cacheVersion };
 
   try {
-    const supabase = getSupabaseClient();
-    
     if (!supabase) {
       // 返回缓存数据或默认值
-      return res.status(200).json({
-        success: true,
+      return sendPublicJson(res, {
         cached: true,
         data: getCachedData(type),
+        source: getAnyCachedLastFetch(type) > 0 ? 'memory-cache' : 'default',
+        stale: getAnyCachedLastFetch(type) > 0,
+        partial: true,
+        cacheKey,
+        cacheVersion,
+        lastFetch: getAnyCachedLastFetch(type),
         message: 'Database not configured, returning cached/default data'
       });
     }
 
     switch (type) {
       case 'pools':
-        return await handlePools(supabase, res, now);
+        return await handlePools(supabase, res, now, context);
       case 'pool_catalog':
-        return await handlePoolCatalog(supabase, res, now);
+        return await handlePoolCatalog(supabase, res, now, context);
       case 'characters':
-        return await handleCharacters(supabase, res, now);
+        return await handleCharacters(supabase, res, now, context);
       case 'global_summary':
-        return await handleGlobalSummary(supabase, res, now);
+        return await handleGlobalSummary(supabase, res, now, context);
       case 'character_ranking':
-        return await handleCharacterRanking(supabase, res, now);
+        return await handleCharacterRanking(supabase, res, now, context);
       case 'character_catalog':
-        return await handleCharacterCatalog(supabase, res, now);
+        return await handleCharacterCatalog(supabase, res, now, context);
       case 'all':
-        return await handleAll(supabase, res, now);
+        return await handleAll(supabase, res, now, context);
       default:
         return res.status(400).json({ success: false, error: 'Invalid type parameter' });
     }
@@ -236,12 +253,90 @@ export default async function handler(req, res) {
       type,
     });
     // 返回缓存数据
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: true,
       data: getCachedData(type),
+      source: getAnyCachedLastFetch(type) > 0 ? 'memory-cache' : 'default',
+      stale: getAnyCachedLastFetch(type) > 0,
+      partial: true,
+      cacheKey,
+      cacheVersion,
+      lastFetch: getAnyCachedLastFetch(type),
       error: error.message
     });
+  }
+}
+
+function getStatsPublicCacheKey(type, cacheVersion) {
+  return buildPublicCacheKey(['stats', type || 'unknown', `v${cacheVersion}`]);
+}
+
+function getTypeMeta(type) {
+  return cache.metaByType?.[type] || null;
+}
+
+function setTypeMeta(type, meta) {
+  cache.metaByType[type] = {
+    ...(cache.metaByType[type] || {}),
+    ...meta,
+  };
+}
+
+function isFreshTypeCache(type, lastFetch, now, cacheKey) {
+  const meta = getTypeMeta(type);
+  return lastFetch > 0
+    && now - lastFetch < CACHE_TTL
+    && (!meta?.cacheKey || meta.cacheKey === cacheKey);
+}
+
+function sendStatsJson(res, _type, {
+  data,
+  cached = false,
+  partial = false,
+  stale = false,
+  source = null,
+  context,
+  lastFetch = 0,
+  error = null,
+} = {}) {
+  return sendPublicJson(res, {
+    data,
+    cached,
+    partial,
+    stale,
+    source,
+    cacheKey: context?.cacheKey,
+    cacheVersion: context?.cacheVersion,
+    lastFetch,
+    error,
+  });
+}
+
+function getAnyCachedLastFetch(type) {
+  switch (type) {
+    case 'pools':
+      return cache.poolsLastFetch || 0;
+    case 'characters':
+      return cache.charactersLastFetch || 0;
+    case 'pool_catalog':
+      return cache.poolCatalogLastFetch || 0;
+    case 'global_summary':
+      return cache.globalSummaryLastFetch || 0;
+    case 'character_ranking':
+      return cache.characterRankingLastFetch || 0;
+    case 'character_catalog':
+      return cache.characterCatalogLastFetch || 0;
+    case 'all':
+      return Math.max(
+        cache.poolsLastFetch || 0,
+        cache.poolCatalogLastFetch || 0,
+        cache.charactersLastFetch || 0,
+        cache.globalSummaryLastFetch || 0,
+        cache.characterRankingLastFetch || 0,
+        cache.characterCatalogLastFetch || 0
+      );
+    default:
+      return 0;
   }
 }
 
@@ -275,13 +370,15 @@ function getCachedData(type) {
 }
 
 // 处理卡池列表
-async function handlePools(supabase, res, now) {
+async function handlePools(supabase, res, now, context) {
   // 检查缓存
-  if (cache.pools !== null && now - cache.poolsLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+  if (cache.pools !== null && isFreshTypeCache('pools', cache.poolsLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'pools', {
       cached: true,
-      data: { pools: cache.pools }
+      data: { pools: cache.pools },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.poolsLastFetch
     });
   }
 
@@ -289,21 +386,26 @@ async function handlePools(supabase, res, now) {
 
   cache.pools = data || [];
   cache.poolsLastFetch = now;
+  setTypeMeta('pools', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'pools', {
     cached: false,
-    data: { pools: data || [] }
+    data: { pools: data || [] },
+    source: 'origin',
+    context,
+    lastFetch: cache.poolsLastFetch
   });
 }
 
 // 处理角色列表
-async function handlePoolCatalog(supabase, res, now) {
-  if (cache.poolCatalog !== null && now - cache.poolCatalogLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+async function handlePoolCatalog(supabase, res, now, context) {
+  if (cache.poolCatalog !== null && isFreshTypeCache('pool_catalog', cache.poolCatalogLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'pool_catalog', {
       cached: true,
-      data: { pools: cache.poolCatalog }
+      data: { pools: cache.poolCatalog },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.poolCatalogLastFetch
     });
   }
 
@@ -311,22 +413,27 @@ async function handlePoolCatalog(supabase, res, now) {
 
   cache.poolCatalog = data || [];
   cache.poolCatalogLastFetch = now;
+  setTypeMeta('pool_catalog', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'pool_catalog', {
     cached: false,
-    data: { pools: data || [] }
+    data: { pools: data || [] },
+    source: 'origin',
+    context,
+    lastFetch: cache.poolCatalogLastFetch
   });
 }
 
 // 处理角色列表
-async function handleCharacters(supabase, res, now) {
+async function handleCharacters(supabase, res, now, context) {
   // 检查缓存
-  if (cache.characters !== null && now - cache.charactersLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+  if (cache.characters !== null && isFreshTypeCache('characters', cache.charactersLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'characters', {
       cached: true,
-      data: { characters: cache.characters }
+      data: { characters: cache.characters },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.charactersLastFetch
     });
   }
 
@@ -341,20 +448,25 @@ async function handleCharacters(supabase, res, now) {
 
   cache.characters = data || [];
   cache.charactersLastFetch = now;
+  setTypeMeta('characters', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'characters', {
     cached: false,
-    data: { characters: data || [] }
+    data: { characters: data || [] },
+    source: 'origin',
+    context,
+    lastFetch: cache.charactersLastFetch
   });
 }
 
-async function handleGlobalSummary(supabase, res, now) {
-  if (cache.globalSummary !== null && now - cache.globalSummaryLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+async function handleGlobalSummary(supabase, res, now, context) {
+  if (cache.globalSummary !== null && isFreshTypeCache('global_summary', cache.globalSummaryLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'global_summary', {
       cached: true,
-      data: { globalSummary: cache.globalSummary }
+      data: { globalSummary: cache.globalSummary },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.globalSummaryLastFetch
     });
   }
 
@@ -365,20 +477,25 @@ async function handleGlobalSummary(supabase, res, now) {
 
   cache.globalSummary = data ?? null;
   cache.globalSummaryLastFetch = now;
+  setTypeMeta('global_summary', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'global_summary', {
     cached: false,
-    data: { globalSummary: data ?? null }
+    data: { globalSummary: data ?? null },
+    source: 'origin',
+    context,
+    lastFetch: cache.globalSummaryLastFetch
   });
 }
 
-async function handleCharacterRanking(supabase, res, now) {
-  if (cache.characterRanking !== null && now - cache.characterRankingLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+async function handleCharacterRanking(supabase, res, now, context) {
+  if (cache.characterRanking !== null && isFreshTypeCache('character_ranking', cache.characterRankingLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'character_ranking', {
       cached: true,
-      data: { characterRanking: cache.characterRanking }
+      data: { characterRanking: cache.characterRanking },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.characterRankingLastFetch
     });
   }
 
@@ -389,20 +506,25 @@ async function handleCharacterRanking(supabase, res, now) {
 
   cache.characterRanking = data ?? null;
   cache.characterRankingLastFetch = now;
+  setTypeMeta('character_ranking', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'character_ranking', {
     cached: false,
-    data: { characterRanking: data ?? null }
+    data: { characterRanking: data ?? null },
+    source: 'origin',
+    context,
+    lastFetch: cache.characterRankingLastFetch
   });
 }
 
-async function handleCharacterCatalog(supabase, res, now) {
-  if (cache.characterCatalog !== null && now - cache.characterCatalogLastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+async function handleCharacterCatalog(supabase, res, now, context) {
+  if (cache.characterCatalog !== null && isFreshTypeCache('character_catalog', cache.characterCatalogLastFetch, now, context.cacheKey)) {
+    return sendStatsJson(res, 'character_catalog', {
       cached: true,
-      data: { characterCatalog: sanitizeCharacterCatalog(cache.characterCatalog) }
+      data: { characterCatalog: sanitizeCharacterCatalog(cache.characterCatalog) },
+      source: 'memory-cache',
+      context,
+      lastFetch: cache.characterCatalogLastFetch
     });
   }
 
@@ -413,16 +535,19 @@ async function handleCharacterCatalog(supabase, res, now) {
 
   cache.characterCatalog = sanitizeCharacterCatalog(data);
   cache.characterCatalogLastFetch = now;
+  setTypeMeta('character_catalog', context);
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'character_catalog', {
     cached: false,
-    data: { characterCatalog: cache.characterCatalog }
+    data: { characterCatalog: cache.characterCatalog },
+    source: 'origin',
+    context,
+    lastFetch: cache.characterCatalogLastFetch
   });
 }
 
 // 处理所有数据（一次性获取）
-async function handleAll(supabase, res, now) {
+async function handleAll(supabase, res, now, context) {
   const result = {
     pools: [],
     poolCatalog: [],
@@ -457,6 +582,7 @@ async function handleAll(supabase, res, now) {
     result.pools = dedupeVisiblePoolRecords(poolsResult.value || []).map(formatVisiblePoolRecord);
     cache.pools = result.pools;
     cache.poolsLastFetch = now;
+    setTypeMeta('pools', getAllChildContext(context, 'pools'));
   } else if (cache.pools !== null) {
     result.pools = cache.pools;
   }
@@ -465,6 +591,7 @@ async function handleAll(supabase, res, now) {
     result.poolCatalog = poolCatalogResult.value || [];
     cache.poolCatalog = result.poolCatalog;
     cache.poolCatalogLastFetch = now;
+    setTypeMeta('pool_catalog', getAllChildContext(context, 'pool_catalog'));
   } else if (cache.poolCatalog !== null) {
     result.poolCatalog = cache.poolCatalog;
   }
@@ -474,6 +601,7 @@ async function handleAll(supabase, res, now) {
     result.characters = charactersResult.value.data || [];
     cache.characters = result.characters;
     cache.charactersLastFetch = now;
+    setTypeMeta('characters', getAllChildContext(context, 'characters'));
   } else if (cache.characters !== null) {
     result.characters = cache.characters;
   }
@@ -482,6 +610,7 @@ async function handleAll(supabase, res, now) {
     result.globalSummary = globalSummaryResult.value.data ?? null;
     cache.globalSummary = result.globalSummary;
     cache.globalSummaryLastFetch = now;
+    setTypeMeta('global_summary', getAllChildContext(context, 'global_summary'));
   } else if (cache.globalSummary !== null) {
     result.globalSummary = cache.globalSummary;
   }
@@ -490,6 +619,7 @@ async function handleAll(supabase, res, now) {
     result.characterRanking = characterRankingResult.value.data ?? null;
     cache.characterRanking = result.characterRanking;
     cache.characterRankingLastFetch = now;
+    setTypeMeta('character_ranking', getAllChildContext(context, 'character_ranking'));
   } else if (cache.characterRanking !== null) {
     result.characterRanking = cache.characterRanking;
   }
@@ -498,14 +628,32 @@ async function handleAll(supabase, res, now) {
     result.characterCatalog = sanitizeCharacterCatalog(characterCatalogResult.value.data);
     cache.characterCatalog = result.characterCatalog;
     cache.characterCatalogLastFetch = now;
+    setTypeMeta('character_catalog', getAllChildContext(context, 'character_catalog'));
   } else if (cache.characterCatalog !== null) {
     result.characterCatalog = sanitizeCharacterCatalog(cache.characterCatalog);
   }
 
-  return res.status(200).json({
-    success: true,
+  return sendStatsJson(res, 'all', {
     cached: false,
-    data: result
+    partial: [
+      poolsResult,
+      poolCatalogResult,
+      charactersResult,
+      globalSummaryResult,
+      characterRankingResult,
+      characterCatalogResult
+    ].some((resultItem) => resultItem.status === 'rejected' || resultItem.value?.error),
+    data: result,
+    source: 'origin',
+    context,
+    lastFetch: getAnyCachedLastFetch('all')
   });
+}
+
+function getAllChildContext(context, type) {
+  return {
+    ...context,
+    cacheKey: getStatsPublicCacheKey(type, context.cacheVersion),
+  };
 }
 

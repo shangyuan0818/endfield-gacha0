@@ -137,6 +137,13 @@ describe('/api/stats character_catalog privacy', () => {
           ],
         },
       },
+      meta: {
+        source: 'origin',
+        partial: false,
+        stale: false,
+        cacheKey: 'stats:character_catalog:v0',
+        cacheVersion: '0',
+      },
     });
     expect(mocks.rpc).toHaveBeenCalledWith('get_character_catalog_stats_cached');
     expectNoPrivateIdentifiers(res.body);

@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
 import {
+  buildPublicCacheKey,
+  PUBLIC_CACHE_CONTROL,
+  readRequestCacheVersion,
+  resolvePublicCacheVersion,
+  sendPublicJson,
+} from '../../_lib/publicCache.js';
+import {
   resolveSupabaseServerKey,
   resolveSupabaseUrl,
 } from '../../_lib/supabaseEnv.js';
@@ -10,7 +17,9 @@ const CACHE_TTL = 60 * 1000;
 const cache = {
   payload: null,
   partial: false,
-  lastFetch: 0
+  lastFetch: 0,
+  cacheKey: null,
+  cacheVersion: null
 };
 
 function getSupabaseClient() {
@@ -131,7 +140,7 @@ async function fetchVisiblePools(supabase) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  res.setHeader('Cache-Control', PUBLIC_CACHE_CONTROL);
 
   if (rejectDisallowedBrowserOrigin(req, res, {
     methods: 'GET, OPTIONS'
@@ -152,23 +161,38 @@ export default async function handler(req, res) {
 
   const now = Date.now();
   const cachedPayload = cache.payload || createEmptyBootstrapPayload();
+  const supabase = getSupabaseClient();
+  const cacheVersion = await resolvePublicCacheVersion(supabase, {
+    requestVersion: readRequestCacheVersion(req)
+  });
+  const cacheKey = buildPublicCacheKey(['bootstrap', `v${cacheVersion}`]);
 
-  if (cache.payload && now - cache.lastFetch < CACHE_TTL) {
-    return res.status(200).json({
-      success: true,
+  if (
+    cache.payload
+    && (cache.cacheKey === cacheKey || !cache.cacheKey)
+    && now - cache.lastFetch < CACHE_TTL
+  ) {
+    return sendPublicJson(res, {
+      data: cache.payload,
       cached: true,
       partial: Boolean(cache.partial),
-      data: cache.payload
+      source: 'memory-cache',
+      cacheKey,
+      cacheVersion,
+      lastFetch: cache.lastFetch
     });
   }
 
-  const supabase = getSupabaseClient();
   if (!supabase) {
-    return res.status(200).json({
-      success: true,
+    return sendPublicJson(res, {
       cached: true,
       partial: Boolean(cache.partial),
       data: cachedPayload,
+      source: cache.payload ? 'memory-cache' : 'default',
+      stale: Boolean(cache.payload),
+      cacheKey,
+      cacheVersion,
+      lastFetch: cache.lastFetch,
       message: 'Database not configured, returning cached/default data'
     });
   }
@@ -188,12 +212,17 @@ export default async function handler(req, res) {
   const partial = criticalResults.some((result) => result.status === 'rejected');
   cache.partial = partial;
   cache.lastFetch = now;
+  cache.cacheKey = cacheKey;
+  cache.cacheVersion = cacheVersion;
 
-  return res.status(200).json({
-    success: true,
+  return sendPublicJson(res, {
     cached: false,
     partial,
-    data: nextPayload
+    data: nextPayload,
+    source: partial ? 'origin-partial' : 'origin',
+    cacheKey,
+    cacheVersion,
+    lastFetch: cache.lastFetch
   });
 }
 

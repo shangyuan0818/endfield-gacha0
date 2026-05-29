@@ -1,10 +1,8 @@
-import { fetchWithTimeout } from './supabaseRequest.js';
+import { fetchPublicApiJson } from './publicResourceClient.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
 
 const BOOTSTRAP_API_TIMEOUT_MS = 25000;
 const BOOTSTRAP_MEMORY_TTL = 5 * 60 * 1000;
-const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
-
 const bootstrapState = {
   data: null,
   fetchedAt: 0,
@@ -69,28 +67,14 @@ function isFreshBootstrapCache(forceRefresh = false) {
 }
 
 async function fetchBootstrapFromApi(forceRefresh = false) {
-  if (IS_LOCAL_DEV) {
-    return null;
-  }
-
-  const query = forceRefresh ? `?ts=${Date.now()}` : '';
-  const response = await fetchWithTimeout(`/api/bootstrap${query}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }, {
+  const result = await fetchPublicApiJson('/api/bootstrap', {
     label: 'public bootstrap api',
     timeoutMs: BOOTSTRAP_API_TIMEOUT_MS,
-    retries: 1
+    retries: 1,
+    forceRefresh
   });
 
-  if (!response.ok) {
-    throw new Error(`bootstrap api failed with ${response.status}`);
-  }
-
-  const result = await response.json();
-  if (!result?.success || !result?.data) {
+  if (!result?.data) {
     throw new Error(result?.error || 'bootstrap api returned failure');
   }
 

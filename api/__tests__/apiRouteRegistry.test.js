@@ -18,6 +18,27 @@ const OFFICIAL_BOT_PATHS = [
   '/api/dev/v1/bot/share-card',
 ];
 
+const INTERNAL_OPERATION_PATHS = [
+  '/api/admin-mail-alert',
+  '/api/admin-mail-budget-config',
+  '/api/admin-mail-outbox-drain',
+  '/api/admin-mail-smoke-test',
+  '/api/admin-site-health',
+  '/api/mail-delivery-feedback',
+  '/api/mail-inbound',
+  '/api/mail-outbox-worker',
+];
+
+const AUTH_OPERATION_PATHS = [
+  '/api/auth-email-action',
+];
+
+const USER_OPERATION_PATHS = [
+  '/api/account-email-action',
+  '/api/account-email-verify',
+  '/api/tickets/reply',
+];
+
 describe('API route registry', () => {
   it('registers every public v1 OpenAPI path in the single-function router map', () => {
     const openApiPaths = Object.keys(buildDevApiOpenApiSpec().paths);
@@ -34,6 +55,33 @@ describe('API route registry', () => {
     const routeEntries = new Map(getApiRouteEntries());
 
     OFFICIAL_BOT_PATHS.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+
+  it('registers internal operation endpoints used by workers and providers', () => {
+    const routeEntries = new Map(getApiRouteEntries());
+
+    INTERNAL_OPERATION_PATHS.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+
+  it('registers same-origin auth operation endpoints', () => {
+    const routeEntries = new Map(getApiRouteEntries());
+
+    AUTH_OPERATION_PATHS.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+
+  it('registers authenticated user operation endpoints', () => {
+    const routeEntries = new Map(getApiRouteEntries());
+
+    USER_OPERATION_PATHS.forEach((path) => {
       expect(routeEntries.has(path)).toBe(true);
       expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
     });
