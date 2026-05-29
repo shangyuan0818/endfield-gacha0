@@ -210,11 +210,11 @@ Query:
 - `limit`
 - `cursor`
 
-Returns public per-pool analytics. To avoid scanning the full raw history table during public API requests, v1 only runs bounded count queries for the returned page. `targetSixStar`, `offrateSixStar`, average pity, and per-pool distribution buckets are not computed at request time yet.
+Returns public per-pool analytics. The endpoint reads `public_pool_analytics_cache` first. On a cache hit, it returns `targetSixStar`, `offrateSixStar`, `averagePity`, `distribution`, `firstPullAt`, `lastPullAt`, and `stats.analyticsMeta.source = "preaggregated_pool_cache"`. If the cache table is not deployed yet or a pool has no cache row, the endpoint falls back only to bounded count queries for the returned pools and marks the response with `stats.analyticsMeta.partial = true`, `missingFields`, and `warning`. It does not scan the full raw `history` table during request handling.
 
 ### `GET /api/dev/v1/stats/pool?id=POOL_ID`
 
-Returns single-pool public analytics with total pulls and rarity totals. `targetSixStar`, `offrateSixStar`, average pity, and per-pool distribution buckets require a future dedicated pre-aggregate and are not computed by scanning raw history during API requests.
+Returns single-pool public analytics. It uses the same source rules as the list endpoint: cache hits from `public_pool_analytics_cache` include target/off-rate, average pity, and distribution buckets; cache misses return bounded counts plus `stats.analyticsMeta.partial = true`, so callers should treat those fields as an incomplete snapshot.
 
 ### `GET /api/dev/v1/stats/items`
 
@@ -244,8 +244,10 @@ Query:
 - `metric`: `pulls | six_star | five_star`
 - `granularity`: `day | week`
 - `days`: `7 | 30 | 90`
+- `poolType`: `all | limited | extra | standard | weapon`
+- `poolId`: optional public pool id. When present, it takes precedence over `poolType`.
 
-Returns anonymous trend points. The endpoint keeps a stable response shape, but it does not generate trends from raw history at request time. Without a dedicated precomputed trend cache, `points` is an empty array with a `source` note.
+Returns anonymous trend points from `public_pool_trend_cache`. Cache hits return sorted `points` with `source = "preaggregated_trend_cache"` and `analyticsMeta.cacheKey / cacheVersion`. Cache misses or an unavailable cache table return an empty `points` array with `analyticsMeta.partial = true` and a warning such as `public_pool_trend_cache_miss`; the endpoint never scans raw `history` during request handling.
 
 ### `GET /api/dev/v1/stats/distributions`
 

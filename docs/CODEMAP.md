@@ -1,314 +1,87 @@
-# Frontend Code Map
+# Code Map
 
-这份文档只记录当前在线主链，不覆盖已退役或兼容残链。
+这份文件只保留“从哪里开始读代码”的索引。系统边界、数据流、缓存和数据库分层详见 [ARCHITECTURE.md](ARCHITECTURE.md)；部署、环境变量和维护命令详见 [PROJECT_GUIDE.md](PROJECT_GUIDE.md)。
 
-## 1. 入口与路由
+## 前端入口
 
-### 应用入口
+| 范围 | 文件 |
+|------|------|
+| React 挂载、Provider、观测 | `src/main.jsx` |
+| 桌面 / 移动 / 法律页路由 | `src/AppRouter.jsx` |
+| 桌面壳层 | `src/App.jsx`、`src/GachaAnalyzer.jsx` |
+| 桌面页面映射 | `src/components/app/DesktopAppRoutes.jsx` |
+| 移动壳层 | `src/mobile/MobileApp.jsx`、`src/mobile/layouts/MobileLayout.jsx` |
+| 路由常量 | `src/constants/appRoutes.js` |
 
-- `src/main.jsx`
-  - React 挂载点
-  - 顶层 provider、主题、路由初始化
-- `src/AppRouter.jsx`
-  - 桌面端 `/`
-  - 移动端 `/m/*`
-  - 法律页 `/privacy`、`/terms`
-  - 密码重置页 `/reset-password`
-  - 设备重定向 guard
+## 页面主入口
 
-### 桌面端路由
+| 页面 | 桌面端 | 移动端 |
+|------|--------|--------|
+| 首页 | `src/components/home/HomePage.jsx` | `src/mobile/views/MobileHomePageView.jsx` |
+| 全服统计 | `src/components/SummaryView.jsx` | `src/mobile/views/MobileSummaryView.jsx` |
+| 卡池详情 | `src/components/app/DesktopDashboardWorkspace.jsx` | `src/mobile/views/MobileDashboardView.jsx` |
+| 模拟器 | `src/features/simulator/GachaSimulator.jsx` | `src/mobile/views/MobileSimulatorView.jsx` |
+| 设置 | `src/components/SettingsPanel.jsx` | `src/mobile/views/MobileSettingsView.jsx` |
+| 工单 | `src/components/TicketPanel.jsx` | `src/mobile/views/MobileTicketView.jsx` |
+| 后台 | `src/components/AdminPanel.jsx` | `src/mobile/views/MobileAdminView.jsx` |
 
-- `src/App.jsx`
-  - 桌面端壳层
-- `src/GachaAnalyzer.jsx`
-  - 桌面端总装配入口
-  - 负责：
-    - 顶栏
-    - 全局 toast / confirm
-    - 云同步主链
-    - 初始化与 realtime
-    - 当前卡池上下文
-- `src/components/app/DesktopAppRoutes.jsx`
-  - `home -> HomePage`
-  - `summary -> SummaryView`
-  - `dashboard -> DesktopDashboardWorkspace`
-  - `simulator -> GachaSimulator`
-  - `settings -> SettingsPanel`
-  - `about -> AboutPanel`
-  - `tickets -> TicketPanel`
-  - `admin -> AdminPanel`
+## 状态与数据
 
-### 移动端路由
+| 范围 | 文件 |
+|------|------|
+| auth / pool / history / app 状态 | `src/stores/*` |
+| 启动初始化 | `src/hooks/app/useAppInitialization.js` |
+| 当前卡池上下文 | `src/hooks/app/useCurrentPoolData.js` |
+| 云同步 | `src/hooks/app/useCloudSync.js` |
+| 公共资源客户端 | `src/services/publicResourceClient.js` |
+| bootstrap / 卡池公开读取 | `src/services/bootstrapService.js`、`src/services/poolReadService.js` |
+| 全服统计归一化 | `src/services/statsService.js` |
+| 云写入 | `src/services/cloudWriteService.js` |
+| 文件导入草稿恢复 | `src/hooks/app/useDataExportImport.js`、`src/utils/importPendingDraft.js` |
+| Toast / 持久通知模型 | `src/hooks/useToast.js`、`src/components/ui/Toast.jsx`、`src/utils/notificationModel.js` |
 
-- `src/mobile/MobileApp.jsx`
-  - 移动端壳层
-- `src/mobile/layouts/MobileLayout.jsx`
-  - `home -> MobileHomePageView`
-  - `summary -> MobileSummaryView`
-  - `dashboard -> MobileDashboardView`
-  - `simulator -> MobileSimulatorView`
-  - `settings -> MobileSettingsView`
-  - `about -> MobileAboutView`
-  - `tickets -> MobileTicketView`
-  - `admin -> MobileAdminView`
+## Vercel API
 
-### 共享路由映射
+| 范围 | 文件 |
+|------|------|
+| 单一 API 入口 | `api/router.js` |
+| 路由表 | `api/_routes/index.js` |
+| 公共缓存 helper | `api/_lib/publicCache.js` |
+| 邮件防刷 / 入队 / worker / webhook / 模板 / 运行期开关 | `api/_lib/mailAbuseGuards.js`、`api/_lib/mailOutbox.js`、`api/_lib/mailOutboxWorker.js`、`api/_lib/mailProviderAdapter.js`、`api/_lib/mailTemplateRenderer.js`、`api/_lib/mailDeliveryFeedback.js`、`api/_lib/mailInboundEvents.js`、`api/_lib/mailSmokeTest.js`、`api/_lib/mailRuntimeConfig.js` |
+| 认证 CAPTCHA / 风险桶 / 脱敏审计 | `api/_lib/authSecurityGuards.js` |
+| 认证邮件 / 账号恢复状态 | `api/_routes/root/auth-email-action.js`、`api/_routes/root/account-recovery-request.js`、`api/_routes/root/account-security-state.js` |
+| bootstrap / stats / announcements / pool-rosters | `api/_routes/root/*.js` |
+| 后台管理 | `api/_routes/root/admin.js` |
+| 运营自动化 | `api/_routes/root/ops-automation.js`、`api/_lib/runOpsAutomation.js` |
+| BOT / 开发者接口 | `api/_routes/dev/**/*`、`api/_routes/integrations/**/*` |
 
-- `src/constants/appRoutes.js`
-  - 桌面端 / 移动端 tab <-> path 真源
-  - `PlatformSwitcher` 依赖它做跨端同页跳转
+## 维护脚本
 
-## 2. 全局状态层
+| 范围 | 文件 |
+|------|------|
+| 邮件防刷 / 入队验证 | `scripts/verify-mail-abuse-guards.mjs`、`scripts/verify-mail-outbox-enqueue.mjs` |
+| 邮件 worker / webhook 验证 / 手动入口 | `scripts/verify-mail-outbox-worker.mjs`、`scripts/verify-mail-delivery-feedback.mjs`、`scripts/verify-mail-inbound.mjs`、`scripts/verify-mail-service-entrypoints.mjs`、`scripts/run-mail-outbox-worker.mjs` |
+| 公共 API / cache 验证 | `scripts/verify-public-api-boundary.mjs`、`scripts/verify-bootstrap-cache-partial.mjs`、`scripts/verify-public-pool-analytics-cache.mjs` |
+| baseline / 数据库验证 | `scripts/verify-supabase-baseline.mjs`、`scripts/verify-supabase-baseline-smoke.mjs` |
 
-### Zustand stores
+## Supabase 与资源
 
-- `src/stores/useAuthStore.js`
-  - 当前用户
-  - 当前角色
-  - 同步状态 / 最近同步时间
-  - 登录弹窗开关
-- `src/stores/usePoolStore.js`
-  - 卡池目录
-  - 当前卡池
-  - 当前游戏账号
-  - 池组聚合模式
-- `src/stores/useHistoryStore.js`
-  - 抽卡记录
-  - 历史筛选
-  - 分页
-- `src/stores/useAppStore.js`
-  - 全服统计
-  - 公告
-  - 站点全局状态
+| 范围 | 路径 |
+|------|------|
+| 新环境 schema 入口 | `supabase/baseline/000_complete_schema.sql` |
+| 已合并进 baseline 的迁移 | `supabase/archive/migrations/` |
+| 未来新增迁移 | `supabase/migrations/` |
+| 手工危险 / 回填 / 回滚脚本 | `supabase/manual/` |
+| 邮件 outbox / suppression / 预算表 | `supabase/migrations/116_add_mail_outbox_and_abuse_controls.sql` |
+| 账号恢复强制改密状态 | `supabase/migrations/117_add_account_recovery_state_metadata.sql` |
+| 认证安全审计事件 | `supabase/migrations/119_add_auth_security_events.sql` |
+| 邮件 outbox 原子入队 RPC | `supabase/migrations/120_add_mail_outbox_enqueue_rpc.sql` |
+| 邮件登录事件与运行期开关 | `supabase/migrations/123_add_email_login_mail_event_type.sql`、`supabase/migrations/124_seed_mail_runtime_config.sql` |
+| 静态头像 | `public/avatars/` |
+| 版本日历静态图 | `public/game-calendar/` |
 
-### 当前在线主链的 store -> hook 组合
+## 仍需治理的复杂点
 
-- 卡池上下文：
-  - `src/hooks/app/useCurrentPoolData.js`
-- 云同步：
-  - `src/hooks/app/useCloudSync.js`
-- 启动初始化：
-  - `src/hooks/app/useAppInitialization.js`
-- 用户角色：
-  - `src/hooks/app/useUserRole.js`
-- 通知 / 公告 / 未读工单：
-  - `src/hooks/app/useNotificationBadges.js`
-
-## 3. 页面主路径
-
-### 首页
-
-- 桌面端：
-  - `src/components/home/HomePage.jsx`
-- 移动端：
-  - `src/mobile/views/MobileHomePageView.jsx`
-- 关键子卡片：
-  - `src/components/home/RotationScheduleCard.jsx`
-  - `src/components/home/CountdownCard.jsx`
-  - `src/components/home/MechanicsOverviewCard.jsx`
-  - `src/components/home/RoadmapCard.jsx`
-
-首页依赖的数据主链：
-
-- 公共卡池：
-  - `src/services/bootstrapService.js`
-  - `src/services/poolReadService.js`
-- 动态轮换与倒计时：
-  - `src/utils/poolTimeUtils.js`
-
-### 统计页
-
-- 桌面端：
-  - `src/components/SummaryView.jsx`
-- 移动端：
-  - `src/mobile/views/MobileSummaryView.jsx`
-- 视图主状态：
-  - `src/hooks/summary/useSummaryViewState.js`
-- 全服统计归一化：
-  - `src/services/statsService.js`
-- 资源卡：
-  - `src/components/resources/ResourceSummaryPanel.jsx`
-
-### 卡池详情页
-
-- 桌面端：
-  - `src/components/dashboard/DashboardView.jsx`
-  - `src/components/app/DesktopDashboardWorkspace.jsx`
-- 移动端：
-  - `src/mobile/views/MobileDashboardView.jsx`
-- 关键组件：
-  - `src/components/dashboard/PoolAnalysisCard.jsx`
-  - `src/components/dashboard/PoolTimelinePanel.jsx`
-  - `src/components/dashboard/AveragePullStatsPanel.jsx`
-- 关键数据构建：
-  - `src/utils/poolTimelineView.js`
-  - `src/utils/dashboardTimelineSections.js`
-  - `src/hooks/app/usePoolStats.js`
-  - `src/hooks/app/useCurrentPoolGroupedHistory.js`
-
-### 模拟器
-
-- 入口：
-  - `src/features/simulator/GachaSimulator.jsx`
-- 控制器：
-  - `src/features/simulator/useGachaSimulatorController.js`
-- 本地持久化：
-  - `src/utils/simulatorStorage.js`
-- 分享卡：
-  - `src/features/simulator/SimulatorShareCard.jsx`
-  - `src/utils/simulatorShare.js`
-
-### 设置页
-
-- 桌面端：
-  - `src/components/SettingsPanel.jsx`
-- 移动端：
-  - `src/mobile/views/MobileSettingsView.jsx`
-
-当前设置页主链：
-
-- 修改密码：
-  - `supabase.auth.updateUser`
-- 删除我的抽卡数据：
-  - `useCloudSync.deleteUserDataFromCloud`
-- 自助注销账号：
-  - `api/self-delete-account.js`
-  - `src/services/selfAccountService.js`
-  - `src/utils/finalizeDeletedAccountSession.js`
-
-### 关于页 / 工单 / 管理后台
-
-- 关于页：
-  - `src/components/AboutPanel.jsx`
-  - `src/mobile/views/MobileAboutView.jsx`
-- 工单：
-  - `src/components/TicketPanel.jsx`
-  - `src/mobile/views/MobileTicketView.jsx`
-- 管理后台：
-  - `src/components/AdminPanel.jsx`
-  - `src/hooks/admin/useAdminData.js`
-
-## 4. 认证与权限边界
-
-### 登录 / 注册 / 账号恢复
-
-- 登录弹窗：
-  - `src/AuthModal.jsx`
-  - `src/components/auth/AuthModalView.jsx`
-  - `src/hooks/auth/useAuthModalState.js`
-
-### 权限判断
-
-- 前端角色状态：
-  - `useAuthStore.userRole`
-- 管理员入口限制：
-  - `DesktopAppRoutes.jsx`
-  - `MobileLayout.jsx`
-- 服务端超管能力：
-  - `api/admin-reset-recovery-password.js`
-  - `supabase/functions/admin-create-user`
-  - `supabase/functions/admin-delete-user`
-
-### 当前账号恢复主链
-
-- 邮箱注册状态检查：
-  - `api/auth-account-status.js`
-- 匿名恢复申请：
-  - `api/account-recovery-request.js`
-- 超管审核与临时密码：
-  - `src/components/admin/panels/AccountRecoveryPanel.jsx`
-  - `src/services/admin/accountRecoveryService.js`
-  - `api/admin-reset-recovery-password.js`
-
-## 5. 导入 / 导出 / 分享
-
-### 官方导入
-
-- UI:
-  - `src/features/import/ImportManager.jsx`
-  - `src/features/import/OfficialAPIImport.jsx`
-- 官方记录整形与云写入前处理：
-  - `src/features/import/importPersistence.js`
-- 云回填：
-  - `src/utils/cloudDataSync.js`
-
-导入主路径：
-
-1. `OfficialAPIImport` 获取官方记录
-2. `ImportManager` 调 `prepareOfficialImportPersistenceData`
-3. 通过 `cloudWriteService.upsertPools / upsertHistory` 写入
-4. 再通过 `applyCloudDataToStores` 回填前端 store
-5. 跳转到 `dashboard`
-
-### JSON / CSV 导入导出
-
-- Hook：
-  - `src/hooks/app/useDataExportImport.js`
-- 导出：
-  - `src/utils/dataExport.js`
-- 导入：
-  - `src/utils/dataImport.js`
-
-### 分享
-
-- 详情页分享：
-  - `src/utils/dashboardShare.js`
-  - `src/components/dashboard/DashboardShareCard.jsx`
-- 模拟器分享：
-  - `src/utils/simulatorShare.js`
-  - `src/features/simulator/SimulatorShareCard.jsx`
-
-## 6. 前端到后端的主要边界
-
-### 站内 Serverless API
-
-- `api/router.js`
-  - Vercel 单一固定入口，配合 `/api/:path*` rewrite 避免 Hobby 计划函数数量超限
-- `api/_routes/index.js`
-  - 站内 API 路由表；本地 Vite dev middleware 与 Vercel catch-all 共用
-- `api/_routes/root/*.js`
-  - `bootstrap`、`stats`、认证限流、账号恢复、后台管理、自助删号等站内 API
-- `api/_routes/dev/**/*.js`
-  - 开发者 API 与 BOT 只读 API
-- `api/_routes/integrations/**/*.js`
-  - 平台绑定与导入通知接口
-
-### Supabase 主路径
-
-- 浏览器直连：
-  - `src/supabaseClient.js`
-- 统一请求超时：
-  - `src/services/supabaseRequest.js`
-- 云写入：
-  - `src/services/cloudWriteService.js`
-- 公开卡池读取：
-  - `src/services/poolReadService.js`
-
-### 私有后端
-
-- 目录：
-  - `backend/`
-- 主入口：
-  - `backend/server.js`
-- 说明文档：
-  - `backend/ARCHITECTURE.md`
-
-## 7. 当前应避免再走的旧链
-
-- `redirect_after_import + window.location.reload()` 导入回跳
-- `processRotation / rotation_processed` 作为前端运行时轮换真源
-- 客户端 `.from('pools').select(...)` 拉全表后自行过滤公开卡池
-- 统计页分享主线
-- 邮件找回密码主线
-
-## 8. 读图顺序建议
-
-如果要继续排查线上问题，建议按这个顺序读：
-
-1. `AppRouter.jsx`
-2. `DesktopAppRoutes.jsx` / `MobileLayout.jsx`
-3. 对应页面组件
-4. 页面主 hook
-5. `stores/`
-6. `services/`
-7. `api/` 或 `backend/ARCHITECTURE.md`
+- `SIM-004`：`src/features/simulator/useGachaSimulatorController.js` 仍承担较多模拟器 UI、资源、继承和分享状态。
+- `ARCH-021`：桌面 / 移动端 dashboard 与 settings 仍有重复控制器逻辑。
+- `DB-OPTIMIZE-001`：线上数据库体积治理要先做索引使用审计和查询计划验证，本轮未直接变更生产 schema 语义。

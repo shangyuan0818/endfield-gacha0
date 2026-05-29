@@ -18,6 +18,7 @@ import { getDesktopPathForTab } from '../../constants/appRoutes';
 import { useI18n } from '../../i18n/index.js';
 import { localizePoolName } from '../../utils/gameDataI18n.js';
 import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
+import { filterHistoryForEffectiveGameUid, resolveEffectiveGameUid } from '../../utils/accountScopeUtils.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -99,13 +100,16 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
     return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]); // 依赖history而不是pools
 
-  // 根据当前选中账号过滤历史记录
-  const filteredHistory = useMemo(() => {
-    if (!currentGameUid) {
-      return history; // 全部账号
-    }
-    return history.filter(h => h.gameUid === currentGameUid || h.game_uid === currentGameUid);
-  }, [history, currentGameUid]);
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts,
+    historyRecords: history,
+  }), [currentGameUid, gameAccounts, history]);
+
+  // 根据当前有效账号过滤历史记录；跨账号汇总入口重开前不做隐式合并分析。
+  const filteredHistory = useMemo(() => (
+    filterHistoryForEffectiveGameUid(history, effectiveGameUid)
+  ), [effectiveGameUid, history]);
 
   // 直接使用所有卡池（不再按账号筛选）
   const filteredPools = pools;
@@ -145,13 +149,13 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
   const visiblePools = selectorPools.length;
   const totalPulls = Object.values(poolPullCounts).reduce((a, b) => a + b, 0);
   const allOverviewId = getPoolGroupId('all');
-  const showOverviewOptions = Boolean(currentGameUid);
+  const showOverviewOptions = Boolean(effectiveGameUid);
 
   const switchToPoolGroup = usePoolStore(state => state.switchToPoolGroup);
 
   const currentAccount = useMemo(() => {
-    if (currentGameUid) {
-      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    if (effectiveGameUid) {
+      return gameAccounts.find((account) => account.gameUid === effectiveGameUid) || null;
     }
 
     if (gameAccounts.length === 1) {
@@ -159,7 +163,7 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
     }
 
     return null;
-  }, [currentGameUid, gameAccounts]);
+  }, [effectiveGameUid, gameAccounts]);
   const currentAccountServerTag = currentAccount?.serverTag
     ? localizeGameAccountServerTag(currentAccount.serverTag, locale)
     : null;
@@ -206,15 +210,14 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
   const isImportManagerOpen = showImportManager || importRequestedByQuery;
 
   useEffect(() => {
-    const preferredAccountUid = gameAccounts[0]?.gameUid || null;
-    if (!preferredAccountUid) {
+    if (!effectiveGameUid) {
       return;
     }
 
-    if (currentGameUid !== preferredAccountUid && !gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      switchGameAccount(preferredAccountUid);
+    if (currentGameUid !== effectiveGameUid) {
+      switchGameAccount(effectiveGameUid);
     }
-  }, [currentGameUid, gameAccounts, switchGameAccount]);
+  }, [currentGameUid, effectiveGameUid, switchGameAccount]);
 
   useEffect(() => {
     if (showOverviewOptions || !isPoolGroupId(currentPoolId)) {
@@ -306,7 +309,7 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
                 <div className="flex items-center gap-2 min-w-0 z-10 relative">
                   <User size={14} className="text-slate-400 dark:text-zinc-500 group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors shrink-0" />
                   <span className="min-w-0 truncate text-slate-700 dark:text-zinc-300 font-bold group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors">
-                    {currentAccount?.nickName || t('pool.selector.allAccounts')}
+                    {currentAccount?.nickName || t('pool.selector.selectAccount')}
                   </span>
                   {currentAccountServerTag && (
                     <span className="shrink-0 whitespace-nowrap px-1.5 py-0.5 text-[10px] font-bold bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700 group-hover:border-yellow-500/50 group-hover:text-yellow-600 dark:group-hover:text-yellow-500 transition-colors">
@@ -318,7 +321,7 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
               </button>
 
               {showAccountDropdown && (
-                <div 
+                <div
                   className="absolute top-full left-0 mt-1 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 shadow-xl z-20"
                   style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%)' }}
                 >
@@ -330,7 +333,7 @@ const PoolSelector = ({ onOpenImportWizard, onOpenExportOptions }) => {
                         setShowAccountDropdown(false);
                       }}
                       className={`w-full px-3 py-2 text-left text-xs hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors ${
-                        currentGameUid === account.gameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
+                        effectiveGameUid === account.gameUid ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' : 'text-slate-600 dark:text-zinc-400'
                       }`}
                     >
                       <div className="flex min-w-0 items-center gap-2">

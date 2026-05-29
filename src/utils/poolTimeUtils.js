@@ -125,6 +125,23 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
   if (limitedPools.length === 0) return null;
 
   const sortedPools = [...limitedPools].sort((a, b) => getPoolStartDate(b).getTime() - getPoolStartDate(a).getTime());
+  const sortedPoolsAsc = [...limitedPools].sort(sortPoolsByStartTimeAsc);
+
+  const getNextLimitedPoolName = (targetPool) => {
+    const targetId = getPoolRecordId(targetPool);
+    const targetStart = getPoolStartDate(targetPool).getTime();
+    const targetIndex = sortedPoolsAsc.findIndex((pool) => {
+      const poolId = getPoolRecordId(pool);
+      if (targetId && poolId && targetId === poolId) {
+        return true;
+      }
+
+      return getPoolStartDate(pool).getTime() === targetStart
+        && getPoolCharacterName(pool) === getPoolCharacterName(targetPool);
+    });
+    const nextPool = targetIndex >= 0 ? sortedPoolsAsc[targetIndex + 1] : null;
+    return nextPool ? getPoolCharacterName(nextPool) : '待公布';
+  };
 
   const getRotationPosition = (targetPool) => {
     const targetStart = getPoolStartDate(targetPool).getTime();
@@ -143,8 +160,6 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
     const end = getPoolEndDate(pool);
 
     if (now >= start && now < end) {
-      const currentIndex = sortedPools.indexOf(pool);
-      const nextPool = sortedPools[currentIndex - 1];
       const remainingMs = end - now;
       const remainingDays = Math.floor(remainingMs / (1000 * 60 * 60 * 24));
       const remainingHours = Math.floor((remainingMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -156,7 +171,7 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
         rotationPosition: getRotationPosition(pool),
         startDateObj: start,
         endDateObj: end,
-        nextPool: nextPool ? getPoolCharacterName(nextPool) : '待公布',
+        nextPool: getNextLimitedPoolName(pool),
         isActive: true,
         remainingDays,
         remainingHours,
@@ -166,9 +181,9 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
     }
   }
 
-  const futurePools = sortedPools.filter((pool) => now < getPoolStartDate(pool));
+  const futurePools = sortedPoolsAsc.filter((pool) => now < getPoolStartDate(pool));
   if (futurePools.length > 0) {
-    const earliestPool = futurePools.sort(sortPoolsByStartTimeAsc)[0];
+    const earliestPool = futurePools[0];
     const start = getPoolStartDate(earliestPool);
     const end = getPoolEndDate(earliestPool);
     const startsInMs = start - now;
@@ -180,7 +195,7 @@ export const getCurrentLimitedPoolFromDB = (pools, referenceDate = new Date()) =
       rotationPosition: getRotationPosition(earliestPool),
       startDateObj: start,
       endDateObj: end,
-      nextPool: '待公布',
+      nextPool: getNextLimitedPoolName(earliestPool),
       isActive: false,
       startsIn: Math.floor(startsInMs / (1000 * 60 * 60 * 24)),
       startsInHours: Math.floor((startsInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
@@ -370,6 +385,8 @@ export const getHomeRotationPoolSchedule = (pools) => {
       rotationPosition: limitedSchedule.length + index,
       backgroundImage: getPoolBackgroundImage(pool),
       poolType: 'extra',
+      rotationGroup: 'extra',
+      isIndependentNode: true,
       poolData: pool,
     }));
 
@@ -398,6 +415,7 @@ export const getActiveHomeCountdownPools = (pools, referenceDate = new Date()) =
         active: true,
         isActive: true,
         targetDate: pool.endDate,
+        scheduleDate: pool.startDate,
         days: Math.floor(diff / (1000 * 60 * 60 * 24)),
         hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
         minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
@@ -438,6 +456,7 @@ export const getLimitedPoolCountdownState = (schedule, referenceDate = new Date(
     active: isActive,
     isActive,
     targetDate: isActive ? pool.endDate : pool.startDate,
+    scheduleDate: pool.startDate,
     days: Math.floor(diff / (1000 * 60 * 60 * 24)),
     hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
     minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),

@@ -203,6 +203,7 @@ export default function GachaModals({
   // Toast
   toasts,
   removeToast,
+  addDurableNotification,
   // Confirm
   confirmState,
   handleConfirm,
@@ -683,7 +684,12 @@ export default function GachaModals({
       )}
 
       {/* 登录弹窗 */}
-      <AuthModal isOpen={showAuthModal} onClose={closeAuthModal} onAuthSuccess={(user) => setUser(user)} />
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={closeAuthModal}
+        onAuthSuccess={(user) => setUser(user)}
+        addDurableNotification={addDurableNotification}
+      />
 
       {/* 数据迁移弹窗 */}
       {showMigrateModal && canEdit && (

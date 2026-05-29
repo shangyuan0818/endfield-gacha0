@@ -2,6 +2,29 @@ import { createCorsResponse, jsonResponse, requireSuperAdmin } from '../_shared/
 
 const ALLOWED_ROLES = new Set(['user', 'admin', 'super_admin']);
 
+function getPasswordCharacterGroups(password: string) {
+  return [
+    /[a-z]/.test(password),
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password),
+  ].filter(Boolean).length;
+}
+
+function assertPasswordPolicy(password: string) {
+  if (!password || password.length < 8) {
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  if (password.length > 100) {
+    throw new Error('Password must be 100 characters or fewer');
+  }
+
+  if (getPasswordCharacterGroups(password) < 2) {
+    throw new Error('Password must include at least two character groups');
+  }
+}
+
 function normalizeUserPayload(payload: Record<string, unknown>) {
   const email = String(payload.email || '').trim().toLowerCase();
   const password = String(payload.password || '');
@@ -12,9 +35,7 @@ function normalizeUserPayload(payload: Record<string, unknown>) {
     throw new Error('Email is required');
   }
 
-  if (!password || password.length < 6) {
-    throw new Error('Password must be at least 6 characters');
-  }
+  assertPasswordPolicy(password);
 
   if (!ALLOWED_ROLES.has(role)) {
     throw new Error('Invalid role');

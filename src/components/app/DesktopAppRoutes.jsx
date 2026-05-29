@@ -46,7 +46,8 @@ export default function DesktopAppRoutes({
   handleExportEndfieldGachaHelperCSV,
   handleExportEndfieldGachaHelperUserDataZip,
   handleExportEndgachaKwerTopPlainJSON,
-  handleExportEndgachaKwerTopPlainTXT
+  handleExportEndgachaKwerTopPlainTXT,
+  addDurableNotification
 }) {
   const { isEnglish } = useI18n();
   const tt = (zh, en) => (isEnglish ? en : zh);
@@ -132,7 +133,12 @@ export default function DesktopAppRoutes({
         path="tickets"
         element={
           <Suspense fallback={<TabPanelFallback label={tt('正在加载工单...', 'Loading tickets...')} />}>
-            <TicketPanel user={user} userRole={userRole} showToast={showToast} />
+            <TicketPanel
+              user={user}
+              userRole={userRole}
+              showToast={showToast}
+              addDurableNotification={addDurableNotification}
+            />
           </Suspense>
         }
       />
@@ -143,7 +149,7 @@ export default function DesktopAppRoutes({
             <TabPanelFallback label={tt('正在校验管理权限...', 'Checking admin access...')} />
           ) : isSuperAdmin ? (
             <Suspense fallback={<TabPanelFallback label={tt('正在加载管理后台...', 'Loading admin panel...')} />}>
-              <AdminPanel showToast={showToast} />
+              <AdminPanel showToast={showToast} addDurableNotification={addDurableNotification} />
             </Suspense>
           ) : (
             <Navigate to="/" replace />

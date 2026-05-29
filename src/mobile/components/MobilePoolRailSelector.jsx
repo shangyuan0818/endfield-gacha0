@@ -16,6 +16,7 @@ import { getPreferredPool } from '../../utils/poolSelectionUtils';
 import { formatFreshnessRelative, getFreshnessTone, getLatestHistoryTimestampMs } from '../../utils/dataFreshness.js';
 import { MobileGlassPanel } from './ux/MobilePrimitives.jsx';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
+import { filterHistoryForEffectiveGameUid, resolveEffectiveGameUid } from '../../utils/accountScopeUtils.js';
 
 function cx(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -68,17 +69,13 @@ export default function MobilePoolRailSelector() {
     void history;
     return getGameAccountsFromHistory();
   }, [getGameAccountsFromHistory, history]);
-  const effectiveGameUid = useMemo(() => {
-    if (gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      return currentGameUid;
-    }
-
-    return gameAccounts[0]?.gameUid || null;
-  }, [currentGameUid, gameAccounts]);
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts,
+    historyRecords: history,
+  }), [currentGameUid, gameAccounts, history]);
   const filteredHistory = useMemo(() => (
-    effectiveGameUid
-      ? history.filter((item) => (item.gameUid || item.game_uid) === effectiveGameUid)
-      : history
+    filterHistoryForEffectiveGameUid(history, effectiveGameUid)
   ), [effectiveGameUid, history]);
   const poolPullCounts = useMemo(() => filteredHistory.reduce((acc, item) => {
     const poolId = item.poolId || item.pool_id;
@@ -148,7 +145,7 @@ export default function MobilePoolRailSelector() {
   }, [allOverviewId, currentPoolId, groupedPools, poolPullCounts, totalPulls]);
 
   useEffect(() => {
-    if (gameAccounts.length <= 1) {
+    if (!effectiveGameUid) {
       return;
     }
 

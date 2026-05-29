@@ -2,20 +2,27 @@
 
 仓库内的补充文档统一收口到 `docs/`：
 
-- `docs/CODEMAP.md`：前端代码地图与端到端主路径
+- `docs/ARCHITECTURE.md`：整体架构、公共 / 私有 / admin 边界、缓存、自动化和数据库分层
+- `docs/PROJECT_GUIDE.md`：部署、环境变量、数据库维护、静态资源和 changelog 摘要
+- `docs/CODEMAP.md`：代码入口和主要模块索引
+- `docs/CLOSEOUT_LEDGER.md`：已上线但仍依赖 placeholder / fallback / 隐藏入口的功能收口总账
+- `docs/ACCOUNT_ALL_CLOSEOUT.md`：全部账号汇总的保留、关闭和重新开放条件
+- `docs/SELF_HOSTED_MAIL.md`：自建邮件平台选型、投递基础设施、outbox / suppression / 防刷预算边界和后续决策点
+- `docs/STALWART_DEPLOYMENT_GUIDE.md`：Stalwart-first 自建邮件部署步骤、同机资源边界、DNS 清单和 Cloudflare Email 边界
+- `docs/RELEASE_CHECKLIST.md`：发布前检查清单
 - `docs/developer-api-v1.zh-CN.md` / `docs/developer-api-v1.en-US.md`：开发者 API v1 双语 Wiki 源文档
 - `docs/integration-api.md`：平台绑定与官方 BOT 私有接口边界
 - `docs/screenshots/`：README 和发布页引用的产品截图
 - `docs/reviews/`：设计评审、架构审计、阶段性复盘
-- `docs/email-template/`：认证邮件模板与 SMTP 配置说明
+- `docs/email-template/`：历史认证邮件模板与 SMTP 配置说明；后续账号邮件主线以 `docs/SELF_HOSTED_MAIL.md` 为准
 
-私有 `backend/` 不在当前公开仓库主链中；与其相关的 `npm run dev:backend* / test:harness` 已改为可选入口，缺少私有目录时会输出提示并安全退出。
+公开文档的职责边界如下：
 
-当前公开文档维护约束：
-
-- 根目录 `README.md` 负责对外说明：功能、部署、环境变量、版本日志
+- 根目录 `README.md` 只负责 GitHub 首页摘要：项目定位、主线状态、快速开始、常用验证和文档入口
+- 部署、环境变量、数据库和长 changelog 放在 `docs/PROJECT_GUIDE.md`
+- 整体架构、公共缓存、自动化和数据库边界放在 `docs/ARCHITECTURE.md`
 - `supabase/README.md` 负责数据库迁移链、baseline 与手工脚本说明
-- 与真实代码状态冲突的“历史计划 / 旧部署方式”不要继续保留在 README 正文里
-- 新增迁移、CI、Serverless 路由、字体链或官方公告采集链后，应同步更新对应 README，而不是只改代码
+- 与当前运行状态冲突的“历史计划 / 旧部署方式”不要继续保留在主文档正文里
+- 新增迁移、CI、Serverless 路由、字体链、公告采集链或公共缓存版本后，应同步更新对应专题文档，而不是把细节塞回根 README
 
-源码根目录只保留真实入口、构建配置和面向开发者的顶层说明；一次性分析、归档材料和构建产物不要再直接堆在仓库根目录。
+源码根目录只保留真实入口、构建配置和面向开发者的顶层说明。一次性分析、归档材料和构建产物不要再直接堆在仓库根目录。

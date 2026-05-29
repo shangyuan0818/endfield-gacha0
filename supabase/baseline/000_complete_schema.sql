@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-05-14T11:55:39.080Z
---   5. 覆盖范围: archive/001_init_tables.sql -> active/111_bump_site_version_430.sql
+--   4. 生成时间: 2026-05-29T16:29:34.059Z
+--   5. 覆盖范围: archive/001_init_tables.sql -> active/125_refresh_home_roadmap_after_mail_rollout.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive/001_init_tables.sql
@@ -11559,7 +11559,7 @@ BEGIN
 END $$;
 -- <<< END MIGRATION: archive/079_replace_public_profiles_view_with_security_invoker.sql
 
--- >>> BEGIN MIGRATION: active/080_retire_page_content_management.sql
+-- >>> BEGIN MIGRATION: archive/080_retire_page_content_management.sql
 -- ============================================
 -- 080: 退役无用的页面管理能力
 --
@@ -11578,9 +11578,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 080: page_content 已退役';
 END $$;
--- <<< END MIGRATION: active/080_retire_page_content_management.sql
+-- <<< END MIGRATION: archive/080_retire_page_content_management.sql
 
--- >>> BEGIN MIGRATION: active/081_remove_blacklist_feature.sql
+-- >>> BEGIN MIGRATION: archive/081_remove_blacklist_feature.sql
 -- ============================================
 -- 081: 移除无用黑名单功能
 --
@@ -11605,9 +11605,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 081: 黑名单与邮箱黑白名单旧链已移除';
 END $$;
--- <<< END MIGRATION: active/081_remove_blacklist_feature.sql
+-- <<< END MIGRATION: archive/081_remove_blacklist_feature.sql
 
--- >>> BEGIN MIGRATION: active/082_fix_global_stats_exclude_info_book_resource.sql
+-- >>> BEGIN MIGRATION: archive/082_fix_global_stats_exclude_info_book_resource.sql
 -- ============================================
 -- 082: 修复全服统计中的情报书十连资源口径
 --
@@ -12072,9 +12072,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 082: get_global_stats 已补 chargedPulls / 情报书资源口径';
 END $$;
--- <<< END MIGRATION: active/082_fix_global_stats_exclude_info_book_resource.sql
+-- <<< END MIGRATION: archive/082_fix_global_stats_exclude_info_book_resource.sql
 
--- >>> BEGIN MIGRATION: active/083_harden_admin_delete_user_foreign_keys.sql
+-- >>> BEGIN MIGRATION: archive/083_harden_admin_delete_user_foreign_keys.sql
 -- ============================================
 -- 083: 加固 admin-delete-user 的 auth.users 外键删除策略
 --
@@ -12109,9 +12109,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 083: admin-delete-user 外键策略已改为 ON DELETE SET NULL';
 END $$;
--- <<< END MIGRATION: active/083_harden_admin_delete_user_foreign_keys.sql
+-- <<< END MIGRATION: archive/083_harden_admin_delete_user_foreign_keys.sql
 
--- >>> BEGIN MIGRATION: active/084_create_account_recovery_requests.sql
+-- >>> BEGIN MIGRATION: archive/084_create_account_recovery_requests.sql
 -- ============================================
 -- 084: 新增账号恢复申请表
 --
@@ -12195,9 +12195,9 @@ COMMENT ON COLUMN public.account_recovery_requests.request_type IS
 
 COMMENT ON COLUMN public.account_recovery_requests.verification_claims IS
   '申请人提交的身份核验信息，格式如 [{gameUid, nickName}]。';
--- <<< END MIGRATION: active/084_create_account_recovery_requests.sql
+-- <<< END MIGRATION: archive/084_create_account_recovery_requests.sql
 
--- >>> BEGIN MIGRATION: active/085_restore_history_v2_columns.sql
+-- >>> BEGIN MIGRATION: archive/085_restore_history_v2_columns.sql
 -- ============================================
 -- 085: 恢复 history 的 V2 导入字段与约束
 --
@@ -12294,9 +12294,9 @@ BEGIN
 
   RAISE NOTICE '✅ Migration 085: history V2 columns / indexes / constraints are ready';
 END $$;
--- <<< END MIGRATION: active/085_restore_history_v2_columns.sql
+-- <<< END MIGRATION: archive/085_restore_history_v2_columns.sql
 
--- >>> BEGIN MIGRATION: active/086_add_global_stats_contributor_region_breakdown.sql
+-- >>> BEGIN MIGRATION: archive/086_add_global_stats_contributor_region_breakdown.sql
 /*
 -- ============================================
 -- 086: 为全服统计补充国服 / 国际服贡献人数拆分
@@ -12793,9 +12793,9 @@ DO $$
 BEGIN
   RAISE NOTICE 'ℹ️ Migration 086: 预留给全服贡献人数区服拆分；当前标准链缺少 server/region 元数据，暂不执行结构变更';
 END $$;
--- <<< END MIGRATION: active/086_add_global_stats_contributor_region_breakdown.sql
+-- <<< END MIGRATION: archive/086_add_global_stats_contributor_region_breakdown.sql
 
--- >>> BEGIN MIGRATION: active/087_enable_global_stats_region_and_target_metrics.sql
+-- >>> BEGIN MIGRATION: archive/087_enable_global_stats_region_and_target_metrics.sql
 -- ============================================
 -- 087: 启用全服统计的区服贡献人数与目标 6★ 平均出货
 --
@@ -13312,9 +13312,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 087: get_global_stats 已启用区服贡献人数拆分与目标 6★ 平均出货';
 END $$;
--- <<< END MIGRATION: active/087_enable_global_stats_region_and_target_metrics.sql
+-- <<< END MIGRATION: archive/087_enable_global_stats_region_and_target_metrics.sql
 
--- >>> BEGIN MIGRATION: active/088_optimize_global_stats_target_matching.sql
+-- >>> BEGIN MIGRATION: archive/088_optimize_global_stats_target_matching.sql
 -- ============================================
 -- 088: 优化 get_global_stats 的目标 6★ 匹配成本
 --
@@ -13822,9 +13822,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 088: get_global_stats 已优化目标 6★ 匹配成本';
 END $$;
--- <<< END MIGRATION: active/088_optimize_global_stats_target_matching.sql
+-- <<< END MIGRATION: archive/088_optimize_global_stats_target_matching.sql
 
--- >>> BEGIN MIGRATION: active/089_create_ops_automation_runs_and_announcement_source_fields.sql
+-- >>> BEGIN MIGRATION: archive/089_create_ops_automation_runs_and_announcement_source_fields.sql
 -- ============================================
 -- 089: 运营自动化运行审计表 + 公告源元数据
 --
@@ -13922,9 +13922,9 @@ COMMENT ON COLUMN public.ops_automation_runs.dedupe_key IS
 
 COMMENT ON COLUMN public.ops_automation_runs.review_bundle IS
   '供人工审核/发布的完整审计包快照。';
--- <<< END MIGRATION: active/089_create_ops_automation_runs_and_announcement_source_fields.sql
+-- <<< END MIGRATION: archive/089_create_ops_automation_runs_and_announcement_source_fields.sql
 
--- >>> BEGIN MIGRATION: active/090_rewrite_global_stats_target_interval.sql
+-- >>> BEGIN MIGRATION: archive/090_rewrite_global_stats_target_interval.sql
 -- ============================================
 -- 090: 重写 get_global_stats 的目标 6★ 平均出货口径 + 性能优化
 --
@@ -14437,9 +14437,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 090: get_global_stats — BUG-035 口径修复 + PERF-009 消除 3 次全量排序';
 END $$;
--- <<< END MIGRATION: active/090_rewrite_global_stats_target_interval.sql
+-- <<< END MIGRATION: archive/090_rewrite_global_stats_target_interval.sql
 
--- >>> BEGIN MIGRATION: active/091_stats_cache_infrastructure.sql
+-- >>> BEGIN MIGRATION: archive/091_stats_cache_infrastructure.sql
 -- ============================================
 -- 091: 统计缓存基础设施 (PERF-009)
 --
@@ -14639,9 +14639,9 @@ DO $$
 BEGIN
   RAISE NOTICE '✅ Migration 091: stats_cache 基础设施 — PERF-009 变更感知缓存';
 END $$;
--- <<< END MIGRATION: active/091_stats_cache_infrastructure.sql
+-- <<< END MIGRATION: archive/091_stats_cache_infrastructure.sql
 
--- >>> BEGIN MIGRATION: active/092_pool_alias_source_official_notice.sql
+-- >>> BEGIN MIGRATION: archive/092_pool_alias_source_official_notice.sql
 -- ============================================
 -- 092: 扩展 pool_id_aliases.source 枚举
 -- ============================================
@@ -14665,9 +14665,9 @@ ALTER TABLE public.pool_id_aliases
 
 COMMENT ON COLUMN public.pool_id_aliases.source IS
   'alias 来源：internal / official_api / official_notice / legacy_manual / manual_placeholder / import_raw / custom';
--- <<< END MIGRATION: active/092_pool_alias_source_official_notice.sql
+-- <<< END MIGRATION: archive/092_pool_alias_source_official_notice.sql
 
--- >>> BEGIN MIGRATION: active/093_site_config_content_blocks.sql
+-- >>> BEGIN MIGRATION: archive/093_site_config_content_blocks.sql
 -- 093: 将硬编码的首页/关于页运营内容迁移到 site_config (ARCH-023)
 
 INSERT INTO site_config (key, value, label, category) VALUES
@@ -14708,9 +14708,9 @@ INSERT INTO site_config (key, value, label, category) VALUES
     'social'
   )
 ON CONFLICT (key) DO NOTHING;
--- <<< END MIGRATION: active/093_site_config_content_blocks.sql
+-- <<< END MIGRATION: archive/093_site_config_content_blocks.sql
 
--- >>> BEGIN MIGRATION: active/094_backfill_history_server_id.sql
+-- >>> BEGIN MIGRATION: archive/094_backfill_history_server_id.sql
 -- 094: backfill history.server_id / region and invalidate stats cache
 
 -- 1) INTL: game_uid does not start with '1', is not empty
@@ -14730,9 +14730,9 @@ WHERE server_id IS NULL;
 
 -- 3) Invalidate global stats cache
 DELETE FROM public.stats_cache WHERE cache_key = 'global_stats';
--- <<< END MIGRATION: active/094_backfill_history_server_id.sql
+-- <<< END MIGRATION: archive/094_backfill_history_server_id.sql
 
--- >>> BEGIN MIGRATION: active/095_spark_count_to_occurrences.sql
+-- >>> BEGIN MIGRATION: archive/095_spark_count_to_occurrences.sql
 -- 095: Change sparkCount from distinct users to total occurrences
 --
 -- Previously: COUNT(DISTINCT user_id) FILTER (WHERE is_spark = true)
@@ -15234,9 +15234,9 @@ GRANT EXECUTE ON FUNCTION public.get_global_stats() TO anon, authenticated;
 
 -- Invalidate both caches
 DELETE FROM public.stats_cache WHERE cache_key IN ('global_stats', 'character_ranking');
--- <<< END MIGRATION: active/095_spark_count_to_occurrences.sql
+-- <<< END MIGRATION: archive/095_spark_count_to_occurrences.sql
 
--- >>> BEGIN MIGRATION: active/096_retire_history_character_id_and_legacy_pool_id.sql
+-- >>> BEGIN MIGRATION: archive/096_retire_history_character_id_and_legacy_pool_id.sql
 -- ============================================
 -- 096: 退役 history.character_id 与 legacy_pool_id 兼容字段
 --
@@ -15298,9 +15298,9 @@ BEGIN
 
   RAISE NOTICE '✅ Migration 096: retired history.character_id and legacy_pool_id compatibility fields';
 END $$;
--- <<< END MIGRATION: active/096_retire_history_character_id_and_legacy_pool_id.sql
+-- <<< END MIGRATION: archive/096_retire_history_character_id_and_legacy_pool_id.sql
 
--- >>> BEGIN MIGRATION: active/097_add_announcement_i18n_and_bump_site_version.sql
+-- >>> BEGIN MIGRATION: archive/097_add_announcement_i18n_and_bump_site_version.sql
 ALTER TABLE public.announcements
 ADD COLUMN IF NOT EXISTS title_en TEXT;
 
@@ -15310,9 +15310,9 @@ ADD COLUMN IF NOT EXISTS content_en TEXT;
 UPDATE public.site_config
 SET value = 'v4.0.0'
 WHERE key = 'site_version';
--- <<< END MIGRATION: active/097_add_announcement_i18n_and_bump_site_version.sql
+-- <<< END MIGRATION: archive/097_add_announcement_i18n_and_bump_site_version.sql
 
--- >>> BEGIN MIGRATION: active/098_add_pool_name_en.sql
+-- >>> BEGIN MIGRATION: archive/098_add_pool_name_en.sql
 -- 098: pool English name support
 -- Purpose:
 --   1. Add explicit English pool title storage to public.pools
@@ -15650,9 +15650,9 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB) TO authenticated;
--- <<< END MIGRATION: active/098_add_pool_name_en.sql
+-- <<< END MIGRATION: archive/098_add_pool_name_en.sql
 
--- >>> BEGIN MIGRATION: active/099_expand_limited_up_six_star_to_six.sql
+-- >>> BEGIN MIGRATION: archive/099_expand_limited_up_six_star_to_six.sql
 -- 将限定池 UP 6★ 排名扩展到前 6 名，供统计页左侧两列卡片展示。
 -- 仅调整 limited_six_star_up；其他排行榜仍保持现有 Top 5 / Top 3 设计。
 
@@ -16053,9 +16053,9 @@ $$;
 
 COMMENT ON FUNCTION public.get_user_ranking_stats(uuid) IS 'FEAT-013: 用户个人排名 - 歪出六星分类统计';
 GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats(uuid) TO anon, authenticated;
--- <<< END MIGRATION: active/099_expand_limited_up_six_star_to_six.sql
+-- <<< END MIGRATION: archive/099_expand_limited_up_six_star_to_six.sql
 
--- >>> BEGIN MIGRATION: active/100_bust_ranking_cache_for_six_item_layout.sql
+-- >>> BEGIN MIGRATION: archive/100_bust_ranking_cache_for_six_item_layout.sql
 -- 排行榜缓存之前只按 history 行数判断是否失效。
 -- 当统计函数本身的聚合逻辑变化（例如限定池 UP 6★ 从前 5 扩展到前 6）时，
 -- 旧缓存仍可能在很长时间内持续返回陈旧结果。
@@ -16178,9 +16178,9 @@ ALTER FUNCTION public.get_user_ranking_stats_cached(UUID, INT)
   SET statement_timeout = '90s';
 
 GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats_cached(UUID, INT) TO anon, authenticated;
--- <<< END MIGRATION: active/100_bust_ranking_cache_for_six_item_layout.sql
+-- <<< END MIGRATION: archive/100_bust_ranking_cache_for_six_item_layout.sql
 
--- >>> BEGIN MIGRATION: active/101_add_extra_pool_type.sql
+-- >>> BEGIN MIGRATION: archive/101_add_extra_pool_type.sql
 -- 101: allow explicit extra pool type for the one-off 2026-05 banner family.
 -- Notes:
 --   1. Keep historical special_* / limited logic untouched.
@@ -16213,9 +16213,9 @@ ALTER TABLE public.pools
 
 COMMENT ON CONSTRAINT pools_type_check ON public.pools IS
   '允许 extra / limited / standard / weapon / beginner 五类卡池。';
--- <<< END MIGRATION: active/101_add_extra_pool_type.sql
+-- <<< END MIGRATION: archive/101_add_extra_pool_type.sql
 
--- >>> BEGIN MIGRATION: active/102_add_private_bindings_and_dev_api_clients.sql
+-- >>> BEGIN MIGRATION: archive/102_add_private_bindings_and_dev_api_clients.sql
 -- 102: add private platform bindings and developer API client infrastructure
 --
 -- Goals:
@@ -16480,9 +16480,9 @@ VALUES
     NOW()
   )
 ON CONFLICT (provider) WHERE client_type = 'official_bot' DO NOTHING;
--- <<< END MIGRATION: active/102_add_private_bindings_and_dev_api_clients.sql
+-- <<< END MIGRATION: archive/102_add_private_bindings_and_dev_api_clients.sql
 
--- >>> BEGIN MIGRATION: active/103_add_public_analytics_api_rate_limits.sql
+-- >>> BEGIN MIGRATION: archive/103_add_public_analytics_api_rate_limits.sql
 -- 103: rate limit buckets for Public Analytics API v1.
 -- Existing dev_api_public remains as a compatibility fallback.
 
@@ -16491,9 +16491,9 @@ INSERT INTO public.rate_limit_config (action, max_attempts, window_minutes, lock
   ('dev_api_stats_light', 600, 60, 5),
   ('dev_api_stats_heavy', 120, 60, 10)
 ON CONFLICT (action) DO NOTHING;
--- <<< END MIGRATION: active/103_add_public_analytics_api_rate_limits.sql
+-- <<< END MIGRATION: archive/103_add_public_analytics_api_rate_limits.sql
 
--- >>> BEGIN MIGRATION: active/104_add_announcement_type_and_severity.sql
+-- >>> BEGIN MIGRATION: archive/104_add_announcement_type_and_severity.sql
 -- 104: distinguish update announcements from temporary status-style notices.
 -- Existing rows remain update announcements.
 
@@ -16528,9 +16528,9 @@ COMMENT ON COLUMN public.announcements.announcement_type IS
 
 COMMENT ON COLUMN public.announcements.severity IS
   '临时公告重要程度：info / maintenance / warning / critical。更新公告默认 info。';
--- <<< END MIGRATION: active/104_add_announcement_type_and_severity.sql
+-- <<< END MIGRATION: archive/104_add_announcement_type_and_severity.sql
 
--- >>> BEGIN MIGRATION: active/105_add_success_announcement_severity.sql
+-- >>> BEGIN MIGRATION: archive/105_add_success_announcement_severity.sql
 -- 105: add a green resolved/recovery severity for temporary notices.
 
 ALTER TABLE public.announcements
@@ -16542,9 +16542,9 @@ ALTER TABLE public.announcements
 
 COMMENT ON COLUMN public.announcements.severity IS
   '临时公告重要程度：info / success / maintenance / warning / critical。更新公告默认 info。';
--- <<< END MIGRATION: active/105_add_success_announcement_severity.sql
+-- <<< END MIGRATION: archive/105_add_success_announcement_severity.sql
 
--- >>> BEGIN MIGRATION: active/106_character_catalog_stats.sql
+-- >>> BEGIN MIGRATION: archive/106_character_catalog_stats.sql
 -- 106: 全服角色图鉴聚合统计
 -- 输出按角色聚合后的拥有率、满潜率、拷贝分布与配额汇总；不返回用户级明细。
 
@@ -16848,15 +16848,15 @@ ALTER FUNCTION public.get_character_catalog_stats_cached(INT)
 GRANT EXECUTE ON FUNCTION public.get_character_catalog_stats_cached(INT) TO anon, authenticated;
 
 DELETE FROM public.stats_cache WHERE cache_key = 'character_catalog';
--- <<< END MIGRATION: active/106_character_catalog_stats.sql
+-- <<< END MIGRATION: archive/106_character_catalog_stats.sql
 
--- >>> BEGIN MIGRATION: active/107_bump_site_version_420.sql
+-- >>> BEGIN MIGRATION: archive/107_bump_site_version_420.sql
 UPDATE public.site_config
 SET value = 'v4.2.0'
 WHERE key = 'site_version';
--- <<< END MIGRATION: active/107_bump_site_version_420.sql
+-- <<< END MIGRATION: archive/107_bump_site_version_420.sql
 
--- >>> BEGIN MIGRATION: active/108_seed_fest_of_brilliance_joint_pool.sql
+-- >>> BEGIN MIGRATION: archive/108_seed_fest_of_brilliance_joint_pool.sql
 -- 108: seed the 2026-05-14 "辉光庆典" Joint / extra recruitment pool.
 -- The official record API exposes this banner as:
 --   pool_type = E_CharacterGachaPoolType_Joint
@@ -16972,9 +16972,9 @@ BEGIN
   ON CONFLICT (pool_id, character_id) DO UPDATE
   SET is_up = TRUE;
 END $$;
--- <<< END MIGRATION: active/108_seed_fest_of_brilliance_joint_pool.sql
+-- <<< END MIGRATION: archive/108_seed_fest_of_brilliance_joint_pool.sql
 
--- >>> BEGIN MIGRATION: active/109_include_extra_pool_in_stats.sql
+-- >>> BEGIN MIGRATION: archive/109_include_extra_pool_in_stats.sql
 -- 109: include extra / Joint recruitment pools in stats RPCs.
 --
 -- FEAT-028 introduced the explicit `extra` pool type for the 2026-05-14
@@ -18163,9 +18163,9 @@ ALTER FUNCTION public.get_user_ranking_stats_cached(UUID, INT)
   SET statement_timeout = '90s';
 
 GRANT EXECUTE ON FUNCTION public.get_user_ranking_stats_cached(UUID, INT) TO anon, authenticated;
--- <<< END MIGRATION: active/109_include_extra_pool_in_stats.sql
+-- <<< END MIGRATION: archive/109_include_extra_pool_in_stats.sql
 
--- >>> BEGIN MIGRATION: active/110_add_pool_type_quota_to_global_stats.sql
+-- >>> BEGIN MIGRATION: archive/110_add_pool_type_quota_to_global_stats.sql
 -- 110: add pool-type quota summaries to global stats cache.
 --
 -- Migration 109 made extra / Joint pools visible in global stats and rankings.
@@ -18380,11 +18380,2105 @@ ALTER FUNCTION public.get_global_stats_cached(INT)
   SET statement_timeout = '120s';
 
 GRANT EXECUTE ON FUNCTION public.get_global_stats_cached(INT) TO anon, authenticated;
--- <<< END MIGRATION: active/110_add_pool_type_quota_to_global_stats.sql
+-- <<< END MIGRATION: archive/110_add_pool_type_quota_to_global_stats.sql
 
--- >>> BEGIN MIGRATION: active/111_bump_site_version_430.sql
+-- >>> BEGIN MIGRATION: archive/111_bump_site_version_430.sql
 UPDATE public.site_config
 SET value = 'v4.3.0'
 WHERE key = 'site_version';
--- <<< END MIGRATION: active/111_bump_site_version_430.sql
+-- <<< END MIGRATION: archive/111_bump_site_version_430.sql
+
+-- >>> BEGIN MIGRATION: archive/112_seed_public_cache_epoch.sql
+-- 112: Seed the public cache epoch used by same-origin public API cache keys.
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+VALUES (
+  'public_cache_epoch',
+  jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'migration',
+    'reason', 'migration:112_seed_public_cache_epoch',
+    'updatedAt', now()
+  )::text,
+  '公共缓存版本',
+  'system',
+  now()
+)
+ON CONFLICT (key) DO NOTHING;
+-- <<< END MIGRATION: archive/112_seed_public_cache_epoch.sql
+
+-- >>> BEGIN MIGRATION: active/113_update_home_roadmap_items.sql
+-- 113: Refresh homepage roadmap defaults after v4.3.0 task reprioritization.
+
+UPDATE public.site_config
+SET
+  value = '[
+    {
+      "id": "public-cache",
+      "icon": "Globe",
+      "title": "公共数据缓存",
+      "description": "首屏公共数据已统一走同源 API，并支持公共缓存版本刷新。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "ops-automation",
+      "icon": "RefreshCw",
+      "title": "运营自动化二期",
+      "description": "自动化任务已具备 job graph、partial 状态、重跑和审计详情。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "admin-data",
+      "icon": "Database",
+      "title": "卡池角色管理",
+      "description": "卡池、角色与武器管理已完成重写，支持更安全的编辑流程。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "performance-docs",
+      "icon": "Rocket",
+      "title": "项目瘦身与文档",
+      "description": "README、架构文档、截图与入口拆包已完成本轮整理。",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "heirlooms-preview",
+      "icon": "Map",
+      "title": "寻遗散记前瞻",
+      "description": "首页版本前瞻内容正在同步真实更新摘要与后续版本信息。",
+      "status": "in_progress",
+      "priority": "high"
+    },
+    {
+      "id": "official-id-backfill",
+      "icon": "Shield",
+      "title": "官方 ID 回填",
+      "description": "后续将收口手动主键、官方 ID、别名和历史导出的兼容迁移。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "public-api-metrics",
+      "icon": "Calculator",
+      "title": "公共 API 指标",
+      "description": "卡池分析将补齐预聚合指标、趋势点、分布桶和口径说明。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "account-notify",
+      "icon": "Languages",
+      "title": "账号与通知闭环",
+      "description": "账号安全、自建邮件、防刷预算和持久通知中心进入后续主线。",
+      "status": "planned",
+      "priority": "high"
+    }
+  ]',
+  label = COALESCE(label, '首页路线图'),
+  category = COALESCE(category, 'home'),
+  updated_at = now()
+WHERE key = 'home_roadmap_items';
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'home_roadmap_items',
+  '[
+    {
+      "id": "public-cache",
+      "icon": "Globe",
+      "title": "公共数据缓存",
+      "description": "首屏公共数据已统一走同源 API，并支持公共缓存版本刷新。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "ops-automation",
+      "icon": "RefreshCw",
+      "title": "运营自动化二期",
+      "description": "自动化任务已具备 job graph、partial 状态、重跑和审计详情。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "admin-data",
+      "icon": "Database",
+      "title": "卡池角色管理",
+      "description": "卡池、角色与武器管理已完成重写，支持更安全的编辑流程。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "performance-docs",
+      "icon": "Rocket",
+      "title": "项目瘦身与文档",
+      "description": "README、架构文档、截图与入口拆包已完成本轮整理。",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "heirlooms-preview",
+      "icon": "Map",
+      "title": "寻遗散记前瞻",
+      "description": "首页版本前瞻内容正在同步真实更新摘要与后续版本信息。",
+      "status": "in_progress",
+      "priority": "high"
+    },
+    {
+      "id": "official-id-backfill",
+      "icon": "Shield",
+      "title": "官方 ID 回填",
+      "description": "后续将收口手动主键、官方 ID、别名和历史导出的兼容迁移。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "public-api-metrics",
+      "icon": "Calculator",
+      "title": "公共 API 指标",
+      "description": "卡池分析将补齐预聚合指标、趋势点、分布桶和口径说明。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "account-notify",
+      "icon": "Languages",
+      "title": "账号与通知闭环",
+      "description": "账号安全、自建邮件、防刷预算和持久通知中心进入后续主线。",
+      "status": "planned",
+      "priority": "high"
+    }
+  ]',
+  '首页路线图',
+  'home',
+  now()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'home_roadmap_items'
+);
+
+UPDATE public.site_config
+SET value = jsonb_build_object(
+  'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+  'scope', 'site-config',
+  'reason', 'migration:113_update_home_roadmap_items',
+  'updatedAt', now()
+)::text,
+updated_at = now()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/113_update_home_roadmap_items.sql
+
+-- >>> BEGIN MIGRATION: active/114_add_public_pool_analytics_cache.sql
+-- 114: add public per-pool analytics cache for developer API v1.
+--
+-- The public API must not compute target/off-rate, average pity, or pity
+-- distribution buckets by scanning raw history during request handling. This
+-- cache is refreshed by controlled admin/ops jobs and read by same-origin API
+-- handlers. The table stores anonymous aggregate data only.
+
+CREATE TABLE IF NOT EXISTS public.public_pool_analytics_cache (
+  pool_id TEXT PRIMARY KEY,
+  pool_type TEXT NOT NULL CHECK (pool_type IN ('extra', 'limited', 'standard', 'weapon', 'beginner')),
+  total_pulls BIGINT NOT NULL DEFAULT 0,
+  total_pulls_with_free BIGINT NOT NULL DEFAULT 0,
+  free_pull_count BIGINT NOT NULL DEFAULT 0,
+  rarity_counts JSONB NOT NULL DEFAULT '{}'::jsonb,
+  target_six_star BIGINT NOT NULL DEFAULT 0,
+  offrate_six_star BIGINT NOT NULL DEFAULT 0,
+  avg_pity_six_star NUMERIC(10, 2),
+  avg_pity_five_star NUMERIC(10, 2),
+  avg_pity_target_six_star NUMERIC(10, 2),
+  distribution JSONB NOT NULL DEFAULT '[]'::jsonb,
+  first_pull_at TIMESTAMPTZ,
+  last_pull_at TIMESTAMPTZ,
+  source_version TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_public_pool_analytics_cache_type
+  ON public.public_pool_analytics_cache(pool_type);
+
+CREATE INDEX IF NOT EXISTS idx_public_pool_analytics_cache_last_pull
+  ON public.public_pool_analytics_cache(last_pull_at DESC NULLS LAST);
+
+ALTER TABLE public.public_pool_analytics_cache ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS public_pool_analytics_cache_select_policy
+  ON public.public_pool_analytics_cache;
+
+CREATE POLICY public_pool_analytics_cache_select_policy
+  ON public.public_pool_analytics_cache
+  FOR SELECT
+  USING (true);
+
+GRANT SELECT ON public.public_pool_analytics_cache TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.refresh_public_pool_analytics_cache()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_refreshed_count INTEGER := 0;
+BEGIN
+  TRUNCATE public.public_pool_analytics_cache;
+
+  WITH history_base AS MATERIALIZED (
+    SELECT
+      h.pool_id,
+      h.user_id,
+      h.record_id,
+      h.seq_id,
+      h.rarity,
+      h.special_type,
+      h.is_free,
+      h.is_standard,
+      h.character_name,
+      h.item_name,
+      h.timestamp,
+      h.updated_at,
+      p.type AS raw_pool_type,
+      p.up_character
+    FROM public.history AS h
+    LEFT JOIN public.pools AS p
+      ON p.pool_id = h.pool_id
+    WHERE h.pool_id IS NOT NULL
+  ),
+  history_enriched AS MATERIALIZED (
+    SELECT
+      hb.*,
+      CASE
+        WHEN hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%' THEN 'extra'
+        WHEN hb.raw_pool_type IN ('limited', 'limited_character') OR hb.pool_id LIKE 'special_%' THEN 'limited'
+        WHEN hb.raw_pool_type IN ('weapon', 'limited_weapon') OR hb.pool_id LIKE 'weapon%' OR hb.pool_id LIKE 'wepon%' THEN 'weapon'
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN 'standard'
+        WHEN COALESCE(hb.is_standard, false) THEN 'standard'
+        ELSE 'limited'
+      END AS pool_type,
+      CASE
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN true
+        WHEN hb.rarity = 6 AND (hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%') THEN false
+        WHEN hb.rarity = 6
+          AND hb.up_character IS NOT NULL
+          AND hb.up_character <> ''
+          AND lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) <> ''
+        THEN NOT (
+          lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) LIKE '%' || lower(trim(hb.up_character)) || '%'
+          OR lower(trim(hb.up_character)) LIKE '%' || lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) || '%'
+        )
+        ELSE COALESCE(hb.is_standard, false)
+      END AS is_standard_calc,
+      CASE
+        WHEN hb.rarity <> 6 THEN false
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN false
+        WHEN hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%' THEN true
+        WHEN hb.up_character IS NOT NULL
+          AND hb.up_character <> ''
+          AND lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) <> ''
+        THEN (
+          lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) LIKE '%' || lower(trim(hb.up_character)) || '%'
+          OR lower(trim(hb.up_character)) LIKE '%' || lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) || '%'
+        )
+        ELSE COALESCE(hb.is_standard, false) IS NOT TRUE
+      END AS is_target_calc
+    FROM history_base AS hb
+  ),
+  visible_history AS MATERIALIZED (
+    SELECT *
+    FROM history_enriched
+    WHERE special_type IS DISTINCT FROM 'gift'
+  ),
+  paid_history AS MATERIALIZED (
+    SELECT *
+    FROM visible_history
+    WHERE is_free IS NOT TRUE
+  ),
+  numbered_paid_history AS MATERIALIZED (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (
+        PARTITION BY pool_id, user_id
+        ORDER BY timestamp NULLS LAST, COALESCE(seq_id, record_id), record_id
+      ) AS rn
+    FROM paid_history
+  ),
+  six_star_pity AS MATERIALIZED (
+    SELECT
+      pool_id,
+      user_id,
+      pool_type,
+      is_standard_calc,
+      is_target_calc,
+      LEAST(
+        rn - COALESCE(LAG(rn) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+        80
+      ) AS pity
+    FROM numbered_paid_history
+    WHERE rarity = 6
+  ),
+  five_star_pity AS MATERIALIZED (
+    SELECT
+      pool_id,
+      user_id,
+      LEAST(
+        rn - COALESCE(LAG(rn) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+        10
+      ) AS pity
+    FROM numbered_paid_history
+    WHERE rarity = 5
+  ),
+  pity_ranges AS MATERIALIZED (
+    SELECT
+      pool_id,
+      is_standard_calc,
+      CASE
+        WHEN pity BETWEEN 1 AND 10 THEN '01-10'
+        WHEN pity BETWEEN 11 AND 20 THEN '11-20'
+        WHEN pity BETWEEN 21 AND 30 THEN '21-30'
+        WHEN pity BETWEEN 31 AND 40 THEN '31-40'
+        WHEN pity BETWEEN 41 AND 50 THEN '41-50'
+        WHEN pity BETWEEN 51 AND 60 THEN '51-60'
+        WHEN pity BETWEEN 61 AND 70 THEN '61-70'
+        WHEN pity BETWEEN 71 AND 80 THEN '71-80'
+        WHEN pity BETWEEN 81 AND 90 THEN '81-90'
+        ELSE '91+'
+      END AS range_label
+    FROM six_star_pity
+  ),
+  distribution_rows AS MATERIALIZED (
+    SELECT
+      pool_id,
+      range_label,
+      COUNT(*) FILTER (WHERE is_standard_calc = false) AS limited_count,
+      COUNT(*) FILTER (WHERE is_standard_calc = true) AS standard_count
+    FROM pity_ranges
+    GROUP BY pool_id, range_label
+  ),
+  pool_distributions AS MATERIALIZED (
+    SELECT
+      pool_id,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'range', REPLACE(range_label, '01-10', '1-10'),
+            'limited', limited_count,
+            'standard', standard_count
+          )
+          ORDER BY range_label
+        ),
+        '[]'::jsonb
+      ) AS distribution
+    FROM distribution_rows
+    GROUP BY pool_id
+  ),
+  pool_counts AS MATERIALIZED (
+    SELECT
+      pool_id,
+      MAX(pool_type) AS pool_type,
+      COUNT(*) AS total_pulls,
+      COUNT(*) FILTER (WHERE rarity <= 4) AS four_star,
+      COUNT(*) FILTER (WHERE rarity = 5) AS five_star,
+      COUNT(*) FILTER (WHERE rarity = 6) AS six_star,
+      COUNT(*) FILTER (WHERE rarity = 6 AND is_target_calc = true) AS target_six_star,
+      COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = true) AS offrate_six_star,
+      MIN(timestamp) AS first_pull_at,
+      MAX(timestamp) AS last_pull_at,
+      MAX(updated_at) AS latest_history_update
+    FROM paid_history
+    GROUP BY pool_id
+  ),
+  pool_free_counts AS MATERIALIZED (
+    SELECT
+      pool_id,
+      COUNT(*) AS total_pulls_with_free,
+      COUNT(*) FILTER (WHERE is_free = true) AS free_pull_count
+    FROM visible_history
+    GROUP BY pool_id
+  ),
+  six_star_avg AS MATERIALIZED (
+    SELECT
+      pool_id,
+      ROUND(AVG(pity)::numeric, 2) AS avg_pity_six_star
+    FROM six_star_pity
+    GROUP BY pool_id
+  ),
+  five_star_avg AS MATERIALIZED (
+    SELECT
+      pool_id,
+      ROUND(AVG(pity)::numeric, 2) AS avg_pity_five_star
+    FROM five_star_pity
+    GROUP BY pool_id
+  )
+  INSERT INTO public.public_pool_analytics_cache (
+    pool_id,
+    pool_type,
+    total_pulls,
+    total_pulls_with_free,
+    free_pull_count,
+    rarity_counts,
+    target_six_star,
+    offrate_six_star,
+    avg_pity_six_star,
+    avg_pity_five_star,
+    avg_pity_target_six_star,
+    distribution,
+    first_pull_at,
+    last_pull_at,
+    source_version,
+    updated_at
+  )
+  SELECT
+    pc.pool_id,
+    pc.pool_type,
+    pc.total_pulls,
+    COALESCE(pfc.total_pulls_with_free, pc.total_pulls),
+    COALESCE(pfc.free_pull_count, 0),
+    jsonb_build_object(
+      '4', COALESCE(pc.four_star, 0),
+      '5', COALESCE(pc.five_star, 0),
+      '6', COALESCE(pc.six_star, 0)
+    ),
+    COALESCE(pc.target_six_star, 0),
+    COALESCE(pc.offrate_six_star, 0),
+    ssa.avg_pity_six_star,
+    fsa.avg_pity_five_star,
+    CASE
+      WHEN COALESCE(pc.target_six_star, 0) > 0
+      THEN ROUND((pc.total_pulls::numeric / NULLIF(pc.target_six_star, 0)), 2)
+      ELSE NULL
+    END AS avg_pity_target_six_star,
+    COALESCE(pd.distribution, '[]'::jsonb),
+    pc.first_pull_at,
+    pc.last_pull_at,
+    md5(CONCAT_WS(':', pc.pool_id, pc.total_pulls::text, COALESCE(pc.latest_history_update::text, ''))),
+    NOW()
+  FROM pool_counts AS pc
+  LEFT JOIN pool_free_counts AS pfc
+    ON pfc.pool_id = pc.pool_id
+  LEFT JOIN six_star_avg AS ssa
+    ON ssa.pool_id = pc.pool_id
+  LEFT JOIN five_star_avg AS fsa
+    ON fsa.pool_id = pc.pool_id
+  LEFT JOIN pool_distributions AS pd
+    ON pd.pool_id = pc.pool_id;
+
+  GET DIAGNOSTICS v_refreshed_count = ROW_COUNT;
+
+  UPDATE public.site_config
+  SET value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'stats',
+    'reason', 'refresh_public_pool_analytics_cache',
+    'updatedAt', now()
+  )::text,
+  updated_at = now()
+  WHERE key = 'public_cache_epoch';
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'refreshedPools', v_refreshed_count,
+    'updatedAt', now()
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.refresh_public_pool_analytics_cache() FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.refresh_public_pool_analytics_cache() TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.public_pool_analytics_cache IS
+  'Anonymous public per-pool analytics cache for API v1. Does not contain user ids, game uid, or raw history ids.';
+
+COMMENT ON FUNCTION public.refresh_public_pool_analytics_cache() IS
+  'Refreshes anonymous public per-pool analytics cache from history. Intended for admin/ops/server-side jobs only.';
+-- <<< END MIGRATION: active/114_add_public_pool_analytics_cache.sql
+
+-- >>> BEGIN MIGRATION: active/115_add_change_password_rate_limit.sql
+-- 115: add explicit account password-change rate-limit bucket.
+--
+-- Settings-page password changes now require current-password reauthentication.
+-- Keep that reauthentication path behind a dedicated server-side rate-limit
+-- bucket so brute-force attempts against a signed-in session cannot run
+-- without budget controls.
+
+INSERT INTO public.rate_limit_config (action, max_attempts, window_minutes, lockout_minutes)
+VALUES
+  ('change_password', 5, 15, 30)
+ON CONFLICT (action) DO UPDATE SET
+  max_attempts = EXCLUDED.max_attempts,
+  window_minutes = EXCLUDED.window_minutes,
+  lockout_minutes = EXCLUDED.lockout_minutes;
+-- <<< END MIGRATION: active/115_add_change_password_rate_limit.sql
+
+-- >>> BEGIN MIGRATION: active/116_add_mail_outbox_and_abuse_controls.sql
+-- 116: add provider-independent mail outbox and anti-abuse controls.
+--
+-- This migration does not connect to SMTP, Postal, Stalwart, or any other
+-- provider. It only creates the private database surface needed for future
+-- server-side mail enqueue, budget accounting, suppression, and delivery
+-- diagnostics. Browser clients must not write these tables directly.
+
+CREATE TABLE IF NOT EXISTS public.mail_outbox (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type TEXT NOT NULL CHECK (
+    event_type IN (
+      'register_confirmation',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  ),
+  recipient_email_hash TEXT NOT NULL,
+  recipient_domain TEXT NOT NULL,
+  template_key TEXT NOT NULL,
+  locale TEXT NOT NULL DEFAULT 'zh-CN',
+  payload_redacted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  priority SMALLINT NOT NULL DEFAULT 5 CHECK (priority BETWEEN 1 AND 9),
+  status TEXT NOT NULL DEFAULT 'queued' CHECK (
+    status IN ('queued', 'sending', 'sent', 'failed', 'suppressed', 'cancelled')
+  ),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_error_code TEXT,
+  last_error_redacted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  provider_key TEXT,
+  provider_message_id_hash TEXT,
+  guard_decision JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by_user_id UUID,
+  related_entity_type TEXT,
+  related_entity_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_status_next_attempt
+  ON public.mail_outbox(status, next_attempt_at, priority, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_event_created
+  ON public.mail_outbox(event_type, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_recipient_domain
+  ON public.mail_outbox(recipient_domain, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mail_outbox_related_entity
+  ON public.mail_outbox(related_entity_type, related_entity_id)
+  WHERE related_entity_type IS NOT NULL OR related_entity_id IS NOT NULL;
+
+ALTER TABLE public.mail_outbox ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.mail_suppression (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_email_hash TEXT,
+  recipient_domain TEXT,
+  reason TEXT NOT NULL CHECK (
+    reason IN ('hard_bounce', 'complaint', 'invalid_recipient', 'manual', 'domain_pause', 'abuse_budget')
+  ),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'revoked')),
+  source TEXT NOT NULL DEFAULT 'system',
+  notes_redacted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  expires_at TIMESTAMPTZ,
+  created_by_user_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (recipient_email_hash IS NOT NULL OR recipient_domain IS NOT NULL)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_suppression_active_email
+  ON public.mail_suppression(recipient_email_hash)
+  WHERE status = 'active' AND recipient_email_hash IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_suppression_active_domain
+  ON public.mail_suppression(recipient_domain)
+  WHERE status = 'active' AND recipient_domain IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_mail_suppression_status_domain
+  ON public.mail_suppression(status, recipient_domain);
+
+ALTER TABLE public.mail_suppression ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.mail_abuse_budget_config (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  scope TEXT NOT NULL CHECK (scope IN ('global', 'event', 'recipient', 'domain', 'ip', 'user', 'related')),
+  event_type TEXT NOT NULL DEFAULT '*' CHECK (
+    event_type IN (
+      '*',
+      'register_confirmation',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  ),
+  window_seconds INTEGER NOT NULL CHECK (window_seconds > 0),
+  max_attempts INTEGER NOT NULL CHECK (max_attempts > 0),
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_by_user_id UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (scope, event_type)
+);
+
+ALTER TABLE public.mail_abuse_budget_config ENABLE ROW LEVEL SECURITY;
+
+INSERT INTO public.mail_abuse_budget_config (scope, event_type, window_seconds, max_attempts)
+VALUES
+  ('global', '*', 86400, 500),
+  ('event', 'register_confirmation', 86400, 120),
+  ('event', 'password_reset', 86400, 100),
+  ('event', 'ticket_reply', 86400, 200),
+  ('event', 'developer_api_review', 86400, 50),
+  ('event', 'admin_alert', 86400, 50),
+  ('recipient', 'register_confirmation', 3600, 2),
+  ('recipient', 'password_reset', 3600, 3),
+  ('recipient', 'ticket_reply', 3600, 10),
+  ('recipient', 'developer_api_review', 3600, 5),
+  ('recipient', 'admin_alert', 3600, 10),
+  ('domain', 'register_confirmation', 86400, 40),
+  ('domain', 'password_reset', 86400, 30),
+  ('domain', 'ticket_reply', 86400, 80),
+  ('domain', 'developer_api_review', 86400, 20),
+  ('domain', 'admin_alert', 86400, 20),
+  ('ip', 'register_confirmation', 3600, 5),
+  ('ip', 'password_reset', 3600, 5),
+  ('ip', 'ticket_reply', 3600, 20),
+  ('ip', 'developer_api_review', 3600, 10),
+  ('ip', 'admin_alert', 3600, 20),
+  ('user', 'register_confirmation', 3600, 4),
+  ('user', 'password_reset', 3600, 3),
+  ('user', 'ticket_reply', 3600, 12),
+  ('user', 'developer_api_review', 3600, 6),
+  ('user', 'admin_alert', 3600, 20),
+  ('related', 'ticket_reply', 3600, 10),
+  ('related', 'admin_alert', 3600, 6)
+ON CONFLICT (scope, event_type) DO UPDATE SET
+  window_seconds = EXCLUDED.window_seconds,
+  max_attempts = EXCLUDED.max_attempts,
+  enabled = EXCLUDED.enabled,
+  updated_at = NOW();
+
+CREATE TABLE IF NOT EXISTS public.mail_abuse_budget_counters (
+  bucket_key_hash TEXT PRIMARY KEY,
+  scope TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  window_started_at TIMESTAMPTZ NOT NULL,
+  window_reset_at TIMESTAMPTZ NOT NULL,
+  used_count INTEGER NOT NULL DEFAULT 0 CHECK (used_count >= 0),
+  last_idempotency_key TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mail_abuse_budget_counters_reset
+  ON public.mail_abuse_budget_counters(window_reset_at);
+
+ALTER TABLE public.mail_abuse_budget_counters ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.mail_delivery_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  outbox_id UUID REFERENCES public.mail_outbox(id) ON DELETE CASCADE,
+  provider_key TEXT,
+  provider_message_id_hash TEXT,
+  event_type TEXT NOT NULL,
+  event_payload_redacted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mail_delivery_events_outbox
+  ON public.mail_delivery_events(outbox_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_mail_delivery_events_type_created
+  ON public.mail_delivery_events(event_type, created_at DESC);
+
+ALTER TABLE public.mail_delivery_events ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.mail_outbox FROM anon, authenticated;
+REVOKE ALL ON public.mail_suppression FROM anon, authenticated;
+REVOKE ALL ON public.mail_abuse_budget_config FROM anon, authenticated;
+REVOKE ALL ON public.mail_abuse_budget_counters FROM anon, authenticated;
+REVOKE ALL ON public.mail_delivery_events FROM anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.mail_outbox TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.mail_suppression TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.mail_abuse_budget_config TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.mail_abuse_budget_counters TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.mail_delivery_events TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.mail_outbox IS
+  'Private provider-independent transactional mail queue. Stores recipient hashes and redacted payloads only; no raw email, token, password, API key, user_id, game_uid, or raw history id should be stored here.';
+
+COMMENT ON TABLE public.mail_suppression IS
+  'Private mail suppression list for hard bounces, complaints, invalid recipients, manual domain pauses, and abuse-budget blocks. Uses hashes or domains; no raw recipient email.';
+
+COMMENT ON TABLE public.mail_abuse_budget_config IS
+  'Private configurable mail sending budgets by scope and event type. Service/admin paths may read this before queueing mail.';
+
+COMMENT ON TABLE public.mail_abuse_budget_counters IS
+  'Private hashed budget bucket counters used by server-side mail enqueue logic. Bucket keys are HMAC hashes, not raw IP, user id, or email.';
+
+COMMENT ON TABLE public.mail_delivery_events IS
+  'Private redacted mail provider delivery diagnostics associated with outbox rows.';
+-- <<< END MIGRATION: active/116_add_mail_outbox_and_abuse_controls.sql
+
+-- >>> BEGIN MIGRATION: active/117_add_account_recovery_state_metadata.sql
+-- 117: add provider-independent account recovery state metadata.
+--
+-- AUTH-003 first slice:
+-- - keep signed-out recovery responses generic;
+-- - record manual fallback / future mail-outbox state on recovery requests;
+-- - persist temporary-password expiry and force-change metadata;
+-- - expose private password-change-required state for Settings UI.
+
+ALTER TABLE public.account_recovery_requests
+  ADD COLUMN IF NOT EXISTS delivery_channel TEXT NOT NULL DEFAULT 'manual',
+  ADD COLUMN IF NOT EXISTS next_step TEXT NOT NULL DEFAULT 'manual_review_pending',
+  ADD COLUMN IF NOT EXISTS mail_outbox_id UUID REFERENCES public.mail_outbox(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS temporary_password_expires_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS temporary_password_force_change BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS temporary_password_set_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS temporary_password_set_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS recovery_audit JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'account_recovery_requests_delivery_channel_check'
+      AND conrelid = 'public.account_recovery_requests'::regclass
+  ) THEN
+    ALTER TABLE public.account_recovery_requests
+      ADD CONSTRAINT account_recovery_requests_delivery_channel_check
+      CHECK (delivery_channel IN ('manual', 'mail_outbox', 'disabled'));
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'account_recovery_requests_next_step_check'
+      AND conrelid = 'public.account_recovery_requests'::regclass
+  ) THEN
+    ALTER TABLE public.account_recovery_requests
+      ADD CONSTRAINT account_recovery_requests_next_step_check
+      CHECK (next_step IN (
+        'manual_review_pending',
+        'temporary_password_issued_force_change',
+        'mail_reset_queued',
+        'mail_reset_sent',
+        'mail_reset_failed'
+      ));
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_account_recovery_requests_next_step
+  ON public.account_recovery_requests(next_step, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_account_recovery_requests_temp_password_expires
+  ON public.account_recovery_requests(temporary_password_expires_at)
+  WHERE temporary_password_force_change IS TRUE;
+
+CREATE TABLE IF NOT EXISTS public.account_security_states (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  password_change_required BOOLEAN NOT NULL DEFAULT FALSE,
+  password_change_reason TEXT,
+  password_change_source TEXT,
+  password_change_requested_at TIMESTAMPTZ,
+  password_change_expires_at TIMESTAMPTZ,
+  password_change_recovery_request_id UUID REFERENCES public.account_recovery_requests(id) ON DELETE SET NULL,
+  password_change_set_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_security_states_required
+  ON public.account_security_states(password_change_required, password_change_expires_at)
+  WHERE password_change_required IS TRUE;
+
+ALTER TABLE public.account_security_states ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own account security state" ON public.account_security_states;
+CREATE POLICY "Users can view own account security state"
+  ON public.account_security_states FOR SELECT
+  USING (auth.uid() = user_id);
+
+GRANT SELECT ON public.account_security_states TO authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.account_security_states TO service_role;
+  END IF;
+END $$;
+
+DROP TRIGGER IF EXISTS update_account_security_states_updated_at ON public.account_security_states;
+CREATE TRIGGER update_account_security_states_updated_at
+  BEFORE UPDATE ON public.account_security_states
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+COMMENT ON COLUMN public.account_recovery_requests.delivery_channel IS
+  'Provider-independent recovery delivery path: manual, mail_outbox, or disabled. No raw temporary password is stored.';
+
+COMMENT ON COLUMN public.account_recovery_requests.next_step IS
+  'Current applicant-facing next step, kept generic for signed-out users and detailed for super-admin review.';
+
+COMMENT ON COLUMN public.account_recovery_requests.mail_outbox_id IS
+  'Future mail_outbox link for self-service reset delivery. Nullable while provider decisions are pending.';
+
+COMMENT ON COLUMN public.account_recovery_requests.recovery_audit IS
+  'Redacted structured recovery events. Must not contain plaintext passwords, tokens, raw emails, game_uid, user_id for public output, or secrets.';
+
+COMMENT ON TABLE public.account_security_states IS
+  'Private per-user account security state. Unlike profiles, this table is not public-readable.';
+
+COMMENT ON COLUMN public.account_security_states.password_change_required IS
+  'True when the user signed in with a temporary/admin-issued password and must change it from Settings.';
+
+COMMENT ON COLUMN public.account_security_states.password_change_recovery_request_id IS
+  'Account recovery request that caused the current force-change state, if any.';
+-- <<< END MIGRATION: active/117_add_account_recovery_state_metadata.sql
+
+-- >>> BEGIN MIGRATION: active/118_add_public_pool_trend_cache.sql
+-- 118: add public trend cache for developer API v1.
+--
+-- Public trend endpoints must not aggregate raw history during request
+-- handling. This table stores anonymous aggregate-only buckets refreshed by
+-- controlled admin/ops jobs.
+
+CREATE TABLE IF NOT EXISTS public.public_pool_trend_cache (
+  metric TEXT NOT NULL CHECK (metric IN ('pulls', 'six_star', 'five_star')),
+  granularity TEXT NOT NULL CHECK (granularity IN ('day', 'week')),
+  period_start DATE NOT NULL,
+  pool_type TEXT NOT NULL DEFAULT 'all' CHECK (pool_type IN ('all', 'extra', 'limited', 'standard', 'weapon')),
+  pool_id TEXT NOT NULL DEFAULT 'all',
+  value BIGINT NOT NULL DEFAULT 0,
+  source_version TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (metric, granularity, period_start, pool_type, pool_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_public_pool_trend_cache_scope
+  ON public.public_pool_trend_cache(metric, granularity, pool_type, pool_id, period_start DESC);
+
+ALTER TABLE public.public_pool_trend_cache ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS public_pool_trend_cache_select_policy
+  ON public.public_pool_trend_cache;
+
+CREATE POLICY public_pool_trend_cache_select_policy
+  ON public.public_pool_trend_cache
+  FOR SELECT
+  USING (true);
+
+GRANT SELECT ON public.public_pool_trend_cache TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.refresh_public_pool_trend_cache()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_refreshed_count INTEGER := 0;
+  v_updated_at TIMESTAMPTZ := NOW();
+BEGIN
+  TRUNCATE public.public_pool_trend_cache;
+
+  WITH paid_history AS MATERIALIZED (
+    SELECT
+      h.pool_id,
+      h.rarity,
+      h.timestamp,
+      h.updated_at,
+      CASE
+        WHEN p.type = 'extra' OR h.pool_id LIKE 'joint_%' OR h.pool_id LIKE 'extra_%' THEN 'extra'
+        WHEN p.type IN ('limited', 'limited_character') OR h.pool_id LIKE 'special_%' THEN 'limited'
+        WHEN p.type IN ('weapon', 'limited_weapon') OR h.pool_id LIKE 'weapon%' OR h.pool_id LIKE 'wepon%' THEN 'weapon'
+        WHEN p.type IN ('standard', 'beginner') OR h.pool_id IN ('standard', 'beginner') THEN 'standard'
+        WHEN COALESCE(h.is_standard, false) THEN 'standard'
+        ELSE 'limited'
+      END AS pool_type
+    FROM public.history AS h
+    LEFT JOIN public.pools AS p
+      ON p.pool_id = h.pool_id
+    WHERE h.pool_id IS NOT NULL
+      AND h.timestamp IS NOT NULL
+      AND h.special_type IS DISTINCT FROM 'gift'
+      AND h.is_free IS NOT TRUE
+  ),
+  bucketed AS MATERIALIZED (
+    SELECT
+      'day'::TEXT AS granularity,
+      date_trunc('day', timestamp)::DATE AS period_start,
+      pool_type,
+      pool_id,
+      rarity,
+      updated_at
+    FROM paid_history
+    UNION ALL
+    SELECT
+      'week'::TEXT AS granularity,
+      date_trunc('week', timestamp)::DATE AS period_start,
+      pool_type,
+      pool_id,
+      rarity,
+      updated_at
+    FROM paid_history
+  ),
+  scoped AS MATERIALIZED (
+    SELECT
+      granularity,
+      period_start,
+      'all'::TEXT AS scope_pool_type,
+      'all'::TEXT AS scope_pool_id,
+      rarity,
+      updated_at
+    FROM bucketed
+    UNION ALL
+    SELECT
+      granularity,
+      period_start,
+      pool_type AS scope_pool_type,
+      'all'::TEXT AS scope_pool_id,
+      rarity,
+      updated_at
+    FROM bucketed
+    UNION ALL
+    SELECT
+      granularity,
+      period_start,
+      pool_type AS scope_pool_type,
+      pool_id AS scope_pool_id,
+      rarity,
+      updated_at
+    FROM bucketed
+  ),
+  grouped AS MATERIALIZED (
+    SELECT
+      granularity,
+      period_start,
+      scope_pool_type,
+      scope_pool_id,
+      COUNT(*)::BIGINT AS pulls,
+      COUNT(*) FILTER (WHERE rarity = 6)::BIGINT AS six_star,
+      COUNT(*) FILTER (WHERE rarity = 5)::BIGINT AS five_star,
+      MAX(updated_at) AS latest_history_update
+    FROM scoped
+    GROUP BY granularity, period_start, scope_pool_type, scope_pool_id
+  ),
+  metric_rows AS MATERIALIZED (
+    SELECT
+      'pulls'::TEXT AS metric,
+      granularity,
+      period_start,
+      scope_pool_type AS pool_type,
+      scope_pool_id AS pool_id,
+      pulls AS value,
+      latest_history_update
+    FROM grouped
+    UNION ALL
+    SELECT
+      'six_star'::TEXT AS metric,
+      granularity,
+      period_start,
+      scope_pool_type AS pool_type,
+      scope_pool_id AS pool_id,
+      six_star AS value,
+      latest_history_update
+    FROM grouped
+    UNION ALL
+    SELECT
+      'five_star'::TEXT AS metric,
+      granularity,
+      period_start,
+      scope_pool_type AS pool_type,
+      scope_pool_id AS pool_id,
+      five_star AS value,
+      latest_history_update
+    FROM grouped
+  )
+  INSERT INTO public.public_pool_trend_cache (
+    metric,
+    granularity,
+    period_start,
+    pool_type,
+    pool_id,
+    value,
+    source_version,
+    updated_at
+  )
+  SELECT
+    metric,
+    granularity,
+    period_start,
+    pool_type,
+    pool_id,
+    value,
+    md5(CONCAT_WS(
+      ':',
+      metric,
+      granularity,
+      period_start::TEXT,
+      pool_type,
+      pool_id,
+      value::TEXT,
+      COALESCE(latest_history_update::TEXT, '')
+    )),
+    v_updated_at
+  FROM metric_rows;
+
+  GET DIAGNOSTICS v_refreshed_count = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'refreshedTrendRows', v_refreshed_count,
+    'updatedAt', v_updated_at
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.refresh_public_analytics_cache()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_pool_result JSONB := '{}'::jsonb;
+  v_trend_result JSONB := '{}'::jsonb;
+  v_updated_at TIMESTAMPTZ := NOW();
+  v_version TEXT := ((extract(epoch from v_updated_at) * 1000)::bigint)::text;
+BEGIN
+  v_pool_result := public.refresh_public_pool_analytics_cache();
+  v_trend_result := public.refresh_public_pool_trend_cache();
+
+  UPDATE public.site_config
+  SET value = jsonb_build_object(
+    'version', v_version,
+    'scope', 'stats',
+    'reason', 'refresh_public_analytics_cache',
+    'updatedAt', v_updated_at
+  )::text,
+  updated_at = v_updated_at
+  WHERE key = 'public_cache_epoch';
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'pool', v_pool_result,
+    'trends', v_trend_result,
+    'refreshedPools', COALESCE((v_pool_result->>'refreshedPools')::INTEGER, 0),
+    'refreshedTrendRows', COALESCE((v_trend_result->>'refreshedTrendRows')::INTEGER, 0),
+    'cacheVersion', v_version,
+    'updatedAt', v_updated_at
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.refresh_public_pool_trend_cache() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.refresh_public_analytics_cache() FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.refresh_public_pool_trend_cache() TO service_role;
+    GRANT EXECUTE ON FUNCTION public.refresh_public_analytics_cache() TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.public_pool_trend_cache IS
+  'Anonymous public trend cache for API v1. Stores aggregate buckets only and does not contain user ids, game uid, or raw history ids.';
+
+COMMENT ON FUNCTION public.refresh_public_pool_trend_cache() IS
+  'Refreshes anonymous public trend cache from history. Intended for admin/ops/server-side jobs only.';
+
+COMMENT ON FUNCTION public.refresh_public_analytics_cache() IS
+  'Refreshes public per-pool analytics and trend caches, then updates the public cache epoch.';
+-- <<< END MIGRATION: active/118_add_public_pool_trend_cache.sql
+
+-- >>> BEGIN MIGRATION: active/119_add_auth_security_events.sql
+-- 119: add private auth security audit events.
+--
+-- AUTH-002 finish:
+-- - record server-side risk buckets for login/register/recovery preflight;
+-- - keep CAPTCHA verification summaries without raw tokens;
+-- - store only hashed requester/email identifiers and redacted metadata.
+
+CREATE TABLE IF NOT EXISTS public.auth_security_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_type TEXT NOT NULL,
+  action TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  risk_bucket TEXT NOT NULL DEFAULT 'unknown',
+  risk_reasons TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  requester_hash TEXT NOT NULL,
+  requester_origin_hash TEXT,
+  requester_user_agent_hash TEXT,
+  email_hash TEXT,
+  email_domain_hash TEXT,
+  email_redacted TEXT,
+  captcha JSONB NOT NULL DEFAULT '{}'::jsonb,
+  rate_limit JSONB NOT NULL DEFAULT '{}'::jsonb,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_security_events_action_created
+  ON public.auth_security_events(action, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_auth_security_events_outcome_created
+  ON public.auth_security_events(outcome, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_auth_security_events_risk_created
+  ON public.auth_security_events(risk_bucket, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_auth_security_events_requester
+  ON public.auth_security_events(requester_hash, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_auth_security_events_email
+  ON public.auth_security_events(email_hash, created_at DESC)
+  WHERE email_hash IS NOT NULL;
+
+ALTER TABLE public.auth_security_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Super admins can view auth security events" ON public.auth_security_events;
+CREATE POLICY "Super admins can view auth security events"
+  ON public.auth_security_events FOR SELECT
+  USING (public.is_super_admin());
+
+REVOKE ALL ON public.auth_security_events FROM anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, DELETE ON public.auth_security_events TO service_role;
+  END IF;
+END $$;
+
+INSERT INTO public.rate_limit_config (action, max_attempts, window_minutes, lockout_minutes) VALUES
+  ('account_recovery', 4, 60, 60)
+ON CONFLICT (action) DO UPDATE SET
+  max_attempts = EXCLUDED.max_attempts,
+  window_minutes = EXCLUDED.window_minutes,
+  lockout_minutes = EXCLUDED.lockout_minutes;
+
+COMMENT ON TABLE public.auth_security_events IS
+  'Private auth security audit log for server-side risk buckets. Stores hashed identifiers and redacted metadata only.';
+
+COMMENT ON COLUMN public.auth_security_events.requester_hash IS
+  'HMAC hash of requester IP; never store the raw IP address here.';
+
+COMMENT ON COLUMN public.auth_security_events.email_hash IS
+  'HMAC hash of normalized email. Raw email stays out of this audit table.';
+
+COMMENT ON COLUMN public.auth_security_events.captcha IS
+  'CAPTCHA verification summary. Must not contain raw CAPTCHA tokens or provider secrets.';
+
+COMMENT ON COLUMN public.auth_security_events.metadata IS
+  'Sanitized event metadata. Must not contain passwords, tokens, raw emails, game_uid, user_id, platform IDs, API keys, or raw history ids.';
+-- <<< END MIGRATION: active/119_add_auth_security_events.sql
+
+-- >>> BEGIN MIGRATION: active/120_add_mail_outbox_enqueue_rpc.sql
+-- 120: add provider-independent mail outbox enqueue RPC.
+--
+-- MAIL-ABUSE-001 finish slice:
+-- - keep enqueue server-only via service_role;
+-- - atomically check hashed budget counters and insert a queued outbox row;
+-- - return dedupe/block/queue metadata without exposing raw recipient data.
+
+CREATE OR REPLACE FUNCTION public.enqueue_mail_outbox_event(
+  p_event_type TEXT,
+  p_recipient_email_hash TEXT,
+  p_recipient_domain TEXT,
+  p_template_key TEXT,
+  p_idempotency_key TEXT,
+  p_locale TEXT DEFAULT 'zh-CN',
+  p_payload_redacted_json JSONB DEFAULT '{}'::jsonb,
+  p_priority SMALLINT DEFAULT 5,
+  p_guard_decision JSONB DEFAULT '{}'::jsonb,
+  p_budget_buckets JSONB DEFAULT '[]'::jsonb,
+  p_created_by_user_id UUID DEFAULT NULL,
+  p_related_entity_type TEXT DEFAULT NULL,
+  p_related_entity_id TEXT DEFAULT NULL,
+  p_now TIMESTAMPTZ DEFAULT NOW()
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_existing_id UUID;
+  v_inserted_id UUID;
+  v_bucket JSONB;
+  v_bucket_key TEXT;
+  v_scope TEXT;
+  v_bucket_event_type TEXT;
+  v_window_reset_at TIMESTAMPTZ;
+  v_max_attempts INTEGER;
+  v_used_count INTEGER;
+  v_block_result JSONB;
+BEGIN
+  IF p_idempotency_key IS NULL OR btrim(p_idempotency_key) = '' THEN
+    RETURN jsonb_build_object(
+      'action', 'block',
+      'code', 'mail_missing_idempotency_key',
+      'reason', 'Missing mail idempotency key.'
+    );
+  END IF;
+
+  SELECT id INTO v_existing_id
+  FROM public.mail_outbox
+  WHERE idempotency_key = p_idempotency_key
+  LIMIT 1;
+
+  IF v_existing_id IS NOT NULL THEN
+    RETURN jsonb_build_object(
+      'action', 'dedupe',
+      'code', 'mail_idempotency_hit',
+      'outbox_id', v_existing_id,
+      'idempotency_key', p_idempotency_key
+    );
+  END IF;
+
+  IF jsonb_typeof(COALESCE(p_budget_buckets, '[]'::jsonb)) <> 'array' THEN
+    RETURN jsonb_build_object(
+      'action', 'block',
+      'code', 'mail_invalid_budget_buckets',
+      'reason', 'Budget buckets must be a JSON array.',
+      'idempotency_key', p_idempotency_key
+    );
+  END IF;
+
+  IF jsonb_array_length(COALESCE(p_budget_buckets, '[]'::jsonb)) = 0 THEN
+    RETURN jsonb_build_object(
+      'action', 'block',
+      'code', 'mail_missing_budget_buckets',
+      'reason', 'At least one budget bucket is required.',
+      'idempotency_key', p_idempotency_key
+    );
+  END IF;
+
+  FOR v_bucket IN SELECT value FROM jsonb_array_elements(COALESCE(p_budget_buckets, '[]'::jsonb))
+  LOOP
+    v_bucket_key := btrim(COALESCE(v_bucket ->> 'bucketKeyHash', v_bucket ->> 'bucket_key_hash', ''));
+    v_scope := btrim(COALESCE(v_bucket ->> 'scope', 'unknown'));
+    v_bucket_event_type := btrim(COALESCE(v_bucket ->> 'eventType', v_bucket ->> 'event_type', p_event_type));
+    v_max_attempts := NULLIF(v_bucket ->> 'max', '')::INTEGER;
+    v_window_reset_at := COALESCE(
+      NULLIF(v_bucket ->> 'resetAt', '')::TIMESTAMPTZ,
+      NULLIF(v_bucket ->> 'reset_at', '')::TIMESTAMPTZ,
+      p_now + make_interval(secs => GREATEST(COALESCE(NULLIF(v_bucket ->> 'windowMs', '')::INTEGER, 3600000), 1000) / 1000)
+    );
+
+    IF v_bucket_key = '' OR v_max_attempts IS NULL OR v_max_attempts < 1 THEN
+      RETURN jsonb_build_object(
+        'action', 'block',
+        'code', 'mail_invalid_budget_bucket',
+        'reason', 'Budget bucket is missing a key or max.',
+        'idempotency_key', p_idempotency_key
+      );
+    END IF;
+
+    INSERT INTO public.mail_abuse_budget_counters (
+      bucket_key_hash,
+      scope,
+      event_type,
+      window_started_at,
+      window_reset_at,
+      used_count,
+      last_idempotency_key,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      v_bucket_key,
+      v_scope,
+      v_bucket_event_type,
+      p_now,
+      v_window_reset_at,
+      0,
+      NULL,
+      p_now,
+      p_now
+    )
+    ON CONFLICT (bucket_key_hash) DO NOTHING;
+
+    SELECT used_count INTO v_used_count
+    FROM public.mail_abuse_budget_counters
+    WHERE bucket_key_hash = v_bucket_key
+    FOR UPDATE;
+
+    IF COALESCE(v_used_count, 0) >= v_max_attempts THEN
+      v_block_result := jsonb_build_object(
+        'action', 'block',
+        'code', 'mail_budget_exceeded:' || v_scope,
+        'reason', 'Mail sending budget exceeded.',
+        'idempotency_key', p_idempotency_key,
+        'exceeded_bucket', jsonb_build_object(
+          'scope', v_scope,
+          'bucket_key_hash', v_bucket_key,
+          'max', v_max_attempts,
+          'used', COALESCE(v_used_count, 0),
+          'reset_at', v_window_reset_at
+        )
+      );
+
+      RETURN v_block_result;
+    END IF;
+  END LOOP;
+
+  INSERT INTO public.mail_outbox (
+    event_type,
+    recipient_email_hash,
+    recipient_domain,
+    template_key,
+    locale,
+    payload_redacted_json,
+    idempotency_key,
+    priority,
+    status,
+    next_attempt_at,
+    guard_decision,
+    created_by_user_id,
+    related_entity_type,
+    related_entity_id,
+    created_at,
+    updated_at
+  )
+  VALUES (
+    p_event_type,
+    p_recipient_email_hash,
+    p_recipient_domain,
+    p_template_key,
+    COALESCE(NULLIF(btrim(p_locale), ''), 'zh-CN'),
+    COALESCE(p_payload_redacted_json, '{}'::jsonb),
+    p_idempotency_key,
+    LEAST(9, GREATEST(1, COALESCE(p_priority, 5))),
+    'queued',
+    p_now,
+    COALESCE(p_guard_decision, '{}'::jsonb),
+    p_created_by_user_id,
+    NULLIF(btrim(COALESCE(p_related_entity_type, '')), ''),
+    NULLIF(btrim(COALESCE(p_related_entity_id, '')), ''),
+    p_now,
+    p_now
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id INTO v_inserted_id;
+
+  IF v_inserted_id IS NULL THEN
+    SELECT id INTO v_existing_id
+    FROM public.mail_outbox
+    WHERE idempotency_key = p_idempotency_key
+    LIMIT 1;
+
+    RETURN jsonb_build_object(
+      'action', 'dedupe',
+      'code', 'mail_idempotency_hit',
+      'outbox_id', v_existing_id,
+      'idempotency_key', p_idempotency_key
+    );
+  END IF;
+
+  FOR v_bucket IN SELECT value FROM jsonb_array_elements(COALESCE(p_budget_buckets, '[]'::jsonb))
+  LOOP
+    v_bucket_key := btrim(COALESCE(v_bucket ->> 'bucketKeyHash', v_bucket ->> 'bucket_key_hash', ''));
+
+    IF v_bucket_key <> '' THEN
+      UPDATE public.mail_abuse_budget_counters
+      SET
+        used_count = used_count + 1,
+        last_idempotency_key = p_idempotency_key,
+        updated_at = p_now
+      WHERE bucket_key_hash = v_bucket_key;
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'action', 'queue',
+    'code', 'mail_outbox_queued',
+    'outbox_id', v_inserted_id,
+    'idempotency_key', p_idempotency_key
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.enqueue_mail_outbox_event(
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  JSONB,
+  SMALLINT,
+  JSONB,
+  JSONB,
+  UUID,
+  TEXT,
+  TEXT,
+  TIMESTAMPTZ
+) FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.enqueue_mail_outbox_event(
+      TEXT,
+      TEXT,
+      TEXT,
+      TEXT,
+      TEXT,
+      TEXT,
+      JSONB,
+      SMALLINT,
+      JSONB,
+      JSONB,
+      UUID,
+      TEXT,
+      TEXT,
+      TIMESTAMPTZ
+    ) TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON FUNCTION public.enqueue_mail_outbox_event(
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  TEXT,
+  JSONB,
+  SMALLINT,
+  JSONB,
+  JSONB,
+  UUID,
+  TEXT,
+  TEXT,
+  TIMESTAMPTZ
+) IS
+  'Server-only mail enqueue RPC. Atomically checks hashed budget counters, inserts redacted mail_outbox rows, and returns queue/dedupe/block metadata. Does not send mail.';
+-- <<< END MIGRATION: active/120_add_mail_outbox_enqueue_rpc.sql
+
+-- >>> BEGIN MIGRATION: active/121_fix_public_pool_analytics_ordering.sql
+-- 121: fix public pool analytics ordering for mixed seq_id / record_id types.
+--
+-- Production history.seq_id may be numeric while record_id is text. The
+-- original refresh function mixed both columns without casts, which fails with
+-- "COALESCE types text and double precision cannot be matched". Keep this as a
+-- small forward migration that only replaces the refresh function.
+
+CREATE OR REPLACE FUNCTION public.refresh_public_pool_analytics_cache()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_refreshed_count INTEGER := 0;
+BEGIN
+  TRUNCATE public.public_pool_analytics_cache;
+
+  WITH history_base AS MATERIALIZED (
+    SELECT
+      h.pool_id,
+      h.user_id,
+      h.record_id,
+      h.seq_id,
+      h.rarity,
+      h.special_type,
+      h.is_free,
+      h.is_standard,
+      h.character_name,
+      h.item_name,
+      h.timestamp,
+      h.updated_at,
+      p.type AS raw_pool_type,
+      p.up_character
+    FROM public.history AS h
+    LEFT JOIN public.pools AS p
+      ON p.pool_id = h.pool_id
+    WHERE h.pool_id IS NOT NULL
+  ),
+  history_enriched AS MATERIALIZED (
+    SELECT
+      hb.*,
+      CASE
+        WHEN hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%' THEN 'extra'
+        WHEN hb.raw_pool_type IN ('limited', 'limited_character') OR hb.pool_id LIKE 'special_%' THEN 'limited'
+        WHEN hb.raw_pool_type IN ('weapon', 'limited_weapon') OR hb.pool_id LIKE 'weapon%' OR hb.pool_id LIKE 'wepon%' THEN 'weapon'
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN 'standard'
+        WHEN COALESCE(hb.is_standard, false) THEN 'standard'
+        ELSE 'limited'
+      END AS pool_type,
+      CASE
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN true
+        WHEN hb.rarity = 6 AND (hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%') THEN false
+        WHEN hb.rarity = 6
+          AND hb.up_character IS NOT NULL
+          AND hb.up_character <> ''
+          AND lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) <> ''
+        THEN NOT (
+          lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) LIKE '%' || lower(trim(hb.up_character)) || '%'
+          OR lower(trim(hb.up_character)) LIKE '%' || lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) || '%'
+        )
+        ELSE COALESCE(hb.is_standard, false)
+      END AS is_standard_calc,
+      CASE
+        WHEN hb.rarity <> 6 THEN false
+        WHEN hb.raw_pool_type IN ('standard', 'beginner') OR hb.pool_id IN ('standard', 'beginner') THEN false
+        WHEN hb.raw_pool_type = 'extra' OR hb.pool_id LIKE 'joint_%' OR hb.pool_id LIKE 'extra_%' THEN true
+        WHEN hb.up_character IS NOT NULL
+          AND hb.up_character <> ''
+          AND lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) <> ''
+        THEN (
+          lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) LIKE '%' || lower(trim(hb.up_character)) || '%'
+          OR lower(trim(hb.up_character)) LIKE '%' || lower(trim(COALESCE(NULLIF(hb.character_name, ''), NULLIF(hb.item_name, ''), ''))) || '%'
+        )
+        ELSE COALESCE(hb.is_standard, false) IS NOT TRUE
+      END AS is_target_calc
+    FROM history_base AS hb
+  ),
+  visible_history AS MATERIALIZED (
+    SELECT *
+    FROM history_enriched
+    WHERE special_type IS DISTINCT FROM 'gift'
+  ),
+  paid_history AS MATERIALIZED (
+    SELECT *
+    FROM visible_history
+    WHERE is_free IS NOT TRUE
+  ),
+  numbered_paid_history AS MATERIALIZED (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (
+        PARTITION BY pool_id, user_id
+        ORDER BY timestamp NULLS LAST, COALESCE(seq_id::TEXT, record_id::TEXT), record_id::TEXT
+      ) AS rn
+    FROM paid_history
+  ),
+  six_star_pity AS MATERIALIZED (
+    SELECT
+      pool_id,
+      user_id,
+      pool_type,
+      is_standard_calc,
+      is_target_calc,
+      LEAST(
+        rn - COALESCE(LAG(rn) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+        80
+      ) AS pity
+    FROM numbered_paid_history
+    WHERE rarity = 6
+  ),
+  five_star_pity AS MATERIALIZED (
+    SELECT
+      pool_id,
+      user_id,
+      LEAST(
+        rn - COALESCE(LAG(rn) OVER (PARTITION BY pool_id, user_id ORDER BY rn), 0),
+        10
+      ) AS pity
+    FROM numbered_paid_history
+    WHERE rarity = 5
+  ),
+  pity_ranges AS MATERIALIZED (
+    SELECT
+      pool_id,
+      is_standard_calc,
+      CASE
+        WHEN pity BETWEEN 1 AND 10 THEN '01-10'
+        WHEN pity BETWEEN 11 AND 20 THEN '11-20'
+        WHEN pity BETWEEN 21 AND 30 THEN '21-30'
+        WHEN pity BETWEEN 31 AND 40 THEN '31-40'
+        WHEN pity BETWEEN 41 AND 50 THEN '41-50'
+        WHEN pity BETWEEN 51 AND 60 THEN '51-60'
+        WHEN pity BETWEEN 61 AND 70 THEN '61-70'
+        WHEN pity BETWEEN 71 AND 80 THEN '71-80'
+        WHEN pity BETWEEN 81 AND 90 THEN '81-90'
+        ELSE '91+'
+      END AS range_label
+    FROM six_star_pity
+  ),
+  distribution_rows AS MATERIALIZED (
+    SELECT
+      pool_id,
+      range_label,
+      COUNT(*) FILTER (WHERE is_standard_calc = false) AS limited_count,
+      COUNT(*) FILTER (WHERE is_standard_calc = true) AS standard_count
+    FROM pity_ranges
+    GROUP BY pool_id, range_label
+  ),
+  pool_distributions AS MATERIALIZED (
+    SELECT
+      pool_id,
+      COALESCE(
+        jsonb_agg(
+          jsonb_build_object(
+            'range', REPLACE(range_label, '01-10', '1-10'),
+            'limited', limited_count,
+            'standard', standard_count
+          )
+          ORDER BY range_label
+        ),
+        '[]'::jsonb
+      ) AS distribution
+    FROM distribution_rows
+    GROUP BY pool_id
+  ),
+  pool_counts AS MATERIALIZED (
+    SELECT
+      pool_id,
+      MAX(pool_type) AS pool_type,
+      COUNT(*) AS total_pulls,
+      COUNT(*) FILTER (WHERE rarity <= 4) AS four_star,
+      COUNT(*) FILTER (WHERE rarity = 5) AS five_star,
+      COUNT(*) FILTER (WHERE rarity = 6) AS six_star,
+      COUNT(*) FILTER (WHERE rarity = 6 AND is_target_calc = true) AS target_six_star,
+      COUNT(*) FILTER (WHERE rarity = 6 AND is_standard_calc = true) AS offrate_six_star,
+      MIN(timestamp) AS first_pull_at,
+      MAX(timestamp) AS last_pull_at,
+      MAX(updated_at) AS latest_history_update
+    FROM paid_history
+    GROUP BY pool_id
+  ),
+  pool_free_counts AS MATERIALIZED (
+    SELECT
+      pool_id,
+      COUNT(*) AS total_pulls_with_free,
+      COUNT(*) FILTER (WHERE is_free = true) AS free_pull_count
+    FROM visible_history
+    GROUP BY pool_id
+  ),
+  six_star_avg AS MATERIALIZED (
+    SELECT
+      pool_id,
+      ROUND(AVG(pity)::numeric, 2) AS avg_pity_six_star
+    FROM six_star_pity
+    GROUP BY pool_id
+  ),
+  five_star_avg AS MATERIALIZED (
+    SELECT
+      pool_id,
+      ROUND(AVG(pity)::numeric, 2) AS avg_pity_five_star
+    FROM five_star_pity
+    GROUP BY pool_id
+  )
+  INSERT INTO public.public_pool_analytics_cache (
+    pool_id,
+    pool_type,
+    total_pulls,
+    total_pulls_with_free,
+    free_pull_count,
+    rarity_counts,
+    target_six_star,
+    offrate_six_star,
+    avg_pity_six_star,
+    avg_pity_five_star,
+    avg_pity_target_six_star,
+    distribution,
+    first_pull_at,
+    last_pull_at,
+    source_version,
+    updated_at
+  )
+  SELECT
+    pc.pool_id,
+    pc.pool_type,
+    pc.total_pulls,
+    COALESCE(pfc.total_pulls_with_free, pc.total_pulls),
+    COALESCE(pfc.free_pull_count, 0),
+    jsonb_build_object(
+      '4', COALESCE(pc.four_star, 0),
+      '5', COALESCE(pc.five_star, 0),
+      '6', COALESCE(pc.six_star, 0)
+    ),
+    COALESCE(pc.target_six_star, 0),
+    COALESCE(pc.offrate_six_star, 0),
+    ssa.avg_pity_six_star,
+    fsa.avg_pity_five_star,
+    CASE
+      WHEN COALESCE(pc.target_six_star, 0) > 0
+      THEN ROUND((pc.total_pulls::numeric / NULLIF(pc.target_six_star, 0)), 2)
+      ELSE NULL
+    END AS avg_pity_target_six_star,
+    COALESCE(pd.distribution, '[]'::jsonb),
+    pc.first_pull_at,
+    pc.last_pull_at,
+    md5(CONCAT_WS(':', pc.pool_id, pc.total_pulls::text, COALESCE(pc.latest_history_update::text, ''))),
+    NOW()
+  FROM pool_counts AS pc
+  LEFT JOIN pool_free_counts AS pfc
+    ON pfc.pool_id = pc.pool_id
+  LEFT JOIN six_star_avg AS ssa
+    ON ssa.pool_id = pc.pool_id
+  LEFT JOIN five_star_avg AS fsa
+    ON fsa.pool_id = pc.pool_id
+  LEFT JOIN pool_distributions AS pd
+    ON pd.pool_id = pc.pool_id;
+
+  GET DIAGNOSTICS v_refreshed_count = ROW_COUNT;
+
+  UPDATE public.site_config
+  SET value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'stats',
+    'reason', 'refresh_public_pool_analytics_cache',
+    'updatedAt', now()
+  )::text,
+  updated_at = now()
+  WHERE key = 'public_cache_epoch';
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'refreshedPools', v_refreshed_count,
+    'updatedAt', now()
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.refresh_public_pool_analytics_cache() FROM PUBLIC;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.refresh_public_pool_analytics_cache() TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON FUNCTION public.refresh_public_pool_analytics_cache() IS
+  'Refreshes anonymous public per-pool analytics cache from history. Intended for admin/ops/server-side jobs only.';
+-- <<< END MIGRATION: active/121_fix_public_pool_analytics_ordering.sql
+
+-- >>> BEGIN MIGRATION: active/122_fix_joint_pool_featured_character_refs.sql
+-- 122: normalize 2026-05-14 "辉光庆典" featured character refs.
+--
+-- Some production rows still have display names in pools.featured_characters
+-- for joint_1_2_2. Admin/audit tooling expects character IDs there.
+
+DO $$
+DECLARE
+  v_pool_id TEXT := 'joint_1_2_2';
+  v_featured_refs TEXT[];
+  v_missing_names TEXT[];
+BEGIN
+  WITH featured(source_id, legacy_id, fallback_name, sort_order) AS (
+    VALUES
+      ('chr_0016_laevat', 'char_levantin', '莱万汀', 1),
+      ('chr_0013_aglina', 'char_jerpeta', '洁尔佩塔', 2),
+      ('chr_0025_ardelia', 'char_eldelra', '艾尔黛拉', 3),
+      ('chr_0029_pograni', 'char_junwei', '骏卫', 4)
+  ),
+  resolved AS (
+    SELECT
+      featured.fallback_name,
+      featured.sort_order,
+      COALESCE(source_match.id, legacy_match.id) AS character_id
+    FROM featured
+    LEFT JOIN public.characters AS source_match
+      ON source_match.id = featured.source_id
+    LEFT JOIN public.characters AS legacy_match
+      ON legacy_match.id = featured.legacy_id
+  )
+  SELECT
+    ARRAY_AGG(character_id ORDER BY sort_order) FILTER (WHERE character_id IS NOT NULL),
+    ARRAY_AGG(fallback_name ORDER BY sort_order) FILTER (WHERE character_id IS NULL)
+    INTO v_featured_refs, v_missing_names
+  FROM resolved;
+
+  IF COALESCE(array_length(v_missing_names, 1), 0) > 0 THEN
+    RAISE EXCEPTION '122_fix_joint_pool_featured_character_refs missing character IDs for: %', array_to_string(v_missing_names, ', ');
+  END IF;
+
+  UPDATE public.pools
+  SET
+    featured_characters = v_featured_refs,
+    updated_at = NOW()
+  WHERE pool_id = v_pool_id
+    AND featured_characters IS DISTINCT FROM v_featured_refs;
+
+  WITH resolved(character_id, sort_order) AS (
+    SELECT character_id, sort_order
+    FROM UNNEST(v_featured_refs) WITH ORDINALITY AS item(character_id, sort_order)
+  )
+  INSERT INTO public.pool_characters (pool_id, character_id, is_up)
+  SELECT v_pool_id, character_id, TRUE
+  FROM resolved
+  ON CONFLICT (pool_id, character_id) DO UPDATE
+  SET is_up = TRUE;
+END $$;
+-- <<< END MIGRATION: active/122_fix_joint_pool_featured_character_refs.sql
+
+-- >>> BEGIN MIGRATION: active/123_add_email_login_mail_event_type.sql
+-- 123: allow email-login transactional mail events.
+--
+-- AUTH-003 / MAIL-ABUSE-001 finish slice:
+-- - keep mail_outbox provider-independent and service-role only;
+-- - add email_login to the event_type allowlist used by the queue and budgets;
+-- - seed the same low-volume anti-abuse budgets as password_reset.
+
+ALTER TABLE public.mail_outbox
+  DROP CONSTRAINT IF EXISTS mail_outbox_event_type_check;
+
+ALTER TABLE public.mail_outbox
+  ADD CONSTRAINT mail_outbox_event_type_check
+  CHECK (
+    event_type IN (
+      'register_confirmation',
+      'email_login',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  );
+
+ALTER TABLE public.mail_abuse_budget_config
+  DROP CONSTRAINT IF EXISTS mail_abuse_budget_config_event_type_check;
+
+ALTER TABLE public.mail_abuse_budget_config
+  ADD CONSTRAINT mail_abuse_budget_config_event_type_check
+  CHECK (
+    event_type IN (
+      '*',
+      'register_confirmation',
+      'email_login',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  );
+
+INSERT INTO public.mail_abuse_budget_config (scope, event_type, window_seconds, max_attempts)
+VALUES
+  ('event', 'email_login', 86400, 100),
+  ('recipient', 'email_login', 3600, 3),
+  ('domain', 'email_login', 86400, 30),
+  ('ip', 'email_login', 3600, 5),
+  ('user', 'email_login', 3600, 3)
+ON CONFLICT (scope, event_type) DO UPDATE SET
+  window_seconds = EXCLUDED.window_seconds,
+  max_attempts = EXCLUDED.max_attempts,
+  enabled = EXCLUDED.enabled,
+  updated_at = NOW();
+
+COMMENT ON CONSTRAINT mail_outbox_event_type_check ON public.mail_outbox IS
+  'Allowed transactional mail event types, including passwordless email-login links.';
+
+COMMENT ON CONSTRAINT mail_abuse_budget_config_event_type_check ON public.mail_abuse_budget_config IS
+  'Allowed mail budget event types, including passwordless email-login links.';
+-- <<< END MIGRATION: active/123_add_email_login_mail_event_type.sql
+
+-- >>> BEGIN MIGRATION: active/124_seed_mail_runtime_config.sql
+-- 124: seed runtime mail controls in site_config.
+--
+-- Runtime controls are lower gates only. They can pause or narrow mail flows
+-- without redeploying, but they must not store SMTP credentials or bypass env
+-- vars such as MAIL_OUTBOX_WORKER_ENABLED / MAIL_OUTBOX_GLOBAL_KILL_SWITCH.
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+VALUES (
+  'mail_runtime_config',
+  jsonb_build_object(
+    'version', 1,
+    'updatedAt', now(),
+    'updatedBy', null,
+    'note', '',
+    'events', jsonb_build_object(
+      'authMailActions', null,
+      'accountRecoveryOutbox', null,
+      'developerApiReview', null,
+      'ticketReply', null,
+      'adminAlert', null
+    ),
+    'controls', jsonb_build_object(
+      'killSwitch', null,
+      'disabledEvents', jsonb_build_array(),
+      'pausedDomains', jsonb_build_array()
+    )
+  )::text,
+  '邮件运行期开关',
+  'system',
+  now()
+)
+ON CONFLICT (key) DO NOTHING;
+-- <<< END MIGRATION: active/124_seed_mail_runtime_config.sql
+
+-- >>> BEGIN MIGRATION: active/125_refresh_home_roadmap_after_mail_rollout.sql
+-- 125: Refresh homepage roadmap after the preview card and mail rollout landed.
+
+UPDATE public.site_config
+SET
+  value = '[
+    {
+      "id": "public-cache",
+      "icon": "Globe",
+      "title": "公共数据缓存",
+      "description": "首屏公共数据已统一走同源 API，并支持公共缓存版本刷新。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "ops-automation",
+      "icon": "RefreshCw",
+      "title": "运营自动化二期",
+      "description": "自动化任务已具备 job graph、partial 状态、重跑和审计详情。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "admin-data",
+      "icon": "Database",
+      "title": "卡池角色管理",
+      "description": "卡池、角色与武器管理已完成重写，支持更安全的编辑流程。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "performance-docs",
+      "icon": "Rocket",
+      "title": "项目瘦身与文档",
+      "description": "README、架构文档、截图与入口拆包已完成本轮整理。",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "heirlooms-preview",
+      "icon": "Map",
+      "title": "寻遗散记前瞻",
+      "description": "首页已同步寻遗散记前瞻摘要、PV 与动态入口。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "official-id-backfill",
+      "icon": "Shield",
+      "title": "官方 ID 回填",
+      "description": "后续将收口手动主键、官方 ID、别名和历史导出的兼容迁移。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "public-api-metrics",
+      "icon": "Calculator",
+      "title": "公共 API 指标",
+      "description": "卡池分析将补齐预聚合指标、趋势点、分布桶和口径说明。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "account-notify",
+      "icon": "Languages",
+      "title": "账号与通知闭环",
+      "description": "邮箱验证、密码重置、邮件登录、工单通知和后台邮件状态已接入；持久通知中心继续排期。",
+      "status": "in_progress",
+      "priority": "high"
+    }
+  ]',
+  label = COALESCE(label, '首页路线图'),
+  category = COALESCE(category, 'home'),
+  updated_at = now()
+WHERE key = 'home_roadmap_items';
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'home_roadmap_items',
+  '[
+    {
+      "id": "public-cache",
+      "icon": "Globe",
+      "title": "公共数据缓存",
+      "description": "首屏公共数据已统一走同源 API，并支持公共缓存版本刷新。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "ops-automation",
+      "icon": "RefreshCw",
+      "title": "运营自动化二期",
+      "description": "自动化任务已具备 job graph、partial 状态、重跑和审计详情。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "admin-data",
+      "icon": "Database",
+      "title": "卡池角色管理",
+      "description": "卡池、角色与武器管理已完成重写，支持更安全的编辑流程。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "performance-docs",
+      "icon": "Rocket",
+      "title": "项目瘦身与文档",
+      "description": "README、架构文档、截图与入口拆包已完成本轮整理。",
+      "status": "completed",
+      "priority": "medium"
+    },
+    {
+      "id": "heirlooms-preview",
+      "icon": "Map",
+      "title": "寻遗散记前瞻",
+      "description": "首页已同步寻遗散记前瞻摘要、PV 与动态入口。",
+      "status": "completed",
+      "priority": "high"
+    },
+    {
+      "id": "official-id-backfill",
+      "icon": "Shield",
+      "title": "官方 ID 回填",
+      "description": "后续将收口手动主键、官方 ID、别名和历史导出的兼容迁移。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "public-api-metrics",
+      "icon": "Calculator",
+      "title": "公共 API 指标",
+      "description": "卡池分析将补齐预聚合指标、趋势点、分布桶和口径说明。",
+      "status": "planned",
+      "priority": "high"
+    },
+    {
+      "id": "account-notify",
+      "icon": "Languages",
+      "title": "账号与通知闭环",
+      "description": "邮箱验证、密码重置、邮件登录、工单通知和后台邮件状态已接入；持久通知中心继续排期。",
+      "status": "in_progress",
+      "priority": "high"
+    }
+  ]',
+  '首页路线图',
+  'home',
+  now()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'home_roadmap_items'
+);
+
+UPDATE public.site_config
+SET value = jsonb_build_object(
+  'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+  'scope', 'site-config',
+  'reason', 'migration:125_refresh_home_roadmap_after_mail_rollout',
+  'updatedAt', now()
+)::text,
+updated_at = now()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/125_refresh_home_roadmap_after_mail_rollout.sql
 

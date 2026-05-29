@@ -1,0 +1,67 @@
+name: 问题反馈
+description: 记录 bug、回归、展示异常或文案错误
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请尽量提供可复现步骤、访问路径和截图。
+        若是线上问题，请写明大致时间、页面和浏览器环境。
+  - type: input
+    id: page
+    attributes:
+      label: 页面 / 路由
+      placeholder: /, /summary, /simulator, /m, /api/...
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 影响程度
+      options:
+        - 阻塞
+        - 严重
+        - 一般
+        - 轻微
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 按顺序写出最短复现路径。
+      placeholder: |
+        1. 打开...
+        2. 点击...
+        3. 看到...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+      placeholder: 预期应该发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际结果
+      placeholder: 实际发生了什么？
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      placeholder: 浏览器、设备、是否登录、是否本地 / 生产
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 控制台
+      description: 如果有报错或网络请求，请贴关键片段。
+      render: shell
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图 / 录屏
+      description: 粘贴图片或链接即可。

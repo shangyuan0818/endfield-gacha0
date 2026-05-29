@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 先看 README
+    url: https://github.com/MoguJunn/endfield-gacha/blob/main/README.md
+    about: README 里包含部署、环境变量、验证矩阵和架构边界说明。
+  - name: 发布前检查清单
+    url: https://github.com/MoguJunn/endfield-gacha/blob/main/docs/RELEASE_CHECKLIST.md
+    about: 提交发布前先核对检查清单，避免漏掉截图、文档和验证步骤。

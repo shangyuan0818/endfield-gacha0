@@ -4,14 +4,24 @@ import { ArrowUpRight, Bell, Calendar, ChevronRight, Globe, Image as ImageIcon, 
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';
-import useSiteConfigStore, { useJsonConfig } from '../../stores/useSiteConfigStore';
+import useSiteConfigStore, {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  useJsonConfig
+} from '../../stores/useSiteConfigStore';
 import { useI18n } from '../../i18n/index.js';
-import { getLimitedPoolCountdownState, getLimitedPoolSchedule } from '../../utils/poolTimeUtils';
+import {
+  getActiveHomeCountdownPools,
+  getHomeRotationPoolSchedule,
+  getLimitedPoolCountdownState,
+  getLimitedPoolSchedule
+} from '../../utils/poolTimeUtils';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
-import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
+import { resolveGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
+import { DEFAULT_HOME_ROADMAP_SUMMARY, normalizeHomeRoadmapItems } from '../../constants/homeRoadmap.js';
 
 
 const DEFAULT_LINKS = [
@@ -22,22 +32,6 @@ const DEFAULT_LINKS = [
   { id: 'story-search', title: '剧情检索 (AI精准查询与梗概生成)', url: 'https://endfield.prts.chat/', icon: 'globe' },
   { id: 'pull-planner', title: '抽卡规划器', url: 'https://endfield.203.io/', icon: 'bar-chart-2' },
 ];
-
-const DEFAULT_ROADMAP = [
-  { id: 'sim-inherit', status: 'completed' },
-  { id: 'puzzle-captcha', status: 'completed' },
-  { id: 'global-support', status: 'completed' },
-  { id: 'currency-calc', status: 'completed' },
-  { id: 'sim-currency', status: 'completed' },
-  { id: 'share', status: 'completed' },
-  { id: 'i18n', status: 'in_progress' },
-  { id: 'a11y', status: 'planned' },
-  { id: 'virtual-scroll', status: 'planned' },
-];
-
-const ROADMAP_STATUS_OVERRIDES = {
-  i18n: 'in_progress',
-};
 
 const FRIENDLY_LINK_ID_BY_HOST = {
   'ef.yituliu.cn': 'yituliu-calculator',
@@ -92,8 +86,12 @@ export default function MobileHomePageView() {
   const storedGameAnnouncementDigest = useAppStore((state) => state.gameAnnouncementDigest);
   const pools = usePoolStore((state) => state.pools);
   const getConfig = useSiteConfigStore((state) => state.getConfig);
+  const nextVersionTargetConfigValue = useSiteConfigStore(
+    (state) => state.config[HOME_NEXT_VERSION_TARGET_CONFIG_KEY]
+  );
   const links = useJsonConfig('home_friendly_links', DEFAULT_LINKS);
-  const roadmap = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP);
+  const roadmapConfig = useJsonConfig('home_roadmap_items', DEFAULT_HOME_ROADMAP_SUMMARY);
+  const roadmap = normalizeHomeRoadmapItems(roadmapConfig, DEFAULT_HOME_ROADMAP_SUMMARY);
   const [now, setNow] = useState(new Date());
   const [showGameCalendar, setShowGameCalendar] = useState(false);
   const [expandedGameCalendarImage, setExpandedGameCalendarImage] = useState(null);
@@ -112,7 +110,15 @@ export default function MobileHomePageView() {
     return () => clearInterval(timer);
   }, []);
 
-  const schedule = useMemo(() => getLimitedPoolSchedule(Array.isArray(pools) ? pools : []), [pools]);
+  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
+  const schedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
+  const homeRotationSchedule = useMemo(() => getHomeRotationPoolSchedule(poolsArray), [poolsArray]);
+  const nextVersionTargetDate = useMemo(() => {
+    const configuredValue = nextVersionTargetConfigValue || DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
+    return Number.isFinite(Date.parse(configuredValue))
+      ? configuredValue
+      : DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
+  }, [nextVersionTargetConfigValue]);
   const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
     () => splitSiteAnnouncements(announcements),
     [announcements]
@@ -124,7 +130,7 @@ export default function MobileHomePageView() {
     [gameAnnouncements, storedGameAnnouncementDigest, t]
   );
   const gameAnnouncementCalendar = useMemo(
-    () => findGameAnnouncementCalendarImage(gameAnnouncements),
+    () => resolveGameAnnouncementCalendarImage(gameAnnouncements),
     [gameAnnouncements]
   );
   
@@ -144,7 +150,7 @@ export default function MobileHomePageView() {
 
   const translatedRoadmap = useMemo(() => (Array.isArray(roadmap) ? roadmap : []).map((item) => ({
     ...item,
-    status: ROADMAP_STATUS_OVERRIDES[item.id] || normalizeRoadmapStatus(item.status),
+    status: normalizeRoadmapStatus(item.status),
     title: item.id ? t(`home.roadmap.item.${item.id}.title`, {}, item.title) : item.title,
     description: item.id ? t(`home.roadmap.item.${item.id}.description`, {}, item.description) : item.description,
   })), [roadmap, t]);
@@ -156,17 +162,37 @@ export default function MobileHomePageView() {
   }), [translatedRoadmap]);
 
   const countdown = useMemo(() => {
-    return getLimitedPoolCountdownState(schedule, now);
-  }, [now, schedule]);
+    const limitedCountdown = getLimitedPoolCountdownState(schedule, now);
+    if (limitedCountdown?.isActive) {
+      return limitedCountdown;
+    }
+
+    const activeHomeCountdownPools = getActiveHomeCountdownPools(poolsArray, now);
+    const activeExtraCountdown = activeHomeCountdownPools.find((pool) => pool.poolType === 'extra');
+    return activeExtraCountdown || activeHomeCountdownPools[0] || limitedCountdown;
+  }, [now, poolsArray, schedule]);
   const localizedCountdownName = useMemo(() => (
-    localizeEntityName(countdown?.name, {
-      locale,
-      type: countdown?.poolData?.type === 'weapon' ? 'weapon' : 'character'
-    }) || countdown?.name || t('common.unknown')
-  ), [countdown?.name, countdown?.poolData?.type, locale, t]);
+    countdown?.poolType === 'extra'
+      ? countdown.displayName || countdown.name || t('common.unknown')
+      : localizeEntityName(countdown?.name, {
+        locale,
+        type: countdown?.poolData?.type === 'weapon' ? 'weapon' : 'character'
+      }) || countdown?.name || t('common.unknown')
+  ), [countdown, locale, t]);
+  const countdownScheduleMeta = useMemo(() => {
+    const scheduleDate = countdown?.scheduleDate || countdown?.startDate;
+    if (!scheduleDate) {
+      return null;
+    }
+
+    return t('home.countdown.scheduleTime', {
+      label: t('home.countdown.startsAt'),
+      time: formatDateTime(scheduleDate, { timeZoneName: 'short' }, t('common.timeUnknown')),
+    });
+  }, [countdown?.scheduleDate, countdown?.startDate, formatDateTime, t]);
 
   const rotationPreview = useMemo(() => {
-    const sorted = [...schedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    const sorted = [...homeRotationSchedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     if (!sorted.length) return [];
     let index = sorted.findIndex((pool) => now >= new Date(pool.startDate) && now < new Date(pool.endDate));
     if (index === -1) index = sorted.findIndex((pool) => now < new Date(pool.startDate));
@@ -174,10 +200,13 @@ export default function MobileHomePageView() {
     return sorted.slice(Math.max(0, index - 1), index + 3).map((pool) => {
       const active = now >= new Date(pool.startDate) && now < new Date(pool.endDate);
       const ended = now >= new Date(pool.endDate);
-      const localizedCharacterName = localizeEntityName(pool.name, {
-        locale,
-        type: pool?.poolData?.type === 'weapon' ? 'weapon' : 'character'
-      });
+      const isExtraPool = pool.poolType === 'extra' || pool?.poolData?.type === 'extra';
+      const localizedCharacterName = isExtraPool
+        ? null
+        : localizeEntityName(pool.name, {
+          locale,
+          type: pool?.poolData?.type === 'weapon' ? 'weapon' : 'character'
+        });
       const localizedPoolName = localizePoolName(pool.poolData || pool, { locale });
 
       return {
@@ -187,38 +216,31 @@ export default function MobileHomePageView() {
           || pool.name,
         active,
         ended,
+        isExtraPool,
         label: active ? (isEnglish ? 'Live' : '进行中') : ended ? (isEnglish ? 'Ended' : '已结束') : (isEnglish ? 'Queued' : '待开启'),
       };
     });
-  }, [isEnglish, locale, now, schedule]);
+  }, [homeRotationSchedule, isEnglish, locale, now]);
 
   const nextVersionCountdown = useMemo(() => {
-    const targetPool = [...schedule]
-      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
-      .find((pool) => new Date(pool.startDate) > now);
-
-    if (!targetPool) {
+    const target = new Date(nextVersionTargetDate);
+    if (Number.isNaN(target.getTime())) {
       return null;
     }
 
-    const diff = Math.max(0, new Date(targetPool.startDate).getTime() - now.getTime());
+    const diff = Math.max(0, target.getTime() - now.getTime());
     return {
-      pool: targetPool,
+      targetDate: nextVersionTargetDate,
       days: Math.floor(diff / (1000 * 60 * 60 * 24)),
       hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
       minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
       seconds: Math.floor((diff % (1000 * 60)) / 1000)
     };
-  }, [now, schedule]);
-  const localizedNextVersionName = useMemo(() => (
-    localizeEntityName(nextVersionCountdown?.pool?.name, {
-      locale,
-      type: nextVersionCountdown?.pool?.poolData?.type === 'weapon' ? 'weapon' : 'character'
-    })
-      || localizePoolName(nextVersionCountdown?.pool?.poolData || nextVersionCountdown?.pool, { locale })
-      || nextVersionCountdown?.pool?.name
-      || t('common.unknown')
-  ), [locale, nextVersionCountdown?.pool, t]);
+  }, [nextVersionTargetDate, now]);
+  const nextVersionScheduleMeta = useMemo(() => t('home.countdown.scheduleTime', {
+    label: t('home.countdown.releaseAt'),
+    time: formatDateTime(nextVersionTargetDate, { timeZoneName: 'short' }, t('common.timeUnknown')),
+  }), [formatDateTime, nextVersionTargetDate, t]);
 
   const featureLinks = [
     {
@@ -414,8 +436,11 @@ export default function MobileHomePageView() {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="text-[9px] font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 dark:bg-ef-yellow animate-pulse"></span>{t('countdown.system')}</div>
-              <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white italic tracking-tighter mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
-              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-4 tracking-widest">{countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
+              <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white tracking-normal mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
+              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-1 tracking-widest">{countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
+              {countdownScheduleMeta ? (
+                <p className="mb-4 text-[10px] text-slate-500 dark:text-zinc-400 font-mono tracking-wide">{countdownScheduleMeta}</p>
+              ) : <div className="mb-4" />}
               <div className="flex items-baseline gap-1 countdown-nums font-bold text-4xl tracking-tighter">
                   <span className="text-slate-900 dark:text-white">{String(countdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                   <span className="text-slate-900 dark:text-white">{String(countdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-sm relative top-[-6px] ml-0.5 mr-2 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
@@ -437,7 +462,7 @@ export default function MobileHomePageView() {
           <div className="space-y-3">
             {rotationPreview.length > 0 ? rotationPreview.map((pool) => (
               <div key={pool.name + pool.startDate} className="flex items-center gap-3 text-xs bg-zinc-100 dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${pool.active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]' : (pool.ended ? 'bg-zinc-500' : 'bg-blue-500')}`}></span>
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${pool.active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]' : pool.isExtraPool ? 'bg-cyan-500' : (pool.ended ? 'bg-zinc-500' : 'bg-blue-500')}`}></span>
                   <span className="w-10 text-[10px] text-slate-500 dark:text-zinc-500 font-mono shrink-0">{formatDateTime(pool.startDate, { month: 'numeric', day: 'numeric', includeYear: false }, t('common.timeUnknown'))}</span>
                   <span className="flex-1 text-slate-900 dark:text-white font-bold truncate">{pool.displayName || pool.name}</span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${pool.active ? 'bg-green-500/20 text-green-700 dark:text-green-400' : (pool.ended ? 'bg-zinc-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-500' : 'bg-blue-500/20 text-blue-700 dark:text-blue-300')}`}>{pool.label}</span>
@@ -452,14 +477,14 @@ export default function MobileHomePageView() {
       {nextVersionCountdown ? (
         <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
             <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{t('countdown.system')}</div>
-            <h3 className="text-lg font-black text-slate-900 dark:text-white italic tracking-tighter mb-3 uppercase">{t('home.mobile.nextVersionTitle')}</h3>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-normal mb-2 uppercase">{t('home.mobile.nextVersionTitle')}</h3>
             <div className="flex items-baseline gap-1 countdown-nums font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
                 <span>{String(nextVersionCountdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
                 <span>{String(nextVersionCountdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
                 <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
                 <span>{String(nextVersionCountdown.seconds || 0).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 font-sans font-bold">{isEnglish ? 'S' : '秒'}</span>
             </div>
-            <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500">{localizedNextVersionName}</div>
+            <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500 font-mono">{nextVersionScheduleMeta}</div>
         </div>
       ) : null}
 

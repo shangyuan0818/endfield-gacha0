@@ -5,13 +5,16 @@
  * @feat FEAT-007 卡池详情系统重构 - 角色映射系统
  */
 
-import { executeSupabaseMutation, executeSupabaseRead, fetchWithTimeout } from '../services/supabaseRequest.js';
-import { supabase } from '../supabaseClient.js';
+import {
+  fetchPublicApiJson,
+  shouldAllowPublicSupabaseFallback,
+} from '../services/publicResourceClient.js';
+import { executeSupabaseMutation, executeSupabaseRead } from '../services/supabaseRequest.js';
+import { isSupabaseRealtimeEnabled, supabase } from '../supabaseClient.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from './storageUtils.js';
 import { normalizeEntityNameForMatch } from './canonicalEntityUtils.js';
 
 const PUBLIC_CHARACTERS_API_TIMEOUT_MS = 25000;
-const IS_LOCAL_DEV = Boolean(import.meta.env?.DEV);
 
 function normalizeNullableNumber(value) {
   if (value === null || value === undefined || value === '') {
@@ -56,29 +59,12 @@ function writeCharacterSnapshot(characters) {
 }
 
 async function fetchCharactersFromPublicApi() {
-  if (IS_LOCAL_DEV) {
-    return null;
-  }
-
-  const response = await fetchWithTimeout('/api/stats?type=characters', {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  }, {
+  const result = await fetchPublicApiJson('/api/stats', {
+    params: { type: 'characters' },
     label: 'public characters api',
     timeoutMs: PUBLIC_CHARACTERS_API_TIMEOUT_MS,
-    retries: 1
+    retries: 1,
   });
-
-  if (!response.ok) {
-    throw new Error(`public characters api failed with ${response.status}`);
-  }
-
-  const result = await response.json();
-  if (!result?.success) {
-    throw new Error(result?.error || 'public characters api returned failure');
-  }
 
   return Array.isArray(result?.data?.characters) ? result.data.characters : null;
 }
@@ -170,13 +156,13 @@ class CharacterCache {
         this.persistSnapshot();
         this.finishLoading();
 
-        if (supabase) {
+        if (isSupabaseRealtimeEnabled() && shouldAllowPublicSupabaseFallback()) {
           this.subscribeToUpdates();
         }
         return;
       }
 
-      if (!supabase) {
+      if (!supabase || !shouldAllowPublicSupabaseFallback()) {
         if (cachedCharacters.length > 0) {
           this.applyCharacters(cachedCharacters);
         }
@@ -210,7 +196,9 @@ class CharacterCache {
       }
 
       this.finishLoading();
-      this.subscribeToUpdates();
+      if (isSupabaseRealtimeEnabled()) {
+        this.subscribeToUpdates();
+      }
     } catch {
       if (cachedCharacters.length > 0) {
         this.applyCharacters(cachedCharacters);
@@ -221,7 +209,7 @@ class CharacterCache {
 
       this.finishLoading();
 
-      if (supabase) {
+      if (isSupabaseRealtimeEnabled() && shouldAllowPublicSupabaseFallback()) {
         this.subscribeToUpdates();
       }
     }
@@ -232,7 +220,7 @@ class CharacterCache {
    * @private
    */
   subscribeToUpdates() {
-    if (this.subscription) return;
+    if (this.subscription || !supabase || !isSupabaseRealtimeEnabled()) return;
 
     try {
       this.subscription = supabase

@@ -241,7 +241,7 @@ function resolveTargetGameUid(options, currentGameUid) {
   }
 
   if (options.accountFilter === 'current') {
-    return currentGameUid || null;
+    return options.gameUid || currentGameUid || null;
   }
 
   return null;

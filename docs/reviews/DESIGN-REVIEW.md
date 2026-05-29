@@ -20,7 +20,7 @@
 
 ### [致命] S-01: history 表 SELECT 策略对所有用户开放
 
-**位置**: `supabase/migrations/000_complete_schema.sql:114-116`
+**位置**: `supabase/baseline/000_complete_schema.sql:114-116`
 
 ```sql
 CREATE POLICY "history_select_policy" ON public.history
@@ -296,7 +296,7 @@ const checkLimitedInFirstN = useMemo(() => { ... }, [history, currentPoolId]);
 
 ### [中] R-02: profiles 表 SELECT 对所有人开放
 
-**位置**: `supabase/migrations/000_complete_schema.sql:29-30`
+**位置**: `supabase/baseline/000_complete_schema.sql:29-30`
 
 `FOR SELECT USING (true)` 意味着任何认证用户可读取所有用户的 profile。
 

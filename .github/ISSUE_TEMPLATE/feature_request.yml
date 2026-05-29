@@ -1,0 +1,45 @@
+name: 功能建议
+description: 记录新需求、交互改进或文档补充
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请尽量说明使用场景、当前痛点和你希望的最终效果。
+  - type: input
+    id: area
+    attributes:
+      label: 涉及模块
+      placeholder: 首页、统计页、模拟器、导入导出、管理后台、文档等
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 当前问题
+      description: 现在具体卡在哪一步？
+      placeholder: 现有流程哪里不顺手或不清楚？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望方案
+      description: 描述你建议的行为、交互或文案。
+      placeholder: 建议改成什么样？
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 优先级
+      options:
+        - 高
+        - 中
+        - 低
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充材料
+      description: 可附截图、链接、对比站点或参考案例。

@@ -3,7 +3,10 @@ import {
   authorizeOpsAutomationRequest,
   parseRequestedJobIds,
 } from '../../_lib/opsAutomation.js';
-import { runOpsAutomationJobs } from '../../_lib/runOpsAutomation.js';
+import {
+  buildOpsAutomationHttpPayload,
+  runOpsAutomationJobs,
+} from '../../_lib/runOpsAutomation.js';
 
 function readRequestedJobs(req) {
   if (req.query?.job) {
@@ -47,8 +50,5 @@ export default async function handler(req, res) {
     return res.status(503).json({ success: false, error: runResult.error });
   }
 
-  return res.status(runResult.status).json({
-    success: runResult.ok,
-    ...runResult.results,
-  });
+  return res.status(runResult.status).json(buildOpsAutomationHttpPayload(runResult));
 }

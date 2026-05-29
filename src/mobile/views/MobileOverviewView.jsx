@@ -15,10 +15,13 @@ import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
 import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPanel.jsx';
 import { getMobilePathForTab } from '../../constants/appRoutes.js';
 import { useI18n } from '../../i18n/index.js';
-import { MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import MobileAuthRequiredView from '../components/MobileAuthRequiredView.jsx';
 import { localizeHistoryItemName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
+import {
+  filterHistoryForEffectiveGameUid,
+  resolveEffectiveGameUid
+} from '../../utils/accountScopeUtils.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -85,11 +88,33 @@ function MobileOverviewView() {
   const history = useHistoryStore((state) => state.history);
   const getGameAccountsFromHistory = useHistoryStore((state) => state.getGameAccountsFromHistory);
   const { t, locale, formatDateTime } = useI18n();
+  const userId = user?.id || null;
+  const historyArray = useMemo(() => (Array.isArray(history) ? history : []), [history]);
+  const accounts = useMemo(() => {
+    void history;
+    return getGameAccountsFromHistory();
+  }, [getGameAccountsFromHistory, history]);
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts: accounts,
+    historyRecords: historyArray
+  }), [accounts, currentGameUid, historyArray]);
+  const filteredHistory = useMemo(() => {
+    const ownedHistory = historyArray.filter((item) => {
+      if (userId && item.user_id !== userId) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return filterHistoryForEffectiveGameUid(ownedHistory, effectiveGameUid);
+  }, [effectiveGameUid, historyArray, userId]);
   const {
     currentStats,
     ranking
   } = useSummaryViewState({
-    history,
+    history: filteredHistory,
     pools,
     user,
     globalStats: null,
@@ -106,28 +131,13 @@ function MobileOverviewView() {
     isWeapon
   } = useDashboardViewState();
 
-  const accounts = getGameAccountsFromHistory();
   const currentAccount = useMemo(() => {
-    if (currentGameUid) {
-      return accounts.find((account) => account.gameUid === currentGameUid) || null;
+    if (effectiveGameUid) {
+      return accounts.find((account) => account.gameUid === effectiveGameUid) || null;
     }
 
     return accounts[0] || null;
-  }, [accounts, currentGameUid]);
-
-  const filteredHistory = useMemo(() => (
-    (Array.isArray(history) ? history : []).filter((item) => {
-      if (user?.id && item.user_id !== user.id) {
-        return false;
-      }
-
-      if (currentGameUid) {
-        return (item.gameUid || item.game_uid) === currentGameUid;
-      }
-
-      return true;
-    })
-  ), [currentGameUid, history, user]);
+  }, [accounts, effectiveGameUid]);
 
   const poolNameMap = useMemo(
     () => new Map((Array.isArray(pools) ? pools : []).map((pool) => [pool.id, localizePoolName(pool, { locale })])),
@@ -260,7 +270,7 @@ function MobileOverviewView() {
                 </button>
             </div>
             <div className="text-lg font-black text-slate-900 dark:text-white truncate mb-3">{currentAccount?.nickName || t('common.unknown')} <span className="text-xs font-mono text-slate-500 dark:text-zinc-500 font-normal ml-1">· {currentAccount?.gameUid || '---'}</span></div>
-            
+
             <div className="grid grid-cols-2 gap-2 border-t border-zinc-200 dark:border-zinc-800/50 pt-3">
                 <div>
                     <div className="text-[9px] text-slate-500 dark:text-zinc-500 mb-1">{t('settings.lastImport', { value: '' }).replace('：', '').trim()}</div>
@@ -343,7 +353,7 @@ function MobileOverviewView() {
                     <h4 className="font-bold text-[11px] text-slate-700 dark:text-zinc-300 uppercase tracking-wide">{t('summary.ranking.limitedUpSix')} {t('nav.summary')}</h4>
                     <span className="mobile-ux-card-chip text-[8px] text-slate-600 dark:text-zinc-400 px-1.5 py-0.5 ml-auto">{t('overview.localData')}</span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-y-4 gap-x-3">
                     <div className="space-y-0.5">
                         <div className="text-slate-600 dark:text-zinc-400 text-[9px] uppercase font-bold flex items-center gap-1">

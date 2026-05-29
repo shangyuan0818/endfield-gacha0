@@ -210,11 +210,11 @@ async function getMeta(apiKey) {
 - `limit`
 - `cursor`
 
-返回按卡池聚合的公开分析。为避免公开 API 请求实时扫描全量历史，当前版本只对本次分页返回的卡池执行有限计数查询；`targetSixStar`、`offrateSixStar`、平均出货与单池分布桶暂不在请求期计算。
+返回按卡池聚合的公开分析。接口优先读取 `public_pool_analytics_cache` 公开预聚合缓存；缓存命中时会返回 `targetSixStar`、`offrateSixStar`、`averagePity`、`distribution`、`firstPullAt`、`lastPullAt` 与 `stats.analyticsMeta.source = "preaggregated_pool_cache"`。如果缓存表尚未部署或某个卡池缺少缓存行，接口只降级为本页卡池的有限计数查询，并通过 `stats.analyticsMeta.partial = true`、`missingFields` 和 `warning` 说明缺失指标；不会在请求期扫描全量原始 `history`。
 
 ### `GET /api/dev/v1/stats/pool?id=POOL_ID`
 
-返回单卡池公开分析：总抽数与稀有度汇总。`targetSixStar`、`offrateSixStar`、平均出货与单池分布桶需要后续专用预聚合表支持，当前不会在 API 请求期实时扫描原始历史。
+返回单卡池公开分析。字段来源与列表端点一致：优先读取 `public_pool_analytics_cache`，缓存命中时补齐目标六星、歪六星、平均出货和单池分布桶；缓存缺失时返回有限计数与 `stats.analyticsMeta.partial = true`，调用方应把这些指标视为不完整快照。
 
 ### `GET /api/dev/v1/stats/items`
 
@@ -244,8 +244,10 @@ async function getMeta(apiKey) {
 - `metric`：`pulls | six_star | five_star`
 - `granularity`：`day | week`
 - `days`：`7 | 30 | 90`
+- `poolType`：`all | limited | extra | standard | weapon`
+- `poolId`：可选公开卡池 ID；传入后优先于 `poolType`
 
-返回匿名趋势点。当前趋势端点保留稳定响应结构，但不会实时从原始历史生成趋势；若没有专用预聚合缓存，`points` 会返回空数组并带 `source` 说明。
+返回来自 `public_pool_trend_cache` 的匿名趋势点。缓存命中时会返回按时间升序排列的 `points`，并带 `source = "preaggregated_trend_cache"` 与 `analyticsMeta.cacheKey / cacheVersion`。缓存缺行或缓存表不可用时返回空 `points`、`analyticsMeta.partial = true` 和 `public_pool_trend_cache_miss` 等 warning；请求期不会扫描原始 `history`。
 
 ### `GET /api/dev/v1/stats/distributions`
 

@@ -1,5 +1,8 @@
 import { supabase } from '../supabaseClient.js';
-import { fetchJsonWithTimeout } from '../services/supabaseRequest.js';
+import {
+  fetchPublicApiJson,
+  shouldAllowPublicSupabaseFallback,
+} from '../services/publicResourceClient.js';
 import { characterCache, getLimitedCharacterPoolStatus } from './characterUtils.js';
 
 const POOL_ROSTER_API_CACHE_TTL = 5 * 60 * 1000;
@@ -288,7 +291,7 @@ export function buildDynamicRosterBuckets({
 }
 
 export async function fetchPoolRosterBuckets(poolId, { expectedType = 'character', currentUpName = null } = {}) {
-  if (!supabase || !poolId) {
+  if (!shouldAllowPublicSupabaseFallback() || !supabase || !poolId) {
     return null;
   }
 
@@ -369,19 +372,13 @@ export async function fetchPoolRosterRecordsBatch(poolIds = [], { forceRefresh =
     const searchParams = new URLSearchParams();
     searchParams.set('poolIds', normalizedPoolIds.join(','));
 
-    const { response, data } = await fetchJsonWithTimeout(
-      `/api/pool-rosters?${searchParams.toString()}`,
-      undefined,
-      {
-        label: 'load pool rosters',
-        timeoutMs: POOL_ROSTER_API_TIMEOUT_MS,
-        retries: 1
-      }
-    );
-
-    if (!response.ok || data?.success !== true) {
-      throw new Error(data?.error || `pool rosters request failed with ${response.status}`);
-    }
+    const data = await fetchPublicApiJson('/api/pool-rosters', {
+      params: Object.fromEntries(searchParams.entries()),
+      label: 'load pool rosters',
+      timeoutMs: POOL_ROSTER_API_TIMEOUT_MS,
+      retries: 1,
+      forceRefresh,
+    });
 
     const recordsByPoolId = normalizeBatchPayload(normalizedPoolIds, data?.data);
     batchRecordsCache.set(cacheKey, {

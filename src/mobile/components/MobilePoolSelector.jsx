@@ -26,6 +26,7 @@ import { useI18n } from '../../i18n/index.js';
 import { MobileGlassPanel, MobileStatusBadge } from './ux/MobilePrimitives.jsx';
 import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.js';
 import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
+import { filterHistoryForEffectiveGameUid, resolveEffectiveGameUid } from '../../utils/accountScopeUtils.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -74,19 +75,16 @@ function MobilePoolSelector() {
     return getGameAccountsFromHistory();
   }, [history, getGameAccountsFromHistory]);
 
-  const effectiveGameUid = useMemo(() => {
-    if (gameAccounts.some((account) => account.gameUid === currentGameUid)) {
-      return currentGameUid;
-    }
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts,
+    historyRecords: history,
+  }), [currentGameUid, gameAccounts, history]);
 
-    return gameAccounts[0]?.gameUid || null;
-  }, [currentGameUid, gameAccounts]);
-
-  // 根据当前账号过滤历史记录
-  const filteredHistory = useMemo(() => {
-    if (!effectiveGameUid) return history;
-    return history.filter(h => h.gameUid === effectiveGameUid || h.game_uid === effectiveGameUid);
-  }, [history, effectiveGameUid]);
+  // 根据当前有效账号过滤历史记录；跨账号汇总入口重开前不做隐式合并分析。
+  const filteredHistory = useMemo(() => (
+    filterHistoryForEffectiveGameUid(history, effectiveGameUid)
+  ), [history, effectiveGameUid]);
 
   // 计算每个卡池的抽数
   const poolPullCounts = useMemo(() => {
@@ -150,8 +148,8 @@ function MobilePoolSelector() {
 
   // 当前选中的账号
   const currentAccount = useMemo(() => {
-    if (currentGameUid) {
-      return gameAccounts.find((account) => account.gameUid === currentGameUid) || null;
+    if (effectiveGameUid) {
+      return gameAccounts.find((account) => account.gameUid === effectiveGameUid) || null;
     }
 
     if (gameAccounts.length === 1) {
@@ -159,7 +157,7 @@ function MobilePoolSelector() {
     }
 
     return null;
-  }, [gameAccounts, currentGameUid]);
+  }, [effectiveGameUid, gameAccounts]);
   const currentAccountServerTag = currentAccount?.serverTag
     ? localizeGameAccountServerTag(currentAccount.serverTag, locale)
     : null;
@@ -335,14 +333,14 @@ function MobilePoolSelector() {
                     key={account.gameUid}
                     onClick={() => handleSelectAccount(account.gameUid)}
                     className={`w-full px-3 py-2.5 text-left transition-colors touch-feedback ${
-                      currentGameUid === account.gameUid
+                      effectiveGameUid === account.gameUid
                         ? 'bg-endfield-yellow/10'
                         : 'hover:bg-white/5'
                     }`}
                     >
                     <div className="flex items-center gap-2">
                       <div className={`text-xs font-bold ${
-                        currentGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-200'
+                        effectiveGameUid === account.gameUid ? 'text-endfield-yellow' : 'text-zinc-200'
                       }`}>
                         {account.nickName}
                       </div>

@@ -40,11 +40,14 @@ export function buildManualCharacterId(name, type = 'character') {
   const safeType = type === 'weapon' ? 'weapon' : 'character';
   const slug = buildReadableSlug(name, safeType === 'weapon' ? 'wp' : 'char');
   const hash = simpleStableHash(`${safeType}:${normalizeInput(name)}`).slice(0, 6);
-  return `manual_${safeType}_${slug}_${hash}`;
+  return `${safeType === 'weapon' ? 'weapon' : 'char'}_manual_${slug}_${hash}`;
 }
 
 export function isGeneratedManualCharacterId(value) {
-  return typeof value === 'string' && /^manual_(character|weapon)_[a-z0-9_]+_[a-z0-9]{6}$/i.test(value.trim());
+  return typeof value === 'string' && (
+    /^manual_(character|weapon)_[a-z0-9_]+_[a-z0-9]{6}$/i.test(value.trim())
+    || /^(char|weapon)_manual_[a-z0-9_]+_[a-z0-9]{6}$/i.test(value.trim())
+  );
 }
 
 export function classifyCharacterIdSource(characterId) {
@@ -54,7 +57,12 @@ export function classifyCharacterIdSource(characterId) {
     return 'unknown';
   }
 
-  if (normalized.startsWith('manual_character_') || normalized.startsWith('manual_weapon_')) {
+  if (
+    normalized.startsWith('manual_character_')
+    || normalized.startsWith('manual_weapon_')
+    || normalized.startsWith('char_manual_')
+    || normalized.startsWith('weapon_manual_')
+  ) {
     return 'manual_placeholder';
   }
 
@@ -90,8 +98,18 @@ export function buildManualPoolId({
     normalizeInput(endTime),
   ].join('|');
   const hash = simpleStableHash(hashBase).slice(0, 6);
+  const prefixByType = {
+    limited: 'special',
+    limited_character: 'special',
+    extra: 'joint',
+    weapon: 'weaponbox',
+    limited_weapon: 'weaponbox',
+    standard: 'standard',
+    beginner: 'beginner',
+  };
+  const officialLikePrefix = prefixByType[safeType] || 'pool';
 
-  return `manual_pool_${safeType}_${slug}_${dateKey}_${hash}`;
+  return `${officialLikePrefix}_manual_${safeType}_${slug}_${dateKey}_${hash}`;
 }
 
 export function classifyPoolIdSource(poolId) {
@@ -102,17 +120,9 @@ export function classifyPoolIdSource(poolId) {
   }
 
   if (
-    normalized === 'standard'
-    || normalized === 'beginner'
-    || normalized.startsWith('joint_')
-    || normalized.startsWith('special_')
-    || normalized.startsWith('weponbox_')
-    || normalized.startsWith('weaponbox_')
+    normalized.startsWith('manual_pool_')
+    || /^((special|joint|weaponbox|weponbox|standard|beginner|pool)_manual)_/.test(normalized)
   ) {
-    return 'official';
-  }
-
-  if (normalized.startsWith('manual_pool_')) {
     return 'manual_placeholder';
   }
 
@@ -124,6 +134,17 @@ export function classifyPoolIdSource(poolId) {
     || normalized.startsWith('pool_beginner_')
   ) {
     return 'legacy_manual_seed';
+  }
+
+  if (
+    normalized === 'standard'
+    || normalized === 'beginner'
+    || normalized.startsWith('joint_')
+    || normalized.startsWith('special_')
+    || normalized.startsWith('weponbox_')
+    || normalized.startsWith('weaponbox_')
+  ) {
+    return 'official';
   }
 
   if (normalized.startsWith('pool_')) {

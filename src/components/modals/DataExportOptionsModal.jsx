@@ -150,6 +150,27 @@ export default function DataExportOptionsModal({
   const endgachaLinks = [
     { label: t('import.fileWizard.website'), href: 'https://endgacha.kwer.top/' }
   ];
+  const formatAccountLabel = (account) => {
+    if (!account) {
+      return null;
+    }
+
+    const serverTag = account.serverTag ? localizeGameAccountServerTag(account.serverTag, locale) : '';
+    return [account.nickName, account.gameUid, serverTag].filter(Boolean).join(' · ');
+  };
+  const getAccountSummaryValue = () => {
+    if (exportOptions.accountFilter === 'all') {
+      return t('records.export.accountScopeAll');
+    }
+
+    if (exportOptions.accountFilter === 'specific') {
+      const selectedAccount = gameAccounts.find((account) => account.gameUid === exportOptions.gameUid);
+      return formatAccountLabel(selectedAccount) || exportOptions.gameUid || t('records.export.accountPlaceholder');
+    }
+
+    const currentAccount = gameAccounts.find((account) => account.gameUid === currentGameUid);
+    return formatAccountLabel(currentAccount) || currentGameUid || t('records.export.accountScopeCurrent');
+  };
 
   const modal = (
     <div
@@ -278,7 +299,7 @@ export default function DataExportOptionsModal({
 
           <div className="border border-zinc-200 bg-slate-50 px-3 py-2 text-[11px] leading-5 text-slate-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-500 md:col-span-2">
             <div>{t('records.export.summaryPool', { value: currentPoolName })}</div>
-            <div>{t('records.export.summaryAccount', { value: currentGameUid || t('records.export.accountScopeAll') })}</div>
+            <div>{t('records.export.summaryAccount', { value: getAccountSummaryValue() })}</div>
             <div>{t('records.export.csvNote')}</div>
           </div>
         </div>

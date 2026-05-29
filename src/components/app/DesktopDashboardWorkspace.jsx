@@ -7,6 +7,7 @@ import { useHistoryStore, usePoolStore } from '../../stores';
 import { useCurrentPoolData } from '../../hooks';
 import { isPoolGroupId } from '../../stores/usePoolStore';
 import { localizePoolName } from '../../utils/gameDataI18n.js';
+import { resolveEffectiveGameUid } from '../../utils/accountScopeUtils.js';
 
 const DashboardView = lazy(() => import('../dashboard/DashboardView'));
 const RecordsView = lazy(() => import('../records/RecordsView'));
@@ -49,12 +50,16 @@ function RecordsSectionTitleBar({
     [pools]
   );
   const gameAccounts = getGameAccountsFromHistory();
+  const effectiveGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts,
+  }), [currentGameUid, gameAccounts]);
 
   const buildDefaultExportOptions = () => ({
     poolFilter: 'current',
     poolId: !isPoolGroupId(currentPoolId) && currentPoolId ? currentPoolId : '',
-    accountFilter: currentGameUid ? 'current' : 'all',
-    gameUid: currentGameUid || '',
+    accountFilter: effectiveGameUid ? 'current' : 'all',
+    gameUid: effectiveGameUid || '',
     dateFrom: '',
     dateTo: ''
   });
@@ -155,7 +160,7 @@ function RecordsSectionTitleBar({
         onUpdateOption={updateExportOption}
         canExport={canExport}
         currentPoolName={currentPoolName}
-        currentGameUid={currentGameUid}
+        currentGameUid={effectiveGameUid}
         poolOptions={poolOptions}
         gameAccounts={gameAccounts}
         locale={locale}
@@ -207,12 +212,16 @@ export default function DesktopDashboardWorkspace({
     [pools]
   );
   const exportGameAccounts = getGameAccountsFromHistory();
+  const effectiveExportGameUid = useMemo(() => resolveEffectiveGameUid({
+    currentGameUid,
+    gameAccounts: exportGameAccounts,
+  }), [currentGameUid, exportGameAccounts]);
 
   const buildDefaultExportOptions = () => ({
     poolFilter: 'current',
     poolId: !isPoolGroupId(currentPoolId) && currentPoolId ? currentPoolId : '',
-    accountFilter: currentGameUid ? 'current' : 'all',
-    gameUid: currentGameUid || '',
+    accountFilter: effectiveExportGameUid ? 'current' : 'all',
+    gameUid: effectiveExportGameUid || '',
     dateFrom: '',
     dateTo: ''
   });
@@ -332,7 +341,7 @@ export default function DesktopDashboardWorkspace({
             onUpdateOption={updateQuickExportOption}
             canExport={canQuickExport}
             currentPoolName={exportCurrentPoolName}
-            currentGameUid={currentGameUid}
+            currentGameUid={effectiveExportGameUid}
             poolOptions={exportPoolOptions}
             gameAccounts={exportGameAccounts}
             locale={locale}
