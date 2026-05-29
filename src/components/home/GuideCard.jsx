@@ -127,7 +127,7 @@ const GuideCard = React.memo(function GuideCard({ isOpen, onToggle }) {
                   <div>
                     <strong className="block text-slate-700 dark:text-zinc-300 mb-1 flex items-center gap-1"><PieChart size={12} /> {tt('home.guide.step2.summaryTitle', '统计汇总')}</strong>
                     <ul className="list-disc pl-4 space-y-1">
-                      <li>{tt('home.guide.step2.summaryBullet1', '全账号生涯总览与欧非评价')}</li>
+                      <li>{tt('home.guide.step2.summaryBullet1', '单账号生涯总览与欧非评价')}</li>
                       <li>{tt('home.guide.step2.summaryBullet2', '全服数据对比与角色出货排名')}</li>
                       <li>{tt('home.guide.step2.summaryBullet3', '各稀有度分布饼图与出货曲线')}</li>
                     </ul>

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { createClient } from '@supabase/supabase-js';
 import {
@@ -15,6 +16,7 @@ import {
   classifyPoolIdSource,
   normalizePoolType,
 } from '../src/utils/canonicalEntityUtils.js';
+import { buildManualPlaceholderRetirementReport } from './lib/manualPlaceholderAudit.mjs';
 
 const DEFAULT_PAGE_SIZE = 1000;
 const ENV_FILE_CANDIDATES = [
@@ -28,13 +30,14 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     supabaseUrl: null,
     supabaseKey: null,
     pageSize: DEFAULT_PAGE_SIZE,
     writeJson: null,
   };
+  const positional = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -64,7 +67,16 @@ function parseArgs(argv) {
     if (arg === '--write-json' && nextValue) {
       options.writeJson = nextValue;
       index += 1;
+      continue;
     }
+
+    if (!arg.startsWith('--')) {
+      positional.push(arg);
+    }
+  }
+
+  if (!options.writeJson && positional[0] && /\.json$/i.test(positional[0])) {
+    options.writeJson = positional[0];
   }
 
   return options;
@@ -364,12 +376,13 @@ async function main() {
   const historyResult = await loadHistoryRows(supabase, options.pageSize);
   const historyHasCharacterId = historyResult.historyHasCharacterId;
 
-  const [poolRows, characterRows, historyRows, characterAliasRows, poolAliasRows] = await Promise.all([
+  const [poolRows, characterRows, historyRows, characterAliasRows, poolAliasRows, poolCharacterRows] = await Promise.all([
     loadPagedRows(supabase, { table: 'pools', select: 'pool_id, name, type, up_character, start_time, end_time, featured_characters', orderBy: 'pool_id', pageSize: options.pageSize }),
     loadPagedRows(supabase, { table: 'characters', select: 'id, name, type, aliases', orderBy: 'id', pageSize: options.pageSize }),
     Promise.resolve(historyResult.rows),
     loadPagedRows(supabase, { table: 'character_id_aliases', select: 'id, source, alias_id, character_id, is_primary', orderBy: 'id', pageSize: options.pageSize }),
     loadPagedRows(supabase, { table: 'pool_id_aliases', select: 'id, source, alias_id, pool_id, is_primary', orderBy: 'id', pageSize: options.pageSize }),
+    loadPagedRows(supabase, { table: 'pool_characters', select: 'pool_id, character_id', orderBy: 'pool_id', pageSize: options.pageSize }),
   ]);
 
   const pools = poolRows.map(row => ({ ...row, type: normalizePoolType(row.type), source: 'supabase-pools' }));
@@ -416,6 +429,14 @@ async function main() {
       characterLookup
     )
     : { aliasBacked: [], unresolved: [] };
+  const manualPlaceholderRetirement = buildManualPlaceholderRetirementReport({
+    pools,
+    characters,
+    characterAliasRows,
+    poolAliasRows,
+    historyRows,
+    poolCharacterRows,
+  });
 
   const report = {
     generatedAt: new Date().toISOString(),
@@ -429,6 +450,7 @@ async function main() {
       historyRowCount: historyRows.length,
       characterAliasRowCount: characterAliasRows.length,
       poolAliasRowCount: poolAliasRows.length,
+      poolCharacterRowCount: poolCharacterRows.length,
       poolAliasCandidateCount: poolAliasCandidates.length,
       characterAliasCandidateCount: characterAliasCandidates.length,
       featuredCharacterIssueCount: featuredCharacterIssues.length,
@@ -446,6 +468,7 @@ async function main() {
     missingPoolSelfAliases,
     historyPoolReferences,
     historyCharacterReferences,
+    manualPlaceholderRetirement,
   };
 
   console.log('# DATA-NEW-008 Supabase 审计报告');
@@ -456,6 +479,7 @@ async function main() {
   console.log(`history 记录: ${report.summary.historyRowCount}`);
   console.log(`角色 alias 行: ${report.summary.characterAliasRowCount}`);
   console.log(`卡池 alias 行: ${report.summary.poolAliasRowCount}`);
+  console.log(`卡池角色关联行: ${report.summary.poolCharacterRowCount}`);
   console.log(`缺失角色 internal self alias: ${report.summary.missingCharacterSelfAliasCount}`);
   console.log(`缺失卡池 internal self alias: ${report.summary.missingPoolSelfAliasCount}`);
   console.log(`history.character_id 列存在: ${report.schemaCapabilities.historyCharacterId ? '是' : '否'}`);
@@ -463,6 +487,8 @@ async function main() {
   console.log(`history.pool_id 无法解析的引用: ${report.summary.historyPoolUnresolvedReferenceCount}`);
   console.log(`history.character_id 中仍使用 alias 的引用: ${report.summary.historyCharacterAliasBackedReferenceCount}`);
   console.log(`history.character_id 无法解析的引用: ${report.summary.historyCharacterUnresolvedReferenceCount}`);
+  console.log(`手动角色/武器 placeholder: ${manualPlaceholderRetirement.summary.characterPlaceholderCount}，可直接 merge: ${manualPlaceholderRetirement.summary.readyCharacterMergeCount}`);
+  console.log(`手动卡池 placeholder: ${manualPlaceholderRetirement.summary.poolPlaceholderCount}，可直接 merge: ${manualPlaceholderRetirement.summary.readyPoolMergeCount}`);
 
   if (poolAliasCandidates.length > 0) {
     console.log('\n## 潜在卡池别名冲突');
@@ -500,6 +526,20 @@ async function main() {
     printTopItems(historyCharacterReferences.unresolved, item => `- ${item.id} [${item.idSource}]`, 20);
   }
 
+  if (manualPlaceholderRetirement.characters.length > 0) {
+    console.log('\n## 手动角色/武器 placeholder 退场清单');
+    printTopItems(manualPlaceholderRetirement.characters, item => (
+      `- ${item.id} [${item.state}] ${item.name || ''} -> ${item.alias.canonicalTargetIds.join(', ') || '待官方 ID'}`
+    ), 20);
+  }
+
+  if (manualPlaceholderRetirement.pools.length > 0) {
+    console.log('\n## 手动卡池 placeholder 退场清单');
+    printTopItems(manualPlaceholderRetirement.pools, item => (
+      `- ${item.id} [${item.state}] ${item.name || ''} -> ${item.alias.canonicalTargetIds.join(', ') || '待官方 ID'}`
+    ), 20);
+  }
+
   if (featuredCharacterIssues.length > 0) {
     console.log('\n## featured_characters 缺失引用');
     printTopItems(featuredCharacterIssues, issue => `- ${issue.pool_id} (${issue.source}) 缺少角色 ID: ${issue.missingIds.join(', ')}`, 20);
@@ -512,7 +552,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error('[audit-canonical-data-supabase] 执行失败:', error);
-  process.exitCode = 1;
-});
+const isDirectRun = process.argv[1]
+  && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error('[audit-canonical-data-supabase] 执行失败:', error);
+    process.exitCode = 1;
+  });
+}

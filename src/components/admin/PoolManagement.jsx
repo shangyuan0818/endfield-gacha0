@@ -15,7 +15,6 @@ const PoolManagement = ({ showToast }) => {
     characters,
     poolCharacters,
     filteredPools,
-    limitedSixStarCharacters,
 
     // 状态
     loading,
@@ -33,15 +32,16 @@ const PoolManagement = ({ showToast }) => {
 
     // 编辑对话框
     showEditDialog,
-    setShowEditDialog,
     editingPool,
     poolForm,
     setPoolForm,
     editingPoolCharacters,
+    poolDraftDiff,
 
     // 操作
     checkUpCharacterExists,
     resetForm,
+    startCreate,
     startEdit,
     handleSavePool,
     handleDeletePool,
@@ -115,7 +115,7 @@ const PoolManagement = ({ showToast }) => {
         </div>
 
         <button
-          onClick={() => setShowEditDialog(true)}
+          onClick={startCreate}
           className="flex items-center gap-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-none transition-colors"
         >
           <Plus size={16} />
@@ -158,7 +158,6 @@ const PoolManagement = ({ showToast }) => {
                 pool={pool}
                 poolCharacters={poolCharacters}
                 characters={characters}
-                limitedSixStarCharacters={limitedSixStarCharacters}
                 actionLoading={actionLoading}
                 onEdit={startEdit}
                 onDelete={handleDeletePool}
@@ -176,6 +175,7 @@ const PoolManagement = ({ showToast }) => {
         setPoolForm={setPoolForm}
         characters={characters}
         editingPoolCharacters={editingPoolCharacters}
+        poolDraftDiff={poolDraftDiff}
         actionLoading={actionLoading}
         checkUpCharacterExists={checkUpCharacterExists}
         onSave={handleSavePool}

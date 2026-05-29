@@ -3,20 +3,9 @@ import { Accessibility, Calculator, ChevronUp, Database, Github, Globe, Language
 import CollapsibleContent from './CollapsibleContent';
 import { useJsonConfig } from '../../stores/useSiteConfigStore';
 import { useI18n } from '../../i18n/index.js';
+import { DEFAULT_HOME_ROADMAP_ITEMS, normalizeHomeRoadmapItems } from '../../constants/homeRoadmap.js';
 
 const ICON_MAP = { RefreshCw, Shield, Globe, Calculator, Database, Share2, Languages, Accessibility, Map, Rocket };
-
-const DEFAULT_ROADMAP_ITEMS = [
-  { id: 'sim-inherit', icon: 'RefreshCw', title: '模拟器状态继承', description: '卡池模拟器支持继承游戏内的真实抽卡与保底状态', status: 'completed', priority: 'high' },
-  { id: 'puzzle-captcha', icon: 'Shield', title: '拼图验证码', description: '主站验证码已切换为简单拼图玩法，并保留备用方式', status: 'completed', priority: 'high' },
-  { id: 'global-support', icon: 'Globe', title: '国际服支持', description: '现已支持国际服抽卡记录的解析与导入', status: 'completed', priority: 'high' },
-  { id: 'currency-calc', icon: 'Calculator', title: '资源消耗换算', description: '现已支持换算已消耗嵌金玉、衍质源石数量及武库配额', status: 'completed', priority: 'medium' },
-  { id: 'sim-currency', icon: 'Database', title: '模拟器资源机制', description: '模拟器已加入嵌金玉、衍质源石与武库配额机制', status: 'completed', priority: 'medium' },
-  { id: 'share', icon: 'Share2', title: '分享功能', description: '模拟器支持脱敏分享卡图片、系统分享与文本复制', status: 'completed', priority: 'medium' },
-  { id: 'i18n', icon: 'Languages', title: '多语言支持', description: '支持英语等语言界面，服务更多玩家', status: 'in_progress', priority: 'high' },
-  { id: 'a11y', icon: 'Accessibility', title: '无障碍优化', description: '完善ARIA标签和键盘导航，提升可访问性', status: 'planned', priority: 'low' },
-  { id: 'virtual-scroll', icon: 'Database', title: '虚拟滚动', description: '优化长列表性能，支持更大数据量的流畅浏览', status: 'planned', priority: 'low' },
-];
 
 const STATUS_CONFIG = {
   completed: { bg: 'bg-green-500', text: 'text-green-500', border: 'border-green-500/30', cardBg: 'bg-green-500/5 dark:bg-green-500/10' },
@@ -26,7 +15,8 @@ const STATUS_CONFIG = {
 
 const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interactive = true }) {
   const { t } = useI18n();
-  const ROADMAP_ITEMS = useJsonConfig('home_roadmap_items', DEFAULT_ROADMAP_ITEMS);
+  const roadmapItems = useJsonConfig('home_roadmap_items', DEFAULT_HOME_ROADMAP_ITEMS);
+  const ROADMAP_ITEMS = normalizeHomeRoadmapItems(roadmapItems, DEFAULT_HOME_ROADMAP_ITEMS);
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
   const scrollRef = useRef(null);
   const focusItemRef = useRef(null);

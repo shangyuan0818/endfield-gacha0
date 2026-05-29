@@ -28,7 +28,12 @@ export default function OfficialAPIImport({
     queueStatus,
     retryInfo,
     sourceSwitchInfo,
+    inputDetection,
+    clipboardState,
+    importMode,
+    setImportMode,
     handleInputChange,
+    handleClipboardRead,
     handleImport,
     handleAccountSelect,
     handleCancel,
@@ -62,11 +67,17 @@ export default function OfficialAPIImport({
       queueStatus={queueStatus}
       retryInfo={retryInfo}
       sourceSwitchInfo={sourceSwitchInfo}
+      inputDetection={inputDetection}
+      clipboardState={clipboardState}
+      importMode={importMode}
+      backendImportAvailable={Boolean(userId)}
       error={error}
       importSummary={importSummary}
       userInfo={userInfo}
       onSourceChange={handleSourceChange}
       onTokenChange={handleInputChange}
+      onClipboardRead={handleClipboardRead}
+      onImportModeChange={setImportMode}
       onStartImport={handleImport}
       onOpenFileImport={onOpenFileImport}
       onSelectAccount={handleAccountSelect}

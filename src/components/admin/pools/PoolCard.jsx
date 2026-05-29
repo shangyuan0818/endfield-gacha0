@@ -1,6 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2, Calendar, Star, Layers, Swords, RotateCw, Users } from 'lucide-react';
-import { getLimitedCharacterPoolStatus } from '../../../utils/characterUtils';
+import { Edit2, Trash2, Calendar, Star, Layers, Swords, Users } from 'lucide-react';
 
 /**
  * 获取类型图标
@@ -158,77 +157,16 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
 };
 
 /**
- * 轮换状态组件
- */
-const RotationStatus = ({ pool, limitedSixStarCharacters }) => {
-  if (pool.type !== 'limited' && pool.type !== 'limited_character') return null;
-
-  const poolContext = {
-    start_time: pool.start_time,
-    rotation_position: pool.rotationPosition,
-  };
-
-  return (
-    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 flex items-center gap-1">
-          <RotateCw size={12} />
-          6★ 计划状态
-          <span className="text-slate-400 dark:text-zinc-500 font-normal">（按该池时间位次派生）</span>
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {limitedSixStarCharacters
-          .slice(0, 6)
-          .map(char => {
-            const rotationStatus = getLimitedCharacterPoolStatus(char, poolContext);
-            const removesAfter = rotationStatus.removesAfter;
-            const isRemoved = !rotationStatus.isIntroduced || rotationStatus.isRemoved;
-            const isCurrentUp = char.name === pool.up_character;
-            const stateText = !rotationStatus.isIntroduced
-              ? '未引入'
-              : `${rotationStatus.effectiveRotationPosition}/${removesAfter ?? '∞'}`;
-
-            return (
-              <span
-                key={char.id}
-                title={`${char.name}: ${stateText}${isRemoved ? ' (当前池不在计划内)' : ''}${isCurrentUp ? ' [当前UP]' : ''}`}
-                className={`text-xs px-1.5 py-0.5 rounded ${
-                  isRemoved
-                    ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 line-through'
-                    : isCurrentUp
-                      ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-bold'
-                      : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-                }`}
-              >
-                {isCurrentUp && '★'}{char.name.length > 4 ? char.name.slice(0, 4) + '...' : char.name}
-                <span className="opacity-70 ml-0.5">{stateText}</span>
-              </span>
-            );
-          })}
-        {limitedSixStarCharacters.length > 6 && (
-          <span className="text-xs text-slate-400 dark:text-zinc-500">
-            +{limitedSixStarCharacters.length - 6}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/**
  * 卡池卡片组件
  */
 const PoolCard = ({
   pool,
   poolCharacters,
   characters,
-  limitedSixStarCharacters,
   actionLoading,
   onEdit,
   onDelete
 }) => {
-  const isLimitedPool = pool.type === 'limited' || pool.type === 'limited_character';
   const featuredCharacters = Array.isArray(pool.featured_characters)
     ? pool.featured_characters.filter(Boolean)
     : [];
@@ -259,11 +197,6 @@ const PoolCard = ({
               <h4 className="font-bold text-slate-700 dark:text-zinc-300 truncate">
                 {pool.name}
               </h4>
-              {pool.locked && (
-                <span className="text-xs px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded">
-                  已锁定
-                </span>
-              )}
             </div>
             <span className={`text-xs px-2 py-0.5 rounded font-medium ${getTypeColor(pool.type)}`}>
               {getTypeLabel(pool.type)}
@@ -322,20 +255,8 @@ const PoolCard = ({
           characters={characters}
         />
 
-        {/* 轮换状态 */}
-        <RotationStatus
-          pool={pool}
-          limitedSixStarCharacters={limitedSixStarCharacters}
-        />
-
         {/* 操作按钮 */}
-        <div className={`flex items-center gap-2 ${!isLimitedPool ? 'mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800' : ''}`}>
-          {isLimitedPool && (
-            <span className="flex items-center gap-1 px-3 py-1.5 text-xs bg-slate-50 dark:bg-zinc-800/60 text-slate-500 dark:text-zinc-400 rounded-none">
-              <RotateCw size={12} />
-              按时间计划派生
-            </span>
-          )}
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
           <button
             onClick={() => onEdit(pool)}
             disabled={actionLoading === pool.pool_id}
@@ -346,7 +267,7 @@ const PoolCard = ({
           </button>
           <button
             onClick={() => onDelete(pool)}
-            disabled={actionLoading === pool.pool_id || pool.locked}
+            disabled={actionLoading === pool.pool_id}
             className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-none transition-colors disabled:opacity-50"
           >
             <Trash2 size={12} />

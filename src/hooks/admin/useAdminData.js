@@ -1,10 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../../stores';
 import { validateUserData } from '../../utils/validators';
+import {
+  getPrimaryAccountPasswordError,
+  validateAccountPassword,
+} from '../../utils/authSecurity.js';
 import * as userService from '../../services/admin/userService';
 import * as announcementService from '../../services/admin/announcementService';
 import * as accountRecoveryService from '../../services/admin/accountRecoveryService';
+import { invalidatePublicCache } from '../../services/admin/publicCacheService';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../constants/community';
+
+function getTemporaryPasswordValidationMessage(password) {
+  const validation = validateAccountPassword(password);
+  if (validation.isValid) {
+    return null;
+  }
+
+  switch (getPrimaryAccountPasswordError(validation)) {
+    case 'required':
+    case 'too_short':
+      return '临时密码至少需要 8 位字符';
+    case 'too_long':
+      return '临时密码长度不能超过 100 位';
+    case 'too_simple':
+      return '临时密码需要至少包含两类字符，例如字母和数字';
+    default:
+      return '临时密码不符合安全要求';
+  }
+}
 
 /**
  * 管理后台数据统一管理 Hook
@@ -211,8 +235,9 @@ export function useAdminData(showToast, activeMenu = 'automation') {
     if (!ensureSuperAdmin()) return;
 
     const normalizedPassword = String(temporaryPassword || '').trim();
-    if (normalizedPassword.length < 6) {
-      showToast('临时密码至少需要 6 位字符', 'error');
+    const passwordError = getTemporaryPasswordValidationMessage(normalizedPassword);
+    if (passwordError) {
+      showToast(passwordError, 'error');
       return;
     }
 
@@ -246,10 +271,12 @@ export function useAdminData(showToast, activeMenu = 'automation') {
         setAnnouncements(prev => prev.map(a =>
           a.id === editingAnnouncement.id ? { ...a, ...announcementForm, updated_at: updatedAt } : a
         ));
+        await invalidatePublicCache('announcements', 'admin:announcement:update');
         showToast('公告已更新', 'success');
       } else {
         const data = await announcementService.createAnnouncement(announcementForm);
         setAnnouncements(prev => [data, ...prev]);
+        await invalidatePublicCache('announcements', 'admin:announcement:create');
         showToast('公告已创建', 'success');
       }
 
@@ -270,6 +297,7 @@ export function useAdminData(showToast, activeMenu = 'automation') {
       setAnnouncements(prev => prev.map(a =>
         a.id === announcement.id ? { ...a, is_active: !a.is_active } : a
       ));
+      await invalidatePublicCache('announcements', 'admin:announcement:toggle');
       showToast(announcement.is_active ? '公告已停用' : '公告已激活', 'success');
     } catch (error) {
       showToast('操作失败: ' + error.message, 'error');
@@ -287,6 +315,7 @@ export function useAdminData(showToast, activeMenu = 'automation') {
     try {
       await announcementService.deleteAnnouncement(announcementId);
       setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+      await invalidatePublicCache('announcements', 'admin:announcement:delete');
       showToast('公告已删除', 'success');
     } catch (error) {
       showToast('删除失败: ' + error.message, 'error');
@@ -322,14 +351,22 @@ export function useAdminData(showToast, activeMenu = 'automation') {
     setActionLoading(`reset_password_${request.id}`);
 
     try {
-      await accountRecoveryService.resetRecoveryRequestPassword(
+      const result = await accountRecoveryService.resetRecoveryRequestPassword(
         request.id,
         request.matched_user_id,
         temporaryPassword,
         adminNote
       );
       await loadAdminData(true);
-      showToast(`临时密码已设置，请引导用户加入 QQ 群 ${ACCOUNT_RECOVERY_QQ_GROUP} 获取临时密码`, 'success');
+      const expiresAt = result?.expiresAt
+        ? new Date(result.expiresAt).toLocaleString('zh-CN')
+        : null;
+      const expiryText = expiresAt ? `，有效期至 ${expiresAt}` : '';
+      if (result?.partial) {
+        showToast(`临时密码已设置，但恢复状态记录部分失败，请检查详情${expiryText}`, 'warning');
+      } else {
+        showToast(`临时密码已设置${expiryText}，请引导用户加入 QQ 群 ${ACCOUNT_RECOVERY_QQ_GROUP} 获取临时密码`, 'success');
+      }
     } catch (error) {
       showToast('设置临时密码失败: ' + error.message, 'error');
     } finally {

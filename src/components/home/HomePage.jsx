@@ -27,7 +27,7 @@ import useSiteConfigStore, {
   HOME_NEXT_VERSION_TARGET_CONFIG_KEY
 } from '../../stores/useSiteConfigStore';
 import CountdownTimer from './CountdownTimer';
-import SpringPreviewCard from './SpringPreviewCard';
+import HeirloomsPreviewCard from './HeirloomsPreviewCard';
 import HomeAnnouncementContent from './AnnouncementContent';
 import CollapsibleContent from './CollapsibleContent';
 import HomeFriendlyLinksCard from './FriendlyLinksCard';
@@ -48,7 +48,7 @@ import { useAppStore, useAuthStore } from '../../stores';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
-import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
+import { resolveGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import {
   getAnnouncementSeverityMeta,
@@ -106,9 +106,13 @@ const HomePage = React.memo(() => {
     }
 
     const activeHomeCountdownPools = getActiveHomeCountdownPools(poolsArray, now);
-    const secondaryPools = main?.isActive && activeHomeCountdownPools.length > 1
-      ? activeHomeCountdownPools.filter((pool) => !(pool.poolType === 'limited' && pool.name === main.name))
-      : [];
+    const secondaryPools = activeHomeCountdownPools.filter((pool) => {
+      if (!main || pool.poolType !== 'limited') {
+        return true;
+      }
+
+      return pool.name !== main.name && pool.id !== main.id;
+    });
     const secondary = secondaryPools[0] || null;
     let secondaryCountdown = null;
 
@@ -155,7 +159,7 @@ const HomePage = React.memo(() => {
     [gameAnnouncements, storedGameAnnouncementDigest, t]
   );
   const gameAnnouncementCalendar = useMemo(
-    () => findGameAnnouncementCalendarImage(gameAnnouncements),
+    () => resolveGameAnnouncementCalendarImage(gameAnnouncements),
     [gameAnnouncements]
   );
   const hasAnnouncementUpdate = latestSiteAnnouncement
@@ -551,6 +555,7 @@ const HomePage = React.memo(() => {
               subTitle={countdowns.main.subTitle}
               link={null}
               characterName={countdowns.main.name}
+              scheduleDate={countdowns.main.scheduleDate || countdowns.main.startDate}
             />
           )}
         </div>
@@ -562,7 +567,9 @@ const HomePage = React.memo(() => {
               subTitle={countdowns.secondary.subTitle}
               link={null}
               characterName={countdowns.secondary.poolType === 'limited' ? countdowns.secondary.name : null}
-              bgImage={countdowns.secondary.backgroundImage}
+              featuredCharacterNames={countdowns.secondary.poolType === 'extra' ? countdowns.secondary.featuredNames : []}
+              bgImage={countdowns.secondary.poolType === 'extra' ? null : countdowns.secondary.backgroundImage}
+              scheduleDate={countdowns.secondary.scheduleDate || countdowns.secondary.startDate}
             />
           </div>
         )}
@@ -573,7 +580,7 @@ const HomePage = React.memo(() => {
           <HomeFriendlyLinksCard />
 
           <div className="flex flex-col gap-6">
-            <SpringPreviewCard />
+            <HeirloomsPreviewCard />
             <div className="shrink-0 min-h-32">
               <CountdownTimer
                 targetDate={nextVersionTargetDate}
@@ -581,6 +588,8 @@ const HomePage = React.memo(() => {
                 subTitle={t('home.nextVersionRelease')}
                 customEndedContent={<span>{t('home.versionLaunched')}</span>}
                 size="small"
+                scheduleDate={nextVersionTargetDate}
+                scheduleLabel={t('home.countdown.releaseAt')}
               />
             </div>
           </div>

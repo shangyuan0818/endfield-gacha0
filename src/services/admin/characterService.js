@@ -10,6 +10,10 @@ import { supabase } from '../../supabaseClient';
 import { syncAllCharacters, syncAllWeapons } from '../../utils/endfieldDataSync';
 import { buildWikiAssetProxyPath } from '../../utils/avatarAssetPaths.js';
 import { characterCache } from '../../utils/characterUtils';
+import {
+  classifyCharacterIdSource,
+  normalizeEntityNameForMatch,
+} from '../../utils/canonicalEntityUtils.js';
 import { executeSupabaseRead } from '../supabaseRequest';
 import {
   buildCharacterSelfAliasRows,
@@ -62,6 +66,41 @@ function pushUniqueWarning(warnings, message) {
 function isFatalSyncSetupError(error) {
   const message = error?.message || '';
   return /缺少数据库迁移 077|缺少数据库迁移 078|only super_admin|permission denied/i.test(message);
+}
+
+export function buildManualPlaceholderLookup(rows = []) {
+  const lookup = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    if (classifyCharacterIdSource(row?.id) !== 'manual_placeholder') {
+      return;
+    }
+
+    const normalizedType = row?.type === 'weapon' ? 'weapon' : 'character';
+    const normalizedName = normalizeEntityNameForMatch(row?.name);
+    if (!normalizedName) {
+      return;
+    }
+
+    lookup.set(`${normalizedType}:${normalizedName}`, row.id);
+  });
+
+  return lookup;
+}
+
+export function resolveSyncCanonicalId({ item, wikiAliasMap, existingIdSet, manualPlaceholderLookup }) {
+  const wikiResolvedId = resolveAliasValue(wikiAliasMap, item.id);
+
+  if (wikiResolvedId && wikiResolvedId !== item.id) {
+    return wikiResolvedId;
+  }
+
+  if (existingIdSet.has(wikiResolvedId)) {
+    return wikiResolvedId;
+  }
+
+  const manualKey = `${item.type === 'weapon' ? 'weapon' : 'character'}:${normalizeEntityNameForMatch(item.name)}`;
+  return manualPlaceholderLookup.get(manualKey) || wikiResolvedId;
 }
 
 async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
@@ -421,23 +460,30 @@ export async function syncFromAPI({ onProgress, existingIds = [] }) {
       allItems.map(item => item.id),
       'wiki'
     );
-    const resolvedIds = allItems.map(item => resolveAliasValue(wikiAliasMap, item.id));
     const { data: existingRows } = await executeSupabaseRead(
       () => supabase
         .from('characters')
-        .select('id')
-        .in('id', Array.from(new Set([...existingIds, ...resolvedIds]))),
+        .select('id, name, type'),
       {
         label: 'admin syncFromAPI existing rows',
         retries: 1
       }
     );
-    const existingIdSet = new Set([...(existingIds || []), ...((existingRows || []).map(row => row.id))]);
+    const existingIdSet = new Set([
+      ...(existingIds || []),
+      ...((existingRows || []).map(row => row.id))
+    ]);
+    const manualPlaceholderLookup = buildManualPlaceholderLookup(existingRows || []);
 
     for (const item of allItems) {
       try {
         const finalAvatarUrl = resolveManagedAvatarUrl(item);
-        const canonicalId = resolveAliasValue(wikiAliasMap, item.id);
+        const canonicalId = resolveSyncCanonicalId({
+          item,
+          wikiAliasMap,
+          existingIdSet,
+          manualPlaceholderLookup
+        });
 
         if (existingIdSet.has(canonicalId)) {
           // eslint-disable-next-line no-await-in-loop

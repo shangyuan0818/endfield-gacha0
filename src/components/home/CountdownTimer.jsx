@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ArrowRight, User } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { characterCache } from '../../utils/characterUtils';
+import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { useI18n } from '../../i18n/index.js';
 
 const CountdownTimer = React.memo(function CountdownTimer({
@@ -15,10 +15,13 @@ const CountdownTimer = React.memo(function CountdownTimer({
   customEndedContent,
   size = 'normal',
   characterName = null,
+  featuredCharacterNames = [],
   bgImage = null,
   theme = 'default',
+  scheduleDate = null,
+  scheduleLabel = null,
 }) {
-  const { t: i18n } = useI18n();
+  const { t: i18n, locale } = useI18n();
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
@@ -102,6 +105,58 @@ const CountdownTimer = React.memo(function CountdownTimer({
 
   const formatNum = (num) => String(num).padStart(2, '0');
   const isSmall = size === 'small';
+  const featuredAvatarItems = useMemo(() => {
+    const seen = new Set();
+    return (Array.isArray(featuredCharacterNames) ? featuredCharacterNames : [])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean)
+      .filter((name) => {
+        if (seen.has(name)) {
+          return false;
+        }
+        seen.add(name);
+        return true;
+      })
+      .slice(0, 4)
+      .map((name) => ({
+        name,
+        avatarUrl: getCharacterAvatarUrl(name),
+      }));
+  }, [featuredCharacterNames]);
+  const showFeaturedAvatarRow = !isSmall && featuredAvatarItems.length > 0;
+  const scheduleMeta = useMemo(() => {
+    if (!scheduleDate) {
+      return null;
+    }
+
+    const date = new Date(scheduleDate);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+
+    let timeZone = null;
+    try {
+      timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch {
+      timeZone = null;
+    }
+
+    const formatted = new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      ...(timeZone ? { timeZone } : {}),
+      timeZoneName: 'short',
+    }).format(date);
+
+    return i18n('home.countdown.scheduleTime', {
+      label: scheduleLabel || i18n('home.countdown.startsAt'),
+      time: formatted,
+    });
+  }, [i18n, locale, scheduleDate, scheduleLabel]);
 
   if (timeLeft.ended) {
     if (customEndedContent) {
@@ -180,10 +235,9 @@ const CountdownTimer = React.memo(function CountdownTimer({
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-4">
-              {characterName && !isSmall && (() => {
-                const charData = characterCache.searchByName(characterName, false);
-                const avatarUrl = charData?.avatar_url;
+            <div className={`flex ${showFeaturedAvatarRow ? 'flex-col items-start gap-4' : 'items-center gap-4'}`}>
+              {characterName && !isSmall && !showFeaturedAvatarRow && (() => {
+                const avatarUrl = getCharacterAvatarUrl(characterName, { fuzzy: false });
 
                 return (
                   <div className="w-16 h-16 md:w-20 md:h-20 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-gradient-to-br from-orange-400 to-pink-500 ring-2 ring-endfield-yellow shadow-[0_0_20px_rgba(255,250,0,0.3)]">
@@ -208,17 +262,52 @@ const CountdownTimer = React.memo(function CountdownTimer({
                   </div>
                 );
               })()}
+              {showFeaturedAvatarRow && (
+                <div className="flex flex-nowrap items-center gap-3">
+                  {featuredAvatarItems.map(({ name, avatarUrl }) => (
+                    <div
+                      key={name}
+                      className="h-14 w-14 overflow-hidden rounded-full bg-gradient-to-br from-orange-400 to-pink-500 ring-2 ring-endfield-yellow shadow-[0_0_18px_rgba(255,250,0,0.25)] sm:h-16 sm:w-16 md:h-[4.5rem] md:w-[4.5rem]"
+                      title={name}
+                    >
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={name}
+                          className="h-full w-full object-cover"
+                          onError={(event) => {
+                            event.target.style.display = 'none';
+                            event.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`h-full w-full items-center justify-center text-white/80 ${
+                          avatarUrl ? 'hidden' : 'flex'
+                        }`}
+                      >
+                        <User size={28} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div>
                 <h2
                   className={`${
                     isSmall ? 'text-lg leading-tight' : 'text-3xl md:text-4xl'
-                  } font-bold text-zinc-900 dark:text-white uppercase italic tracking-tighter mb-1`}
+                  } font-black text-zinc-900 dark:text-white uppercase tracking-normal mb-1`}
                 >
                   {title}
                 </h2>
                 <p className="text-zinc-500 text-xs font-mono tracking-wide uppercase truncate">
                   {subTitle}
                 </p>
+                {scheduleMeta && (
+                  <p className={`${isSmall ? 'mt-1 text-[10px]' : 'mt-2 text-[11px]'} font-mono tracking-wide text-zinc-600 dark:text-zinc-400`}>
+                    {scheduleMeta}
+                  </p>
+                )}
               </div>
             </div>
 

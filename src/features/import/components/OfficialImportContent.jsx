@@ -9,7 +9,8 @@ import {
   ArrowRight,
   Clock,
   Loader2,
-  Upload
+  Upload,
+  Clipboard
 } from 'lucide-react';
 import { ImportStatus } from '../importStatus';
 import { getPoolName } from '../importShared';
@@ -136,6 +137,25 @@ function getAccountAccent(account = {}) {
   };
 }
 
+function getClipboardMessage(clipboardState, t) {
+  switch (clipboardState?.status) {
+    case 'reading':
+      return t('import.official.clipboardReading');
+    case 'success':
+      return t('import.official.clipboardSuccess');
+    case 'empty':
+      return t('import.official.clipboardEmpty');
+    case 'no_token':
+      return t('import.official.clipboardNoToken');
+    case 'denied':
+      return t('import.official.clipboardDenied');
+    case 'unsupported':
+      return t('import.official.clipboardUnsupported');
+    default:
+      return '';
+  }
+}
+
 export default function OfficialImportContent({
   source,
   status,
@@ -147,11 +167,17 @@ export default function OfficialImportContent({
   queueStatus,
   retryInfo,
   sourceSwitchInfo,
+  inputDetection,
+  clipboardState,
+  importMode,
+  backendImportAvailable,
   error,
   importSummary,
   userInfo,
   onSourceChange,
   onTokenChange,
+  onClipboardRead,
+  onImportModeChange,
   onStartImport,
   onOpenFileImport,
   onSelectAccount,
@@ -196,6 +222,11 @@ export default function OfficialImportContent({
     warning: 'border-orange-300/80 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-900/20 dark:text-orange-300',
     error: 'border-red-300/80 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-900/20 dark:text-red-300',
   };
+  const clipboardReadAvailable = typeof navigator !== 'undefined' && Boolean(navigator.clipboard?.readText);
+  const clipboardMessage = getClipboardMessage(clipboardState, t);
+  const detectedSourceLabel = inputDetection?.detectedSource === 'intl'
+    ? t('import.source.intl.label')
+    : t('import.source.cn.label');
 
   return (
     <div className="space-y-4">
@@ -246,6 +277,50 @@ export default function OfficialImportContent({
               ))}
             </div>
           </div>
+
+          {backendImportAvailable && (
+            <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-slate-600 dark:text-zinc-400">
+                    {t('import.official.modeLabel')}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-zinc-500">
+                    {t('import.official.modeDesc')}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  {
+                    key: 'incremental',
+                    label: t('import.official.modeIncremental'),
+                    desc: t('import.official.modeIncrementalDesc'),
+                  },
+                  {
+                    key: 'full',
+                    label: t('import.official.modeFull'),
+                    desc: t('import.official.modeFullDesc'),
+                  },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => onImportModeChange?.(option.key)}
+                    className={`border px-3 py-2 text-left transition-colors ${
+                      importMode === option.key
+                        ? 'border-yellow-500 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300'
+                        : 'border-zinc-300 bg-slate-50 text-slate-600 hover:border-yellow-500/60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400'
+                    }`}
+                    style={{ clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}
+                  >
+                    <span className="block text-[11px] font-black uppercase tracking-widest">{option.label}</span>
+                    <span className="mt-1 block text-[10px] leading-4 opacity-80">{option.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <h3 className="text-slate-800 dark:text-zinc-300 font-bold mb-2 flex items-center gap-2 uppercase tracking-widest">
             <HelpCircle size={14} className="text-yellow-600 dark:text-yellow-500" />
@@ -327,6 +402,25 @@ export default function OfficialImportContent({
                 {tokenInput.trim().length} chars
               </div>
             </div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {clipboardReadAvailable && (
+                <button
+                  type="button"
+                  onClick={onClipboardRead}
+                  disabled={clipboardState?.status === 'reading'}
+                  className="inline-flex w-fit items-center gap-2 border border-zinc-300 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-slate-600 transition-colors hover:border-yellow-500 hover:text-yellow-700 disabled:cursor-wait disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:border-yellow-500 dark:hover:text-yellow-400"
+                  style={{ clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}
+                >
+                  <Clipboard size={13} />
+                  {t('import.official.clipboardPaste')}
+                </button>
+              )}
+              {clipboardMessage && (
+                <span className="text-[11px] text-slate-500 dark:text-zinc-500">
+                  {clipboardMessage}
+                </span>
+              )}
+            </div>
           </div>
 
           {autoDetected && tokenInput.length === 24 && (
@@ -335,7 +429,25 @@ export default function OfficialImportContent({
               style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
             >
               <CheckCircle size={14} />
-              <span>{t('import.official.autoDetected')}</span>
+              <span>
+                {inputDetection?.fromText
+                  ? t('import.official.autoDetectedText')
+                  : t('import.official.autoDetected')}
+              </span>
+            </div>
+          )}
+
+          {inputDetection?.detectedSource && (
+            <div
+              className="flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-900/50 px-3 py-2 transition-colors"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+            >
+              <CheckCircle size={14} />
+              <span>
+                {inputDetection.sourceAutoSwitched
+                  ? t('import.official.sourceAutoSwitched', { target: detectedSourceLabel })
+                  : t('import.official.sourceDetected', { target: detectedSourceLabel })}
+              </span>
             </div>
           )}
 
@@ -444,12 +556,21 @@ export default function OfficialImportContent({
               <p className="text-slate-600 dark:text-zinc-400 text-xs">{error}</p>
             </div>
           </div>
-          <button
-            onClick={onReset}
-            className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
-          >
-            {t('common.retry')}
-          </button>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <button
+              onClick={onStartImport}
+              disabled={!tokenInput.trim()}
+              className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-bold py-3 text-sm tracking-wider transition-colors disabled:cursor-not-allowed"
+            >
+              {t('import.official.retrySameToken')}
+            </button>
+            <button
+              onClick={onReset}
+              className="w-full bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-transparent hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-700 dark:text-white font-bold py-3 text-sm tracking-wider transition-colors"
+            >
+              {t('import.official.editToken')}
+            </button>
+          </div>
         </div>
       )}
 

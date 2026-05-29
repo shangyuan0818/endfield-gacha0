@@ -14,6 +14,12 @@ import { assignBatchIds, calculatePity, generateImportSummary } from '../../util
 import { buildGameAccountServerTag } from '../../utils/gameAccountMetadata';
 import { getGlobalQueue } from '../../utils/requestQueue';
 import { ImportStatus } from './importShared';
+import {
+  OFFICIAL_IMPORT_MODES,
+  normalizeOfficialImportMode,
+  parseOfficialImportTokenInput,
+  validateOfficialImportToken,
+} from './officialImportInput.js';
 import { useI18n } from '../../i18n/index.js';
 import appLogger from '../../utils/appLogger.js';
 
@@ -60,39 +66,6 @@ function getServerRegionLabel(serverId, t) {
   return String(serverId || '1') === '1'
     ? getSourceDisplayName('cn', t)
     : getSourceDisplayName('intl', t);
-}
-
-function parseTokenInput(input) {
-  const trimmed = input.trim();
-  if (!trimmed) return { token: '', fromJson: false };
-
-  if (trimmed.startsWith('{')) {
-    try {
-      const json = JSON.parse(trimmed);
-      if (json?.data?.content) {
-        return { token: json.data.content, fromJson: true };
-      }
-    } catch {
-      // 不是有效 JSON，继续作为普通文本处理
-    }
-  }
-
-  return { token: trimmed, fromJson: false };
-}
-
-function validateToken(token) {
-  const trimmed = token.trim();
-  if (!trimmed) return { valid: false, error: null };
-
-  if (trimmed.length !== 24) {
-    return { valid: false, error: { key: 'import.error.tokenLength', params: { length: trimmed.length } } };
-  }
-
-  if (!/^[a-zA-Z0-9+/=]+$/.test(trimmed)) {
-    return { valid: false, error: { key: 'import.error.tokenFormat' } };
-  }
-
-  return { valid: true, token: trimmed };
 }
 
 function buildPreviewRecords(records, serverId, t) {
@@ -152,6 +125,9 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
   const [queueStatus, setQueueStatus] = useState(null);
   const [retryInfo, setRetryInfo] = useState(null);
   const [sourceSwitchInfo, setSourceSwitchInfo] = useState(null);
+  const [inputDetection, setInputDetection] = useState(null);
+  const [clipboardState, setClipboardState] = useState({ status: 'idle' });
+  const [importMode, setImportModeState] = useState(OFFICIAL_IMPORT_MODES.INCREMENTAL);
   const cancelRef = useRef(false);
   const switchTimerRef = useRef(null);
 
@@ -222,18 +198,65 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     };
   }, [source, status, t]);
 
-  const handleInputChange = useCallback((event) => {
-    const rawInput = event.target.value;
-    const { token, fromJson } = parseTokenInput(rawInput);
+  const applyTokenInput = useCallback((rawInput) => {
+    const parsed = parseOfficialImportTokenInput(rawInput);
+    const shouldSwitchSource = Boolean(
+      parsed.detectedSource &&
+      parsed.sourceConfidence === 'high' &&
+      parsed.detectedSource !== source
+    );
 
-    if (fromJson) {
-      setTokenInput(token);
-      setAutoDetected(true);
+    setTokenInput(parsed.autoDetected ? parsed.token : String(rawInput || ''));
+    setAutoDetected(Boolean(parsed.autoDetected));
+    setInputDetection({
+      ...parsed,
+      sourceAutoSwitched: shouldSwitchSource,
+      previousSource: shouldSwitchSource ? source : null,
+    });
+
+    if (shouldSwitchSource) {
+      onSourceSwitch?.(parsed.detectedSource);
+    }
+
+    return parsed;
+  }, [onSourceSwitch, source]);
+
+  const handleInputChange = useCallback((eventOrValue) => {
+    const rawInput = typeof eventOrValue === 'string'
+      ? eventOrValue
+      : eventOrValue?.target?.value || '';
+    setClipboardState({ status: 'idle' });
+    applyTokenInput(rawInput);
+  }, [applyTokenInput]);
+
+  const handleClipboardRead = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+      setClipboardState({ status: 'unsupported' });
       return;
     }
 
-    setTokenInput(rawInput);
-    setAutoDetected(false);
+    setClipboardState({ status: 'reading' });
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!String(text || '').trim()) {
+        setClipboardState({ status: 'empty' });
+        return;
+      }
+      const parsed = applyTokenInput(text);
+      const validation = validateOfficialImportToken(parsed.token);
+      setClipboardState({
+        status: validation.valid ? 'success' : 'no_token',
+        inputKind: parsed.inputKind,
+        detectedSource: parsed.detectedSource,
+      });
+    } catch (clipboardError) {
+      appLogger.warn('[OfficialAPIImport] 剪贴板读取失败:', clipboardError);
+      setClipboardState({ status: 'denied' });
+    }
+  }, [applyTokenInput]);
+
+  const setImportMode = useCallback((nextMode) => {
+    setImportModeState(normalizeOfficialImportMode(nextMode));
   }, []);
 
   const handleReset = useCallback(() => {
@@ -249,6 +272,9 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     setAvailableAccounts([]);
     setAppToken(null);
     setSourceSwitchInfo(null);
+    setInputDetection(null);
+    setClipboardState({ status: 'idle' });
+    setImportModeState(OFFICIAL_IMPORT_MODES.INCREMENTAL);
     if (switchTimerRef.current) {
       clearTimeout(switchTimerRef.current);
       switchTimerRef.current = null;
@@ -273,7 +299,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     });
   }, [fetchedRecords, importSummary, onImportComplete, userInfo]);
 
-  const continueImportWithAccount = useCallback(async (token, account) => {
+  const continueImportWithAccount = useCallback(async (token, account, targetSource = source) => {
     try {
       setStatus(ImportStatus.FETCHING);
       setProgress(30);
@@ -287,7 +313,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         channelMasterId: account.channelMasterId,
         serverId: account.serverId,
         isOfficial: account.isOfficial,
-        source,
+        source: targetSource,
         serverTag: account.serverTag || buildGameAccountServerTag(account)
       };
 
@@ -311,7 +337,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
             setProgress(update.progress || 0);
             setStatusMessage(update.message || t('import.official.importingData'));
           },
-          source
+          targetSource,
+          { importMode }
         );
 
         if (cancelRef.current) return;
@@ -334,7 +361,9 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
               byPool: backendResult?.byPool || {},
               byPoolType: backendResult?.byPoolType || {},
               partialPools: backendResult?.partialPools || [],
-              failedPools: backendResult?.failedPools || []
+              failedPools: backendResult?.failedPools || [],
+              importMode: backendResult?.importMode || importMode,
+              savedRecords: backendResult?.savedRecords ?? backendResult?.newRecords ?? 0
             },
             userInfo: finalUserInfo,
             result: backendResult
@@ -363,7 +392,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         if (!cancelRef.current) {
           setStatusMessage(message);
         }
-      }, source);
+      }, targetSource);
 
       if (cancelRef.current) return;
 
@@ -392,7 +421,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
             gameUid: account.gameUid,
             nickName: account.nickName
           },
-          source
+          targetSource
         );
       } catch {
         setStatusMessage(t('import.official.concurrentFallback'));
@@ -400,7 +429,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
           if (!cancelRef.current) {
             setStatusMessage(message);
           }
-        }, source, account.serverId || '1');
+        }, targetSource, account.serverId || '1');
       }
 
       if (cancelRef.current) return;
@@ -423,7 +452,7 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
       setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);
     }
-  }, [availableAccounts, onImportComplete, source, t, tokenInput, userId]);
+  }, [availableAccounts, importMode, onImportComplete, source, t, tokenInput, userId]);
 
   const tryFetchAccountsWithSource = useCallback(async (token, targetSource) => {
     return fetchAccountsList(token, (message) => {
@@ -435,7 +464,8 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
   }, []);
 
   const handleImport = useCallback(async () => {
-    const validation = validateToken(tokenInput);
+    const parsedInput = parseOfficialImportTokenInput(tokenInput);
+    const validation = validateOfficialImportToken(parsedInput.token || tokenInput);
     if (!validation.valid) {
       setError(validation.error ? t(validation.error.key, validation.error.params) : t('import.error.emptyToken'));
       setStatus(ImportStatus.ERROR);
@@ -453,14 +483,18 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     setSourceSwitchInfo(null);
     cancelRef.current = false;
 
-    let effectiveSource = source;
+    const detectedSource = inputDetection?.sourceConfidence === 'high' ? inputDetection.detectedSource : null;
+    let effectiveSource = detectedSource || source;
     let accountsResult;
 
     try {
       setStatusMessage(t('import.official.validatingToken'));
       setProgress(10);
 
-      accountsResult = await tryFetchAccountsWithSource(validation.token, source);
+      if (effectiveSource !== source) {
+        onSourceSwitch?.(effectiveSource);
+      }
+      accountsResult = await tryFetchAccountsWithSource(validation.token, effectiveSource);
     } catch (firstErr) {
       if (cancelRef.current) return;
 
@@ -472,11 +506,11 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         return;
       }
 
-      const altSource = getAlternateSource(source);
+      const altSource = getAlternateSource(effectiveSource);
       const altName = getSourceDisplayName(altSource, t);
-      const curName = getSourceDisplayName(source, t);
+      const curName = getSourceDisplayName(effectiveSource, t);
 
-      setSourceSwitchInfo({ from: source, to: altSource, countdown: 3 });
+      setSourceSwitchInfo({ from: effectiveSource, to: altSource, countdown: 3 });
       setStatusMessage(t('import.official.switchSuggestion', {
         current: curName,
         target: altName,
@@ -555,18 +589,18 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
         return;
       }
 
-      await continueImportWithAccount(nextAppToken, normalizedAccounts[0]);
+      await continueImportWithAccount(nextAppToken, normalizedAccounts[0], effectiveSource);
     } catch (err) {
       appLogger.error('[OfficialAPIImport] 导入失败:', err);
       if (cancelRef.current) return;
       setError(normalizeImportError(err, t));
       setStatus(ImportStatus.ERROR);
     }
-  }, [continueImportWithAccount, onSourceSwitch, source, t, tokenInput, tryFetchAccountsWithSource]);
+  }, [continueImportWithAccount, inputDetection, onSourceSwitch, source, t, tokenInput, tryFetchAccountsWithSource]);
 
   const handleAccountSelect = useCallback(async (account) => {
-    await continueImportWithAccount(appToken, account);
-  }, [appToken, continueImportWithAccount]);
+    await continueImportWithAccount(appToken, account, account?.source || source);
+  }, [appToken, continueImportWithAccount, source]);
 
   return {
     tokenInput,
@@ -581,7 +615,12 @@ export function useOfficialImportController({ onImportComplete, onFetchStatusCha
     queueStatus,
     retryInfo,
     sourceSwitchInfo,
+    inputDetection,
+    clipboardState,
+    importMode,
+    setImportMode,
     handleInputChange,
+    handleClipboardRead,
     handleImport,
     handleAccountSelect,
     handleCancel,

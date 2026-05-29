@@ -5,15 +5,39 @@
 import { supabase } from '../../supabaseClient';
 import { buildManualCharacterId, buildManualPoolId } from '../../utils/canonicalEntityUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
-import { getLimitedCharacterPoolStatus } from '../../utils/characterUtils.js';
 import {
   buildCharacterSelfAliasRows,
   buildPoolSelfAliasRows,
+  inferPoolAliasSource,
 } from '../../../shared/idAliasService.js';
 import appLogger from '../../utils/appLogger.js';
 
 function normalizeName(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function uniqueAliasRows(rows = []) {
+  const deduped = new Map();
+
+  rows.forEach((row) => {
+    const source = normalizeName(row?.source);
+    const aliasId = normalizeName(row?.alias_id);
+    const poolId = normalizeName(row?.pool_id);
+    if (!source || !aliasId || !poolId) {
+      return;
+    }
+
+    deduped.set(`${source}:${aliasId}`, {
+      ...row,
+      source,
+      alias_id: aliasId,
+      pool_id: poolId,
+      is_primary: Boolean(row?.is_primary),
+      note: row?.note || null,
+    });
+  });
+
+  return Array.from(deduped.values());
 }
 
 function buildNameSet(items = []) {
@@ -22,6 +46,56 @@ function buildNameSet(items = []) {
       .map((item) => normalizeName(item))
       .filter(Boolean)
   );
+}
+
+function normalizePoolType(type) {
+  if (type === 'limited_character') return 'limited';
+  if (type === 'limited_weapon') return 'weapon';
+  return type || 'limited';
+}
+
+function buildCharacterLookup(characters = []) {
+  const byId = new Map();
+
+  (Array.isArray(characters) ? characters : []).forEach((character) => {
+    if (character?.id) {
+      byId.set(character.id, character);
+    }
+  });
+
+  return { byId };
+}
+
+function normalizePoolCharacterRows(rows = [], characters = [], poolData = {}) {
+  const poolType = normalizePoolType(poolData?.type);
+  const { byId } = buildCharacterLookup(characters);
+  const featuredNames = buildNameSet(poolData?.featured_characters);
+  const featuredIds = new Set(
+    (Array.isArray(poolData?.featured_characters) ? poolData.featured_characters : [])
+      .map((value) => normalizeName(value))
+      .filter(Boolean)
+  );
+  const upCharacterName = normalizeName(poolData?.up_character);
+  const dedupedRows = new Map();
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const characterId = normalizeName(row?.character_id);
+    if (!characterId) {
+      return;
+    }
+
+    const character = byId.get(characterId);
+    const isUp = poolType === 'extra'
+      ? featuredIds.has(characterId) || featuredNames.has(normalizeName(character?.name))
+      : Boolean(row?.is_up) || (upCharacterName && normalizeName(character?.name) === upCharacterName);
+
+    dedupedRows.set(characterId, {
+      character_id: characterId,
+      is_up: Boolean(isUp)
+    });
+  });
+
+  return Array.from(dedupedRows.values());
 }
 
 async function saveManagedCharacterWithAliases(characterData) {
@@ -69,67 +143,6 @@ async function upsertPoolWithAliases({ poolId, insertPayload, updatePayload, ali
   throw error;
 }
 
-function buildInitialPoolCharacterRows(characters, poolType, upCharacterName) {
-  if (poolType === 'extra') {
-    return [];
-  }
-
-  const expectedType = poolType === 'weapon' ? 'weapon' : 'character';
-
-  return characters
-    .filter(character => character.type === expectedType)
-    .map(character => ({
-      character_id: character.id,
-      is_up: character.name === upCharacterName
-    }));
-}
-
-function buildExtraPoolCharacterRows(characters, featuredCharacters, poolStartTime = null) {
-  const featuredNameSet = buildNameSet(featuredCharacters);
-  const poolContext = poolStartTime ? { start_time: poolStartTime } : null;
-  const dedupedRows = new Map();
-
-  (Array.isArray(characters) ? characters : []).forEach((character) => {
-    if (character?.type !== 'character') {
-      return;
-    }
-
-    const normalizedName = normalizeName(character?.name);
-    if (!normalizedName || !character?.id) {
-      return;
-    }
-
-    if (Number(character?.rarity) === 6 && featuredNameSet.has(normalizedName)) {
-      dedupedRows.set(character.id, {
-        character_id: character.id,
-        is_up: true
-      });
-      return;
-    }
-
-    if (Number(character?.rarity) !== 5 && Number(character?.rarity) !== 4) {
-      return;
-    }
-
-    const supportedPools = Array.isArray(character?.pool_config?.pools) ? character.pool_config.pools : [];
-    if (!supportedPools.includes('limited')) {
-      return;
-    }
-
-    const limitedStatus = getLimitedCharacterPoolStatus(character, poolContext);
-    if (!limitedStatus.isIntroduced || !limitedStatus.isActive) {
-      return;
-    }
-
-    dedupedRows.set(character.id, {
-      character_id: character.id,
-      is_up: false
-    });
-  });
-
-  return Array.from(dedupedRows.values());
-}
-
 async function upsertPoolCharacter(poolId, characterId, isUp = false) {
   const { error } = await supabase
     .from('pool_characters')
@@ -143,39 +156,70 @@ async function upsertPoolCharacter(poolId, characterId, isUp = false) {
   }
 }
 
-async function syncExtraPoolCharacters(poolId, characters, editingPoolCharacters, poolData) {
-  const featuredCharacterRows = buildExtraPoolCharacterRows(
-    characters,
-    poolData?.featured_characters,
-    poolData?.start_time || null
-  );
+async function replacePoolCharacters(poolId, rows = []) {
+  const { error: deleteError } = await supabase
+    .from('pool_characters')
+    .delete()
+    .eq('pool_id', poolId);
 
-  if (featuredCharacterRows.length === 0) {
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (rows.length === 0) {
     return;
   }
 
-  const selectedRows = Array.isArray(editingPoolCharacters) ? editingPoolCharacters : [];
-  const selectedIds = new Set(selectedRows.map((row) => row.character_id));
-  const featuredIds = new Set(
-    featuredCharacterRows
-      .filter((row) => row.is_up)
-      .map((row) => row.character_id)
-  );
+  const { error: insertError } = await supabase
+    .from('pool_characters')
+    .upsert(
+      rows.map((row) => ({
+        pool_id: poolId,
+        character_id: row.character_id,
+        is_up: Boolean(row.is_up)
+      })),
+      { onConflict: 'pool_id,character_id' }
+    );
 
-  const rowsToPersist = selectedRows.length > 0
-    ? [
-        ...selectedRows.map((row) => ({
-          character_id: row.character_id,
-          is_up: featuredIds.has(row.character_id)
-        })),
-        ...featuredCharacterRows.filter((row) => !selectedIds.has(row.character_id))
-      ]
-    : featuredCharacterRows;
-
-  for (const row of rowsToPersist) {
-    // eslint-disable-next-line no-await-in-loop -- row upserts stay sequential so a failing mapping is attributable
-    await upsertPoolCharacter(poolId, row.character_id, row.is_up);
+  if (insertError) {
+    throw insertError;
   }
+}
+
+function buildRowsToPersist({ poolData, characters, editingPoolCharacters }) {
+  return normalizePoolCharacterRows(editingPoolCharacters, characters, poolData);
+}
+
+export function buildPoolAliasRowsForSave({
+  canonicalPoolId,
+  editingPool = null,
+  poolData = {},
+  preferredSource = null,
+} = {}) {
+  const normalizedCanonicalId = normalizeName(canonicalPoolId);
+  if (!normalizedCanonicalId) {
+    return [];
+  }
+
+  const rows = [...buildPoolSelfAliasRows(normalizedCanonicalId, preferredSource)];
+  const previousIds = [
+    poolData?.pool_id,
+    editingPool?.pool_id,
+  ]
+    .map((value) => normalizeName(value))
+    .filter((value) => value && value !== normalizedCanonicalId);
+
+  previousIds.forEach((aliasId) => {
+    rows.push({
+      pool_id: normalizedCanonicalId,
+      source: inferPoolAliasSource(aliasId) || 'admin_manual',
+      alias_id: aliasId,
+      is_primary: false,
+      note: 'Pool previous id alias',
+    });
+  });
+
+  return uniqueAliasRows(rows);
 }
 
 /**
@@ -204,7 +248,7 @@ export const loadPools = async () => {
 };
 
 /**
- * 加载角色列表（用于轮换管理和卡池角色编辑）
+ * 加载角色列表（用于卡池角色编辑）
  */
 export const loadCharacters = async () => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
@@ -213,7 +257,8 @@ export const loadCharacters = async () => {
     const { data, error } = await executeSupabaseRead(
       () => supabase
         .from('characters')
-        .select('id, name, rarity, type, is_limited, pool_config')
+        .select('id, name, rarity, type, is_limited, aliases, pool_config, created_at, updated_at')
+        .order('created_at', { ascending: false, nullsFirst: false })
         .order('rarity', { ascending: false }),
       {
         label: 'admin loadPoolCharacters',
@@ -343,8 +388,8 @@ export const createUpCharacter = async (characterName, poolType, poolStartTime, 
     pool_config: {
       pools: [poolType],
       limited_rotation_count: safeRotationBaseCount,
-      removes_after: safeRotationBaseCount + 3,
-      is_active_in_limited: true,
+      removes_after: null,
+      is_active_in_limited: poolType === 'limited',
       introduced_at: poolStartTime || new Date().toISOString()
     }
   };
@@ -363,6 +408,13 @@ export const savePool = async (poolData, editingPool, characters, editingPoolCha
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: '请先登录' };
 
+    const poolCharacterRows = buildRowsToPersist({
+      poolData,
+      characters,
+      editingPoolCharacters,
+      editingPool
+    });
+
     if (editingPool) {
       // 更新现有卡池
       const targetPoolId = poolData.pool_id || editingPool.pool_id;
@@ -374,14 +426,16 @@ export const savePool = async (poolData, editingPool, characters, editingPoolCha
           pool_id: targetPoolId
         },
         updatePayload: poolData,
-        aliasRows: buildPoolSelfAliasRows(targetPoolId)
+        aliasRows: buildPoolAliasRowsForSave({
+          canonicalPoolId: targetPoolId,
+          editingPool,
+          poolData
+        })
       });
 
-      if (poolData.type === 'extra') {
-        await syncExtraPoolCharacters(targetPoolId, characters, editingPoolCharacters, poolData);
-      }
+      await replacePoolCharacters(targetPoolId, poolCharacterRows);
 
-      return { success: true, isNew: false };
+      return { success: true, isNew: false, addedCount: poolCharacterRows.length };
     } else {
       // 创建新卡池
       const pool_id = buildManualPoolId({
@@ -399,24 +453,19 @@ export const savePool = async (poolData, editingPool, characters, editingPoolCha
         locked: Boolean(poolData.locked)
       };
 
-      const poolType = poolData.type === 'limited_character' ? 'limited' : poolData.type;
-      const initialPoolCharacterRows = poolType === 'extra'
-        ? buildExtraPoolCharacterRows(characters, poolData.featured_characters, poolData.start_time)
-        : buildInitialPoolCharacterRows(
-            characters,
-            poolType,
-            poolData.up_character
-          );
-
       await upsertPoolWithAliases({
         poolId: pool_id,
         insertPayload: newPoolData,
         updatePayload: newPoolData,
-        aliasRows: buildPoolSelfAliasRows(pool_id),
-        poolCharacterRows: initialPoolCharacterRows
+        aliasRows: buildPoolAliasRowsForSave({
+          canonicalPoolId: pool_id,
+          poolData: newPoolData
+        })
       });
 
-      return { success: true, isNew: true, addedCount: initialPoolCharacterRows.length };
+      await replacePoolCharacters(pool_id, poolCharacterRows);
+
+      return { success: true, isNew: true, addedCount: poolCharacterRows.length };
     }
   } catch (error) {
     return { success: false, error: error.message };

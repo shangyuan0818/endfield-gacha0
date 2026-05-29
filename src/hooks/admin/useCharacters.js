@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as characterService from '../../services/admin/characterService';
+import { invalidatePublicCache } from '../../services/admin/publicCacheService';
 import { buildManualCharacterId, isGeneratedManualCharacterId } from '../../utils/canonicalEntityUtils';
 import {
   buildSklandExtractScript,
@@ -35,6 +36,29 @@ export const INITIAL_CHARACTER_FORM = {
     introduced_at: ''
   }
 };
+
+function normalizePoolsForType(type = 'character', pools = []) {
+  if (type === 'weapon') {
+    return ['weapon'];
+  }
+
+  return Array.from(new Set(
+    (Array.isArray(pools) ? pools : [])
+      .filter(pool => pool === 'limited' || pool === 'standard')
+  ));
+}
+
+function createInitialCharacterForm(type = 'character') {
+  return {
+    ...INITIAL_CHARACTER_FORM,
+    type,
+    aliases: [],
+    pool_config: {
+      ...INITIAL_CHARACTER_FORM.pool_config,
+      pools: normalizePoolsForType(type)
+    }
+  };
+}
 
 /**
  * 批量编辑表单初始状态
@@ -96,7 +120,7 @@ export function useCharacters({ showToast }) {
   // 编辑对话框状态
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState(null);
-  const [characterForm, setCharacterForm] = useState(INITIAL_CHARACTER_FORM);
+  const [characterForm, setCharacterForm] = useState(() => createInitialCharacterForm(activeTab));
   const [aliasInput, setAliasInput] = useState('');
 
   // 批量编辑对话框状态
@@ -163,7 +187,11 @@ export function useCharacters({ showToast }) {
     setCharacterForm(prev => {
       const nextForm = {
         ...prev,
-        type: nextType
+        type: nextType,
+        pool_config: {
+          ...prev.pool_config,
+          pools: normalizePoolsForType(nextType, prev.pool_config.pools)
+        }
       };
 
       if (!editingCharacter && (!prev.id || isGeneratedManualCharacterId(prev.id))) {
@@ -289,11 +317,18 @@ export function useCharacters({ showToast }) {
 
   // 重置表单
   const resetForm = useCallback(() => {
-    setCharacterForm(INITIAL_CHARACTER_FORM);
+    setCharacterForm(createInitialCharacterForm(activeTab));
     setAliasInput('');
     setEditingCharacter(null);
     setShowEditDialog(false);
-  }, []);
+  }, [activeTab]);
+
+  const startCreate = useCallback(() => {
+    setCharacterForm(createInitialCharacterForm(activeTab));
+    setAliasInput('');
+    setEditingCharacter(null);
+    setShowEditDialog(true);
+  }, [activeTab]);
 
   const openSklandImportDialog = useCallback(() => {
     if (!ensureSuperAdmin()) return;
@@ -317,7 +352,7 @@ export function useCharacters({ showToast }) {
       is_limited: character.is_limited || false,
       aliases: character.aliases || [],
       pool_config: {
-        pools: existingPoolConfig.pools || [],
+        pools: normalizePoolsForType(character.type || 'character', existingPoolConfig.pools),
         limited_rotation_count: existingPoolConfig.limited_rotation_count || 0,
         removes_after: existingPoolConfig.removes_after ?? null,
         is_active_in_limited: existingPoolConfig.is_active_in_limited !== false,
@@ -369,20 +404,17 @@ export function useCharacters({ showToast }) {
 
     setActionLoading('save');
 
+    const normalizedPools = normalizePoolsForType(characterForm.type, characterForm.pool_config.pools);
     const normalizedIntroducedAt = characterForm.pool_config.introduced_at
       ? new Date(characterForm.pool_config.introduced_at).toISOString()
-      : ((characterForm.pool_config.pools || []).includes('limited') ? new Date().toISOString() : null);
-    const normalizedRotationCount = characterForm.pool_config.limited_rotation_count || 0;
-    const normalizedRemovesAfter = characterForm.pool_config.removes_after;
-    const derivedIsActiveInLimited = (characterForm.pool_config.pools || []).includes('limited')
-      ? (normalizedRemovesAfter === null || normalizedRemovesAfter === undefined || normalizedRotationCount < normalizedRemovesAfter)
-      : false;
+      : (normalizedPools.includes('limited') ? new Date().toISOString() : null);
+    const isAvailableInLimitedPool = normalizedPools.includes('limited');
 
     const poolConfig = {
-      pools: characterForm.pool_config.pools || [],
-      limited_rotation_count: normalizedRotationCount,
-      removes_after: normalizedRemovesAfter,
-      is_active_in_limited: derivedIsActiveInLimited,
+      pools: normalizedPools,
+      limited_rotation_count: 0,
+      removes_after: null,
+      is_active_in_limited: isAvailableInLimitedPool,
       introduced_at: normalizedIntroducedAt
     };
 
@@ -401,6 +433,7 @@ export function useCharacters({ showToast }) {
       const { success, error } = await characterService.saveCharacter(characterData, editingCharacter);
 
       if (success) {
+        await invalidatePublicCache('characters', 'admin:character:save');
         showToast(editingCharacter ? '角色已更新' : '角色已创建', 'success');
         await loadCharacters();
         resetForm();
@@ -433,6 +466,7 @@ export function useCharacters({ showToast }) {
     const { success, error } = await characterService.deleteCharacter(character.id);
 
     if (success) {
+      await invalidatePublicCache('characters', 'admin:character:delete');
       showToast('角色已删除', 'success');
       await loadCharacters();
     } else {
@@ -455,6 +489,7 @@ export function useCharacters({ showToast }) {
     const { success, error } = await characterService.batchDeleteCharacters(Array.from(selectedIds));
 
     if (success) {
+      await invalidatePublicCache('characters', 'admin:character:batch-delete');
       showToast(`成功删除 ${selectedIds.size} 个项目`, 'success');
       setSelectedIds(new Set());
       await loadCharacters();
@@ -494,6 +529,7 @@ export function useCharacters({ showToast }) {
     );
 
     if (success) {
+      await invalidatePublicCache('characters', 'admin:character:batch-update');
       showToast(`成功更新 ${updateCount} 个项目`, 'success');
       setSelectedIds(new Set());
       await loadCharacters();
@@ -518,6 +554,7 @@ export function useCharacters({ showToast }) {
     });
 
     if (result.success) {
+      await invalidatePublicCache('characters', 'admin:character:sync');
       await loadCharacters();
 
       let message = `同步完成！新增 ${result.newCount} 个`;
@@ -591,6 +628,7 @@ export function useCharacters({ showToast }) {
     );
 
     if (success || updateCount > 0) {
+      await invalidatePublicCache('characters', 'admin:character:avatar-update');
       await loadCharacters();
       const parts = [`成功写入 ${updateCount} 个${activeTab === 'weapon' ? '武器' : '角色'}图片`];
       if (sklandImportPreview.unmatchedCount > 0) {
@@ -661,6 +699,7 @@ export function useCharacters({ showToast }) {
     aliasInput,
     setAliasInput,
     resetForm,
+    startCreate,
     startEdit,
     addAlias,
     removeAlias,

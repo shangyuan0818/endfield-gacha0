@@ -59,7 +59,6 @@ const CharacterManagement = ({ showToast }) => {
 
     // 编辑对话框
     showEditDialog,
-    setShowEditDialog,
     editingCharacter,
     characterForm,
     setCharacterForm,
@@ -69,6 +68,7 @@ const CharacterManagement = ({ showToast }) => {
     aliasInput,
     setAliasInput,
     resetForm,
+    startCreate,
     startEdit,
     addAlias,
     removeAlias,
@@ -240,7 +240,7 @@ const CharacterManagement = ({ showToast }) => {
           <option value="standard">常驻</option>
         </select>
         <button
-          onClick={() => setShowEditDialog(true)}
+          onClick={startCreate}
           className="flex items-center gap-1 px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-none transition-colors"
         >
           <Plus size={16} />

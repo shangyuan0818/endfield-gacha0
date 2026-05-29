@@ -24,6 +24,11 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
 
   const tt = (key, fallback, params = {}) => t(key, params, fallback);
 
+  const getPoolKey = (pool) => pool?.id || `${pool?.poolType || pool?.poolData?.type || 'pool'}:${pool?.name || ''}:${pool?.startDate || ''}`;
+  const limitedTimeline = poolSchedule
+    .map((pool, index) => ({ pool, index, key: getPoolKey(pool) }))
+    .filter(({ pool }) => pool.poolType !== 'extra' && pool.poolData?.type !== 'extra');
+
   let currentActiveIndex = -1;
   let nextUpcomingIndex = -1;
   for (let index = 0; index < poolSchedule.length; index += 1) {
@@ -38,6 +43,23 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
       nextUpcomingIndex = index;
     }
   }
+  const activeLimitedTimelineIndex = limitedTimeline.findIndex(({ pool }) => {
+    const start = new Date(pool.startDate);
+    const end = new Date(pool.endDate);
+    return now >= start && now < end;
+  });
+  const hasActiveLimitedPool = activeLimitedTimelineIndex !== -1;
+  let currentLimitedTimelineIndex = activeLimitedTimelineIndex;
+  if (currentLimitedTimelineIndex === -1) {
+    currentLimitedTimelineIndex = limitedTimeline.findIndex(({ pool }) => now < new Date(pool.startDate));
+  }
+  if (currentLimitedTimelineIndex === -1 && limitedTimeline.length > 0) {
+    currentLimitedTimelineIndex = limitedTimeline.length - 1;
+  }
+  const limitedOffsetByKey = new Map(limitedTimeline.map(({ key }, index) => [
+    key,
+    currentLimitedTimelineIndex === -1 ? null : index - currentLimitedTimelineIndex,
+  ]));
 
   const focusIndex = currentActiveIndex !== -1
     ? currentActiveIndex
@@ -77,24 +99,27 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             const isExtraPool = pool.poolType === 'extra' || poolData.type === 'extra';
             const isPast = now >= poolEnd;
             const isActivePool = now >= poolStart && now < poolEnd;
-            const offset = currentActiveIndex === -1 ? null : index - currentActiveIndex;
+            const offset = isExtraPool ? null : limitedOffsetByKey.get(getPoolKey(pool));
+            const displayOffset = !isExtraPool && offset !== null
+              ? (hasActiveLimitedPool ? offset : offset + 1)
+              : null;
             const isCurrent = isActivePool;
-            const isInPool = !isExtraPool && offset !== null && offset >= -2 && offset <= 0;
+            const isInPool = !isExtraPool && hasActiveLimitedPool && offset !== null && offset >= -2 && offset < 0;
 
             let statusLabel = null;
-            if (isCurrent) {
-              statusLabel = isExtraPool
-                ? tt('home.rotation.status.currentPool', 'Current Pool')
-                : tt('home.rotation.status.current', 'Current UP');
-            } else if (offset === -1) {
+            if (isExtraPool) {
+              statusLabel = isCurrent
+                ? tt('home.rotation.status.extraCurrent', 'Extra Pool Live')
+                : tt('home.rotation.status.extraNode', 'Extra Pool');
+            } else if (isCurrent) {
+              statusLabel = tt('home.rotation.status.current', 'Current UP');
+            } else if (hasActiveLimitedPool && offset === -1) {
               statusLabel = tt('home.rotation.status.inPoolSecond', 'Leaves in 2');
-            } else if (offset === -2) {
+            } else if (hasActiveLimitedPool && offset === -2) {
               statusLabel = tt('home.rotation.status.inPoolNext', 'Leaves Next');
-            } else if (offset === 1) {
-              statusLabel = isExtraPool
-                ? tt('home.rotation.status.nextPool', 'Next Pool')
-                : tt('home.rotation.status.next', 'Next UP');
-            } else if (offset === 2) {
+            } else if (displayOffset === 1) {
+              statusLabel = tt('home.rotation.status.next', 'Next UP');
+            } else if (displayOffset === 2) {
               statusLabel = tt('home.rotation.status.nextNext', 'UP After Next');
             }
 
@@ -120,6 +145,8 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             let containerClass = 'bg-zinc-50 dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400';
             if (isCurrent) {
               containerClass = 'bg-endfield-yellow/10 border-endfield-yellow text-amber-600 dark:text-endfield-yellow ring-1 ring-endfield-yellow/50 shadow-[0_0_15px_rgba(255,250,0,0.1)]';
+            } else if (isExtraPool && !isPast) {
+              containerClass = 'bg-cyan-50 dark:bg-cyan-950/20 border-cyan-200 dark:border-cyan-800/50 text-cyan-700 dark:text-cyan-300';
             } else if (isInPool) {
               containerClass = 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400';
             } else if (isPast) {

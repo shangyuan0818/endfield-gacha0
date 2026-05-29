@@ -24,6 +24,17 @@ import { fetchWithNetworkRetry } from './lib/networkFetch.js';
 // Supabase Admin 客户端（需要 SUPABASE_SECRET_KEY；旧 service_role_key 仍兼容）
 let supabaseAdmin = null;
 
+export const FULL_IMPORT_MODES = {
+  INCREMENTAL: 'incremental',
+  FULL: 'full',
+};
+
+export function normalizeFullImportMode(mode) {
+  return mode === FULL_IMPORT_MODES.FULL
+    ? FULL_IMPORT_MODES.FULL
+    : FULL_IMPORT_MODES.INCREMENTAL;
+}
+
 /**
  * 初始化 Supabase Admin 客户端
  */
@@ -720,9 +731,11 @@ export async function executeFullImport({
   userId,
   updateProgress,
   authChainFunctions,
-  source = 'cn'
+  source = 'cn',
+  importMode = FULL_IMPORT_MODES.INCREMENTAL
 }) {
   const supabase = getSupabaseAdmin();
+  const normalizedImportMode = normalizeFullImportMode(importMode);
 
   try {
     // 1. 验证用户是否存在
@@ -795,10 +808,25 @@ export async function executeFullImport({
     }
     const u8Token = u8Result.data.token;
 
+    let existingSeqIds = null;
+    if (normalizedImportMode === FULL_IMPORT_MODES.INCREMENTAL) {
+      updateProgress({ progress: 35, message: '正在准备增量导入游标...' });
+      existingSeqIds = await getExistingSeqIds(userId, account.gameUid);
+    }
+
     // 5. 获取抽卡记录
     updateProgress({ progress: 40, message: '正在获取抽卡记录...' });
     const { fetchAllRecordsConcurrent } = authChainFunctions;
-    const recordsResult = await fetchAllRecordsConcurrent(u8Token, account.serverId || '1', account.gameUid, account.nickName);
+    const recordsResult = await fetchAllRecordsConcurrent(
+      u8Token,
+      account.serverId || '1',
+      account.gameUid,
+      account.nickName,
+      {
+        importMode: normalizedImportMode,
+        existingRecordKeys: existingSeqIds
+      }
+    );
     if (!recordsResult.success) {
       throw new Error(recordsResult.error || 'Records fetch failed');
     }
@@ -833,7 +861,9 @@ export async function executeFullImport({
 
     // 7. 获取已存在的记录（用于去重）
     updateProgress({ progress: 75, message: '正在检查重复记录...' });
-    const existingSeqIds = await getExistingSeqIds(userId, account.gameUid);
+    if (!existingSeqIds) {
+      existingSeqIds = await getExistingSeqIds(userId, account.gameUid);
+    }
 
     // 8. 处理记录
     updateProgress({ progress: 80, message: '正在处理数据...' });
@@ -847,20 +877,32 @@ export async function executeFullImport({
 
     // 9. 保存记录
     updateProgress({ progress: 90, message: '正在保存数据...' });
-    await saveHistoryToServer(processedRecords, userId);
+    const saveResult = await saveHistoryToServer(processedRecords, userId);
 
     // 10. 完成
     updateProgress({ progress: 100, message: '导入完成' });
     const poolSummary = buildImportPoolSummary(recordsResult.data.results);
+    const savedRecords = Number.isFinite(Number(saveResult?.saved))
+      ? Number(saveResult.saved)
+      : processedRecords.length;
+    const fetchStrategy = recordsResult.data.fetchStrategy || (
+      normalizedImportMode === FULL_IMPORT_MODES.INCREMENTAL && existingSeqIds.size > 0
+        ? 'incremental_official_fetch_with_context_guard'
+        : 'full_official_fetch_with_dedupe'
+    );
 
     return {
       success: true,
       data: {
+        importMode: normalizedImportMode,
+        fetchStrategy,
         totalRecords: recordsResult.data.totalRecords,
         newRecords: processedRecords.length,
+        savedRecords,
         duplicates: recordsResult.data.totalRecords - processedRecords.length,
         byPool: poolSummary.byPool,
         byPoolType: poolSummary.byPoolType,
+        earlyStoppedPools: recordsResult.data.earlyStopped || [],
         partialPools: recordsResult.data.partial || [],
         failedPools: recordsResult.data.failed || [],
         account: {

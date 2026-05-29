@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle, User, Cloud, CloudOff, Layers, Clock } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import {
@@ -20,6 +20,7 @@ import OfficialAPIImport from './OfficialAPIImport';
 import { getPoolName } from './importShared.js';
 import { useI18n } from '../../i18n/index.js';
 import appLogger from '../../utils/appLogger.js';
+import { buildImportResultSummary } from '../../utils/importResultSummary.js';
 
 /**
  * 导入状态枚举
@@ -66,11 +67,50 @@ const ImportProgressBar = ({ progress, status, message, t }) => {
   );
 };
 
+function getImportModeLabel(importMode, t) {
+  if (importMode === 'full') {
+    return t('import.details.modeFull');
+  }
+  if (importMode === 'incremental') {
+    return t('import.details.modeIncremental');
+  }
+  return t('common.unknown');
+}
+
+function getSyncStatusDetail(syncStatus, t) {
+  if (syncStatus === 'synced') {
+    return {
+      icon: Cloud,
+      label: t('import.details.syncCloud'),
+      className: 'text-emerald-700 dark:text-emerald-400'
+    };
+  }
+  if (syncStatus === 'failed' || syncStatus === 'partial') {
+    return {
+      icon: CloudOff,
+      label: t('import.details.syncPartial'),
+      className: 'text-amber-700 dark:text-amber-400'
+    };
+  }
+  if (syncStatus === 'local') {
+    return {
+      icon: CloudOff,
+      label: t('import.details.syncLocal'),
+      className: 'text-amber-700 dark:text-amber-400'
+    };
+  }
+  return {
+    icon: Cloud,
+    label: t('common.unknown'),
+    className: 'text-slate-600 dark:text-zinc-400'
+  };
+}
+
 /**
  * ImportManager 组件 V3
  */
 export default function ImportManager({ isOpen, onClose, onImportComplete, onOpenFileImport }) {
-  const { t, formatNumber } = useI18n();
+  const { t, locale, formatNumber, formatDateTime } = useI18n();
   const [importStatus, setImportStatus] = useState(ImportStatus.IDLE);
   const [importResult, setImportResult] = useState(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -363,6 +403,18 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
     handleClose();
   }, [handleClose, importResult, onImportComplete, switchGameAccount]);
 
+  const importResultDetails = useMemo(() => {
+    if (!importResult) {
+      return null;
+    }
+
+    return buildImportResultSummary({
+      ...importResult,
+      source: 'official_api',
+      syncedToCloud: true,
+    }, { locale });
+  }, [importResult, locale]);
+
   if (!isOpen) return null;
 
   const modal = (
@@ -510,6 +562,71 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
                   <p className="text-xl font-bold text-slate-500 dark:text-zinc-500 mt-1">{formatNumber(importResult.summary?.duplicates || 0)}</p>
                 </div>
               </div>
+
+              {importResultDetails && (
+                <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 transition-colors">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-zinc-100">
+                      {t('import.details.title')}
+                    </h4>
+                    <span className="border border-zinc-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:border-zinc-700 dark:text-zinc-400">
+                      {importResultDetails.sourceLabel}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="flex min-w-0 items-start gap-3 bg-slate-50 p-3 dark:bg-zinc-900/70">
+                      <User className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-zinc-500" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('import.details.account')}</div>
+                        <div className="truncate text-sm font-bold text-slate-900 dark:text-zinc-100">{importResultDetails.accountLabel}</div>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-start gap-3 bg-slate-50 p-3 dark:bg-zinc-900/70">
+                      {(() => {
+                        const syncDetail = getSyncStatusDetail(importResultDetails.syncStatus, t);
+                        const SyncIcon = syncDetail.icon;
+                        return (
+                          <>
+                            <SyncIcon className={`mt-0.5 h-4 w-4 shrink-0 ${syncDetail.className}`} />
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('import.details.sync')}</div>
+                              <div className={`text-sm font-bold ${syncDetail.className}`}>{syncDetail.label}</div>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                    <div className="flex min-w-0 items-start gap-3 bg-slate-50 p-3 dark:bg-zinc-900/70">
+                      <Layers className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('import.details.poolChange')}</div>
+                        <div className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                          {t('import.details.poolChangeValue', {
+                            added: formatNumber(importResultDetails.addedPools),
+                            total: formatNumber(importResultDetails.poolCount)
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex min-w-0 items-start gap-3 bg-slate-50 p-3 dark:bg-zinc-900/70">
+                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-zinc-500" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-zinc-500">{t('import.details.latestRecord')}</div>
+                        <div className="truncate text-sm font-bold text-slate-900 dark:text-zinc-100">
+                          {importResultDetails.latestRecordAt
+                            ? formatDateTime(importResultDetails.latestRecordAt, { includeYear: true })
+                            : t('common.unknown')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">
+                    <span>{t('import.details.mode')}: {getImportModeLabel(importResultDetails.importMode, t)}</span>
+                    <span>{t('import.details.partialPools')}: {formatNumber(importResultDetails.partialPoolCount)}</span>
+                    <span>{t('import.details.failedPools')}: {formatNumber(importResultDetails.failedPoolCount)}</span>
+                  </div>
+                </div>
+              )}
 
               {((importResult.summary?.partialPools?.length || 0) > 0 || (importResult.summary?.failedPools?.length || 0) > 0) && (
                 <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-4 space-y-2 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
