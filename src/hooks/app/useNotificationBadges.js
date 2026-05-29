@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { executeSupabaseRead, fetchJsonWithTimeout, fetchWithTimeout } from '../../services/supabaseRequest';
+import {
+  fetchPublicApiJson,
+  shouldAllowPublicSupabaseFallback,
+} from '../../services/publicResourceClient';
+import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRequest';
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
@@ -207,29 +211,17 @@ async function loadAnnouncementsFromApi({
   cutoffIso = getRecentGameAnnouncementCutoffIso(),
   limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT,
 } = {}) {
-  if (!import.meta.env?.PROD) {
-    return null;
-  }
+  const response = await fetchPublicApiJson('/api/announcements', {
+    params: {
+      cutoffIso,
+      limit: String(limit * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length),
+    },
+    label: 'load announcements api',
+    timeoutMs: 15000,
+    retries: 1,
+  });
 
-  const searchParams = new URLSearchParams();
-  searchParams.set('cutoffIso', cutoffIso);
-  searchParams.set('limit', String(limit * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length));
-
-  const { response, data } = await fetchJsonWithTimeout(
-    `/api/announcements?${searchParams.toString()}`,
-    undefined,
-    {
-      label: 'load announcements api',
-      timeoutMs: 15000,
-      retries: 1,
-    }
-  );
-
-  if (!response.ok || data?.success !== true) {
-    throw new Error(data?.error || `announcements api returned ${response.status}`);
-  }
-
-  return data?.data || null;
+  return response?.data || null;
 }
 
 async function loadOfficialAnnouncementsFeed({
@@ -289,7 +281,9 @@ export function useNotificationBadges() {
         siteRecords = Array.isArray(apiPayload.siteAnnouncements) ? apiPayload.siteAnnouncements : [];
       } else {
         try {
-          const dbRecords = await loadSiteAnnouncementsFromDb();
+          const dbRecords = shouldAllowPublicSupabaseFallback()
+            ? await loadSiteAnnouncementsFromDb()
+            : null;
           siteRecords = dbRecords ?? await loadAnnouncementsFromLocal();
         } catch {
           siteRecords = [];
@@ -315,16 +309,18 @@ export function useNotificationBadges() {
         : [];
 
       if (!apiPayload) {
-        try {
-          dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
-        } catch {
-          dbGameRecords = [];
-        }
+        if (shouldAllowPublicSupabaseFallback()) {
+          try {
+            dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
+          } catch {
+            dbGameRecords = [];
+          }
 
-        try {
-          latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
-        } catch {
-          latestDbGameRecords = [];
+          try {
+            latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
+          } catch {
+            latestDbGameRecords = [];
+          }
         }
       }
 

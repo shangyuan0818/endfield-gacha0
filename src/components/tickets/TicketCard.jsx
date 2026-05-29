@@ -6,12 +6,15 @@ import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import ReplyInput from './ReplyInput';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from './constants';
 import { useI18n } from '../../i18n/index.js';
+import { buildTicketReplyNotification } from '../../utils/notificationModel.js';
+import { submitTicketReply } from '../../services/ticketReplyService.js';
 
 export default function TicketCard({
   ticket,
   userRole,
   currentUserId,
   showToast,
+  addDurableNotification,
   onStatusChange,
   onReply,
   expanded,
@@ -64,18 +67,22 @@ export default function TicketCard({
     if (!replyContent.trim()) return;
 
     setSubmittingReply(true);
+    const submittedAt = new Date().toISOString();
     try {
-      const { error } = await supabase
-        .from('ticket_replies')
-        .insert({
-          ticket_id: ticket.id,
-          user_id: currentUserId,
-          content: replyContent.trim()
-        });
-
-      if (error) throw error;
+      const result = await submitTicketReply({
+        ticketId: ticket.id,
+        content: replyContent.trim(),
+        locale,
+      });
+      const createdAt = result?.reply?.created_at || submittedAt;
 
       setReplyContent('');
+      addDurableNotification?.(buildTicketReplyNotification({
+        authorRole: userRole,
+        ticketStatus: ticket.status,
+        createdAt,
+        dedupeKey: `ticket-reply:${createdAt}:${userRole || 'user'}`
+      }, { locale }));
       await loadReplies();
       await onReply?.();
     } catch (error) {
@@ -83,7 +90,7 @@ export default function TicketCard({
     } finally {
       setSubmittingReply(false);
     }
-  }, [currentUserId, loadReplies, onReply, replyContent, showToast, ticket.id, tt]);
+  }, [addDurableNotification, loadReplies, locale, onReply, replyContent, showToast, ticket.id, ticket.status, tt, userRole]);
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none overflow-hidden">

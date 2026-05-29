@@ -10,6 +10,9 @@ const supabasePublishableKey = normalizeEnvValue(
   import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY
     || import.meta.env?.VITE_SUPABASE_ANON_KEY
 )
+const supabaseRealtimeEnabled = ['1', 'true', 'yes', 'on'].includes(
+  normalizeEnvValue(import.meta.env?.VITE_SUPABASE_REALTIME_ENABLED).toLowerCase()
+)
 
 if (!supabaseUrl || !supabasePublishableKey) {
   // 仅在开发环境输出警告
@@ -21,6 +24,10 @@ if (!supabaseUrl || !supabasePublishableKey) {
 export const supabase = supabaseUrl && supabasePublishableKey
   ? createClient(supabaseUrl, supabasePublishableKey)
   : null
+
+export const isSupabaseRealtimeEnabled = () => {
+  return Boolean(supabase && supabaseRealtimeEnabled)
+}
 
 // 检查 Supabase 是否可用
 export const isSupabaseConfigured = () => {

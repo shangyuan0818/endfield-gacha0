@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { createNotificationId, normalizeNotification } from '../utils/notificationModel.js';
 
 /**
  * Toast 通知 Hook
@@ -6,22 +7,40 @@ import { useState, useCallback } from 'react';
  */
 export const useToast = () => {
   const [toasts, setToasts] = useState([]);
+  const timersRef = useRef(new Map());
 
-  const showToast = useCallback((message, type = 'info', title = null, duration = 4000) => {
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type, title }]);
+  const removeToast = useCallback((id) => {
+    const timer = timersRef.current.get(id);
+    if (timer) {
+      window.clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
 
-    if (duration > 0) {
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, duration);
+  const showToast = useCallback((message, type = 'info', title = null, duration = undefined) => {
+    const generatedId = createNotificationId('toast');
+    const notification = normalizeNotification(message, { id: generatedId, type, title, duration });
+    const id = notification.id || generatedId;
+    const toast = { ...notification, id };
+    setToasts(prev => [...prev, toast]);
+
+    if (toast.duration > 0) {
+      const timer = window.setTimeout(() => {
+        removeToast(id);
+      }, toast.duration);
+      timersRef.current.set(id, timer);
     }
 
     return id;
-  }, []);
+  }, [removeToast]);
 
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+  useEffect(() => {
+    const timers = timersRef.current;
+    return () => {
+      timers.forEach(timer => window.clearTimeout(timer));
+      timers.clear();
+    };
   }, []);
 
   return { toasts, showToast, removeToast };

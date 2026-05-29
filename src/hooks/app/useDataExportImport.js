@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useHistoryStore, usePoolStore, useAuthStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
@@ -6,6 +6,14 @@ import {
   buildImportedGameAccountMetadataEntries,
   saveGameAccountMetadata
 } from '../../utils/gameAccountMetadata.js';
+import {
+  clearPendingImportDraft,
+  loadPendingImportDraft,
+  savePendingImportDraft
+} from '../../utils/importPendingDraft.js';
+import { buildImportResultNotification } from '../../utils/notificationModel.js';
+import { resolveImportResultActionHref } from '../../utils/importResultSummary.js';
+import { useI18n } from '../../i18n/index.js';
 
 function normalizeImportAccountOverride(accountOverride = null) {
   if (!accountOverride || typeof accountOverride !== 'object') {
@@ -50,8 +58,10 @@ function applyImportAccountOverride(importedData, accountOverride = null) {
  */
 export function useDataExportImport({
   showToast,
-  cloudSync
+  cloudSync,
+  addDurableNotification = null,
 }) {
+  const { locale } = useI18n();
   const user = useAuthStore(state => state.user);
   const pools = usePoolStore(state => state.pools);
   const currentPoolId = usePoolStore(state => state.currentPoolId);
@@ -65,8 +75,10 @@ export function useDataExportImport({
 
   const { savePoolToCloud, saveHistoryToCloud, loadCloudData } = cloudSync;
 
-  const [pendingImport, setPendingImport] = useState(null);
+  const [restoredDraftInfo] = useState(() => loadPendingImportDraft());
+  const [pendingImport, setPendingImportState] = useState(() => restoredDraftInfo.pendingImport);
   const [importWizardOpen, setImportWizardOpen] = useState(false);
+  const [hasShownDraftRestoreToast, setHasShownDraftRestoreToast] = useState(false);
 
   const openImportWizard = useCallback(() => {
     setImportWizardOpen(true);
@@ -75,6 +87,45 @@ export function useDataExportImport({
   const closeImportWizard = useCallback(() => {
     setImportWizardOpen(false);
   }, []);
+
+  const setPendingImport = useCallback((nextValue) => {
+    setPendingImportState(nextValue);
+  }, []);
+
+  useEffect(() => {
+    if (pendingImport) {
+      if (pendingImport.restoredFromDraft) {
+        return;
+      }
+      savePendingImportDraft(pendingImport);
+    } else {
+      clearPendingImportDraft();
+    }
+  }, [pendingImport]);
+
+  useEffect(() => {
+    if (!restoredDraftInfo.pendingImport || hasShownDraftRestoreToast) {
+      return;
+    }
+
+    setHasShownDraftRestoreToast(true);
+    showToast({
+      type: 'info',
+      title: '已恢复待确认导入',
+      message: '检测到本标签页还有未确认的文件导入预览，可以继续确认保存，或关闭预览后重新选择文件。',
+      source: 'import.pendingDraft',
+      actions: [
+        {
+          label: '重新选择文件',
+          onClick: () => {
+            setPendingImport(null);
+            openImportWizard();
+          },
+          variant: 'secondary',
+        },
+      ],
+    });
+  }, [hasShownDraftRestoreToast, openImportWizard, restoredDraftInfo.pendingImport, setPendingImport, showToast]);
 
   const getRecordGameUid = useCallback((record) => (
     record?.gameUid || record?.game_uid || null
@@ -206,21 +257,59 @@ export function useDataExportImport({
           sourceFileName: file.name
         });
         if (!validation.valid) {
-          showToast(`数据验证失败：\n${validation.errors.slice(0, 3).join('\n')}`, 'error');
+          showToast({
+            type: 'error',
+            title: '数据验证失败',
+            message: validation.errors.slice(0, 3).join('\n'),
+            source: 'import.fileValidation',
+            diagnostic: {
+              phase: 'file_import_validation',
+              fileName: file.name,
+              fileSize: file.size,
+              errors: validation.errors,
+            },
+          });
+          event.target.value = '';
           return;
         }
 
         const willSyncToCloud = !!(user && supabase);
-
-        setPendingImport({
+        const nextPendingImport = {
           data: validation.normalizedData,
           willSyncToCloud,
-          stats: validation.stats
-        });
+          stats: validation.stats,
+          sourceFile: {
+            name: file.name,
+            size: file.size,
+            type: file.type || null,
+            lastModified: file.lastModified || null
+          },
+          createdAt: new Date().toISOString()
+        };
+
+        setPendingImport(nextPendingImport);
         closeImportWizard();
+        showToast({
+          type: 'info',
+          title: '导入预览已生成',
+          message: `已解析 ${validation.stats.historyCount} 条记录、${validation.stats.poolCount} 个卡池。确认前会保留在本标签页，刷新后也可恢复。`,
+          source: 'import.filePreview'
+        });
 
       } catch (error) {
-        showToast(`导入失败：${error?.message || '文件解析错误，请确认导入文件格式。'}`, 'error');
+        showToast({
+          type: 'error',
+          title: '导入失败',
+          message: error?.message || '文件解析错误，请确认导入文件格式。',
+          source: 'import.fileParse',
+          diagnostic: {
+            phase: 'file_import_parse',
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type || null,
+            error
+          }
+        });
       }
       event.target.value = '';
     };
@@ -229,7 +318,7 @@ export function useDataExportImport({
     } else {
       reader.readAsText(file);
     }
-  }, [closeImportWizard, pools, showToast, user]);
+  }, [closeImportWizard, pools, setPendingImport, showToast, user]);
 
   // 确认导入
   const confirmImport = useCallback(async (options = {}) => {
@@ -281,6 +370,35 @@ export function useDataExportImport({
     });
 
     const preferredImportedGameUid = resolvePreferredImportedGameUid(newHistory, importedAccounts);
+    const actionHref = resolveImportResultActionHref();
+    const viewImportedDataAction = {
+      label: locale === 'en-US' ? 'View imported data' : '查看已导入数据',
+      href: actionHref,
+      variant: 'primary',
+    };
+    const buildImportNotificationPayload = ({
+      status,
+      partial = false,
+      source,
+      syncedToCloud,
+      completedAt,
+      error = null,
+    }) => ({
+      status,
+      partial,
+      source,
+      sourceFormatId: importedData.sourceFormatId,
+      sourceFormatLabel: importedData.sourceFormatLabel,
+      data: importedData,
+      addedPools: addedPools.length,
+      addedHistory: addedHistory.length,
+      duplicateHistory: Math.max((importedData.history?.length || 0) - addedHistory.length, 0),
+      poolCount: importedData.pools?.length || 0,
+      syncedToCloud,
+      completedAt,
+      actionHref,
+      error,
+    });
 
     applyCloudDataToStores(
       { pools: newPools, history: newHistory },
@@ -327,16 +445,67 @@ export function useDataExportImport({
           }
         }
 
-        showToast(`导入完成！新增了 ${addedHistory.length} 条记录，已同步到云端。`, 'success', '导入成功');
+        const duplicateHistory = Math.max((importedData.history?.length || 0) - addedHistory.length, 0);
+        const completedAt = new Date().toISOString();
+        showToast({
+          type: 'success',
+          title: '导入成功',
+          message: `导入完成：新增 ${addedHistory.length} 条记录，跳过 ${duplicateHistory} 条重复记录，已同步到云端。`,
+          source: 'import.confirm',
+          actions: [viewImportedDataAction]
+        });
+        addDurableNotification?.(buildImportResultNotification(buildImportNotificationPayload({
+          status: 'success',
+          source: 'import.confirm',
+          syncedToCloud: true,
+          completedAt,
+        }), { locale }));
       } catch (syncError) {
-        showToast(`新增了 ${addedHistory.length} 条记录，但云端同步失败: ${syncError.message}`, 'warning', '部分成功');
+        const completedAt = new Date().toISOString();
+        showToast({
+          type: 'warning',
+          title: '部分成功',
+          message: `已在本机新增 ${addedHistory.length} 条记录，但云端同步失败。稍后刷新或重新登录后可再尝试同步。`,
+          source: 'import.cloudSync',
+          diagnostic: {
+            phase: 'file_import_cloud_sync',
+            sourceFormatId: importedData.sourceFormatId,
+            addedPools: addedPools.length,
+            addedHistory: addedHistory.length,
+            duplicateHistory: Math.max((importedData.history?.length || 0) - addedHistory.length, 0),
+            error: syncError
+          },
+          actions: [viewImportedDataAction]
+        });
+        addDurableNotification?.(buildImportResultNotification(buildImportNotificationPayload({
+          status: 'partial',
+          partial: true,
+          source: 'import.cloudSync',
+          syncedToCloud: false,
+          completedAt,
+          error: syncError,
+        }), { locale }));
       } finally {
         setSyncing(false);
       }
     } else {
-      showToast(`导入完成！新增了 ${addedHistory.length} 条记录。`, 'success', '导入成功');
+      const duplicateHistory = Math.max((importedData.history?.length || 0) - addedHistory.length, 0);
+      const completedAt = new Date().toISOString();
+      showToast({
+        type: 'success',
+        title: '导入成功',
+        message: `导入完成：新增 ${addedHistory.length} 条记录，跳过 ${duplicateHistory} 条重复记录。`,
+        source: 'import.confirm',
+        actions: [viewImportedDataAction]
+      });
+      addDurableNotification?.(buildImportResultNotification(buildImportNotificationPayload({
+        status: 'success',
+        source: 'import.confirm',
+        syncedToCloud: false,
+        completedAt,
+      }), { locale }));
     }
-  }, [pendingImport, pools, history, currentPoolId, loadCloudData, resolvePreferredImportedGameUid, savePoolToCloud, saveHistoryToCloud, setHistory, setPools, setSyncing, showToast, switchGameAccount, switchPool, user]);
+  }, [addDurableNotification, pendingImport, pools, history, currentPoolId, loadCloudData, locale, resolvePreferredImportedGameUid, savePoolToCloud, saveHistoryToCloud, setHistory, setPendingImport, setPools, setSyncing, showToast, switchGameAccount, switchPool, user]);
 
   return {
     pendingImport,

@@ -10,6 +10,10 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { ACCOUNT_RECOVERY_QQ_GROUP } from '../../../constants/community';
+import {
+  getPrimaryAccountPasswordError,
+  validateAccountPassword,
+} from '../../../utils/authSecurity.js';
 import VirtualizedList from '../VirtualizedList';
 
 const STATUS_META = {
@@ -25,6 +29,25 @@ const REQUEST_TYPE_META = {
   delete_account: { label: '注销旧账号', className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
 };
 
+const DELIVERY_CHANNEL_META = {
+  manual: '人工处理',
+  mail_outbox: '邮件队列',
+  disabled: '暂停发送',
+};
+
+const NEXT_STEP_META = {
+  manual_review_pending: '等待人工核验',
+  temporary_password_issued_force_change: '临时密码已发放，等待用户改密',
+  mail_reset_queued: '重置邮件已入队',
+  mail_reset_sent: '重置邮件已发送',
+  mail_reset_failed: '重置邮件失败，需人工处理',
+};
+
+const AUDIT_EVENT_META = {
+  request_received: '提交申请',
+  temporary_password_issued: '发放临时密码',
+};
+
 function formatTime(value) {
   if (!value) {
     return '未知';
@@ -36,6 +59,71 @@ function formatTime(value) {
   }
 
   return date.toLocaleString('zh-CN');
+}
+
+function normalizeRecoveryAudit(rawAudit) {
+  if (!rawAudit) {
+    return null;
+  }
+
+  if (typeof rawAudit === 'string') {
+    try {
+      return JSON.parse(rawAudit);
+    } catch {
+      return null;
+    }
+  }
+
+  return typeof rawAudit === 'object' ? rawAudit : null;
+}
+
+function getLatestAuditEvents(rawAudit) {
+  const audit = normalizeRecoveryAudit(rawAudit);
+  const events = Array.isArray(audit?.events) ? audit.events : [];
+  return events.slice(-3).reverse();
+}
+
+function formatAuditEventLabel(event) {
+  if (!event || typeof event !== 'object') {
+    return '未知事件';
+  }
+
+  return AUDIT_EVENT_META[event.type] || event.type || '未知事件';
+}
+
+function getDeliveryChannelLabel(value) {
+  return DELIVERY_CHANNEL_META[value] || value || '未知';
+}
+
+function getNextStepLabel(value) {
+  return NEXT_STEP_META[value] || value || '未知';
+}
+
+function hasTemporaryPasswordMetadata(request) {
+  return Boolean(
+    request?.temporary_password_set_at
+    || request?.temporary_password_expires_at
+    || request?.temporary_password_force_change
+  );
+}
+
+function getTemporaryPasswordValidationMessage(password) {
+  const validation = validateAccountPassword(password);
+  if (validation.isValid) {
+    return null;
+  }
+
+  switch (getPrimaryAccountPasswordError(validation)) {
+    case 'required':
+    case 'too_short':
+      return '临时密码至少需要 8 位字符';
+    case 'too_long':
+      return '临时密码长度不能超过 100 位';
+    case 'too_simple':
+      return '临时密码需要至少包含两类字符，例如字母和数字';
+    default:
+      return '临时密码不符合安全要求';
+  }
 }
 
 export default function AccountRecoveryPanel({
@@ -83,8 +171,9 @@ export default function AccountRecoveryPanel({
 
   const handleResetPassword = (request) => {
     const temporaryPassword = String(draftPasswords[request.id] || '').trim();
-    if (temporaryPassword.length < 6) {
-      window.alert('临时密码至少需要 6 位字符');
+    const passwordError = getTemporaryPasswordValidationMessage(temporaryPassword);
+    if (passwordError) {
+      window.alert(passwordError);
       return;
     }
 
@@ -157,12 +246,14 @@ export default function AccountRecoveryPanel({
         <VirtualizedList
           items={filteredRequests}
           getKey={(request) => request.id}
-          itemHeight={420}
-          maxHeight={720}
+          itemHeight={580}
+          maxHeight={780}
           className="space-y-3"
           renderItem={(request) => {
             const statusMeta = STATUS_META[request.status] || STATUS_META.pending;
             const typeMeta = REQUEST_TYPE_META[request.request_type] || REQUEST_TYPE_META.password_reset;
+            const auditEvents = getLatestAuditEvents(request.recovery_audit);
+            const forceChangeRequired = Boolean(request.temporary_password_force_change);
 
             return (
               <div key={request.id} className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 space-y-4">
@@ -185,6 +276,19 @@ export default function AccountRecoveryPanel({
                       匹配用户：{request.matched_user_id ? (
                         <span className="font-mono">{request.matched_user_id}</span>
                       ) : '未匹配'}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 py-1 text-zinc-500 dark:text-zinc-400">
+                        通道：{getDeliveryChannelLabel(request.delivery_channel)}
+                      </span>
+                      <span className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-2 py-1 text-zinc-500 dark:text-zinc-400">
+                        下一步：{getNextStepLabel(request.next_step)}
+                      </span>
+                      {forceChangeRequired && (
+                        <span className="border border-amber-300 bg-amber-50 px-2 py-1 font-bold text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                          登录后强制改密
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -219,6 +323,41 @@ export default function AccountRecoveryPanel({
                       <p className="text-sm whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
                         {request.note || '无'}
                       </p>
+                    </div>
+
+                    <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">恢复流程状态</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                        <div>
+                          <span className="text-zinc-400">处理通道：</span>
+                          {getDeliveryChannelLabel(request.delivery_channel)}
+                        </div>
+                        <div>
+                          <span className="text-zinc-400">下一步：</span>
+                          {getNextStepLabel(request.next_step)}
+                        </div>
+                        <div>
+                          <span className="text-zinc-400">临时密码：</span>
+                          {hasTemporaryPasswordMetadata(request) ? '已设置' : '未设置'}
+                        </div>
+                        <div>
+                          <span className="text-zinc-400">强制改密：</span>
+                          {forceChangeRequired ? '是' : '否'}
+                        </div>
+                        <div>
+                          <span className="text-zinc-400">设置时间：</span>
+                          {formatTime(request.temporary_password_set_at)}
+                        </div>
+                        <div>
+                          <span className="text-zinc-400">过期时间：</span>
+                          {formatTime(request.temporary_password_expires_at)}
+                        </div>
+                      </div>
+                      {forceChangeRequired && (
+                        <div className="mt-2 border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                          用户下次登录后会在设置页看到强制改密提示。密码修改成功后，私有安全状态会被清除。
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -281,7 +420,7 @@ export default function AccountRecoveryPanel({
                             ...prev,
                             [request.id]: event.target.value
                           }))}
-                          placeholder="至少 6 位字符"
+                          placeholder="至少 8 位字符，包含两类字符"
                           className="w-full px-3 py-2 text-sm border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 outline-none"
                         />
                         <button
@@ -297,6 +436,34 @@ export default function AccountRecoveryPanel({
                         </div>
                       </div>
                     )}
+
+                    <div className="border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-3">
+                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">审计摘要</p>
+                      {auditEvents.length > 0 ? (
+                        <div className="space-y-2">
+                          {auditEvents.map((event, index) => (
+                            <div key={`${request.id}-audit-${index}`} className="border-l-2 border-zinc-300 dark:border-zinc-700 pl-2 text-[11px] leading-5 text-zinc-600 dark:text-zinc-300">
+                              <div className="font-bold text-zinc-700 dark:text-zinc-200">
+                                {formatAuditEventLabel(event)}
+                                {Array.isArray(event.warnings) && event.warnings.length > 0 ? (
+                                  <span className="ml-2 text-amber-600 dark:text-amber-300">
+                                    {event.warnings.length} 条 warning
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="text-zinc-500 dark:text-zinc-400">
+                                {formatTime(event.at)}
+                                {event.expiresAt ? ` · 有效期至 ${formatTime(event.expiresAt)}` : ''}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          暂无结构化审计记录。
+                        </div>
+                      )}
+                    </div>
 
                     <div className="text-[11px] text-zinc-500 dark:text-zinc-400 space-y-1">
                       <div>当前版本不提供匿名用户的站内安全回传。</div>

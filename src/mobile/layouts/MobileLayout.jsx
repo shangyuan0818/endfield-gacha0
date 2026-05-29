@@ -20,6 +20,8 @@ import MobileAnnouncementsView from '../views/MobileAnnouncementsView';
 import MobileMechanicsView from '../views/MobileMechanicsView';
 import MobileRoadmapView from '../views/MobileRoadmapView';
 import useAuthStore from '../../stores/useAuthStore';
+import { NotificationCenter } from '../../components/ui';
+import { useDurableNotifications } from '../../hooks';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 import { useI18n } from '../../i18n/index.js';
 
@@ -46,6 +48,15 @@ function MobileLayout() {
   const isSuperAdmin = userRole === 'super_admin';
   const isResolvingRole = !authResolved || (Boolean(user) && userRole === null);
   const isHomeSubpage = /^\/m\/(announcements|mechanics|roadmap)$/u.test(location.pathname);
+  const {
+    notifications: durableNotifications,
+    unreadCount: durableUnreadCount,
+    addNotification: addDurableNotification,
+    markRead: markDurableNotificationRead,
+    markAllRead: markAllDurableNotificationsRead,
+    dismissNotification: dismissDurableNotification,
+    clearRead: clearReadDurableNotifications,
+  } = useDurableNotifications();
   useScrollToHighlight();
 
   useEffect(() => {
@@ -94,7 +105,7 @@ function MobileLayout() {
               )
             }
           />
-          <Route path="tickets" element={<MobileTicketView />} />
+          <Route path="tickets" element={<MobileTicketView addDurableNotification={addDurableNotification} />} />
           <Route path="*" element={<Navigate to={getMobilePathForTab('home')} replace />} />
         </Routes>
       </main>
@@ -112,6 +123,16 @@ function MobileLayout() {
         isOpen={showAuthModal}
         onClose={closeAuthModal}
         onAuthSuccess={setUser}
+        addDurableNotification={addDurableNotification}
+      />
+
+      <NotificationCenter
+        notifications={durableNotifications}
+        unreadCount={durableUnreadCount}
+        onMarkRead={markDurableNotificationRead}
+        onMarkAllRead={markAllDurableNotificationsRead}
+        onDismiss={dismissDurableNotification}
+        onClearRead={clearReadDurableNotifications}
       />
     </div>
   );

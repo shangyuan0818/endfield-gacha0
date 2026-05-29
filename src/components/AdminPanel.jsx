@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound, Bot, Globe } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound, Bot, Globe, Activity, Mail } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 
 const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
@@ -8,12 +8,16 @@ const UsersPanel = lazy(() => import('./admin/panels/UsersPanel'));
 const UserDataPanel = lazy(() => import('./admin/panels/UserDataPanel'));
 const AnnouncementsPanel = lazy(() => import('./admin/panels/AnnouncementsPanel'));
 const AutomationPanel = lazy(() => import('./admin/panels/AutomationPanel'));
+const SiteHealthPanel = lazy(() => import('./admin/panels/SiteHealthPanel'));
+const MailStatusPanel = lazy(() => import('./admin/panels/MailStatusPanel'));
 const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
 const AccountRecoveryPanel = lazy(() => import('./admin/panels/AccountRecoveryPanel'));
 const DeveloperApiPanel = lazy(() => import('./admin/panels/DeveloperApiPanel'));
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
+  { id: 'siteHealth', label: '站点健康', icon: Activity },
+  { id: 'mailStatus', label: '邮件状态', icon: Mail },
   { id: 'users', label: '用户管理', icon: Users },
   { id: 'userData', label: '用户数据', icon: Database },
   { id: 'pools', label: '卡池管理', icon: Layers },
@@ -31,8 +35,8 @@ const AdminPanelFallback = () => (
   </div>
 );
 
-const AdminPanel = React.memo(({ showToast }) => {
-  const [activeMenu, setActiveMenu] = React.useState('automation');
+const AdminPanel = React.memo(({ showToast, addDurableNotification }) => {
+  const [activeMenu, setActiveMenu] = React.useState('siteHealth');
 
   // 使用拆分后的 hooks
   const adminData = useAdminData(showToast, activeMenu);
@@ -84,6 +88,12 @@ const AdminPanel = React.memo(({ showToast }) => {
   // 渲染当前面板内容
   const renderContent = () => {
     switch (activeMenu) {
+      case 'siteHealth':
+        return <SiteHealthPanel showToast={showToast} onNavigate={setActiveMenu} />;
+
+      case 'mailStatus':
+        return <MailStatusPanel showToast={showToast} />;
+
       case 'users':
         return (
           <UsersPanel
@@ -141,7 +151,12 @@ const AdminPanel = React.memo(({ showToast }) => {
         return <SiteConfigPanel showToast={showToast} />;
 
       case 'developerApi':
-        return <DeveloperApiPanel showToast={showToast} />;
+        return (
+          <DeveloperApiPanel
+            showToast={showToast}
+            addDurableNotification={addDurableNotification}
+          />
+        );
 
       case 'accountRecovery':
         return (
@@ -176,7 +191,7 @@ const AdminPanel = React.memo(({ showToast }) => {
           <Shield size={28} />
           超级管理员控制台
         </h2>
-        <p className="text-red-100 mt-1">管理用户、公告、角色、卡池、自动化任务与站点配置</p>
+        <p className="text-red-100 mt-1">查看站点健康、邮件队列、内容更新，并管理用户、公告、角色、卡池与自动化任务</p>
       </div>
 
       {/* 侧边栏 + 内容布局 */}

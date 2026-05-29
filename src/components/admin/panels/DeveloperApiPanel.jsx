@@ -19,6 +19,8 @@ import {
   rotateApiClientKey,
   rotateApiClientVerifier,
 } from '../../../services/admin/developerApiService.js';
+import { buildDeveloperApiReviewNotification } from '../../../utils/notificationModel.js';
+import { useI18n } from '../../../i18n/index.js';
 import VirtualizedList from '../VirtualizedList';
 
 function getStatusTone(status) {
@@ -49,6 +51,38 @@ function getOwnerKey(client) {
   return client.owner?.id || client.owner_user_id || 'unknown';
 }
 
+function getReviewActionLabel(status) {
+  switch (status) {
+    case 'active':
+      return '通过 / 启用';
+    case 'rejected':
+      return '拒绝';
+    case 'revoked':
+      return '撤销';
+    default:
+      return status || '审核';
+  }
+}
+
+function getMailNotificationToast(notification) {
+  switch (notification?.status) {
+    case 'queued':
+      return { message: '审核邮件通知已入队', type: 'success' };
+    case 'deduped':
+      return { message: '审核邮件通知已存在队列记录', type: 'success' };
+    case 'disabled':
+      return { message: '审核已完成；开发者 API 审核邮件通知未启用', type: 'warning' };
+    case 'skipped':
+      return { message: `审核已完成；邮件通知已跳过（${notification.code || 'skipped'}）`, type: 'warning' };
+    case 'blocked':
+      return { message: `审核已完成；邮件通知被发送策略拦截（${notification.code || 'blocked'}）`, type: 'warning' };
+    case 'error':
+      return { message: `审核已完成；邮件通知入队失败（${notification.code || 'error'}）`, type: 'warning' };
+    default:
+      return null;
+  }
+}
+
 async function copyText(value) {
   if (!value) return false;
   try {
@@ -59,7 +93,8 @@ async function copyText(value) {
   }
 }
 
-export default function DeveloperApiPanel({ showToast }) {
+export default function DeveloperApiPanel({ showToast, addDurableNotification }) {
+  const { locale } = useI18n();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
@@ -141,11 +176,33 @@ export default function DeveloperApiPanel({ showToast }) {
   };
 
   const handleReview = async (clientId, status) => {
+    const client = clients.find((item) => item.id === clientId);
+    const actionLabel = getReviewActionLabel(status);
+    const reviewNote = window.prompt(
+      `请输入开发者 API ${actionLabel}备注。备注会展示给申请人，并写入审核记录；不应包含私密凭据。`,
+      client?.review_note || ''
+    );
+    if (reviewNote === null) {
+      return;
+    }
+
     setActionLoading(`review:${clientId}:${status}`);
     const result = await withRefresh(
-      () => reviewApiClient(clientId, status, ''),
+      () => reviewApiClient(clientId, status, reviewNote.trim()),
       status === 'active' ? '申请已通过' : status === 'rejected' ? '申请已拒绝' : '客户端已撤销'
     );
+    if (result) {
+      addDurableNotification?.(buildDeveloperApiReviewNotification({
+        status,
+        clientName: client?.name,
+        clientType: client?.client_type,
+        hasBootstrapKey: Boolean(result?.bootstrapKey?.secret),
+      }, { locale }));
+      const mailToast = getMailNotificationToast(result.mailNotification);
+      if (mailToast) {
+        showToast?.(mailToast.message, mailToast.type);
+      }
+    }
     if (result?.bootstrapKey?.secret) {
       setSecretNotice(`初始开发者 Key：${result.bootstrapKey.secret}`);
     }

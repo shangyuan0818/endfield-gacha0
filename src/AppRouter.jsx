@@ -1,9 +1,10 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import DeviceRedirectGuard from './components/guards/DeviceRedirectGuard';
-import App from './App';
 import { useI18n } from './i18n/index.js';
 
+// 懒加载桌面端入口，避免移动端与独立页面首包提前带入完整桌面壳层
+const App = lazy(() => import('./App'));
 // 懒加载移动端入口
 const MobileApp = lazy(() => import('./mobile/MobileApp'));
 // 懒加载法律页面
@@ -60,7 +61,14 @@ function AppRouter() {
         />
 
         {/* 桌面端路由（兜底） */}
-        <Route path="/*" element={<App />} />
+        <Route
+          path="/*"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <App />
+            </Suspense>
+          }
+        />
       </Routes>
     </DeviceRedirectGuard>
   );

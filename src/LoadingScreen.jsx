@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import OracleCaptchaHub from './components/captcha/OracleCaptchaHub';
+import SiteGateCaptcha from './components/captcha/SiteGateCaptcha';
 import { warmupApplication } from './services/appWarmupService';
 import { useI18n } from './i18n/index.js';
 import { readNumberStorageValue, STORAGE_KEYS, writeNumberStorageValue } from './utils/storageUtils.js';
@@ -227,7 +227,7 @@ const LoadingScreen = ({ onComplete }) => {
       {stage === 'captcha' && (
         <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] w-full animate-fadeIn px-4 py-10">
           <div className="w-full flex justify-center">
-            <OracleCaptchaHub onVerified={handleCaptchaVerified} />
+            <SiteGateCaptcha onVerified={handleCaptchaVerified} />
           </div>
         </div>
       )}

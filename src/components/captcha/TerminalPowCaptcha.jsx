@@ -1,18 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Cpu, Loader2, TerminalSquare } from 'lucide-react';
+import { createLocalPowChallenge, getPowWorkConfig } from '../../utils/powChallengeCore.js';
 
 function createSessionId() {
   return `GATE-${Math.floor(Math.random() * 0xffff).toString(16).padStart(4, '0').toUpperCase()}`;
-}
-
-function createSeed() {
-  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
-    const bytes = new Uint8Array(8);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
-  }
-
-  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`;
 }
 
 function createWorkerUrl() {
@@ -62,22 +53,30 @@ function createWorkerUrl() {
   return URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }));
 }
 
-export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobile = false }) {
-  const config = useMemo(() => (
-    isMobile
-      ? {
-        rounds: 3,
-        totalSteps: 7200,
-        progressInterval: 720,
-        estimate: '约 3-6 秒',
-      }
-      : {
-        rounds: 3,
-        totalSteps: 9600,
-        progressInterval: 960,
-        estimate: '约 2-5 秒',
-      }
-  ), [isMobile]);
+export default function TerminalPowCaptcha({
+  action = 'site_gate',
+  challenge = null,
+  onVerified,
+  onUseMinecraft,
+  isMobile = false,
+  showFallbackButton = true,
+}) {
+  const effectiveChallenge = useMemo(() => challenge || createLocalPowChallenge({
+    action,
+    difficulty: isMobile ? 2 : 3,
+    totalSteps: isMobile ? 7200 : 9600,
+  }), [action, challenge, isMobile]);
+  const config = useMemo(() => {
+    const workConfig = getPowWorkConfig({
+      isMobile,
+      difficulty: effectiveChallenge.difficulty,
+      totalSteps: effectiveChallenge.totalSteps,
+    });
+    return {
+      ...workConfig,
+      estimate: isMobile ? '约 3-6 秒' : '约 2-5 秒',
+    };
+  }, [effectiveChallenge.difficulty, effectiveChallenge.totalSteps, isMobile]);
 
   const workerRef = useRef(null);
   const workerUrlRef = useRef('');
@@ -85,7 +84,6 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
   const finishTimerRef = useRef(null);
 
   const [sessionId] = useState(createSessionId);
-  const [seed, setSeed] = useState(createSeed);
   const [status, setStatus] = useState('idle');
   const [progress, setProgress] = useState({ step: 0, hash: '' });
   const [error, setError] = useState('');
@@ -118,13 +116,12 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
     cleanupWorker();
     window.clearTimeout(verifyTimerRef.current);
     window.clearTimeout(finishTimerRef.current);
-    setSeed(createSeed());
     setStatus('idle');
     setProgress({ step: 0, hash: '' });
     setError('');
   }, [cleanupWorker]);
 
-  const startPow = useCallback((challengeSeed = seed) => {
+  const startPow = useCallback(() => {
     if (!supportsPow) {
       setStatus('error');
       setError('当前环境无法启动值守终端，可暂时改用 MC 合成验证。');
@@ -134,9 +131,6 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
     cleanupWorker();
     window.clearTimeout(verifyTimerRef.current);
     window.clearTimeout(finishTimerRef.current);
-    if (challengeSeed !== seed) {
-      setSeed(challengeSeed);
-    }
     setStatus('running');
     setProgress({ step: 0, hash: '' });
     setError('');
@@ -161,7 +155,19 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
         finishTimerRef.current = window.setTimeout(() => {
           setStatus('done');
           verifyTimerRef.current = window.setTimeout(() => {
-            onVerified();
+            onVerified?.({
+              algorithm: effectiveChallenge.algorithm,
+              challengeId: effectiveChallenge.challengeId,
+              difficulty: effectiveChallenge.difficulty,
+              expiresAt: effectiveChallenge.expiresAt,
+              hash: payload.hash,
+              issuedAt: effectiveChallenge.issuedAt,
+              seed: effectiveChallenge.seed,
+              signature: effectiveChallenge.signature,
+              step: payload.step,
+              totalSteps: config.totalSteps,
+              action: effectiveChallenge.action,
+            });
           }, 720);
         }, 780);
         return;
@@ -179,12 +185,12 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
     };
 
     worker.postMessage({
-      seed: challengeSeed,
+      seed: effectiveChallenge.seed,
       rounds: config.rounds,
       totalSteps: config.totalSteps,
       progressInterval: config.progressInterval,
     });
-  }, [cleanupWorker, config.progressInterval, config.rounds, config.totalSteps, onVerified, seed, supportsPow]);
+  }, [cleanupWorker, config.progressInterval, config.rounds, config.totalSteps, effectiveChallenge, onVerified, supportsPow]);
 
   const handlePrimaryAction = () => {
     if (status === 'running' || status === 'finalizing') {
@@ -197,7 +203,7 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
     }
 
     if (status === 'error') {
-      startPow(createSeed());
+      startPow();
       return;
     }
 
@@ -299,13 +305,15 @@ export default function TerminalPowCaptcha({ onVerified, onUseMinecraft, isMobil
             {status === 'idle' ? '开始校验' : status === 'done' ? '重置终端' : status === 'finalizing' ? '写入回执' : '再次校验'}
             {status === 'idle' ? <ArrowRight className="h-3.5 w-3.5" /> : null}
           </button>
-          <button
-            type="button"
-            onClick={onUseMinecraft}
-            className="border border-zinc-700 px-4 py-2 text-xs tracking-[0.18em] text-zinc-300 transition-colors hover:border-endfield-yellow hover:text-endfield-yellow"
-          >
-            改用 MC 合成
-          </button>
+          {showFallbackButton && (
+            <button
+              type="button"
+              onClick={onUseMinecraft}
+              className="border border-zinc-700 px-4 py-2 text-xs tracking-[0.18em] text-zinc-300 transition-colors hover:border-endfield-yellow hover:text-endfield-yellow"
+            >
+              改用 MC 合成
+            </button>
+          )}
         </div>
       </div>
 

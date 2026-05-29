@@ -1,13 +1,41 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
+import { buildAuthCaptchaPayload } from './services/authCaptchaClient.js';
 import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
 import { getSimpleFriendlyError, isNetworkConnectivityError } from './utils/errorMessages';
+import { validateAccountPassword } from './utils/authSecurity.js';
+import { buildAccountRecoveryNotification } from './utils/notificationModel.js';
 import { getUsernameValidationCode, normalizeUsername } from './utils/usernameValidation.js';
 import AuthModalView from './components/auth/AuthModalView';
 import { useAuthModalState } from './hooks/auth/useAuthModalState';
 import { useI18n } from './i18n/index.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const AUTH_REQUEST_TIMEOUT_MS = import.meta.env?.DEV ? 30000 : 25000;
+
+function createAuthRequestTimeoutError(timeoutMs) {
+  const error = new Error(`Auth request timed out after ${timeoutMs}ms`);
+  error.code = 'CLIENT_TIMEOUT';
+  error.name = 'TimeoutError';
+  return error;
+}
+
+async function withAuthRequestTimeout(request, timeoutMs = AUTH_REQUEST_TIMEOUT_MS) {
+  let timeoutId = null;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(createAuthRequestTimeoutError(timeoutMs));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([request, timeout]);
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
 
 function createEmptyRecoveryForm(requestType = '') {
   return {
@@ -18,8 +46,8 @@ function createEmptyRecoveryForm(requestType = '') {
   };
 }
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const { isEnglish } = useI18n();
+export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNotification }) {
+  const { isEnglish, locale } = useI18n();
   const {
     agreedToTerms,
     confirmPassword,
@@ -48,7 +76,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     switchMode,
     switchToForgotPassword,
     switchToLoginWithEmail,
-    switchToRegisterWithEmail,
   } = useAuthModalState();
   const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const [forgotPasswordStatus, setForgotPasswordStatus] = React.useState(null);
@@ -56,6 +83,27 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [recoveryRequestLoading, setRecoveryRequestLoading] = React.useState(false);
   const [recoveryRequestError, setRecoveryRequestError] = React.useState('');
   const [recoveryRequestSuccess, setRecoveryRequestSuccess] = React.useState(null);
+  const [captchaState, setCaptchaState] = React.useState(null);
+  const [emailLoginCaptchaVisible, setEmailLoginCaptchaVisible] = React.useState(false);
+  const captchaAction = React.useMemo(() => {
+    if (mode === 'login' && emailLoginCaptchaVisible) return 'password_reset';
+    if (mode === 'register') return 'register';
+    if (mode === 'forgotPassword' && forgotPasswordStatus === 'checked' && recoveryRequestForm.requestType) return 'account_recovery';
+    if (mode === 'forgotPassword' && forgotPasswordStatus !== 'checked') return 'password_reset';
+    return null;
+  }, [emailLoginCaptchaVisible, forgotPasswordStatus, mode, recoveryRequestForm.requestType]);
+  const captchaReady = !captchaState?.required || Boolean(captchaState?.token || captchaState?.powPayload);
+  const buildVisibleCaptchaPayload = React.useCallback(async (action) => {
+    if (captchaState?.provider === 'pow' && captchaState?.powPayload) {
+      return {
+        captchaProvider: 'pow',
+        captchaAction: action,
+        powPayload: captchaState.powPayload,
+      };
+    }
+
+    return buildAuthCaptchaPayload(action);
+  }, [captchaState]);
 
   const resetRecoveryRequestState = React.useCallback(() => {
     setRecoveryRequestForm(createEmptyRecoveryForm());
@@ -65,9 +113,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   }, []);
 
   React.useEffect(() => {
+    setCaptchaState(null);
+  }, [captchaAction]);
+
+  React.useEffect(() => {
     if (mode !== 'forgotPassword') {
       setForgotPasswordStatus(null);
       resetRecoveryRequestState();
+    }
+    if (mode !== 'login') {
+      setEmailLoginCaptchaVisible(false);
     }
   }, [mode, resetRecoveryRequestState]);
 
@@ -85,6 +140,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
     if (lowerMessage.includes('email not confirmed')) {
       return tt('邮箱尚未验证，请先完成邮箱验证。', 'Your email is not confirmed yet. Finish email verification first.');
+    }
+
+    if (lowerMessage.includes('captcha verification required') || lowerMessage.includes('captcha_required')) {
+      return tt('请先完成人机验证。', 'Complete the bot check first.');
+    }
+
+    if (lowerMessage.includes('auth mail actions are disabled') || lowerMessage.includes('auth_mail_disabled')) {
+      return tt('当前环境未启用认证邮件，请稍后再试或联系管理员。', 'Auth email is not enabled in this environment. Try again later or contact an administrator.');
+    }
+
+    if (lowerMessage.includes('mail_kill_switch_enabled') || lowerMessage.includes('auth mail actions are paused')) {
+      return tt('邮件发送当前已暂停，请稍后再试。', 'Mail sending is paused right now. Try again later.');
+    }
+
+    if (lowerMessage.includes('email_confirmation_pending')) {
+      return tt(
+        '该邮箱已有一封待处理的验证邮件。请检查收件箱和垃圾邮件夹；如果仍收不到，请稍后重试或联系管理员。',
+        'This email already has a pending confirmation message. Check inbox and spam; if it still does not arrive, try again later or contact an administrator.'
+      );
     }
 
     if (lowerMessage.includes('already registered') || lowerMessage.includes('user already exists')) {
@@ -134,16 +208,44 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
   }, [tt]);
 
+  const getLocalizedPasswordPolicyError = React.useCallback((validation) => {
+    const errors = Array.isArray(validation?.errors) ? validation.errors : [];
+
+    if (errors.includes('required')) {
+      return tt('请输入密码', 'Enter a password.');
+    }
+
+    if (errors.includes('too_short')) {
+      return tt('密码至少需要 8 位字符', 'Password must be at least 8 characters.');
+    }
+
+    if (errors.includes('too_long')) {
+      return tt('密码长度不能超过 100 位字符', 'Password must be 100 characters or fewer.');
+    }
+
+    if (errors.includes('too_simple')) {
+      return tt(
+        '密码需要至少包含两类字符，例如字母和数字。',
+        'Password must include at least two character groups, such as letters and numbers.'
+      );
+    }
+
+    return tt('密码不符合安全要求', 'Password does not meet the security requirements.');
+  }, [tt]);
+
   if (!isOpen) return null;
 
-  const checkRateLimit = async (action) => {
+  const checkRateLimit = async (action, extraPayload = {}) => {
     try {
       const { response, data: payload } = await fetchJsonWithTimeout('/api/auth-rate-limit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({
+          action,
+          ...extraPayload,
+        })
       }, {
         label: 'auth-rate-limit',
         timeoutMs: 15000,
@@ -172,18 +274,29 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
   };
 
-  const lookupAccountStatus = async (lookupEmail) => {
-    const { response, data: payload } = await fetchJsonWithTimeout('/api/auth-account-status', {
+  const sendAuthEmailAction = async ({
+    action,
+    requestEmail = email,
+    requestPassword,
+    requestUsername,
+    captchaPayload = {},
+  }) => {
+    const { response, data: payload } = await fetchJsonWithTimeout('/api/auth-email-action', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        email: lookupEmail
+        action,
+        email: requestEmail,
+        password: requestPassword,
+        username: requestUsername,
+        locale,
+        ...captchaPayload,
       })
     }, {
-      label: 'auth-account-status',
-      timeoutMs: 20000,
+      label: `auth-email-action:${action}`,
+      timeoutMs: 30000,
       retries: 1,
     });
 
@@ -195,17 +308,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         ));
       }
 
-      if (payload?.error === 'Auth admin not configured') {
-        throw new Error(tt(
-          '当前环境未启用安全的账号恢复流程，请联系管理员协助处理。',
-          'Secure account recovery is not enabled in this environment. Contact an administrator.'
-        ));
-      }
-
-      throw new Error(payload?.error || tt('无法检查账号状态，请稍后重试', 'Unable to check account status right now. Try again later.'));
+      const error = new Error(payload?.error || tt('认证邮件请求失败，请稍后重试', 'Auth email request failed. Try again later.'));
+      error.code = payload?.code || payload?.error || 'auth_email_action_failed';
+      error.status = response.status;
+      throw error;
     }
 
-    return payload;
+    return payload.data || {};
   };
 
   const createRecoveryRequest = async (payload) => {
@@ -222,12 +331,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     });
 
     if (!response.ok || result?.success !== true) {
-      if (response.status === 409) {
-        throw new Error(tt('该邮箱已有待处理的恢复申请，请勿重复提交。', 'A pending recovery request already exists for this email.'));
-      }
-
-      if (response.status === 404) {
-        throw new Error(tt('该邮箱尚未注册，请先注册。', 'This email is not registered yet. Please sign up first.'));
+      if (response.status === 409 || response.status === 404) {
+        return { status: 'received' };
       }
 
       if (response.status === 429 && result?.retry_after) {
@@ -249,7 +354,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     setError('');
 
     try {
-      const rateLimitResult = await checkRateLimit('login');
+      const captchaPayload = await buildAuthCaptchaPayload('login');
+      const rateLimitResult = await checkRateLimit('login', { email, ...captchaPayload });
       if (!rateLimitResult.allowed) {
         const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 30;
         setError(tt(
@@ -260,10 +366,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         return;
       }
 
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
+      const { data, error: authError } = await withAuthRequestTimeout(supabase.auth.signInWithPassword({
         email,
         password,
-      });
+      }));
 
       if (authError) throw authError;
 
@@ -291,20 +397,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
 
     try {
-      const rateLimitResult = await checkRateLimit('password_reset');
-      if (!rateLimitResult.allowed) {
-        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
-        setError(tt(
-          `请求过于频繁，请 ${retryAfter} 分钟后再试`,
-          `Too many requests. Try again in ${retryAfter} minute(s).`
-        ));
+      if (captchaAction === 'password_reset' && !captchaReady) {
+        setError(tt('请先完成人机验证', 'Complete the bot check first.'));
         setLoading(false);
         return;
       }
 
-      const accountStatus = await lookupAccountStatus(email);
-      setForgotPasswordStatus(accountStatus.registered ? 'registered' : 'unregistered');
-      setResendCooldown(30);
+      const captchaPayload = await buildVisibleCaptchaPayload('password_reset');
+      const result = await sendAuthEmailAction({
+        action: 'password_reset',
+        captchaPayload,
+      });
+      setForgotPasswordStatus('checked');
+      setResendCooldown(60);
+      if (['mail_unavailable', 'mail_paused', 'mail_failed_or_unavailable'].includes(result?.status)) {
+        setMessage(tt(
+          '自助重置邮件暂不可用。你可以稍后重试；如果多次收不到邮件，请提交人工恢复申请。',
+          'Self-service reset mail is unavailable right now. Try again later; if mail still does not arrive, submit a manual recovery request.'
+        ));
+      } else {
+        setMessage(tt(
+          '如果该邮箱存在可恢复账号，密码重置邮件已发送。请检查收件箱和垃圾邮件夹。',
+          'If this email matches a recoverable account, a password reset email has been sent. Check your inbox and spam folder.'
+        ));
+      }
     } catch (err) {
       setError(getLocalizedAuthError(err));
     } finally {
@@ -324,8 +440,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return;
     }
 
-    if (password.length < 6) {
-      setError(tt('密码至少需要 6 位字符', 'Password must be at least 6 characters.'));
+    const passwordValidation = validateAccountPassword(password);
+    if (!passwordValidation.isValid) {
+      setError(getLocalizedPasswordPolicyError(passwordValidation));
       setLoading(false);
       return;
     }
@@ -353,70 +470,116 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
 
     try {
-      const rateLimitResult = await checkRateLimit('register');
-      if (!rateLimitResult.allowed) {
-        const retryAfter = rateLimitResult.retry_after ? Math.ceil(rateLimitResult.retry_after / 60) : 60;
-        setError(tt(
-          `注册尝试过于频繁，请 ${retryAfter} 分钟后再试`,
-          `Too many sign-up attempts. Try again in ${retryAfter} minute(s).`
-        ));
+      if (captchaAction === 'register' && !captchaReady) {
+        setError(tt('请先完成人机验证', 'Complete the bot check first.'));
         setLoading(false);
         return;
       }
 
-      const appUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-      const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            username: normalizedUsername || email.split('@')[0],
-          },
-          emailRedirectTo: appUrl,
-        },
+      const captchaPayload = await buildVisibleCaptchaPayload('register');
+      await sendAuthEmailAction({
+        action: 'register_confirmation',
+        requestPassword: password,
+        requestUsername: normalizedUsername || email.split('@')[0],
+        captchaPayload,
       });
-
-      if (authError) {
-        if (
-          authError.message.toLowerCase().includes('already registered') ||
-          authError.message.toLowerCase().includes('user already registered') ||
-          authError.message.toLowerCase().includes('email already exists') ||
-          authError.status === 422
-        ) {
-          setError(tt('该邮箱已被注册', 'This email is already registered.'));
-          setShowDuplicateEmailPrompt(true);
-          return;
-        }
-        throw authError;
-      }
-
-      if (data.user) {
-        if (data.session) {
-          onAuthSuccess(data.user);
-          onClose();
-        } else {
-          setMessage(tt('注册成功！请直接登录。', 'Registration complete. You can sign in now.'));
-        }
-      }
+      setMessage(tt(
+        '验证邮件已发送。请打开邮箱完成验证后再登录；如果没有收到，请检查垃圾邮件夹。',
+        'Verification email sent. Open it to confirm your account before signing in; check spam if it does not arrive.'
+      ));
+      setPassword('');
+      setConfirmPassword('');
     } catch (err) {
       let errorMessage = tt('注册失败，请重试', 'Sign-up failed. Please try again.');
+      const errorText = String(err?.message || '').toLowerCase();
 
-      if (err.message.includes('Invalid email')) {
+      if (err?.code === 'email_confirmation_pending') {
+        setError(getLocalizedAuthError(err));
+        setShowDuplicateEmailPrompt(false);
+        return;
+      }
+
+      if (
+        err?.code === 'email_already_registered' ||
+        errorText.includes('already registered') ||
+        errorText.includes('user already registered') ||
+        errorText.includes('email already exists')
+      ) {
+        setError(tt('该邮箱已被注册', 'This email is already registered.'));
+        setShowDuplicateEmailPrompt(true);
+        return;
+      }
+
+      if (String(err?.message || '').includes('Invalid email')) {
         errorMessage = tt('邮箱格式不正确', 'The email format is invalid.');
-      } else if (err.message.includes('Password should be at least')) {
+      } else if (String(err?.message || '').includes('Password should be at least')) {
         errorMessage = tt('密码长度不足，至少需要 6 位字符', 'Password is too short. Use at least 6 characters.');
-      } else if (err.message.includes('Unable to validate email')) {
+      } else if (String(err?.message || '').includes('Unable to validate email')) {
         errorMessage = tt('无法验证邮箱地址，请检查邮箱是否正确', 'Unable to validate this email address. Check it and try again.');
       } else if (
-        err.message.toLowerCase().includes('sending confirmation') ||
-        err.message.toLowerCase().includes('confirmation email')
+        errorText.includes('sending confirmation') ||
+        errorText.includes('confirmation email')
       ) {
         errorMessage = tt('邮件服务暂时不可用，请稍后再试或联系管理员', 'Email delivery is unavailable. Try again later or contact an administrator.');
-      } else if (err.message) {
-        errorMessage = isEnglish ? err.message : err.message;
+      } else if (isNetworkConnectivityError(err) || err?.code === 'CLIENT_TIMEOUT' || err?.name === 'TimeoutError') {
+        errorMessage = getLocalizedAuthError(err);
+      } else if (err?.message) {
+        errorMessage = err.message;
       }
 
       setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    setLoading(true);
+    setError('');
+    setMessage('');
+
+    if (!EMAIL_REGEX.test(email)) {
+      setError(tt('请输入有效的邮箱地址', 'Enter a valid email address.'));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (emailLoginCaptchaVisible && !captchaReady) {
+        setError(tt('请先完成人机验证', 'Complete the bot check first.'));
+        setLoading(false);
+        return;
+      }
+
+      const captchaPayload = emailLoginCaptchaVisible
+        ? await buildVisibleCaptchaPayload('password_reset')
+        : await buildAuthCaptchaPayload('password_reset');
+      const result = await sendAuthEmailAction({
+        action: 'email_login',
+        captchaPayload,
+      });
+      if (['mail_unavailable', 'mail_paused', 'mail_failed_or_unavailable'].includes(result?.status)) {
+        setError(tt(
+          '邮件登录暂不可用，请使用密码登录或稍后再试。',
+          'Email sign-in is unavailable right now. Use password sign-in or try again later.'
+        ));
+        return;
+      }
+
+      setEmailLoginCaptchaVisible(false);
+      setCaptchaState(null);
+      setResendCooldown(60);
+      setMessage(tt(
+        '如果该邮箱存在账号，邮件登录链接已发送。请在同一浏览器打开邮箱中的链接。',
+        'If this email has an account, a sign-in link has been sent. Open it in the same browser.'
+      ));
+    } catch (err) {
+      if (err?.code === 'captcha_required' || err?.status === 403) {
+        setEmailLoginCaptchaVisible(true);
+        setError(tt('请先完成下方人机验证，然后再次发送邮件登录链接。', 'Complete the bot check below, then send the email sign-in link again.'));
+      } else {
+        setError(getLocalizedAuthError(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -506,18 +669,33 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
 
     try {
+      if (captchaAction === 'account_recovery' && !captchaReady) {
+        setRecoveryRequestError(tt('请先完成人机验证', 'Complete the bot check first.'));
+        setRecoveryRequestLoading(false);
+        return;
+      }
+
+      const captchaPayload = await buildVisibleCaptchaPayload('account_recovery');
       const result = await createRecoveryRequest({
         email,
         requestType: recoveryRequestForm.requestType,
         claimedAccountCount: recoveryRequestForm.claimedAccountCount,
         verificationClaims: normalizedClaims,
-        note: recoveryRequestForm.note
+        note: recoveryRequestForm.note,
+        ...captchaPayload
       });
 
       setRecoveryRequestSuccess({
         id: result?.id || null,
         requestType: recoveryRequestForm.requestType
       });
+      addDurableNotification?.(buildAccountRecoveryNotification({
+        ...result,
+        requestType: recoveryRequestForm.requestType,
+      }, {
+        locale,
+        requestType: recoveryRequestForm.requestType,
+      }));
       setRecoveryRequestError('');
     } catch (err) {
       setRecoveryRequestError(getLocalizedAuthError(err));
@@ -531,8 +709,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   const submitDisabled =
     loading ||
+    (mode !== 'login' && Boolean(captchaAction) && !captchaReady) ||
     (mode === 'register' && (hasEmailError || Boolean(emailDomainError) || !agreedToTerms)) ||
     (mode === 'forgotPassword' && resendCooldown > 0);
+  const emailLoginDisabled =
+    loading ||
+    !EMAIL_REGEX.test(email) ||
+    resendCooldown > 0 ||
+    (emailLoginCaptchaVisible && !captchaReady);
 
   return (
     <AuthModalView
@@ -544,18 +728,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       error={error}
       forgotPasswordStatus={forgotPasswordStatus}
       hasEmailError={hasEmailError}
+      captchaAction={captchaAction}
+      captchaReady={captchaReady}
       loading={loading}
       message={message}
       mode={mode}
       onAgreedToTermsChange={(event) => setAgreedToTerms(event.target.checked)}
       onClose={onClose}
+      onCaptchaStateChange={setCaptchaState}
       onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
       onPasswordChange={(event) => setPassword(event.target.value)}
       onSubmit={handleSubmit}
+      onEmailLogin={handleEmailLogin}
+      recoverySubmitDisabled={recoveryRequestLoading || (captchaAction === 'account_recovery' && !captchaReady)}
       onSwitchMode={switchMode}
       onSwitchToForgotPassword={switchToForgotPassword}
       onSwitchToLoginWithEmail={switchToLoginWithEmail}
-      onSwitchToRegisterWithEmail={switchToRegisterWithEmail}
       onUsernameChange={(event) => setUsername(event.target.value)}
       password={password}
       resendCooldown={resendCooldown}
@@ -565,6 +753,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       recoveryRequestSuccess={recoveryRequestSuccess}
       showDuplicateEmailPrompt={showDuplicateEmailPrompt}
       submitDisabled={submitDisabled}
+      emailLoginDisabled={emailLoginDisabled}
       username={username}
       onAddRecoveryClaim={handleAddRecoveryClaim}
       onCloseRecoveryRequest={closeRecoveryRequestForm}
@@ -574,6 +763,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
           setMessage('');
           setError('');
           resetRecoveryRequestState();
+        }
+        if (mode === 'login') {
+          setEmailLoginCaptchaVisible(false);
+          setCaptchaState(null);
         }
         handleEmailChange(event);
       }}

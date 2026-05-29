@@ -76,7 +76,7 @@ export default async function handler(req, res) {
   const { currentPassword } = parseRequestBody(req);
   const normalizedPassword = String(currentPassword || '').trim();
 
-  if (normalizedPassword.length < 6) {
+  if (!normalizedPassword) {
     return res.status(400).json({
       success: false,
       error: 'Current password is required'

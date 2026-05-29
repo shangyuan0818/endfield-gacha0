@@ -3,9 +3,30 @@ import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useI18n } from '../../i18n/index.js';
+import {
+  getPrimaryAccountPasswordError,
+  validateAccountPassword,
+} from '../../utils/authSecurity.js';
 
 function normalizeFriendlyError(error, fallback) {
   return error?.message || fallback;
+}
+
+function getLocalizedPasswordPolicyError(errorCode, tt) {
+  switch (errorCode) {
+    case 'required':
+    case 'too_short':
+      return tt('密码至少需要 8 位字符。', 'Password must be at least 8 characters.');
+    case 'too_long':
+      return tt('密码长度不能超过 100 位字符。', 'Password must be 100 characters or fewer.');
+    case 'too_simple':
+      return tt(
+        '密码需要至少包含两类字符，例如字母和数字。',
+        'Password must include at least two character groups, such as letters and numbers.'
+      );
+    default:
+      return tt('密码不符合安全要求。', 'Password does not meet the security requirements.');
+  }
 }
 
 export default function ResetPasswordPage() {
@@ -83,8 +104,9 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError(tt('密码至少需要 6 位字符。', 'Password must be at least 6 characters.'));
+    const passwordValidation = validateAccountPassword(password);
+    if (!passwordValidation.isValid) {
+      setError(getLocalizedPasswordPolicyError(getPrimaryAccountPasswordError(passwordValidation), tt));
       return;
     }
 
@@ -163,7 +185,7 @@ export default function ResetPasswordPage() {
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder={tt('至少 6 位字符', 'At least 6 characters')}
+                    placeholder={tt('至少 8 位字符，包含两类字符', 'At least 8 characters with two character groups')}
                     disabled={!recoveryReady || submitting}
                     className="w-full border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-endfield-yellow dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
                   />

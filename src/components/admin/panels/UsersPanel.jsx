@@ -284,7 +284,7 @@ const UsersPanel = ({
                     value={userForm.password}
                     onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-                    placeholder="至少 6 位字符"
+                    placeholder="至少 8 位字符，包含两类字符"
                   />
                 </div>
               </>
@@ -342,7 +342,7 @@ const UsersPanel = ({
               value={resetPasswordValue}
               onChange={(e) => setResetPasswordValue(e.target.value)}
               className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
-              placeholder="至少 6 位字符"
+              placeholder="至少 8 位字符，包含两类字符"
             />
             <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2">
               该操作会直接覆盖现有密码，请通过可信渠道把临时密码发送给用户，并要求其登录后立即修改。

@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database } from 'lucide-react';
-import { supabase } from '../supabaseClient';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database, Mail, CheckCircle2 } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import LocaleSwitcher from './common/LocaleSwitcher.jsx';
@@ -10,6 +9,17 @@ import DeveloperApiSection from './settings/DeveloperApiSection.jsx';
 import UsernameEditDialog from './settings/UsernameEditDialog.jsx';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
+import {
+  AuthRateLimitError,
+  loadAccountSecurityState,
+  updatePasswordWithCurrentPassword,
+} from '../services/accountSecurityService.js';
+import {
+  AccountEmailActionError,
+  isUserEmailVerified,
+  requestCurrentEmailVerification,
+  requestEmailChange,
+} from '../services/accountEmailService.js';
 import { deleteOwnAccount } from '../services/selfAccountService';
 import { updateOwnUsername } from '../services/accountProfileService.js';
 import { finalizeDeletedAccountSession } from '../utils/finalizeDeletedAccountSession';
@@ -23,6 +33,11 @@ import {
   getFreshnessTone
 } from '../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../utils/accountFreshness.js';
+import {
+  getPrimaryAccountPasswordError,
+  isInvalidCurrentPasswordError,
+  validateAccountPassword,
+} from '../utils/authSecurity.js';
 import { useI18n } from '../i18n/index.js';
 import { localizeGameAccountServerTag } from '../utils/gameAccountMetadata.js';
 
@@ -36,6 +51,71 @@ function getFreshnessToneClasses(tone) {
       return 'border-red-500/40 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300';
     default:
       return 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400';
+  }
+}
+
+function getPasswordPolicyMessage(errorCode, t) {
+  switch (errorCode) {
+    case 'required':
+    case 'too_short':
+      return t('settings.error.passwordTooShort');
+    case 'too_long':
+      return t('settings.error.passwordTooLong');
+    case 'too_simple':
+      return t('settings.error.passwordTooSimple');
+    default:
+      return t('settings.error.passwordUpdateFailed');
+  }
+}
+
+function formatSecurityDeadline(value, locale) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function getAccountEmailErrorMessage(error, t) {
+  const code = error instanceof AccountEmailActionError ? error.code : error?.code;
+  switch (code) {
+    case 'current_password_required':
+      return t('settings.error.currentPasswordRequired');
+    case 'invalid_current_password':
+      return t('settings.error.currentPasswordIncorrect');
+    case 'new_email_invalid':
+    case 'current_email_invalid':
+      return t('settings.error.emailInvalid');
+    case 'email_unchanged':
+      return t('settings.error.emailUnchanged');
+    case 'email_already_registered':
+      return t('settings.error.emailAlreadyRegistered');
+    case 'auth_mail_disabled':
+      return t('settings.error.emailMailDisabled');
+    case 'mail_kill_switch_enabled':
+      return t('settings.error.emailMailPaused');
+    case 'mail_event_disabled':
+      return t('settings.error.emailEventDisabled');
+    case 'mail_domain_paused':
+      return t('settings.error.emailDomainPaused');
+    default:
+      if (error instanceof AccountEmailActionError && error.partial) {
+        return t('settings.error.emailChangePartial');
+      }
+      return error?.message || t('settings.error.emailActionFailed');
   }
 }
 
@@ -58,6 +138,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const { loadPublicPools } = useCloudSync({ showToast: () => {} });
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -70,6 +151,16 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [emailStatusMessage, setEmailStatusMessage] = useState('');
+  const [emailStatusTone, setEmailStatusTone] = useState('success');
+  const [newEmail, setNewEmail] = useState('');
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState('');
+  const [accountSecurityState, setAccountSecurityState] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const deletePhrase = t('settings.deletePhrase');
@@ -93,6 +184,44 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   }, [getGameAccountsFromHistory, history]);
   const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
   const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
+  const emailVerificationRequired = userRole !== 'super_admin' && Boolean(accountSecurityState?.emailVerificationRequired);
+  const emailVerified = useMemo(
+    () => isUserEmailVerified(user, { emailVerificationRequired }),
+    [emailVerificationRequired, user]
+  );
+  const pendingEmailChange = user?.new_email || null;
+  const passwordChangeRequired = Boolean(accountSecurityState?.passwordChangeRequired);
+  const passwordChangeExpiresAt = useMemo(
+    () => formatSecurityDeadline(accountSecurityState?.expiresAt, locale),
+    [accountSecurityState?.expiresAt, locale]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!user?.id) {
+      setAccountSecurityState(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loadAccountSecurityState()
+      .then((state) => {
+        if (!cancelled) {
+          setAccountSecurityState(state || null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccountSecurityState(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== deletePhrase) return;
@@ -146,6 +275,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const resetPasswordModalState = () => {
     setPasswordError('');
     setPasswordSuccess('');
+    setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
   };
@@ -155,10 +285,18 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       setPasswordError(t('settings.error.notLoggedInPassword'));
       return;
     }
-    if (newPassword.length < 6) {
-      setPasswordError(t('settings.error.passwordTooShort'));
+
+    if (!currentPassword) {
+      setPasswordError(t('settings.error.currentPasswordRequired'));
       return;
     }
+
+    const passwordValidation = validateAccountPassword(newPassword);
+    if (!passwordValidation.isValid) {
+      setPasswordError(getPasswordPolicyMessage(getPrimaryAccountPasswordError(passwordValidation), t));
+      return;
+    }
+
     if (newPassword !== confirmNewPassword) {
       setPasswordError(t('settings.error.passwordMismatch'));
       return;
@@ -167,17 +305,116 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     setPasswordSuccess('');
     setPasswordLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      setPasswordSuccess(t('settings.success.passwordUpdated'));
+      const passwordResult = await updatePasswordWithCurrentPassword({
+        email: user.email,
+        currentPassword,
+        newPassword,
+      });
+      if (passwordResult?.state) {
+        setAccountSecurityState(passwordResult.state);
+      } else if (passwordResult?.securityStateUpdated) {
+        setAccountSecurityState((prev) => ({
+          ...(prev || {}),
+          passwordChangeRequired: false,
+        }));
+      }
+      setPasswordSuccess(
+        passwordResult?.securityStateError
+          ? t('settings.warning.passwordStateClearFailed')
+          : t('settings.success.passwordUpdated')
+      );
       setTimeout(() => {
         setShowPasswordModal(false);
         resetPasswordModalState();
       }, 2000);
     } catch (error) {
-      setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+      if (error instanceof AuthRateLimitError) {
+        const retryMinutes = Math.max(1, Math.ceil(Number(error.retryAfter || 60) / 60));
+        setPasswordError(t('settings.error.passwordChangeRateLimited', { minutes: retryMinutes }));
+      } else if (isInvalidCurrentPasswordError(error)) {
+        setPasswordError(t('settings.error.currentPasswordIncorrect'));
+      } else {
+        setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+      }
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const resetEmailModalState = () => {
+    setEmailError('');
+    setEmailSuccess('');
+    setNewEmail('');
+    setEmailCurrentPassword('');
+  };
+
+  const showEmailStatus = (message, tone = 'success') => {
+    setEmailStatusMessage(message);
+    setEmailStatusTone(tone);
+  };
+
+  const handleVerifyEmail = async () => {
+    if (!user) {
+      showEmailStatus(t('settings.error.notLoggedInEmail'), 'error');
+      return;
+    }
+
+    setEmailVerificationLoading(true);
+    setEmailStatusMessage('');
+    try {
+      const result = await requestCurrentEmailVerification({ locale });
+      const status = result?.data?.status;
+      showEmailStatus(
+        status === 'already_verified'
+          ? t('settings.success.emailAlreadyVerified')
+          : t('settings.success.emailVerificationSent'),
+        'success'
+      );
+    } catch (error) {
+      showEmailStatus(getAccountEmailErrorMessage(error, t), 'error');
+    } finally {
+      setEmailVerificationLoading(false);
+    }
+  };
+
+  const handleEmailChangeRequest = async () => {
+    if (!user) {
+      setEmailError(t('settings.error.notLoggedInEmail'));
+      return;
+    }
+
+    if (!newEmail.trim()) {
+      setEmailError(t('settings.error.emailInvalid'));
+      return;
+    }
+
+    if (!emailCurrentPassword) {
+      setEmailError(t('settings.error.currentPasswordRequired'));
+      return;
+    }
+
+    setEmailError('');
+    setEmailSuccess('');
+    setEmailLoading(true);
+    try {
+      const result = await requestEmailChange({
+        newEmail,
+        currentPassword: emailCurrentPassword,
+        locale,
+      });
+      const successMessage = result?.data?.dryRun
+        ? t('settings.success.emailChangeDryRun')
+        : t('settings.success.emailChangeRequested');
+      setEmailSuccess(successMessage);
+      showEmailStatus(successMessage, 'success');
+      setTimeout(() => {
+        setShowEmailModal(false);
+        resetEmailModalState();
+      }, 2400);
+    } catch (error) {
+      setEmailError(getAccountEmailErrorMessage(error, t));
+    } finally {
+      setEmailLoading(false);
     }
   };
 
@@ -232,11 +469,63 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
           <div className="p-4 flex-1">
             {user ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-2 rounded-sm">
-                  <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
-                    <User size={14} /> {t('settings.email')}
+                <div className="border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-3 rounded-sm space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
+                        <Mail size={14} /> {t('settings.email')}
+                      </div>
+                      <div className="mt-1 font-bold text-sm text-slate-800 dark:text-zinc-200 truncate max-w-[240px]">
+                        {user.email}
+                      </div>
+                    </div>
+                    <span className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold border font-mono tracking-widest uppercase rounded-sm ${
+                      emailVerified
+                        ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                        : 'border-amber-500/40 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'
+                    }`}>
+                      {emailVerified ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                      {emailVerified ? t('settings.emailVerified') : t('settings.emailUnverified')}
+                    </span>
                   </div>
-                  <span className="font-bold text-sm text-slate-800 dark:text-zinc-200 truncate max-w-[180px] sm:max-w-none">{user.email}</span>
+                  {pendingEmailChange && (
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300 leading-5">
+                      {t('settings.pendingEmailChange', { value: pendingEmailChange })}
+                    </div>
+                  )}
+                  {emailVerificationRequired && (
+                    <div className="text-[11px] text-amber-700 dark:text-amber-300 leading-5">
+                      {t('settings.emailVerificationRequired')}
+                    </div>
+                  )}
+                  {emailStatusMessage && (
+                    <div className={`px-3 py-2 rounded-sm text-xs border ${
+                      emailStatusTone === 'error'
+                        ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400'
+                        : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400'
+                    }`}>
+                      {emailStatusMessage}
+                    </div>
+                  )}
+                  <div className={`grid grid-cols-1 gap-2 ${emailVerified ? '' : 'sm:grid-cols-2'}`}>
+                    {!emailVerified && (
+                      <button
+                        type="button"
+                        onClick={handleVerifyEmail}
+                        disabled={emailVerificationLoading}
+                        className="flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 text-xs font-bold tracking-wider transition-all uppercase rounded-sm disabled:opacity-60"
+                      >
+                        <Mail size={14} /> {emailVerificationLoading ? t('settings.emailVerificationSending') : t('settings.verifyEmail')}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => { resetEmailModalState(); setShowEmailModal(true); }}
+                      className="flex items-center justify-center gap-2 px-3 py-2 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 border border-zinc-900 dark:border-zinc-100 text-xs font-bold tracking-wider transition-all uppercase rounded-sm"
+                    >
+                      <Mail size={14} /> {t('settings.changeEmail')}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-3 rounded-sm space-y-2">
@@ -257,7 +546,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     <User size={14} /> {t('settings.changeUsername')}
                   </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-2 rounded-sm">
                   <div className="flex items-center gap-2 text-xs font-mono text-zinc-500">
                     <Lock size={14} /> {t('settings.role')}
@@ -266,6 +555,24 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     {roleInfo.label}
                   </span>
                 </div>
+
+                {passwordChangeRequired && (
+                  <div className="border border-amber-300 bg-amber-50 px-3 py-3 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 rounded-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 space-y-1">
+                        <div className="text-xs font-bold uppercase tracking-wider">
+                          {t('settings.passwordChangeRequiredTitle')}
+                        </div>
+                        <div className="text-[11px] leading-5">
+                          {passwordChangeExpiresAt
+                            ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
+                            : t('settings.passwordChangeRequiredDesc')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-2">
                   <button
@@ -498,6 +805,69 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       />
 
       {/* Modals remain structurally similar, just updated dark mode classes slightly for consistency */}
+      {/* 更换邮箱弹窗 */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white dark:bg-zinc-900 rounded-sm shadow-2xl w-full max-w-sm overflow-hidden animate-scale-up border border-zinc-200 dark:border-zinc-800">
+            <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
+              <h3 className="font-bold text-sm text-slate-700 dark:text-zinc-200 flex items-center gap-2 uppercase tracking-wide">
+                <Mail size={16} className="text-endfield-yellow" />
+                {t('settings.emailModalTitle')}
+              </h3>
+              <button onClick={() => { setShowEmailModal(false); resetEmailModalState(); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                {t('settings.emailModalDesc')}
+              </p>
+              {emailError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 px-3 py-2 rounded-sm text-xs flex items-start gap-2">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{emailError}</span>
+                </div>
+              )}
+              {emailSuccess && (
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-sm text-xs flex items-start gap-2">
+                  <Mail size={14} className="shrink-0 mt-0.5" /> <span>{emailSuccess}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.newEmail')}</label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(event) => setNewEmail(event.target.value)}
+                    placeholder={t('settings.newEmailPlaceholder')}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
+                  <input
+                    type="password"
+                    value={emailCurrentPassword}
+                    onChange={(event) => setEmailCurrentPassword(event.target.value)}
+                    placeholder={t('settings.currentPasswordPlaceholder')}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleEmailChangeRequest}
+                disabled={emailLoading || !!emailSuccess}
+                className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-black disabled:text-zinc-400 font-bold uppercase tracking-wider py-2.5 text-xs rounded-sm transition-colors mt-2"
+              >
+                {emailLoading ? t('settings.emailChangeSending') : emailSuccess ? t('settings.emailChangeSent') : t('settings.emailChangeAction')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 修改密码弹窗 */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -524,6 +894,16 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               )}
 
               <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    placeholder={t('settings.currentPasswordPlaceholder')}
+                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
+                  />
+                </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.newPassword')}</label>
                   <input

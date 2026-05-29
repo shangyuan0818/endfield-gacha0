@@ -8,7 +8,7 @@ import { getTicketStatus } from './tickets/constants';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../constants/community';
 import { useI18n } from '../i18n/index.js';
 
-const TicketPanel = React.memo(({ user, userRole, showToast }) => {
+const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotification }) => {
   const { isEnglish, locale, formatNumber } = useI18n();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -267,6 +267,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast }) => {
               userRole={userRole}
               currentUserId={user.id}
               showToast={showToast}
+              addDurableNotification={addDurableNotification}
               onStatusChange={handleStatusChange}
               onReply={loadTickets}
               expanded={expandedTicketId === ticket.id}

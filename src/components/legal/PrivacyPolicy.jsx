@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
         ) : (
           <>
             <h1 className="text-2xl font-bold mb-2">隐私政策</h1>
-            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年3月21日</p>
+            <p className="text-sm text-slate-500 dark:text-zinc-500 mb-8">最后更新日期：2026年5月26日</p>
             <div className="space-y-6 text-sm leading-relaxed">
           <section>
             <h2 className="text-lg font-semibold mb-2">一、引言</h2>
@@ -99,7 +99,13 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-2">七、用户权利</h2>
+            <h2 className="text-lg font-semibold mb-2">七、人机验证与安全风控</h2>
+            <p>为降低自动化注册、密码重置滥用、账号恢复滥用和邮件发送防刷风险，本工具可能在注册、密码重置、账号恢复等安全敏感流程中使用 Cloudflare Turnstile 或等价的人机验证 / 工作量证明机制。Turnstile 可能处理与验证请求有关的技术信息，例如浏览器环境、设备与网络信号、验证结果、访问时间、IP 地址和必要的安全 Cookie，用于判断请求是否来自真实用户并防止滥用。</p>
+            <p className="mt-2">当启用 Cloudflare Turnstile 时，该服务由 Cloudflare 提供并受 Cloudflare 的相关条款约束。您可以阅读 <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare 数据处理附录</a>、<a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare 隐私政策</a>以及 <a href="https://www.cloudflare.com/website-terms/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare 网站条款</a>了解其数据处理规则。我们不会在自己的数据库中保存原始 Turnstile token 或 Cloudflare secret，仅保存脱敏后的风险摘要、验证状态和必要的安全审计记录。</p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold mb-2">八、用户权利</h2>
             <p>您拥有以下权利：</p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li><strong>访问权</strong>：查看您存储在本工具中的所有个人数据。</li>
@@ -113,17 +119,17 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-2">八、未成年人保护</h2>
+            <h2 className="text-lg font-semibold mb-2">九、未成年人保护</h2>
             <p>本工具不针对未满14周岁的未成年人提供服务。如果您是未满14周岁的未成年人，请在监护人的陪同下使用本工具。</p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-2">九、隐私政策更新</h2>
+            <h2 className="text-lg font-semibold mb-2">十、隐私政策更新</h2>
             <p>我们可能会不时更新本隐私政策。更新后的政策将在本页面公布，重大变更时我们会通过站内公告通知您。继续使用本工具即表示您同意更新后的隐私政策。</p>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-2">十、联系我们</h2>
+            <h2 className="text-lg font-semibold mb-2">十一、联系我们</h2>
             <p>如果您对本隐私政策有任何疑问或建议，可通过以下方式联系我们：</p>
             <ul className="list-disc pl-6 mt-2 space-y-1">
               <li>站内工单系统</li>

@@ -11,6 +11,8 @@ import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from '../../components/tickets/constants';
 import { useI18n } from '../../i18n/index.js';
 import { MobilePillTabs, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
+import { buildTicketReplyNotification } from '../../utils/notificationModel.js';
+import { submitTicketReply } from '../../services/ticketReplyService.js';
 
 // 常用表情（精简版）
 const EMOJI_LIST = [
@@ -18,7 +20,7 @@ const EMOJI_LIST = [
   '👍', '👎', '👌', '👏', '🙏', '💪', '❤️', '🔥', '✨', '🎉'
 ];
 
-function MobileTicketView() {
+function MobileTicketView({ addDurableNotification } = {}) {
   const { user, userRole } = useAuthStore();
   const { isEnglish, locale, formatDateTime, formatNumber } = useI18n();
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
@@ -214,6 +216,7 @@ function MobileTicketView() {
               onToggle={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
               onStatusChange={handleStatusChange}
               onReply={loadTickets}
+              addDurableNotification={addDurableNotification}
               locale={locale}
               formatDateTime={formatDateTime}
             />
@@ -373,7 +376,7 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
   );
 }
 
-function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReply, locale, formatDateTime }) {
+function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReply, addDurableNotification, locale, formatDateTime }) {
   const { isEnglish } = useI18n();
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const ticketTypes = getTicketTypes(locale);
@@ -454,7 +457,15 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
           )}
 
           {ticket.status !== 'closed' && (isOwner || canManage) && (
-            <ReplySection ticketId={ticket.id} currentUserId={currentUserId} onReply={onReply} formatDateTime={formatDateTime} />
+            <ReplySection
+              ticketId={ticket.id}
+              ticketStatus={ticket.status}
+              authorRole={userRole}
+              onReply={onReply}
+              addDurableNotification={addDurableNotification}
+              locale={locale}
+              formatDateTime={formatDateTime}
+            />
           )}
         </div>
       )}
@@ -462,7 +473,7 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
   );
 }
 
-function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
+function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableNotification, locale, formatDateTime }) {
   const { isEnglish } = useI18n();
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const [replies, setReplies] = useState([]);
@@ -470,6 +481,7 @@ function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
   const [replyText, setReplyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [replyError, setReplyError] = useState('');
   const textareaRef = useRef(null);
 
   const loadReplies = useCallback(async () => {
@@ -484,10 +496,13 @@ function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
         const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
         setReplies(attachPublicProfiles(data, profilesMap));
       }
+      setReplyError('');
+    } catch (error) {
+      setReplyError(`${tt('加载回复失败', 'Failed to load replies')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
     } finally {
       setLoadingReplies(false);
     }
-  }, [ticketId]);
+  }, [ticketId, tt]);
 
   useEffect(() => {
     loadReplies();
@@ -496,15 +511,26 @@ function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
   const handleSubmit = async () => {
     if (!replyText.trim()) return;
     setSubmitting(true);
+    setReplyError('');
+    const submittedAt = new Date().toISOString();
     try {
-      const { error } = await supabase
-        .from('ticket_replies')
-        .insert({ ticket_id: ticketId, user_id: currentUserId, content: replyText.trim() });
-      if (!error) {
-        setReplyText('');
-        loadReplies();
-        onReply?.();
-      }
+      const result = await submitTicketReply({
+        ticketId,
+        content: replyText.trim(),
+        locale,
+      });
+      const createdAt = result?.reply?.created_at || submittedAt;
+      setReplyText('');
+      addDurableNotification?.(buildTicketReplyNotification({
+        authorRole,
+        ticketStatus,
+        createdAt,
+        dedupeKey: `ticket-reply:${createdAt}:${authorRole || 'user'}`
+      }, { locale }));
+      loadReplies();
+      onReply?.();
+    } catch (error) {
+      setReplyError(`${tt('发送回复失败', 'Failed to send reply')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
     } finally {
       setSubmitting(false);
     }
@@ -557,6 +583,12 @@ function ReplySection({ ticketId, currentUserId, onReply, formatDateTime }) {
       )}
 
       <div className="border-t border-zinc-200 bg-zinc-50/75 p-3 dark:border-white/8 dark:bg-white/[0.03]">
+        {replyError && (
+          <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-relaxed text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+            <AlertCircle size={12} className="mt-0.5 shrink-0" />
+            <span>{replyError}</span>
+          </div>
+        )}
         <div className="relative">
           <textarea
             ref={textareaRef}

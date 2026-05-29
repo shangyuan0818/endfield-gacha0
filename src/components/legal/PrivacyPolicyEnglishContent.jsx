@@ -64,7 +64,13 @@ export default function PrivacyPolicyEnglishContent() {
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">7. Your Rights</h2>
+        <h2 className="text-lg font-semibold mb-2">7. Bot Checks and Security Risk Controls</h2>
+        <p>To reduce automated registration, password reset abuse, account recovery abuse, and email sending abuse, the Tool may use Cloudflare Turnstile or an equivalent bot check / proof-of-work mechanism on security-sensitive flows such as registration, password reset, and account recovery. Turnstile may process technical information related to a verification request, such as browser environment signals, device and network signals, verification results, access time, IP address, and necessary security cookies, to determine whether a request is from a genuine user and to prevent abuse.</p>
+        <p className="mt-2">When Cloudflare Turnstile is enabled, the service is provided by Cloudflare and is governed by Cloudflare&apos;s applicable terms. You can review the <a href="https://www.cloudflare.com/cloudflare-customer-dpa/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare Data Processing Addendum</a>, <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare Privacy Policy</a>, and <a href="https://www.cloudflare.com/website-terms/" target="_blank" rel="noopener noreferrer" className="text-endfield-yellow hover:underline">Cloudflare Website Terms</a> for Cloudflare&apos;s data handling rules. We do not store raw Turnstile tokens or Cloudflare secrets in our own database; we only keep desensitized risk summaries, verification status, and necessary security audit records.</p>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-2">8. Your Rights</h2>
         <p>You have the following rights:</p>
         <ul className="list-disc pl-6 mt-2 space-y-1">
           <li><strong>Access</strong>: review the personal data stored for you inside the Tool.</li>
@@ -78,17 +84,17 @@ export default function PrivacyPolicyEnglishContent() {
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">8. Protection of Minors</h2>
+        <h2 className="text-lg font-semibold mb-2">9. Protection of Minors</h2>
         <p>The Tool is not intended for children under 14 years old. If you are under 14, please use the Tool only under the supervision of a parent or legal guardian.</p>
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">9. Policy Updates</h2>
+        <h2 className="text-lg font-semibold mb-2">10. Policy Updates</h2>
         <p>We may update this Privacy Policy from time to time. Updated versions will be published on this page. For material changes, we may also provide notice through in-site announcements. Continued use of the Tool means you accept the updated policy.</p>
       </section>
 
       <section>
-        <h2 className="text-lg font-semibold mb-2">10. Contact</h2>
+        <h2 className="text-lg font-semibold mb-2">11. Contact</h2>
         <p>If you have any questions or suggestions about this Privacy Policy, you can contact us through:</p>
         <ul className="list-disc pl-6 mt-2 space-y-1">
           <li>In-site ticket system</li>

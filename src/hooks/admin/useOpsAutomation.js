@@ -1,33 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as opsAutomationService from '../../services/admin/opsAutomationService';
-
-function formatAnnouncementSyncMessage(result, refreshMode) {
-  const summary = result?.announcements || {};
-  const synced = Number(summary.synced || 0);
-  const summarized = Number(summary.summarized || 0);
-  const skipped = Number(summary.skipped || 0);
-  const total = Number(summary.total || 0);
-  const summaryFailed = Number(summary.summaryFailed || 0);
-  const announcementLimit = Number(summary.announcementLimit || 0);
-  const mode = summary.refreshMode || refreshMode || 'incremental';
-  const limitSuffix = mode === 'all' && announcementLimit > 0 ? `，范围 ${announcementLimit} 条` : '';
-  const firstSummaryError = Array.isArray(summary.summaryErrors)
-    ? summary.summaryErrors.find(error => error?.error)
-    : null;
-  const failureSuffix = summaryFailed > 0
-    ? `，摘要失败 ${summaryFailed} 条${firstSummaryError ? `（首个原因：${firstSummaryError.error}）` : ''}`
-    : '';
-
-  if (mode === 'all') {
-    return `全部公告强制刷新完成：处理 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${limitSuffix}${failureSuffix}`;
-  }
-
-  if (mode === 'summary') {
-    return `公告摘要强制刷新完成：重算 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${failureSuffix}`;
-  }
-
-  return `公告增量同步完成：新处理 ${summarized} 条，写入 ${synced} 条，跳过 ${skipped}/${total} 条${failureSuffix}`;
-}
+import { buildOpsAutomationTriggerMessage } from '../../utils/opsAutomationRunSummary';
 
 export function useOpsAutomation(showToast) {
   const [runs, setRuns] = useState([]);
@@ -40,6 +13,7 @@ export function useOpsAutomation(showToast) {
   const [syncing, setSyncing] = useState(false);
   const [forceRefreshing, setForceRefreshing] = useState(false);
   const [fullRefreshing, setFullRefreshing] = useState(false);
+  const [runningJobId, setRunningJobId] = useState(null);
   const [setupIssue, setSetupIssue] = useState(null);
 
   const loadRuns = useCallback(async () => {
@@ -68,41 +42,64 @@ export function useOpsAutomation(showToast) {
     await loadRuns();
   }, [loadRuns]);
 
-  const triggerSync = useCallback(async ({
+  const triggerJob = useCallback(async (jobId = 'official-announcements', {
     forceRefresh = false,
     refreshMode = forceRefresh ? 'summary' : 'incremental',
     announcementLimit = null,
   } = {}) => {
-    if (refreshMode === 'all') {
+    const isAnnouncementJob = jobId === 'official-announcements';
+    if (isAnnouncementJob && refreshMode === 'all') {
       setFullRefreshing(true);
-    } else if (refreshMode === 'summary') {
+    } else if (isAnnouncementJob && refreshMode === 'summary') {
       setForceRefreshing(true);
-    } else {
+    } else if (isAnnouncementJob) {
       setSyncing(true);
+    } else {
+      setRunningJobId(jobId);
     }
     try {
-      const result = await opsAutomationService.triggerManualSync('official-announcements', {
+      const result = await opsAutomationService.triggerManualSync(jobId, {
         forceRefresh: forceRefresh || refreshMode !== 'incremental',
         refreshMode,
         announcementLimit,
       });
       if (showToast) {
-        showToast(formatAnnouncementSyncMessage(result, refreshMode), 'success');
+        showToast(buildOpsAutomationTriggerMessage(jobId, result, refreshMode), result?.partial ? 'warning' : 'success');
       }
       await loadRuns();
       return result;
     } catch (error) {
-      if (showToast) showToast(`公告同步失败: ${error.message}`, 'error');
+      if (showToast) showToast(`${jobId === 'official-announcements' ? '公告同步' : '自动化任务'}失败: ${error.message}`, 'error');
     } finally {
-      if (refreshMode === 'all') {
+      if (isAnnouncementJob && refreshMode === 'all') {
         setFullRefreshing(false);
-      } else if (refreshMode === 'summary') {
+      } else if (isAnnouncementJob && refreshMode === 'summary') {
         setForceRefreshing(false);
-      } else {
+      } else if (isAnnouncementJob) {
         setSyncing(false);
+      } else {
+        setRunningJobId(null);
       }
     }
   }, [showToast, loadRuns]);
+
+  const triggerSync = useCallback((options = {}) => (
+    triggerJob('official-announcements', options)
+  ), [triggerJob]);
+
+  const rerunRun = useCallback(async (run) => {
+    if (!run?.job_id) {
+      return undefined;
+    }
+
+    const summary = run.summary || {};
+    const opsInput = summary.ops?.input || {};
+    return triggerJob(run.job_id, {
+      forceRefresh: Boolean(summary.forceRefresh || opsInput.forceRefresh),
+      refreshMode: summary.refreshMode || opsInput.refreshMode || 'incremental',
+      announcementLimit: summary.announcementLimit ?? opsInput.announcementLimit ?? null,
+    });
+  }, [triggerJob]);
 
   return {
     filters,
@@ -111,9 +108,12 @@ export function useOpsAutomation(showToast) {
     syncing,
     forceRefreshing,
     fullRefreshing,
+    runningJobId,
     setupIssue,
     refreshRuns,
     setFilters,
+    triggerJob,
+    rerunRun,
     triggerSync,
   };
 }

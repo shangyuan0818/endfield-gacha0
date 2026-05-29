@@ -3,8 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Footer from './components/layout/Footer';
 import GachaModals from './components/modals/GachaModals';
 import DataImportWizardModal from './components/modals/DataImportWizardModal';
-import { LoadingBar } from './components/ui';
-import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight } from './hooks';
+import { LoadingBar, NotificationCenter } from './components/ui';
+import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight, useDurableNotifications } from './hooks';
 import { useAuthStore, useAppStore, useHistoryStore, usePoolStore } from './stores';
 import { getDesktopPathForTab, getDesktopTabFromPath, normalizeAppTab } from './constants/appRoutes';
 import AppHeader from './components/layout/AppHeader';
@@ -13,11 +13,15 @@ import { extractDrawerFromPoolName } from './utils';
 import { isPoolGroupId } from './stores/usePoolStore';
 import { getPreferredPool } from './utils/poolSelectionUtils';
 import { STORAGE_KEYS, writeStorageValue } from './utils/storageUtils.js';
+import { subscribePublicCacheWarnings } from './services/admin/publicCacheService.js';
+import { buildPublicCacheWarningNotification } from './utils/notificationModel.js';
+import { useI18n } from './i18n/index.js';
 
 export default function GachaAnalyzer() {
   // --- 从 Zustand Stores 获取状态 ---
   const location = useLocation();
   const navigate = useNavigate();
+  const { locale } = useI18n();
 
   // 认证状态
   const user = useAuthStore(state => state.user);
@@ -64,7 +68,20 @@ export default function GachaAnalyzer() {
 
   // 0.2 通用弹窗
   const { toasts, showToast, removeToast } = useToast();
+  const {
+    notifications: durableNotifications,
+    unreadCount: durableUnreadCount,
+    addNotification: addDurableNotification,
+    markRead: markDurableNotificationRead,
+    markAllRead: markAllDurableNotificationsRead,
+    dismissNotification: dismissDurableNotification,
+    clearRead: clearReadDurableNotifications,
+  } = useDurableNotifications();
   const { confirmState, handleConfirm, handleCancel } = useConfirm();
+
+  useEffect(() => subscribePublicCacheWarnings((event) => {
+    addDurableNotification(buildPublicCacheWarningNotification(event, { locale }));
+  }), [addDurableNotification, locale]);
 
   // 云同步 Hook - 提供所有云端数据操作函数
   const {
@@ -230,7 +247,7 @@ export default function GachaAnalyzer() {
     handleExportEndgachaKwerTopPlainTXT,
     handleImportFile,
     confirmImport
-  } = useDataExportImport({ showToast, cloudSync });
+  } = useDataExportImport({ showToast, cloudSync, addDurableNotification });
 
   // --- Effects ---
 
@@ -354,6 +371,7 @@ export default function GachaAnalyzer() {
           handleExportEndfieldGachaHelperUserDataZip={handleExportEndfieldGachaHelperUserDataZip}
           handleExportEndgachaKwerTopPlainJSON={handleExportEndgachaKwerTopPlainJSON}
           handleExportEndgachaKwerTopPlainTXT={handleExportEndgachaKwerTopPlainTXT}
+          addDurableNotification={addDurableNotification}
         />
       </main>
 
@@ -385,10 +403,20 @@ export default function GachaAnalyzer() {
         pendingImport={pendingImport}
         setPendingImport={setPendingImport}
         confirmImport={confirmImport}
+        addDurableNotification={addDurableNotification}
         showMigrateModal={showMigrateModal}
         setShowMigrateModal={setShowMigrateModal}
         migrateLocalToCloud={migrateLocalToCloud}
         canEdit={canEdit}
+      />
+
+      <NotificationCenter
+        notifications={durableNotifications}
+        unreadCount={durableUnreadCount}
+        onMarkRead={markDurableNotificationRead}
+        onMarkAllRead={markAllDurableNotificationsRead}
+        onDismiss={dismissDurableNotification}
+        onClearRead={clearReadDurableNotifications}
       />
 
       <style>{`

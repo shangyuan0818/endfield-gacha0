@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import OracleCaptchaHub from '../../components/captcha/OracleCaptchaHub';
+import SiteGateCaptcha from '../../components/captcha/SiteGateCaptcha';
 import { warmupApplication } from '../../services/appWarmupService';
 import { useI18n } from '../../i18n/index.js';
 import { readNumberStorageValue, STORAGE_KEYS, writeNumberStorageValue } from '../../utils/storageUtils.js';
@@ -234,7 +234,7 @@ const MobileLoadingScreen = ({ onComplete }) => {
       {stage === 'captcha' && (
         <div className="relative z-10 flex flex-col items-center justify-center min-h-[100dvh] w-full animate-fadeIn px-3 py-8">
           <div className="w-full flex justify-center">
-            <OracleCaptchaHub isMobile onVerified={handleCaptchaVerified} />
+            <SiteGateCaptcha isMobile onVerified={handleCaptchaVerified} />
           </div>
         </div>
       )}

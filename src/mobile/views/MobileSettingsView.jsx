@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
-  AlertTriangle, X, Database, LogOut, ChevronRight, Globe
+  AlertTriangle, X, Database, LogOut, ChevronRight, Globe, Mail, CheckCircle2
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
@@ -10,7 +10,6 @@ import useHistoryStore from '../../stores/useHistoryStore';
 import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { useCloudSync } from '../../hooks/app';
 import { useToast } from '../../hooks';
-import { supabase } from '../../supabaseClient';
 import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
 import PlatformBindingsSection from '../../components/settings/PlatformBindingsSection.jsx';
@@ -19,6 +18,17 @@ import UsernameEditDialog from '../../components/settings/UsernameEditDialog.jsx
 import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
+import {
+  AuthRateLimitError,
+  loadAccountSecurityState,
+  updatePasswordWithCurrentPassword,
+} from '../../services/accountSecurityService.js';
+import {
+  AccountEmailActionError,
+  isUserEmailVerified,
+  requestCurrentEmailVerification,
+  requestEmailChange,
+} from '../../services/accountEmailService.js';
 import { deleteOwnAccount } from '../../services/selfAccountService';
 import { updateOwnUsername } from '../../services/accountProfileService.js';
 import { finalizeDeletedAccountSession } from '../../utils/finalizeDeletedAccountSession';
@@ -33,6 +43,11 @@ import {
   getFreshnessTone
 } from '../../utils/dataFreshness.js';
 import { getAccountLastImportTimestamp } from '../../utils/accountFreshness.js';
+import {
+  getPrimaryAccountPasswordError,
+  isInvalidCurrentPasswordError,
+  validateAccountPassword,
+} from '../../utils/authSecurity.js';
 import { useI18n } from '../../i18n/index.js';
 import { localizeGameAccountServerTag } from '../../utils/gameAccountMetadata.js';
 
@@ -46,6 +61,71 @@ function getFreshnessToneClasses(tone) {
       return 'border-red-500/30 bg-red-500/12 text-red-300';
     default:
       return 'border-zinc-200 bg-zinc-50 text-slate-500 dark:border-white/8 dark:bg-white/[0.03] dark:text-zinc-400';
+  }
+}
+
+function getPasswordPolicyMessage(errorCode, t) {
+  switch (errorCode) {
+    case 'required':
+    case 'too_short':
+      return t('settings.error.passwordTooShort');
+    case 'too_long':
+      return t('settings.error.passwordTooLong');
+    case 'too_simple':
+      return t('settings.error.passwordTooSimple');
+    default:
+      return t('settings.error.passwordUpdateFailed');
+  }
+}
+
+function formatSecurityDeadline(value, locale) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function getAccountEmailErrorMessage(error, t) {
+  const code = error instanceof AccountEmailActionError ? error.code : error?.code;
+  switch (code) {
+    case 'current_password_required':
+      return t('settings.error.currentPasswordRequired');
+    case 'invalid_current_password':
+      return t('settings.error.currentPasswordIncorrect');
+    case 'new_email_invalid':
+    case 'current_email_invalid':
+      return t('settings.error.emailInvalid');
+    case 'email_unchanged':
+      return t('settings.error.emailUnchanged');
+    case 'email_already_registered':
+      return t('settings.error.emailAlreadyRegistered');
+    case 'auth_mail_disabled':
+      return t('settings.error.emailMailDisabled');
+    case 'mail_kill_switch_enabled':
+      return t('settings.error.emailMailPaused');
+    case 'mail_event_disabled':
+      return t('settings.error.emailEventDisabled');
+    case 'mail_domain_paused':
+      return t('settings.error.emailDomainPaused');
+    default:
+      if (error instanceof AccountEmailActionError && error.partial) {
+        return t('settings.error.emailChangePartial');
+      }
+      return error?.message || t('settings.error.emailActionFailed');
   }
 }
 
@@ -76,6 +156,7 @@ function MobileSettingsView() {
 
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -88,6 +169,14 @@ function MobileSettingsView() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccess, setEmailSuccess] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState('');
+  const [accountSecurityState, setAccountSecurityState] = useState(null);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
 
@@ -111,6 +200,44 @@ function MobileSettingsView() {
   }, [getGameAccountsFromHistory, history]);
   const currentUsername = useMemo(() => getPreferredUsername(user), [user]);
   const currentUsernameHandle = useMemo(() => buildUsernameHandle(user), [user]);
+  const emailVerificationRequired = userRole !== 'super_admin' && Boolean(accountSecurityState?.emailVerificationRequired);
+  const emailVerified = useMemo(
+    () => isUserEmailVerified(user, { emailVerificationRequired }),
+    [emailVerificationRequired, user]
+  );
+  const pendingEmailChange = user?.new_email || null;
+  const passwordChangeRequired = Boolean(accountSecurityState?.passwordChangeRequired);
+  const passwordChangeExpiresAt = useMemo(
+    () => formatSecurityDeadline(accountSecurityState?.expiresAt, locale),
+    [accountSecurityState?.expiresAt, locale]
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!user?.id) {
+      setAccountSecurityState(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    loadAccountSecurityState()
+      .then((state) => {
+        if (!cancelled) {
+          setAccountSecurityState(state || null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccountSecurityState(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const getRoleInfo = (role) => {
     switch (role) {
@@ -149,6 +276,7 @@ function MobileSettingsView() {
   const resetPasswordModalState = () => {
     setPasswordError('');
     setPasswordSuccess('');
+    setCurrentPassword('');
     setNewPassword('');
     setConfirmNewPassword('');
   };
@@ -159,8 +287,14 @@ function MobileSettingsView() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError(t('settings.error.passwordTooShort'));
+    if (!currentPassword) {
+      setPasswordError(t('settings.error.currentPasswordRequired'));
+      return;
+    }
+
+    const passwordValidation = validateAccountPassword(newPassword);
+    if (!passwordValidation.isValid) {
+      setPasswordError(getPasswordPolicyMessage(getPrimaryAccountPasswordError(passwordValidation), t));
       return;
     }
 
@@ -174,21 +308,113 @@ function MobileSettingsView() {
     setPasswordLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const passwordResult = await updatePasswordWithCurrentPassword({
+        email: user.email,
+        currentPassword,
+        newPassword,
       });
 
-      if (error) throw error;
+      if (passwordResult?.state) {
+        setAccountSecurityState(passwordResult.state);
+      } else if (passwordResult?.securityStateUpdated) {
+        setAccountSecurityState((prev) => ({
+          ...(prev || {}),
+          passwordChangeRequired: false,
+        }));
+      }
 
-      setPasswordSuccess(t('settings.success.passwordUpdated'));
+      setPasswordSuccess(
+        passwordResult?.securityStateError
+          ? t('settings.warning.passwordStateClearFailed')
+          : t('settings.success.passwordUpdated')
+      );
       setTimeout(() => {
         setShowPasswordModal(false);
         resetPasswordModalState();
       }, 2000);
     } catch (error) {
-      setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+      if (error instanceof AuthRateLimitError) {
+        const retryMinutes = Math.max(1, Math.ceil(Number(error.retryAfter || 60) / 60));
+        setPasswordError(t('settings.error.passwordChangeRateLimited', { minutes: retryMinutes }));
+      } else if (isInvalidCurrentPasswordError(error)) {
+        setPasswordError(t('settings.error.currentPasswordIncorrect'));
+      } else {
+        setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+      }
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const resetEmailModalState = () => {
+    setEmailError('');
+    setEmailSuccess('');
+    setNewEmail('');
+    setEmailCurrentPassword('');
+  };
+
+  const handleVerifyEmail = async () => {
+    if (!user) {
+      showToast(t('settings.error.notLoggedInEmail'), 'error');
+      return;
+    }
+
+    setEmailVerificationLoading(true);
+    try {
+      const result = await requestCurrentEmailVerification({ locale });
+      const status = result?.data?.status;
+      showToast(
+        status === 'already_verified'
+          ? t('settings.success.emailAlreadyVerified')
+          : t('settings.success.emailVerificationSent'),
+        'success'
+      );
+    } catch (error) {
+      showToast(getAccountEmailErrorMessage(error, t), 'error');
+    } finally {
+      setEmailVerificationLoading(false);
+    }
+  };
+
+  const handleEmailChangeRequest = async () => {
+    if (!user) {
+      setEmailError(t('settings.error.notLoggedInEmail'));
+      return;
+    }
+
+    if (!newEmail.trim()) {
+      setEmailError(t('settings.error.emailInvalid'));
+      return;
+    }
+
+    if (!emailCurrentPassword) {
+      setEmailError(t('settings.error.currentPasswordRequired'));
+      return;
+    }
+
+    setEmailError('');
+    setEmailSuccess('');
+    setEmailLoading(true);
+
+    try {
+      const result = await requestEmailChange({
+        newEmail,
+        currentPassword: emailCurrentPassword,
+        locale,
+      });
+      const successMessage = result?.data?.dryRun
+        ? t('settings.success.emailChangeDryRun')
+        : t('settings.success.emailChangeRequested');
+      setEmailSuccess(successMessage);
+      showToast(successMessage, 'success');
+      setTimeout(() => {
+        setShowEmailModal(false);
+        resetEmailModalState();
+      }, 2400);
+    } catch (error) {
+      setEmailError(getAccountEmailErrorMessage(error, t));
+    } finally {
+      setEmailLoading(false);
     }
   };
 
@@ -315,11 +541,61 @@ function MobileSettingsView() {
                   {currentUsernameHandle || t('settings.mobile.unnamedUser')}
                 </p>
                 <p className="text-xs text-zinc-500 truncate font-mono uppercase tracking-wide">{user.email}</p>
-                <div className={`mt-2 inline-flex items-center rounded-full px-2 py-0.5 border ${roleInfo.badgeClass}`}>
-                  <span className={`text-[9px] font-bold uppercase ${roleInfo.textClass}`}>
-                    {roleInfo.label}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${
+                    emailVerified
+                      ? 'border-emerald-400/30 bg-emerald-500/12 text-emerald-300'
+                      : 'border-amber-400/30 bg-amber-500/12 text-amber-300'
+                  }`}>
+                    {emailVerified ? <CheckCircle2 size={10} /> : <AlertTriangle size={10} />}
+                    <span className="text-[9px] font-bold uppercase">
+                      {emailVerified ? t('settings.emailVerified') : t('settings.emailUnverified')}
+                    </span>
+                  </span>
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 border ${roleInfo.badgeClass}`}>
+                    <span className={`text-[9px] font-bold uppercase ${roleInfo.textClass}`}>
+                      {roleInfo.label}
+                    </span>
                   </span>
                 </div>
+                {pendingEmailChange && (
+                  <p className="mt-2 text-[10px] leading-4 text-amber-600 dark:text-amber-300">
+                    {t('settings.pendingEmailChange', { value: pendingEmailChange })}
+                  </p>
+                )}
+                {emailVerificationRequired && (
+                  <p className="mt-2 text-[10px] leading-4 text-amber-600 dark:text-amber-300">
+                    {t('settings.emailVerificationRequired')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="px-4 py-4 space-y-3">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                {t('settings.email')}
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {!emailVerified && (
+                  <button
+                    type="button"
+                    onClick={handleVerifyEmail}
+                    disabled={emailVerificationLoading}
+                    className="w-full rounded-[0.95rem] border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm font-bold uppercase tracking-widest text-amber-700 transition-all hover:bg-amber-400 hover:text-black disabled:opacity-60 dark:text-amber-300"
+                  >
+                    {emailVerificationLoading ? t('settings.emailVerificationSending') : t('settings.verifyEmail')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetEmailModalState();
+                    setShowEmailModal(true);
+                  }}
+                  className="w-full rounded-[0.95rem] border border-zinc-300 bg-white px-4 py-3 text-sm font-bold uppercase tracking-widest text-zinc-700 transition-all hover:border-endfield-yellow hover:text-zinc-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-zinc-200 dark:hover:border-endfield-yellow"
+                >
+                  {t('settings.changeEmail')}
+                </button>
               </div>
             </div>
 
@@ -338,6 +614,26 @@ function MobileSettingsView() {
                 {t('settings.changeUsername')}
               </button>
             </div>
+
+            {passwordChangeRequired && (
+              <div className="px-4 py-4 bg-amber-500/10">
+                <div className="rounded-[0.95rem] border border-amber-400/30 bg-amber-500/10 px-3 py-3 text-amber-200">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 space-y-1">
+                      <div className="text-[10px] font-bold uppercase tracking-widest">
+                        {t('settings.passwordChangeRequiredTitle')}
+                      </div>
+                      <div className="text-[11px] leading-5 text-amber-100/90">
+                        {passwordChangeExpiresAt
+                          ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
+                          : t('settings.passwordChangeRequiredDesc')}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 修改密码 */}
             <button
@@ -609,6 +905,81 @@ function MobileSettingsView() {
         variant="mobile"
       />
 
+      {/* 更换邮箱弹窗 */}
+      {showEmailModal && (
+        <div className="mobile-ux-modal">
+          <div className="mobile-ux-modal-card animate-scale-up">
+            <div className="mobile-ux-modal-header">
+              <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-zinc-100">
+                <Mail size={16} />
+                {t('settings.emailModalTitle')}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEmailModal(false);
+                  resetEmailModalState();
+                }}
+                className="rounded-full border border-zinc-200 bg-zinc-50 p-1 touch-feedback transition-colors hover:bg-zinc-100 dark:border-white/8 dark:bg-white/5 dark:hover:bg-white/10"
+              >
+                <X size={18} className="text-slate-500 dark:text-zinc-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
+                {t('settings.emailModalDesc')}
+              </p>
+              {emailError && (
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--danger flex items-start gap-2 px-3 py-2 text-xs text-red-300">
+                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                  <span>{emailError}</span>
+                </div>
+              )}
+              {emailSuccess && (
+                <div className="mobile-ux-soft-card mobile-ux-soft-card--success flex items-start gap-2 px-3 py-2 text-xs text-emerald-300">
+                  <Mail size={14} className="shrink-0 mt-0.5" />
+                  <span>{emailSuccess}</span>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    {t('settings.newEmail')}
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(event) => setNewEmail(event.target.value)}
+                    placeholder={t('settings.newEmailPlaceholder')}
+                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    {t('settings.currentPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={emailCurrentPassword}
+                    onChange={(event) => setEmailCurrentPassword(event.target.value)}
+                    placeholder={t('settings.currentPasswordPlaceholder')}
+                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleEmailChangeRequest}
+                disabled={emailLoading || !!emailSuccess}
+                className="w-full rounded-full bg-endfield-yellow py-3 text-xs font-bold uppercase tracking-widest text-black touch-feedback disabled:opacity-50 transition-colors hover:bg-yellow-400 disabled:bg-zinc-700"
+              >
+                {emailLoading ? t('settings.emailChangeSending') : emailSuccess ? t('settings.emailChangeSent') : t('settings.emailChangeAction')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 修改密码弹窗 */}
       {showPasswordModal && (
         <div className="mobile-ux-modal">
@@ -643,6 +1014,18 @@ function MobileSettingsView() {
               )}
 
               <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                    {t('settings.currentPassword')}
+                  </label>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(event) => setCurrentPassword(event.target.value)}
+                    placeholder={t('settings.currentPasswordPlaceholder')}
+                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
+                  />
+                </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
                     {t('settings.newPassword')}
@@ -700,7 +1083,7 @@ function MobileSettingsView() {
                   <span>{deleteError}</span>
                 </div>
               )}
-              
+
               <div className="mobile-ux-soft-card mobile-ux-soft-card--danger mb-4 p-3 text-left">
                 <p className="text-[10px] text-red-400 uppercase font-bold mb-2">{t('settings.deleteDataTargetTitle')}</p>
                 <ul className="space-y-1 font-mono text-xs text-red-300">
@@ -711,7 +1094,7 @@ function MobileSettingsView() {
               <p className="text-xs text-zinc-500 mb-3">
                 {t('settings.deleteDataModalKeepAccount')}
               </p>
-              
+
               <p className="text-xs text-zinc-500 mb-3">
                 {t('settings.deleteDataConfirmPrompt', { phrase: deletePhrase })}
               </p>

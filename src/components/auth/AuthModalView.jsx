@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useI18n } from '../../i18n/index.js';
+import AuthCaptchaBox from '../captcha/AuthCaptchaBox.jsx';
 
 export default function AuthModalView({
   agreedToTerms,
@@ -28,6 +29,9 @@ export default function AuthModalView({
   error,
   forgotPasswordStatus,
   hasEmailError,
+  captchaAction,
+  captchaReady,
+  onCaptchaStateChange,
   loading,
   message,
   mode,
@@ -38,11 +42,11 @@ export default function AuthModalView({
   onPasswordChange,
   onAddRecoveryClaim,
   onSubmit,
+  onEmailLogin,
   onSubmitRecoveryRequest,
   onSwitchMode,
   onSwitchToForgotPassword,
   onSwitchToLoginWithEmail,
-  onSwitchToRegisterWithEmail,
   onOpenRecoveryRequest,
   onCloseRecoveryRequest,
   onRecoveryClaimChange,
@@ -54,10 +58,12 @@ export default function AuthModalView({
   recoveryRequestError,
   recoveryRequestForm,
   recoveryRequestLoading,
+  recoverySubmitDisabled,
   recoveryRequestSuccess,
   resendCooldown,
   showDuplicateEmailPrompt,
   submitDisabled,
+  emailLoginDisabled,
   username,
 }) {
   const { isEnglish } = useI18n();
@@ -122,10 +128,10 @@ export default function AuthModalView({
               {mode === 'login'
                 ? tt('登录以同步你的抽卡数据到云端', 'Sign in to sync your pull history to the cloud.')
                 : mode === 'register'
-                  ? tt('注册后可多设备同步数据', 'Create an account to sync across devices.')
+                  ? tt('注册后会先发送邮箱验证邮件，完成验证后即可登录并同步数据。', 'Registration sends an email confirmation first. Confirm it, then sign in and sync your data.')
                   : tt(
-                    '输入邮箱地址，先检查该账号是否已注册。当前版本未启用邮件找回，已注册账号只能提交人工恢复申请。',
-                    'Enter your email first. We will check whether the account exists before showing the available recovery options.'
+                    '输入邮箱地址，系统会优先发送密码重置邮件。多次收不到邮件时，再提交人工恢复申请。',
+                    'Enter your email address. We will send a password reset email first. Use manual recovery only if emails repeatedly do not arrive.'
                   )}
             </p>
           </div>
@@ -232,44 +238,24 @@ export default function AuthModalView({
             )}
           </div>
 
-          {mode === 'forgotPassword' && forgotPasswordStatus === 'registered' && (
+          {mode === 'forgotPassword' && forgotPasswordStatus === 'checked' && (
             <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-none p-4">
               <div className="flex items-start gap-3">
                 <CheckCircle2 size={20} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-emerald-800 dark:text-emerald-300 font-medium mb-2">
-                    {tt('该邮箱已注册', 'This Email Is Registered')}
+                    {tt('重置邮件请求已接收', 'Reset Email Request Received')}
                   </p>
                   <p className="text-sm text-emerald-700 dark:text-emerald-400 mb-3">
                     {tt(
-                      '当前版本未启用邮件找回，也不允许仅凭邮箱直接修改密码。若你还有已登录设备，请直接前往“设置 > 修改密码”；若完全无法登录，可提交人工恢复或旧账号注销申请。',
-                      'Email reset is not enabled in this build. If you still have a signed-in device, go to Settings > Change Password. Otherwise, submit a manual recovery or account deletion request.'
+                      '如果该邮箱存在可恢复账号，你会收到一封带按钮的密码重置邮件。为了保护账号安全，页面不会确认邮箱是否存在。',
+                      'If this email matches a recoverable account, you will receive a styled password reset email. To protect accounts, this page does not confirm whether the address exists.'
                     )}
                   </p>
                   <div className="mb-3 border border-emerald-200 dark:border-emerald-800 bg-white/70 dark:bg-black/20 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
-                    {isEnglish ? (
-                      <>
-                        If a temporary password has been approved, join
-                        {' '}
-                        <a
-                          href={ENGLISH_COMMUNITY_DISCORD_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-bold underline underline-offset-2"
-                        >
-                          Discord
-                        </a>
-                        {' '}
-                        to receive it, then change your password in Settings right after signing in.
-                      </>
-                    ) : (
-                      <>
-                        若超管核验通过并为你设置了临时密码，请加入 QQ 群
-                        {' '}
-                        <span className="font-mono font-bold">{ACCOUNT_RECOVERY_QQ_GROUP}</span>
-                        {' '}
-                        获取临时密码，并在登录后立即到设置页修改密码。
-                      </>
+                    {tt(
+                      '请检查收件箱、垃圾邮件夹和邮箱规则。若连续多次收不到邮件，或你已经无法访问该邮箱，再使用下方人工恢复。',
+                      'Check inbox, spam, and mailbox rules. If email still does not arrive after repeated attempts, or you no longer have access to the mailbox, use manual recovery below.'
                     )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -282,7 +268,7 @@ export default function AuthModalView({
                           : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700'
                       }`}
                     >
-                      {tt('申请人工恢复', 'Manual Recovery')}
+                      {tt('收不到邮件，人工恢复', 'No Email, Manual Recovery')}
                     </button>
                     <button
                       type="button"
@@ -308,7 +294,7 @@ export default function AuthModalView({
             </div>
           )}
 
-          {mode === 'forgotPassword' && forgotPasswordStatus === 'registered' && recoveryRequestForm.requestType && (
+          {mode === 'forgotPassword' && forgotPasswordStatus === 'checked' && recoveryRequestForm.requestType && (
             <div className="border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -318,8 +304,8 @@ export default function AuthModalView({
                   </p>
                   <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
                     {tt(
-                      '请尽量填写你曾上传过的 UID 和游戏内昵称。当前版本没有邮件和匿名站内回传，申请只会进入超管审核队列。',
-                      'Add the UID and in-game names you have uploaded before. Requests go into the super-admin review queue only; there is no email or anonymous in-site reply flow yet.'
+                      '仅在多次收不到重置邮件、邮箱不可访问或需要注销旧账号时填写。请尽量填写你曾上传过的 UID 和游戏内昵称。',
+                      'Use this only when reset emails repeatedly do not arrive, the mailbox is unavailable, or you need to delete an old account. Add UIDs and in-game names you uploaded before.'
                     )}
                   </p>
                 </div>
@@ -340,8 +326,8 @@ export default function AuthModalView({
                       <div className="font-medium">{tt('恢复申请已提交', 'Request Submitted')}</div>
                       <div className="mt-1">
                         {tt(
-                          '超管会根据你填写的 UID、昵称和说明进行人工核验。当前系统不会向未登录用户发放自动重置入口。',
-                          'A super admin will verify the UID, nickname, and notes you provided. Automatic reset links are not sent to signed-out users.'
+                          '管理员会根据你填写的 UID、昵称和说明进行人工核验。通过后会按人工恢复流程继续处理。',
+                          'An administrator will verify the UID, nickname, and notes you provided, then continue the manual recovery flow if approved.'
                         )}
                       </div>
                       <div className="mt-2">
@@ -467,7 +453,7 @@ export default function AuthModalView({
               <button
                 type="button"
                 onClick={onSubmitRecoveryRequest}
-                disabled={recoveryRequestLoading}
+                disabled={recoverySubmitDisabled ?? recoveryRequestLoading}
                 className="w-full min-h-[48px] bg-endfield-yellow hover:bg-yellow-400 disabled:bg-yellow-300 dark:disabled:bg-yellow-600 disabled:cursor-not-allowed text-black font-bold uppercase tracking-wider py-3 rounded-none flex items-center justify-center gap-2 transition-colors whitespace-normal text-center leading-tight"
               >
                 {recoveryRequestLoading ? (
@@ -477,31 +463,6 @@ export default function AuthModalView({
                 )}
                 {tt(`提交${recoveryRequestTypeLabel}`, 'Submit Request')}
               </button>
-            </div>
-          )}
-
-          {mode === 'forgotPassword' && forgotPasswordStatus === 'unregistered' && (
-            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-none p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle size={20} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-amber-800 dark:text-amber-300 font-medium mb-2">
-                    {tt('该邮箱尚未注册', 'This Email Is Not Registered')}
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
-                    {tt('邮箱 ', 'The address ')}
-                    <span className="font-mono bg-amber-100 dark:bg-amber-900/30 px-1 py-0.5 break-all">{email}</span>
-                    {tt(' 目前没有对应账号，请先注册后再使用云同步功能。', ' is not registered yet. Create an account first to use cloud sync.')}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={onSwitchToRegisterWithEmail}
-                    className="w-full min-h-[44px] bg-endfield-yellow hover:bg-yellow-400 text-black font-bold uppercase tracking-wider py-2 px-4 rounded-none transition-colors text-sm whitespace-normal text-center leading-tight"
-                  >
-                    {tt('使用此邮箱注册', 'Create Account')}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
@@ -516,9 +477,9 @@ export default function AuthModalView({
                   type="password"
                   value={password}
                   onChange={onPasswordChange}
-                  placeholder={mode === 'register' ? tt('至少 6 位字符', 'At least 6 characters') : tt('输入密码', 'Enter password')}
+                  placeholder={mode === 'register' ? tt('至少 8 位字符，包含两类字符', 'At least 8 characters with two character groups') : tt('输入密码', 'Enter password')}
                   required
-                  minLength={mode === 'register' ? 6 : undefined}
+                  minLength={mode === 'register' ? 8 : undefined}
                   className="w-full pl-10 pr-4 py-3 border border-zinc-200 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-600 focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all"
                 />
               </div>
@@ -539,9 +500,9 @@ export default function AuthModalView({
                     <div className="flex-1 h-1 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          password.length < 6
+                          password.length < 8
                             ? 'w-1/3 bg-red-500'
-                            : password.length < 10
+                            : password.length < 12
                               ? 'w-2/3 bg-amber-500'
                               : 'w-full bg-green-500'
                         }`}
@@ -549,19 +510,19 @@ export default function AuthModalView({
                     </div>
                     <span
                       className={`text-xs font-medium ${
-                        password.length < 6
+                        password.length < 8
                           ? 'text-red-500'
-                          : password.length < 10
+                          : password.length < 12
                             ? 'text-amber-500'
                             : 'text-green-500'
                       }`}
                     >
-                      {password.length < 6 ? tt('弱', 'Weak') : password.length < 10 ? tt('中', 'Medium') : tt('强', 'Strong')}
+                      {password.length < 8 ? tt('弱', 'Weak') : password.length < 12 ? tt('中', 'Medium') : tt('强', 'Strong')}
                     </span>
                   </div>
-                  {password.length < 6 && (
+                  {password.length < 8 && (
                     <p className="text-xs text-slate-500 dark:text-zinc-500 mt-1">
-                      {tt('至少需要 6 位字符', 'Use at least 6 characters.')}
+                      {tt('至少需要 8 位字符，并包含两类字符。', 'Use at least 8 characters and two character groups.')}
                     </p>
                   )}
                 </div>
@@ -591,7 +552,7 @@ export default function AuthModalView({
                   {tt('两次输入的密码不一致', 'The passwords do not match.')}
                 </p>
               )}
-              {confirmPassword && password === confirmPassword && password.length >= 6 && (
+              {confirmPassword && password === confirmPassword && password.length >= 8 && (
                 <p className="text-xs text-green-500 dark:text-green-400 mt-1 flex items-center gap-1">
                   <CheckCircle2 size={12} />
                   {tt('密码一致', 'Passwords match')}
@@ -617,6 +578,13 @@ export default function AuthModalView({
             </label>
           )}
 
+          {captchaAction && (
+            <AuthCaptchaBox
+              action={captchaAction}
+              onStateChange={onCaptchaStateChange}
+            />
+          )}
+
           <button
             type="submit"
             disabled={submitDisabled}
@@ -632,20 +600,40 @@ export default function AuthModalView({
             ) : mode === 'register' ? (
               <>
                 <UserPlus size={20} />
-                {tt('注册', 'Register')}
+                {captchaReady === false ? tt('等待验证', 'Waiting for Verification') : tt('发送验证邮件', 'Send Verification Email')}
               </>
             ) : resendCooldown > 0 ? (
               <>
                 <RefreshCw size={20} />
-                {tt(`${resendCooldown}秒后可重新检查`, `Retry in ${resendCooldown}s`)}
+                {tt(`${resendCooldown}秒后可重新发送`, `Retry in ${resendCooldown}s`)}
               </>
             ) : (
               <>
                 <KeyRound size={20} />
-                {tt('检查账号状态', 'Check Account')}
+                {tt('发送重置邮件', 'Send Reset Email')}
               </>
             )}
           </button>
+
+          {mode === 'login' && (
+            <button
+              type="button"
+              onClick={onEmailLogin}
+              disabled={emailLoginDisabled}
+              className="w-full min-h-[44px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed text-slate-700 dark:text-zinc-200 font-bold uppercase tracking-wider py-2 px-4 rounded-none flex items-center justify-center gap-2 transition-colors whitespace-normal text-center leading-tight"
+            >
+              {loading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : resendCooldown > 0 ? (
+                <RefreshCw size={18} />
+              ) : (
+                <Mail size={18} />
+              )}
+              {resendCooldown > 0
+                ? tt(`${resendCooldown}秒后可重新发送邮件登录`, `Email sign-in in ${resendCooldown}s`)
+                : tt('发送邮件登录链接', 'Send Email Sign-In Link')}
+            </button>
+          )}
         </form>
 
         <div className="px-6 py-4 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 text-center">

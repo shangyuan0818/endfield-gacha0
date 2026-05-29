@@ -4,8 +4,6 @@ import {
   rejectDisallowedBrowserOrigin
 } from '../../_lib/http.js';
 import {
-  ensureProfileForAuthUser,
-  findAuthUserByEmail,
   getSupabaseAdminClient
 } from '../../_lib/authAdmin.js';
 
@@ -76,23 +74,11 @@ export default async function handler(req, res) {
     });
   }
 
-  try {
-    const matchedUser = await findAuthUserByEmail(adminClient, normalizedEmail);
-    if (matchedUser) {
-      await ensureProfileForAuthUser(adminClient, matchedUser);
-    }
+  void adminClient;
 
-    const registered = Boolean(matchedUser);
-    return res.status(200).json({
-      success: true,
-      registered,
-      recoveryAvailable: false
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      error: error?.message || 'Lookup failed',
-      recoveryAvailable: false
-    });
-  }
+  return res.status(200).json({
+    success: true,
+    status: 'received',
+    recoveryAvailable: true
+  });
 }

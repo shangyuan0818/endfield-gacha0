@@ -16,12 +16,60 @@ import {
   encryptRevealSecret,
 } from '../../_lib/devApiSecrets.js';
 import { parseRequestedJobIds } from '../../_lib/opsAutomation.js';
-import { runOpsAutomationJobs } from '../../_lib/runOpsAutomation.js';
+import {
+  bumpPublicCacheEpoch,
+  refreshPublicAnalyticsCache,
+} from '../../_lib/publicCache.js';
+import { getRequesterIp } from '../../_lib/authSecurityGuards.js';
+import { enqueueMailOutboxEvent } from '../../_lib/mailOutbox.js';
+import { MAIL_EVENT_TYPES } from '../../_lib/mailAbuseGuards.js';
+import {
+  buildOpsAutomationHttpPayload,
+  runOpsAutomationJobs,
+} from '../../_lib/runOpsAutomation.js';
+import { runMailOutboxWorker } from '../../_lib/mailOutboxWorker.js';
+import { sendMailSmokeTest } from '../../_lib/mailSmokeTest.js';
+import {
+  buildMailRuntimeControls,
+  isRuntimeEventEnabled,
+  loadMailRuntimeState,
+  sanitizeMailRuntimeUpdate,
+  saveMailRuntimeConfig,
+} from '../../_lib/mailRuntimeConfig.js';
+import { serverLogger } from '../../_lib/serverLogger.js';
+import {
+  getPrimaryAccountPasswordError,
+  validateAccountPassword,
+} from '../../../src/utils/authSecurity.js';
+import {
+  appendRecoveryAuditEvent,
+  buildTemporaryPasswordIssueMetadata,
+} from '../../../src/utils/accountRecoveryFlow.js';
+import { buildAdminSiteHealth } from '../../_lib/adminSiteHealth.js';
 
 const PASSWORD_RESET_LIMIT = {
   windowMs: 10 * 60 * 1000,
   max: 20,
 };
+
+function getTemporaryPasswordError(password) {
+  const validation = validateAccountPassword(password);
+  if (validation.isValid) {
+    return null;
+  }
+
+  switch (getPrimaryAccountPasswordError(validation)) {
+    case 'required':
+    case 'too_short':
+      return 'Temporary password must be at least 8 characters';
+    case 'too_long':
+      return 'Temporary password must be 100 characters or fewer';
+    case 'too_simple':
+      return 'Temporary password must include at least two character groups';
+    default:
+      return 'Temporary password does not meet the security requirements';
+  }
+}
 
 function parseRequestBody(req) {
   if (!req.body) {
@@ -37,6 +85,31 @@ function parseRequestBody(req) {
   }
 
   return req.body;
+}
+
+function readEnvironment() {
+  return globalThis.process?.env || {};
+}
+
+function parseBoolean(value, defaultValue = false) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (!normalized) {
+    return defaultValue;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(normalized);
+}
+
+async function safeLoadMailRuntimeState(adminClient) {
+  try {
+    return await loadMailRuntimeState(adminClient);
+  } catch (error) {
+    serverLogger.warn('mail.runtime-config.load-failed', {
+      code: 'mail_runtime_config_load_failed',
+      message: String(error?.message || error || 'mail_runtime_config_load_failed').slice(0, 200),
+    });
+    return null;
+  }
 }
 
 function readAdminRoute(req) {
@@ -55,6 +128,13 @@ function readAdminRoute(req) {
       '/api/admin-user-reset-password': 'user-reset-password',
       '/api/admin-reset-recovery-password': 'reset-recovery-password',
       '/api/admin-ops-automation': 'ops-automation',
+      '/api/admin-public-cache-bump': 'public-cache-bump',
+      '/api/admin-site-health': 'site-health',
+      '/api/admin-mail-outbox-drain': 'mail-outbox-drain',
+      '/api/admin-mail-smoke-test': 'mail-smoke-test',
+      '/api/admin-mail-alert': 'mail-alert',
+      '/api/admin-mail-budget-config': 'mail-budget-config',
+      '/api/admin-mail-runtime-config': 'mail-runtime-config',
     };
 
     return pathnameRouteMap[normalizedPath] || '';
@@ -74,6 +154,12 @@ function getAdminRouteConfig(route) {
     case 'user-reset-password':
     case 'reset-recovery-password':
     case 'ops-automation':
+    case 'public-cache-bump':
+    case 'mail-outbox-drain':
+    case 'mail-smoke-test':
+    case 'mail-alert':
+    case 'mail-budget-config':
+    case 'mail-runtime-config':
     case 'api-clients-review':
     case 'api-clients-rotate-key':
     case 'api-clients-revoke-key':
@@ -84,6 +170,7 @@ function getAdminRouteConfig(route) {
         headers: 'Content-Type, Authorization',
       };
     case 'api-clients':
+    case 'site-health':
       return {
         methods: 'GET, OPTIONS',
         headers: 'Content-Type, Authorization',
@@ -273,10 +360,11 @@ async function handleUserResetPassword(req, res, adminClient) {
     });
   }
 
-  if (normalizedPassword.length < 6) {
+  const passwordError = getTemporaryPasswordError(normalizedPassword);
+  if (passwordError) {
     return res.status(400).json({
       success: false,
-      error: 'Temporary password must be at least 6 characters',
+      error: passwordError,
     });
   }
 
@@ -343,17 +431,18 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
     });
   }
 
-  if (normalizedPassword.length < 6) {
+  const passwordError = getTemporaryPasswordError(normalizedPassword);
+  if (passwordError) {
     return res.status(400).json({
       success: false,
-      error: 'Temporary password must be at least 6 characters',
+      error: passwordError,
     });
   }
 
   try {
     const { data: recoveryRequest, error: requestError } = await adminClient
       .from('account_recovery_requests')
-      .select('id, matched_user_id, request_type, status, admin_note')
+      .select('id, matched_user_id, request_type, status, admin_note, recovery_audit')
       .eq('id', normalizedRequestId)
       .single();
 
@@ -397,10 +486,39 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
       throw updateAuthError;
     }
 
+    const issueMetadata = buildTemporaryPasswordIssueMetadata({
+      actorUserId: authResult.callerUser.id,
+      requestId: normalizedRequestId,
+    });
+    const warnings = [];
+
+    const { error: securityStateError } = await adminClient
+      .from('account_security_states')
+      .upsert({
+        user_id: normalizedUserId,
+        ...issueMetadata.securityState,
+      }, {
+        onConflict: 'user_id',
+      });
+
+    if (securityStateError) {
+      warnings.push({
+        code: 'account_security_state_update_failed',
+        message: securityStateError.message || 'Failed to mark password change as required',
+      });
+    }
+
     const finalAdminNote = [
       normalizedAdminNote,
-      '已通过超管操作设置临时密码，请通过线下已确认的沟通渠道告知用户，并要求其登录后立即到设置页修改密码。',
+      `已通过超管操作设置临时密码。临时密码将在 ${issueMetadata.expiresAt} 过期；请通过线下已确认的沟通渠道告知用户，并要求其登录后立即到设置页修改密码。`,
     ].filter(Boolean).join('\n\n');
+    const nextAudit = appendRecoveryAuditEvent(
+      recoveryRequest.recovery_audit,
+      {
+        ...issueMetadata.auditEvent,
+        warnings,
+      }
+    );
 
     const { error: updateRequestError } = await adminClient
       .from('account_recovery_requests')
@@ -408,16 +526,31 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
         status: 'closed',
         admin_note: finalAdminNote,
         handled_by: authResult.callerUser.id,
-        handled_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        handled_at: issueMetadata.issuedAt,
+        updated_at: issueMetadata.issuedAt,
+        ...issueMetadata.recoveryRequestPatch,
+        recovery_audit: nextAudit,
       })
       .eq('id', normalizedRequestId);
 
     if (updateRequestError) {
-      throw updateRequestError;
+      warnings.push({
+        code: 'recovery_request_update_failed',
+        message: updateRequestError.message || 'Failed to close recovery request',
+      });
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({
+      success: true,
+      partial: warnings.length > 0,
+      warnings,
+      deliveryChannel: issueMetadata.deliveryChannel,
+      nextStep: issueMetadata.nextStep,
+      expiresAt: issueMetadata.expiresAt,
+      forceChangeRequired: issueMetadata.forceChangeRequired,
+      securityStateUpdated: !securityStateError,
+      recoveryRequestUpdated: !updateRequestError,
+    });
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -523,16 +656,55 @@ async function handleOpsAutomation(req, res, adminClient) {
       return res.status(503).json({ success: false, error: runResult.error });
     }
 
-    return res.status(runResult.status).json({
-      success: runResult.ok,
-      ...runResult.results,
-    });
+    return res.status(runResult.status).json(buildOpsAutomationHttpPayload(runResult));
   } catch (error) {
     return res.status(400).json({
       success: false,
       error: error.message,
     });
   }
+}
+
+async function handlePublicCacheBump(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const body = parseRequestBody(req);
+  const scope = String(body?.scope || 'public').trim() || 'public';
+  const reason = String(body?.reason || 'admin').trim() || 'admin';
+  const shouldRefreshAnalytics = ['pools', 'stats'].includes(scope);
+  const analyticsRefresh = shouldRefreshAnalytics
+    ? await refreshPublicAnalyticsCache(adminClient, { reason })
+    : null;
+  const result = await bumpPublicCacheEpoch(adminClient, {
+    scope,
+    reason,
+  });
+
+  if (!result.ok) {
+    return res.status(500).json({
+      success: false,
+      error: result.error || 'Failed to bump public cache epoch',
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    cacheVersion: result.version,
+    scope: result.scope,
+    reason: result.reason,
+    updatedAt: result.updatedAt,
+    ...(analyticsRefresh ? { analyticsRefresh } : {}),
+  });
 }
 
 function serializeApiKeyRow(keyRow) {
@@ -583,6 +755,30 @@ function serializeApiClientRow(clientRow, ownerProfile, approvedByProfile, keyRo
     } : null,
     keys: keyRows.map(serializeApiKeyRow),
   };
+}
+
+async function loadProfileById(adminClient, userId) {
+  const normalizedUserId = String(userId || '').trim();
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  const query = adminClient
+    .from('profiles')
+    .select('id, username, email, role')
+    .eq('id', normalizedUserId);
+
+  const profileResult = typeof query.maybeSingle === 'function'
+    ? await query.maybeSingle()
+    : (typeof query.single === 'function' ? await query.single() : await query);
+
+  if (profileResult.error) {
+    throw profileResult.error;
+  }
+
+  return Array.isArray(profileResult.data)
+    ? profileResult.data[0] || null
+    : profileResult.data || null;
 }
 
 async function loadApiClientsWithRelations(adminClient) {
@@ -644,6 +840,270 @@ async function loadApiClientsWithRelations(adminClient) {
     profilesById.get(clientRow.approved_by) || null,
     keysByClientId.get(clientRow.id) || []
   ));
+}
+
+function isDeveloperApiReviewMailEnabled(env = readEnvironment(), runtimeState = null) {
+  if (runtimeState) {
+    return isRuntimeEventEnabled(runtimeState, 'developerApiReview');
+  }
+
+  return parseBoolean(env.DEVELOPER_API_REVIEW_MAIL_OUTBOX_ENABLED, false)
+    && parseBoolean(env.MAIL_OUTBOX_WORKER_ENABLED || env.MAIL_WORKER_ENABLED, false);
+}
+
+function summarizeMailNotification(result, {
+  enabled,
+  attempted,
+  disabledCode = 'developer_api_review_mail_disabled',
+  skippedCode = 'developer_api_review_mail_skipped',
+} = {}) {
+  if (!enabled) {
+    return {
+      enabled: false,
+      attempted: false,
+      status: 'disabled',
+      code: disabledCode,
+    };
+  }
+
+  if (!attempted) {
+    return {
+      enabled: true,
+      attempted: false,
+      status: 'skipped',
+      code: result?.code || skippedCode,
+    };
+  }
+
+  if (result?.queued) {
+    return {
+      enabled: true,
+      attempted: true,
+      status: 'queued',
+      code: result.code || 'mail_outbox_queued',
+      outboxId: result.outboxId || null,
+    };
+  }
+
+  if (result?.deduped) {
+    return {
+      enabled: true,
+      attempted: true,
+      status: 'deduped',
+      code: result.code || 'mail_idempotency_hit',
+      outboxId: result.outboxId || null,
+    };
+  }
+
+  if (result?.action === 'block') {
+    return {
+      enabled: true,
+      attempted: true,
+      status: 'blocked',
+      code: result.code || 'mail_enqueue_blocked',
+    };
+  }
+
+  return {
+    enabled: true,
+    attempted: true,
+    status: 'error',
+    code: result?.code || 'mail_enqueue_failed',
+  };
+}
+
+async function enqueueDeveloperApiReviewMail({
+  req,
+  adminClient,
+  clientRow,
+  previousClientRow,
+  reviewerUserId,
+  status,
+  reviewNote,
+  nowIso,
+  runtimeState,
+} = {}) {
+  const enabled = isDeveloperApiReviewMailEnabled(readEnvironment(), runtimeState);
+  if (!enabled) {
+    return summarizeMailNotification(null, { enabled, attempted: false });
+  }
+
+  const ownerUserId = clientRow?.owner_user_id || previousClientRow?.owner_user_id || '';
+  let ownerProfile = null;
+  try {
+    ownerProfile = await loadProfileById(adminClient, ownerUserId);
+  } catch (error) {
+    serverLogger.warn('developer-api.review-mail.owner-load-failed', {
+      clientId: clientRow?.id || previousClientRow?.id || '',
+      status,
+      code: 'owner_profile_load_failed',
+      message: String(error?.message || error || 'owner_profile_load_failed').slice(0, 200),
+    });
+    return summarizeMailNotification({
+      code: 'owner_profile_load_failed',
+    }, { enabled, attempted: false });
+  }
+
+  if (!ownerProfile?.email) {
+    return summarizeMailNotification({
+      code: 'owner_email_unavailable',
+    }, { enabled, attempted: false });
+  }
+
+  let mailResult;
+  try {
+    mailResult = await enqueueMailOutboxEvent({
+      adminClient,
+      eventType: MAIL_EVENT_TYPES.DEVELOPER_API_REVIEW,
+      recipientEmail: ownerProfile.email,
+      requesterIp: getRequesterIp(req),
+      userId: ownerUserId,
+      templateKey: 'developer-api.review',
+      locale: 'zh-CN',
+      relatedEntityType: 'api_client',
+      relatedEntityId: clientRow.id,
+      purposeKey: `${status}:${clientRow.updated_at || nowIso}`,
+      payload: {
+        status,
+        previousStatus: previousClientRow?.status || null,
+        clientName: clientRow.name || previousClientRow?.name || 'unnamed',
+        clientType: clientRow.client_type || previousClientRow?.client_type || 'developer',
+        hasReviewNote: Boolean(reviewNote),
+        grantedScopesCount: Array.isArray(clientRow.granted_scopes) ? clientRow.granted_scopes.length : 0,
+        reviewedAt: nowIso,
+        reviewedBy: reviewerUserId ? '[redacted]' : null,
+      },
+      priority: status === 'active' ? 4 : 5,
+      controls: buildMailRuntimeControls(runtimeState, 'developerApiReview'),
+    });
+  } catch (error) {
+    mailResult = {
+      ok: false,
+      queued: false,
+      deduped: false,
+      action: 'error',
+      code: 'mail_enqueue_exception',
+      reason: error?.message || 'Mail enqueue failed.',
+    };
+  }
+
+  const notification = summarizeMailNotification(mailResult, {
+    enabled,
+    attempted: true,
+  });
+
+  if (!['queued', 'deduped'].includes(notification.status)) {
+    serverLogger.warn('developer-api.review-mail.not-queued', {
+      clientId: clientRow?.id || '',
+      status,
+      mailStatus: notification.status,
+      code: notification.code,
+    });
+  }
+
+  return notification;
+}
+
+function isAdminAlertMailEnabled(env = readEnvironment(), runtimeState = null) {
+  if (runtimeState) {
+    return isRuntimeEventEnabled(runtimeState, 'adminAlert');
+  }
+
+  return parseBoolean(env.ADMIN_ALERT_MAIL_OUTBOX_ENABLED, false)
+    && parseBoolean(env.MAIL_OUTBOX_WORKER_ENABLED || env.MAIL_WORKER_ENABLED, false);
+}
+
+async function enqueueAdminAlertMail({
+  req,
+  adminClient,
+  actorUserId,
+  summary,
+  secondary,
+  locale,
+  nowIso,
+  runtimeState,
+} = {}) {
+  const enabled = isAdminAlertMailEnabled(readEnvironment(), runtimeState);
+  const summaryCodes = {
+    disabledCode: 'admin_alert_mail_disabled',
+    skippedCode: 'admin_alert_mail_skipped',
+  };
+  if (!enabled) {
+    return summarizeMailNotification(null, { enabled, attempted: false, ...summaryCodes });
+  }
+
+  let actorProfile = null;
+  try {
+    actorProfile = await loadProfileById(adminClient, actorUserId);
+  } catch (error) {
+    serverLogger.warn('admin.alert-mail.actor-load-failed', {
+      actorUserId: actorUserId || '',
+      code: 'actor_profile_load_failed',
+      message: String(error?.message || error || 'actor_profile_load_failed').slice(0, 200),
+    });
+    return summarizeMailNotification({ code: 'actor_profile_load_failed' }, {
+      enabled,
+      attempted: false,
+      ...summaryCodes,
+    });
+  }
+
+  if (!actorProfile?.email || actorProfile.role !== 'super_admin') {
+    return summarizeMailNotification({ code: 'admin_alert_recipient_unavailable' }, {
+      enabled,
+      attempted: false,
+      ...summaryCodes,
+    });
+  }
+
+  let mailResult;
+  try {
+    mailResult = await enqueueMailOutboxEvent({
+      adminClient,
+      eventType: MAIL_EVENT_TYPES.ADMIN_ALERT,
+      recipientEmail: actorProfile.email,
+      requesterIp: getRequesterIp(req),
+      userId: actorProfile.id,
+      templateKey: 'admin.alert',
+      locale,
+      relatedEntityType: 'profile',
+      relatedEntityId: actorProfile.id,
+      purposeKey: `manual-admin-alert:${nowIso}`,
+      payload: {
+        summary,
+        secondary,
+        source: 'admin-mail-status-panel',
+        generatedAt: nowIso,
+      },
+      priority: 3,
+      controls: buildMailRuntimeControls(runtimeState, 'adminAlert'),
+    });
+  } catch (error) {
+    mailResult = {
+      ok: false,
+      queued: false,
+      deduped: false,
+      action: 'error',
+      code: 'mail_enqueue_exception',
+      reason: error?.message || 'Mail enqueue failed.',
+    };
+  }
+
+  const notification = summarizeMailNotification(mailResult, {
+    enabled,
+    attempted: true,
+    ...summaryCodes,
+  });
+
+  if (!['queued', 'deduped'].includes(notification.status)) {
+    serverLogger.warn('admin.alert-mail.not-queued', {
+      actorUserId: actorUserId || '',
+      mailStatus: notification.status,
+      code: notification.code,
+    });
+  }
+
+  return notification;
 }
 
 async function createClientKey(adminClient, clientId, {
@@ -813,6 +1273,19 @@ async function handleApiClientReview(req, res, adminClient) {
       await revokeActiveClientKeys(adminClient, normalizedClientId);
     }
 
+    const runtimeState = await safeLoadMailRuntimeState(adminClient);
+    const mailNotification = await enqueueDeveloperApiReviewMail({
+      req,
+      adminClient,
+      clientRow: updatedClient,
+      previousClientRow: clientRow,
+      reviewerUserId: authResult.callerUser.id,
+      status: normalizedStatus,
+      reviewNote: normalizedNote,
+      nowIso,
+      runtimeState,
+    });
+
     return res.status(200).json({
       success: true,
       client: {
@@ -823,6 +1296,7 @@ async function handleApiClientReview(req, res, adminClient) {
         approved_at: updatedClient.approved_at || null,
       },
       bootstrapKey,
+      mailNotification,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1070,6 +1544,304 @@ async function handleApiClientRotateVerifier(req, res, adminClient) {
   }
 }
 
+async function handleSiteHealth(req, res, adminClient) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  try {
+    const health = await buildAdminSiteHealth({ adminClient });
+    return res.status(200).json({
+      success: true,
+      health,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to load site health',
+    });
+  }
+}
+
+async function handleMailOutboxDrain(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  try {
+    const result = await runMailOutboxWorker({ adminClient });
+    return res.status(200).json({
+      success: true,
+      partial: result.ok === false,
+      result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to drain mail outbox',
+    });
+  }
+}
+
+async function handleMailSmokeTest(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const body = parseRequestBody(req);
+  const recipientEmail = String(body?.recipientEmail || body?.recipient_email || '').trim();
+  const locale = String(body?.locale || body?.lang || 'zh-CN').trim() || 'zh-CN';
+
+  if (!recipientEmail) {
+    return res.status(400).json({
+      success: false,
+      error: 'Recipient email is required',
+    });
+  }
+
+  try {
+    const result = await sendMailSmokeTest({
+      adminClient,
+      recipientEmail,
+      locale,
+      actorUserId: authResult.callerUser.id,
+    });
+
+    return res.status(200).json({
+      success: true,
+      partial: result.ok === false,
+      result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to send mail smoke test',
+    });
+  }
+}
+
+async function handleMailAlert(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const body = parseRequestBody(req);
+  const rawSummary = String(body?.summary || '').trim();
+  const rawSecondary = String(body?.secondary || '').trim();
+  const locale = String(body?.locale || body?.lang || 'zh-CN').trim() || 'zh-CN';
+  const summary = rawSummary.slice(0, 240) || '管理员手动告警测试';
+  const secondary = rawSecondary.slice(0, 360)
+    || '这是一条由后台邮件状态面板触发的受控告警，用于验证 admin.alert outbox 链路。';
+  const nowIso = new Date().toISOString();
+
+  try {
+    const runtimeState = await safeLoadMailRuntimeState(adminClient);
+    const mailNotification = await enqueueAdminAlertMail({
+      req,
+      adminClient,
+      actorUserId: authResult.callerUser.id,
+      summary,
+      secondary,
+      locale,
+      nowIso,
+      runtimeState,
+    });
+
+    return res.status(200).json({
+      success: true,
+      partial: mailNotification.status === 'error',
+      mailNotification,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to enqueue admin alert mail',
+    });
+  }
+}
+
+async function handleMailRuntimeConfig(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const body = parseRequestBody(req);
+  const nextConfig = sanitizeMailRuntimeUpdate({
+    events: body?.events,
+    controls: body?.controls,
+    note: body?.note,
+  });
+
+  try {
+    await saveMailRuntimeConfig(adminClient, nextConfig, {
+      actorUserId: authResult.callerUser.id,
+      now: new Date(),
+    });
+    const runtime = await loadMailRuntimeState(adminClient);
+    return res.status(200).json({
+      success: true,
+      runtime,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to update mail runtime config',
+    });
+  }
+}
+
+const MAIL_BUDGET_SCOPES = new Set(['global', 'event', 'recipient', 'domain', 'ip', 'user', 'related']);
+const MAIL_BUDGET_EVENTS = new Set(['*', ...Object.values(MAIL_EVENT_TYPES)]);
+
+function normalizeMailBudgetConfigPatch(rawItem = {}) {
+  const scope = String(rawItem.scope || '').trim();
+  const eventType = String(rawItem.eventType || rawItem.event_type || '').trim();
+  const windowSeconds = Number.parseInt(rawItem.windowSeconds ?? rawItem.window_seconds, 10);
+  const maxAttempts = Number.parseInt(rawItem.maxAttempts ?? rawItem.max_attempts, 10);
+  const enabled = rawItem.enabled === false || String(rawItem.enabled).toLowerCase() === 'false'
+    ? false
+    : true;
+
+  if (!MAIL_BUDGET_SCOPES.has(scope)) {
+    return { ok: false, error: 'Invalid mail budget scope' };
+  }
+  if (!MAIL_BUDGET_EVENTS.has(eventType)) {
+    return { ok: false, error: 'Invalid mail budget event type' };
+  }
+  if (scope === 'global' && eventType !== '*') {
+    return { ok: false, error: 'Global mail budget must use * event type' };
+  }
+  if (scope !== 'global' && eventType === '*') {
+    return { ok: false, error: 'Only global mail budget can use * event type' };
+  }
+  if (!Number.isFinite(windowSeconds) || windowSeconds < 60 || windowSeconds > 31_536_000) {
+    return { ok: false, error: 'Mail budget window must be between 60 and 31536000 seconds' };
+  }
+  if (!Number.isFinite(maxAttempts) || maxAttempts < 1 || maxAttempts > 1_000_000) {
+    return { ok: false, error: 'Mail budget max attempts must be between 1 and 1000000' };
+  }
+
+  return {
+    ok: true,
+    item: {
+      scope,
+      event_type: eventType,
+      window_seconds: windowSeconds,
+      max_attempts: maxAttempts,
+      enabled,
+    },
+  };
+}
+
+async function handleMailBudgetConfig(req, res, adminClient) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  const body = parseRequestBody(req);
+  const rawItems = Array.isArray(body?.items)
+    ? body.items
+    : [body?.item || body].filter(Boolean);
+  if (rawItems.length === 0 || rawItems.length > 40) {
+    return res.status(400).json({
+      success: false,
+      error: 'Mail budget update requires 1 to 40 items',
+    });
+  }
+
+  const normalizedItems = [];
+  for (const rawItem of rawItems) {
+    const normalized = normalizeMailBudgetConfigPatch(rawItem);
+    if (!normalized.ok) {
+      return res.status(400).json({
+        success: false,
+        error: normalized.error,
+      });
+    }
+    normalizedItems.push({
+      ...normalized.item,
+      updated_by_user_id: authResult.callerUser.id,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  try {
+    const { data, error } = await adminClient
+      .from('mail_abuse_budget_config')
+      .upsert(normalizedItems, { onConflict: 'scope,event_type' })
+      .select('scope, event_type, window_seconds, max_attempts, enabled, updated_at');
+
+    if (error) {
+      throw error;
+    }
+
+    return res.status(200).json({
+      success: true,
+      updated: (data || []).map((row) => ({
+        scope: row.scope,
+        eventType: row.event_type,
+        windowSeconds: row.window_seconds,
+        maxAttempts: row.max_attempts,
+        enabled: row.enabled,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to update mail budget config',
+    });
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -1108,6 +1880,8 @@ export default async function handler(req, res) {
       return handleResetRecoveryPassword(req, res, adminClient);
     case 'ops-automation':
       return handleOpsAutomation(req, res, adminClient);
+    case 'public-cache-bump':
+      return handlePublicCacheBump(req, res, adminClient);
     case 'api-clients':
       return handleApiClients(req, res, adminClient);
     case 'api-clients-review':
@@ -1120,6 +1894,18 @@ export default async function handler(req, res) {
       return handleApiClientDeleteKey(req, res, adminClient);
     case 'api-clients-rotate-verifier':
       return handleApiClientRotateVerifier(req, res, adminClient);
+    case 'site-health':
+      return handleSiteHealth(req, res, adminClient);
+    case 'mail-outbox-drain':
+      return handleMailOutboxDrain(req, res, adminClient);
+    case 'mail-smoke-test':
+      return handleMailSmokeTest(req, res, adminClient);
+    case 'mail-alert':
+      return handleMailAlert(req, res, adminClient);
+    case 'mail-budget-config':
+      return handleMailBudgetConfig(req, res, adminClient);
+    case 'mail-runtime-config':
+      return handleMailRuntimeConfig(req, res, adminClient);
     default:
       return res.status(400).json({
         success: false,
