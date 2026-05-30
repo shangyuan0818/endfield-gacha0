@@ -14,7 +14,7 @@
 
 ## 当前主线
 
-- 版本：`v4.4.0`
+- 版本：`v4.4.1`
 - 公共数据：生产首屏统一走同源 `/api/*`，避免浏览器直连 Supabase 域名。
 - 缓存：`CACHE-001 / ARCH-022` 已接入 `public_cache_epoch`、公共响应 `meta`、前端快照与显式失效。
 - 自动化：`OPS-006` 已接入 job graph、partial 语义、重跑入口和审计详情。
@@ -53,7 +53,7 @@ npm run perf:report
 | [docs/CODEMAP.md](docs/CODEMAP.md) | 代码入口和主要模块索引 |
 | [supabase/README.md](supabase/README.md) | Supabase baseline、迁移归档和手工 SQL 边界 |
 | [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md) | 发布检查清单 |
-| [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | 从 `v4.5.0` 起执行的分支、提交和历史整理规则 |
+| [docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md) | 从 `v4.4.1` 起执行的分支、提交和历史整理规则 |
 
 ## 仓库边界
 
