@@ -39,10 +39,15 @@ export default function AuthModalView({
   onClose,
   onConfirmPasswordChange,
   onEmailChange,
+  emailCodeAction,
+  emailCodeLoading,
+  emailCodeValue,
   onPasswordChange,
   onAddRecoveryClaim,
   onSubmit,
   onEmailLogin,
+  onEmailCodeChange,
+  onEmailCodeSubmit,
   onSubmitRecoveryRequest,
   onSwitchMode,
   onSwitchToForgotPassword,
@@ -561,6 +566,50 @@ export default function AuthModalView({
             </div>
           )}
 
+          {emailCodeAction && (
+            <div className="border border-endfield-yellow/50 bg-yellow-50 dark:bg-yellow-500/10 px-4 py-4 space-y-3">
+              <div className="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200">
+                <KeyRound size={18} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-bold">
+                    {emailCodeAction === 'password_reset'
+                      ? tt('输入重置验证码', 'Enter Reset Code')
+                      : tt('输入邮件登录验证码', 'Enter Sign-In Code')}
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                    {tt(
+                      '请复制邮件中的 6 位验证码。无需在邮箱中打开链接，也不会切走当前页面。',
+                      'Copy the 6-digit code from the email. You do not need to open a mail link or leave this page.'
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={emailCodeValue}
+                  onChange={onEmailCodeChange}
+                  placeholder="000000"
+                  maxLength={6}
+                  className="w-full px-4 py-3 border border-amber-300 dark:border-amber-700 rounded-none bg-white dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 text-center font-mono text-xl tracking-[0.35em] outline-none focus:ring-2 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                />
+                <button
+                  type="button"
+                  onClick={onEmailCodeSubmit}
+                  disabled={emailCodeLoading || String(emailCodeValue || '').length !== 6}
+                  className="min-h-[48px] px-4 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed text-white dark:text-zinc-900 font-bold uppercase tracking-wider text-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  {emailCodeLoading ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  {emailCodeAction === 'password_reset'
+                    ? tt('验证并重置', 'Verify')
+                    : tt('验证并登录', 'Verify')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {mode === 'register' && (
             <label className="flex items-start gap-2 cursor-pointer mt-2">
               <input
@@ -631,7 +680,7 @@ export default function AuthModalView({
               )}
               {resendCooldown > 0
                 ? tt(`${resendCooldown}秒后可重新发送邮件登录`, `Email sign-in in ${resendCooldown}s`)
-                : tt('发送邮件登录链接', 'Send Email Sign-In Link')}
+                : tt('发送邮件登录验证码', 'Send Email Sign-In Code')}
             </button>
           )}
         </form>

@@ -85,6 +85,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
   const [recoveryRequestSuccess, setRecoveryRequestSuccess] = React.useState(null);
   const [captchaState, setCaptchaState] = React.useState(null);
   const [emailLoginCaptchaVisible, setEmailLoginCaptchaVisible] = React.useState(false);
+  const [emailCodeState, setEmailCodeState] = React.useState({
+    action: '',
+    email: '',
+    code: '',
+    loading: false,
+  });
   const captchaAction = React.useMemo(() => {
     if (mode === 'login' && emailLoginCaptchaVisible) return 'password_reset';
     if (mode === 'register') return 'register';
@@ -124,6 +130,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     if (mode !== 'login') {
       setEmailLoginCaptchaVisible(false);
     }
+    setEmailCodeState({ action: '', email: '', code: '', loading: false });
   }, [mode, resetRecoveryRequestState]);
 
   const getLocalizedAuthError = React.useCallback((err) => {
@@ -382,6 +389,34 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     }
   };
 
+  const signInAfterRegister = async () => {
+    const { data, error: authError } = await withAuthRequestTimeout(supabase.auth.signInWithPassword({
+      email,
+      password,
+    }));
+
+    if (authError) {
+      throw authError;
+    }
+
+    addDurableNotification?.({
+      type: 'warning',
+      category: 'account',
+      priority: 'normal',
+      title: tt('邮箱尚未验证', 'Email not verified'),
+      message: tt(
+        '账号已创建并登录。请稍后到设置页验证邮箱，否则密码找回、换邮箱和安全通知可能无法正常使用。',
+        'Your account was created and signed in. Verify the email in Settings so password recovery, email changes, and security notices keep working.'
+      ),
+      dedupeKey: `email-verification:${email}`,
+      actions: [
+        { label: tt('打开设置', 'Open Settings'), href: '/settings', variant: 'primary' },
+      ],
+    });
+    onAuthSuccess(data.user);
+    onClose();
+  };
+
   const handleForgotPassword = async (event) => {
     event.preventDefault();
     setLoading(true);
@@ -410,6 +445,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
       });
       setForgotPasswordStatus('checked');
       setResendCooldown(60);
+      setEmailCodeState({
+        action: 'password_reset',
+        email,
+        code: '',
+        loading: false,
+      });
       if (['mail_unavailable', 'mail_paused', 'mail_failed_or_unavailable'].includes(result?.status)) {
         setMessage(tt(
           '自助重置邮件暂不可用。你可以稍后重试；如果多次收不到邮件，请提交人工恢复申请。',
@@ -483,10 +524,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
         requestUsername: normalizedUsername || email.split('@')[0],
         captchaPayload,
       });
-      setMessage(tt(
-        '验证邮件已发送。请打开邮箱完成验证后再登录；如果没有收到，请检查垃圾邮件夹。',
-        'Verification email sent. Open it to confirm your account before signing in; check spam if it does not arrive.'
-      ));
+      await signInAfterRegister();
       setPassword('');
       setConfirmPassword('');
     } catch (err) {
@@ -569,19 +607,68 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
       setEmailLoginCaptchaVisible(false);
       setCaptchaState(null);
       setResendCooldown(60);
+      setEmailCodeState({
+        action: 'email_login',
+        email,
+        code: '',
+        loading: false,
+      });
       setMessage(tt(
-        '如果该邮箱存在账号，邮件登录链接已发送。请在同一浏览器打开邮箱中的链接。',
-        'If this email has an account, a sign-in link has been sent. Open it in the same browser.'
+        '如果该邮箱存在账号，登录验证码已发送。请复制邮件中的 6 位验证码，在这里完成登录。',
+        'If this email has an account, a sign-in code has been sent. Copy the 6-digit code here to finish signing in.'
       ));
     } catch (err) {
       if (err?.code === 'captcha_required' || err?.status === 403) {
         setEmailLoginCaptchaVisible(true);
-        setError(tt('请先完成下方人机验证，然后再次发送邮件登录链接。', 'Complete the bot check below, then send the email sign-in link again.'));
+        setError(tt('请先完成下方人机验证，然后再次发送邮件登录验证码。', 'Complete the bot check below, then send the email sign-in code again.'));
       } else {
         setError(getLocalizedAuthError(err));
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEmailCodeSubmit = async () => {
+    const code = String(emailCodeState.code || '').replace(/\D/g, '').slice(0, 6);
+    if (code.length !== 6 || !EMAIL_REGEX.test(emailCodeState.email || email)) {
+      setError(tt('请输入邮件中的 6 位验证码。', 'Enter the 6-digit code from the email.'));
+      return;
+    }
+
+    if (!supabase) {
+      setError(tt('当前环境未启用认证服务。', 'Auth service is unavailable in this environment.'));
+      return;
+    }
+
+    setEmailCodeState((prev) => ({ ...prev, loading: true }));
+    setError('');
+    try {
+      const verifyType = emailCodeState.action === 'password_reset' ? 'recovery' : 'magiclink';
+      const { data, error: verifyError } = await withAuthRequestTimeout(supabase.auth.verifyOtp({
+        email: emailCodeState.email || email,
+        token: code,
+        type: verifyType,
+      }));
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      if (emailCodeState.action === 'password_reset') {
+        window.location.assign('/reset-password?from=code');
+        return;
+      }
+
+      onAuthSuccess(data?.user || data?.session?.user);
+      onClose();
+    } catch {
+      setError(tt(
+        '验证码无效或已过期，请重新发送邮件后再试。',
+        'The code is invalid or expired. Send a new email and try again.'
+      ));
+    } finally {
+      setEmailCodeState((prev) => ({ ...prev, loading: false }));
     }
   };
 
@@ -740,6 +827,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
       onPasswordChange={(event) => setPassword(event.target.value)}
       onSubmit={handleSubmit}
       onEmailLogin={handleEmailLogin}
+      emailCodeAction={emailCodeState.action}
+      emailCodeValue={emailCodeState.code}
+      emailCodeLoading={emailCodeState.loading}
+      onEmailCodeChange={(event) => {
+        const code = String(event.target.value || '').replace(/\D/g, '').slice(0, 6);
+        setEmailCodeState((prev) => ({ ...prev, code }));
+      }}
+      onEmailCodeSubmit={handleEmailCodeSubmit}
       recoverySubmitDisabled={recoveryRequestLoading || (captchaAction === 'account_recovery' && !captchaReady)}
       onSwitchMode={switchMode}
       onSwitchToForgotPassword={switchToForgotPassword}
@@ -762,11 +857,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
           setForgotPasswordStatus(null);
           setMessage('');
           setError('');
+          setEmailCodeState({ action: '', email: '', code: '', loading: false });
           resetRecoveryRequestState();
         }
         if (mode === 'login') {
           setEmailLoginCaptchaVisible(false);
           setCaptchaState(null);
+          setEmailCodeState({ action: '', email: '', code: '', loading: false });
         }
         handleEmailChange(event);
       }}

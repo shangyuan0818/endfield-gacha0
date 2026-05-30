@@ -138,6 +138,7 @@ function sendGenericResponse(res, {
   status = 'sent_if_available',
   deliveryChannel = 'mail',
   nextStep = 'check_email',
+  codeEntry = false,
 } = {}) {
   return res.status(200).json({
     success: true,
@@ -145,6 +146,7 @@ function sendGenericResponse(res, {
       status,
       deliveryChannel,
       nextStep,
+      codeEntry,
     },
   });
 }
@@ -227,8 +229,69 @@ async function generateAuthActionLink(adminClient, payload) {
   return {
     ok: true,
     actionLink,
+    emailOtp: data?.properties?.email_otp || data?.email_otp || '',
+    hashedToken: data?.properties?.hashed_token || data?.hashed_token || '',
     user: data?.user || null,
   };
+}
+
+async function createRegistrationUser(adminClient, {
+  email,
+  password,
+  username,
+}) {
+  const createUser = adminClient?.auth?.admin?.createUser;
+  if (typeof createUser !== 'function') {
+    return {
+      ok: false,
+      code: 'auth_create_user_unavailable',
+      reason: 'Auth admin createUser is unavailable.',
+    };
+  }
+
+  const { data, error } = await createUser.call(adminClient.auth.admin, {
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      username: username || email.split('@')[0],
+    },
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      code: 'auth_create_user_failed',
+      reason: error.message || 'Failed to create auth user.',
+      status: error.status,
+    };
+  }
+
+  return {
+    ok: true,
+    user: data?.user || data || null,
+  };
+}
+
+async function markRegistrationEmailVerificationRequired(adminClient, userId, now = new Date()) {
+  if (!adminClient?.from || !userId) {
+    return { ok: false, error: 'admin_client_unavailable' };
+  }
+
+  const { error } = await adminClient
+    .from('account_security_states')
+    .upsert({
+      user_id: userId,
+      email_verification_required: true,
+      email_verification_reason: 'new_registration',
+      email_verification_requested_at: now.toISOString(),
+      email_verification_verified_at: null,
+      updated_at: now.toISOString(),
+    }, {
+      onConflict: 'user_id',
+    });
+
+  return error ? { ok: false, error: error.message || 'email_verification_state_update_failed' } : { ok: true };
 }
 
 function isAuthUserEmailConfirmed(user) {
@@ -300,6 +363,7 @@ async function sendAuthActionMail({
   meta,
   email,
   actionLink,
+  verificationCode = '',
   locale,
   env,
   now,
@@ -311,6 +375,7 @@ async function sendAuthActionMail({
     templateKey: meta.templateKey,
     locale,
     actionUrl: actionLink,
+    verificationCode,
     generatedAt: now,
   });
 
@@ -442,34 +507,25 @@ export default async function handler(req, res) {
 
   const runtimeState = await safeLoadMailRuntimeState(adminClient, env);
 
-  if (!isAuthMailEnabled(env, runtimeState)) {
+  const requiresMailDelivery = action !== ACTIONS.REGISTER_CONFIRMATION;
+
+  if (requiresMailDelivery && !isAuthMailEnabled(env, runtimeState)) {
     await persistAudit('mail_disabled');
-    return action === ACTIONS.REGISTER_CONFIRMATION
-      ? res.status(503).json({
-        success: false,
-        error: 'Auth mail actions are disabled',
-        code: 'auth_mail_disabled',
-      })
-      : sendGenericResponse(res, {
-        status: 'mail_unavailable',
-        nextStep: 'manual_recovery_available',
-      });
+    return sendGenericResponse(res, {
+      status: 'mail_unavailable',
+      nextStep: 'manual_recovery_available',
+      codeEntry: true,
+    });
   }
 
-  if (isAuthMailPaused(env, runtimeState)) {
+  if (requiresMailDelivery && isAuthMailPaused(env, runtimeState)) {
     await persistAudit('mail_paused');
-    return action === ACTIONS.REGISTER_CONFIRMATION
-      ? res.status(503).json({
-        success: false,
-        error: 'Auth mail actions are paused',
-        code: 'mail_kill_switch_enabled',
-      })
-      : sendGenericResponse(res, { status: 'mail_paused' });
+    return sendGenericResponse(res, { status: 'mail_paused', codeEntry: true });
   }
 
   try {
-    let existingUser = await findAuthUserByEmail(adminClient, normalizedEmail);
-    if (action === ACTIONS.REGISTER_CONFIRMATION && isAuthUserEmailConfirmed(existingUser)) {
+    const existingUser = await findAuthUserByEmail(adminClient, normalizedEmail);
+    if (action === ACTIONS.REGISTER_CONFIRMATION && existingUser) {
       await persistAudit('register_existing_email');
       return res.status(409).json({
         success: false,
@@ -478,24 +534,9 @@ export default async function handler(req, res) {
       });
     }
 
-    if (action === ACTIONS.REGISTER_CONFIRMATION && existingUser && !isAuthUserEmailConfirmed(existingUser)) {
-      const cleanupResult = await cleanupUnconfirmedSignup(adminClient, existingUser);
-      await persistAudit(cleanupResult.ok ? 'register_pending_replaced' : 'register_pending_replace_failed', {
-        cleanup: cleanupResult,
-      });
-      if (!cleanupResult.ok) {
-        return res.status(409).json({
-          success: false,
-          error: 'Email confirmation is already pending',
-          code: 'email_confirmation_pending',
-        });
-      }
-      existingUser = null;
-    }
-
     if (action !== ACTIONS.REGISTER_CONFIRMATION && !existingUser) {
       await persistAudit('received_unknown_email');
-      return sendGenericResponse(res);
+      return sendGenericResponse(res, { codeEntry: true });
     }
 
     const password = normalizeString(body.password, 100);
@@ -503,6 +544,44 @@ export default async function handler(req, res) {
     if (action === ACTIONS.REGISTER_CONFIRMATION && password.length < 8) {
       await persistAudit('invalid_request', { reason: 'password_too_short' });
       return res.status(400).json({ success: false, error: 'Invalid password' });
+    }
+
+    if (action === ACTIONS.REGISTER_CONFIRMATION) {
+      const registrationResult = await createRegistrationUser(adminClient, {
+        email: normalizedEmail,
+        password,
+        username,
+      });
+
+      if (!registrationResult.ok) {
+        await persistAudit('register_create_user_failed', {
+          code: registrationResult.code,
+        });
+        if (registrationResult.status === 422) {
+          return res.status(409).json({
+            success: false,
+            error: 'Email already registered',
+            code: 'email_already_registered',
+          });
+        }
+
+        return res.status(500).json({
+          success: false,
+          error: 'Unable to create account',
+          code: registrationResult.code || 'auth_create_user_failed',
+        });
+      }
+
+      await ensureProfileForAuthUser(adminClient, registrationResult.user);
+      const stateResult = await markRegistrationEmailVerificationRequired(adminClient, registrationResult.user?.id, new Date());
+      await persistAudit('registered_unverified', {
+        emailVerificationState: stateResult,
+      });
+      return sendGenericResponse(res, {
+        status: 'registered_unverified',
+        deliveryChannel: 'auth',
+        nextStep: 'login_and_verify_email',
+      });
     }
 
     const linkResult = await generateAuthActionLink(adminClient, buildGenerateLinkPayload({
@@ -527,9 +606,7 @@ export default async function handler(req, res) {
         });
       }
 
-      return action === ACTIONS.REGISTER_CONFIRMATION
-        ? res.status(500).json({ success: false, error: 'Unable to create account email' })
-        : sendGenericResponse(res);
+      return sendGenericResponse(res, { codeEntry: true });
     }
 
     const now = new Date();
@@ -539,6 +616,7 @@ export default async function handler(req, res) {
       meta,
       email: normalizedEmail,
       actionLink: linkResult.actionLink,
+      verificationCode: linkResult.emailOtp,
       locale,
       env,
       now,
@@ -547,24 +625,10 @@ export default async function handler(req, res) {
     const providerResult = mailResult.providerResult || {};
 
     if (!providerResult.ok) {
-      const cleanupResult = action === ACTIONS.REGISTER_CONFIRMATION
-        ? await cleanupUnconfirmedSignup(adminClient, linkResult.user, { existingUser })
-        : { skipped: true };
       await persistAudit('mail_send_failed', {
         code: providerResult.code,
-        cleanup: cleanupResult,
       });
-      return action === ACTIONS.REGISTER_CONFIRMATION
-        ? res.status(502).json({
-          success: false,
-          error: 'Unable to send verification email',
-          code: providerResult.code || 'mail_send_failed',
-        })
-        : sendGenericResponse(res, { status: 'mail_failed_or_unavailable' });
-    }
-
-    if (action === ACTIONS.REGISTER_CONFIRMATION && (linkResult.user || existingUser)) {
-      await ensureProfileForAuthUser(adminClient, linkResult.user || existingUser);
+      return sendGenericResponse(res, { status: 'mail_failed_or_unavailable', codeEntry: true });
     }
 
     await persistAudit('mail_sent', {
@@ -576,8 +640,9 @@ export default async function handler(req, res) {
       nextStep: action === ACTIONS.REGISTER_CONFIRMATION
         ? 'verify_email'
         : action === ACTIONS.EMAIL_LOGIN
-          ? 'open_login_link'
-          : 'open_reset_link',
+          ? 'enter_login_code'
+          : 'enter_reset_code',
+      codeEntry: true,
     });
   } catch (error) {
     await persistAudit('exception', {
@@ -594,7 +659,9 @@ export const __internal = {
   ACTION_META,
   buildGenerateLinkPayload,
   cleanupUnconfirmedSignup,
+  createRegistrationUser,
   generateAuthActionLink,
+  markRegistrationEmailVerificationRequired,
   isAuthUserEmailConfirmed,
   isAuthMailEnabled,
   isAuthMailPaused,

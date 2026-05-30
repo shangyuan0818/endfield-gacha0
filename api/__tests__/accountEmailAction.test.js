@@ -448,7 +448,7 @@ describe('api/account-email-action handler', () => {
       success: true,
       data: {
         status: 'sent',
-        nextStep: 'open_required_verification_link',
+        nextStep: 'enter_verification_code',
         sent: {
           current: true,
         },
@@ -462,6 +462,8 @@ describe('api/account-email-action handler', () => {
         email_verification_reason: 'user_requested',
         email_verification_token_hash: expect.any(String),
         email_verification_token_expires_at: expect.any(String),
+        email_verification_code_hash: expect.any(String),
+        email_verification_code_expires_at: expect.any(String),
       }),
       { onConflict: 'user_id' },
     );
@@ -473,12 +475,17 @@ describe('api/account-email-action handler', () => {
     });
     expect(adapter.sentMessages[0].payload).toMatchObject({
       verificationMode: 'account_security_state',
+      codeEntry: true,
     });
     expect(adapter.sentMessages[0].payload.tokenExpiresAt).toEqual(expect.any(String));
-    expect(adapter.sentMessages[0].html).toContain('/api/account-email-verify?token=');
+    expect(adapter.sentMessages[0].payload.codeExpiresAt).toEqual(expect.any(String));
+    expect(adapter.sentMessages[0].html).toContain('验证码');
+    expect(adapter.sentMessages[0].html).not.toContain('/api/account-email-verify?token=');
+    expect(adapter.sentMessages[0].text).toContain('验证码: ');
+    expect(adapter.sentMessages[0].text).not.toContain('/api/account-email-verify?token=');
   }));
 
-  it('sends a verification link for an unconfirmed current email', withAuthMailEnv(async () => {
+  it('sends an app-level verification code for an unconfirmed current email', withAuthMailEnv(async () => {
     const adminClient = createAdminClient();
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
@@ -503,22 +510,31 @@ describe('api/account-email-action handler', () => {
     await accountEmailActionHandler(req, res);
 
     expect(res.statusCode).toBe(200);
-    expect(adminClient.__mocks.generateLink).toHaveBeenCalledWith({
-      type: 'magiclink',
-      email: 'current@example.com',
-      options: {
-        redirectTo: 'https://ef-gacha.example',
-      },
-    });
+    expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
+    expect(adminClient.__mocks.securityUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        email_verification_required: true,
+        email_verification_token_hash: expect.any(String),
+        email_verification_code_hash: expect.any(String),
+      }),
+      { onConflict: 'user_id' },
+    );
     expect(adapter.sentMessages).toHaveLength(1);
     expect(adapter.sentMessages[0]).toMatchObject({
       to: 'current@example.com',
       templateKey: 'auth.email-verification',
       eventType: 'email_verification',
     });
+    expect(adapter.sentMessages[0].payload).toMatchObject({
+      verificationMode: 'account_security_state',
+      codeEntry: true,
+    });
+    expect(adapter.sentMessages[0].text).toContain('验证码: ');
+    expect(adapter.sentMessages[0].text).not.toContain('/api/account-email-verify?token=');
   }));
 
-  it('rewrites malformed auth verification links for unconfirmed current email', withAuthMailEnv(async () => {
+  it('keeps app-level verification code independent from malformed auth links', withAuthMailEnv(async () => {
     process.env.SUPABASE_URL = 'https://db.example.test';
     const adminClient = createAdminClient({
       generateLinkImpl: async () => ({
@@ -553,10 +569,9 @@ describe('api/account-email-action handler', () => {
     await accountEmailActionHandler(req, res);
 
     expect(res.statusCode).toBe(200);
+    expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
     expect(adapter.sentMessages).toHaveLength(1);
-    expect(adapter.sentMessages[0].text).toContain(
-      'https://db.example.test/auth/v1/verify?token=current-token&type=magiclink&redirect_to=https%3A%2F%2Fef-gacha.example'
-    );
+    expect(adapter.sentMessages[0].text).toContain('验证码: ');
     expect(adapter.sentMessages[0].text).not.toContain('localhost:8000');
   }));
 

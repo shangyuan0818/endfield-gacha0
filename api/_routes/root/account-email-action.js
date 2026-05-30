@@ -31,6 +31,7 @@ const ACTIONS = Object.freeze({
   CHANGE_EMAIL: 'change_email',
 });
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const EMAIL_VERIFICATION_CODE_TTL_MS = 15 * 60 * 1000;
 
 const ACTION_META = Object.freeze({
   [ACTIONS.RESEND_VERIFICATION]: {
@@ -103,6 +104,16 @@ function createEmailVerificationToken() {
   return randomBytes(32).toString('base64url');
 }
 
+function createEmailVerificationCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashEmailVerificationCode(code, userId = '') {
+  return createHash('sha256')
+    .update(`${String(userId || '').trim()}:${String(code || '').trim()}`, 'utf8')
+    .digest('hex');
+}
+
 function buildAccountEmailVerificationUrl(env, req, token) {
   const url = new URL('/api/account-email-verify', `${getAppUrl(env, req)}/`);
   url.searchParams.set('token', token);
@@ -157,11 +168,14 @@ async function loadAccountSecurityState(adminClient, userId) {
 
 async function storeAccountEmailVerificationToken(adminClient, userId, {
   token,
+  code,
   now,
   reason = 'user_requested',
 }) {
   const tokenExpiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_TOKEN_TTL_MS);
+  const codeExpiresAt = new Date(now.getTime() + EMAIL_VERIFICATION_CODE_TTL_MS);
   const tokenHash = hashEmailVerificationToken(token);
+  const codeHash = hashEmailVerificationCode(code, userId);
   const { error } = await adminClient
     .from('account_security_states')
     .upsert({
@@ -171,6 +185,8 @@ async function storeAccountEmailVerificationToken(adminClient, userId, {
       email_verification_requested_at: now.toISOString(),
       email_verification_token_hash: tokenHash,
       email_verification_token_expires_at: tokenExpiresAt.toISOString(),
+      email_verification_code_hash: codeHash,
+      email_verification_code_expires_at: codeExpiresAt.toISOString(),
       updated_at: now.toISOString(),
     }, {
       onConflict: 'user_id',
@@ -183,6 +199,8 @@ async function storeAccountEmailVerificationToken(adminClient, userId, {
   return {
     tokenHash,
     tokenExpiresAt,
+    codeHash,
+    codeExpiresAt,
   };
 }
 
@@ -315,6 +333,7 @@ async function sendAccountMail({
   templateKey,
   email,
   actionLink,
+  verificationCode = '',
   locale,
   env,
   now,
@@ -328,6 +347,7 @@ async function sendAccountMail({
     templateKey,
     locale,
     actionUrl: actionLink,
+    verificationCode,
     generatedAt: now,
   });
 
@@ -464,7 +484,8 @@ export default async function handler(req, res) {
     const now = new Date();
     const controls = buildMailRuntimeControls(runtimeState, 'authMailActions');
     const accountSecurityState = await loadAccountSecurityState(adminClient, currentUser.id);
-    const emailVerificationRequired = Boolean(accountSecurityState?.email_verification_required);
+    const emailVerificationRequired = Boolean(accountSecurityState?.email_verification_required)
+      || (!accountSecurityState && !isEmailConfirmed(currentUser) && currentUser?.app_metadata?.role !== 'super_admin');
 
     if (action === ACTIONS.RESEND_VERIFICATION) {
       if (isEmailConfirmed(currentUser) && !emailVerificationRequired) {
@@ -486,10 +507,13 @@ export default async function handler(req, res) {
 
       let actionLink = '';
       let tokenPayload = {};
+      let verificationCode = '';
       if (emailVerificationRequired) {
         const token = createEmailVerificationToken();
+        verificationCode = createEmailVerificationCode();
         const storedToken = await storeAccountEmailVerificationToken(adminClient, currentUser.id, {
           token,
+          code: verificationCode,
           now,
           reason: accountSecurityState?.email_verification_requested_at
             ? 'user_requested'
@@ -499,6 +523,8 @@ export default async function handler(req, res) {
         tokenPayload = {
           verificationMode: 'account_security_state',
           tokenExpiresAt: storedToken.tokenExpiresAt.toISOString(),
+          codeEntry: true,
+          codeExpiresAt: storedToken.codeExpiresAt.toISOString(),
         };
       } else {
         const linkResult = await generateAuthActionLink(adminClient, {
@@ -529,6 +555,7 @@ export default async function handler(req, res) {
         templateKey: meta.templateKey,
         email: currentEmail,
         actionLink,
+        verificationCode: tokenPayload.codeEntry ? verificationCode : '',
         locale,
         env,
         now,
@@ -550,7 +577,7 @@ export default async function handler(req, res) {
 
       return sendAccountEmailResponse(res, {
         status: providerResult.dryRun ? 'dry_run' : 'sent',
-        nextStep: emailVerificationRequired ? 'open_required_verification_link' : 'verify_email',
+        nextStep: emailVerificationRequired ? 'enter_verification_code' : 'verify_email',
         dryRun: Boolean(providerResult.dryRun),
         sent: { current: true },
       });

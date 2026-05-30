@@ -129,8 +129,18 @@ function createAdminClient({
   mailRuntimeConfig = null,
 } = {}) {
   const generateLink = vi.fn(async () => generateLinkResult);
+  const createUser = vi.fn(async (attributes) => ({
+    data: {
+      user: {
+        id: 'user-1',
+        email: attributes.email,
+      },
+    },
+    error: null,
+  }));
   const deleteUser = vi.fn(async () => ({ error: null }));
   const deliveryInsert = vi.fn(async () => ({ error: null }));
+  const securityUpsert = vi.fn(async () => ({ error: null }));
   const runtimeRow = mailRuntimeConfig
     ? {
       key: 'mail_runtime_config',
@@ -143,6 +153,7 @@ function createAdminClient({
   return {
     auth: {
       admin: {
+        createUser,
         deleteUser,
         generateLink,
       },
@@ -161,6 +172,12 @@ function createAdminClient({
         };
       }
 
+      if (table === 'account_security_states') {
+        return {
+          upsert: securityUpsert,
+        };
+      }
+
       if (table !== 'mail_delivery_events') {
         throw new Error(`Unexpected table: ${table}`);
       }
@@ -170,9 +187,11 @@ function createAdminClient({
       };
     }),
     __mocks: {
+      createUser,
       deleteUser,
       deliveryInsert,
       generateLink,
+      securityUpsert,
     },
   };
 }
@@ -259,7 +278,7 @@ describe('api/auth-email-action handler', () => {
     mocks.createMailProviderAdapter.mockReturnValue(createMailAdapter());
   });
 
-  it('requires enabled auth mail actions for registration', async () => {
+  it('allows registration when auth mail delivery is disabled and marks email verification required', async () => {
     const adminClient = createAdminClient();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
 
@@ -274,16 +293,33 @@ describe('api/auth-email-action handler', () => {
 
     await authEmailActionHandler(req, res);
 
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({
-      success: false,
-      code: 'auth_mail_disabled',
+      success: true,
+      data: {
+        status: 'registered_unverified',
+        deliveryChannel: 'auth',
+        nextStep: 'login_and_verify_email',
+      },
     });
+    expect(adminClient.__mocks.createUser).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      password: 'StrongPass123',
+      email_confirm: true,
+      user_metadata: {
+        username: 'user',
+      },
+    });
+    expect(adminClient.__mocks.securityUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      user_id: 'user-1',
+      email_verification_required: true,
+      email_verification_reason: 'new_registration',
+    }), { onConflict: 'user_id' });
     expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
     expect(mocks.createMailProviderAdapter).not.toHaveBeenCalled();
   });
 
-  it('lets runtime config disable registration mail even when env gates are enabled', withAuthMailEnv(async () => {
+  it('does not block registration when runtime config disables auth mail delivery', withAuthMailEnv(async () => {
     const adminClient = createAdminClient({
       mailRuntimeConfig: {
         version: 1,
@@ -310,11 +346,14 @@ describe('api/auth-email-action handler', () => {
 
     await authEmailActionHandler(req, res);
 
-    expect(res.statusCode).toBe(503);
+    expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({
-      success: false,
-      code: 'auth_mail_disabled',
+      success: true,
+      data: {
+        status: 'registered_unverified',
+      },
     });
+    expect(adminClient.__mocks.createUser).toHaveBeenCalled();
     expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
     expect(mocks.createMailProviderAdapter).not.toHaveBeenCalled();
   }));
@@ -345,7 +384,7 @@ describe('api/auth-email-action handler', () => {
     assertNoRawEmail(res.body);
   });
 
-  it('sends a styled registration confirmation email and creates a profile seed', withAuthMailEnv(async () => {
+  it('creates an immediately usable account and asks the user to verify email later', withAuthMailEnv(async () => {
     const adminClient = createAdminClient();
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
@@ -368,75 +407,28 @@ describe('api/auth-email-action handler', () => {
     expect(res.body).toMatchObject({
       success: true,
       data: {
-        status: 'sent',
-        nextStep: 'verify_email',
+        status: 'registered_unverified',
+        nextStep: 'login_and_verify_email',
       },
     });
-    expect(adminClient.__mocks.generateLink).toHaveBeenCalledWith({
-      type: 'signup',
+    expect(adminClient.__mocks.createUser).toHaveBeenCalledWith({
       email: 'user@example.com',
       password: 'StrongPass123',
-      options: {
-        data: {
-          username: 'Mogu',
-        },
-        redirectTo: 'https://ef-gacha.example',
+      email_confirm: true,
+      user_metadata: {
+        username: 'Mogu',
       },
     });
     expect(mocks.ensureProfileForAuthUser).toHaveBeenCalledWith(adminClient, {
       id: 'user-1',
       email: 'user@example.com',
     });
-    expect(adapter.sentMessages).toHaveLength(1);
-    expect(adapter.sentMessages[0]).toMatchObject({
-      to: 'user@example.com',
-      templateKey: 'auth.register-confirmation',
-      eventType: 'register_confirmation',
-    });
-    expect(adapter.sentMessages[0].html).toContain('<!doctype html>');
-    expect(adapter.sentMessages[0].html).toContain('验证账号');
-    expect(adapter.sentMessages[0].text).toContain('https://auth.example.test/action-link');
-  }));
-
-  it('rewrites malformed self-hosted auth signup links before sending registration mail', withAuthMailEnv(async () => {
-    process.env.SUPABASE_URL = 'https://db.example.test';
-    const adminClient = createAdminClient({
-      generateLinkResult: {
-        data: {
-          properties: {
-            action_link: 'http://localhost:8000,https:/auth/v1/verify?token=signup-token&type=signup&redirect_to=https%3A%2F%2Fef-gacha.example',
-          },
-          user: {
-            id: 'user-1',
-            email: 'user@example.com',
-          },
-        },
-        error: null,
-      },
-    });
-    const adapter = createMailAdapter();
-    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
-    mocks.createMailProviderAdapter.mockReturnValue(adapter);
-
-    const req = createRequest({
-      body: {
-        action: 'register_confirmation',
-        email: 'User@Example.com',
-        password: 'StrongPass123',
-        username: 'Mogu',
-        locale: 'zh-CN',
-      },
-    });
-    const res = createJsonResponseRecorder();
-
-    await authEmailActionHandler(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(adapter.sentMessages).toHaveLength(1);
-    expect(adapter.sentMessages[0].text).toContain(
-      'https://db.example.test/auth/v1/verify?token=signup-token&type=signup&redirect_to=https%3A%2F%2Fef-gacha.example'
-    );
-    expect(adapter.sentMessages[0].text).not.toContain('localhost:8000');
+    expect(adminClient.__mocks.securityUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      email_verification_required: true,
+      email_verification_reason: 'new_registration',
+    }), { onConflict: 'user_id' });
+    expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
+    expect(adapter.sentMessages).toHaveLength(0);
   }));
 
   it('keeps duplicate registration explicit without sending another message', withAuthMailEnv(async () => {
@@ -468,7 +460,7 @@ describe('api/auth-email-action handler', () => {
     expect(mocks.createMailProviderAdapter).not.toHaveBeenCalled();
   }));
 
-  it('replaces an unconfirmed signup residue before sending a new confirmation email', withAuthMailEnv(async () => {
+  it('keeps duplicate unverified registration explicit without replacing the user', withAuthMailEnv(async () => {
     const adminClient = createAdminClient();
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
@@ -491,70 +483,14 @@ describe('api/auth-email-action handler', () => {
 
     await authEmailActionHandler(req, res);
 
-    expect(res.statusCode).toBe(200);
-    expect(adminClient.__mocks.deleteUser).toHaveBeenCalledWith('unconfirmed-user');
-    expect(adminClient.__mocks.generateLink).toHaveBeenCalledWith(expect.objectContaining({
-      type: 'signup',
-      email: 'user@example.com',
-    }));
-    expect(adapter.sentMessages).toHaveLength(1);
-  }));
-
-  it('keeps an unconfirmed signup pending when it cannot be safely deleted', withAuthMailEnv(async () => {
-    const adminClient = createAdminClient();
-    adminClient.__mocks.deleteUser.mockResolvedValueOnce({
-      error: new Error('delete failed'),
-    });
-    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
-    mocks.findAuthUserByEmail.mockResolvedValue({
-      id: 'unconfirmed-user',
-      email: 'user@example.com',
-      email_confirmed_at: null,
-    });
-
-    const req = createRequest({
-      body: {
-        action: 'register_confirmation',
-        email: 'User@Example.com',
-        password: 'StrongPass123',
-      },
-    });
-    const res = createJsonResponseRecorder();
-
-    await authEmailActionHandler(req, res);
-
     expect(res.statusCode).toBe(409);
     expect(res.body).toMatchObject({
       success: false,
-      code: 'email_confirmation_pending',
+      code: 'email_already_registered',
     });
+    expect(adminClient.__mocks.deleteUser).not.toHaveBeenCalled();
     expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
     expect(mocks.createMailProviderAdapter).not.toHaveBeenCalled();
-  }));
-
-  it('removes a newly created unconfirmed account if registration mail sending fails', withAuthMailEnv(async () => {
-    const adminClient = createAdminClient();
-    const adapter = createMailAdapter({ ok: false });
-    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
-    mocks.createMailProviderAdapter.mockReturnValue(adapter);
-
-    const req = createRequest({
-      body: {
-        action: 'register_confirmation',
-        email: 'User@Example.com',
-        password: 'StrongPass123',
-      },
-    });
-    const res = createJsonResponseRecorder();
-
-    await authEmailActionHandler(req, res);
-
-    expect(res.statusCode).toBe(502);
-    expect(res.body).toMatchObject({
-      success: false,
-      code: 'stalwart_smtp_failed',
-    });
-    expect(adminClient.__mocks.deleteUser).toHaveBeenCalledWith('user-1');
   }));
 
   it('does not generate or send reset mail for an unknown email', withAuthMailEnv(async () => {
@@ -586,7 +522,21 @@ describe('api/auth-email-action handler', () => {
   }));
 
   it('generates password reset links against the existing reset-password route', withAuthMailEnv(async () => {
-    const adminClient = createAdminClient();
+    const adminClient = createAdminClient({
+      generateLinkResult: {
+        data: {
+          properties: {
+            action_link: 'https://auth.example.test/action-link',
+            email_otp: '123456',
+          },
+          user: {
+            id: 'user-1',
+            email: 'user@example.com',
+          },
+        },
+        error: null,
+      },
+    });
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
     mocks.findAuthUserByEmail.mockResolvedValue({
@@ -620,6 +570,9 @@ describe('api/auth-email-action handler', () => {
       eventType: 'password_reset',
     });
     expect(adapter.sentMessages[0].html).toContain('<!doctype html>');
+    expect(adapter.sentMessages[0].html).toContain('123456');
+    expect(adapter.sentMessages[0].html).not.toContain('https://auth.example.test/action-link');
+    expect(adapter.sentMessages[0].text).toContain('验证码: 123456');
     expect(adapter.sentMessages[0].subject).toBe('Reset your Endfield Gacha password');
     expect(adminClient.__mocks.deliveryInsert).toHaveBeenCalledWith(expect.objectContaining({
       outbox_id: null,
@@ -634,7 +587,21 @@ describe('api/auth-email-action handler', () => {
   }));
 
   it('sends a styled magic-link email login message for existing accounts', withAuthMailEnv(async () => {
-    const adminClient = createAdminClient();
+    const adminClient = createAdminClient({
+      generateLinkResult: {
+        data: {
+          properties: {
+            action_link: 'https://auth.example.test/action-link',
+            email_otp: '654321',
+          },
+          user: {
+            id: 'user-1',
+            email: 'user@example.com',
+          },
+        },
+        error: null,
+      },
+    });
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
     mocks.findAuthUserByEmail.mockResolvedValue({
@@ -658,7 +625,8 @@ describe('api/auth-email-action handler', () => {
       success: true,
       data: {
         status: 'sent',
-        nextStep: 'open_login_link',
+        nextStep: 'enter_login_code',
+        codeEntry: true,
       },
     });
     expect(adminClient.__mocks.generateLink).toHaveBeenCalledWith({
@@ -675,7 +643,9 @@ describe('api/auth-email-action handler', () => {
       relatedEntityId: 'email_login',
     });
     expect(adapter.sentMessages[0].html).toContain('<!doctype html>');
-    expect(adapter.sentMessages[0].text).toContain('https://auth.example.test/action-link');
+    expect(adapter.sentMessages[0].html).toContain('654321');
+    expect(adapter.sentMessages[0].html).not.toContain('https://auth.example.test/action-link');
+    expect(adapter.sentMessages[0].text).toContain('验证码: 654321');
     assertNoRawEmail(res.body);
   }));
 
