@@ -19,6 +19,8 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { RARITY_CONFIG } from '../../constants';
@@ -120,6 +122,18 @@ const ALL_OVERVIEW_FILTER_OPTIONS = [
   { id: 'weapon', label: '武器池' },
   { id: 'standard', label: '常驻池' },
 ];
+
+const CHARACTER_OVERVIEW_TYPE_OPTIONS = [
+  { id: 'limited', labelKey: 'dashboard.overview.filter.limited' },
+  { id: 'extra', labelKey: 'dashboard.overview.filter.extra' },
+  { id: 'standard', labelKey: 'dashboard.overview.filter.standard' },
+];
+
+const WEAPON_OVERVIEW_TYPE_OPTIONS = [
+  { id: 'weapon_limited', labelKey: 'dashboard.overview.filter.weaponLimited' },
+  { id: 'weapon_standard', labelKey: 'dashboard.overview.filter.weaponStandard' },
+];
+
 function getDistributionVariant(poolType) {
   if (poolType === 'weapon') {
     return 'weapon';
@@ -144,6 +158,23 @@ function getOverviewPoolBucket(pool) {
 
   if (groupType === 'weapon_limited' || groupType === 'weapon_standard') {
     return 'weapon';
+  }
+
+  return 'standard';
+}
+
+function getOverviewPoolTypeKey(pool) {
+  const groupType = normalizePoolGroupType(pool);
+  if (groupType === 'weapon_limited' || groupType === 'weapon_standard') {
+    return groupType;
+  }
+
+  if (groupType === 'extra') {
+    return 'extra';
+  }
+
+  if (groupType === 'limited') {
+    return 'limited';
   }
 
   return 'standard';
@@ -193,19 +224,22 @@ const StatBox = ({ title, value, subValue, colorClass, icon: Icon, isAnimated })
   </div>
 );
 
-const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-zinc-100', unitLabel = 'PULLS' }) => (
-  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
+const OverviewBanner = ({ title, value, accentClass = 'text-slate-800 dark:text-zinc-100', unitLabel = 'PULLS', children }) => (
+  <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex flex-col gap-4 shadow-sm relative overflow-hidden group">
     <div className="absolute right-0 top-0 h-full w-24 bg-gradient-to-l from-zinc-50 dark:from-zinc-800 to-transparent" />
-    <div className="relative z-10">
-      <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">{title}</h3>
-      <div className={`text-4xl font-black font-mono flex items-baseline gap-2 ${accentClass}`}>
-        {value}
-        <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{unitLabel}</span>
+    <div className="relative z-10 flex items-start justify-between gap-4">
+      <div>
+        <h3 className="text-xs text-slate-500 dark:text-zinc-500 font-bold uppercase tracking-wider mb-1">{title}</h3>
+        <div className={`text-4xl font-black font-mono flex items-baseline gap-2 ${accentClass}`}>
+          {value}
+          <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{unitLabel}</span>
+        </div>
+      </div>
+      <div className="h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500 shrink-0">
+        <Layers size={24} />
       </div>
     </div>
-    <div className="relative z-10 h-12 w-12 bg-zinc-100 dark:bg-zinc-800 rounded-sm flex items-center justify-center text-slate-400 dark:text-zinc-500">
-      <Layers size={24} />
-    </div>
+    {children ? <div className="relative z-10">{children}</div> : null}
   </div>
 );
 
@@ -214,17 +248,65 @@ const FreePullStatsToggle = ({ enabled, onToggle, t }) => (
     type="button"
     aria-pressed={enabled}
     onClick={onToggle}
-    className={`relative z-10 flex h-12 min-w-[8rem] items-center justify-center gap-2 rounded-sm border px-3 text-[11px] font-bold uppercase tracking-wider transition-colors ${
+    className={`relative z-10 flex w-full items-center justify-between gap-3 rounded-sm border px-3 py-2.5 text-left transition-colors ${
       enabled
         ? 'border-cyan-400/60 bg-cyan-500/10 text-cyan-500 dark:text-cyan-300'
         : 'border-zinc-200 bg-zinc-100 text-slate-500 hover:border-zinc-300 hover:text-slate-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:text-zinc-300'
     }`}
     title={enabled ? t('dashboard.analysis.includeFreeTenTitle') : t('dashboard.analysis.excludeFreeTenTitle')}
   >
-    <Layers size={18} />
-    <span>{enabled ? t('dashboard.analysis.includeFreeTen') : t('dashboard.analysis.freeTenExcluded')}</span>
+    <span>
+      <span className="block text-[11px] font-black uppercase tracking-wider">{t('dashboard.analysis.freeTenToggleLabel')}</span>
+      <span className="mt-0.5 block text-[10px] font-mono">
+        {enabled ? t('dashboard.analysis.freeTenIncludedState') : t('dashboard.analysis.freeTenExcludedState')}
+      </span>
+    </span>
+    {enabled ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
   </button>
 );
+
+const OverviewTypeMultiSelect = ({ title, options, value, onChange, t }) => {
+  const selected = new Set(value);
+
+  return (
+    <div className="space-y-2">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-zinc-600">{title}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const active = selected.has(option.id);
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => {
+                const next = new Set(selected);
+                if (active) {
+                  next.delete(option.id);
+                } else {
+                  next.add(option.id);
+                }
+                onChange(Array.from(next));
+              }}
+              className={`rounded-sm border px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                active
+                  ? 'border-endfield-yellow bg-endfield-yellow/15 text-amber-700 dark:text-endfield-yellow'
+                  : 'border-zinc-200 bg-zinc-50 text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-300'
+              }`}
+            >
+              {t(option.labelKey)}
+            </button>
+          );
+        })}
+      </div>
+      {selected.size === 0 && (
+        <div className="text-[10px] text-amber-600 dark:text-amber-400">
+          {t('dashboard.overview.filter.emptySelection')}
+        </div>
+      )}
+    </div>
+  );
+};
 
 /**
  * 仪表盘视图组件
@@ -234,6 +316,12 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
   const { isDark } = useTheme();
   const { t, formatNumber, isEnglish, locale } = useI18n();
   const [allOverviewPoolFilter, setAllOverviewPoolFilter] = React.useState('all');
+  const [characterOverviewPoolTypes, setCharacterOverviewPoolTypes] = React.useState(() => (
+    CHARACTER_OVERVIEW_TYPE_OPTIONS.map((option) => option.id)
+  ));
+  const [weaponOverviewPoolTypes, setWeaponOverviewPoolTypes] = React.useState(() => (
+    WEAPON_OVERVIEW_TYPE_OPTIONS.map((option) => option.id)
+  ));
   const [showShareMenu, setShowShareMenu] = React.useState(false);
   const [shareMode, setShareMode] = React.useState('current');
   const [customSharePoolIds, setCustomSharePoolIds] = React.useState([]);
@@ -416,6 +504,39 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
       selectedPools.filter((pool) => getOverviewPoolBucket(pool) === allOverviewPoolFilter).map((pool) => pool.id)
     );
   }, [allOverviewPoolFilter, isAllPoolsOverview, selectedPools]);
+  const overviewStatsSelection = React.useMemo(() => {
+    if (!isAllPoolsOverview) {
+      return {
+        pools: selectedPools,
+        poolIds: null,
+      };
+    }
+
+    const characterTypeSet = new Set(characterOverviewPoolTypes);
+    const weaponTypeSet = new Set(weaponOverviewPoolTypes);
+    const pools = selectedPools.filter((pool) => {
+      const typeKey = getOverviewPoolTypeKey(pool);
+      if (typeKey === 'weapon_limited' || typeKey === 'weapon_standard') {
+        return weaponTypeSet.has(typeKey);
+      }
+      return characterTypeSet.has(typeKey);
+    });
+
+    return {
+      pools,
+      poolIds: new Set(pools.map((pool) => pool.id).filter(Boolean)),
+    };
+  }, [characterOverviewPoolTypes, isAllPoolsOverview, selectedPools, weaponOverviewPoolTypes]);
+  const overviewStatsHistory = React.useMemo(() => {
+    if (!isAllPoolsOverview || !overviewStatsSelection.poolIds) {
+      return normalizedPoolHistory;
+    }
+
+    return normalizedPoolHistory.filter((item) => {
+      const poolId = getHistoryPoolId(item);
+      return poolId && overviewStatsSelection.poolIds.has(poolId);
+    });
+  }, [isAllPoolsOverview, normalizedPoolHistory, overviewStatsSelection]);
   const visibleLimitedPoolIds = React.useMemo(() => (
     new Set(
       selectedPools
@@ -518,16 +639,16 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
     ]
   );
   const splitOverviewStats = React.useMemo(() => {
-    if (!isAllPoolsOverview || allOverviewPoolFilter !== 'all') {
+    if (!isAllPoolsOverview) {
       return null;
     }
 
     return buildDashboardOverviewSplitStats({
-      history: normalizedPoolHistory,
-      selectedPools,
+      history: overviewStatsHistory,
+      selectedPools: overviewStatsSelection.pools,
       includeFreePullsInStats,
     });
-  }, [allOverviewPoolFilter, includeFreePullsInStats, isAllPoolsOverview, normalizedPoolHistory, selectedPools]);
+  }, [includeFreePullsInStats, isAllPoolsOverview, overviewStatsHistory, overviewStatsSelection]);
   const customShareSelectedPools = React.useMemo(
     () => customShareCandidatePools.filter((pool) => customSharePoolIds.includes(pool.id)),
     [customShareCandidatePools, customSharePoolIds]
@@ -1197,26 +1318,42 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
         <div className={`${isGroupMode ? 'md:col-span-3' : 'md:col-span-2'} space-y-6`}>
           {splitOverviewStats ? (
             <>
-              <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 <OverviewBanner
                   title={t('dashboard.overview.characterTotal')}
                   value={formatNumber(splitOverviewStats.character.total)}
                   accentClass="rainbow-text"
                   unitLabel={pullUnitLabel}
-                />
+                >
+                  <div className="space-y-4">
+                    <FreePullStatsToggle
+                      enabled={includeFreePullsInStats}
+                      onToggle={() => setIncludeFreePullsInStats((value) => !value)}
+                      t={t}
+                    />
+                    <OverviewTypeMultiSelect
+                      title={t('dashboard.overview.characterTypeFilter')}
+                      options={CHARACTER_OVERVIEW_TYPE_OPTIONS}
+                      value={characterOverviewPoolTypes}
+                      onChange={setCharacterOverviewPoolTypes}
+                      t={t}
+                    />
+                  </div>
+                </OverviewBanner>
                 <OverviewBanner
                   title={t('dashboard.overview.weaponTotal')}
                   value={formatNumber(splitOverviewStats.weapon.total)}
                   accentClass="text-amber-600 dark:text-amber-400"
                   unitLabel={pullUnitLabel}
-                />
-                <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 flex items-center justify-center shadow-sm">
-                  <FreePullStatsToggle
-                    enabled={includeFreePullsInStats}
-                    onToggle={() => setIncludeFreePullsInStats((value) => !value)}
+                >
+                  <OverviewTypeMultiSelect
+                    title={t('dashboard.overview.weaponTypeFilter')}
+                    options={WEAPON_OVERVIEW_TYPE_OPTIONS}
+                    value={weaponOverviewPoolTypes}
+                    onChange={setWeaponOverviewPoolTypes}
                     t={t}
                   />
-                </div>
+                </OverviewBanner>
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -1508,11 +1645,15 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
                     <span className="text-lg font-medium text-slate-400 dark:text-zinc-600">{pullUnitLabel}</span>
                   </div>
                 </div>
-                <FreePullStatsToggle
-                  enabled={includeFreePullsInStats}
-                  onToggle={() => setIncludeFreePullsInStats((value) => !value)}
-                  t={t}
-                />
+                {(normalizedPoolType === 'limited' || normalizedPoolType === 'extra') && (
+                  <div className="relative z-10 w-full max-w-[18rem]">
+                    <FreePullStatsToggle
+                      enabled={includeFreePullsInStats}
+                      onToggle={() => setIncludeFreePullsInStats((value) => !value)}
+                      t={t}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* 核心数据网格 */}
