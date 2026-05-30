@@ -5,6 +5,15 @@ import accountSecurityStateHandler from './root/account-security-state.js';
 import adminHandler from './root/admin.js';
 import announcementsHandler from './root/announcements.js';
 import authEmailActionHandler from './root/auth-email-action.js';
+import {
+  githubOAuthCallbackHandler,
+  githubOAuthStartHandler,
+  linuxdoOAuthCallbackHandler,
+  linuxdoSupabaseAuthorizeHandler,
+  linuxdoOAuthStartHandler,
+  qqOAuthCallbackHandler,
+  qqOAuthStartHandler,
+} from './root/auth-oauth.js';
 import authAccountStatusHandler from './root/auth-account-status.js';
 import authPowChallengeHandler from './root/auth-pow-challenge.js';
 import authRateLimitHandler from './root/auth-rate-limit.js';
@@ -88,6 +97,13 @@ export const API_ROUTE_ENTRIES = [
   ['/api/announcements', announcementsHandler],
   ['/api/auth-account-status', authAccountStatusHandler],
   ['/api/auth-email-action', authEmailActionHandler],
+  ['/api/auth/oauth/github/callback', githubOAuthCallbackHandler],
+  ['/api/auth/oauth/github/start', githubOAuthStartHandler],
+  ['/api/auth/oauth/linuxdo/callback', linuxdoOAuthCallbackHandler],
+  ['/api/auth/oauth/linuxdo/start', linuxdoOAuthStartHandler],
+  ['/api/auth/oauth/linuxdo/supabase-authorize', linuxdoSupabaseAuthorizeHandler],
+  ['/api/auth/oauth/qq/callback', qqOAuthCallbackHandler],
+  ['/api/auth/oauth/qq/start', qqOAuthStartHandler],
   ['/api/auth-pow-challenge', authPowChallengeHandler],
   ['/api/auth-rate-limit', authRateLimitHandler],
   ['/api/automation-feed', automationFeedHandler],
