@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database, Mail, CheckCircle2 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Settings, User, Moon, Sun, Monitor, Trash2, Lock, AlertTriangle, X, Smartphone, Globe, ShieldCheck, Layers, Database, Mail, CheckCircle2, KeyRound, Loader2 } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../stores';
 import PlatformSwitcher from './common/PlatformSwitcher';
 import LocaleSwitcher from './common/LocaleSwitcher.jsx';
@@ -19,6 +19,7 @@ import {
   isUserEmailVerified,
   requestCurrentEmailVerification,
   requestEmailChange,
+  verifyCurrentEmailCode,
 } from '../services/accountEmailService.js';
 import { deleteOwnAccount } from '../services/selfAccountService';
 import { updateOwnUsername } from '../services/accountProfileService.js';
@@ -122,6 +123,7 @@ function getAccountEmailErrorMessage(error, t) {
 const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
+  const location = useLocation();
   const user = useAuthStore(state => state.user);
   const setUser = useAuthStore(state => state.setUser);
   const userRole = useAuthStore(state => state.userRole);
@@ -153,6 +155,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [emailVerificationCodeLoading, setEmailVerificationCodeLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
   const [emailStatusMessage, setEmailStatusMessage] = useState('');
@@ -222,6 +226,39 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       cancelled = true;
     };
   }, [user?.id]);
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const verificationStatus = searchParams.get('email_verification');
+    if (!verificationStatus) {
+      return;
+    }
+
+    if (verificationStatus === 'success') {
+      showEmailStatus(t('settings.success.emailVerifiedByLink'), 'success');
+      setAccountSecurityState((prev) => ({
+        ...(prev || {}),
+        emailVerificationRequired: false,
+        emailVerificationVerifiedAt: new Date().toISOString(),
+      }));
+    } else {
+      const reason = searchParams.get('reason') || '';
+      showEmailStatus(
+        reason === 'token_expired'
+          ? t('settings.error.emailVerificationLinkExpired')
+          : t('settings.error.emailVerificationLinkFailed'),
+        'error'
+      );
+    }
+
+    searchParams.delete('email_verification');
+    searchParams.delete('reason');
+    const nextSearch = searchParams.toString();
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch ? `?${nextSearch}` : '',
+    }, { replace: true });
+  }, [location.pathname, location.search, navigate, t]);
 
   const handleDeleteAllData = async () => {
     if (deleteConfirmText !== deletePhrase) return;
@@ -364,6 +401,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     try {
       const result = await requestCurrentEmailVerification({ locale });
       const status = result?.data?.status;
+      setEmailVerificationCode('');
       showEmailStatus(
         status === 'already_verified'
           ? t('settings.success.emailAlreadyVerified')
@@ -374,6 +412,42 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       showEmailStatus(getAccountEmailErrorMessage(error, t), 'error');
     } finally {
       setEmailVerificationLoading(false);
+    }
+  };
+
+  const handleVerifyEmailCode = async () => {
+    if (!user) {
+      showEmailStatus(t('settings.error.notLoggedInEmail'), 'error');
+      return;
+    }
+
+    const code = String(emailVerificationCode || '').replace(/\D/g, '').slice(0, 6);
+    if (code.length !== 6) {
+      showEmailStatus(t('settings.error.emailVerificationCodeInvalid'), 'error');
+      return;
+    }
+
+    setEmailVerificationCodeLoading(true);
+    setEmailStatusMessage('');
+    try {
+      await verifyCurrentEmailCode({ code });
+      setEmailVerificationCode('');
+      setAccountSecurityState((prev) => ({
+        ...(prev || {}),
+        emailVerificationRequired: false,
+        emailVerificationVerifiedAt: new Date().toISOString(),
+      }));
+      showEmailStatus(t('settings.success.emailVerificationCodeVerified'), 'success');
+    } catch (error) {
+      const codeValue = error instanceof AccountEmailActionError ? error.code : error?.code;
+      showEmailStatus(
+        codeValue === 'code_expired'
+          ? t('settings.error.emailVerificationCodeExpired')
+          : t('settings.error.emailVerificationCodeFailed'),
+        'error'
+      );
+    } finally {
+      setEmailVerificationCodeLoading(false);
     }
   };
 
@@ -498,6 +572,11 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                       {t('settings.emailVerificationRequired')}
                     </div>
                   )}
+                  {!emailVerified && (
+                    <div className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-5">
+                      {t('settings.emailVerificationReminder')}
+                    </div>
+                  )}
                   {emailStatusMessage && (
                     <div className={`px-3 py-2 rounded-sm text-xs border ${
                       emailStatusTone === 'error'
@@ -526,6 +605,37 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                       <Mail size={14} /> {t('settings.changeEmail')}
                     </button>
                   </div>
+                  {!emailVerified && (
+                    <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-sm p-3 space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                        <KeyRound size={13} /> {t('settings.emailVerificationCode')}
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={6}
+                          value={emailVerificationCode}
+                          onChange={(event) => setEmailVerificationCode(String(event.target.value || '').replace(/\D/g, '').slice(0, 6))}
+                          placeholder="000000"
+                          className="w-full px-3 py-2 border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-100 rounded-sm text-center font-mono tracking-[0.28em] outline-none focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyEmailCode}
+                          disabled={emailVerificationCodeLoading || emailVerificationCode.length !== 6}
+                          className="flex items-center justify-center gap-2 px-3 py-2 bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-black disabled:text-zinc-400 text-xs font-bold tracking-wider transition-all uppercase rounded-sm disabled:cursor-not-allowed"
+                        >
+                          {emailVerificationCodeLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                          {t('settings.verifyEmailCode')}
+                        </button>
+                      </div>
+                      <p className="text-[10px] leading-4 text-zinc-500 dark:text-zinc-500">
+                        {t('settings.emailVerificationCodeHint')}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-3 rounded-sm space-y-2">

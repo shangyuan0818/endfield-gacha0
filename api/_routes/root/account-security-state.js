@@ -41,6 +41,10 @@ function toClientSecurityState(row) {
   };
 }
 
+function isAuthEmailConfirmed(user) {
+  return Boolean(user?.email_confirmed_at || user?.confirmed_at);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -116,9 +120,18 @@ export default async function handler(req, res) {
       throw stateError;
     }
 
+    const fallbackEmailVerificationRequired = !stateRow
+      && !isAuthEmailConfirmed(currentUser)
+      && currentUser?.app_metadata?.role !== 'super_admin';
+
     return res.status(200).json({
       success: true,
-      state: toClientSecurityState(stateRow),
+      state: toClientSecurityState(stateRow || (fallbackEmailVerificationRequired ? {
+        email_verification_required: true,
+        email_verification_reason: 'unverified_email',
+        email_verification_requested_at: null,
+        email_verification_verified_at: null,
+      } : null)),
     });
   } catch (error) {
     return res.status(500).json({

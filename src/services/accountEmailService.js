@@ -91,6 +91,40 @@ export async function requestCurrentEmailVerification({ locale } = {}) {
   });
 }
 
+export async function verifyCurrentEmailCode({ code } = {}) {
+  if (!supabase) {
+    throw new AccountEmailActionError('Supabase is not configured', { code: 'supabase_not_configured' });
+  }
+
+  const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new AccountEmailActionError('当前登录态已失效，请重新登录后再试', { code: 'session_expired', status: 401 });
+  }
+
+  const normalizedCode = String(code || '').replace(/\D/g, '').slice(0, 6);
+  const { response, data: payload } = await fetchJsonWithTimeout('/api/account-email-verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ code: normalizedCode }),
+  }, {
+    label: 'account-email-verify:code',
+    timeoutMs: 20000,
+    retries: 0,
+  });
+
+  if (!response.ok || payload?.success !== true) {
+    throw new AccountEmailActionError(payload?.error || '邮箱验证码验证失败，请稍后重试', {
+      code: payload?.code || '',
+      status: response.status,
+    });
+  }
+
+  return payload;
+}
+
 export async function requestEmailChange({
   newEmail,
   currentPassword,
@@ -111,5 +145,6 @@ export default {
   AccountEmailActionError,
   isUserEmailVerified,
   requestCurrentEmailVerification,
+  verifyCurrentEmailCode,
   requestEmailChange,
 };

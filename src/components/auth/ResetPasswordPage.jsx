@@ -40,6 +40,13 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState('');
   const [recoveryReady, setRecoveryReady] = useState(false);
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
+  const enteredFromCode = useMemo(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return new URLSearchParams(window.location.search).get('from') === 'code';
+  }, []);
 
   const passwordMismatch = useMemo(() => (
     confirmPassword.length > 0 && password !== confirmPassword
@@ -72,6 +79,9 @@ export default function ResetPasswordPage() {
         if (session?.user || recoveryType === 'recovery') {
           setRecoveryReady(true);
           setError('');
+        } else if (enteredFromCode) {
+          setRecoveryReady(false);
+          setError(tt('验证码已提交，但当前浏览器没有拿到重置会话。请重新发送密码重置验证码后再试。', 'The code was submitted, but this browser did not receive a recovery session. Request a new password reset code and try again.'));
         } else {
           setRecoveryReady(false);
           setError(tt('重置链接无效、已过期，或当前未进入密码重置流程。', 'This reset link is invalid, expired, or the recovery flow was not started.'));
@@ -95,7 +105,7 @@ export default function ResetPasswordPage() {
     return () => {
       active = false;
     };
-  }, [tt]);
+  }, [enteredFromCode, tt]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -218,7 +228,9 @@ export default function ResetPasswordPage() {
               </form>
 
               <div className="border-t border-zinc-200 pt-4 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
-                {tt('链接失效时，请返回登录弹窗重新发送密码重置邮件。', 'If the link expires, return to the login modal and request a new password reset email.')}
+                {enteredFromCode
+                  ? tt('验证码失效时，请返回登录弹窗重新发送密码重置邮件。', 'If the code expires, return to the login modal and request a new password reset email.')
+                  : tt('链接失效时，请返回登录弹窗重新发送密码重置邮件。', 'If the link expires, return to the login modal and request a new password reset email.')}
               </div>
 
               <Link

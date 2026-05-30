@@ -39,6 +39,7 @@ function buildText({
   intro,
   actionLabel,
   actionUrl,
+  verificationCode,
   secondary,
   generatedAt,
 }) {
@@ -46,7 +47,8 @@ function buildText({
     title,
     '',
     intro,
-    actionUrl ? `${actionLabel}: ${actionUrl}` : '',
+    verificationCode ? `验证码: ${verificationCode}` : '',
+    actionUrl && !verificationCode ? `${actionLabel}: ${actionUrl}` : '',
     secondary || '',
     '',
     `Generated at: ${toIsoTimestamp(generatedAt)}`,
@@ -59,10 +61,13 @@ function buildHtml({
   intro,
   actionLabel,
   actionUrl,
+  verificationCode,
+  locale,
   secondary,
   generatedAt,
 }) {
   const safeActionUrl = actionUrl ? escapeHtml(actionUrl) : '';
+  const safeVerificationCode = verificationCode ? escapeHtml(verificationCode) : '';
   const safeSecondary = secondary ? escapeHtml(secondary).replace(/\n/g, '<br>') : '';
 
   return `<!doctype html>
@@ -87,7 +92,13 @@ function buildHtml({
             <tr>
               <td style="padding:26px 24px 12px;">
                 <p style="margin:0;color:#3f3f46;font-size:15px;line-height:1.8;">${escapeHtml(intro)}</p>
-                ${safeActionUrl ? `
+                ${safeVerificationCode ? `
+                <div style="margin:22px 0 8px;padding:18px 16px;background:#18181b;border-left:4px solid #facc15;color:#ffffff;">
+                  <div style="font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#a1a1aa;">${escapeHtml(isEnglishLocale(locale) ? 'Verification code' : '验证码')}</div>
+                  <div style="margin-top:8px;font-size:30px;line-height:1;font-weight:800;letter-spacing:0.24em;font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;color:#facc15;">${safeVerificationCode}</div>
+                </div>
+                ` : ''}
+                ${safeActionUrl && !safeVerificationCode ? `
                 <div style="margin:24px 0;">
                   <a href="${safeActionUrl}" style="display:inline-block;background:#facc15;color:#111827;text-decoration:none;font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;padding:13px 18px;border:1px solid #eab308;">${escapeHtml(actionLabel)}</a>
                 </div>
@@ -317,15 +328,56 @@ function getTemplateCopy(templateKey, locale) {
   }
 }
 
+function getVerificationCodeCopy(templateKey, locale) {
+  const english = isEnglishLocale(locale);
+
+  switch (templateKey) {
+    case 'auth.email-login':
+      return english
+        ? {
+          preheader: 'Use this code to sign in to Endfield Gacha.',
+          intro: 'Enter the verification code below in the sign-in window to access your Endfield Gacha account. The code is single-use and may expire soon.',
+        }
+        : {
+          preheader: '使用验证码登录终末地抽卡分析器。',
+          intro: '请在登录窗口输入下方验证码，进入你的终末地抽卡分析器账号。验证码只能使用一次，并可能在一段时间后失效。',
+        };
+    case 'auth.email-verification':
+      return english
+        ? {
+          preheader: 'Use this code to verify the email address on your Endfield Gacha account.',
+          intro: 'Enter the verification code below on the settings page to confirm the email address on your Endfield Gacha account. The code is single-use and may expire soon.',
+        }
+        : {
+          preheader: '使用验证码验证你的终末地抽卡分析器账号邮箱。',
+          intro: '请在设置页输入下方验证码，确认你的终末地抽卡分析器账号邮箱。验证码只能使用一次，并可能在一段时间后失效。',
+        };
+    case 'auth.password-reset':
+      return english
+        ? {
+          preheader: 'Use this code to reset your Endfield Gacha password.',
+          intro: 'Enter the verification code below in the password reset window to continue. The code is single-use and may expire soon.',
+        }
+        : {
+          preheader: '使用验证码重置你的终末地抽卡分析器密码。',
+          intro: '请在密码重置窗口输入下方验证码继续。验证码只能使用一次，并可能在一段时间后失效。',
+        };
+    default:
+      return null;
+  }
+}
+
 export function renderMailTemplate({
   templateKey,
   locale = 'zh-CN',
   actionUrl = '',
+  verificationCode = '',
   generatedAt = new Date(),
   overrides = {},
 } = {}) {
   const copy = {
     ...getTemplateCopy(templateKey, locale),
+    ...(verificationCode ? getVerificationCodeCopy(templateKey, locale) : null),
     ...overrides,
   };
   const title = copy.title || copy.subject || 'Endfield Gacha';
@@ -336,6 +388,8 @@ export function renderMailTemplate({
     intro,
     actionLabel,
     actionUrl,
+    verificationCode,
+    locale,
     secondary: copy.secondary,
     generatedAt,
   });
@@ -345,6 +399,7 @@ export function renderMailTemplate({
     intro,
     actionLabel,
     actionUrl,
+    verificationCode,
     secondary: copy.secondary,
     generatedAt,
   });

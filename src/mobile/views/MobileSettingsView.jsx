@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Settings, User, Moon, Sun, Monitor, Trash2, Lock, Cloud, RefreshCw,
-  AlertTriangle, X, Database, LogOut, ChevronRight, Globe, Mail, CheckCircle2
+  AlertTriangle, X, Database, LogOut, ChevronRight, Globe, Mail, CheckCircle2, KeyRound, Loader2
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import usePoolStore from '../../stores/usePoolStore';
@@ -28,6 +28,7 @@ import {
   isUserEmailVerified,
   requestCurrentEmailVerification,
   requestEmailChange,
+  verifyCurrentEmailCode,
 } from '../../services/accountEmailService.js';
 import { deleteOwnAccount } from '../../services/selfAccountService';
 import { updateOwnUsername } from '../../services/accountProfileService.js';
@@ -143,6 +144,7 @@ function MobileSettingsSection({ title, icon, children }) {
  */
 function MobileSettingsView() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, locale, formatDateTime } = useI18n();
   const { themeMode, setThemeMode } = useTheme();
   const { user, signOut, logout, userRole, syncing, syncError, lastSyncAt, setUser } = useAuthStore();
@@ -171,6 +173,8 @@ function MobileSettingsView() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
+  const [emailVerificationCode, setEmailVerificationCode] = useState('');
+  const [emailVerificationCodeLoading, setEmailVerificationCodeLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -238,6 +242,39 @@ function MobileSettingsView() {
       cancelled = true;
     };
   }, [user?.id]);
+
+  React.useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const verificationStatus = searchParams.get('email_verification');
+    if (!verificationStatus) {
+      return;
+    }
+
+    if (verificationStatus === 'success') {
+      showToast(t('settings.success.emailVerifiedByLink'), 'success');
+      setAccountSecurityState((prev) => ({
+        ...(prev || {}),
+        emailVerificationRequired: false,
+        emailVerificationVerifiedAt: new Date().toISOString(),
+      }));
+    } else {
+      const reason = searchParams.get('reason') || '';
+      showToast(
+        reason === 'token_expired'
+          ? t('settings.error.emailVerificationLinkExpired')
+          : t('settings.error.emailVerificationLinkFailed'),
+        'error'
+      );
+    }
+
+    searchParams.delete('email_verification');
+    searchParams.delete('reason');
+    const nextSearch = searchParams.toString();
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch ? `?${nextSearch}` : '',
+    }, { replace: true });
+  }, [location.pathname, location.search, navigate, showToast, t]);
 
   const getRoleInfo = (role) => {
     switch (role) {
@@ -363,6 +400,7 @@ function MobileSettingsView() {
     try {
       const result = await requestCurrentEmailVerification({ locale });
       const status = result?.data?.status;
+      setEmailVerificationCode('');
       showToast(
         status === 'already_verified'
           ? t('settings.success.emailAlreadyVerified')
@@ -373,6 +411,41 @@ function MobileSettingsView() {
       showToast(getAccountEmailErrorMessage(error, t), 'error');
     } finally {
       setEmailVerificationLoading(false);
+    }
+  };
+
+  const handleVerifyEmailCode = async () => {
+    if (!user) {
+      showToast(t('settings.error.notLoggedInEmail'), 'error');
+      return;
+    }
+
+    const code = String(emailVerificationCode || '').replace(/\D/g, '').slice(0, 6);
+    if (code.length !== 6) {
+      showToast(t('settings.error.emailVerificationCodeInvalid'), 'error');
+      return;
+    }
+
+    setEmailVerificationCodeLoading(true);
+    try {
+      await verifyCurrentEmailCode({ code });
+      setEmailVerificationCode('');
+      setAccountSecurityState((prev) => ({
+        ...(prev || {}),
+        emailVerificationRequired: false,
+        emailVerificationVerifiedAt: new Date().toISOString(),
+      }));
+      showToast(t('settings.success.emailVerificationCodeVerified'), 'success');
+    } catch (error) {
+      const codeValue = error instanceof AccountEmailActionError ? error.code : error?.code;
+      showToast(
+        codeValue === 'code_expired'
+          ? t('settings.error.emailVerificationCodeExpired')
+          : t('settings.error.emailVerificationCodeFailed'),
+        'error'
+      );
+    } finally {
+      setEmailVerificationCodeLoading(false);
     }
   };
 
@@ -568,6 +641,11 @@ function MobileSettingsView() {
                     {t('settings.emailVerificationRequired')}
                   </p>
                 )}
+                {!emailVerified && (
+                  <p className="mt-2 text-[10px] leading-4 text-zinc-500 dark:text-zinc-400">
+                    {t('settings.emailVerificationReminder')}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -596,6 +674,37 @@ function MobileSettingsView() {
                 >
                   {t('settings.changeEmail')}
                 </button>
+                {!emailVerified && (
+                  <div className="rounded-[0.95rem] border border-zinc-200 bg-white px-3 py-3 dark:border-white/8 dark:bg-white/[0.04]">
+                    <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                      <KeyRound size={13} /> {t('settings.emailVerificationCode')}
+                    </label>
+                    <div className="grid grid-cols-1 gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={6}
+                        value={emailVerificationCode}
+                        onChange={(event) => setEmailVerificationCode(String(event.target.value || '').replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        className="mobile-ux-input px-4 py-3 text-center font-mono text-lg tracking-[0.28em]"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyEmailCode}
+                        disabled={emailVerificationCodeLoading || emailVerificationCode.length !== 6}
+                        className="flex w-full items-center justify-center gap-2 rounded-[0.95rem] bg-endfield-yellow px-4 py-3 text-xs font-bold uppercase tracking-widest text-black touch-feedback disabled:opacity-50 transition-colors hover:bg-yellow-400 disabled:bg-zinc-700"
+                      >
+                        {emailVerificationCodeLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                        {t('settings.verifyEmailCode')}
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[10px] leading-4 text-zinc-500 dark:text-zinc-500">
+                      {t('settings.emailVerificationCodeHint')}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
