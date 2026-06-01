@@ -6,6 +6,7 @@ import PlatformSwitcher from './common/PlatformSwitcher';
 import LocaleSwitcher from './common/LocaleSwitcher.jsx';
 import PlatformBindingsSection from './settings/PlatformBindingsSection.jsx';
 import DeveloperApiSection from './settings/DeveloperApiSection.jsx';
+import LoginIdentitiesSection from './settings/LoginIdentitiesSection.jsx';
 import UsernameEditDialog from './settings/UsernameEditDialog.jsx';
 import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
@@ -754,7 +755,19 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 relative rounded-sm">
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 bg-zinc-50/50 dark:bg-zinc-950/50">
+            <KeyRound size={14} className="text-zinc-500" />
+            <h3 className="font-bold text-xs text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">
+              {t('settings.authIdentity.title')}
+            </h3>
+          </div>
+          <div className="p-4">
+            <LoginIdentitiesSection />
+          </div>
+        </div>
+
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 relative rounded-sm">
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2 bg-zinc-50/50 dark:bg-zinc-950/50">
             <ShieldCheck size={14} className="text-zinc-500" />

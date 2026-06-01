@@ -4,7 +4,9 @@ import {
   ArrowLeft,
   CheckCircle2,
   FileSearch,
+  Github,
   KeyRound,
+  Link2,
   Loader2,
   Lock,
   LogIn,
@@ -48,6 +50,8 @@ export default function AuthModalView({
   onEmailLogin,
   onEmailCodeChange,
   onEmailCodeSubmit,
+  oauthProviders,
+  onOAuthLogin,
   onSubmitRecoveryRequest,
   onSwitchMode,
   onSwitchToForgotPassword,
@@ -73,6 +77,7 @@ export default function AuthModalView({
 }) {
   const { isEnglish } = useI18n();
   const tt = React.useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
+  const hasOAuthProviders = mode === 'login' && Array.isArray(oauthProviders) && oauthProviders.length > 0;
   const recoveryRequestTypeLabel =
     recoveryRequestForm.requestType === 'delete_account'
       ? tt('注销旧账号', 'Delete Old Account')
@@ -682,6 +687,39 @@ export default function AuthModalView({
                 ? tt(`${resendCooldown}秒后可重新发送邮件登录`, `Email sign-in in ${resendCooldown}s`)
                 : tt('发送邮件登录验证码', 'Send Email Sign-In Code')}
             </button>
+          )}
+
+          {hasOAuthProviders && (
+            <div className="pt-1 space-y-3">
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-widest text-slate-400 dark:text-zinc-600">
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                {tt('第三方登录', 'Third-party sign-in')}
+                <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {oauthProviders.map((provider) => {
+                  const Icon = provider.key === 'github' ? Github : Link2;
+                  return (
+                    <button
+                      key={provider.key}
+                      type="button"
+                      onClick={() => onOAuthLogin(provider.key)}
+                      disabled={loading}
+                      className="min-h-[44px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed text-slate-700 dark:text-zinc-200 font-bold uppercase tracking-wider py-2 px-3 rounded-none flex items-center justify-center gap-2 transition-colors text-xs whitespace-normal text-center leading-tight"
+                    >
+                      <Icon size={16} />
+                      {provider.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] leading-5 text-slate-500 dark:text-zinc-500">
+                {tt(
+                  '授权会在当前标签页跳转并回到本站，不会打开新标签页。第三方账号绑定仍会要求保留至少一种站内可用登录方式。',
+                  'Authorization continues in this tab and returns here. Account linking still requires at least one usable site sign-in method.'
+                )}
+              </p>
+            </div>
           )}
         </form>
 

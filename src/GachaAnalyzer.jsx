@@ -16,6 +16,7 @@ import { STORAGE_KEYS, writeStorageValue } from './utils/storageUtils.js';
 import { subscribePublicCacheWarnings } from './services/admin/publicCacheService.js';
 import { buildPublicCacheWarningNotification } from './utils/notificationModel.js';
 import { useI18n } from './i18n/index.js';
+import { useOAuthCallbackNotice } from './hooks/auth/useOAuthCallbackNotice.js';
 
 export default function GachaAnalyzer() {
   // --- 从 Zustand Stores 获取状态 ---
@@ -78,6 +79,7 @@ export default function GachaAnalyzer() {
     clearRead: clearReadDurableNotifications,
   } = useDurableNotifications();
   const { confirmState, handleConfirm, handleCancel } = useConfirm();
+  useOAuthCallbackNotice({ location, navigate, addDurableNotification });
 
   useEffect(() => subscribePublicCacheWarnings((event) => {
     addDurableNotification(buildPublicCacheWarningNotification(event, { locale }));
