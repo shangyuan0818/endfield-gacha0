@@ -190,8 +190,10 @@ describe('auth OAuth bridge', () => {
     }, {
       secret: 'test-oauth-state-secret',
     });
-    const fetchMock = vi.fn(async (url) => {
+    const fetchMock = vi.fn(async (url, options = {}) => {
       if (String(url).includes('/oauth2/token')) {
+        expect(options.headers.Authorization).toBe(`Basic ${Buffer.from('linuxdo-client-id:linuxdo-client-secret').toString('base64')}`);
+        expect(String(options.body)).not.toContain('client_secret=linuxdo-client-secret');
         return new Response(JSON.stringify({ access_token: 'provider-access-token', token_type: 'Bearer' }), {
           status: 200,
           headers: { 'content-type': 'application/json' },

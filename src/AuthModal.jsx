@@ -1,6 +1,7 @@
 import React from 'react';
 import { supabase } from './supabaseClient';
 import { buildAuthCaptchaPayload } from './services/authCaptchaClient.js';
+import { getEnabledOAuthProviders, startOAuthLogin } from './services/authOAuthService.js';
 import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
 import { getSimpleFriendlyError, isNetworkConnectivityError } from './utils/errorMessages';
 import { validateAccountPassword } from './utils/authSecurity.js';
@@ -91,6 +92,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     code: '',
     loading: false,
   });
+  const oauthProviders = React.useMemo(() => getEnabledOAuthProviders(), []);
   const captchaAction = React.useMemo(() => {
     if (mode === 'login' && emailLoginCaptchaVisible) return 'password_reset';
     if (mode === 'register') return 'register';
@@ -110,6 +112,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
 
     return buildAuthCaptchaPayload(action);
   }, [captchaState]);
+
+  const handleOAuthLogin = React.useCallback(async (provider) => {
+    setError('');
+    setMessage('');
+    setLoading(true);
+    try {
+      await startOAuthLogin(provider, {
+        returnTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        intent: 'login',
+      });
+      setLoading(false);
+    } catch {
+      setError(tt('该第三方登录方式暂不可用。', 'This third-party sign-in provider is not available yet.'));
+      setLoading(false);
+    }
+  }, [setError, setLoading, setMessage, tt]);
 
   const resetRecoveryRequestState = React.useCallback(() => {
     setRecoveryRequestForm(createEmptyRecoveryForm());
@@ -835,6 +853,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
         setEmailCodeState((prev) => ({ ...prev, code }));
       }}
       onEmailCodeSubmit={handleEmailCodeSubmit}
+      oauthProviders={oauthProviders}
+      onOAuthLogin={handleOAuthLogin}
       recoverySubmitDisabled={recoveryRequestLoading || (captchaAction === 'account_recovery' && !captchaReady)}
       onSwitchMode={switchMode}
       onSwitchToForgotPassword={switchToForgotPassword}

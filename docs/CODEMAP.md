@@ -50,6 +50,7 @@
 | 邮件防刷 / 入队 / worker / webhook / 模板 / 运行期开关 | `api/_lib/mailAbuseGuards.js`、`api/_lib/mailOutbox.js`、`api/_lib/mailOutboxWorker.js`、`api/_lib/mailProviderAdapter.js`、`api/_lib/mailTemplateRenderer.js`、`api/_lib/mailDeliveryFeedback.js`、`api/_lib/mailInboundEvents.js`、`api/_lib/mailSmokeTest.js`、`api/_lib/mailRuntimeConfig.js` |
 | 认证 CAPTCHA / 风险桶 / 脱敏审计 | `api/_lib/authSecurityGuards.js` |
 | 认证邮件 / 账号恢复状态 | `api/_routes/root/auth-email-action.js`、`api/_routes/root/account-recovery-request.js`、`api/_routes/root/account-security-state.js` |
+| 第三方一键登录 / 桥接 | `src/services/authOAuthService.js`、`src/services/authIdentityService.js`、`src/components/auth/AuthCallbackPage.jsx`、`src/components/settings/LoginIdentitiesSection.jsx`、`api/_routes/root/auth-oauth.js`、`api/_lib/oauthProviders.js`、`api/_lib/oauthState.js`、`src/hooks/auth/useOAuthCallbackNotice.js` |
 | bootstrap / stats / announcements / pool-rosters | `api/_routes/root/*.js` |
 | 后台管理 | `api/_routes/root/admin.js` |
 | 运营自动化 | `api/_routes/root/ops-automation.js`、`api/_lib/runOpsAutomation.js` |

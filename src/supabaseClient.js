@@ -22,7 +22,11 @@ if (!supabaseUrl || !supabasePublishableKey) {
 }
 
 export const supabase = supabaseUrl && supabasePublishableKey
-  ? createClient(supabaseUrl, supabasePublishableKey)
+  ? createClient(supabaseUrl, supabasePublishableKey, {
+    auth: {
+      flowType: 'pkce',
+    },
+  })
   : null
 
 export const isSupabaseRealtimeEnabled = () => {

@@ -1,6 +1,6 @@
 import { resolvePlatformPath } from '../constants/appRoutes';
 
-const DEVICE_REDIRECT_BYPASS_PREFIXES = ['/privacy', '/terms', '/share', '/reset-password'];
+const DEVICE_REDIRECT_BYPASS_PREFIXES = ['/privacy', '/terms', '/share', '/reset-password', '/auth'];
 
 function normalizePathname(pathname) {
   if (!pathname || pathname === '/') {

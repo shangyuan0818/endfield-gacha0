@@ -14,6 +14,7 @@ import PlatformSwitcher from '../../components/common/PlatformSwitcher';
 import LocaleSwitcher from '../../components/common/LocaleSwitcher.jsx';
 import PlatformBindingsSection from '../../components/settings/PlatformBindingsSection.jsx';
 import DeveloperApiSection from '../../components/settings/DeveloperApiSection.jsx';
+import LoginIdentitiesSection from '../../components/settings/LoginIdentitiesSection.jsx';
 import UsernameEditDialog from '../../components/settings/UsernameEditDialog.jsx';
 import { Toast } from '../../components/ui';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -765,6 +766,12 @@ function MobileSettingsView() {
             <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('settings.mobile.authRequired')}</p>
           </div>
         )}
+      </MobileSettingsSection>
+
+      <MobileSettingsSection title={t('settings.authIdentity.title')} icon={KeyRound}>
+        <div className="p-4">
+          <LoginIdentitiesSection variant="mobile" />
+        </div>
       </MobileSettingsSection>
 
       <MobileSettingsSection title={t('settings.integration.bindingsTitle')} icon={Cloud}>

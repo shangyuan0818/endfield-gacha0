@@ -24,6 +24,7 @@ import { NotificationCenter } from '../../components/ui';
 import { useDurableNotifications } from '../../hooks';
 import { useScrollToHighlight } from '../../hooks/app/useScrollToHighlight';
 import { useI18n } from '../../i18n/index.js';
+import { useOAuthCallbackNotice } from '../../hooks/auth/useOAuthCallbackNotice.js';
 
 const DeveloperApiDocsPage = lazy(() => import('../../components/docs/DeveloperApiDocsPage'));
 
@@ -58,6 +59,7 @@ function MobileLayout() {
     clearRead: clearReadDurableNotifications,
   } = useDurableNotifications();
   useScrollToHighlight();
+  useOAuthCallbackNotice({ location, navigate, addDurableNotification });
 
   useEffect(() => {
     if (activeTab === 'home' && !isHomeSubpage && location.pathname !== getMobilePathForTab('home')) {

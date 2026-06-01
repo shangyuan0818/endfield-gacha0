@@ -9,7 +9,7 @@ export const OAUTH_PROVIDERS = Object.freeze({
     tokenUrl: 'https://connect.linux.do/oauth2/token',
     userUrl: 'https://connect.linux.do/api/user',
     defaultScope: 'read',
-    tokenAuthMethod: 'body',
+    tokenAuthMethod: 'basic',
   },
   qq: {
     key: 'qq',
