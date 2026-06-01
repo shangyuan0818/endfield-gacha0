@@ -4,9 +4,11 @@ import {
   groupAuthIdentities,
   isLoginIdentityProviderAvailable,
   linkLoginIdentity,
+  loadAuthIdentities,
   normalizeAuthIdentityProvider,
   unlinkLoginIdentity,
 } from '../authIdentityService.js';
+import { getCurrentSiteSession } from '../siteSessionService.js';
 
 vi.mock('../../supabaseClient.js', () => ({
   supabase: {
@@ -18,9 +20,17 @@ vi.mock('../../supabaseClient.js', () => ({
   },
 }));
 
+vi.mock('../siteSessionService.js', () => ({
+  getCurrentSiteSession: vi.fn(),
+}));
+
 describe('authIdentityService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getCurrentSiteSession.mockResolvedValue({
+      authenticated: false,
+      identities: [],
+    });
   });
 
   it('normalizes custom Linux.do identities from provider or issuer', () => {
@@ -43,43 +53,52 @@ describe('authIdentityService', () => {
     expect(grouped.get('linuxdo')).toHaveLength(2);
   });
 
-  it('links GitHub through Supabase identity linking', async () => {
-    supabase.auth.linkIdentity.mockResolvedValue({ data: { url: 'https://github.com/login/oauth/authorize' }, error: null });
+  it('keeps site-managed OAuth providers visible but blocks old Supabase identity linking', async () => {
+    expect(isLoginIdentityProviderAvailable('github', {})).toBe(true);
+    expect(isLoginIdentityProviderAvailable('linuxdo', {})).toBe(true);
 
-    await linkLoginIdentity('github', { returnTo: '/settings' });
-
-    expect(supabase.auth.linkIdentity).toHaveBeenCalledWith({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=%2Fsettings`,
-      },
-    });
-  });
-
-  it('links Linux.do with custom OAuth2 scope', async () => {
-    supabase.auth.linkIdentity.mockResolvedValue({ data: { url: 'https://connect.linux.do/oauth2/authorize' }, error: null });
-
-    await linkLoginIdentity('linuxdo', {
+    await expect(linkLoginIdentity('github', {
       returnTo: '/settings',
-      env: { VITE_AUTH_OAUTH_LINUXDO_READY: 'true' },
-    });
-
-    expect(supabase.auth.linkIdentity).toHaveBeenCalledWith({
-      provider: 'custom:linuxdo',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=%2Fsettings`,
-        scopes: 'read',
-      },
-    });
-  });
-
-  it('keeps Linux.do unavailable until the Auth custom provider is verified ready', async () => {
-    expect(isLoginIdentityProviderAvailable('linuxdo', {})).toBe(false);
+      env: {},
+    })).rejects.toThrow('unsupported_identity_provider');
 
     await expect(linkLoginIdentity('linuxdo', {
       returnTo: '/settings',
       env: {},
-    })).rejects.toThrow('identity_provider_not_ready');
+    })).rejects.toThrow('unsupported_identity_provider');
+
+    expect(supabase.auth.linkIdentity).not.toHaveBeenCalled();
+  });
+
+  it('merges Supabase identities with site-managed OAuth identities', async () => {
+    supabase.auth.getUserIdentities.mockResolvedValue({
+      data: {
+        identities: [{ id: 'email-1', provider: 'email', email: 'user@example.test' }],
+      },
+      error: null,
+    });
+    getCurrentSiteSession.mockResolvedValue({
+      authenticated: true,
+      identities: [
+        {
+          id: 'site-github-1',
+          provider: 'github',
+          source: 'site_session',
+          identity_data: {
+            username: 'octo-user',
+            site_session: true,
+          },
+        },
+      ],
+    });
+
+    const identities = await loadAuthIdentities();
+
+    expect(identities).toHaveLength(2);
+    expect(groupAuthIdentities(identities).get('github')?.[0]).toMatchObject({
+      id: 'site-github-1',
+      source: 'site_session',
+    });
   });
 
   it('passes the selected identity to Supabase unlinkIdentity', async () => {

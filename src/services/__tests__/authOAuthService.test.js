@@ -28,18 +28,18 @@ describe('authOAuthService', () => {
       VITE_AUTH_OAUTH_LINUXDO_ENABLED: '1',
       VITE_AUTH_OAUTH_QQ_ENABLED: 'false',
     })).toEqual([
-      { key: 'github', label: 'GitHub', strategy: 'supabase' },
+      { key: 'github', label: 'GitHub', strategy: 'bridge' },
+      { key: 'linuxdo', label: 'Linux.do', strategy: 'bridge' },
     ]);
   });
 
-  it('only exposes Linux.do after the custom provider is verified ready', () => {
+  it('exposes Linux.do through the site OAuth bridge without Supabase custom provider readiness', () => {
     expect(getEnabledOAuthProviders({
       VITE_AUTH_OAUTH_GITHUB_ENABLED: 'true',
       VITE_AUTH_OAUTH_LINUXDO_ENABLED: '1',
-      VITE_AUTH_OAUTH_LINUXDO_READY: 'true',
     })).toEqual([
-      { key: 'github', label: 'GitHub', strategy: 'supabase' },
-      { key: 'linuxdo', label: 'Linux.do', strategy: 'supabase' },
+      { key: 'github', label: 'GitHub', strategy: 'bridge' },
+      { key: 'linuxdo', label: 'Linux.do', strategy: 'bridge' },
     ]);
   });
 
@@ -72,42 +72,28 @@ describe('authOAuthService', () => {
     expect(startUrl.searchParams.get('intent')).toBe('login');
   });
 
-  it('starts GitHub through Supabase Auth', async () => {
-    supabase.auth.signInWithOAuth.mockResolvedValue({ data: { url: 'https://github.com/login/oauth/authorize' }, error: null });
+  it('starts GitHub through the local OAuth bridge', async () => {
+    const assign = vi.fn();
 
-    await startOAuthLogin('github', { returnTo: '/settings', origin: 'https://ef-gacha.mogujun.icu' });
+    await startOAuthLogin('github', { returnTo: '/settings', origin: 'https://ef-gacha.mogujun.icu', assign });
 
-    expect(supabase.auth.signInWithOAuth).toHaveBeenCalledWith({
-      provider: 'github',
-      options: {
-        redirectTo: 'https://ef-gacha.mogujun.icu/auth/callback?next=%2Fsettings',
-      },
-    });
+    expect(supabase.auth.signInWithOAuth).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith('https://ef-gacha.mogujun.icu/api/auth/oauth/github/start?returnTo=%2Fsettings&intent=login');
   });
 
-  it('starts Linux.do through the custom Supabase OAuth2 provider', async () => {
-    supabase.auth.signInWithOAuth.mockResolvedValue({ data: { url: 'https://connect.linux.do/oauth2/authorize' }, error: null });
+  it('starts Linux.do through the local OAuth bridge', async () => {
+    const assign = vi.fn();
 
-    await startOAuthLogin('linuxdo', {
-      returnTo: '/settings',
-      origin: 'https://ef-gacha.mogujun.icu',
-      env: { VITE_AUTH_OAUTH_LINUXDO_READY: 'true' },
-    });
+    await startOAuthLogin('linuxdo', { returnTo: '/settings', origin: 'https://ef-gacha.mogujun.icu', assign });
 
-    expect(supabase.auth.signInWithOAuth).toHaveBeenCalledWith({
-      provider: 'custom:linuxdo',
-      options: {
-        redirectTo: 'https://ef-gacha.mogujun.icu/auth/callback?next=%2Fsettings',
-        scopes: 'read',
-      },
-    });
+    expect(supabase.auth.signInWithOAuth).not.toHaveBeenCalled();
+    expect(assign).toHaveBeenCalledWith('https://ef-gacha.mogujun.icu/api/auth/oauth/linuxdo/start?returnTo=%2Fsettings&intent=login');
   });
 
-  it('blocks Linux.do while the custom provider is not verified on Auth', async () => {
-    await expect(startOAuthLogin('linuxdo', {
+  it('keeps unsupported providers blocked', async () => {
+    await expect(startOAuthLogin('unknown', {
       returnTo: '/settings',
       origin: 'https://ef-gacha.mogujun.icu',
-      env: {},
-    })).rejects.toThrow('oauth_provider_not_ready');
+    })).rejects.toThrow('unsupported_oauth_provider');
   });
 });

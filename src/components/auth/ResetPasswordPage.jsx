@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, KeyRound, Loader2, ShieldAlert } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { bootstrapSiteSessionFromSupabaseToken } from '../../services/siteSessionService.js';
 import { useI18n } from '../../i18n/index.js';
 import {
   getPrimaryAccountPasswordError,
@@ -136,6 +137,14 @@ export default function ResetPasswordPage() {
 
       if (updateError) {
         throw updateError;
+      }
+
+      const {
+        data: { session: currentSession } = {},
+      } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      const accessToken = currentSession?.access_token || '';
+      if (accessToken) {
+        await bootstrapSiteSessionFromSupabaseToken(accessToken).catch(() => null);
       }
 
       setSuccess(tt('密码已更新。3 秒后将返回首页，您也可以立即手动跳转。', 'Password updated. You will return to the home page in 3 seconds, or you can jump back immediately.'));

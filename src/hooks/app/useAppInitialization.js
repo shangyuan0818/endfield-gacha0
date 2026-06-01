@@ -5,6 +5,7 @@ import useSiteConfigStore from '../../stores/useSiteConfigStore';
 import { characterCache } from '../../utils/characterUtils';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync';
 import appLogger from '../../utils/appLogger.js';
+import { getCurrentSiteSession } from '../../services/siteSessionService.js';
 
 const APP_INIT_SYNC_BUDGET_MS = import.meta.env.DEV ? 9000 : 6500;
 
@@ -29,6 +30,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
   // 使用 ref 存储 currentPoolId，避免将其作为 useEffect 依赖项导致循环
   const currentPoolIdRef = useRef(usePoolStore.getState().currentPoolId);
   const currentGameUidRef = useRef(usePoolStore.getState().currentGameUid);
+  const siteSessionUserRef = useRef(null);
 
   // 订阅 currentPoolId 变化，更新 ref（不触发重渲染）
   useEffect(() => {
@@ -75,12 +77,26 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
         // 预加载角色缓存（确保头像数据可用）
         await characterCache.load();
 
-        // 获取当前会话
+        // 获取当前会话；本站 OAuth session 是 Supabase Auth 的兼容层。
         const { data: { session } } = await supabase.auth.getSession();
+        let effectiveUser = session?.user ?? null;
+        let canLoadPrivateCloudData = Boolean(effectiveUser);
+
+        if (!effectiveUser) {
+          const siteSession = await getCurrentSiteSession().catch(() => null);
+          if (siteSession?.authenticated && siteSession.user) {
+            effectiveUser = siteSession.user;
+            siteSessionUserRef.current = siteSession.user;
+            canLoadPrivateCloudData = Boolean(siteSession.supabaseSessionSynced);
+          }
+        } else {
+          siteSessionUserRef.current = null;
+        }
+
         if (!isMounted) {
           return;
         }
-        setUser(session?.user ?? null);
+        setUser(effectiveUser);
         setAuthResolved(true);
 
         // 更新最后在线时间
@@ -94,8 +110,8 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
         ];
 
         // 只有登录用户才加载历史记录和个人卡池数据
-        if (session?.user) {
-          const cloudDataPromise = loadCloudData(session.user)
+        if (effectiveUser && canLoadPrivateCloudData) {
+          const cloudDataPromise = loadCloudData(effectiveUser)
             .then((cloudData) => {
               if (!isMounted) {
                 return cloudData;
@@ -134,6 +150,15 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
     // 监听登录状态变化
     if (supabase) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!session?.user && event === 'INITIAL_SESSION' && siteSessionUserRef.current) {
+          setAuthResolved(true);
+          return;
+        }
+
+        if (session?.user) {
+          siteSessionUserRef.current = null;
+        }
+
         setUser(session?.user ?? null);
         setAuthResolved(true);
         // 用户登录时更新最后在线时间

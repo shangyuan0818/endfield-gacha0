@@ -38,6 +38,8 @@ const AUTH_OPERATION_PATHS = [
   '/api/auth/oauth/linuxdo/supabase-authorize',
   '/api/auth/oauth/qq/callback',
   '/api/auth/oauth/qq/start',
+  '/api/auth/session',
+  '/api/auth/session/logout',
 ];
 
 const USER_OPERATION_PATHS = [

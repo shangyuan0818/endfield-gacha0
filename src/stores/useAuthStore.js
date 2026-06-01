@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '../supabaseClient.js';
+import { logoutSiteSession } from '../services/siteSessionService.js';
 
 /**
  * 认证状态管理
@@ -23,6 +24,7 @@ const useAuthStore = create((set) => ({
 
   /** 完整登出：清除 Supabase 会话 + Zustand 状态 */
   signOut: async () => {
+    await logoutSiteSession();
     if (supabase) {
       await supabase.auth.signOut();
     }

@@ -246,6 +246,7 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
         const isLinked = isEmail ? Boolean(user.email) : Boolean(identity);
         const isProviderReady = isLoginIdentityProviderAvailable(providerKey);
         const isPlanned = !isEmail && !isLinked && (Boolean(meta.planned) || !isProviderReady);
+        const canUnlink = Boolean(meta.canUnlink && identity?.source !== 'site_session');
         const Icon = getProviderIcon(providerKey);
         const displayValue = isEmail ? user.email : getIdentityDisplayValue(identity);
         const statusLabel = isPlanned
@@ -295,7 +296,7 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
               <div className="flex flex-wrap gap-2">
                 {isPlanned ? (
                   <span className={styles.helper}>{getProviderPendingHint(providerKey, t)}</span>
-                ) : isLinked ? (
+                ) : isLinked && canUnlink ? (
                   <button
                     type="button"
                     onClick={() => handleUnlink(providerKey, identity)}
@@ -305,6 +306,8 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
                     <Unlink size={12} />
                     {t('settings.authIdentity.unlinkAction')}
                   </button>
+                ) : isLinked ? (
+                  <span className={styles.helper}>{t('settings.authIdentity.siteManagedHint')}</span>
                 ) : (
                   <button
                     type="button"

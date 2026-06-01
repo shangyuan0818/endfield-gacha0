@@ -14,6 +14,22 @@ function getProviderLabel(provider) {
 
 function buildOAuthNotice(result, isEnglish) {
   const providerLabel = getProviderLabel(result.provider);
+  if (result.status === 'signed_in') {
+    return {
+      type: 'success',
+      category: 'account',
+      priority: 'normal',
+      title: isEnglish ? `${providerLabel} sign-in complete` : `${providerLabel} 登录成功`,
+      message: isEnglish
+        ? 'The site session has been created. You can continue from the current page.'
+        : '本站登录状态已建立，你可以继续在当前页面使用。',
+      dedupeKey: `oauth:${result.provider}:signed_in`,
+      actions: [
+        { label: isEnglish ? 'Open Settings' : '打开设置', href: '/settings', variant: 'primary' },
+      ],
+    };
+  }
+
   if (result.status === 'verified') {
     return {
       type: 'info',
