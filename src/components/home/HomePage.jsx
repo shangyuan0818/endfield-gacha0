@@ -141,7 +141,7 @@ const HomePage = React.memo(() => {
     return { main, secondary: secondaryCountdown };
   }, [isEnglish, limitedPoolSchedule, nextVersionTargetDate, now, poolsArray, t]);
 
-  const initialCollapseState = getHomeCollapseState();
+  const initialCollapseState = useMemo(() => getHomeCollapseState(), []);
   const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
     () => splitSiteAnnouncements(announcements),
     [announcements]
@@ -165,6 +165,19 @@ const HomePage = React.memo(() => {
   const hasAnnouncementUpdate = latestSiteAnnouncement
     ? hasNewContent(STORAGE_KEYS.ANNOUNCEMENT_LAST_VIEWED, latestSiteAnnouncement.updated_at || latestSiteAnnouncement.created_at)
     : false;
+  const temporaryAnnouncementKeys = useMemo(
+    () => temporaryAnnouncements.map((announcement, index) => (
+      String(
+        announcement?.id
+        || announcement?.source_id
+        || `${announcement?.updated_at || announcement?.created_at || 'no-time'}:${announcement?.title || 'untitled'}:${index}`
+      )
+    )),
+    [temporaryAnnouncements]
+  );
+  const [shouldDefaultOpenTemporaryAnnouncements] = useState(
+    () => hasAnnouncementUpdate || !initialCollapseState.temporaryAnnouncements
+  );
 
   const [showPoolMechanics, setShowPoolMechanics] = useState(!initialCollapseState.poolMechanics);
   const [showGuide, setShowGuide] = useState(!initialCollapseState.guide);
@@ -172,9 +185,7 @@ const HomePage = React.memo(() => {
   const [showUpdateAnnouncement, setShowUpdateAnnouncement] = useState(
     hasAnnouncementUpdate ? true : !initialCollapseState.announcement
   );
-  const [showTemporaryAnnouncements, setShowTemporaryAnnouncements] = useState(
-    hasAnnouncementUpdate ? true : !initialCollapseState.temporaryAnnouncements
-  );
+  const [temporaryAnnouncementOverrides, setTemporaryAnnouncementOverrides] = useState(() => new Map());
   const [showGameAnnouncements, setShowGameAnnouncements] = useState(!initialCollapseState.gameAnnouncements);
   const [showGameCalendar, setShowGameCalendar] = useState(!initialCollapseState.gameCalendar);
   const [expandedGameCalendarImage, setExpandedGameCalendarImage] = useState(null);
@@ -212,13 +223,23 @@ const HomePage = React.memo(() => {
     });
   }, []);
 
-  const handleToggleTemporaryAnnouncements = useCallback(() => {
-    setShowTemporaryAnnouncements((prev) => {
-      const next = !prev;
-      setHomeCollapseState('temporaryAnnouncements', !next);
-      return next;
-    });
-  }, []);
+  const handleToggleTemporaryAnnouncement = useCallback((announcementKey, isExpanded) => {
+    const next = new Map(temporaryAnnouncementOverrides);
+    const nextExpanded = !isExpanded;
+    if (nextExpanded === shouldDefaultOpenTemporaryAnnouncements) {
+      next.delete(announcementKey);
+    } else {
+      next.set(announcementKey, nextExpanded);
+    }
+
+    const hasAnyExpanded = temporaryAnnouncementKeys.some((key) => (
+      key === announcementKey
+        ? nextExpanded
+        : (next.has(key) ? next.get(key) : shouldDefaultOpenTemporaryAnnouncements)
+    ));
+    setHomeCollapseState('temporaryAnnouncements', !hasAnyExpanded);
+    setTemporaryAnnouncementOverrides(next);
+  }, [shouldDefaultOpenTemporaryAnnouncements, temporaryAnnouncementKeys, temporaryAnnouncementOverrides]);
 
   const handleToggleGameAnnouncements = useCallback(() => {
     setShowGameAnnouncements((prev) => {
@@ -248,10 +269,22 @@ const HomePage = React.memo(() => {
   }, [isAnnouncementNew]);
 
   useEffect(() => {
-    if ((showUpdateAnnouncement || showTemporaryAnnouncements) && isAnnouncementNew) {
+    const hasExpandedTemporaryAnnouncement = temporaryAnnouncementKeys.some((key) => (
+      temporaryAnnouncementOverrides.has(key)
+        ? temporaryAnnouncementOverrides.get(key)
+        : shouldDefaultOpenTemporaryAnnouncements
+    ));
+    if ((showUpdateAnnouncement || hasExpandedTemporaryAnnouncement) && isAnnouncementNew) {
       handleAnnouncementViewed();
     }
-  }, [showUpdateAnnouncement, showTemporaryAnnouncements, isAnnouncementNew, handleAnnouncementViewed]);
+  }, [
+    showUpdateAnnouncement,
+    temporaryAnnouncementKeys,
+    temporaryAnnouncementOverrides,
+    shouldDefaultOpenTemporaryAnnouncements,
+    isAnnouncementNew,
+    handleAnnouncementViewed
+  ]);
 
   const handleCelebrationClick = useCallback((event) => {
     event.preventDefault();
@@ -358,14 +391,20 @@ const HomePage = React.memo(() => {
 
       {(temporaryAnnouncements.length > 0 || latestAnnouncement || gameAnnouncements.length > 0) && (
         <div className="space-y-3">
-          {temporaryAnnouncements.map((announcement) => {
+          {temporaryAnnouncements.map((announcement, index) => {
+            const announcementKey = temporaryAnnouncementKeys[index];
+            const isTemporaryAnnouncementExpanded = temporaryAnnouncementOverrides.has(announcementKey)
+              ? temporaryAnnouncementOverrides.get(announcementKey)
+              : shouldDefaultOpenTemporaryAnnouncements;
             const severityMeta = getAnnouncementSeverityMeta(announcement.severity, locale);
             const title = getLocalizedAnnouncementTitle(announcement, locale);
             const content = getLocalizedAnnouncementContent(announcement, locale);
             return (
-              <div key={announcement.id} className={`${severityMeta.card} border rounded-none overflow-hidden`}>
+              <div key={announcementKey} className={`${severityMeta.card} border rounded-none overflow-hidden`}>
                 <button
-                  onClick={handleToggleTemporaryAnnouncements}
+                  type="button"
+                  onClick={() => handleToggleTemporaryAnnouncement(announcementKey, isTemporaryAnnouncementExpanded)}
+                  aria-expanded={isTemporaryAnnouncementExpanded}
                   className="w-full px-4 py-3 flex items-center justify-between hover:bg-white/30 dark:hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -394,10 +433,10 @@ const HomePage = React.memo(() => {
                       </div>
                     </div>
                   </div>
-                  <ChevronUp size={20} className={`${severityMeta.chevron} transition-transform duration-300 ${showTemporaryAnnouncements ? '' : 'rotate-180'}`} />
+                  <ChevronUp size={20} className={`${severityMeta.chevron} transition-transform duration-300 ${isTemporaryAnnouncementExpanded ? '' : 'rotate-180'}`} />
                 </button>
 
-                <CollapsibleContent isOpen={showTemporaryAnnouncements} unmountOnClose>
+                <CollapsibleContent isOpen={isTemporaryAnnouncementExpanded} unmountOnClose>
                   <HomeAnnouncementContent content={content} />
                 </CollapsibleContent>
               </div>
