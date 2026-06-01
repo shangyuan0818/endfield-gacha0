@@ -31,6 +31,13 @@ const INTERNAL_OPERATION_PATHS = [
 
 const AUTH_OPERATION_PATHS = [
   '/api/auth-email-action',
+  '/api/auth/oauth/github/callback',
+  '/api/auth/oauth/github/start',
+  '/api/auth/oauth/linuxdo/callback',
+  '/api/auth/oauth/linuxdo/start',
+  '/api/auth/oauth/linuxdo/supabase-authorize',
+  '/api/auth/oauth/qq/callback',
+  '/api/auth/oauth/qq/start',
 ];
 
 const USER_OPERATION_PATHS = [
