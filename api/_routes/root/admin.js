@@ -4,12 +4,10 @@ import {
   rejectDisallowedBrowserOrigin,
 } from '../../_lib/http.js';
 import {
-  createSupabaseAccessTokenClient,
-  getBearerToken,
   getSupabaseAdminClient,
-  getSupabaseAnonServerClient,
   listMergedAdminUsers,
 } from '../../_lib/authAdmin.js';
+import { requireSuperAdminUser } from '../../_lib/siteAuth.js';
 import {
   createApiKeySecret,
   createVerifierSecret,
@@ -183,59 +181,18 @@ function getAdminRouteConfig(route) {
   }
 }
 
-async function verifySuperAdmin(req, adminClient, { useAnonServerClient = false } = {}) {
-  const token = getBearerToken(req);
-  if (!token) {
+async function verifySuperAdmin(req, adminClient) {
+  const authResult = await requireSuperAdminUser(req, { adminClient });
+  if (!authResult.ok) {
     return {
-      error: { status: 401, message: 'Missing access token' },
+      error: { status: authResult.status || 401, message: authResult.error || 'Invalid access token' },
     };
   }
 
-  const callerClient = useAnonServerClient
-    ? getSupabaseAnonServerClient()
-    : createSupabaseAccessTokenClient(token);
-
-  if (!callerClient) {
-    return {
-      error: {
-        status: 503,
-        message: useAnonServerClient
-          ? 'Supabase anon server client not configured'
-          : 'Supabase caller client not configured',
-      },
-    };
-  }
-
-  const userResult = useAnonServerClient
-    ? await callerClient.auth.getUser(token)
-    : await callerClient.auth.getUser(token);
-
-  const callerUser = userResult?.data?.user;
-  if (userResult?.error || !callerUser?.id) {
-    return {
-      error: { status: 401, message: userResult?.error?.message || 'Invalid access token' },
-    };
-  }
-
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('id, role')
-    .eq('id', callerUser.id)
-    .single();
-
-  if (profileError) {
-    return {
-      error: { status: 500, message: profileError.message || 'Failed to load caller profile' },
-    };
-  }
-
-  if (profile?.role !== 'super_admin') {
-    return {
-      error: { status: 403, message: 'Super admin role required' },
-    };
-  }
-
-  return { callerUser };
+  return {
+    callerUser: authResult.user,
+    profile: authResult.profile,
+  };
 }
 
 async function handleUsers(req, res, adminClient) {
@@ -404,7 +361,7 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
     });
   }
 
-  const authResult = await verifySuperAdmin(req, adminClient, { useAnonServerClient: true });
+  const authResult = await verifySuperAdmin(req, adminClient);
   if (authResult.error) {
     return res.status(authResult.error.status).json({
       success: false,

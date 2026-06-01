@@ -1,8 +1,7 @@
 import {
-  getBearerToken,
   getSupabaseAdminClient,
-  getSupabaseAnonServerClient,
 } from '../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 import {
   rejectDisallowedBrowserOrigin,
 } from '../../_lib/http.js';
@@ -45,6 +44,24 @@ function isAuthEmailConfirmed(user) {
   return Boolean(user?.email_confirmed_at || user?.confirmed_at);
 }
 
+async function resolveCurrentUser(req, {
+  adminClient,
+} = {}) {
+  const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      status: authResult.status || 401,
+      error: authResult.error || 'Authentication required',
+    };
+  }
+
+  return {
+    ok: true,
+    currentUser: authResult.user,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -60,17 +77,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
-    return res.status(401).json({
-      success: false,
-      error: 'Missing access token',
-    });
-  }
-
   const adminClient = getSupabaseAdminClient();
-  const callerClient = getSupabaseAnonServerClient();
-  if (!adminClient || !callerClient) {
+  if (!adminClient) {
     return res.status(503).json({
       success: false,
       error: 'Account security state service not configured',
@@ -78,14 +86,16 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { data: userData, error: userError } = await callerClient.auth.getUser(accessToken);
-    const currentUser = userData?.user;
-    if (userError || !currentUser?.id) {
-      return res.status(401).json({
+    const userResult = await resolveCurrentUser(req, {
+      adminClient,
+    });
+    if (!userResult.ok) {
+      return res.status(userResult.status || 401).json({
         success: false,
-        error: userError?.message || 'Invalid access token',
+        error: userResult.error || 'Authentication required',
       });
     }
+    const currentUser = userResult.currentUser;
 
     if (req.method === 'POST') {
       const { action } = parseRequestBody(req);
@@ -122,7 +132,8 @@ export default async function handler(req, res) {
 
     const fallbackEmailVerificationRequired = !stateRow
       && !isAuthEmailConfirmed(currentUser)
-      && currentUser?.app_metadata?.role !== 'super_admin';
+      && currentUser?.app_metadata?.role !== 'super_admin'
+      && currentUser?.profile_role !== 'super_admin';
 
     return res.status(200).json({
       success: true,

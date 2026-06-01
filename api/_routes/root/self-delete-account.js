@@ -4,10 +4,10 @@ import {
   rejectDisallowedBrowserOrigin
 } from '../../_lib/http.js';
 import {
-  getBearerToken,
   getSupabaseAdminClient,
-  getSupabaseAnonServerClient
+  getSupabaseAnonServerClient,
 } from '../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 
 const SELF_DELETE_LIMIT = {
   windowMs: 15 * 60 * 1000,
@@ -55,18 +55,8 @@ export default async function handler(req, res) {
     });
   }
 
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
-    return res.status(401).json({
-      success: false,
-      error: 'Missing access token'
-    });
-  }
-
   const adminClient = getSupabaseAdminClient();
-  const callerClient = getSupabaseAnonServerClient();
-
-  if (!adminClient || !callerClient) {
+  if (!adminClient) {
     return res.status(503).json({
       success: false,
       error: 'Account deletion service not configured'
@@ -84,15 +74,15 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { data: userData, error: userError } = await callerClient.auth.getUser(accessToken);
-    if (userError || !userData?.user?.id) {
+    const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+    if (!authResult.ok) {
       return res.status(401).json({
         success: false,
-        error: userError?.message || 'Invalid access token'
+        error: authResult.error || 'Invalid access token'
       });
     }
 
-    const currentUser = userData.user;
+    const currentUser = authResult.user;
     const normalizedEmail = String(currentUser.email || '').trim().toLowerCase();
     if (!normalizedEmail) {
       return res.status(400).json({
@@ -115,6 +105,14 @@ export default async function handler(req, res) {
       return res.status(403).json({
         success: false,
         error: '管理员账号请通过超管流程删除'
+      });
+    }
+
+    const callerClient = getSupabaseAnonServerClient();
+    if (!callerClient) {
+      return res.status(503).json({
+        success: false,
+        error: 'Account deletion service not configured'
       });
     }
 

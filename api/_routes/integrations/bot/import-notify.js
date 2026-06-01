@@ -1,5 +1,6 @@
 import { rejectDisallowedBrowserOrigin } from '../../../_lib/http.js';
-import { getSupabaseAdminClient, getBearerToken, getSupabaseAnonServerClient } from '../../../_lib/authAdmin.js';
+import { getSupabaseAdminClient } from '../../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../../_lib/siteAuth.js';
 import { createOfficialBotConfig } from '../../../../bots/official/config.js';
 import { EndfieldApiClient } from '../../../../bots/official/endfieldApiClient.js';
 import { buildOfficialBotLinks } from '../../../../bots/official/links.js';
@@ -207,25 +208,19 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
-    return res.status(401).json({ success: false, error: 'Missing access token' });
-  }
-
-  const callerClient = getSupabaseAnonServerClient();
   const adminClient = getSupabaseAdminClient();
-  if (!callerClient || !adminClient) {
+  if (!adminClient) {
     return res.status(503).json({ success: false, error: 'Supabase client not configured' });
   }
 
-  const authResult = await callerClient.auth.getUser(accessToken);
-  const callerUser = authResult?.data?.user;
-  if (authResult?.error || !callerUser?.id) {
+  const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+  if (!authResult.ok) {
     return res.status(401).json({
       success: false,
-      error: authResult?.error?.message || 'Invalid access token',
+      error: authResult.error || 'Invalid access token',
     });
   }
+  const callerUser = authResult.user;
 
   const { summary, userInfo } = parseRequestBody(req);
   const telegramToken = String(process.env.TELEGRAM_OFFICIAL_BOT_TOKEN || '').trim();

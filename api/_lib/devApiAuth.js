@@ -5,6 +5,7 @@ import {
   getSupabaseAnonServerClient,
 } from './authAdmin.js';
 import { safeSecretHashMatch, buildSecretPrefix } from './devApiSecrets.js';
+import { resolveAuthenticatedRequestUser } from './siteAuth.js';
 
 function normalizeScopes(scopes) {
   if (Array.isArray(scopes)) {
@@ -28,13 +29,28 @@ export function hasRequiredScopes(client, requiredScopes = []) {
 }
 
 export async function requireAuthenticatedUser(req, { useAnonServerClient = true } = {}) {
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
+  const authResult = await resolveAuthenticatedRequestUser(req, {
+    adminClient: getSupabaseAdminClient(),
+  });
+
+  if (!authResult.ok) {
     return {
-      error: { status: 401, message: 'Missing access token' },
+      error: {
+        status: authResult.status || 401,
+        message: authResult.error || 'Invalid access token',
+      },
     };
   }
 
+  if (authResult.source === 'site_session') {
+    return {
+      accessToken: authResult.accessToken || null,
+      siteSession: authResult.session,
+      user: authResult.user,
+    };
+  }
+
+  const accessToken = authResult.accessToken;
   const callerClient = useAnonServerClient
     ? getSupabaseAnonServerClient()
     : createSupabaseAccessTokenClient(accessToken);

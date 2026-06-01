@@ -6,10 +6,10 @@ import {
 } from '../../_lib/http.js';
 import {
   findAuthUserByEmail,
-  getBearerToken,
   getSupabaseAdminClient,
   getSupabaseAnonServerClient,
 } from '../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 import { normalizeGeneratedAuthActionLink } from '../../_lib/authActionLinks.js';
 import { createMailProviderAdapter } from '../../_lib/mailProviderAdapter.js';
 import { renderMailTemplate } from '../../_lib/mailTemplateRenderer.js';
@@ -399,6 +399,25 @@ async function verifyCurrentPassword(callerClient, email, password) {
   return { ok: !error, error };
 }
 
+async function resolveCurrentUser(req, {
+  adminClient,
+} = {}) {
+  const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      status: authResult.status || 401,
+      error: authResult.error || 'Authentication required',
+    };
+  }
+
+  return {
+    ok: true,
+    currentUser: authResult.user,
+    authSource: authResult.source,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -431,27 +450,23 @@ export default async function handler(req, res) {
     });
   }
 
-  const accessToken = getBearerToken(req);
-  if (!accessToken) {
-    return res.status(401).json({ success: false, error: 'Missing access token' });
-  }
-
   const env = readEnvironment();
   const adminClient = getSupabaseAdminClient();
-  const callerClient = getSupabaseAnonServerClient();
-  if (!adminClient || !callerClient) {
+  if (!adminClient) {
     return res.status(503).json({ success: false, error: 'Account email service not configured' });
   }
 
   try {
-    const { data: userData, error: userError } = await callerClient.auth.getUser(accessToken);
-    const currentUser = userData?.user;
-    if (userError || !currentUser?.id) {
-      return res.status(401).json({
+    const userResult = await resolveCurrentUser(req, {
+      adminClient,
+    });
+    if (!userResult.ok) {
+      return res.status(userResult.status || 401).json({
         success: false,
-        error: userError?.message || 'Invalid access token',
+        error: userResult.error || 'Authentication required',
       });
     }
+    const currentUser = userResult.currentUser;
 
     const currentEmail = getNormalizedEmail(currentUser.email);
     if (!currentEmail) {
@@ -484,8 +499,10 @@ export default async function handler(req, res) {
     const now = new Date();
     const controls = buildMailRuntimeControls(runtimeState, 'authMailActions');
     const accountSecurityState = await loadAccountSecurityState(adminClient, currentUser.id);
+    const isSuperAdmin = currentUser?.app_metadata?.role === 'super_admin'
+      || currentUser?.profile_role === 'super_admin';
     const emailVerificationRequired = Boolean(accountSecurityState?.email_verification_required)
-      || (!accountSecurityState && !isEmailConfirmed(currentUser) && currentUser?.app_metadata?.role !== 'super_admin');
+      || (!accountSecurityState && !isEmailConfirmed(currentUser) && !isSuperAdmin);
 
     if (action === ACTIONS.RESEND_VERIFICATION) {
       if (isEmailConfirmed(currentUser) && !emailVerificationRequired) {
@@ -606,6 +623,15 @@ export default async function handler(req, res) {
         success: false,
         error: 'Current password is required',
         code: 'current_password_required',
+      });
+    }
+
+    const callerClient = getSupabaseAnonServerClient();
+    if (!callerClient) {
+      return res.status(503).json({
+        success: false,
+        error: 'Account email service not configured',
+        code: 'auth_service_unavailable',
       });
     }
 

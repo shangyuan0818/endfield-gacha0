@@ -224,7 +224,7 @@ describe('api/account-email-verify handler', () => {
     expect(res.statusCode).toBe(401);
     expect(res.body).toMatchObject({
       success: false,
-      code: 'session_required',
+      code: 'missing_access_token',
     });
   });
 

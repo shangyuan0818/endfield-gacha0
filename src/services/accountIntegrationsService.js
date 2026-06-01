@@ -1,10 +1,5 @@
-import { supabase } from '../supabaseClient.js';
 import { fetchWithTimeout } from './supabaseRequest.js';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
+import { getSupabaseAccessToken } from './authFetchService.js';
 
 function getApiErrorMessage(result, fallback) {
   if (typeof result?.error === 'string') {
@@ -19,7 +14,7 @@ function getApiErrorMessage(result, fallback) {
 }
 
 export async function loadOwnBindings() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     return [];
   }
@@ -43,7 +38,7 @@ export async function loadOwnBindings() {
 }
 
 export async function createBindingChallenge(provider) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -69,7 +64,7 @@ export async function createBindingChallenge(provider) {
 }
 
 export async function revokeBinding(provider) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -95,7 +90,7 @@ export async function revokeBinding(provider) {
 }
 
 export async function notifyOfficialBotImportUpdated({ summary, userInfo }) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     return { notified: false, reason: 'missing_access_token' };
   }

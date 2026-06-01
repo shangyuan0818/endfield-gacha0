@@ -1,5 +1,6 @@
-import { supabase } from '../supabaseClient';
+import { supabase } from '../supabaseClient.js';
 import { fetchJsonWithTimeout } from './supabaseRequest.js';
+import { getSupabaseAccessToken } from './authFetchService.js';
 
 export class AuthRateLimitError extends Error {
   constructor(retryAfter = 60) {
@@ -34,15 +35,6 @@ export async function checkAuthActionRateLimit(action) {
   return payload || { allowed: true };
 }
 
-async function getAccessToken() {
-  if (!supabase) {
-    return null;
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
-
 const EMPTY_ACCOUNT_SECURITY_STATE = Object.freeze({
   passwordChangeRequired: false,
   reason: null,
@@ -57,7 +49,7 @@ const EMPTY_ACCOUNT_SECURITY_STATE = Object.freeze({
 });
 
 export async function loadAccountSecurityState() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     return EMPTY_ACCOUNT_SECURITY_STATE;
   }
@@ -81,7 +73,7 @@ export async function loadAccountSecurityState() {
 }
 
 export async function clearPasswordChangeRequired() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     return EMPTY_ACCOUNT_SECURITY_STATE;
   }

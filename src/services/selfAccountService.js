@@ -1,17 +1,13 @@
 import { supabase } from '../supabaseClient';
 import { fetchWithTimeout } from './supabaseRequest';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token;
-}
+import { getSupabaseAccessToken } from './authFetchService.js';
 
 export async function deleteOwnAccount(currentPassword) {
   if (!supabase) {
     throw new Error('Supabase 未配置，无法注销账号');
   }
 
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录态已失效，请重新登录后再试');
   }

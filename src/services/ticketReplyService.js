@@ -1,17 +1,12 @@
-import { supabase } from '../supabaseClient.js';
 import { fetchJsonWithTimeout } from './supabaseRequest.js';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
+import { getSupabaseAccessToken } from './authFetchService.js';
 
 export async function submitTicketReply({
   ticketId,
   content,
   locale = 'zh-CN',
 } = {}) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
