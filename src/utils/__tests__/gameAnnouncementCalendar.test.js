@@ -75,7 +75,7 @@ describe('gameAnnouncementCalendar', () => {
     expect(result).toMatchObject({
       imageUrl: STATIC_GAME_CALENDAR_IMAGE.imageUrl,
       originalImageUrl: '/api/official-announcement-image?url=https%3A%2F%2Fweb.hycdn.cn%2Fupload%2Fimage%2F20260415%2Fc12891f0e79f61d7c7578941e17424a6.png',
-      title: '「春晓时」版本日历',
+      title: '「寻遗散记」版本日历',
     });
   });
 
