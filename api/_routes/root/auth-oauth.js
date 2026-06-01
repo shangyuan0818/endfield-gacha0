@@ -25,6 +25,11 @@ import {
   checkMemoryRateLimit,
   getRequesterKey,
 } from '../../_lib/http.js';
+import { getSupabaseAdminClient } from '../../_lib/authAdmin.js';
+import {
+  appendSetCookieHeader,
+  createOrLinkOAuthUserAndSession,
+} from '../../_lib/siteSession.js';
 
 function readEnvironment() {
   return globalThis.process?.env || {};
@@ -225,7 +230,6 @@ export function createOAuthCallbackHandler(fallbackProvider) {
 
     const env = readEnvironment();
     const provider = getProviderFromRequest(req, fallbackProvider);
-    const appRoot = getAppUrl(env, req);
     const code = String(req?.query?.code || '').trim();
     const state = String(req?.query?.state || '').trim();
     const providerError = String(req?.query?.error || '').trim();
@@ -319,15 +323,44 @@ export function createOAuthCallbackHandler(fallbackProvider) {
       }
 
       const subjectHash = hashOAuthSubject(provider, profile.subject, secret);
+      const profileHash = hashOAuthProfile(profile);
+      const adminClient = getSupabaseAdminClient();
+      if (adminClient) {
+        try {
+          const signInResult = await createOrLinkOAuthUserAndSession(adminClient, {
+            profile,
+            subjectHash,
+            profileHash,
+            req,
+            res,
+            env,
+            secret,
+          });
+
+          if (signInResult.ok) {
+            return redirectWithOAuthResult(res, req, {
+              returnTo,
+              provider,
+              status: 'signed_in',
+              code: signInResult.created ? 'oauth_account_created' : 'oauth_signed_in',
+              env,
+            });
+          }
+        } catch {
+          // Keep the previous pending-binding behavior if the new session tables
+          // are not ready yet. The callback is still verified below.
+        }
+      }
+
       const pendingCookie = createSignedOAuthCookie({
         provider,
         displayName: profile.displayName || profile.username || config.label,
         avatarUrl: profile.avatarUrl,
         subjectHash,
-        profileHash: hashOAuthProfile(profile),
+        profileHash,
       }, { env, secret });
 
-      res.setHeader('Set-Cookie', serializeOAuthPendingCookie(pendingCookie, {
+      appendSetCookieHeader(res, serializeOAuthPendingCookie(pendingCookie, {
         secure: isSecureRequest(req, env),
       }));
 
@@ -339,7 +372,7 @@ export function createOAuthCallbackHandler(fallbackProvider) {
         env,
       });
     } catch (error) {
-      return redirect(res, appendOAuthResultParams(returnTo || appRoot, {
+      return redirect(res, appendOAuthResultParams(returnTo || '/', {
         oauth_status: 'error',
         oauth_provider: provider,
         oauth_code: error?.code || error?.message || 'oauth_callback_failed',

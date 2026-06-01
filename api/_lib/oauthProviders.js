@@ -348,6 +348,7 @@ async function fetchGithubProfile(config, tokenResult, options) {
   }
 
   let email = normalizeString(profileResult.payload?.email || '', 320);
+  let emailVerified = Boolean(email);
   if (!email && config.emailUrl && String(config.scope || '').includes('user:email')) {
     const emailResult = await fetchJson(config.emailUrl, {
       ...options,
@@ -359,6 +360,7 @@ async function fetchGithubProfile(config, tokenResult, options) {
     if (emailResult.ok && Array.isArray(emailResult.payload)) {
       const primary = emailResult.payload.find((item) => item?.primary && item?.verified) || emailResult.payload.find((item) => item?.verified);
       email = normalizeString(primary?.email || '', 320);
+      emailVerified = Boolean(primary?.verified && email);
     }
   }
 
@@ -371,6 +373,7 @@ async function fetchGithubProfile(config, tokenResult, options) {
       displayName: normalizeString(profileResult.payload?.name || profileResult.payload?.login || ''),
       avatarUrl: normalizeString(profileResult.payload?.avatar_url || ''),
       email,
+      emailVerified,
       metadata: {
         profileUrl: normalizeString(profileResult.payload?.html_url || '', 500),
       },
@@ -425,6 +428,7 @@ export function sanitizeOAuthProfile(profile) {
     displayName: normalizeString(profile?.displayName || profile?.username, 80),
     avatarUrl: normalizeString(profile?.avatarUrl, 500),
     email: normalizeString(profile?.email, 320),
+    emailVerified: profile?.emailVerified === true,
     metadata: profile?.metadata && typeof profile.metadata === 'object'
       ? profile.metadata
       : {},

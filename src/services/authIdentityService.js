@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient.js';
 import { buildOAuthCallbackUrl } from './authOAuthService.js';
+import { getCurrentSiteSession } from './siteSessionService.js';
 
 export const LOGIN_IDENTITY_PROVIDERS = Object.freeze({
   email: {
@@ -11,18 +12,16 @@ export const LOGIN_IDENTITY_PROVIDERS = Object.freeze({
   github: {
     key: 'github',
     label: 'GitHub',
-    canLink: true,
-    canUnlink: true,
-    supabaseProvider: 'github',
+    canLink: false,
+    canUnlink: false,
+    planned: true,
   },
   linuxdo: {
     key: 'linuxdo',
     label: 'Linux.do',
-    canLink: true,
-    canUnlink: true,
-    readyEnv: 'VITE_AUTH_OAUTH_LINUXDO_READY',
-    supabaseProvider: 'custom:linuxdo',
-    scopes: 'read',
+    canLink: false,
+    canUnlink: false,
+    planned: true,
   },
   qq: {
     key: 'qq',
@@ -108,16 +107,48 @@ export function groupAuthIdentities(identities = []) {
 }
 
 export async function loadAuthIdentities() {
-  if (!supabase) {
-    throw new Error('supabase_not_configured');
+  const identities = [];
+  let supabaseError = null;
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.auth.getUserIdentities();
+      if (error) {
+        throw error;
+      }
+      identities.push(...(Array.isArray(data?.identities) ? data.identities : []));
+    } catch (error) {
+      supabaseError = error;
+    }
   }
 
-  const { data, error } = await supabase.auth.getUserIdentities();
-  if (error) {
-    throw error;
+  try {
+    const siteSession = await getCurrentSiteSession({ syncSupabase: false });
+    if (siteSession?.authenticated && Array.isArray(siteSession.identities)) {
+      identities.push(...siteSession.identities);
+    }
+  } catch {
+    // The settings panel can still show Supabase identities when the site
+    // session endpoint is unavailable.
   }
 
-  return Array.isArray(data?.identities) ? data.identities : [];
+  if (identities.length === 0 && supabaseError) {
+    throw supabaseError;
+  }
+
+  const seen = new Set();
+  return identities.filter((identity) => {
+    const key = [
+      normalizeAuthIdentityProvider(identity),
+      identity?.source || 'supabase',
+      identity?.id || identity?.identity_id || getIdentityDisplayValue(identity),
+    ].join(':');
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function linkLoginIdentity(providerKey, {

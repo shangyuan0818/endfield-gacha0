@@ -4,11 +4,10 @@ import {
   rejectDisallowedBrowserOrigin,
 } from '../../_lib/http.js';
 import {
-  createSupabaseAccessTokenClient,
   ensureProfileForAuthUser,
-  getBearerToken,
   getSupabaseAdminClient,
 } from '../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 import { getRequesterIp } from '../../_lib/authSecurityGuards.js';
 import { MAIL_EVENT_TYPES } from '../../_lib/mailAbuseGuards.js';
 import { enqueueMailOutboxEvent } from '../../_lib/mailOutbox.js';
@@ -277,6 +276,22 @@ async function enqueueTicketReplyMail({
   return notification;
 }
 
+async function resolveTicketReplyUser(req, adminClient) {
+  const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      status: authResult.status || 401,
+      error: authResult.error || 'Authentication required',
+    };
+  }
+
+  return {
+    ok: true,
+    user: authResult.user,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -305,25 +320,19 @@ export default async function handler(req, res) {
     });
   }
 
-  const token = getBearerToken(req);
-  if (!token) {
-    return res.status(401).json({ success: false, error: 'Missing access token' });
-  }
-
-  const callerClient = createSupabaseAccessTokenClient(token);
   const adminClient = getSupabaseAdminClient();
-  if (!callerClient || !adminClient) {
+  if (!adminClient) {
     return res.status(503).json({ success: false, error: 'Auth service not configured' });
   }
 
-  const userResult = await callerClient.auth.getUser(token);
-  const callerUser = userResult?.data?.user;
-  if (userResult?.error || !callerUser?.id) {
-    return res.status(401).json({
+  const userResult = await resolveTicketReplyUser(req, adminClient);
+  if (!userResult.ok) {
+    return res.status(userResult.status || 401).json({
       success: false,
-      error: userResult?.error?.message || 'Invalid access token',
+      error: userResult.error || 'Authentication required',
     });
   }
+  const callerUser = userResult.user;
 
   const body = parseRequestBody(req);
   const ticketId = String(body.ticketId || body.ticket_id || '').trim();

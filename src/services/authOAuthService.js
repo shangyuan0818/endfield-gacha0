@@ -5,17 +5,13 @@ const OAUTH_PROVIDER_META = Object.freeze({
     key: 'github',
     label: 'GitHub',
     enabledEnv: 'VITE_AUTH_OAUTH_GITHUB_ENABLED',
-    strategy: 'supabase',
-    supabaseProvider: 'github',
+    strategy: 'bridge',
   },
   linuxdo: {
     key: 'linuxdo',
     label: 'Linux.do',
     enabledEnv: 'VITE_AUTH_OAUTH_LINUXDO_ENABLED',
-    readyEnv: 'VITE_AUTH_OAUTH_LINUXDO_READY',
-    strategy: 'supabase',
-    supabaseProvider: 'custom:linuxdo',
-    scopes: 'read',
+    strategy: 'bridge',
   },
   qq: {
     key: 'qq',
@@ -116,7 +112,10 @@ export async function startOAuthLogin(provider, options = {}) {
   const origin = options.origin || window.location.origin;
 
   if (meta.strategy === 'bridge') {
-    window.location.assign(buildOAuthStartUrl(provider, options));
+    const assign = typeof options.assign === 'function'
+      ? options.assign
+      : window.location.assign.bind(window.location);
+    assign(buildOAuthStartUrl(provider, options));
     return { strategy: 'bridge' };
   }
 

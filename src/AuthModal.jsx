@@ -2,6 +2,7 @@ import React from 'react';
 import { supabase } from './supabaseClient';
 import { buildAuthCaptchaPayload } from './services/authCaptchaClient.js';
 import { getEnabledOAuthProviders, startOAuthLogin } from './services/authOAuthService.js';
+import { bootstrapSiteSessionFromSupabaseToken } from './services/siteSessionService.js';
 import { fetchJsonWithTimeout } from './services/supabaseRequest.js';
 import { getSimpleFriendlyError, isNetworkConnectivityError } from './utils/errorMessages';
 import { validateAccountPassword } from './utils/authSecurity.js';
@@ -112,6 +113,15 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
 
     return buildAuthCaptchaPayload(action);
   }, [captchaState]);
+
+  const bootstrapSiteSessionAfterAuth = React.useCallback(async (session) => {
+    const accessToken = session?.access_token || session?.accessToken || '';
+    if (!accessToken) {
+      return;
+    }
+
+    await bootstrapSiteSessionFromSupabaseToken(accessToken).catch(() => null);
+  }, []);
 
   const handleOAuthLogin = React.useCallback(async (provider) => {
     setError('');
@@ -398,6 +408,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
 
       if (authError) throw authError;
 
+      await bootstrapSiteSessionAfterAuth(data?.session);
       onAuthSuccess(data.user);
       onClose();
     } catch (err) {
@@ -417,6 +428,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
       throw authError;
     }
 
+    await bootstrapSiteSessionAfterAuth(data?.session);
     addDurableNotification?.({
       type: 'warning',
       category: 'account',
@@ -674,10 +686,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
       }
 
       if (emailCodeState.action === 'password_reset') {
+        await bootstrapSiteSessionAfterAuth(data?.session);
         window.location.assign('/reset-password?from=code');
         return;
       }
 
+      await bootstrapSiteSessionAfterAuth(data?.session);
       onAuthSuccess(data?.user || data?.session?.user);
       onClose();
     } catch {

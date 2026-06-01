@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   rejectDisallowedBrowserOrigin: vi.fn(() => false),
   checkMemoryRateLimit: vi.fn(() => ({ allowed: true, retryAfter: 0 })),
   getRequesterKey: vi.fn(() => 'test-requester'),
+  createSupabaseAccessTokenClient: vi.fn(),
   getBearerToken: vi.fn(() => 'access-token'),
   getSupabaseAdminClient: vi.fn(),
   getSupabaseAnonServerClient: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock('../_lib/http.js', () => ({
 }));
 
 vi.mock('../_lib/authAdmin.js', () => ({
+  createSupabaseAccessTokenClient: mocks.createSupabaseAccessTokenClient,
   getBearerToken: mocks.getBearerToken,
   getSupabaseAdminClient: mocks.getSupabaseAdminClient,
   getSupabaseAnonServerClient: mocks.getSupabaseAnonServerClient,
@@ -252,6 +254,7 @@ describe('api/account-email-action handler', () => {
     mocks.getBearerToken.mockReturnValue('access-token');
     mocks.findAuthUserByEmail.mockResolvedValue(null);
     mocks.createMailProviderAdapter.mockReturnValue(createMailAdapter());
+    mocks.createSupabaseAccessTokenClient.mockReturnValue(createCallerClient());
     mocks.getSupabaseAnonServerClient.mockReturnValue(createCallerClient());
   });
 
@@ -489,7 +492,7 @@ describe('api/account-email-action handler', () => {
     const adminClient = createAdminClient();
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
-    mocks.getSupabaseAnonServerClient.mockReturnValue(createCallerClient({
+    mocks.createSupabaseAccessTokenClient.mockReturnValue(createCallerClient({
       user: {
         id: 'user-1',
         email: 'current@example.com',
@@ -548,7 +551,7 @@ describe('api/account-email-action handler', () => {
     });
     const adapter = createMailAdapter();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
-    mocks.getSupabaseAnonServerClient.mockReturnValue(createCallerClient({
+    mocks.createSupabaseAccessTokenClient.mockReturnValue(createCallerClient({
       user: {
         id: 'user-1',
         email: 'current@example.com',

@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   rejectDisallowedBrowserOrigin: vi.fn(() => false),
+  createSupabaseAccessTokenClient: vi.fn(),
   getBearerToken: vi.fn(() => 'token'),
   getSupabaseAdminClient: vi.fn(),
-  getSupabaseAnonServerClient: vi.fn(),
 }));
 
 vi.mock('../_lib/http.js', () => ({
@@ -14,9 +14,9 @@ vi.mock('../_lib/http.js', () => ({
 }));
 
 vi.mock('../_lib/authAdmin.js', () => ({
+  createSupabaseAccessTokenClient: mocks.createSupabaseAccessTokenClient,
   getBearerToken: mocks.getBearerToken,
   getSupabaseAdminClient: mocks.getSupabaseAdminClient,
-  getSupabaseAnonServerClient: mocks.getSupabaseAnonServerClient,
 }));
 
 import accountSecurityStateHandler from '../_routes/root/account-security-state.js';
@@ -107,7 +107,7 @@ describe('api/account-security-state handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getBearerToken.mockReturnValue('token');
-    mocks.getSupabaseAnonServerClient.mockReturnValue({
+    mocks.createSupabaseAccessTokenClient.mockReturnValue({
       auth: {
         getUser: vi.fn(async () => ({
           data: { user: { id: 'user-1' } },

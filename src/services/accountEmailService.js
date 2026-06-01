@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { fetchJsonWithTimeout } from './supabaseRequest.js';
+import { getSupabaseAccessToken } from './authFetchService.js';
 
 export class AccountEmailActionError extends Error {
   constructor(message, {
@@ -19,15 +20,6 @@ export class AccountEmailActionError extends Error {
   }
 }
 
-async function getAccessToken() {
-  if (!supabase) {
-    return null;
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
-
 async function postAccountEmailAction(body, {
   label = 'account-email-action',
   timeoutMs = 30000,
@@ -36,7 +28,7 @@ async function postAccountEmailAction(body, {
     throw new AccountEmailActionError('Supabase is not configured', { code: 'supabase_not_configured' });
   }
 
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new AccountEmailActionError('当前登录态已失效，请重新登录后再试', { code: 'session_expired', status: 401 });
   }
@@ -96,7 +88,7 @@ export async function verifyCurrentEmailCode({ code } = {}) {
     throw new AccountEmailActionError('Supabase is not configured', { code: 'supabase_not_configured' });
   }
 
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new AccountEmailActionError('当前登录态已失效，请重新登录后再试', { code: 'session_expired', status: 401 });
   }

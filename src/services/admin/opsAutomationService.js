@@ -1,13 +1,9 @@
 import { supabase } from '../../supabaseClient';
 import { executeSupabaseRead } from '../supabaseRequest';
+import { getSupabaseAccessToken } from '../authFetchService.js';
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
-}
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token;
 }
 
 export async function loadOpsAutomationRuns({
@@ -73,7 +69,7 @@ export async function triggerManualSync(job = 'official-announcements', {
   refreshMode = forceRefresh ? 'summary' : 'incremental',
   announcementLimit = null,
 } = {}) {
-  const token = await getAccessToken();
+  const token = await getSupabaseAccessToken();
   if (!token) throw new Error('未登录或会话已过期');
 
   const res = await fetch('/api/admin-ops-automation', {

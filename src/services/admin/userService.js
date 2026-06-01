@@ -3,14 +3,10 @@ import {
   executeSupabaseRpc,
   fetchWithTimeout,
 } from '../supabaseRequest';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token;
-}
+import { getSupabaseAccessToken } from '../authFetchService.js';
 
 export async function loadUsers() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -50,7 +46,7 @@ export async function updateUserProfile(userId, userForm) {
 }
 
 export async function createUser(userForm) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   const response = await fetchWithTimeout(`${supabase.supabaseUrl}/functions/v1/admin-create-user`, {
     method: 'POST',
     headers: {
@@ -77,7 +73,7 @@ export async function createUser(userForm) {
 }
 
 export async function deleteUser(userId) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -103,7 +99,7 @@ export async function deleteUser(userId) {
 }
 
 export async function resetUserPassword(userId, temporaryPassword) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }

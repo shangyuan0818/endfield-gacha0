@@ -1,11 +1,7 @@
 import { supabase } from '../../supabaseClient';
 import { executeSupabaseRead, fetchWithTimeout } from '../supabaseRequest';
 import { loadPublicProfilesMap } from '../publicProfileService';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token;
-}
+import { getSupabaseAccessToken } from '../authFetchService.js';
 
 export async function loadAccountRecoveryRequests() {
   const { data, error } = await executeSupabaseRead(
@@ -53,7 +49,7 @@ export async function updateAccountRecoveryRequest(requestId, updateData) {
 }
 
 export async function resetRecoveryRequestPassword(requestId, userId, temporaryPassword, adminNote) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }

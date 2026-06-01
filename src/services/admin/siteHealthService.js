@@ -1,13 +1,8 @@
-import { supabase } from '../../supabaseClient.js';
 import { fetchWithTimeout } from '../supabaseRequest.js';
-
-async function getAccessToken() {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
+import { getSupabaseAccessToken } from '../authFetchService.js';
 
 export async function loadSiteHealth() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -31,7 +26,7 @@ export async function loadSiteHealth() {
 }
 
 export async function drainMailOutbox() {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -57,7 +52,7 @@ export async function drainMailOutbox() {
 }
 
 export async function sendMailSmokeTest({ recipientEmail, locale = 'zh-CN' } = {}) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -86,7 +81,7 @@ export async function sendMailSmokeTest({ recipientEmail, locale = 'zh-CN' } = {
 }
 
 export async function sendAdminAlertMail({ summary, secondary, locale = 'zh-CN' } = {}) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -116,7 +111,7 @@ export async function sendAdminAlertMail({ summary, secondary, locale = 'zh-CN' 
 }
 
 export async function updateMailRuntimeConfig(payload = {}) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }
@@ -142,7 +137,7 @@ export async function updateMailRuntimeConfig(payload = {}) {
 }
 
 export async function updateMailBudgetConfig(payload = {}) {
-  const accessToken = await getAccessToken();
+  const accessToken = await getSupabaseAccessToken();
   if (!accessToken) {
     throw new Error('当前登录已失效，请重新登录后重试');
   }

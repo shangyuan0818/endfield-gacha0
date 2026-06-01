@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto';
 import {
-  createSupabaseAccessTokenClient,
-  getBearerToken,
   getSupabaseAdminClient,
 } from '../../_lib/authAdmin.js';
+import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 import {
   checkMemoryRateLimit,
   getRequesterKey,
@@ -86,6 +85,23 @@ function hashEmailVerificationCode(code, userId = '') {
     .digest('hex');
 }
 
+async function resolveCurrentUser(req, adminClient) {
+  const authResult = await resolveAuthenticatedRequestUser(req, { adminClient });
+  if (!authResult.ok) {
+    return {
+      ok: false,
+      status: authResult.status || 401,
+      error: authResult.error || 'Authentication required',
+      code: authResult.code || 'session_invalid',
+    };
+  }
+
+  return {
+    ok: true,
+    currentUser: authResult.user,
+  };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
@@ -107,25 +123,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'Invalid verification code', code: 'invalid_code' });
     }
 
-    const accessToken = getBearerToken(req);
-    if (!accessToken) {
-      return res.status(401).json({ success: false, error: 'Authentication required', code: 'session_required' });
-    }
-
     const adminClient = getSupabaseAdminClient();
-    const callerClient = createSupabaseAccessTokenClient(accessToken);
-    if (!adminClient?.from || !callerClient?.auth) {
+    if (!adminClient?.from) {
       return res.status(503).json({ success: false, error: 'Email verification service unavailable', code: 'service_unavailable' });
     }
 
     try {
-      const { data: userData, error: userError } = await callerClient.auth.getUser(accessToken);
-      if (userError || !userData?.user?.id) {
-        return res.status(401).json({ success: false, error: 'Authentication required', code: 'session_invalid' });
+      const userResult = await resolveCurrentUser(req, adminClient);
+      if (!userResult.ok) {
+        return res.status(userResult.status || 401).json({
+          success: false,
+          error: userResult.error || 'Authentication required',
+          code: userResult.code || 'session_invalid',
+        });
       }
+      const currentUser = userResult.currentUser;
 
       const rateLimitResult = checkMemoryRateLimit(
-        `account-email-verify:${userData.user.id}:${getRequesterKey(req)}`,
+        `account-email-verify:${currentUser.id}:${getRequesterKey(req)}`,
         CODE_VERIFY_LIMIT
       );
       if (!rateLimitResult.allowed) {
@@ -137,7 +152,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const codeHash = hashEmailVerificationCode(code, userData.user.id);
+      const codeHash = hashEmailVerificationCode(code, currentUser.id);
       const { data: stateRow, error: loadError } = await adminClient
         .from('account_security_states')
         .select('user_id, email_verification_required, email_verification_code_expires_at')
@@ -148,7 +163,7 @@ export default async function handler(req, res) {
         throw loadError;
       }
 
-      if (!stateRow?.user_id || stateRow.user_id !== userData.user.id) {
+      if (!stateRow?.user_id || stateRow.user_id !== currentUser.id) {
         return res.status(400).json({ success: false, error: 'Verification code not found', code: 'code_not_found' });
       }
 
