@@ -42,6 +42,15 @@ function isEnvEnabled(value) {
   return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
 }
 
+function isBridgeManagedProvider(providerKey) {
+  const meta = LOGIN_IDENTITY_PROVIDERS[providerKey];
+  return Boolean(meta?.bridgeProvider);
+}
+
+function isSiteSessionIdentity(identity) {
+  return identity?.source === 'site_session' || identity?.identity_data?.site_session === true;
+}
+
 export function isLoginIdentityProviderAvailable(providerKey, env = import.meta.env) {
   const meta = LOGIN_IDENTITY_PROVIDERS[providerKey];
   if (!meta) {
@@ -109,7 +118,8 @@ export function groupAuthIdentities(identities = []) {
 }
 
 export async function loadAuthIdentities() {
-  const identities = [];
+  const supabaseIdentities = [];
+  const siteIdentities = [];
   let supabaseError = null;
 
   if (supabase) {
@@ -118,7 +128,7 @@ export async function loadAuthIdentities() {
       if (error) {
         throw error;
       }
-      identities.push(...(Array.isArray(data?.identities) ? data.identities : []));
+      supabaseIdentities.push(...(Array.isArray(data?.identities) ? data.identities : []));
     } catch (error) {
       supabaseError = error;
     }
@@ -127,12 +137,20 @@ export async function loadAuthIdentities() {
   try {
     const siteSession = await getCurrentSiteSession({ syncSupabase: false });
     if (siteSession?.authenticated && Array.isArray(siteSession.identities)) {
-      identities.push(...siteSession.identities);
+      siteIdentities.push(...siteSession.identities);
     }
   } catch {
     // The settings panel can still show Supabase identities when the site
     // session endpoint is unavailable.
   }
+
+  const identities = [
+    ...siteIdentities,
+    ...supabaseIdentities.filter((identity) => {
+      const providerKey = normalizeAuthIdentityProvider(identity);
+      return !isBridgeManagedProvider(providerKey);
+    }),
+  ];
 
   if (identities.length === 0 && supabaseError) {
     throw supabaseError;
@@ -206,7 +224,8 @@ export async function linkLoginIdentity(providerKey, {
 }
 
 export async function unlinkLoginIdentity(identity) {
-  if (identity?.source === 'site_session') {
+  const providerKey = normalizeAuthIdentityProvider(identity);
+  if (isSiteSessionIdentity(identity) || isBridgeManagedProvider(providerKey)) {
     const response = await fetch('/api/auth/identities/unlink', {
       method: 'POST',
       credentials: 'include',

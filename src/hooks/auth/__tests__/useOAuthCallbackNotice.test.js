@@ -1,6 +1,94 @@
-import { describe, expect, it } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildOAuthNotice } from '../useOAuthCallbackNotice.js';
+import { AUTH_SESSION_SYNC_EVENT } from '../../../services/authSessionEvents.js';
+import { getCurrentSiteSession } from '../../../services/siteSessionService.js';
+import { buildOAuthNotice, useOAuthCallbackNotice } from '../useOAuthCallbackNotice.js';
+
+vi.mock('../../../i18n/index.js', () => ({
+  useI18n: () => ({
+    isEnglish: false,
+  }),
+}));
+
+vi.mock('../../../services/siteSessionService.js', () => ({
+  getCurrentSiteSession: vi.fn(),
+}));
+
+describe('useOAuthCallbackNotice', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getCurrentSiteSession.mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: 'user-1',
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('syncs the site session and emits a shared event after OAuth sign-in', async () => {
+    const navigate = vi.fn();
+    const addDurableNotification = vi.fn();
+    const onSessionSynced = vi.fn();
+    const eventListener = vi.fn();
+    window.addEventListener(AUTH_SESSION_SYNC_EVENT, eventListener);
+
+    renderHook(() => useOAuthCallbackNotice({
+      location: {
+        pathname: '/settings',
+        search: '?oauth_status=signed_in&oauth_provider=github&oauth_code=oauth_signed_in',
+        hash: '',
+      },
+      navigate,
+      addDurableNotification,
+      onSessionSynced,
+    }));
+
+    expect(addDurableNotification).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'success',
+      title: 'GitHub 登录成功',
+    }));
+    expect(navigate).toHaveBeenCalledWith('/settings', { replace: true });
+    await waitFor(() => {
+      expect(getCurrentSiteSession).toHaveBeenCalledWith({ syncSupabase: true });
+      expect(onSessionSynced).toHaveBeenCalledWith(expect.objectContaining({
+        authenticated: true,
+      }), expect.objectContaining({
+        status: 'signed_in',
+        provider: 'github',
+      }));
+      expect(eventListener).toHaveBeenCalled();
+    });
+
+    window.removeEventListener(AUTH_SESSION_SYNC_EVENT, eventListener);
+  });
+
+  it('does not treat the legacy verified callback status as a usable login session', async () => {
+    const navigate = vi.fn();
+    const addDurableNotification = vi.fn();
+
+    renderHook(() => useOAuthCallbackNotice({
+      location: {
+        pathname: '/settings',
+        search: '?oauth_status=verified&oauth_provider=github&oauth_code=oauth_profile_verified',
+        hash: '',
+      },
+      navigate,
+      addDurableNotification,
+    }));
+
+    expect(addDurableNotification).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'info',
+      title: 'GitHub 授权已完成',
+    }));
+    expect(navigate).toHaveBeenCalledWith('/settings', { replace: true });
+    expect(getCurrentSiteSession).not.toHaveBeenCalled();
+  });
+});
 
 describe('buildOAuthNotice', () => {
   it('explains provider callback URL mismatch in Chinese', () => {
@@ -87,5 +175,16 @@ describe('buildOAuthNotice', () => {
       provider: 'linuxdo',
       code: 'oauth_provider_disabled',
     });
+  });
+
+  it('explains site-session creation failures explicitly', () => {
+    const notice = buildOAuthNotice({
+      status: 'error',
+      provider: 'github',
+      code: 'oauth_session_unavailable',
+    }, false);
+
+    expect(notice.title).toBe('GitHub 登录状态创建失败');
+    expect(notice.message).toContain('站内会话服务配置');
   });
 });

@@ -1,6 +1,26 @@
 // @vitest-environment node
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const oauthSessionMocks = vi.hoisted(() => ({
+  getSupabaseAdminClient: vi.fn(),
+  createOrLinkOAuthUserAndSession: vi.fn(),
+  linkOAuthIdentityToSiteSession: vi.fn(),
+}));
+
+vi.mock('../_lib/authAdmin.js', () => ({
+  getSupabaseAdminClient: oauthSessionMocks.getSupabaseAdminClient,
+}));
+
+vi.mock('../_lib/siteSession.js', async () => {
+  const actual = await vi.importActual('../_lib/siteSession.js');
+  return {
+    ...actual,
+    createOrLinkOAuthUserAndSession: oauthSessionMocks.createOrLinkOAuthUserAndSession,
+    linkOAuthIdentityToSiteSession: oauthSessionMocks.linkOAuthIdentityToSiteSession,
+  };
+});
+
 import {
   githubOAuthCallbackHandler,
   githubOAuthStartHandler,
@@ -104,6 +124,9 @@ beforeEach(() => {
   });
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  oauthSessionMocks.getSupabaseAdminClient.mockReset();
+  oauthSessionMocks.createOrLinkOAuthUserAndSession.mockReset();
+  oauthSessionMocks.linkOAuthIdentityToSiteSession.mockReset();
 });
 
 afterEach(() => {
@@ -255,8 +278,14 @@ describe('auth OAuth bridge', () => {
     expect(location.searchParams.get('oauth_code')).toBe('oauth_state_malformed');
   });
 
-  it('exchanges Linux.do callback code and stores a short-lived pending cookie', async () => {
+  it('exchanges Linux.do callback code and creates a site session', async () => {
     setLinuxDoEnv();
+    const adminClient = { from: vi.fn() };
+    oauthSessionMocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    oauthSessionMocks.createOrLinkOAuthUserAndSession.mockResolvedValue({
+      ok: true,
+      created: false,
+    });
     const state = createOAuthState({
       provider: 'linuxdo',
       returnTo: '/settings',
@@ -300,17 +329,35 @@ describe('auth OAuth bridge', () => {
     await linuxdoOAuthCallbackHandler(req, res);
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(oauthSessionMocks.createOrLinkOAuthUserAndSession).toHaveBeenCalledWith(adminClient, expect.objectContaining({
+      profile: expect.objectContaining({
+        provider: 'linuxdo',
+        subject: '12345',
+        username: 'linuxdo-user',
+      }),
+      subjectHash: expect.any(String),
+      profileHash: expect.any(String),
+      req,
+      res,
+      secret: 'test-oauth-state-secret',
+    }));
     expect(res.statusCode).toBe(302);
-    expect(String(res.headers['Set-Cookie'] || '')).toContain('ef_oauth_pending=');
-    expect(String(res.headers['Set-Cookie'] || '')).toContain('HttpOnly');
+    expect(String(res.headers['Set-Cookie'] || '')).not.toContain('ef_oauth_pending=');
     const location = new URL(res.headers.Location);
     expect(location.pathname).toBe('/settings');
-    expect(location.searchParams.get('oauth_status')).toBe('verified');
+    expect(location.searchParams.get('oauth_status')).toBe('signed_in');
     expect(location.searchParams.get('oauth_provider')).toBe('linuxdo');
+    expect(location.searchParams.get('oauth_code')).toBe('oauth_signed_in');
   });
 
-  it('exchanges GitHub callback codes with redirect_uri and fetches the verified email', async () => {
+  it('exchanges GitHub callback codes with redirect_uri, fetches the verified email, and creates a site session', async () => {
     setGithubEnv();
+    const adminClient = { from: vi.fn() };
+    oauthSessionMocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    oauthSessionMocks.createOrLinkOAuthUserAndSession.mockResolvedValue({
+      ok: true,
+      created: true,
+    });
     const state = createOAuthState({
       provider: 'github',
       returnTo: '/settings',
@@ -362,11 +409,77 @@ describe('auth OAuth bridge', () => {
     await githubOAuthCallbackHandler(req, res);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(oauthSessionMocks.createOrLinkOAuthUserAndSession).toHaveBeenCalledWith(adminClient, expect.objectContaining({
+      profile: expect.objectContaining({
+        provider: 'github',
+        subject: '67890',
+        username: 'github-user',
+        email: 'github-user@example.com',
+        emailVerified: true,
+      }),
+      subjectHash: expect.any(String),
+      profileHash: expect.any(String),
+      req,
+      res,
+      secret: 'test-oauth-state-secret',
+    }));
     expect(res.statusCode).toBe(302);
-    expect(String(res.headers['Set-Cookie'] || '')).toContain('ef_oauth_pending=');
+    expect(String(res.headers['Set-Cookie'] || '')).not.toContain('ef_oauth_pending=');
     const location = new URL(res.headers.Location);
     expect(location.pathname).toBe('/settings');
-    expect(location.searchParams.get('oauth_status')).toBe('verified');
+    expect(location.searchParams.get('oauth_status')).toBe('signed_in');
     expect(location.searchParams.get('oauth_provider')).toBe('github');
+    expect(location.searchParams.get('oauth_code')).toBe('oauth_account_created');
+  });
+
+  it('returns an explicit OAuth error when the site session layer is unavailable', async () => {
+    setGithubEnv();
+    oauthSessionMocks.getSupabaseAdminClient.mockReturnValue(null);
+    const state = createOAuthState({
+      provider: 'github',
+      returnTo: '/settings',
+    }, {
+      secret: 'test-oauth-state-secret',
+    });
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (String(url).includes('/login/oauth/access_token')) {
+        return new Response(JSON.stringify({ access_token: 'github-access-token', token_type: 'Bearer' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).endsWith('/user')) {
+        return new Response(JSON.stringify({
+          id: 67890,
+          login: 'github-user',
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).endsWith('/user/emails')) {
+        return new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    }));
+    const req = createRequest({
+      query: {
+        code: 'auth-code',
+        state,
+      },
+    });
+    const res = createResponseRecorder();
+
+    await githubOAuthCallbackHandler(req, res);
+
+    const location = new URL(res.headers.Location);
+    expect(location.pathname).toBe('/settings');
+    expect(location.searchParams.get('oauth_status')).toBe('error');
+    expect(location.searchParams.get('oauth_provider')).toBe('github');
+    expect(location.searchParams.get('oauth_code')).toBe('oauth_session_unavailable');
+    expect(oauthSessionMocks.createOrLinkOAuthUserAndSession).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { consumeOAuthResultParams } from '../../services/authOAuthService.js';
+import { emitAuthSessionSync } from '../../services/authSessionEvents.js';
+import { getCurrentSiteSession } from '../../services/siteSessionService.js';
 import { useI18n } from '../../i18n/index.js';
 
 const PROVIDER_LABELS = {
@@ -70,6 +72,16 @@ function getOAuthErrorCopy(result, providerLabel, isEnglish) {
       message: isEnglish
         ? 'The provider did not return an authorization code. Start sign-in again; if it repeats, use email sign-in for now.'
         : '第三方平台没有返回授权码。请重新发起登录；如果重复出现，请先使用邮箱登录。',
+      diagnostic: commonDiagnostic,
+    };
+  }
+
+  if (code === 'oauth_session_unavailable' || code === 'oauth_session_create_failed') {
+    return {
+      title: isEnglish ? `${providerLabel} site session failed` : `${providerLabel} 登录状态创建失败`,
+      message: isEnglish
+        ? 'The provider authorized successfully, but the site could not create a usable login session. Use email sign-in for now and ask the administrator to check the session service.'
+        : '第三方授权已通过，但本站未能创建可用登录状态。请先使用邮箱登录，并让管理员检查站内会话服务配置。',
       diagnostic: commonDiagnostic,
     };
   }
@@ -205,6 +217,7 @@ export function useOAuthCallbackNotice({
   location,
   navigate,
   addDurableNotification,
+  onSessionSynced,
 }) {
   const { isEnglish } = useI18n();
 
@@ -218,7 +231,29 @@ export function useOAuthCallbackNotice({
 
     const nextSearch = result.nextSearch ? `?${result.nextSearch}` : '';
     navigate(`${location.pathname}${nextSearch}${location.hash || ''}`, { replace: true });
-  }, [addDurableNotification, isEnglish, location.hash, location.pathname, location.search, navigate]);
+
+    if (!['signed_in', 'linked'].includes(result.status)) {
+      return;
+    }
+
+    void getCurrentSiteSession({ syncSupabase: true })
+      .then((session) => {
+        if (!session?.authenticated) {
+          return;
+        }
+        onSessionSynced?.(session, result);
+        emitAuthSessionSync({
+          source: 'oauth_callback',
+          provider: result.provider,
+          status: result.status,
+          userId: session.user?.id || null,
+        });
+      })
+      .catch(() => {
+        // The durable notification already reports the OAuth result. A failed
+        // sync will be retried by normal authenticated fetches.
+      });
+  }, [addDurableNotification, isEnglish, location.hash, location.pathname, location.search, navigate, onSessionSynced]);
 }
 
 export default useOAuthCallbackNotice;

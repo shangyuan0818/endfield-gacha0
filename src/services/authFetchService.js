@@ -8,24 +8,24 @@ export async function getSupabaseAccessToken({
     return null;
   }
 
+  if (syncSiteSession) {
+    const siteSession = await getCurrentSiteSession({ syncSupabase: true }).catch(() => null);
+    const siteSessionToken = siteSession?.supabase?.accessToken || null;
+    if (siteSessionToken) {
+      return siteSessionToken;
+    }
+    if (siteSession?.authenticated) {
+      return null;
+    }
+  }
+
   const currentSession = await supabase.auth.getSession().catch(() => null);
   const currentToken = currentSession?.data?.session?.access_token || null;
   if (currentToken) {
     return currentToken;
   }
 
-  if (!syncSiteSession) {
-    return null;
-  }
-
-  const siteSession = await getCurrentSiteSession({ syncSupabase: true }).catch(() => null);
-  const siteSessionToken = siteSession?.supabase?.accessToken || null;
-  if (siteSessionToken) {
-    return siteSessionToken;
-  }
-
-  const syncedSession = await supabase.auth.getSession().catch(() => null);
-  return syncedSession?.data?.session?.access_token || null;
+  return null;
 }
 
 export async function getAuthFetchHeaders(baseHeaders = {}, {

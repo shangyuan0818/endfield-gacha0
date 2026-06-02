@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useI18n } from '../../i18n/index.js';
 import { useAuthStore } from '../../stores';
 import { isUserEmailVerified } from '../../services/accountEmailService.js';
+import { subscribeAuthSessionSync } from '../../services/authSessionEvents.js';
 import {
   getIdentityDisplayValue,
   groupAuthIdentities,
@@ -151,6 +152,15 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
       cancelled = true;
     };
   }, [t, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) {
+      return undefined;
+    }
+    return subscribeAuthSessionSync(() => {
+      refresh({ silent: true }).catch(() => null);
+    });
+  }, [refresh, user?.id]);
 
   const handleLink = async (providerKey) => {
     setActionLoading(providerKey);

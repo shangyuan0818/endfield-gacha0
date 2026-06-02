@@ -82,7 +82,10 @@ describe('authIdentityService', () => {
   it('merges Supabase identities with site-managed OAuth identities', async () => {
     supabase.auth.getUserIdentities.mockResolvedValue({
       data: {
-        identities: [{ id: 'email-1', provider: 'email', email: 'user@example.test' }],
+        identities: [
+          { id: 'email-1', provider: 'email', email: 'user@example.test' },
+          { id: 'legacy-github-1', provider: 'github', identity_data: { username: 'legacy-octo' } },
+        ],
       },
       error: null,
     });
@@ -108,10 +111,11 @@ describe('authIdentityService', () => {
       id: 'site-github-1',
       source: 'site_session',
     });
+    expect(identities.some((identity) => identity.id === 'legacy-github-1')).toBe(false);
   });
 
-  it('passes the selected identity to Supabase unlinkIdentity', async () => {
-    const identity = { id: 'github-1', provider: 'github' };
+  it('passes non-bridge identities to Supabase unlinkIdentity', async () => {
+    const identity = { id: 'unknown-1', provider: 'unknown' };
     supabase.auth.unlinkIdentity.mockResolvedValue({ data: {}, error: null });
 
     await unlinkLoginIdentity(identity);
@@ -119,7 +123,7 @@ describe('authIdentityService', () => {
     expect(supabase.auth.unlinkIdentity).toHaveBeenCalledWith(identity);
   });
 
-  it('unlinks site-managed identities through the same-origin API', async () => {
+  it('unlinks bridge-managed identities through the same-origin API', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       success: true,
       data: {
@@ -134,7 +138,6 @@ describe('authIdentityService', () => {
     await unlinkLoginIdentity({
       id: 'site-github-1',
       provider: 'github',
-      source: 'site_session',
     });
 
     expect(fetchMock).toHaveBeenCalledWith('/api/auth/identities/unlink', expect.objectContaining({
