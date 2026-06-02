@@ -217,10 +217,10 @@ export async function exchangeOAuthCode(config, code, {
     grant_type: 'authorization_code',
     code: normalizedCode,
     redirect_uri: config.redirectUri,
-    client_id: config.clientId,
   });
 
   if (config.tokenAuthMethod !== 'basic') {
+    params.set('client_id', config.clientId);
     params.set('client_secret', config.clientSecret);
   }
 
