@@ -4,6 +4,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/index.js';
 import AuthCallbackPage from '../AuthCallbackPage.jsx';
+import {
+  buildBridgeCallbackForwardUrl,
+  getBridgeProviderFromState,
+} from '../authCallbackBridge.js';
 
 const authMock = vi.hoisted(() => ({
   exchangeCodeForSession: vi.fn(),
@@ -38,6 +42,14 @@ function renderCallbackPage(path) {
       </BrowserRouter>
     </I18nProvider>
   );
+}
+
+function createBridgeState(provider) {
+  const payload = window.btoa(JSON.stringify({ provider }))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/u, '');
+  return `${payload}.signature`;
 }
 
 describe('AuthCallbackPage', () => {
@@ -88,5 +100,28 @@ describe('AuthCallbackPage', () => {
       expect(screen.getByText('登录未完成')).toBeInTheDocument();
     });
     expect(screen.getByText('回调地址缺少授权码，请重新登录。')).toBeInTheDocument();
+  });
+
+  it('detects site OAuth bridge states before falling back to Supabase PKCE handling', () => {
+    expect(getBridgeProviderFromState(createBridgeState('github'))).toBe('github');
+    expect(getBridgeProviderFromState(createBridgeState('linuxdo'))).toBe('linuxdo');
+    expect(getBridgeProviderFromState(createBridgeState('custom:linuxdo'))).toBe('');
+    expect(getBridgeProviderFromState('not-a-state')).toBe('');
+  });
+
+  it('builds same-origin forwarding URLs for provider callbacks registered to /auth/callback', () => {
+    window.history.replaceState(null, '', '/auth/callback');
+    const url = new URL(buildBridgeCallbackForwardUrl({
+      provider: 'linuxdo',
+      code: 'auth-code',
+      state: createBridgeState('linuxdo'),
+      error: '',
+      errorDescription: '',
+    }));
+
+    expect(url.origin).toBe(window.location.origin);
+    expect(url.pathname).toBe('/api/auth/oauth/linuxdo/callback');
+    expect(url.searchParams.get('code')).toBe('auth-code');
+    expect(url.searchParams.get('state')).toBe(createBridgeState('linuxdo'));
   });
 });

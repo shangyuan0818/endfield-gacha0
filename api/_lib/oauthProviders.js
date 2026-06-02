@@ -8,8 +8,9 @@ export const OAUTH_PROVIDERS = Object.freeze({
     authorizeUrl: 'https://connect.linux.do/oauth2/authorize',
     tokenUrl: 'https://connect.linux.do/oauth2/token',
     userUrl: 'https://connect.linux.do/api/user',
-    defaultScope: 'read',
+    defaultScope: 'openid profile email',
     tokenAuthMethod: 'basic',
+    sendRedirectUri: false,
   },
   qq: {
     key: 'qq',
@@ -20,6 +21,7 @@ export const OAUTH_PROVIDERS = Object.freeze({
     userUrl: 'https://graph.qq.com/user/get_user_info',
     defaultScope: 'get_user_info',
     tokenAuthMethod: 'query',
+    sendRedirectUri: true,
   },
   github: {
     key: 'github',
@@ -30,6 +32,7 @@ export const OAUTH_PROVIDERS = Object.freeze({
     emailUrl: 'https://api.github.com/user/emails',
     defaultScope: 'read:user user:email',
     tokenAuthMethod: 'body',
+    sendRedirectUri: false,
   },
 });
 
@@ -69,6 +72,26 @@ export function isSupportedOAuthProvider(value) {
 
 function getProviderEnv(env, provider, suffix, fallback = '') {
   return normalizeString(env[envKey(provider, suffix)] || fallback);
+}
+
+function normalizeOAuthScope(provider, value) {
+  const normalizedProvider = normalizeOAuthProvider(provider);
+  const raw = normalizeString(value, 1024);
+  if (normalizedProvider !== 'linuxdo') {
+    return raw;
+  }
+
+  const normalizedScope = raw
+    .split(/[,\s]+/u)
+    .map((scope) => scope.trim().toLowerCase())
+    .filter(Boolean)
+    .join(' ');
+
+  if (!normalizedScope || normalizedScope === 'read' || normalizedScope === 'read write') {
+    return 'openid profile email';
+  }
+
+  return normalizedScope;
 }
 
 export function getOAuthRedirectUri(provider, env = readEnvironment(), req = null) {
@@ -145,8 +168,12 @@ export function getOAuthProviderConfig(provider, {
     userUrl: getProviderEnv(env, normalizedProvider, 'USER_URL', base.userUrl),
     emailUrl: getProviderEnv(env, normalizedProvider, 'EMAIL_URL', base.emailUrl || ''),
     redirectUri: getOAuthRedirectUri(normalizedProvider, env, req),
-    scope: getProviderEnv(env, normalizedProvider, 'SCOPE', base.defaultScope),
+    scope: normalizeOAuthScope(normalizedProvider, getProviderEnv(env, normalizedProvider, 'SCOPE', base.defaultScope)),
     tokenAuthMethod: getProviderEnv(env, normalizedProvider, 'TOKEN_AUTH_METHOD', base.tokenAuthMethod),
+    sendRedirectUri: parseBoolean(
+      env[envKey(normalizedProvider, 'SEND_REDIRECT_URI')],
+      base.sendRedirectUri !== false
+    ),
   };
 }
 
@@ -154,7 +181,9 @@ export function buildOAuthAuthorizationUrl(config, state) {
   const url = new URL(config.authorizeUrl);
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', config.clientId);
-  url.searchParams.set('redirect_uri', config.redirectUri);
+  if (config.sendRedirectUri !== false) {
+    url.searchParams.set('redirect_uri', config.redirectUri);
+  }
   url.searchParams.set('state', state);
   if (config.scope) {
     url.searchParams.set('scope', config.scope);
@@ -216,8 +245,11 @@ export async function exchangeOAuthCode(config, code, {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code: normalizedCode,
-    redirect_uri: config.redirectUri,
   });
+
+  if (config.sendRedirectUri !== false) {
+    params.set('redirect_uri', config.redirectUri);
+  }
 
   if (config.tokenAuthMethod !== 'basic') {
     params.set('client_id', config.clientId);

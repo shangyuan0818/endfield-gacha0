@@ -2,6 +2,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  githubOAuthCallbackHandler,
+  githubOAuthStartHandler,
   linuxdoOAuthCallbackHandler,
   linuxdoOAuthStartHandler,
   linuxdoSupabaseAuthorizeHandler,
@@ -16,9 +18,18 @@ const ENV_KEYS = [
   'AUTH_OAUTH_LINUXDO_CLIENT_ID',
   'AUTH_OAUTH_LINUXDO_CLIENT_SECRET',
   'AUTH_OAUTH_LINUXDO_REDIRECT_URI',
+  'AUTH_OAUTH_LINUXDO_SCOPE',
+  'AUTH_OAUTH_LINUXDO_SEND_REDIRECT_URI',
+  'AUTH_OAUTH_LINUXDO_TOKEN_AUTH_METHOD',
   'AUTH_OAUTH_QQ_ENABLED',
   'AUTH_OAUTH_QQ_CLIENT_ID',
   'AUTH_OAUTH_QQ_CLIENT_SECRET',
+  'AUTH_OAUTH_GITHUB_ENABLED',
+  'AUTH_OAUTH_GITHUB_CLIENT_ID',
+  'AUTH_OAUTH_GITHUB_CLIENT_SECRET',
+  'AUTH_OAUTH_GITHUB_REDIRECT_URI',
+  'AUTH_OAUTH_GITHUB_SCOPE',
+  'AUTH_OAUTH_GITHUB_SEND_REDIRECT_URI',
 ];
 
 function createResponseRecorder() {
@@ -78,6 +89,15 @@ function setLinuxDoEnv() {
   process.env.AUTH_OAUTH_LINUXDO_REDIRECT_URI = 'https://ef-gacha.mogujun.icu/api/auth/oauth/linuxdo/callback';
 }
 
+function setGithubEnv() {
+  process.env.APP_URL = 'https://ef-gacha.mogujun.icu';
+  process.env.OAUTH_STATE_SECRET = 'test-oauth-state-secret';
+  process.env.AUTH_OAUTH_GITHUB_ENABLED = 'true';
+  process.env.AUTH_OAUTH_GITHUB_CLIENT_ID = 'github-client-id';
+  process.env.AUTH_OAUTH_GITHUB_CLIENT_SECRET = 'github-client-secret';
+  process.env.AUTH_OAUTH_GITHUB_REDIRECT_URI = 'https://ef-gacha.mogujun.icu/api/auth/oauth/github/callback';
+}
+
 beforeEach(() => {
   ENV_KEYS.forEach((key) => {
     delete process.env[key];
@@ -108,7 +128,8 @@ describe('auth OAuth bridge', () => {
     expect(location.origin).toBe('https://connect.linux.do');
     expect(location.pathname).toBe('/oauth2/authorize');
     expect(location.searchParams.get('client_id')).toBe('linuxdo-client-id');
-    expect(location.searchParams.get('redirect_uri')).toBe('https://ef-gacha.mogujun.icu/api/auth/oauth/linuxdo/callback');
+    expect(location.searchParams.has('redirect_uri')).toBe(false);
+    expect(location.searchParams.get('scope')).toBe('openid profile email');
     const stateResult = verifyOAuthState(location.searchParams.get('state'), {
       expectedProvider: 'linuxdo',
       secret: 'test-oauth-state-secret',
@@ -142,6 +163,58 @@ describe('auth OAuth bridge', () => {
     expect(location.searchParams.get('scope')).toBe('read');
     expect(location.searchParams.get('state')).toBe('supabase-state');
     expect(location.searchParams.has('redirect_to')).toBe(false);
+  });
+
+  it('upgrades the legacy Linux.do read scope to currently supported OIDC scopes', async () => {
+    setLinuxDoEnv();
+    process.env.AUTH_OAUTH_LINUXDO_SCOPE = 'read';
+    const req = createRequest();
+    const res = createResponseRecorder();
+
+    await linuxdoOAuthStartHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.Location);
+    expect(location.searchParams.get('scope')).toBe('openid profile email');
+  });
+
+  it('can force an explicit Linux.do redirect_uri for provider consoles that require it', async () => {
+    setLinuxDoEnv();
+    process.env.AUTH_OAUTH_LINUXDO_SEND_REDIRECT_URI = 'true';
+    const req = createRequest();
+    const res = createResponseRecorder();
+
+    await linuxdoOAuthStartHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.Location);
+    expect(location.searchParams.get('redirect_uri')).toBe('https://ef-gacha.mogujun.icu/api/auth/oauth/linuxdo/callback');
+  });
+
+  it('starts GitHub OAuth without an explicit redirect_uri so GitHub can use the registered callback', async () => {
+    setGithubEnv();
+    const req = createRequest({
+      query: {
+        returnTo: '/settings?tab=account',
+      },
+    });
+    const res = createResponseRecorder();
+
+    await githubOAuthStartHandler(req, res);
+
+    expect(res.statusCode).toBe(302);
+    const location = new URL(res.headers.Location);
+    expect(location.origin).toBe('https://github.com');
+    expect(location.pathname).toBe('/login/oauth/authorize');
+    expect(location.searchParams.get('client_id')).toBe('github-client-id');
+    expect(location.searchParams.has('redirect_uri')).toBe(false);
+    expect(location.searchParams.get('scope')).toBe('read:user user:email');
+    const stateResult = verifyOAuthState(location.searchParams.get('state'), {
+      expectedProvider: 'github',
+      secret: 'test-oauth-state-secret',
+    });
+    expect(stateResult.ok).toBe(true);
+    expect(stateResult.payload.returnTo).toBe('/settings?tab=account');
   });
 
   it('redirects provider-disabled starts back to the safe return path', async () => {
@@ -195,6 +268,7 @@ describe('auth OAuth bridge', () => {
         expect(options.headers.Authorization).toBe(`Basic ${Buffer.from('linuxdo-client-id:linuxdo-client-secret').toString('base64')}`);
         expect(String(options.body)).not.toContain('client_id=linuxdo-client-id');
         expect(String(options.body)).not.toContain('client_secret=linuxdo-client-secret');
+        expect(String(options.body)).not.toContain('redirect_uri=');
         return new Response(JSON.stringify({ access_token: 'provider-access-token', token_type: 'Bearer' }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
@@ -233,5 +307,66 @@ describe('auth OAuth bridge', () => {
     expect(location.pathname).toBe('/settings');
     expect(location.searchParams.get('oauth_status')).toBe('verified');
     expect(location.searchParams.get('oauth_provider')).toBe('linuxdo');
+  });
+
+  it('exchanges GitHub callback codes without redirect_uri and fetches the verified email', async () => {
+    setGithubEnv();
+    const state = createOAuthState({
+      provider: 'github',
+      returnTo: '/settings',
+    }, {
+      secret: 'test-oauth-state-secret',
+    });
+    const fetchMock = vi.fn(async (url, options = {}) => {
+      if (String(url).includes('/login/oauth/access_token')) {
+        expect(String(options.body)).toContain('client_id=github-client-id');
+        expect(String(options.body)).toContain('client_secret=github-client-secret');
+        expect(String(options.body)).not.toContain('redirect_uri=');
+        return new Response(JSON.stringify({ access_token: 'github-access-token', token_type: 'Bearer' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).endsWith('/user')) {
+        expect(options.headers.Authorization).toBe('Bearer github-access-token');
+        return new Response(JSON.stringify({
+          id: 67890,
+          login: 'github-user',
+          name: 'GitHub User',
+          avatar_url: 'https://avatars.githubusercontent.com/u/67890',
+          email: null,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      if (String(url).endsWith('/user/emails')) {
+        return new Response(JSON.stringify([
+          { email: 'github-user@example.com', primary: true, verified: true },
+        ]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const req = createRequest({
+      query: {
+        code: 'auth-code',
+        state,
+      },
+    });
+    const res = createResponseRecorder();
+
+    await githubOAuthCallbackHandler(req, res);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(res.statusCode).toBe(302);
+    expect(String(res.headers['Set-Cookie'] || '')).toContain('ef_oauth_pending=');
+    const location = new URL(res.headers.Location);
+    expect(location.pathname).toBe('/settings');
+    expect(location.searchParams.get('oauth_status')).toBe('verified');
+    expect(location.searchParams.get('oauth_provider')).toBe('github');
   });
 });
