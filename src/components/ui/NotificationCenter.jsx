@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -95,6 +95,15 @@ function formatNotificationTime(value) {
   }).format(date);
 }
 
+function shouldAutoOpenNotification(notification) {
+  if (!notification || notification.readAt) {
+    return false;
+  }
+
+  return notification.category === 'account'
+    && (notification.type === 'error' || notification.type === 'warning');
+}
+
 export default function NotificationCenter({
   notifications,
   unreadCount,
@@ -105,7 +114,23 @@ export default function NotificationCenter({
 }) {
   const [open, setOpen] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [suppressedAutoOpenId, setSuppressedAutoOpenId] = useState(null);
   const hasNotifications = notifications.length > 0;
+  const autoOpenNotification = useMemo(
+    () => notifications.find(shouldAutoOpenNotification) || null,
+    [notifications]
+  );
+  const autoOpen = Boolean(
+    autoOpenNotification?.id
+    && suppressedAutoOpenId !== autoOpenNotification.id
+  );
+  const visible = open || autoOpen;
+
+  const suppressCurrentAutoOpen = () => {
+    if (autoOpenNotification?.id) {
+      setSuppressedAutoOpenId(autoOpenNotification.id);
+    }
+  };
 
   const handleCopy = async (notification) => {
     const copied = await copyText(notification.diagnosticText);
@@ -119,7 +144,7 @@ export default function NotificationCenter({
 
   return (
     <div className="fixed bottom-20 right-4 z-[90] sm:bottom-6 sm:right-6">
-      {open && (
+      {visible && (
         <div className="mb-3 w-[min(25rem,calc(100vw-2rem))] overflow-hidden border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex items-center justify-between gap-3 border-b border-zinc-200 bg-slate-50 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
             <div>
@@ -150,7 +175,10 @@ export default function NotificationCenter({
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  suppressCurrentAutoOpen();
+                  setOpen(false);
+                }}
                 className="border border-zinc-200 p-1.5 text-slate-500 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 aria-label="关闭通知中心"
               >
@@ -253,10 +281,18 @@ export default function NotificationCenter({
 
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (visible) {
+            suppressCurrentAutoOpen();
+            setOpen(false);
+            return;
+          }
+
+          setOpen(true);
+        }}
         className="relative inline-flex h-12 w-12 items-center justify-center border border-zinc-300 bg-white text-slate-700 shadow-xl transition-colors hover:border-endfield-yellow hover:text-slate-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
         aria-label="打开通知中心"
-        aria-expanded={open}
+        aria-expanded={visible}
       >
         <Bell size={19} />
         {unreadCount > 0 && (
