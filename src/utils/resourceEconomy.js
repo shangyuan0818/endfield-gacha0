@@ -405,12 +405,10 @@ export function getSimulatorPullCost({
   const multiplier = pullType === 'ten' ? 10 : 1;
 
   if (normalizedPoolType === 'weapon') {
-    const weaponSingleQuotaCost = getWeaponSingleQuotaCost(normalizedSettings);
+    // 武器池仅支持十连申领, 单抽不可用
     return {
       resource: 'arsenalQuota',
-      amount: pullType === 'ten'
-        ? normalizedSettings.weaponPullQuotaCost
-        : weaponSingleQuotaCost
+      amount: normalizedSettings.weaponPullQuotaCost
     };
   }
 

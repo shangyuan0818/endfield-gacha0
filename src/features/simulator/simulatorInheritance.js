@@ -5,6 +5,8 @@ import {
   WEAPON_POOL_RULES
 } from '../../constants/index.js';
 
+import { STANDARD_SIX_STAR_CHARACTERS } from '../../constants/characterPools.js';
+
 function getHistoryPoolId(item) {
   return item?.poolId || item?.pool_id || null;
 }
@@ -47,8 +49,10 @@ function normalizeHistoryIsStandard(record, poolType, upCharacter) {
     return false;
   }
 
+  // 辉光庆典(extra)池: 4个六星均匀分布, 在常驻名单中的不是UP
   if (poolType === 'extra') {
-    return false;
+    const standardNames = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+    return standardNames.has(getHistoryName(record));
   }
 
   if (poolType === 'standard' || poolType === 'beginner') {
@@ -302,9 +306,9 @@ function buildInheritedStateForPool({
         ? getWeaponGiftCount(currentPoolPaidCount)
         : 0,
     freeTenPullsReceived: normalizedPoolType === 'limited'
-      ? Math.floor(currentPoolPaidCount / LIMITED_POOL_RULES.freeTenPullInterval)
+      ? Math.min(Math.floor(currentPoolPaidCount / LIMITED_POOL_RULES.freeTenPullInterval), 1)
       : normalizedPoolType === 'extra'
-        ? Math.floor(currentPoolPaidCount / EXTRA_POOL_RULES.freeTenPullInterval)
+        ? Math.min(Math.floor(currentPoolPaidCount / EXTRA_POOL_RULES.freeTenPullInterval), 1)
       : 0,
     hasReceivedInfoBook: normalizedPoolType === 'limited'
       ? (limitedPoolPullCounts.get(realPoolId) || 0) >= LIMITED_POOL_RULES.infoBookThreshold

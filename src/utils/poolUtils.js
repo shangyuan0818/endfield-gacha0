@@ -1,4 +1,5 @@
 import { POOL_TYPE_KEYWORDS } from '../constants/index.js';
+import { STANDARD_SIX_STAR_CHARACTERS } from '../constants/characterPools.js';
 
 /**
  * 统一归一化 isStandard 字段（DR-B04）
@@ -27,8 +28,13 @@ export function normalizeIsStandard(record, poolType, upCharacter) {
     return true;
   }
 
-  // 附加寻访：该池所有可能出现的 6 星都属于本池目标范围，不按单 UP 判断歪出
+  // 辉光庆典(extra): 4个六星均匀分布, 2常驻/2真限定, 用常驻名单排除法
   if (poolType === 'extra') {
+    const name = record.character_name || record.item_name || record.name || '';
+    if (name) {
+      const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+      return standardSet.has(name);
+    }
     return false;
   }
 

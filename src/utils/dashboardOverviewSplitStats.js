@@ -1,4 +1,5 @@
 import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
+import { STANDARD_SIX_STAR_CHARACTERS } from '../constants/characterPools.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
 import { buildQuotaLedgerFromHistory } from './quotaEconomy.js';
@@ -28,8 +29,23 @@ function isLimitedCharacterPool(type) {
   return normalizedType === 'limited' || normalizedType === 'extra';
 }
 
+/**
+ * 辉光庆典(extra)池: 按常驻名单排除法判断是否为目标限定
+ * gui.cpp 标准: 池内4个六星均匀分布, 常驻名单中的不是UP
+ */
+function isExtraPoolTarget(item) {
+  const name = item?.character_name || item?.item_name || item?.name || '';
+  if (!name) return false;
+  const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+  return !standardSet.has(name);
+}
+
 function isTargetSixStarPull(item, poolType) {
-  return isTargetCapablePool(poolType) && (normalizePoolType(poolType) === 'extra' || !item?.isStandard);
+  if (!isTargetCapablePool(poolType)) return false;
+  if (normalizePoolType(poolType) === 'extra') {
+    return isExtraPoolTarget(item);
+  }
+  return !item?.isStandard;
 }
 
 function readExplicitLimitedFlag(item) {
@@ -192,7 +208,10 @@ export function buildDashboardOverviewSplitStats({
     pullsByPool[poolId].push(item);
   });
 
-  // 按池独立处理保底计数，与时间线视图一致
+  // 跨池保底继承: 特许角色池(limited)六星小保底跨期共享 (gui.cpp 标准)
+  const bucketTempCounters = { character: 0, weapon: 0 };
+  let lastCharacterPoolType = null;
+
   for (const [poolId, pulls] of Object.entries(pullsByPool)) {
     const sortedPulls = pulls.sort((a, b) => (a?.id ?? 0) - (b?.id ?? 0));
     const firstItem = sortedPulls[0];
@@ -201,7 +220,15 @@ export function buildDashboardOverviewSplitStats({
     const bucketKey = getBucketFromPoolType(poolType);
     const bucket = buckets[bucketKey];
 
-    let tempCounter = 0;
+    // 特许池跨期继承; 其他池型切换时重置
+    if (bucketKey === 'character') {
+      if (poolType !== 'limited' || lastCharacterPoolType !== 'limited') {
+        bucketTempCounters.character = 0;
+      }
+      lastCharacterPoolType = poolType;
+    }
+
+    let tempCounter = bucketTempCounters[bucketKey];
 
     sortedPulls.forEach((item) => {
       const isGift = item?.specialType === 'gift' || item?.special_type === 'gift';
@@ -209,10 +236,34 @@ export function buildDashboardOverviewSplitStats({
       if (isGift) return;
 
       bucket._quotaHistory.push(item);
-      if (!includeFreePullsInStats && isFree) return;
+
+      const rarity = Number(item?.rarity) || 0;
+
+      // 免费十连: 不推进 tempCounter, 六星固定归 slot=30 (gui.cpp)
+      if (isFree) {
+        // 免费十连的六星/五星出货始终计入 counts
+        if (rarity >= 6) {
+          const isTargetSixStar = isTargetSixStarPull(item, poolType);
+          if (isTargetSixStar) {
+            bucket.counts[6] += 1;
+          } else {
+            bucket.counts['6_std'] += 1;
+          }
+          bucket._allSixStarPulls.push({
+            count: 30,  // 固定归入 slot=30
+            isStandard: !isTargetSixStar
+          });
+          if (isTargetSixStar) bucket._upCount += 1;
+          // 免费十连不重置 tempCounter
+        } else if (rarity >= 5) {
+          bucket.counts[5] += 1;
+        }
+        // 免费十连不推进付费保底, 直接跳过
+        if (!includeFreePullsInStats) return;
+      }
 
       bucket.total += 1;
-      tempCounter += 1;
+      if (!isFree) tempCounter += 1;
       if (isTargetCapablePool(poolType)) {
         bucket._targetScopePulls += 1;
       }
@@ -228,7 +279,7 @@ export function buildDashboardOverviewSplitStats({
         if (!isFree && !isInfoBookHistoryPull(item)) bucket._chargedCharacterPulls += 1;
       }
 
-      const rarity = Number(item?.rarity) || 0;
+      if (isFree) return;  // 免费十连已处理关键统计, 跳过后续
 
       if (rarity >= 6) {
         const isTargetSixStar = isTargetSixStarPull(item, poolType);
@@ -263,6 +314,9 @@ export function buildDashboardOverviewSplitStats({
         bucket._arsenalGainCounts[normalizedRarity] += 1;
       }
     });
+
+    // 保存当前垫刀进度, 供下一个 limited 池跨期继承
+    bucketTempCounters[bucketKey] = tempCounter;
   }
 
   // 汇总每个 bucket

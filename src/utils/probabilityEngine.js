@@ -142,7 +142,8 @@ export function simulateSinglePull(state, rules = LIMITED_POOL_RULES, poolType =
   // 判断是否出6星
   if (rollProbability(sixStarProb)) {
     const isUp = normalizedPoolType === 'extra'
-      ? true
+      // 辉光庆典(extra)池: 4个六星均匀分布, 2常驻/2真限定, P(限定|六星)=50%
+      ? rollProbability(0.5)
       : rollProbability(rules.upProbability);
 
     // 获取当前UP角色名称
@@ -240,6 +241,191 @@ export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'l
 }
 
 /**
+ * 赠送十连 — 独立基础概率通道（不占用、不推进付费保底）
+ *
+ * 标准来源: gui.cpp §2.1.1 — 第30抽赠送十连:
+ *   - 使用基础概率 0.008（不受软保底递增影响）
+ *   - 不推进 current_pity / pity_since_last_up
+ *   - 不推进 guaranteedLimitedPity
+ *   - 出货不重置付费保底
+ *   - 六星/UP 出货仍计入统计
+ *
+ * @param {Object} state - 当前模拟器状态（不会被修改）
+ * @param {string} poolType - 卡池类型 ('limited' | 'extra')
+ * @param {string} currentUpCharacter - 当前UP角色
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
+ * @returns {Array} 十连结果数组
+ */
+export function simulateCharacterFreeTen(state, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
+  const normalizedPoolType = poolType === 'limited_character'
+    ? 'limited'
+    : poolType;
+
+  const results = [];
+  // 固定水位：免费十连内部不累积保底
+  const frozenState = {
+    sixStarPity: 0,
+    fiveStarPity: 0,
+    isGuaranteedUp: false,
+    totalPulls: state.totalPulls,
+    sixStarCount: state.sixStarCount,
+    fiveStarCount: state.fiveStarCount,
+    guaranteedLimitedPity: state.guaranteedLimitedPity,
+    hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
+  };
+
+  for (let i = 0; i < 10; i++) {
+    // 固定使用基础概率 0.008，不受保底影响
+    const sixStarProb = 0.008;
+    const fiveStarProb = 0.08;
+
+    let result;
+    if (rollProbability(sixStarProb)) {
+      // 辉光庆典: 4个六星均匀分布(2限定/2常驻), P(限定|六星)=50%
+      const isUp = normalizedPoolType === 'extra'
+        ? rollProbability(0.5)
+        : rollProbability(0.5);  // 特许池也是50/50
+
+      const upChar = currentUpCharacter || getCurrentUpCharacter();
+      const characterName = getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList);
+
+      result = {
+        rarity: 6, isUp, isLimited: isUp, characterName,
+        sixStarPity: 0, fiveStarPity: 0, isGuaranteedUp: false,
+        totalPulls: state.totalPulls,  // 免费抽不算总抽数
+        sixStarCount: state.sixStarCount, fiveStarCount: state.fiveStarCount,
+        guaranteedLimitedPity: state.guaranteedLimitedPity,
+        hasReceivedGuaranteedLimited: state.hasReceivedGuaranteedLimited
+      };
+    } else if (rollProbability(fiveStarProb)) {
+      const characterName = getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList);
+      result = { rarity: 5, isUp: false, isLimited: false, characterName, ...frozenState };
+    } else {
+      const characterName = getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList);
+      result = { rarity: 4, isUp: false, isLimited: false, characterName, ...frozenState };
+    }
+    results.push(result);
+  }
+  return results;
+}
+
+/**
+ * 武器池十连申领 — 双状态机模型 (gui.cpp ns∈[0,3]/nf∈[0,7])
+ *
+ *   - 每十连 = 1 申领 = 10 抽独立判定, 每抽 4% 六星概率
+ *   - 连续 3 个十连无六星 → 第 4 个十连保底至少 1 个六星
+ *   - 连续 7 个十连无限定 → 第 8 个十连保底至少 1 个限定 UP
+ *   - 六星后独立 25% 为 UP; 硬保底强制至少 1 个六星/UP 时,
+ *     按条件分布分配命中位置 (而非堆到最后一抽)
+ *
+ * @param {Object} state - 当前状态 (含 weaponSixStarMissStreak / weaponUpMissStreak)
+ * @param {Object} rules - 武器池规则 (WEAPON_POOL_RULES)
+ * @param {string} currentUpCharacter - UP 武器名称
+ * @param {Object} poolCharactersList - 卡池角色列表 (武器池用)
+ * @returns {{ results: Array, newState: Object }} 抽卡结果和更新后状态
+ */
+export function simulateWeaponTenPull(state, rules = {}, currentUpCharacter = null, poolCharactersList = null) {
+  const baseRate = rules.sixStarBaseProbability || 0.04;
+  const sixStarPity10 = rules.sixStarPity10Pull || 4;
+  const upPity10 = rules.weaponUpPity10Pull || 8;
+  const upCondRate = rules.upProbability || 0.25;
+  const poolType = 'weapon';
+
+  const ns = (state.weaponSixStarMissStreak || 0);  // 连续几个十连没出6星
+  const nf = (state.weaponUpMissStreak || 0);       // 连续几个十连没出限定
+
+  const isSixStarGuaranteed10 = (ns >= sixStarPity10 - 1);  // 第 ns+1 个十连保底6星
+  const isUpGuaranteed10 = (nf >= upPity10 - 1);            // 第 nf+1 个十连保底限定
+
+  const results = [];
+  let hasSixStar = false;
+  let hasUpLimited = false;
+
+  // 十次独立判定
+  for (let i = 0; i < 10; i++) {
+    let rarity = 4;
+    let isUp = false;
+    let characterName = '';
+
+    const gotSixStar = rollProbability(baseRate);
+    if (gotSixStar) {
+      rarity = 6;
+      hasSixStar = true;
+      isUp = rollProbability(upCondRate);
+      if (isUp) hasUpLimited = true;
+      characterName = getCharacterName(poolType, 6, isUp, currentUpCharacter, poolCharactersList);
+    } else if (rollProbability(rules.fiveStarBaseProbability || 0.15)) {
+      rarity = 5;
+      characterName = getCharacterName(poolType, 5, false, null, poolCharactersList);
+    } else {
+      characterName = getCharacterName(poolType, 4, false, null, poolCharactersList);
+    }
+
+    results.push({
+      rarity,
+      isUp: rarity === 6 && isUp,
+      isLimited: rarity === 6 && isUp,
+      characterName,
+      totalPulls: state.totalPulls + i + 1
+    });
+  }
+
+  // ── 六星保底补丁 ──
+  if (isSixStarGuaranteed10 && !hasSixStar) {
+    // 按条件分布选择命中位置: P(pos=j) ∝ 0.96^(j-1) × 0.04
+    const norm = 1.0 - Math.pow(1.0 - baseRate, 10);
+    let r = Math.random();
+    let pos = 0;
+    for (let j = 0; j < 10; j++) {
+      const pj = Math.pow(1.0 - baseRate, j) * baseRate / norm;
+      if (r < pj) { pos = j; break; }
+      r -= pj;
+    }
+    const item = results[pos];
+    const isUp = rollProbability(upCondRate);
+    item.rarity = 6;
+    item.isUp = isUp;
+    item.isLimited = isUp;
+    item.characterName = getCharacterName(poolType, 6, isUp, currentUpCharacter, poolCharactersList);
+    hasSixStar = true;
+    if (isUp) hasUpLimited = true;
+  }
+
+  // ── UP 限定保底补丁 ──
+  if (isUpGuaranteed10 && !hasUpLimited) {
+    // 如果已有六星但不是 UP，将其替换为 UP
+    // 如果还没有六星，先找一个位置出六星再设为UP
+    if (!hasSixStar) {
+      const norm = 1.0 - Math.pow(1.0 - baseRate, 10);
+      let r = Math.random();
+      let pos = 0;
+      for (let j = 0; j < 10; j++) {
+        const pj = Math.pow(1.0 - baseRate, j) * baseRate / norm;
+        if (r < pj) { pos = j; break; }
+        r -= pj;
+      }
+      results[pos].rarity = 6;
+      results[pos].isUp = true;
+      results[pos].isLimited = true;
+      results[pos].characterName = getCharacterName(poolType, 6, true, currentUpCharacter, poolCharactersList);
+    } else {
+      // 找一个非UP六星改为UP
+      for (let j = 0; j < 10; j++) {
+        if (results[j].rarity === 6 && !results[j].isUp) {
+          results[j].isUp = true;
+          results[j].isLimited = true;
+          results[j].characterName = getCharacterName(poolType, 6, true, currentUpCharacter, poolCharactersList);
+          break;
+        }
+      }
+    }
+    hasUpLimited = true;
+  }
+
+  return { results, ns: hasSixStar ? 0 : ns + 1, nf: hasUpLimited ? 0 : nf + 1 };
+}
+
+/**
  * 检查是否触发120抽硬保底
  * @param {Object} state - 当前状态
  * @param {Object} rules - 卡池规则
@@ -329,18 +515,20 @@ export function runSimulationBatch(iterations = 1000, pullsPerIteration = 100, r
       hasReceivedGuaranteedLimited: false,
       hasReceivedInfoBook: false
     };
+    let lastSixStarPull = 0;  // 上一次六星的抽数位置
 
     for (let j = 0; j < pullsPerIteration; j++) {
       const result = simulateSinglePull(state, rules, poolType);
 
       if (result.rarity === 6) {
-        const pityWhenPulled = result.totalPulls - state.totalPulls;
+        const pityWhenPulled = result.totalPulls - lastSixStarPull;
         results.sixStarDistribution[pityWhenPulled] =
           (results.sixStarDistribution[pityWhenPulled] || 0) + 1;
 
         results.minSixStarPity = Math.min(results.minSixStarPity, pityWhenPulled);
         results.maxSixStarPity = Math.max(results.maxSixStarPity, pityWhenPulled);
         totalSixStarPity += pityWhenPulled;
+        lastSixStarPull = result.totalPulls;
       }
 
       state = {
@@ -366,6 +554,8 @@ export default {
   rollProbability,
   simulateSinglePull,
   simulateTenPull,
+  simulateCharacterFreeTen,
+  simulateWeaponTenPull,
   checkGuaranteedLimitedTrigger,
   checkGiftAvailable,
   checkInfoBookAvailable,

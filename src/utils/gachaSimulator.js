@@ -7,6 +7,8 @@
 import {
   simulateSinglePull,
   simulateTenPull,
+  simulateWeaponTenPull,
+  simulateCharacterFreeTen,
   checkInfoBookAvailable,
   calculateExpectedPulls
 } from './probabilityEngine.js';
@@ -37,6 +39,11 @@ export function createInitialState(poolType = 'limited_character') {
     // 保底计数
     sixStarPity: 0,
     fiveStarPity: 0,
+
+    // 武器池十连申领状态机 (ns∈[0,3]/nf∈[0,7])
+    weaponSixStarMissStreak: 0,
+    weaponUpMissStreak: 0,
+    weaponTenPullCount: 0,
 
     // 目标保底状态
     isGuaranteedUp: false,              // 兼容旧存档字段；当前规则下不使用“歪了下次必出”
@@ -193,6 +200,10 @@ export class GachaSimulator {
    * @returns {Object} 抽卡结果
    */
   pullSingle() {
+    // 武器池以十连申领为最小单位, 不允单抽
+    if (this.poolType === 'weapon' || this.poolType === 'limited_weapon') {
+      throw new Error('武器池不支持单抽, 请使用十连申领');
+    }
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
@@ -236,15 +247,65 @@ export class GachaSimulator {
    * @returns {Array} 十连结果数组
    */
   pullTen() {
+    const isWeapon = this.poolType === 'weapon' || this.poolType === 'limited_weapon';
+
+    if (isWeapon) {
+      return this.pullTenWeapon();
+    }
+
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
       : null;
 
     const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
-    const pullRecords = [];
+    return this.finalizeTenPull(results, currentUpChar);
+  }
 
-    // 处理每一抽的结果
+  /**
+   * 武器池十连申领 (ns∈[0,3]/nf∈[0,7] 状态机)
+   * @returns {Array} 十连结果数组
+   */
+  pullTenWeapon() {
+    const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character' || this.poolType === 'limited_weapon')
+      ? this.getCurrentUpCharacter()
+      : null;
+
+    const { results, ns, nf } = simulateWeaponTenPull(this.state, this.rules, currentUpChar, this.poolCharactersList);
+    const pullRecords = results.map((result, index) => ({
+      pullNumber: this.state.totalPulls + index + 1,
+      rarity: result.rarity,
+      isUp: result.isUp,
+      isLimited: result.isLimited,
+      characterName: result.characterName,
+      timestamp: Date.now() + index,
+      batchIndex: index,
+      isTenPull: true
+    }));
+
+    const sixStars = results.filter(r => r.rarity === 6).length;
+    const upSixStars = results.filter(r => r.rarity === 6 && r.isUp).length;
+    const fiveStars = results.filter(r => r.rarity === 5).length;
+    const totalPulls = this.state.totalPulls + 10;
+    const gifts = this.checkGifts(totalPulls);
+
+    this.updateState({
+      weaponSixStarMissStreak: ns,
+      weaponUpMissStreak: nf,
+      weaponTenPullCount: this.state.weaponTenPullCount + 1,
+      totalPulls,
+      sixStarCount: this.state.sixStarCount + sixStars,
+      fiveStarCount: this.state.fiveStarCount + fiveStars,
+      upSixStarCount: this.state.upSixStarCount + upSixStars,
+      pullHistory: [...this.state.pullHistory, ...pullRecords],
+      giftsReceived: gifts.count,
+      lastPullResult: pullRecords
+    });
+    return pullRecords;
+  }
+
+  finalizeTenPull(results, currentUpChar) {
+    const pullRecords = [];
     results.forEach((result, index) => {
       const pullNumber = this.state.totalPulls + index + 1;
 
@@ -288,31 +349,39 @@ export class GachaSimulator {
 
   /**
    * 免费十连（不计入保底和总抽数）
+   *
+   * 标准来源: gui.cpp §2.1.1 — 赠送十连使用基础概率，不占用/不推进/不重置付费保底。
+   * 出货仍计入历史与统计（六星/UP 数量）。
    * @returns {Array} 免费十连结果数组
    */
   pullFreeTen() {
-    // 保存当前的保底状态（免费十连不应该影响保底）
-    const savedSixStarPity = this.state.sixStarPity;
-    const savedFiveStarPity = this.state.fiveStarPity;
-    const savedTotalPulls = this.state.totalPulls;
-    const savedGuaranteedLimitedPity = this.state.guaranteedLimitedPity;  // 修复：保存硬保底计数
-    const savedHasReceivedGuaranteedLimited = this.state.hasReceivedGuaranteedLimited;  // 修复：保存硬保底标志
-
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
       : null;
 
-    // 正常执行十连模拟（内部10抽会相互影响，这是正确的）
-    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
+    // 独立基础概率通道 — 不占用/不推进/不重置付费保底
+    const results = simulateCharacterFreeTen(
+      this.state,
+      this.poolType,
+      currentUpChar,
+      this.poolCharactersList
+    );
     const pullRecords = [];
+    let sixStars = 0;
+    let fiveStars = 0;
+    let upSixStars = 0;
 
     // 处理每一抽的结果
     results.forEach((result, index) => {
-      const pullNumber = this.state.totalPulls + index + 1; // 显示的抽数（但不真正计入）
+      if (result.rarity === 6) {
+        sixStars++;
+        if (result.isUp) upSixStars++;
+      }
+      if (result.rarity === 5) fiveStars++;
 
       const pullRecord = {
-        pullNumber,
+        pullNumber: this.state.totalPulls + index + 1,
         rarity: result.rarity,
         isUp: result.isUp,
         isLimited: result.isLimited,
@@ -320,24 +389,24 @@ export class GachaSimulator {
         timestamp: Date.now() + index,
         batchIndex: index,
         isTenPull: true,
-        isFreePull: true  // 标记为免费
+        isFreePull: true
       };
-
       pullRecords.push(pullRecord);
     });
 
-    // 免费十连：恢复保底状态，不增加总抽数
-    // 关键：虽然免费十连内部可能出了6星/5星，但不影响外部保底进度
+    // 免费出 UP 时，120 抽兜底标记为已满足（赠送出货也算）
+    const hasReceivedGuaranteedLimited =
+      this.state.hasReceivedGuaranteedLimited || upSixStars > 0;
+
     this.updateState({
-      pullHistory: [...this.state.pullHistory, ...pullRecords],
       freeTenPullsReceived: this.state.freeTenPullsReceived + 1,
-      lastPullResult: pullRecords,
-      // 恢复免费十连开始前的保底状态
-      sixStarPity: savedSixStarPity,
-      fiveStarPity: savedFiveStarPity,
-      totalPulls: savedTotalPulls,
-      guaranteedLimitedPity: savedGuaranteedLimitedPity,  // 修复：恢复硬保底计数
-      hasReceivedGuaranteedLimited: savedHasReceivedGuaranteedLimited  // 修复：恢复硬保底标志
+      pullHistory: [...this.state.pullHistory, ...pullRecords],
+      sixStarCount: this.state.sixStarCount + sixStars,
+      fiveStarCount: this.state.fiveStarCount + fiveStars,
+      upSixStarCount: this.state.upSixStarCount + upSixStars,
+      hasReceivedGuaranteedLimited,
+      // 保底水位不修改：sixStarPity / fiveStarPity / totalPulls / guaranteedLimitedPity 保持原值
+      lastPullResult: pullRecords
     });
 
     return pullRecords;
@@ -429,7 +498,11 @@ export class GachaSimulator {
       };
     }
 
-    const freeTenPullCount = Math.floor(totalPulls / this.rules.freeTenPullInterval);
+    // gui.cpp 标准: 第30抽赠送十连仅触发一次, 不重复
+    const freeTenPullCount = Math.min(
+      Math.floor(totalPulls / this.rules.freeTenPullInterval),
+      1
+    );
     const isNewGift = freeTenPullCount > this.state.freeTenPullsReceived;
 
     return {

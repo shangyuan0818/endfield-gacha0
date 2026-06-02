@@ -29,7 +29,7 @@ export const LIMITED_POOL_RULES = {
   // 6星保底
   sixStarPity: 80,                    // 最多80抽必出6星
   sixStarBaseProbability: 0.008,      // 6星基础概率 0.8%
-  sixStarSoftPityStart: 65,           // 65抽后开始概率递增
+  sixStarSoftPityStart: 66,           // 66抽后开始概率递增（k=66: 5.8% → k=79: 70.8%）
   sixStarSoftPityIncrease: 0.05,      // 每抽增加5%概率
   hasSoftPity: true,                  // 有软保底机制
 
@@ -67,7 +67,7 @@ export const LIMITED_POOL_RULES = {
 export const EXTRA_POOL_RULES = {
   sixStarPity: 80,
   sixStarBaseProbability: 0.008,
-  sixStarSoftPityStart: 65,
+  sixStarSoftPityStart: 66,
   sixStarSoftPityIncrease: 0.05,
   hasSoftPity: true,
 
@@ -173,7 +173,7 @@ export const CURRENT_UP_POOL_INFO = getCurrentUpPool();
 export const STANDARD_POOL_RULES = {
   sixStarPity: 80,
   sixStarBaseProbability: 0.008,
-  sixStarSoftPityStart: 65,           // 65抽后开始概率递增
+  sixStarSoftPityStart: 66,           // 66抽后开始概率递增（k=66: 5.8% → k=79: 70.8%）
   sixStarSoftPityIncrease: 0.05,      // 每抽增加5%概率
   hasSoftPity: true,                  // 有软保底机制
 
@@ -189,27 +189,31 @@ export const STANDARD_POOL_RULES = {
 
 // 武器池规则
 export const WEAPON_POOL_RULES = {
-  // 6星保底 (每十连 = 1次申领)
-  sixStarPity: 40,                    // 每4次申领(40抽)必出6星
-  sixStarBaseProbability: 0.04,       // 6星基础概率 4%
+  // 十连申领模型 (gui.cpp 标准: ns∈[0,3]/nf∈[0,7] 双状态机)
+  weaponPullUnit: 'ten',              // 武器池以十连申领为最小单位, 不允单抽
+  sixStarBaseProbability: 0.04,       // 6星基础概率 4% (每抽独立)
   hasSoftPity: false,                 // 武器池无软保底机制（概率不递增）
+  sixStarPity10Pull: 4,               // 连续3个十连无6星 → 第4个十连保底至少1个6星
+  weaponUpPity10Pull: 8,              // 连续7个十连无限定 → 第8个十连保底至少1个限定
 
   // 5星保底
   fiveStarPity: 10,                   // 每次申领至少1件5星+
   fiveStarBaseProbability: 0.15,      // 5星基础概率 15%
 
-  // 硬保底（必出限定UP武器）
-  guaranteedLimitedPity: 80,          // 80抽首轮必出限定（仅生效1次）
+  // 限定UP武器保底（条件概率25%）
+  upProbability: 0.25,                // 六星武器中25%概率为限定UP
+  guaranteedLimitedPity: 80,          // 80抽硬保底(第8个十连) — 兼容旧接口
 
   // 赠送机制
   firstStandardGift: 100,             // 第100抽送补充武库箱(常驻自选)
   firstLimitedGift: 180,              // 第180抽送限定UP武器
   giftAlternateInterval: 80,          // 之后每80抽交替发放
 
-  // UP概率
-  upProbability: 0.25,                // UP武器占6星25%概率
-
   pityInherits: false,                // 武器池保底不继承
+
+  // 兼容旧接口 (UI 保底显示使用)
+  sixStarPity: 40,                    // 最大六星保底抽数 (4×10)
+  weaponPityPerCycle: 10,             // 每次申领=10抽
 };
 
 // 默认卡池ID

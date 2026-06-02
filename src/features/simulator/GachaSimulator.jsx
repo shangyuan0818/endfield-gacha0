@@ -215,7 +215,7 @@ const GachaSimulator = () => {
             <SimulatorControls
               onPullOne={() => handlePull('single')}
               onPullTen={() => handlePull('ten')}
-              disableSingle={isAnimating || !poolCharactersList || !canAffordSinglePull}
+              disableSingle={isAnimating || !poolCharactersList || !canAffordSinglePull || normalizedSimulatorPoolType === 'weapon'}
               disableTen={isAnimating || !poolCharactersList || !canAffordTenPull}
               singleDisabledReason={singlePullDisabledReason}
               tenDisabledReason={tenPullDisabledReason}

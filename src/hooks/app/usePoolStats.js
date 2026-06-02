@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { EXTRA_POOL_RULES, RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
+import { STANDARD_SIX_STAR_CHARACTERS } from '../../constants/characterPools.js';
 import {
   calculateCurrentProbability,
   calculatePity5FromHistory,
@@ -10,7 +11,8 @@ import { isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import {
   createHitIntervalTracker,
   recordHitIntervalHit,
-  recordHitIntervalPull
+  recordHitIntervalPull,
+  averageTrackedIntervals
 } from '../../utils/pityIntervals.js';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy.js';
 import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
@@ -92,8 +94,23 @@ function isLimitedCharacterOffrate(pull) {
   return false;
 }
 
+/**
+ * 辉光庆典(extra)池: 按常驻名单排除法判断是否为目标限定
+ * gui.cpp 标准: 池内4个六星均匀分布, 常驻名单中的不是UP
+ */
+function isExtraPoolTarget(pull) {
+  const name = pull?.character_name || pull?.item_name || pull?.name || '';
+  if (!name) return false;
+  const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+  return !standardSet.has(name);
+}
+
 function isTargetSixStarPull(pull, poolType) {
-  return isTargetCapablePool(poolType) && (poolType === 'extra' || !pull.isStandard);
+  if (!isTargetCapablePool(poolType)) return false;
+  if (poolType === 'extra') {
+    return isExtraPoolTarget(pull);
+  }
+  return !pull.isStandard;
 }
 
 function isLimitedSixStarPull(pull, poolType) {
@@ -101,11 +118,11 @@ function isLimitedSixStarPull(pull, poolType) {
     return false;
   }
 
-  if (poolType === 'extra' || !pull.isStandard) {
-    return true;
+  if (poolType === 'extra') {
+    return isExtraPoolTarget(pull);
   }
 
-  return isLimitedCharacterOffrate(pull);
+  return !pull.isStandard || isLimitedCharacterOffrate(pull);
 }
 
 function getHistoryRecordKey(item) {
@@ -222,7 +239,10 @@ export function usePoolStats({
         return; // 赠送不计入稀有度统计
       }
 
-      if (!includeFreePullsInStats && isFreePull(pull)) return; // 免费十连默认不计入稀有度统计
+      // 免费十连: 默认不计入4星(避免膨胀饼图), 但六星/五星出货始终计入
+      if (isFreePull(pull)) {
+        if (!includeFreePullsInStats && r < 5) return;
+      }
       const pullPoolType = getPullPoolType(pull);
 
       if (r === 6) {
@@ -276,7 +296,10 @@ export function usePoolStats({
        }
     });
     const realTotalSix = realLimited + realStandard;
-    const winRate = realTotalSix > 0 ? (realLimited / realTotalSix * 100).toFixed(1) : 0;
+    // gui.cpp 标准: 排除120抽硬保底强制UP (不是随机判定的结果, 不计入胜场)
+    const naturalLimited = realLimited - sparkCount;
+    const naturalTotal = naturalLimited + realStandard;
+    const winRate = naturalTotal > 0 ? (naturalLimited / naturalTotal * 100).toFixed(1) : 0;
 
     // 计算额外赠送机制（池组聚合模式下跳过，因为赠送按单池计算）
     let bonusGiftsLimited = 0;
@@ -303,8 +326,8 @@ export function usePoolStats({
       }
     }
 
-    counts[6] += bonusGiftsLimited;
-    counts['6_std'] += bonusGiftsStandard;
+    // 赠送奖励不计入抽卡饼图 (gui.cpp: 选择券/潜能/武器箱不是随机出货)
+    // 保留在 bonusGifts 中供特殊进度区域单独展示
 
     // 统计历史6星出货分布
     const sixStarPulls = [];
@@ -319,39 +342,47 @@ export function usePoolStats({
     let limitedScopeTotal = 0;
 
     validPullsList.forEach(pull => {
+      const isFree = isFreePull(pull);
       const pullPoolType = getPullPoolType(pull);
-      tempCounter++;
-      cumulativePullCount++;
-      if (isTargetCapablePool(pullPoolType)) {
-        targetScopeTotal++;
+
+      // 免费十连不推进付费保底进度 (gui.cpp §2.1.1)
+      if (!isFree) {
+        tempCounter++;
+        cumulativePullCount++;
+        if (isTargetCapablePool(pullPoolType)) {
+          targetScopeTotal++;
+        }
+        if (isLimitedCharacterPool(pullPoolType)) {
+          limitedScopeTotal++;
+        }
+        recordHitIntervalPull(targetSixStarIntervalTracker);
+        recordHitIntervalPull(limitedSixStarIntervalTracker);
       }
-      if (isLimitedCharacterPool(pullPoolType)) {
-        limitedScopeTotal++;
-      }
-      recordHitIntervalPull(targetSixStarIntervalTracker);
-      recordHitIntervalPull(limitedSixStarIntervalTracker);
       if (pull.rarity === 6) {
-        // 判断是否为120抽Spark触发（FEAT-014）
-        // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
-        // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = isTargetSixStarPull(pull, pullPoolType);
         let isSpark = false;
-        if (!currentPool.isGroupMode && pullPoolType === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
-          isSpark = true;
-        }
-        if (isUp && cumulativePullCount < 120) {
-          hasGotUpBefore120 = true;
+
+        // 免费十连不参与Spark判定 (gui.cpp: 独立通道)
+        if (!isFree) {
+          if (!currentPool.isGroupMode && pullPoolType === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+            isSpark = true;
+          }
+          if (isUp && cumulativePullCount < 120) {
+            hasGotUpBefore120 = true;
+          }
         }
 
         // UI-007: 判断歪出的6星是否为限定角色
         const isActuallyLimited = isLimitedSixStarPull(pull, pullPoolType);
 
+        // 免费十连六星固定归入 slot=30; 付费抽取继承或 tempCounter
         const inheritedSixStarCount = isLimitedPool
           ? limitedCrossPoolPityMap?.get(getHistoryRecordKey(pull))
           : null;
+        const fallbackCount = isFree ? 30 : tempCounter;
         const effectiveSixStarCount = Number.isFinite(inheritedSixStarCount) && inheritedSixStarCount > 0
           ? inheritedSixStarCount
-          : tempCounter;
+          : fallbackCount;
         const pullRecord = {
           count: effectiveSixStarCount,
           isStandard: pull.isStandard,
@@ -367,7 +398,8 @@ export function usePoolStats({
           limitedSixStarHits.push(pullRecord);
           recordHitIntervalHit(limitedSixStarIntervalTracker, { isSpark });
         }
-        tempCounter = 0;
+        // 免费十连出货不重置付费保底 (gui.cpp)
+        if (!isFree) tempCounter = 0;
       }
     });
 
@@ -388,18 +420,16 @@ export function usePoolStats({
     const limitedSixStarHitCount = limitedSixStarHits.length;
     const nonSparkLimitedSixStarHitCount = limitedSixStarHits.filter((pull) => !pull.isSpark).length;
 
-    // BUG-035: 详情页 / 总览 / 统计页统一为 池总抽数 / 目标 6★ 次数
-    const avgUpSixStar = upHitCount > 0
-      ? ((targetScopeTotal || total) / upHitCount).toFixed(2)
-      : '0';
-    const avgUpSixStarExcludingSpark = nonSparkUpHitCount > 0
-      ? ((targetScopeTotal || total) / nonSparkUpHitCount).toFixed(2)
-      : '0';
-    const avgLimitedSixStar = nonSparkLimitedSixStarHitCount > 0
-      ? ((limitedScopeTotal || total) / nonSparkLimitedSixStarHitCount).toFixed(2)
-      : limitedSixStarHitCount > 0
-        ? ((limitedScopeTotal || total) / limitedSixStarHitCount).toFixed(2)
-        : '0';
+    // 使用 interval tracker 的真实命中间隔均值 (gui.cpp: sum_up/count_up)
+    const avgUpSixStar = averageTrackedIntervals(targetSixStarIntervalTracker.intervals) ?? '0';
+    const avgUpSixStarExcludingSpark = averageTrackedIntervals(
+      targetSixStarIntervalTracker.intervals,
+      { exclude: (item) => item.isSpark }
+    ) ?? avgUpSixStar;
+    const avgLimitedSixStar = averageTrackedIntervals(
+      limitedSixStarIntervalTracker.intervals,
+      { exclude: (item) => item.isSpark }
+    ) ?? (averageTrackedIntervals(limitedSixStarIntervalTracker.intervals) ?? '0');
 
     const avgPullCost = {
       6: avgUpSixStarExcludingSpark !== '0' ? avgUpSixStarExcludingSpark : avgUpSixStar,
@@ -479,6 +509,7 @@ export function usePoolStats({
       offStandardCount,
       offLimitedCount,
       sparkCount,
+      bonusGifts: { limited: bonusGiftsLimited, standard: bonusGiftsStandard },
       currentPity,
       currentPity5,
       avgPullCost,
