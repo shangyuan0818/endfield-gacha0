@@ -191,7 +191,7 @@ describe('auth OAuth bridge', () => {
     expect(location.searchParams.get('redirect_uri')).toBe('https://ef-gacha.mogujun.icu/api/auth/oauth/linuxdo/callback');
   });
 
-  it('starts GitHub OAuth without an explicit redirect_uri so GitHub can use the registered callback', async () => {
+  it('starts GitHub OAuth with the site bridge callback as redirect_uri', async () => {
     setGithubEnv();
     const req = createRequest({
       query: {
@@ -207,7 +207,7 @@ describe('auth OAuth bridge', () => {
     expect(location.origin).toBe('https://github.com');
     expect(location.pathname).toBe('/login/oauth/authorize');
     expect(location.searchParams.get('client_id')).toBe('github-client-id');
-    expect(location.searchParams.has('redirect_uri')).toBe(false);
+    expect(location.searchParams.get('redirect_uri')).toBe('https://ef-gacha.mogujun.icu/api/auth/oauth/github/callback');
     expect(location.searchParams.get('scope')).toBe('read:user user:email');
     const stateResult = verifyOAuthState(location.searchParams.get('state'), {
       expectedProvider: 'github',
@@ -309,7 +309,7 @@ describe('auth OAuth bridge', () => {
     expect(location.searchParams.get('oauth_provider')).toBe('linuxdo');
   });
 
-  it('exchanges GitHub callback codes without redirect_uri and fetches the verified email', async () => {
+  it('exchanges GitHub callback codes with redirect_uri and fetches the verified email', async () => {
     setGithubEnv();
     const state = createOAuthState({
       provider: 'github',
@@ -321,7 +321,7 @@ describe('auth OAuth bridge', () => {
       if (String(url).includes('/login/oauth/access_token')) {
         expect(String(options.body)).toContain('client_id=github-client-id');
         expect(String(options.body)).toContain('client_secret=github-client-secret');
-        expect(String(options.body)).not.toContain('redirect_uri=');
+        expect(String(options.body)).toContain('redirect_uri=https%3A%2F%2Fef-gacha.mogujun.icu%2Fapi%2Fauth%2Foauth%2Fgithub%2Fcallback');
         return new Response(JSON.stringify({ access_token: 'github-access-token', token_type: 'Bearer' }), {
           status: 200,
           headers: { 'content-type': 'application/json' },

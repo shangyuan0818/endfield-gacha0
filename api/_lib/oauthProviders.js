@@ -32,7 +32,7 @@ export const OAUTH_PROVIDERS = Object.freeze({
     emailUrl: 'https://api.github.com/user/emails',
     defaultScope: 'read:user user:email',
     tokenAuthMethod: 'body',
-    sendRedirectUri: false,
+    sendRedirectUri: true,
   },
 });
 
