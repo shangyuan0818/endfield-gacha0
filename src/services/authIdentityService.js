@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient.js';
-import { buildOAuthCallbackUrl } from './authOAuthService.js';
+import { buildOAuthCallbackUrl, buildOAuthStartUrl } from './authOAuthService.js';
 import { getCurrentSiteSession } from './siteSessionService.js';
 
 export const LOGIN_IDENTITY_PROVIDERS = Object.freeze({
@@ -12,16 +12,18 @@ export const LOGIN_IDENTITY_PROVIDERS = Object.freeze({
   github: {
     key: 'github',
     label: 'GitHub',
-    canLink: false,
-    canUnlink: false,
-    planned: true,
+    canLink: true,
+    canUnlink: true,
+    bridgeProvider: 'github',
+    readyEnv: 'VITE_AUTH_OAUTH_GITHUB_ENABLED',
   },
   linuxdo: {
     key: 'linuxdo',
     label: 'Linux.do',
-    canLink: false,
-    canUnlink: false,
-    planned: true,
+    canLink: true,
+    canUnlink: true,
+    bridgeProvider: 'linuxdo',
+    readyEnv: 'VITE_AUTH_OAUTH_LINUXDO_ENABLED',
   },
   qq: {
     key: 'qq',
@@ -154,18 +156,34 @@ export async function loadAuthIdentities() {
 export async function linkLoginIdentity(providerKey, {
   returnTo = '/settings',
   env = import.meta.env,
+  origin = window.location.origin,
+  assign = window.location.assign.bind(window.location),
 } = {}) {
-  if (!supabase) {
-    throw new Error('supabase_not_configured');
-  }
-
   const meta = LOGIN_IDENTITY_PROVIDERS[providerKey];
-  if (!meta?.canLink || !meta.supabaseProvider) {
+  if (!meta?.canLink) {
     throw new Error('unsupported_identity_provider');
   }
 
   if (!isLoginIdentityProviderAvailable(providerKey, env)) {
     throw new Error('identity_provider_not_ready');
+  }
+
+  if (meta.bridgeProvider) {
+    const targetUrl = buildOAuthStartUrl(meta.bridgeProvider, {
+      returnTo,
+      intent: 'link',
+      origin,
+    });
+    assign(targetUrl);
+    return { strategy: 'bridge', url: targetUrl };
+  }
+
+  if (!supabase) {
+    throw new Error('supabase_not_configured');
+  }
+
+  if (!meta.supabaseProvider) {
+    throw new Error('unsupported_identity_provider');
   }
 
   const options = {
@@ -188,6 +206,26 @@ export async function linkLoginIdentity(providerKey, {
 }
 
 export async function unlinkLoginIdentity(identity) {
+  if (identity?.source === 'site_session') {
+    const response = await fetch('/api/auth/identities/unlink', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        identityId: identity.id,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.success === false) {
+      const error = new Error(payload?.code || payload?.error || 'oauth_identity_unlink_failed');
+      error.code = payload?.code || payload?.error || 'oauth_identity_unlink_failed';
+      throw error;
+    }
+    return payload?.data || payload;
+  }
+
   if (!supabase) {
     throw new Error('supabase_not_configured');
   }

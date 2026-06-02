@@ -29,6 +29,7 @@ import { getSupabaseAdminClient } from '../../_lib/authAdmin.js';
 import {
   appendSetCookieHeader,
   createOrLinkOAuthUserAndSession,
+  linkOAuthIdentityToSiteSession,
 } from '../../_lib/siteSession.js';
 
 function readEnvironment() {
@@ -257,6 +258,7 @@ export function createOAuthCallbackHandler(fallbackProvider) {
     }
 
     const returnTo = normalizeOAuthReturnTo(stateResult.payload.returnTo || '/', env, req);
+    const intent = String(stateResult.payload.intent || 'login').trim().toLowerCase();
     if (providerError) {
       return redirectWithOAuthResult(res, req, {
         returnTo,
@@ -327,6 +329,25 @@ export function createOAuthCallbackHandler(fallbackProvider) {
       const adminClient = getSupabaseAdminClient();
       if (adminClient) {
         try {
+          if (intent === 'link') {
+            const linkResult = await linkOAuthIdentityToSiteSession(adminClient, {
+              profile,
+              subjectHash,
+              profileHash,
+              req,
+              env,
+              secret,
+            });
+
+            return redirectWithOAuthResult(res, req, {
+              returnTo,
+              provider,
+              status: linkResult.ok ? 'linked' : 'error',
+              code: linkResult.ok ? 'oauth_identity_linked' : (linkResult.code || 'oauth_identity_link_failed'),
+              env,
+            });
+          }
+
           const signInResult = await createOrLinkOAuthUserAndSession(adminClient, {
             profile,
             subjectHash,
@@ -347,6 +368,16 @@ export function createOAuthCallbackHandler(fallbackProvider) {
             });
           }
         } catch {
+          if (intent === 'link') {
+            return redirectWithOAuthResult(res, req, {
+              returnTo,
+              provider,
+              status: 'error',
+              code: 'oauth_identity_link_failed',
+              env,
+            });
+          }
+
           // Keep the previous pending-binding behavior if the new session tables
           // are not ready yet. The callback is still verified below.
         }

@@ -56,8 +56,11 @@ function getErrorMessage(error, t) {
   if (raw.includes('identity_already_exists') || raw.includes('already exists')) {
     return t('settings.authIdentity.errorAlreadyLinked');
   }
-  if (raw.includes('at least two') || raw.includes('only identity')) {
+  if (raw.includes('at least two') || raw.includes('only identity') || raw.includes('oauth_last_login_method')) {
     return t('settings.authIdentity.errorLastIdentity');
+  }
+  if (raw.includes('site_session_required')) {
+    return t('settings.authIdentity.errorSessionRequired');
   }
   if (raw.includes('supabase_not_configured')) {
     return t('settings.authIdentity.errorUnavailable');
@@ -246,7 +249,7 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
         const isLinked = isEmail ? Boolean(user.email) : Boolean(identity);
         const isProviderReady = isLoginIdentityProviderAvailable(providerKey);
         const isPlanned = !isEmail && !isLinked && (Boolean(meta.planned) || !isProviderReady);
-        const canUnlink = Boolean(meta.canUnlink && identity?.source !== 'site_session');
+        const canUnlink = Boolean(meta.canUnlink && identity);
         const Icon = getProviderIcon(providerKey);
         const displayValue = isEmail ? user.email : getIdentityDisplayValue(identity);
         const statusLabel = isPlanned

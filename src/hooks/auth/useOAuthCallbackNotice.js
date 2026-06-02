@@ -46,6 +46,22 @@ function buildOAuthNotice(result, isEnglish) {
     };
   }
 
+  if (result.status === 'linked') {
+    return {
+      type: 'success',
+      category: 'account',
+      priority: 'normal',
+      title: isEnglish ? `${providerLabel} linked` : `${providerLabel} 绑定成功`,
+      message: isEnglish
+        ? 'This sign-in method has been linked to your current account. You can manage it in Settings.'
+        : '该登录方式已绑定到当前账号。你可以在设置页继续管理登录方式。',
+      dedupeKey: `oauth:${result.provider}:linked`,
+      actions: [
+        { label: isEnglish ? 'Open Settings' : '打开设置', href: '/settings', variant: 'primary' },
+      ],
+    };
+  }
+
   if (result.status === 'cancelled') {
     return {
       type: 'warning',

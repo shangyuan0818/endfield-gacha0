@@ -5,10 +5,12 @@ import {
   buildSyntheticOAuthEmail,
   createSiteSession,
   createSupabaseCompatAccessToken,
+  linkOAuthIdentityToSiteSession,
   loadSiteAuthIdentities,
   loadSiteSession,
   parseCookieHeader,
   serializeCookie,
+  unlinkSiteAuthIdentity,
 } from '../_lib/siteSession.js';
 
 function createResponseRecorder() {
@@ -176,6 +178,212 @@ function createRefreshableSessionAdminClient({ sessionRow = null, refreshRow = n
                     };
                   },
                   order: async () => ({ data: identityRows, error: null }),
+                };
+              },
+            };
+          },
+        };
+      }
+
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                maybeSingle: async () => ({ data: null, error: null }),
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
+function createSiteIdentityMutationAdminClient({
+  sessionRow,
+  profileRow,
+  identityRows = [],
+} = {}) {
+  const identities = [...identityRows];
+  const updates = [];
+  const upserts = [];
+  const auditEvents = [];
+  const nowIso = new Date(Date.now() + 3600000).toISOString();
+
+  function activeIdentitiesForUser(userId) {
+    return identities.filter((row) => row.user_id === userId && row.disabled_at === null);
+  }
+
+  return {
+    __mocks: {
+      identities,
+      updates,
+      upserts,
+      auditEvents,
+    },
+    from(table) {
+      if (table === 'app_sessions') {
+        return {
+          select() {
+            return {
+              eq(column) {
+                if (column === 'session_token_hash') {
+                  return {
+                    is() {
+                      return {
+                        gt() {
+                          return {
+                            gt() {
+                              return {
+                                maybeSingle: async () => ({ data: sessionRow, error: null }),
+                              };
+                            },
+                          };
+                        },
+                      };
+                    },
+                  };
+                }
+                return {
+                  maybeSingle: async () => ({ data: null, error: null }),
+                };
+              },
+            };
+          },
+          update(payload) {
+            updates.push({ table, payload });
+            return {
+              eq: vi.fn(async () => ({ error: null })),
+            };
+          },
+        };
+      }
+
+      if (table === 'profiles') {
+        return {
+          select() {
+            return {
+              eq() {
+                return {
+                  maybeSingle: async () => ({ data: profileRow, error: null }),
+                };
+              },
+            };
+          },
+          update(payload) {
+            updates.push({ table, payload });
+            return {
+              eq: vi.fn(async () => ({ error: null })),
+            };
+          },
+        };
+      }
+
+      if (table === 'app_auth_audit_events') {
+        return {
+          insert(payload) {
+            auditEvents.push(payload);
+            return Promise.resolve({ data: payload, error: null });
+          },
+        };
+      }
+
+      if (table === 'app_auth_identities') {
+        return {
+          select() {
+            return {
+              eq(column, value) {
+                if (column === 'provider') {
+                  const provider = value;
+                  return {
+                    eq(subjectColumn, subjectValue) {
+                      const row = identities.find((identity) => (
+                        identity.provider === provider
+                        && identity.provider_subject_hash === subjectValue
+                      )) || null;
+                      return {
+                        maybeSingle: async () => ({ data: row, error: null }),
+                      };
+                    },
+                  };
+                }
+                if (column === 'id') {
+                  const row = identities.find((identity) => identity.id === value) || null;
+                  return {
+                    maybeSingle: async () => ({ data: row, error: null }),
+                  };
+                }
+                if (column === 'user_id') {
+                  return {
+                    is() {
+                      return {
+                        order: async () => ({ data: activeIdentitiesForUser(value), error: null }),
+                      };
+                    },
+                    order: async () => ({ data: activeIdentitiesForUser(value), error: null }),
+                  };
+                }
+                return {
+                  maybeSingle: async () => ({ data: null, error: null }),
+                };
+              },
+            };
+          },
+          upsert(payload) {
+            upserts.push(payload);
+            const existingIndex = identities.findIndex((identity) => (
+              identity.provider === payload.provider
+              && identity.provider_subject_hash === payload.provider_subject_hash
+            ));
+            const row = {
+              id: existingIndex >= 0 ? identities[existingIndex].id : `identity-${identities.length + 1}`,
+              linked_at: nowIso,
+              ...identities[existingIndex],
+              ...payload,
+            };
+            if (existingIndex >= 0) {
+              identities[existingIndex] = row;
+            } else {
+              identities.push(row);
+            }
+            return {
+              select() {
+                return {
+                  single: async () => ({ data: row, error: null }),
+                };
+              },
+            };
+          },
+          update(payload) {
+            return {
+              eq(column, value) {
+                const state = { [column]: value };
+                return {
+                  eq(nextColumn, nextValue) {
+                    state[nextColumn] = nextValue;
+                    return {
+                      is(isColumn, isValue) {
+                        state[isColumn] = isValue;
+                        const index = identities.findIndex((identity) => (
+                          identity.id === state.id
+                          && identity.user_id === state.user_id
+                          && identity.disabled_at === null
+                        ));
+                        if (index >= 0) {
+                          identities[index] = { ...identities[index], ...payload };
+                        }
+                        updates.push({ table, payload, state });
+                        return {
+                          select() {
+                            return {
+                              single: async () => ({ data: index >= 0 ? identities[index] : null, error: index >= 0 ? null : { code: 'not_found', message: 'not found' } }),
+                            };
+                          },
+                        };
+                      },
+                    };
+                  },
                 };
               },
             };
@@ -383,5 +591,195 @@ describe('siteSession utilities', () => {
     expect(result.identities).toHaveLength(1);
     expect(adminClient.__mocks.update).toHaveBeenCalled();
     expect(res.headers['Set-Cookie']).toHaveLength(2);
+  });
+
+  it('links an OAuth identity to the current site session user', async () => {
+    process.env.APP_SESSION_SECRET = 'site-session-test-secret';
+    const sessionRow = {
+      id: 'session-id',
+      user_id: '00000000-0000-4000-8000-000000000001',
+      absolute_expires_at: new Date(Date.now() + 3600000).toISOString(),
+      expires_at: new Date(Date.now() + 3600000).toISOString(),
+      last_seen_at: new Date().toISOString(),
+    };
+    const profileRow = {
+      id: sessionRow.user_id,
+      username: 'site_user',
+      email: 'user@example.com',
+      role: 'user',
+      created_at: '2026-05-30T00:00:00.000Z',
+      updated_at: '2026-05-30T01:00:00.000Z',
+      last_seen_at: '2026-05-30T01:00:00.000Z',
+    };
+    const adminClient = createSiteIdentityMutationAdminClient({
+      sessionRow,
+      profileRow,
+      identityRows: [],
+    });
+
+    const result = await linkOAuthIdentityToSiteSession(adminClient, {
+      profile: {
+        provider: 'github',
+        subject: '123',
+        username: 'octo-user',
+        displayName: 'Octo User',
+        emailVerified: false,
+      },
+      subjectHash: 'subject-hash',
+      profileHash: 'profile-hash',
+      req: {
+        ...createRequest(),
+        headers: {
+          ...createRequest().headers,
+          cookie: '__Host-eg_session=session-token',
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.identity).toMatchObject({
+      provider: 'github',
+      source: 'site_session',
+    });
+    expect(adminClient.__mocks.upserts[0]).toMatchObject({
+      user_id: sessionRow.user_id,
+      provider: 'github',
+      provider_subject_hash: 'subject-hash',
+      disabled_at: null,
+    });
+  });
+
+  it('rejects linking an OAuth identity that belongs to another user', async () => {
+    process.env.APP_SESSION_SECRET = 'site-session-test-secret';
+    const adminClient = createSiteIdentityMutationAdminClient({
+      sessionRow: {
+        id: 'session-id',
+        user_id: '00000000-0000-4000-8000-000000000001',
+        absolute_expires_at: new Date(Date.now() + 3600000).toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      profileRow: {
+        id: '00000000-0000-4000-8000-000000000001',
+        username: 'site_user',
+        email: 'user@example.com',
+      },
+      identityRows: [
+        {
+          id: 'identity-other',
+          user_id: '00000000-0000-4000-8000-000000000002',
+          provider: 'github',
+          provider_subject_hash: 'subject-hash',
+          display_name: 'Other',
+          disabled_at: null,
+        },
+      ],
+    });
+
+    const result = await linkOAuthIdentityToSiteSession(adminClient, {
+      profile: {
+        provider: 'github',
+        subject: '123',
+        username: 'octo-user',
+      },
+      subjectHash: 'subject-hash',
+      profileHash: 'profile-hash',
+      req: {
+        ...createRequest(),
+        headers: {
+          ...createRequest().headers,
+          cookie: '__Host-eg_session=session-token',
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('oauth_identity_already_linked');
+    expect(adminClient.__mocks.upserts).toHaveLength(0);
+  });
+
+  it('prevents unlinking the final usable sign-in method', async () => {
+    process.env.APP_SESSION_SECRET = 'site-session-test-secret';
+    const userId = '00000000-0000-4000-8000-000000000001';
+    const adminClient = createSiteIdentityMutationAdminClient({
+      sessionRow: {
+        id: 'session-id',
+        user_id: userId,
+        absolute_expires_at: new Date(Date.now() + 3600000).toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      profileRow: {
+        id: userId,
+        username: 'site_user',
+        email: null,
+      },
+      identityRows: [
+        {
+          id: 'identity-1',
+          user_id: userId,
+          provider: 'github',
+          provider_subject_hash: 'subject-hash',
+          display_name: 'Octo User',
+          disabled_at: null,
+        },
+      ],
+    });
+
+    const result = await unlinkSiteAuthIdentity(adminClient, {
+      identityId: 'identity-1',
+      req: {
+        ...createRequest(),
+        headers: {
+          ...createRequest().headers,
+          cookie: '__Host-eg_session=session-token',
+        },
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('oauth_last_login_method');
+    expect(adminClient.__mocks.identities[0].disabled_at).toBeNull();
+  });
+
+  it('unlinks a site OAuth identity when a usable email remains', async () => {
+    process.env.APP_SESSION_SECRET = 'site-session-test-secret';
+    const userId = '00000000-0000-4000-8000-000000000001';
+    const adminClient = createSiteIdentityMutationAdminClient({
+      sessionRow: {
+        id: 'session-id',
+        user_id: userId,
+        absolute_expires_at: new Date(Date.now() + 3600000).toISOString(),
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+      },
+      profileRow: {
+        id: userId,
+        username: 'site_user',
+        email: 'user@example.com',
+      },
+      identityRows: [
+        {
+          id: 'identity-1',
+          user_id: userId,
+          provider: 'github',
+          provider_subject_hash: 'subject-hash',
+          display_name: 'Octo User',
+          disabled_at: null,
+        },
+      ],
+    });
+
+    const result = await unlinkSiteAuthIdentity(adminClient, {
+      identityId: 'identity-1',
+      req: {
+        ...createRequest(),
+        headers: {
+          ...createRequest().headers,
+          cookie: '__Host-eg_session=session-token',
+        },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.identity.disabled_at).toBeTruthy();
+    expect(adminClient.__mocks.identities[0].disabled_at).toBeTruthy();
   });
 });
