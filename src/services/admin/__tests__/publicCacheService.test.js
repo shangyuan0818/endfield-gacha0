@@ -12,6 +12,10 @@ vi.mock('../../supabaseRequest.js', () => ({
   fetchWithTimeout: vi.fn(),
 }));
 
+vi.mock('../../authFetchService.js', () => ({
+  getSupabaseAccessToken: vi.fn(),
+}));
+
 vi.mock('../../../utils/appLogger.js', () => ({
   default: {
     warn: vi.fn(),
@@ -20,6 +24,7 @@ vi.mock('../../../utils/appLogger.js', () => ({
 }));
 
 import { supabase } from '../../../supabaseClient.js';
+import { getSupabaseAccessToken } from '../../authFetchService.js';
 import { fetchWithTimeout } from '../../supabaseRequest.js';
 import {
   invalidatePublicCache,
@@ -44,6 +49,7 @@ describe('publicCacheService warning subscriptions', () => {
         },
       },
     });
+    getSupabaseAccessToken.mockResolvedValue('test-access-token');
   });
 
   it('notifies listeners when cache bump fails', async () => {
