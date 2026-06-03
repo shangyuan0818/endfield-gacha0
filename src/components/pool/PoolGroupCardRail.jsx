@@ -8,6 +8,7 @@ import {
 } from '../../utils/poolSelectorDisplay';
 import { useI18n } from '../../i18n/index.js';
 import { getCharacterAvatarUrl } from '../../utils/characterUtils.js';
+import { useHorizontalWheelScroll } from '../../hooks/useHorizontalWheelScroll.js';
 
 const TYPE_CONFIG = {
   extra: { icon: Star, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-100 dark:bg-cyan-900/20' },
@@ -349,6 +350,7 @@ const PoolGroupCardRail = ({
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [collapsedGroupTypes, setCollapsedGroupTypes] = useState(() => new Set());
   const [tick, setTick] = useState(0);
+  const railRef = useHorizontalWheelScroll();
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -372,7 +374,10 @@ const PoolGroupCardRail = ({
 
   return (
     <div className={`relative border-t border-zinc-100 dark:border-zinc-800 pt-4 ${className}`}>
-      <div className="pool-card-rail-scrollbar flex flex-nowrap items-end gap-2 overflow-x-scroll overflow-y-hidden pb-2 -mx-1 px-1">
+      <div
+        ref={railRef}
+        className="pool-card-rail-scrollbar flex flex-nowrap items-end gap-2 overflow-x-scroll overflow-y-hidden pb-2 -mx-1 px-1"
+      >
         {leadingOverview && showGroupOverviewCards ? (
           <OverviewCard
             title={leadingOverview.title}

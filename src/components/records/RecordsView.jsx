@@ -4,6 +4,7 @@ import { useHistoryStore, useAuthStore } from '../../stores';
 import { useCurrentPoolData, useCurrentPoolGroupedHistory } from '../../hooks';
 import BatchCard from '../BatchCard';
 import { useI18n } from '../../i18n/index.js';
+import { localizePoolName } from '../../utils/gameDataI18n.js';
 import {
   isFreeHistoryPull,
   isGiftHistoryPull,
@@ -129,7 +130,7 @@ const RecordsView = ({
   onEdit,
   onDeleteGroup
 }) => {
-  const { t, formatNumber } = useI18n();
+  const { t, formatNumber, locale } = useI18n();
   // 从 stores 获取状态
   const visibleHistoryCount = useHistoryStore(state => state.visibleHistoryCount);
   const loadMoreHistory = useHistoryStore(state => state.loadMoreHistory);
@@ -146,6 +147,27 @@ const RecordsView = ({
 
   const canEditCurrentPool = canEdit && !(currentPool?.locked && userRole !== 'super_admin');
   const isAllPoolsOverview = currentPool?.isAllPoolsOverview === true;
+  const shouldShowRecordPoolName = isAllPoolsOverview || currentPool?.isGroupMode === true;
+  const poolMetaById = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(poolsArray) ? poolsArray : []).forEach((pool) => {
+      const poolIds = [pool?.id, pool?.pool_id].filter(Boolean);
+      if (poolIds.length === 0) {
+        return;
+      }
+      const poolName = localizePoolName(pool, { locale }) || pool?.name || pool?.display_name || '';
+      if (!poolName) {
+        return;
+      }
+      poolIds.forEach((poolId) => {
+        map.set(String(poolId), {
+          name: poolName,
+          type: pool?.type || pool?.pool_type || 'standard'
+        });
+      });
+    });
+    return map;
+  }, [locale, poolsArray]);
   const [recordFilters, setRecordFilters] = useState(DEFAULT_RECORD_FILTERS);
   const effectiveRecordFilters = useMemo(() => (
     isAllPoolsOverview ? recordFilters : { ...recordFilters, poolType: 'all' }
@@ -423,6 +445,8 @@ const RecordsView = ({
                 onDeleteGroup={onDeleteGroup}
                 poolType={currentPool?.type}
                 canEdit={canEditCurrentPool}
+                showPoolName={shouldShowRecordPoolName}
+                poolMetaById={poolMetaById}
               />
             ))}
 

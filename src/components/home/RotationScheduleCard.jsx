@@ -3,6 +3,7 @@ import { RefreshCw, User } from 'lucide-react';
 import { getCharacterAvatarUrl } from '../../utils/characterUtils';
 import { useI18n } from '../../i18n/index.js';
 import { localizeEntityName } from '../../utils/gameDataI18n.js';
+import { bindHorizontalWheelScroll } from '../../utils/horizontalScroll.js';
 import { getPoolFeaturedLabel, getPoolSelectorFeaturedCharacters } from '../../utils/poolSelectorDisplay.js';
 
 function getFeaturedTextFontClass(featuredText = '') {
@@ -75,6 +76,8 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
       container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
   }, [focusIndex, poolSchedule.length]);
+
+  useEffect(() => bindHorizontalWheelScroll(scrollContainerRef.current), []);
 
   if (!poolSchedule.length) {
     return null;

@@ -102,6 +102,10 @@ function isGuaranteedHistoryPull(item) {
     || item?.isGuaranteed === true;
 }
 
+function shouldExcludeFromWinRate(item, poolType) {
+  return normalizePoolType(poolType) === 'limited' && isGuaranteedHistoryPull(item);
+}
+
 function roundScaleMax(value, minimum) {
   return Math.max(minimum, Math.ceil(Math.max(value, 0) / 10) * 10);
 }
@@ -349,6 +353,8 @@ function calculateTimelineMetrics(history = [], { poolType = 'standard', crossPo
   const sixStars = validPulls.filter((item) => Number(item?.rarity) >= 6);
   const fiveStars = validPulls.filter((item) => Number(item?.rarity) === 5);
   const upSixStars = sixStars.filter((item) => item?.isStandard !== true);
+  const winRateSixStars = sixStars.filter((item) => !shouldExcludeFromWinRate(item, poolType));
+  const winRateUpSixStars = winRateSixStars.filter((item) => item?.isStandard !== true);
   const isLimitedPool = poolType === 'limited';
   const isExtraPool = poolType === 'extra';
   const currentPity = (() => {
@@ -395,7 +401,7 @@ function calculateTimelineMetrics(history = [], { poolType = 'standard', crossPo
     sixStarCount: sixStars.length,
     fiveStarCount: fiveStars.length,
     upSixStarCount: upSixStars.length,
-    winRate: sixStars.length > 0 ? ((upSixStars.length / sixStars.length) * 100) : 0,
+    winRate: winRateSixStars.length > 0 ? ((winRateUpSixStars.length / winRateSixStars.length) * 100) : 0,
     avgSixStarPulls: sixStars.length > 0
       ? (
         isLimitedPool && sixStarIntervals.length === sixStars.length

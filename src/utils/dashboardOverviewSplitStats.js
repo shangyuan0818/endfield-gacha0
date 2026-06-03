@@ -32,6 +32,14 @@ function isTargetSixStarPull(item, poolType) {
   return isTargetCapablePool(poolType) && (normalizePoolType(poolType) === 'extra' || !item?.isStandard);
 }
 
+function isGuaranteedPull(item) {
+  return item?.specialType === 'guaranteed' || item?.special_type === 'guaranteed';
+}
+
+function shouldExcludeFromWinRate(item, poolType) {
+  return normalizePoolType(poolType) === 'limited' && isGuaranteedPull(item);
+}
+
 function readExplicitLimitedFlag(item) {
   const value = item?.item_is_limited
     ?? item?.itemIsLimited
@@ -164,6 +172,8 @@ export function buildDashboardOverviewSplitStats({
       _chargedCharacterPulls: 0,
       _chargedWeaponPulls: 0,
       _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
+      _winRateTargetCount: 0,
+      _winRateTotalCount: 0,
       _quotaHistory: []
     },
     weapon: {
@@ -180,6 +190,8 @@ export function buildDashboardOverviewSplitStats({
       _chargedCharacterPulls: 0,
       _chargedWeaponPulls: 0,
       _arsenalGainCounts: { 6: 0, '6_std': 0, 5: 0, 4: 0 },
+      _winRateTargetCount: 0,
+      _winRateTotalCount: 0,
       _quotaHistory: []
     }
   };
@@ -247,6 +259,13 @@ export function buildDashboardOverviewSplitStats({
           bucket._arsenalGainCounts[isTargetSixStar ? 6 : '6_std'] += 1;
         }
 
+        if (!shouldExcludeFromWinRate(item, poolType)) {
+          bucket._winRateTotalCount += 1;
+          if (isTargetSixStar) {
+            bucket._winRateTargetCount += 1;
+          }
+        }
+
         bucket._allSixStarPulls.push({
           count: isFree ? 30 : tempCounter,
           isStandard: !isTargetSixStar
@@ -274,9 +293,11 @@ export function buildDashboardOverviewSplitStats({
     const pityLimit = key === 'weapon' ? WEAPON_PITY_LIMIT : CHAR_PITY_LIMIT;
 
     bucket.totalSixStar = bucket.counts[6] + bucket.counts['6_std'];
-    bucket.winRate = bucket.totalSixStar > 0
-      ? ((bucket.counts[6] / bucket.totalSixStar) * 100).toFixed(1)
+    bucket.winRate = bucket._winRateTotalCount > 0
+      ? ((bucket._winRateTargetCount / bucket._winRateTotalCount) * 100).toFixed(1)
       : '0.0';
+    bucket.winRateTargetCount = bucket._winRateTargetCount;
+    bucket.winRateTotalCount = bucket._winRateTotalCount;
 
     const avgFiveStar = bucket.counts[5] > 0 ? (bucket.total / bucket.counts[5]).toFixed(2) : '0';
     const avgAllSixStar = bucket.totalSixStar > 0 ? (bucket.total / bucket.totalSixStar).toFixed(2) : '0';
@@ -326,6 +347,8 @@ export function buildDashboardOverviewSplitStats({
     delete bucket._chargedCharacterPulls;
     delete bucket._chargedWeaponPulls;
     delete bucket._arsenalGainCounts;
+    delete bucket._winRateTargetCount;
+    delete bucket._winRateTotalCount;
     delete bucket._quotaHistory;
   });
 

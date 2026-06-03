@@ -7,6 +7,7 @@ import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import { STORAGE_KEYS, markAsViewed } from '../../utils';
 import LocaleSwitcher from '../common/LocaleSwitcher.jsx';
 import { useI18n } from '../../i18n/index.js';
+import { useHorizontalWheelScroll } from '../../hooks/useHorizontalWheelScroll.js';
 
 const NavTab = ({ id, label, showDot, onClick, className = '', activeTab, setActiveTab }) => {
   const isActive = activeTab === id;
@@ -56,6 +57,7 @@ export default function AppHeader({
 }) {
   const isSuperAdmin = userRole === 'super_admin';
   const { t } = useI18n();
+  const navScrollRef = useHorizontalWheelScroll();
   const handleTabChange = (tab) => {
     if (typeof setActiveTab === 'function') {
       setActiveTab(tab);
@@ -97,7 +99,10 @@ export default function AppHeader({
         </div>
 
         {/* 中间：主导航 (全高Tab设计) */}
-        <div className="flex-1 min-w-0 flex items-center h-full overflow-x-auto scrollbar-hide ml-2 sm:ml-4 mask-linear-fade">
+        <div
+          ref={navScrollRef}
+          className="flex-1 min-w-0 flex items-center h-full overflow-x-auto scrollbar-hide ml-2 sm:ml-4 mask-linear-fade"
+        >
           <NavTab 
             id="home" 
             label={t('nav.home')} 

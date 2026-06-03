@@ -372,6 +372,61 @@ describe('usePoolStats', () => {
     expect(result.current.stats.avgPullCost['6_limited']).toBe('2.00');
   });
 
+  it('excludes limited 120-pull guarantee hits from win-rate stats only', () => {
+    const normalizedCurrentPoolHistory = [
+      {
+        id: 'l1',
+        rarity: 6,
+        isStandard: false,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        seqId: '1',
+        character_name: '当期UP',
+      },
+      {
+        id: 'l2',
+        rarity: 6,
+        isStandard: false,
+        specialType: 'guaranteed',
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:01:00.000Z',
+        seqId: '2',
+        character_name: '保底UP',
+      },
+      {
+        id: 'l3',
+        rarity: 6,
+        isStandard: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:02:00.000Z',
+        seqId: '3',
+        character_name: '常驻角色',
+      },
+    ];
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_limited',
+        type: 'limited',
+        isGroupMode: false,
+      },
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+      ],
+    }));
+
+    expect(result.current.stats.counts).toMatchObject({
+      6: 2,
+      '6_std': 1,
+    });
+    expect(result.current.stats.totalSixStar).toBe(3);
+    expect(result.current.stats.winRate).toBe('50.0');
+    expect(result.current.stats.sixStarCount).toBe(2);
+    expect(result.current.stats.upSixStarCount).toBe(1);
+    expect(result.current.stats.stdSixStarCount).toBe(1);
+  });
+
   it('includes free ten pulls in stats only when the toggle is enabled', () => {
     const normalizedCurrentPoolHistory = [
       {

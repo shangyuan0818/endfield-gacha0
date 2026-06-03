@@ -22,6 +22,7 @@ import {
   filterHistoryForEffectiveGameUid,
   resolveEffectiveGameUid
 } from '../../utils/accountScopeUtils.js';
+import { useHorizontalWheelScroll } from '../../hooks/useHorizontalWheelScroll.js';
 
 function getFreshnessToneClasses(tone) {
   switch (tone) {
@@ -82,6 +83,7 @@ function isGiftHistoryPull(item) {
 
 function MobileOverviewView() {
   const navigate = useNavigate();
+  const recentSixStarsRef = useHorizontalWheelScroll();
   const user = useAuthStore((state) => state.user);
   const pools = usePoolStore((state) => state.pools);
   const currentGameUid = usePoolStore((state) => state.currentGameUid);
@@ -399,7 +401,10 @@ function MobileOverviewView() {
                       {t('overview.action.viewAll')} <ChevronRight size={12}/>
                     </button>
                 </div>
-                <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide snap-x px-4">
+                <div
+                  ref={recentSixStarsRef}
+                  className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide snap-x px-4"
+                >
                     {recentSixStars.length > 0 ? recentSixStars.map((item) => (
                         <div key={item.id} className="mobile-ux-card snap-start shrink-0 w-[140px] p-3 border-l-4 border-l-orange-500 relative overflow-hidden bg-orange-50/85 dark:bg-zinc-900/70">
                             <div className="absolute -right-4 -bottom-4 text-6xl font-black text-orange-500/10 italic">{item.pulls}</div>

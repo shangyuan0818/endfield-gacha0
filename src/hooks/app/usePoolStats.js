@@ -24,6 +24,10 @@ function isFreePull(pull) {
   return pull?.isFree === true || pull?.is_free === true;
 }
 
+function isGuaranteedPull(pull) {
+  return pull?.specialType === 'guaranteed' || pull?.special_type === 'guaranteed';
+}
+
 function normalizePoolType(type) {
   if (type === 'limited_character') return 'limited';
   if (type === 'extra') return 'extra';
@@ -94,6 +98,10 @@ function isLimitedCharacterOffrate(pull) {
 
 function isTargetSixStarPull(pull, poolType) {
   return isTargetCapablePool(poolType) && (poolType === 'extra' || !pull.isStandard);
+}
+
+function shouldExcludeFromWinRate(pull, poolType) {
+  return normalizePoolType(poolType) === 'limited' && isGuaranteedPull(pull);
 }
 
 function isLimitedSixStarPull(pull, poolType) {
@@ -260,6 +268,9 @@ export function usePoolStats({
     normalizedCurrentPoolHistory.forEach(pull => {
        if (pull.rarity === 6 && !isGiftPull(pull) && (includeFreePullsInStats || !isFreePull(pull))) {
           const pullPoolType = getPullPoolType(pull);
+          if (shouldExcludeFromWinRate(pull, pullPoolType)) {
+            return;
+          }
           if (isTargetSixStarPull(pull, pullPoolType)) {
             realLimited++;
           } else {

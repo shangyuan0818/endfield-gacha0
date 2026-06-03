@@ -4,6 +4,7 @@ import CollapsibleContent from './CollapsibleContent';
 import { useJsonConfig } from '../../stores/useSiteConfigStore';
 import { useI18n } from '../../i18n/index.js';
 import { DEFAULT_HOME_ROADMAP_ITEMS, normalizeHomeRoadmapItems } from '../../constants/homeRoadmap.js';
+import { bindHorizontalWheelScroll } from '../../utils/horizontalScroll.js';
 
 const ICON_MAP = { RefreshCw, Shield, Globe, Calculator, Database, Share2, Languages, Accessibility, Map, Rocket };
 
@@ -50,6 +51,8 @@ const RoadmapCard = React.memo(function RoadmapCard({ isOpen, onToggle, interact
       container.scrollTo({ left: scrollLeft, behavior: 'smooth' });
     }
   }, [focusIndex, interactive, isOpen, translatedRoadmapItems.length]);
+
+  useEffect(() => bindHorizontalWheelScroll(scrollRef.current), []);
 
   return (
     <div className="group relative overflow-hidden bg-white dark:bg-[#111] border border-zinc-200 dark:border-zinc-800 transition-all duration-300 rounded-none sm:rounded-xl">

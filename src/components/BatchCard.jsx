@@ -1,13 +1,64 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Star, Trash2, ChevronDown, User } from 'lucide-react';
 import { characterCache } from '../utils/characterUtils';
 import { useI18n } from '../i18n/index.js';
 import { localizeHistoryItemName } from '../utils/gameDataI18n.js';
 
-const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit }) => {
+const POOL_TYPE_LABEL_CLASSES = {
+  limited: 'text-orange-600 dark:text-orange-300',
+  limited_character: 'text-orange-600 dark:text-orange-300',
+  extra: 'text-cyan-600 dark:text-cyan-300',
+  weapon: 'text-slate-600 dark:text-slate-300',
+  limited_weapon: 'text-slate-600 dark:text-slate-300',
+  weapon_limited: 'text-slate-600 dark:text-slate-300',
+  weapon_standard: 'text-zinc-500 dark:text-zinc-400',
+  standard: 'text-yellow-600 dark:text-yellow-300',
+  beginner: 'text-green-600 dark:text-green-300'
+};
+
+function getItemPoolId(item) {
+  const value = item?.poolId || item?.pool_id || null;
+  return value == null ? null : String(value);
+}
+
+function getPoolLabelClass(poolTypeValue) {
+  return POOL_TYPE_LABEL_CLASSES[poolTypeValue] || 'text-cyan-600 dark:text-cyan-300';
+}
+
+const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit, showPoolName = false, poolMetaById = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const { locale } = useI18n();
   const entityType = poolType === 'weapon' ? 'weapon' : 'character';
+  const groupPoolMeta = useMemo(() => {
+    if (!showPoolName || !(poolMetaById instanceof Map)) {
+      return null;
+    }
+
+    const poolMetas = [];
+    const seenPoolIds = new Set();
+    group.forEach((item) => {
+      const poolId = getItemPoolId(item);
+      if (!poolId || seenPoolIds.has(poolId)) {
+        return;
+      }
+      seenPoolIds.add(poolId);
+      const meta = poolMetaById.get(poolId);
+      if (meta?.name) {
+        poolMetas.push(meta);
+      }
+    });
+
+    if (poolMetas.length === 0) {
+      return null;
+    }
+
+    const primaryMeta = poolMetas[0];
+    return {
+      label: poolMetas.length === 1 ? primaryMeta.name : `${primaryMeta.name} +${poolMetas.length - 1}`,
+      title: poolMetas.map((meta) => meta.name).join(' / '),
+      className: getPoolLabelClass(primaryMeta.type)
+    };
+  }, [group, poolMetaById, showPoolName]);
 
   // 统计该组信息
   const counts = { 6: 0, 5: 0, 4: 0 };
@@ -44,6 +95,14 @@ const BatchCard = React.memo(({ group, onEdit, onDeleteGroup, poolType, canEdit 
               className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
             />
           </div>
+          {groupPoolMeta && (
+            <div
+              className={`mb-1 max-w-[8.5rem] truncate text-[11px] font-bold ${groupPoolMeta.className}`}
+              title={groupPoolMeta.title}
+            >
+              {groupPoolMeta.label}
+            </div>
+          )}
           <div className="text-[10px] text-slate-400 dark:text-zinc-500 font-mono mb-2">
             {new Date(group[0].timestamp).toLocaleString()}
           </div>

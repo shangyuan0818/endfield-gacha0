@@ -182,6 +182,32 @@ describe('poolTimelineView', () => {
     expect(section.entries.some((entry) => entry.isCurrentStage)).toBe(false);
   });
 
+  it('excludes limited guarantee hits from timeline win rate while keeping counts', () => {
+    const pool = {
+      id: 'pool_limited',
+      type: 'limited',
+      name: '限定寻访',
+      up_character: '当期UP',
+      start_time: '2026-04-17T00:00:00.000Z',
+      end_time: '2026-05-22T00:00:00.000Z',
+    };
+    const history = [
+      { id: 'l1', poolId: 'pool_limited', rarity: 6, item_name: '当期UP', timestamp: '2026-04-17T10:00:00.000Z', seqId: '1', isStandard: false },
+      { id: 'l2', poolId: 'pool_limited', rarity: 6, item_name: '保底UP', timestamp: '2026-04-17T10:01:00.000Z', seqId: '2', isStandard: false, specialType: 'guaranteed' },
+      { id: 'l3', poolId: 'pool_limited', rarity: 6, item_name: '常驻角色', timestamp: '2026-04-17T10:02:00.000Z', seqId: '3', isStandard: true },
+    ];
+
+    const section = buildSinglePoolTimelineSection({
+      pool,
+      history,
+      locale: 'zh-CN',
+    });
+
+    expect(section.sixStarCount).toBe(3);
+    expect(section.upSixStarCount).toBe(2);
+    expect(section.winRate).toBe(50);
+  });
+
   it('annotates adjacent six-star milestones from the same ten-pull batch', () => {
     const pool = {
       id: 'pool_weapon',

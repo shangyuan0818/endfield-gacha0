@@ -91,4 +91,31 @@ describe('buildDashboardOverviewSplitStats', () => {
       limited: 1,
     });
   });
+
+  it('keeps limited guarantee hits in six-star counts but out of win-rate stats', () => {
+    const stats = buildDashboardOverviewSplitStats({
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+        { id: 'pool_weapon', type: 'weapon' },
+      ],
+      history: [
+        { id: 1, poolId: 'pool_limited', rarity: 6, isStandard: false },
+        { id: 2, poolId: 'pool_limited', rarity: 6, isStandard: false, specialType: 'guaranteed' },
+        { id: 3, poolId: 'pool_limited', rarity: 6, isStandard: true },
+        { id: 4, poolId: 'pool_weapon', rarity: 6, isStandard: false, specialType: 'guaranteed' },
+      ],
+    });
+
+    expect(stats.character.counts).toMatchObject({
+      6: 2,
+      '6_std': 1,
+    });
+    expect(stats.character.totalSixStar).toBe(3);
+    expect(stats.character.winRate).toBe('50.0');
+    expect(stats.character.winRateTargetCount).toBe(1);
+    expect(stats.character.winRateTotalCount).toBe(2);
+    expect(stats.weapon.winRate).toBe('100.0');
+    expect(stats.weapon.winRateTargetCount).toBe(1);
+    expect(stats.weapon.winRateTotalCount).toBe(1);
+  });
 });

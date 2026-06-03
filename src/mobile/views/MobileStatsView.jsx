@@ -8,6 +8,7 @@ import ResourceSummaryPanel from '../../components/resources/ResourceSummaryPane
 import { CharacterCatalogView, ChartSection } from '../../components/summary';
 import { getTooltipStyle, useSummaryViewState, useThemeDetection } from '../../hooks/summary';
 import { useI18n } from '../../i18n/index.js';
+import { useHorizontalWheelScroll } from '../../hooks/useHorizontalWheelScroll.js';
 
 function StatCard({ icon: Icon, label, value, hint, tone = 'text-slate-900 dark:text-white' }) {
   return (
@@ -96,6 +97,9 @@ function MobileStatsView() {
   const isDark = useThemeDetection();
   const tooltipStyle = React.useMemo(() => getTooltipStyle(isDark), [isDark]);
   const [activePage, setActivePage] = React.useState('overview');
+  const pageTabsRef = useHorizontalWheelScroll();
+  const poolTypeTabsRef = useHorizontalWheelScroll();
+  const sourceTabsRef = useHorizontalWheelScroll();
   const {
     dataSource,
     setDataSource,
@@ -163,7 +167,10 @@ function MobileStatsView() {
           <h1 className="text-xl font-black tracking-wider text-slate-900 dark:text-white">{t('nav.stats')}</h1>
         </div>
 
-        <div className="mb-1.5 flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+        <div
+          ref={pageTabsRef}
+          className="mb-1.5 flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80"
+        >
           {pageOptions.map((option) => {
             const Icon = option.icon;
             return (
@@ -185,7 +192,10 @@ function MobileStatsView() {
         </div>
 
         {activePage === 'overview' ? (
-          <div className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div
+            ref={poolTypeTabsRef}
+            className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80"
+          >
             {filterOptions.map((option) => (
               <button
                 key={option.value}
@@ -202,7 +212,10 @@ function MobileStatsView() {
             ))}
           </div>
         ) : (
-          <div className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80">
+          <div
+            ref={sourceTabsRef}
+            className="flex overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-100 p-1 dark:border-zinc-800 dark:bg-zinc-900/80"
+          >
             {sourceOptions.map((option) => {
               const Icon = option.icon;
               return (

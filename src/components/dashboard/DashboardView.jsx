@@ -1411,7 +1411,7 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
                     <StatBox
                       title={t('dashboard.overview.targetSixStarRate')}
                       value={`${splitOverviewStats.character.winRate}%`}
-                      subValue={`${splitOverviewStats.character.counts[6] || 0}/${splitOverviewStats.character.totalSixStar || 0}`}
+                      subValue={`${splitOverviewStats.character.winRateTargetCount || 0}/${splitOverviewStats.character.winRateTotalCount || 0}`}
                       colorClass="text-green-600 dark:text-green-400"
                       icon={TrendingUp}
                     />
@@ -1481,7 +1481,7 @@ const DashboardView = ({ showToast, onOpenImportWizard, onOpenExportOptions }) =
                     <StatBox
                       title={t('dashboard.overview.upSixStarRate')}
                       value={`${splitOverviewStats.weapon.winRate}%`}
-                      subValue={`${splitOverviewStats.weapon.counts[6] || 0}/${splitOverviewStats.weapon.totalSixStar || 0}`}
+                      subValue={`${splitOverviewStats.weapon.winRateTargetCount || 0}/${splitOverviewStats.weapon.winRateTotalCount || 0}`}
                       colorClass="text-green-600 dark:text-green-400"
                       icon={TrendingUp}
                     />
