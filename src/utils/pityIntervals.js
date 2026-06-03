@@ -19,12 +19,13 @@ export function recordHitIntervalHit(tracker, payload = {}) {
     return;
   }
 
-  if (tracker.hasSeenHit) {
-    tracker.intervals.push({
-      count: tracker.pullsSinceLastHit,
-      ...payload
-    });
-  }
+  // gui.cpp 标准: 所有命中的 pity_since_last_up 都计入 sum_up/count_up,
+  // 包括第一次 UP。旧逻辑跳过 hasSeenHit=false 的首次命中导致单六星时
+  // intervals 为空, avgPullCost 错误 fallback 到 '0'。
+  tracker.intervals.push({
+    count: tracker.pullsSinceLastHit,
+    ...payload
+  });
 
   tracker.hasSeenHit = true;
   tracker.pullsSinceLastHit = 0;
