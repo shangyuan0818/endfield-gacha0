@@ -240,6 +240,71 @@ export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'l
 }
 
 /**
+ * 模拟角色池免费十连。
+ *
+ * 免费十连按当前卡池基础概率抽取，且十连内至少包含一个5星或以上结果；
+ * 结果不推进普通保底、目标保底或奖励进度，外部状态由调用方保持不变。
+ *
+ * @param {Object} rules - 卡池规则
+ * @param {string} poolType - 卡池类型
+ * @param {string} currentUpCharacter - 当前UP角色（可选）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
+ * @returns {Array} 免费十连结果数组
+ */
+export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
+  const normalizedPoolType = poolType === 'limited_character'
+    ? 'limited'
+    : poolType === 'limited_weapon'
+      ? 'weapon'
+      : poolType;
+  const results = [];
+
+  for (let i = 0; i < 10; i += 1) {
+    if (rollProbability(rules.sixStarBaseProbability)) {
+      const isUp = normalizedPoolType === 'extra'
+        ? true
+        : rollProbability(rules.upProbability);
+      const upChar = currentUpCharacter || getCurrentUpCharacter();
+      results.push({
+        rarity: 6,
+        isUp,
+        isLimited: isUp,
+        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList)
+      });
+      continue;
+    }
+
+    if (rollProbability(rules.fiveStarBaseProbability)) {
+      results.push({
+        rarity: 5,
+        isUp: false,
+        isLimited: false,
+        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+      });
+      continue;
+    }
+
+    results.push({
+      rarity: 4,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList)
+    });
+  }
+
+  if (!results.some((result) => result.rarity >= 5)) {
+    results[results.length - 1] = {
+      rarity: 5,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+    };
+  }
+
+  return results;
+}
+
+/**
  * 检查是否触发120抽硬保底
  * @param {Object} state - 当前状态
  * @param {Object} rules - 卡池规则
@@ -366,6 +431,7 @@ export default {
   rollProbability,
   simulateSinglePull,
   simulateTenPull,
+  simulateCharacterFreeTen,
   checkGuaranteedLimitedTrigger,
   checkGiftAvailable,
   checkInfoBookAvailable,

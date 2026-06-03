@@ -44,7 +44,6 @@ const GachaSimulator = () => {
     isShareActionBusy,
     isAnimating,
     lastResults,
-    multipleFreeTen,
     pityInfoWithGuarantee,
     poolPullCounts,
     poolCharactersList,
@@ -57,7 +56,6 @@ const GachaSimulator = () => {
     shareActionFeedback,
     setDisableOriginitePromptToday,
     setLastResults,
-    setMultipleFreeTen,
     setResetAllPools,
     setResetKeepResources,
     setResetSettings,
@@ -113,11 +111,8 @@ const GachaSimulator = () => {
         originiteToJadeRate={currentPullCosts.settings.originiteToJadeRate}
         onToggleCnOriginiteDoubleBonus={toggleCnOriginiteDoubleBonus}
         onToggleInfiniteResources={toggleInfiniteResources}
-        onToggleMultipleFreeTen={() => setMultipleFreeTen(!multipleFreeTen)}
         onToggleSkipAnimation={() => setSkipAnimation(!skipAnimation)}
-        poolType={simulator.poolType}
         simulatorPools={simulatorPools}
-        multipleFreeTen={multipleFreeTen}
         skipAnimation={skipAnimation}
         supportsClipboardImageCopy={supportsClipboardImageCopy}
         supportsImageShare={supportsNativeImageShare}
@@ -145,7 +140,6 @@ const GachaSimulator = () => {
             stats={dashboardStats}
             effectivePity={effectivePityObj}
             pityInfo={pityInfoWithGuarantee}
-            multipleFreeTen={multipleFreeTen}
           />
         </div>
 

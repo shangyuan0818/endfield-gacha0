@@ -257,9 +257,6 @@ const FreePullStatsToggle = ({ enabled, onToggle, t }) => (
   >
     <span>
       <span className="block text-[11px] font-black uppercase tracking-wider">{t('dashboard.analysis.freeTenToggleLabel')}</span>
-      <span className="mt-0.5 block text-[10px] font-mono">
-        {enabled ? t('dashboard.analysis.freeTenIncludedState') : t('dashboard.analysis.freeTenExcludedState')}
-      </span>
     </span>
     {enabled ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
   </button>

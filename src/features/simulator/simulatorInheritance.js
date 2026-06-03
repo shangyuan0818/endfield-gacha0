@@ -302,9 +302,9 @@ function buildInheritedStateForPool({
         ? getWeaponGiftCount(currentPoolPaidCount)
         : 0,
     freeTenPullsReceived: normalizedPoolType === 'limited'
-      ? Math.floor(currentPoolPaidCount / LIMITED_POOL_RULES.freeTenPullInterval)
+      ? Math.min(Math.floor(currentPoolPaidCount / LIMITED_POOL_RULES.freeTenPullInterval), 1)
       : normalizedPoolType === 'extra'
-        ? Math.floor(currentPoolPaidCount / EXTRA_POOL_RULES.freeTenPullInterval)
+        ? Math.min(Math.floor(currentPoolPaidCount / EXTRA_POOL_RULES.freeTenPullInterval), 1)
       : 0,
     hasReceivedInfoBook: normalizedPoolType === 'limited'
       ? (limitedPoolPullCounts.get(realPoolId) || 0) >= LIMITED_POOL_RULES.infoBookThreshold

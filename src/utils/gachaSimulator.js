@@ -7,6 +7,7 @@
 import {
   simulateSinglePull,
   simulateTenPull,
+  simulateCharacterFreeTen,
   checkInfoBookAvailable,
   calculateExpectedPulls
 } from './probabilityEngine.js';
@@ -51,7 +52,7 @@ export function createInitialState(poolType = 'limited_character') {
 
     // 赠送机制
     giftsReceived: 0,                   // 已领取的赠送次数（限定池：每240抽）
-    freeTenPullsReceived: 0,            // 已领取的30抽赠送十连次数（限定池：每30抽）
+    freeTenPullsReceived: 0,            // 已领取的30抽赠送十连次数（限定池/附加寻访：仅1次）
     hasReceivedInfoBook: false,         // 是否已领取情报书（限定池：60抽，仅1次）
     hasUnactivatedInfoBook: false,      // 是否有未激活的情报书（下一个池激活）
     infoBookTenPullAvailable: false,    // 情报书十连是否可用（下一个限定池）
@@ -291,20 +292,12 @@ export class GachaSimulator {
    * @returns {Array} 免费十连结果数组
    */
   pullFreeTen() {
-    // 保存当前的保底状态（免费十连不应该影响保底）
-    const savedSixStarPity = this.state.sixStarPity;
-    const savedFiveStarPity = this.state.fiveStarPity;
-    const savedTotalPulls = this.state.totalPulls;
-    const savedGuaranteedLimitedPity = this.state.guaranteedLimitedPity;  // 修复：保存硬保底计数
-    const savedHasReceivedGuaranteedLimited = this.state.hasReceivedGuaranteedLimited;  // 修复：保存硬保底标志
-
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
       : null;
 
-    // 正常执行十连模拟（内部10抽会相互影响，这是正确的）
-    const results = simulateTenPull(this.state, this.rules, this.poolType, currentUpChar, this.poolCharactersList);
+    const results = simulateCharacterFreeTen(this.rules, this.poolType, currentUpChar, this.poolCharactersList);
     const pullRecords = [];
 
     // 处理每一抽的结果
@@ -326,18 +319,11 @@ export class GachaSimulator {
       pullRecords.push(pullRecord);
     });
 
-    // 免费十连：恢复保底状态，不增加总抽数
-    // 关键：虽然免费十连内部可能出了6星/5星，但不影响外部保底进度
+    // 免费十连不推进保底、总抽数、目标保底或奖励进度。
     this.updateState({
       pullHistory: [...this.state.pullHistory, ...pullRecords],
-      freeTenPullsReceived: this.state.freeTenPullsReceived + 1,
-      lastPullResult: pullRecords,
-      // 恢复免费十连开始前的保底状态
-      sixStarPity: savedSixStarPity,
-      fiveStarPity: savedFiveStarPity,
-      totalPulls: savedTotalPulls,
-      guaranteedLimitedPity: savedGuaranteedLimitedPity,  // 修复：恢复硬保底计数
-      hasReceivedGuaranteedLimited: savedHasReceivedGuaranteedLimited  // 修复：恢复硬保底标志
+      freeTenPullsReceived: Math.min((this.state.freeTenPullsReceived || 0) + 1, 1),
+      lastPullResult: pullRecords
     });
 
     return pullRecords;
@@ -429,14 +415,14 @@ export class GachaSimulator {
       };
     }
 
-    const freeTenPullCount = Math.floor(totalPulls / this.rules.freeTenPullInterval);
+    const freeTenPullCount = Math.min(Math.floor(totalPulls / this.rules.freeTenPullInterval), 1);
     const isNewGift = freeTenPullCount > this.state.freeTenPullsReceived;
 
     return {
       count: freeTenPullCount,
       isNewGift,
-      nextGiftAt: (freeTenPullCount + 1) * this.rules.freeTenPullInterval,
-      remainingPulls: (freeTenPullCount + 1) * this.rules.freeTenPullInterval - totalPulls,
+      nextGiftAt: freeTenPullCount >= 1 ? null : this.rules.freeTenPullInterval,
+      remainingPulls: freeTenPullCount >= 1 ? 0 : this.rules.freeTenPullInterval - totalPulls,
       giftType: 'free_ten_pull'
     };
   }

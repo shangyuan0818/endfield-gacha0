@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   LIMITED_POOL_RULES,
@@ -11,21 +11,18 @@ import {
   checkGiftAvailable,
   checkGuaranteedLimitedTrigger,
   checkInfoBookAvailable,
+  simulateCharacterFreeTen,
 } from '../probabilityEngine.js';
 
 describe('probabilityEngine', () => {
-  it('keeps limited six-star probability at base rate before soft pity and increases afterwards', () => {
-    const beforeSoftPity = calculateSixStarProbability(
-      LIMITED_POOL_RULES.sixStarSoftPityStart - 1,
-      LIMITED_POOL_RULES,
-    );
-    const atSoftPity = calculateSixStarProbability(
-      LIMITED_POOL_RULES.sixStarSoftPityStart,
-      LIMITED_POOL_RULES,
-    );
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    expect(beforeSoftPity).toBe(LIMITED_POOL_RULES.sixStarBaseProbability);
-    expect(atSoftPity).toBeGreaterThan(LIMITED_POOL_RULES.sixStarBaseProbability);
+  it('keeps limited six-star probability at base rate before soft pity and increases afterwards', () => {
+    expect(LIMITED_POOL_RULES.sixStarSoftPityStart).toBe(66);
+    expect(calculateSixStarProbability(65, LIMITED_POOL_RULES)).toBe(LIMITED_POOL_RULES.sixStarBaseProbability);
+    expect(calculateSixStarProbability(66, LIMITED_POOL_RULES)).toBeGreaterThan(LIMITED_POOL_RULES.sixStarBaseProbability);
     expect(calculateSixStarProbability(LIMITED_POOL_RULES.sixStarPity, LIMITED_POOL_RULES)).toBe(1);
   });
 
@@ -66,5 +63,28 @@ describe('probabilityEngine', () => {
   it('returns a bounded expected pull count near hard pity', () => {
     expect(calculateExpectedPulls(LIMITED_POOL_RULES.sixStarPity - 1, LIMITED_POOL_RULES)).toBe(1);
     expect(calculateExpectedPulls(0, LIMITED_POOL_RULES)).toBeGreaterThan(0);
+  });
+
+  it('guarantees at least one five-star or higher result in character free ten-pulls', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const results = simulateCharacterFreeTen(
+      LIMITED_POOL_RULES,
+      'limited',
+      '测试UP',
+      {
+        up: ['测试UP'],
+        fiveStar: ['测试五星'],
+        fourStar: ['测试四星'],
+      }
+    );
+
+    expect(results).toHaveLength(10);
+    expect(results.some((result) => result.rarity >= 5)).toBe(true);
+    expect(results.at(-1)).toMatchObject({
+      rarity: 5,
+      isUp: false,
+      isLimited: false,
+    });
   });
 });

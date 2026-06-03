@@ -286,12 +286,9 @@ const SimulatorToolbar = ({
   onSwitchPool,
   onToggleCnOriginiteDoubleBonus,
   onToggleInfiniteResources,
-  onToggleMultipleFreeTen,
   onToggleSkipAnimation,
   originiteToJadeRate,
-  poolType,
   simulatorPools,
-  multipleFreeTen,
   skipAnimation,
   supportsClipboardImageCopy,
   supportsImageShare,
@@ -481,23 +478,6 @@ const SimulatorToolbar = ({
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            {poolType === 'limited' && (
-              <div
-                onClick={onToggleMultipleFreeTen}
-                className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all border select-none rounded-sm ${
-                  multipleFreeTen
-                    ? 'bg-blue-50 dark:bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'bg-zinc-50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-500 hover:border-slate-300 dark:hover:border-zinc-700'
-                }`}
-                title={t('simulator.toolbar.multipleFreeTenHint')}
-              >
-                <div className={`w-3.5 h-3.5 border flex items-center justify-center transition-colors rounded-sm ${multipleFreeTen ? 'border-blue-500 bg-blue-500' : 'border-zinc-300 dark:border-zinc-600'}`}>
-                  {multipleFreeTen && <Check size={10} className="text-white" strokeWidth={4} />}
-                </div>
-                <span className="text-xs font-bold uppercase truncate">{t('simulator.toolbar.multipleFreeTen')}</span>
-              </div>
-            )}
-
             <div
               onClick={onToggleSkipAnimation}
               className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 cursor-pointer transition-all border select-none rounded-sm ${
