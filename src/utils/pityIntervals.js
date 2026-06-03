@@ -19,16 +19,20 @@ export function recordHitIntervalHit(tracker, payload = {}) {
     return;
   }
 
-  // gui.cpp 标准: 所有命中的 pity_since_last_up 都计入 sum_up/count_up,
-  // 包括第一次 UP。旧逻辑跳过 hasSeenHit=false 的首次命中导致单六星时
-  // intervals 为空, avgPullCost 错误 fallback 到 '0'。
+  // countOverride: 免费十连等特殊通道使用固定 slot (gui.cpp: slot=30)
+  // isFree:       免费十连出货不重置间隔 (gui.cpp: if (!isFree) pity_since_last_up = 0)
+  const { countOverride, isFree, ...rest } = payload;
+  const count = countOverride ?? tracker.pullsSinceLastHit;
+
   tracker.intervals.push({
-    count: tracker.pullsSinceLastHit,
-    ...payload
+    count,
+    ...rest
   });
 
   tracker.hasSeenHit = true;
-  tracker.pullsSinceLastHit = 0;
+  if (!isFree) {
+    tracker.pullsSinceLastHit = 0;
+  }
 }
 
 export function averageTrackedIntervals(intervals, {
