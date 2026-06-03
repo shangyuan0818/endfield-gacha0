@@ -1,6 +1,9 @@
 import { supabase } from '../../supabaseClient';
 import { executeSupabaseRead } from '../supabaseRequest';
-import { getSupabaseAccessToken } from '../authFetchService.js';
+import {
+  getSupabaseAccessToken,
+  withAuthenticatedSupabaseRequest,
+} from '../authFetchService.js';
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -56,7 +59,10 @@ export async function loadOpsAutomationRuns({
   }
 
   const { data, error } = await executeSupabaseRead(
-    () => query,
+    () => withAuthenticatedSupabaseRequest(
+      () => query,
+      { requireToken: true }
+    ),
     { label: 'loadOpsAutomationRuns', retries: 1 },
   );
 

@@ -4,7 +4,7 @@ import useSiteConfigStore, {
   DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
   HOME_NEXT_VERSION_TARGET_CONFIG_KEY
 } from '../../../stores/useSiteConfigStore';
-import { supabase } from '../../../supabaseClient';
+import { loadAdminSiteConfigItems } from '../../../services/admin/siteConfigService.js';
 import { ENTITY_LOCALIZATION_CONFIG_KEY, POOL_LOCALIZATION_CONFIG_KEY } from '../../../utils/gameDataI18n.js';
 import VirtualizedList from '../VirtualizedList';
 
@@ -161,34 +161,27 @@ const SiteConfigPanel = ({ showToast }) => {
   // 从数据库加载完整配置（含 label, category）
   useEffect(() => {
     const fetchAll = async () => {
-      if (!supabase) return;
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('site_config')
-          .select('*')
-          .order('category', { ascending: true });
-
-        if (!error && data) {
-          const mergedItems = [...data];
-          VIRTUAL_CONFIG_ITEMS.forEach((virtualItem) => {
-            if (!mergedItems.some((item) => item.key === virtualItem.key)) {
-              mergedItems.push({
-                ...virtualItem,
-                updated_at: null,
-              });
-            }
-          });
-          setConfigItems(mergedItems);
-        }
-      } catch {
-        // 静默
+        const data = await loadAdminSiteConfigItems();
+        const mergedItems = [...data];
+        VIRTUAL_CONFIG_ITEMS.forEach((virtualItem) => {
+          if (!mergedItems.some((item) => item.key === virtualItem.key)) {
+            mergedItems.push({
+              ...virtualItem,
+              updated_at: null,
+            });
+          }
+        });
+        setConfigItems(mergedItems);
+      } catch (error) {
+        showToast?.(`站点配置加载失败: ${error.message}`, 'error');
       } finally {
         setLoading(false);
       }
     };
     fetchAll();
-  }, []);
+  }, [showToast]);
 
   const startEdit = (item) => {
     setEditingKey(item.key);
@@ -216,10 +209,11 @@ const SiteConfigPanel = ({ showToast }) => {
         showToast?.('配置已更新', 'success');
         cancelEdit();
       } else {
-        showToast?.('保存失败', 'error');
+        const updateError = useSiteConfigStore.getState().updateError;
+        showToast?.(`保存失败: ${updateError?.message || '请检查登录状态和超级管理员权限'}`, 'error');
       }
-    } catch {
-      showToast?.('保存失败', 'error');
+    } catch (error) {
+      showToast?.(`保存失败: ${error.message}`, 'error');
     } finally {
       setSaving(false);
     }

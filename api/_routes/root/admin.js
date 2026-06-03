@@ -269,6 +269,11 @@ function getAdminRouteConfig(route) {
         methods: 'GET, OPTIONS',
         headers: 'Content-Type, Authorization',
       };
+    case 'site-config':
+      return {
+        methods: 'GET, POST, OPTIONS',
+        headers: 'Content-Type, Authorization',
+      };
     default:
       return {
         methods: 'GET, POST, OPTIONS',
@@ -774,6 +779,152 @@ async function handlePublicCacheBump(req, res, adminClient) {
     updatedAt: result.updatedAt,
     ...(analyticsRefresh ? { analyticsRefresh } : {}),
   });
+}
+
+function serializeSiteConfigRow(row) {
+  return {
+    key: String(row?.key || ''),
+    value: row?.value == null ? '' : String(row.value),
+    label: row?.label == null ? '' : String(row.label),
+    category: row?.category == null ? 'general' : String(row.category || 'general'),
+    updated_at: row?.updated_at || null,
+    updated_by: row?.updated_by || null,
+  };
+}
+
+function normalizeSiteConfigPatch(body = {}) {
+  const key = String(body?.key || '').trim();
+  const value = body?.value == null ? '' : String(body.value);
+  const label = body?.label == null ? '' : String(body.label).trim();
+  const category = body?.category == null ? '' : String(body.category).trim();
+
+  if (!key || key.length > 120 || !/^[a-zA-Z0-9_.:-]+$/.test(key)) {
+    return { ok: false, error: 'Invalid site config key' };
+  }
+
+  if (value.length > 200_000) {
+    return { ok: false, error: 'Site config value is too large' };
+  }
+
+  if (label.length > 120) {
+    return { ok: false, error: 'Site config label is too long' };
+  }
+
+  if (category.length > 80 || (category && !/^[a-zA-Z0-9_-]+$/.test(category))) {
+    return { ok: false, error: 'Invalid site config category' };
+  }
+
+  return {
+    ok: true,
+    patch: {
+      key,
+      value,
+      label,
+      category,
+    },
+  };
+}
+
+async function handleSiteConfig(req, res, adminClient) {
+  if (!['GET', 'POST'].includes(req.method)) {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const { data, error } = await adminClient
+        .from('site_config')
+        .select('*')
+        .order('category', { ascending: true })
+        .order('key', { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      return res.status(200).json({
+        success: true,
+        items: Array.isArray(data) ? data.map(serializeSiteConfigRow) : [],
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load site config',
+      });
+    }
+  }
+
+  const normalized = normalizeSiteConfigPatch(parseRequestBody(req));
+  if (!normalized.ok) {
+    return res.status(400).json({
+      success: false,
+      error: normalized.error,
+    });
+  }
+
+  const { key, value, label, category } = normalized.patch;
+
+  try {
+    const existingQuery = adminClient
+      .from('site_config')
+      .select('key, label, category')
+      .eq('key', key)
+      .limit(1);
+    const existingResult = typeof existingQuery.maybeSingle === 'function'
+      ? await existingQuery.maybeSingle()
+      : await existingQuery;
+
+    if (existingResult?.error) {
+      throw existingResult.error;
+    }
+
+    const existingRow = Array.isArray(existingResult?.data)
+      ? existingResult.data[0] || null
+      : existingResult?.data || null;
+    const nowIso = new Date().toISOString();
+    const payload = {
+      key,
+      value,
+      label: label || existingRow?.label || key,
+      category: category || existingRow?.category || 'general',
+      updated_at: nowIso,
+      updated_by: authResult.callerUser.id,
+    };
+
+    const upsertQuery = adminClient
+      .from('site_config')
+      .upsert(payload, { onConflict: 'key' })
+      .select('*');
+    const upsertResult = typeof upsertQuery.maybeSingle === 'function'
+      ? await upsertQuery.maybeSingle()
+      : await upsertQuery;
+
+    if (upsertResult?.error) {
+      throw upsertResult.error;
+    }
+
+    const savedRow = Array.isArray(upsertResult?.data)
+      ? upsertResult.data[0] || payload
+      : upsertResult?.data || payload;
+
+    return res.status(200).json({
+      success: true,
+      item: serializeSiteConfigRow(savedRow),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to update site config',
+    });
+  }
 }
 
 function serializeApiKeyRow(keyRow) {
@@ -1951,6 +2102,8 @@ export default async function handler(req, res) {
       return handleOpsAutomation(req, res, adminClient);
     case 'public-cache-bump':
       return handlePublicCacheBump(req, res, adminClient);
+    case 'site-config':
+      return handleSiteConfig(req, res, adminClient);
     case 'api-clients':
       return handleApiClients(req, res, adminClient);
     case 'api-clients-review':

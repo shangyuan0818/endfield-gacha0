@@ -236,6 +236,116 @@ function createMailRuntimeConfigAdminClient({
   };
 }
 
+class SiteConfigQuery {
+  constructor(client, table) {
+    this.client = client;
+    this.table = table;
+    this.operation = 'select';
+    this.payload = null;
+    this.filters = [];
+    this.limitValue = null;
+  }
+
+  select() {
+    return this;
+  }
+
+  upsert(payload) {
+    this.operation = 'upsert';
+    this.payload = payload;
+    return this;
+  }
+
+  eq(field, value) {
+    this.filters.push({ field, value });
+    return this;
+  }
+
+  limit(value) {
+    this.limitValue = value;
+    return this;
+  }
+
+  order() {
+    return this;
+  }
+
+  maybeSingle() {
+    return Promise.resolve(this.client.__executeSiteConfigQuery(this, { maybeSingle: true }));
+  }
+
+  then(resolve, reject) {
+    return Promise.resolve(this.client.__executeSiteConfigQuery(this)).then(resolve, reject);
+  }
+}
+
+function matchesSiteConfigFilters(row, filters) {
+  return filters.every((filter) => row?.[filter.field] === filter.value);
+}
+
+function createSiteConfigAdminClient({
+  role = 'super_admin',
+  rows = [
+    {
+      key: 'author_name',
+      value: 'MoguJun',
+      label: '作者名',
+      category: 'social',
+      updated_at: '2026-06-01T00:00:00.000Z',
+      updated_by: null,
+    },
+  ],
+  upsertError = null,
+} = {}) {
+  const state = {
+    siteConfig: [...rows],
+  };
+
+  const adminClient = {
+    state,
+    from: vi.fn((table) => {
+      if (table === 'profiles') {
+        return createProfilesQuery(role);
+      }
+      if (table === 'site_config') {
+        return new SiteConfigQuery(adminClient, table);
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+    __executeSiteConfigQuery(query, { maybeSingle = false } = {}) {
+      if (query.table !== 'site_config') {
+        throw new Error(`Unexpected table: ${query.table}`);
+      }
+
+      if (query.operation === 'upsert') {
+        if (upsertError) {
+          return { data: null, error: upsertError };
+        }
+        const existingIndex = state.siteConfig.findIndex((row) => row.key === query.payload.key);
+        const row = {
+          ...query.payload,
+        };
+        if (existingIndex >= 0) {
+          state.siteConfig[existingIndex] = row;
+        } else {
+          state.siteConfig.push(row);
+        }
+        return { data: maybeSingle ? row : [row], error: null };
+      }
+
+      const rowsToReturn = state.siteConfig
+        .filter((row) => matchesSiteConfigFilters(row, query.filters))
+        .slice(0, query.limitValue || state.siteConfig.length);
+      return {
+        data: maybeSingle ? rowsToReturn[0] || null : rowsToReturn,
+        error: null,
+      };
+    },
+  };
+
+  return adminClient;
+}
+
 function createMailBudgetConfigAdminClient({
   role = 'super_admin',
   upsertError = null,
@@ -992,6 +1102,95 @@ describe('api/admin handler', () => {
     expect(serialized).not.toContain('must-not-save');
     expect(serialized).not.toContain('smtpPassword');
     expect(serialized).not.toContain('webhookSecret');
+  });
+
+  it('loads site config from the super admin route', async () => {
+    const adminClient = createSiteConfigAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'GET',
+      url: 'https://example.com/api/admin?route=site-config',
+      headers: { authorization: 'Bearer token' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.from).toHaveBeenCalledWith('site_config');
+    expect(res.body).toMatchObject({
+      success: true,
+      items: [
+        {
+          key: 'author_name',
+          value: 'MoguJun',
+          label: '作者名',
+          category: 'social',
+        },
+      ],
+    });
+  });
+
+  it('updates site config from the super admin route', async () => {
+    const adminClient = createSiteConfigAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=site-config',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        key: 'author_name',
+        value: 'New Name',
+        label: '作者名',
+        category: 'social',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      item: {
+        key: 'author_name',
+        value: 'New Name',
+        label: '作者名',
+        category: 'social',
+        updated_by: 'super-admin-id',
+      },
+    });
+    expect(adminClient.state.siteConfig[0]).toMatchObject({
+      key: 'author_name',
+      value: 'New Name',
+      updated_by: 'super-admin-id',
+    });
+  });
+
+  it('rejects invalid site config keys', async () => {
+    const adminClient = createSiteConfigAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin?route=site-config',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        key: 'bad key',
+        value: 'x',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: 'Invalid site config key',
+    });
   });
 
   it('updates mail budget config from the super admin route', async () => {

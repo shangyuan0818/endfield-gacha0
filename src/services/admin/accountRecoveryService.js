@@ -1,14 +1,20 @@
 import { supabase } from '../../supabaseClient';
 import { executeSupabaseRead, fetchWithTimeout } from '../supabaseRequest';
 import { loadPublicProfilesMap } from '../publicProfileService';
-import { getSupabaseAccessToken } from '../authFetchService.js';
+import {
+  getSupabaseAccessToken,
+  withAuthenticatedSupabaseRequest,
+} from '../authFetchService.js';
 
 export async function loadAccountRecoveryRequests() {
   const { data, error } = await executeSupabaseRead(
-    () => supabase
-      .from('account_recovery_requests')
-      .select('*')
-      .order('created_at', { ascending: false }),
+    () => withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('account_recovery_requests')
+        .select('*')
+        .order('created_at', { ascending: false }),
+      { requireToken: true }
+    ),
     {
       label: 'loadAccountRecoveryRequests',
       retries: 1
@@ -38,10 +44,13 @@ export async function updateAccountRecoveryRequest(requestId, updateData) {
     payload.handled_at = new Date().toISOString();
   }
 
-  const { error } = await supabase
-    .from('account_recovery_requests')
-    .update(payload)
-    .eq('id', requestId);
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase
+      .from('account_recovery_requests')
+      .update(payload)
+      .eq('id', requestId),
+    { requireToken: true }
+  );
 
   if (error) {
     throw error;

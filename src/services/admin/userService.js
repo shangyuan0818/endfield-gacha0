@@ -3,7 +3,10 @@ import {
   executeSupabaseRpc,
   fetchWithTimeout,
 } from '../supabaseRequest';
-import { getSupabaseAccessToken } from '../authFetchService.js';
+import {
+  getSupabaseAccessToken,
+  withAuthenticatedSupabaseRequest,
+} from '../authFetchService.js';
 
 export async function loadUsers() {
   const accessToken = await getSupabaseAccessToken();
@@ -31,11 +34,14 @@ export async function loadUsers() {
 
 export async function updateUserProfile(userId, userForm) {
   const { error, data } = await executeSupabaseRpc(
-    () => supabase.rpc('admin_update_profile', {
-      p_target_user_id: userId,
-      p_username: userForm.username,
-      p_role: userForm.role,
-    }),
+    () => withAuthenticatedSupabaseRequest(
+      () => supabase.rpc('admin_update_profile', {
+        p_target_user_id: userId,
+        p_username: userForm.username,
+        p_role: userForm.role,
+      }),
+      { requireToken: true }
+    ),
     {
       label: 'admin_update_profile'
     }
@@ -47,6 +53,10 @@ export async function updateUserProfile(userId, userForm) {
 
 export async function createUser(userForm) {
   const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
   const response = await fetchWithTimeout(`${supabase.supabaseUrl}/functions/v1/admin-create-user`, {
     method: 'POST',
     headers: {

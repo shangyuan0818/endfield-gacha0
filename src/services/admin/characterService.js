@@ -15,6 +15,7 @@ import {
   normalizeEntityNameForMatch,
 } from '../../utils/canonicalEntityUtils.js';
 import { executeSupabaseRead } from '../supabaseRequest';
+import { withAuthenticatedSupabaseRequest } from '../authFetchService.js';
 import {
   buildCharacterSelfAliasRows,
   resolveAliasValue,
@@ -104,12 +105,15 @@ export function resolveSyncCanonicalId({ item, wikiAliasMap, existingIdSet, manu
 }
 
 async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
-  const { error } = await supabase.rpc('admin_sync_character_with_aliases', {
-    p_character_id: canonicalId,
-    p_insert_payload: insertPayload,
-    p_update_payload: updatePayload,
-    p_alias_rows: aliasRows
-  });
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase.rpc('admin_sync_character_with_aliases', {
+      p_character_id: canonicalId,
+      p_insert_payload: insertPayload,
+      p_update_payload: updatePayload,
+      p_alias_rows: aliasRows
+    }),
+    { requireToken: true }
+  );
 
   if (!error) {
     return;
@@ -126,12 +130,15 @@ async function syncCharacterWithAliases({ canonicalId, insertPayload, updatePayl
 }
 
 async function saveManagedCharacterWithAliases({ canonicalId, insertPayload, updatePayload, aliasRows }) {
-  const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
-    p_character_id: canonicalId,
-    p_insert_payload: insertPayload,
-    p_update_payload: updatePayload,
-    p_alias_rows: aliasRows
-  });
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase.rpc('admin_upsert_character_with_aliases', {
+      p_character_id: canonicalId,
+      p_insert_payload: insertPayload,
+      p_update_payload: updatePayload,
+      p_alias_rows: aliasRows
+    }),
+    { requireToken: true }
+  );
 
   if (!error) {
     return;
@@ -216,10 +223,13 @@ export async function deleteCharacter(characterId) {
   }
 
   try {
-    const { error } = await supabase
-      .from('characters')
-      .delete()
-      .eq('id', characterId);
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('characters')
+        .delete()
+        .eq('id', characterId),
+      { requireToken: true }
+    );
 
     if (error) throw error;
     return { success: true, error: null };
@@ -239,10 +249,13 @@ export async function batchDeleteCharacters(characterIds) {
   }
 
   try {
-    const { error } = await supabase
-      .from('characters')
-      .delete()
-      .in('id', characterIds);
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('characters')
+        .delete()
+        .in('id', characterIds),
+      { requireToken: true }
+    );
 
     if (error) throw error;
     return { success: true, error: null };
@@ -335,10 +348,13 @@ export async function batchUpdateCharacters(characterIds, batchEditForm) {
       // 如果有更新，执行更新
       if (needUpdate) {
         // eslint-disable-next-line no-await-in-loop -- character mutations remain sequential for precise error attribution
-        const { error } = await supabase
-          .from('characters')
-          .update(updates)
-          .eq('id', item.id);
+        const { error } = await withAuthenticatedSupabaseRequest(
+          () => supabase
+            .from('characters')
+            .update(updates)
+            .eq('id', item.id),
+          { requireToken: true }
+        );
 
         if (error) throw error;
         updateCount++;
@@ -378,10 +394,13 @@ export async function batchUpdateCharacterAvatars(avatarUpdates) {
 
     for (const item of avatarUpdates) {
       // eslint-disable-next-line no-await-in-loop -- avatar writes remain sequential to avoid spiky admin traffic and preserve progress accounting
-      const { error } = await supabase
-        .from('characters')
-        .update({ avatar_url: item.avatar_url })
-        .eq('id', item.id);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('characters')
+          .update({ avatar_url: item.avatar_url })
+          .eq('id', item.id),
+        { requireToken: true }
+      );
 
       if (error) {
         errorCount++;

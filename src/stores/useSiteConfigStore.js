@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { create } from 'zustand';
 import { invalidatePublicCache } from '../services/admin/publicCacheService.js';
-import { executeSupabaseMutation } from '../services/supabaseRequest.js';
 import { getBootstrapSiteConfig } from '../services/bootstrapService.js';
+import { saveAdminSiteConfigItem } from '../services/admin/siteConfigService.js';
+import { executeSupabaseRead } from '../services/supabaseRequest.js';
 import { supabase } from '../supabaseClient.js';
 import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
@@ -77,6 +78,7 @@ const INITIAL_SITE_CONFIG_SNAPSHOT = readSiteConfigSnapshot();
 const useSiteConfigStore = create((set, get) => ({
   config: INITIAL_SITE_CONFIG_SNAPSHOT,
   loaded: Object.keys(INITIAL_SITE_CONFIG_SNAPSHOT).length > 0,
+  updateError: null,
 
   /**
    * 从数据库加载所有站点配置
@@ -93,7 +95,7 @@ const useSiteConfigStore = create((set, get) => ({
 
     if (supabase) {
       try {
-        const { data, error } = await executeSupabaseMutation(
+        const { data, error } = await executeSupabaseRead(
           () => supabase
             .from('site_config')
             .select('key, value'),
@@ -147,43 +149,26 @@ const useSiteConfigStore = create((set, get) => ({
    * 管理员更新配置项
    */
   updateConfig: async (key, value, meta = {}) => {
-    if (!supabase) return false;
     try {
       const versionMeta = VERSION_CONFIG_METADATA[key];
-      const existingValue = Object.prototype.hasOwnProperty.call(get().config, key);
-      const request = existingValue && !versionMeta
-        ? () => supabase
-          .from('site_config')
-          .update({ value, updated_at: new Date().toISOString() })
-          .eq('key', key)
-        : () => supabase
-          .from('site_config')
-          .upsert({
-            key,
-            value,
-            label: meta.label || versionMeta?.label || key,
-            category: meta.category || versionMeta?.category || 'general',
-            updated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'key'
-          });
-
-      const { error } = await executeSupabaseMutation(request, {
-        label: existingValue ? 'update site config' : 'upsert site config'
+      const savedItem = await saveAdminSiteConfigItem({
+        key,
+        value,
+        label: meta.label || versionMeta?.label || key,
+        category: meta.category || versionMeta?.category || 'general',
       });
 
-      if (error) throw error;
-
-      const nextConfig = normalizeVersionConfig({ ...get().config, [key]: value });
+      const nextConfig = normalizeVersionConfig({ ...get().config, [key]: savedItem?.value ?? value });
       writeSiteConfigSnapshot(nextConfig);
-      set({ config: nextConfig });
+      set({ config: nextConfig, updateError: null });
 
       if (key !== 'public_cache_epoch') {
         await invalidatePublicCache('site-config', `admin:site-config:${key}`);
       }
 
       return true;
-    } catch {
+    } catch (error) {
+      set({ updateError: error });
       return false;
     }
   },
