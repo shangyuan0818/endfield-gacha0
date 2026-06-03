@@ -60,4 +60,35 @@ describe('buildDashboardOverviewSplitStats', () => {
       standard: 0,
     });
   });
+
+  it('includes free ten-pull results in split stats without advancing paid pity counters', () => {
+    const baseInput = {
+      selectedPools: [
+        { id: 'pool_limited', type: 'limited' },
+      ],
+      history: [
+        { id: 1, poolId: 'pool_limited', rarity: 4 },
+        { id: 2, poolId: 'pool_limited', rarity: 6, isStandard: false, isFree: true },
+        { id: 3, poolId: 'pool_limited', rarity: 6, isStandard: false },
+      ],
+    };
+
+    const excluded = buildDashboardOverviewSplitStats(baseInput);
+    const included = buildDashboardOverviewSplitStats({
+      ...baseInput,
+      includeFreePullsInStats: true,
+    });
+
+    expect(excluded.character.total).toBe(2);
+    expect(excluded.character.counts[6]).toBe(1);
+    expect(excluded.character.pityStats.history.map(({ count }) => count)).toEqual([2]);
+
+    expect(included.character.total).toBe(3);
+    expect(included.character.counts[6]).toBe(2);
+    expect(included.character.pityStats.history.map(({ count }) => count)).toEqual([30, 2]);
+    expect(included.character.pityStats.distribution[2]).toMatchObject({
+      range: '21-30',
+      limited: 1,
+    });
+  });
 });

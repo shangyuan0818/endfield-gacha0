@@ -186,7 +186,6 @@ export function usePoolStats({
     const freePullCount = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && isFreePull(item)).length;
 
     const counts = { 6: 0, '6_std': 0, 5: 0, 4: 0 };
-    const giftCounts = { 6: 0 };
 
     let currentPity = 0;
     let currentPity5 = 0;
@@ -218,7 +217,6 @@ export function usePoolStats({
       let r = pull.rarity;
 
       if (isGiftPull(pull)) {
-        if (r === 6) giftCounts[6]++;
         return; // 赠送不计入稀有度统计
       }
 
@@ -303,8 +301,11 @@ export function usePoolStats({
       }
     }
 
-    counts[6] += bonusGiftsLimited;
-    counts['6_std'] += bonusGiftsStandard;
+    const gifts = {
+      count: bonusGiftsLimited + bonusGiftsStandard,
+      limitedCount: bonusGiftsLimited,
+      standardCount: bonusGiftsStandard
+    };
 
     // 统计历史6星出货分布
     const sixStarPulls = [];
@@ -319,17 +320,20 @@ export function usePoolStats({
     let limitedScopeTotal = 0;
 
     validPullsList.forEach(pull => {
+      const isFree = isFreePull(pull);
       const pullPoolType = getPullPoolType(pull);
-      tempCounter++;
-      cumulativePullCount++;
+      if (!isFree) {
+        tempCounter++;
+        cumulativePullCount++;
+        recordHitIntervalPull(targetSixStarIntervalTracker);
+        recordHitIntervalPull(limitedSixStarIntervalTracker);
+      }
       if (isTargetCapablePool(pullPoolType)) {
         targetScopeTotal++;
       }
       if (isLimitedCharacterPool(pullPoolType)) {
         limitedScopeTotal++;
       }
-      recordHitIntervalPull(targetSixStarIntervalTracker);
-      recordHitIntervalPull(limitedSixStarIntervalTracker);
       if (pull.rarity === 6) {
         // 判断是否为120抽Spark触发（FEAT-014）
         // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
@@ -349,9 +353,10 @@ export function usePoolStats({
         const inheritedSixStarCount = isLimitedPool
           ? limitedCrossPoolPityMap?.get(getHistoryRecordKey(pull))
           : null;
+        const fallbackSixStarCount = isFree ? 30 : tempCounter;
         const effectiveSixStarCount = Number.isFinite(inheritedSixStarCount) && inheritedSixStarCount > 0
           ? inheritedSixStarCount
-          : tempCounter;
+          : fallbackSixStarCount;
         const pullRecord = {
           count: effectiveSixStarCount,
           isStandard: pull.isStandard,
@@ -367,7 +372,9 @@ export function usePoolStats({
           limitedSixStarHits.push(pullRecord);
           recordHitIntervalHit(limitedSixStarIntervalTracker, { isSpark });
         }
-        tempCounter = 0;
+        if (!isFree) {
+          tempCounter = 0;
+        }
       }
     });
 
@@ -493,6 +500,11 @@ export function usePoolStats({
       probabilityInfo,
       hasInfoBook,
       pullsUntilInfoBook,
+      gifts,
+      bonusGifts: {
+        limited: bonusGiftsLimited,
+        standard: bonusGiftsStandard
+      },
       resourceSummary
     };
   }, [

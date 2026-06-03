@@ -31,13 +31,36 @@ export function buildCurrentTargetProbabilityInfo({
   }
 
   const rules = getSimulatorRules(normalizedPoolType, customRules);
-  const sixStarProbabilityInfo = calculateCurrentProbability(currentPity, normalizedPoolType);
   const hardGuaranteeThreshold = Number(rules?.guaranteedLimitedPity || 0);
   const currentGuaranteedCounter = Number(guaranteedLimitedPity || 0);
+  const claimSize = normalizedPoolType === 'weapon' ? Number(rules?.claimSize || 10) : 1;
   const isHardGuaranteeNextPull = hardGuaranteeThreshold > 0
     && !hasReceivedGuaranteedLimited
-    && currentGuaranteedCounter + 1 >= hardGuaranteeThreshold;
+    && currentGuaranteedCounter + claimSize >= hardGuaranteeThreshold;
   const targetRate = isHardGuaranteeNextPull ? 1 : Number(rules?.upProbability || 0);
+
+  if (normalizedPoolType === 'weapon') {
+    const baseSixStarProbability = Number(rules?.sixStarBaseProbability || 0);
+    const isSixStarGuaranteeNextClaim = Number(currentPity || 0) + claimSize >= Number(rules?.sixStarPity || 0);
+    const naturalSixStarProbability = 1 - ((1 - baseSixStarProbability) ** claimSize);
+    const naturalTargetProbability = 1 - ((1 - baseSixStarProbability * Number(rules?.upProbability || 0)) ** claimSize);
+    const probability = isHardGuaranteeNextPull
+      ? 1
+      : isSixStarGuaranteeNextClaim
+        ? Math.min(1, naturalTargetProbability + ((1 - baseSixStarProbability) ** claimSize) * Number(rules?.upProbability || 0))
+        : naturalTargetProbability;
+
+    return {
+      label: '目标武器',
+      probability,
+      sixStarProbability: isHardGuaranteeNextPull || isSixStarGuaranteeNextClaim ? 1 : naturalSixStarProbability,
+      targetRate,
+      isHardGuaranteeNextPull,
+      unit: 'claim'
+    };
+  }
+
+  const sixStarProbabilityInfo = calculateCurrentProbability(currentPity, normalizedPoolType);
 
   return {
     label: normalizedPoolType === 'weapon' ? '目标武器' : 'UP角色',

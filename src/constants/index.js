@@ -29,7 +29,7 @@ export const LIMITED_POOL_RULES = {
   // 6星保底
   sixStarPity: 80,                    // 最多80抽必出6星
   sixStarBaseProbability: 0.008,      // 6星基础概率 0.8%
-  sixStarSoftPityStart: 65,           // 65抽后开始概率递增
+  sixStarSoftPityStart: 66,           // 连续65抽未出6星后，第66抽开始概率递增
   sixStarSoftPityIncrease: 0.05,      // 每抽增加5%概率
   hasSoftPity: true,                  // 有软保底机制
 
@@ -42,7 +42,7 @@ export const LIMITED_POOL_RULES = {
 
   // 赠送机制
   giftInterval: 240,                  // 每240抽赠送限定信物
-  freeTenPullInterval: 30,            // 每30抽赠送不计入保底的十连
+  freeTenPullInterval: 30,            // 30抽赠送一次不计入保底的十连
   freeTenPullCountsTowardPity: false, // 赠送十连不计入保底
 
   // 情报书（仅获得1次）
@@ -67,7 +67,7 @@ export const LIMITED_POOL_RULES = {
 export const EXTRA_POOL_RULES = {
   sixStarPity: 80,
   sixStarBaseProbability: 0.008,
-  sixStarSoftPityStart: 65,
+  sixStarSoftPityStart: 66,
   sixStarSoftPityIncrease: 0.05,
   hasSoftPity: true,
 
@@ -173,7 +173,7 @@ export const CURRENT_UP_POOL_INFO = getCurrentUpPool();
 export const STANDARD_POOL_RULES = {
   sixStarPity: 80,
   sixStarBaseProbability: 0.008,
-  sixStarSoftPityStart: 65,           // 65抽后开始概率递增
+  sixStarSoftPityStart: 66,           // 连续65抽未出6星后，第66抽开始概率递增
   sixStarSoftPityIncrease: 0.05,      // 每抽增加5%概率
   hasSoftPity: true,                  // 有软保底机制
 
@@ -189,8 +189,11 @@ export const STANDARD_POOL_RULES = {
 
 // 武器池规则
 export const WEAPON_POOL_RULES = {
+  claimSize: 10,                       // 每次武库申领获得10件武器
+
   // 6星保底 (每十连 = 1次申领)
   sixStarPity: 40,                    // 每4次申领(40抽)必出6星
+  sixStarClaimPity: 4,                // 连续3次申领未出6星，第4次申领保6星
   sixStarBaseProbability: 0.04,       // 6星基础概率 4%
   hasSoftPity: false,                 // 武器池无软保底机制（概率不递增）
 
@@ -200,6 +203,7 @@ export const WEAPON_POOL_RULES = {
 
   // 硬保底（必出限定UP武器）
   guaranteedLimitedPity: 80,          // 80抽首轮必出限定（仅生效1次）
+  guaranteedLimitedClaimPity: 8,      // 连续7次申领未出UP，第8次申领保UP（仅首轮）
 
   // 赠送机制
   firstStandardGift: 100,             // 第100抽送补充武库箱(常驻自选)

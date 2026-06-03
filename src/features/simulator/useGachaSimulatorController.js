@@ -20,13 +20,11 @@ import {
   loadSimulatorCurrentPoolId,
   loadSimulatorResourceSettings,
   loadInfoBookState,
-  loadSimulatorMultipleFreeTenPreference,
   loadSimulatorOriginitePromptSuppressDate,
   loadSimulatorSkipAnimationPreference,
   loadSharedPityState,
   loadSimulatorState,
   saveSimulatorCurrentPoolId,
-  saveSimulatorMultipleFreeTenPreference,
   saveSimulatorOriginitePromptSuppressDate,
   saveSimulatorResourceSettings,
   saveInfoBookState,
@@ -303,7 +301,6 @@ export function useGachaSimulatorController() {
   const [resetKeepResources, setResetKeepResources] = useState(false);
   const [resetSettings, setResetSettings] = useState(false);
   const [skipAnimation, setSkipAnimation] = useState(() => loadSimulatorSkipAnimationPreference());
-  const [multipleFreeTen, setMultipleFreeTen] = useState(() => loadSimulatorMultipleFreeTenPreference());
   const [showPoolMenu, setShowPoolMenu] = useState(false);
   const [selectedLimitedPool, setSelectedLimitedPool] = useState(() => fallbackLimitedPoolName);
   const [resourceSettings, setResourceSettings] = useState(() => loadSimulatorResourceSettings(simulatorStorageScope));
@@ -476,7 +473,10 @@ export function useGachaSimulatorController() {
       settings: normalizedSettings,
     };
   }, [availableFreePulls, currentPoolType, infoBookTenPullAvailable, resourceSettings]);
-  const canAffordSinglePull = canAffordSimulatorPull(resourceLedger, currentPullCosts.single);
+  const isWeaponPool = currentPoolType === 'weapon';
+  const canAffordSinglePull = isWeaponPool
+    ? false
+    : canAffordSimulatorPull(resourceLedger, currentPullCosts.single);
   const canAffordTenPull = canAffordSimulatorPull(resourceLedger, currentPullCosts.ten);
   const getPullDisabledReason = useCallback(
     (cost, canAfford) => {
@@ -508,7 +508,9 @@ export function useGachaSimulatorController() {
     },
     [isAnimating, locale, poolCharactersList, resourceLedger, t]
   );
-  const singlePullDisabledReason = getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
+  const singlePullDisabledReason = isWeaponPool
+    ? t('simulator.toast.weaponSingleDisabled')
+    : getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
   const tenPullDisabledReason = getPullDisabledReason(currentPullCosts.ten, canAffordTenPull);
   const currentSimPoolIdValue = currentSimPool?.id ?? null;
   const currentSimPoolFeaturedLead = currentSimPoolSource ? getPoolFeaturedLead(currentSimPoolSource) : null;
@@ -594,10 +596,6 @@ export function useGachaSimulatorController() {
   }, [skipAnimation]);
 
   useEffect(() => {
-    saveSimulatorMultipleFreeTenPreference(multipleFreeTen);
-  }, [multipleFreeTen]);
-
-  useEffect(() => {
     saveSimulatorResourceSettings(resourceSettings, simulatorStorageScope);
   }, [resourceSettings, simulatorStorageScope]);
 
@@ -678,8 +676,7 @@ export function useGachaSimulatorController() {
         const nextStats = simulator.getStatistics();
         const earnedFreePulls = nextStats.freeTenPulls?.count || 0;
         const usedFreePulls = state.freeTenPullsReceived || 0;
-        const maxFreePulls = multipleFreeTen ? earnedFreePulls : Math.min(earnedFreePulls, 1);
-        setAvailableFreePulls(Math.max(0, maxFreePulls - usedFreePulls));
+        setAvailableFreePulls(Math.max(0, earnedFreePulls - usedFreePulls));
 
         if (normalizedSimulatorPoolType !== 'limited') {
           setInfoBookTenPullAvailable(false);
@@ -751,7 +748,7 @@ export function useGachaSimulatorController() {
     simulator.addListener(updateUI);
     updateUI();
     return () => simulator.removeListener(updateUI);
-  }, [currentSimPoolId, multipleFreeTen, simulator, simulatorPools, simulatorStorageScope]);
+  }, [currentSimPoolId, simulator, simulatorPools, simulatorStorageScope]);
 
   const showToastMessage = useCallback((message) => {
     setToastMessage(message);
@@ -848,6 +845,11 @@ export function useGachaSimulatorController() {
     (type, options = {}) => {
       const { isInfoBookPull = false, isFreePull = false, conversionPlan = null } = options;
 
+      if (type === 'single' && normalizeSimulatorPoolType(simulator.poolType) === 'weapon') {
+        showToastMessage(t('simulator.toast.weaponSingleDisabled'));
+        return;
+      }
+
       if (conversionPlan?.originiteNeeded > 0) {
         adjustResourceAmount('jade', 'convertOriginite', conversionPlan.originiteNeeded);
       }
@@ -932,6 +934,11 @@ export function useGachaSimulatorController() {
   const handlePull = useCallback(
     (type) => {
       if (isAnimating) {
+        return;
+      }
+
+      if (type === 'single' && normalizeSimulatorPoolType(simulator.poolType) === 'weapon') {
+        showToastMessage(t('simulator.toast.weaponSingleDisabled'));
         return;
       }
 
@@ -1205,7 +1212,6 @@ export function useGachaSimulatorController() {
 
     if (resetSettings) {
       setSkipAnimation(false);
-      setMultipleFreeTen(false);
       clearSimulatorSkipAnimationPreference();
       clearSimulatorMultipleFreeTenPreference();
     }
@@ -1637,7 +1643,6 @@ export function useGachaSimulatorController() {
     infoBookTenPullAvailable,
     isAnimating,
     lastResults,
-    multipleFreeTen,
     pityInfoWithGuarantee,
     poolPullCounts,
     poolCharactersList,
@@ -1651,7 +1656,6 @@ export function useGachaSimulatorController() {
     isShareActionBusy,
     setDisableOriginitePromptToday,
     setLastResults,
-    setMultipleFreeTen,
     setResourceSettings,
     setResetAllPools,
     setResetKeepResources,
@@ -1677,6 +1681,7 @@ export function useGachaSimulatorController() {
     toggleTenPull,
     toggleCnOriginiteDoubleBonus,
     toggleInfiniteResources,
+    isWeaponPool,
     updateResourceSetting: adjustResourceAmount,
   };
 }

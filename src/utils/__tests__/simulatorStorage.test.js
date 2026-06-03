@@ -8,11 +8,9 @@ import {
   clearSimulatorSkipAnimationPreference,
   convertSimulatorHistoryToImportFormat,
   loadSimulatorCurrentPoolId,
-  loadSimulatorMultipleFreeTenPreference,
   loadSimulatorOriginitePromptSuppressDate,
   loadSimulatorSkipAnimationPreference,
   saveSimulatorCurrentPoolId,
-  saveSimulatorMultipleFreeTenPreference,
   saveSimulatorOriginitePromptSuppressDate,
   saveSimulatorSkipAnimationPreference,
   saveSimulatorState,
@@ -69,19 +67,23 @@ describe('simulatorStorage', () => {
 
   it('stores simulator ui preferences and originite prompt suppression separately', () => {
     saveSimulatorSkipAnimationPreference(true);
-    saveSimulatorMultipleFreeTenPreference(true);
     saveSimulatorOriginitePromptSuppressDate('2026-04-21');
 
     expect(loadSimulatorSkipAnimationPreference()).toBe(true);
-    expect(loadSimulatorMultipleFreeTenPreference()).toBe(true);
     expect(loadSimulatorOriginitePromptSuppressDate()).toBe('2026-04-21');
 
     clearSimulatorSkipAnimationPreference();
-    clearSimulatorMultipleFreeTenPreference();
     clearSimulatorOriginitePromptSuppressDate();
 
     expect(loadSimulatorSkipAnimationPreference()).toBe(false);
-    expect(loadSimulatorMultipleFreeTenPreference()).toBe(false);
     expect(loadSimulatorOriginitePromptSuppressDate()).toBeNull();
+  });
+
+  it('clears the retired repeated free ten-pull preference key', () => {
+    localStorage.setItem('simulator_multipleFreeTen', 'true');
+
+    clearSimulatorMultipleFreeTenPreference();
+
+    expect(localStorage.getItem('simulator_multipleFreeTen')).toBeNull();
   });
 });

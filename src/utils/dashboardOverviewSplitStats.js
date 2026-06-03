@@ -212,7 +212,9 @@ export function buildDashboardOverviewSplitStats({
       if (!includeFreePullsInStats && isFree) return;
 
       bucket.total += 1;
-      tempCounter += 1;
+      if (!isFree) {
+        tempCounter += 1;
+      }
       if (isTargetCapablePool(poolType)) {
         bucket._targetScopePulls += 1;
       }
@@ -246,14 +248,16 @@ export function buildDashboardOverviewSplitStats({
         }
 
         bucket._allSixStarPulls.push({
-          count: tempCounter,
+          count: isFree ? 30 : tempCounter,
           isStandard: !isTargetSixStar
         });
 
         if (isTargetSixStar) bucket._upCount += 1;
         if (isLimitedSixStar) bucket._limitedSixCount += 1;
 
-        tempCounter = 0;
+        if (!isFree) {
+          tempCounter = 0;
+        }
         return;
       }
 

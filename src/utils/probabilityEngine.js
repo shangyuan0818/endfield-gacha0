@@ -239,6 +239,208 @@ export function simulateTenPull(state, rules = LIMITED_POOL_RULES, poolType = 'l
   return results;
 }
 
+function pickClaimSlot(size) {
+  const raw = Math.floor(Math.random() * size);
+  return Math.min(Math.max(raw, 0), size - 1);
+}
+
+function applyWeaponSixStar(result, isUp, currentUpCharacter, poolCharactersList) {
+  result.rarity = 6;
+  result.isUp = isUp;
+  result.isLimited = isUp;
+  result.characterName = getCharacterName('weapon', 6, isUp, currentUpCharacter, poolCharactersList);
+  return result;
+}
+
+/**
+ * 模拟一次武库申领。
+ *
+ * 武器池按“申领”结算：每次申领获得10件武器。连续3次申领无6星时，
+ * 第4次申领保6星；连续7次申领无概率提升6星时，第8次申领保概率提升6星。
+ *
+ * @param {Object} state - 当前模拟器状态
+ * @param {Object} rules - 武器池规则
+ * @param {string} currentUpCharacter - 当前概率提升武器
+ * @param {Object} poolCharactersList - 可选：武器列表
+ * @returns {{results: Array, nextState: Object}} 申领结果和下一状态
+ */
+export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = null, poolCharactersList = null) {
+  const claimSize = Number(rules.claimSize || 10);
+  const sixStarClaimPity = Number(rules.sixStarClaimPity || Math.ceil((rules.sixStarPity || 40) / claimSize));
+  const guaranteedLimitedClaimPity = Number(
+    rules.guaranteedLimitedClaimPity || Math.ceil((rules.guaranteedLimitedPity || 80) / claimSize)
+  );
+  const sixStarBaseProbability = Number(rules.sixStarBaseProbability || 0.04);
+  const fiveStarBaseProbability = Number(rules.fiveStarBaseProbability || 0.15);
+  const upProbability = Number(rules.upProbability || 0.25);
+
+  const previousSixStarMissClaims = Math.floor(Number(state.sixStarPity || 0) / claimSize);
+  const previousUpMissClaims = Math.floor(Number(state.guaranteedLimitedPity || 0) / claimSize);
+  const hasReceivedGuaranteedLimited = Boolean(state.hasReceivedGuaranteedLimited);
+  const shouldGuaranteeSixStar = previousSixStarMissClaims >= sixStarClaimPity - 1;
+  const shouldGuaranteeUp =
+    !hasReceivedGuaranteedLimited && previousUpMissClaims >= guaranteedLimitedClaimPity - 1;
+
+  const results = [];
+  let hasSixStar = false;
+  let hasFiveStarOrAbove = false;
+  let hasTargetSixStar = false;
+
+  for (let index = 0; index < claimSize; index += 1) {
+    const totalPulls = Number(state.totalPulls || 0) + index + 1;
+
+    if (rollProbability(sixStarBaseProbability)) {
+      const isUp = rollProbability(upProbability);
+      hasSixStar = true;
+      hasFiveStarOrAbove = true;
+      if (isUp) hasTargetSixStar = true;
+      results.push({
+        rarity: 6,
+        isUp,
+        isLimited: isUp,
+        characterName: getCharacterName('weapon', 6, isUp, currentUpCharacter, poolCharactersList),
+        totalPulls
+      });
+      continue;
+    }
+
+    if (rollProbability(fiveStarBaseProbability)) {
+      hasFiveStarOrAbove = true;
+      results.push({
+        rarity: 5,
+        isUp: false,
+        isLimited: false,
+        characterName: getCharacterName('weapon', 5, false, null, poolCharactersList),
+        totalPulls
+      });
+      continue;
+    }
+
+    results.push({
+      rarity: 4,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName('weapon', 4, false, null, poolCharactersList),
+      totalPulls
+    });
+  }
+
+  if (shouldGuaranteeSixStar && !hasSixStar) {
+    const slot = pickClaimSlot(claimSize);
+    const isUp = rollProbability(upProbability);
+    applyWeaponSixStar(results[slot], isUp, currentUpCharacter, poolCharactersList);
+    hasSixStar = true;
+    hasFiveStarOrAbove = true;
+    if (isUp) hasTargetSixStar = true;
+  }
+
+  if (shouldGuaranteeUp && !hasTargetSixStar) {
+    const existingSixStarIndex = results.findIndex((result) => result.rarity === 6);
+    const slot = existingSixStarIndex >= 0 ? existingSixStarIndex : pickClaimSlot(claimSize);
+    applyWeaponSixStar(results[slot], true, currentUpCharacter, poolCharactersList);
+    hasSixStar = true;
+    hasFiveStarOrAbove = true;
+    hasTargetSixStar = true;
+  }
+
+  if (!hasFiveStarOrAbove) {
+    const slot = claimSize - 1;
+    results[slot] = {
+      ...results[slot],
+      rarity: 5,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName('weapon', 5, false, null, poolCharactersList)
+    };
+  }
+
+  const previousGuaranteedLimitedPity = Number(state.guaranteedLimitedPity || 0);
+  const nextGuaranteedLimitedPity = Math.min(
+    previousGuaranteedLimitedPity + claimSize,
+    Number(rules.guaranteedLimitedPity || 80)
+  );
+  const progressedGuaranteedLimitedPity = hasReceivedGuaranteedLimited
+    ? previousGuaranteedLimitedPity
+    : nextGuaranteedLimitedPity;
+
+  return {
+    results,
+    nextState: {
+      sixStarPity: hasSixStar
+        ? 0
+        : Math.min(Number(state.sixStarPity || 0) + claimSize, Number(rules.sixStarPity || 40)),
+      fiveStarPity: 0,
+      guaranteedLimitedPity: progressedGuaranteedLimitedPity,
+      hasReceivedGuaranteedLimited: hasReceivedGuaranteedLimited || hasTargetSixStar
+    }
+  };
+}
+
+/**
+ * 模拟角色池免费十连。
+ *
+ * 免费十连按当前卡池基础概率抽取，且十连内至少包含一个5星或以上结果；
+ * 结果不推进普通保底、目标保底或奖励进度，外部状态由调用方保持不变。
+ *
+ * @param {Object} rules - 卡池规则
+ * @param {string} poolType - 卡池类型
+ * @param {string} currentUpCharacter - 当前UP角色（可选）
+ * @param {Object} poolCharactersList - 可选：卡池角色列表
+ * @returns {Array} 免费十连结果数组
+ */
+export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 'limited', currentUpCharacter = null, poolCharactersList = null) {
+  const normalizedPoolType = poolType === 'limited_character'
+    ? 'limited'
+    : poolType === 'limited_weapon'
+      ? 'weapon'
+      : poolType;
+  const results = [];
+
+  for (let i = 0; i < 10; i += 1) {
+    if (rollProbability(rules.sixStarBaseProbability)) {
+      const isUp = normalizedPoolType === 'extra'
+        ? true
+        : rollProbability(rules.upProbability);
+      const upChar = currentUpCharacter || getCurrentUpCharacter();
+      results.push({
+        rarity: 6,
+        isUp,
+        isLimited: isUp,
+        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList)
+      });
+      continue;
+    }
+
+    if (rollProbability(rules.fiveStarBaseProbability)) {
+      results.push({
+        rarity: 5,
+        isUp: false,
+        isLimited: false,
+        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+      });
+      continue;
+    }
+
+    results.push({
+      rarity: 4,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList)
+    });
+  }
+
+  if (!results.some((result) => result.rarity >= 5)) {
+    results[results.length - 1] = {
+      rarity: 5,
+      isUp: false,
+      isLimited: false,
+      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+    };
+  }
+
+  return results;
+}
+
 /**
  * 检查是否触发120抽硬保底
  * @param {Object} state - 当前状态
@@ -366,6 +568,8 @@ export default {
   rollProbability,
   simulateSinglePull,
   simulateTenPull,
+  simulateCharacterFreeTen,
+  simulateWeaponTenClaim,
   checkGuaranteedLimitedTrigger,
   checkGiftAvailable,
   checkInfoBookAvailable,

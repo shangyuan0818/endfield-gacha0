@@ -446,6 +446,17 @@ describe('usePoolStats', () => {
         chargedPulls: 2,
       },
     });
+    expect(included.result.current.stats.pityStats.history.map(({ count }) => count)).toEqual([30, 2]);
+    expect(included.result.current.stats.pityStats.distribution[2]).toMatchObject({
+      range: '21-30',
+      count: 1,
+      limited: 1,
+    });
+    expect(included.result.current.stats.pityStats.distribution[0]).toMatchObject({
+      range: '1-10',
+      count: 1,
+      limited: 1,
+    });
   });
 
   it('includes free ten pulls in all-pool grouped stats when the toggle is enabled', () => {
@@ -506,6 +517,34 @@ describe('usePoolStats', () => {
       6: 1,
       5: 1,
       4: 1,
+    });
+  });
+
+  it('keeps limited gift rewards out of core six-star counts', () => {
+    const normalizedCurrentPoolHistory = Array.from({ length: 240 }, (_, index) => ({
+      id: `p${index + 1}`,
+      rarity: 4,
+      poolId: 'pool_limited',
+      timestamp: new Date(Date.UTC(2026, 3, 15, 10, index, 0)).toISOString(),
+      seqId: String(index + 1),
+    }));
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'pool_limited',
+        type: 'limited',
+        isGroupMode: false,
+      },
+      currentPoolId: 'pool_limited',
+    }));
+
+    expect(result.current.stats.counts[6]).toBe(0);
+    expect(result.current.stats.counts['6_std']).toBe(0);
+    expect(result.current.stats.gifts).toMatchObject({
+      count: 1,
+      limitedCount: 1,
+      standardCount: 0,
     });
   });
 });

@@ -70,14 +70,6 @@ export function clearSimulatorSkipAnimationPreference() {
   return removeStorageValue(STORAGE_KEYS.SIMULATOR_SKIP_ANIMATION, { raw: true });
 }
 
-export function loadSimulatorMultipleFreeTenPreference() {
-  return readBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, false, { raw: true });
-}
-
-export function saveSimulatorMultipleFreeTenPreference(value) {
-  return writeBooleanStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, value, { raw: true });
-}
-
 export function clearSimulatorMultipleFreeTenPreference() {
   return removeStorageValue(STORAGE_KEYS.SIMULATOR_MULTIPLE_FREE_TEN, { raw: true });
 }
@@ -651,8 +643,6 @@ export default {
   loadSimulatorSkipAnimationPreference,
   saveSimulatorSkipAnimationPreference,
   clearSimulatorSkipAnimationPreference,
-  loadSimulatorMultipleFreeTenPreference,
-  saveSimulatorMultipleFreeTenPreference,
   clearSimulatorMultipleFreeTenPreference,
   loadSimulatorOriginitePromptSuppressDate,
   saveSimulatorOriginitePromptSuppressDate,

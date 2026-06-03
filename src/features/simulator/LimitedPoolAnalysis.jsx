@@ -96,7 +96,7 @@ const WeaponGifts = ({ stats, locale, t }) => {
   );
 };
 
-const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, multipleFreeTen = false }) => {
+const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) => {
   const { t, locale } = useI18n();
   const isLimited = currentPool.type === 'limited';
   const isExtra = currentPool.type === 'extra';
@@ -113,8 +113,11 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
   const targetRateLabel = isWeapon ? t('simulator.analysis.targetRate') : t('simulator.analysis.upRate');
   const targetProbabilityFooter = targetProbabilityInfo
     ? targetProbabilityInfo.isHardGuaranteeNextPull
-      ? t('simulator.analysis.targetGuaranteed', { label: targetLabel })
-      : t('simulator.analysis.targetProbabilityDetail', {
+      ? t(
+          isWeapon ? 'simulator.analysis.targetClaimGuaranteed' : 'simulator.analysis.targetGuaranteed',
+          { label: targetLabel }
+        )
+      : t(isWeapon ? 'simulator.analysis.targetClaimProbabilityDetail' : 'simulator.analysis.targetProbabilityDetail', {
           label: targetLabel,
           current: currentTargetProbabilityPercent,
           rateLabel: targetRateLabel,
@@ -167,6 +170,12 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
   const featuredDisplay = isExtra
     ? localizedFeaturedCharacters.join(' / ')
     : localizedUpCharacter;
+  const freeTenReceived = Math.min(Number(stats.freeTenPulls?.received || 0), 1);
+  const freeTenProgress = freeTenReceived >= 1 ? 30 : Math.min(Number(stats.total || 0), 30);
+  const freeTenProgressPercent = freeTenReceived >= 1 ? 100 : Math.min((freeTenProgress / 30) * 100, 100);
+  const freeTenStatus = freeTenReceived >= 1
+    ? t('dashboard.analysis.completed')
+    : formatProgress(freeTenProgress, 30);
 
   return (
     <div className="bg-white dark:bg-endfield-dark border border-zinc-200 dark:border-endfield-border p-6 relative overflow-hidden">
@@ -286,28 +295,21 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
              <div className="bg-zinc-50 dark:bg-endfield-panel p-2 border-l-2 border-blue-500 flex flex-col gap-1">
                <div className="flex justify-between items-center">
                  <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">
-                   {multipleFreeTen ? t('simulator.analysis.repeatedFreeTen') : t('dashboard.analysis.freeTenOnce')}
+                   {t('dashboard.analysis.freeTenOnce')}
                  </span>
                  <span className="text-xs font-mono text-slate-500 dark:text-endfield-muted">
-                   {!multipleFreeTen && stats.freeTenPulls?.received >= 1
-                     ? t('dashboard.analysis.completed')
-                     : formatProgress(stats.total % 30, 30)}
+                   {freeTenStatus}
                  </span>
                </div>
                <div className="h-1 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden">
-                 <div className={`h-full ${!multipleFreeTen && stats.freeTenPulls?.received >= 1 ? 'bg-green-500' : 'bg-blue-500'}`}
-                      style={{width: `${!multipleFreeTen && stats.freeTenPulls?.received >= 1 ? 100 : ((stats.total % 30) / 30) * 100}%`}}></div>
+                 <div
+                   className={`h-full ${freeTenReceived >= 1 ? 'bg-green-500' : 'bg-blue-500'}`}
+                   style={{ width: `${freeTenProgressPercent}%` }}
+                 ></div>
                </div>
                <div className="flex justify-between items-center mt-1">
                  <span className="text-[9px] text-slate-500 dark:text-endfield-muted">{t('dashboard.analysis.notCountPity')}</span>
-                 {multipleFreeTen && stats.freeTenPulls?.count > 0 && (
-                   <span className="text-[9px] text-blue-600 dark:text-blue-400 font-bold">
-                     {t('dashboard.analysis.obtained', {
-                       count: `${formatCount(stats.freeTenPulls?.received || 0)} / ${formatCount(stats.freeTenPulls?.count || 0)}`,
-                     })}
-                   </span>
-                 )}
-                 {!multipleFreeTen && stats.freeTenPulls?.received >= 1 && (
+                 {freeTenReceived >= 1 && (
                    <span className="text-[9px] text-green-600 dark:text-green-400 font-bold">
                      {t('dashboard.analysis.completed')} ({t('simulator.analysis.oneTimeOnly')})
                    </span>
@@ -365,22 +367,23 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo, mult
            <div className="bg-zinc-50 dark:bg-endfield-panel p-2 border-l-2 border-cyan-500 flex flex-col gap-1">
              <div className="flex justify-between items-center">
                <span className="text-xs text-slate-700 dark:text-endfield-text font-bold">
-                 {multipleFreeTen ? t('simulator.analysis.repeatedFreeTen') : t('dashboard.analysis.freeTenOnce')}
+                 {t('dashboard.analysis.freeTenOnce')}
                </span>
                <span className="text-xs font-mono text-slate-500 dark:text-endfield-muted">
-                 {formatProgress(stats.total % 30, 30)}
+                 {freeTenStatus}
                </span>
              </div>
              <div className="h-1 bg-zinc-200 dark:bg-zinc-800 w-full overflow-hidden">
-               <div className="h-full bg-cyan-500" style={{ width: `${((stats.total % 30) / 30) * 100}%` }}></div>
+               <div
+                 className={`h-full ${freeTenReceived >= 1 ? 'bg-green-500' : 'bg-cyan-500'}`}
+                 style={{ width: `${freeTenProgressPercent}%` }}
+               ></div>
              </div>
              <div className="flex justify-between items-center mt-1">
                <span className="text-[9px] text-slate-500 dark:text-endfield-muted">{t('dashboard.analysis.notCountPity')}</span>
-               {stats.freeTenPulls?.count > 0 && (
-                 <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-bold">
-                   {t('dashboard.analysis.obtained', {
-                     count: `${formatCount(stats.freeTenPulls?.received || 0)} / ${formatCount(stats.freeTenPulls?.count || 0)}`,
-                   })}
+               {freeTenReceived >= 1 && (
+                 <span className="text-[9px] text-green-600 dark:text-green-400 font-bold">
+                   {t('dashboard.analysis.completed')} ({t('simulator.analysis.oneTimeOnly')})
                  </span>
                )}
              </div>

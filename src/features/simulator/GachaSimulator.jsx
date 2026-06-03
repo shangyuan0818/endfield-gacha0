@@ -44,7 +44,6 @@ const GachaSimulator = () => {
     isShareActionBusy,
     isAnimating,
     lastResults,
-    multipleFreeTen,
     pityInfoWithGuarantee,
     poolPullCounts,
     poolCharactersList,
@@ -57,7 +56,6 @@ const GachaSimulator = () => {
     shareActionFeedback,
     setDisableOriginitePromptToday,
     setLastResults,
-    setMultipleFreeTen,
     setResetAllPools,
     setResetKeepResources,
     setResetSettings,
@@ -80,6 +78,7 @@ const GachaSimulator = () => {
     disableOriginitePromptToday,
     toggleCnOriginiteDoubleBonus,
     toggleInfiniteResources,
+    isWeaponPool,
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const shareCardRef = useRef(null);
@@ -113,11 +112,8 @@ const GachaSimulator = () => {
         originiteToJadeRate={currentPullCosts.settings.originiteToJadeRate}
         onToggleCnOriginiteDoubleBonus={toggleCnOriginiteDoubleBonus}
         onToggleInfiniteResources={toggleInfiniteResources}
-        onToggleMultipleFreeTen={() => setMultipleFreeTen(!multipleFreeTen)}
         onToggleSkipAnimation={() => setSkipAnimation(!skipAnimation)}
-        poolType={simulator.poolType}
         simulatorPools={simulatorPools}
-        multipleFreeTen={multipleFreeTen}
         skipAnimation={skipAnimation}
         supportsClipboardImageCopy={supportsClipboardImageCopy}
         supportsImageShare={supportsNativeImageShare}
@@ -145,7 +141,6 @@ const GachaSimulator = () => {
             stats={dashboardStats}
             effectivePity={effectivePityObj}
             pityInfo={pityInfoWithGuarantee}
-            multipleFreeTen={multipleFreeTen}
           />
         </div>
 
@@ -223,6 +218,7 @@ const GachaSimulator = () => {
               tenCost={currentPullCosts.ten}
               availableFreePulls={availableFreePulls}
               infoBookTenPullAvailable={infoBookTenPullAvailable}
+              isWeaponPool={isWeaponPool}
             />
           </div>
         </div>

@@ -69,12 +69,8 @@ export function buildDashboardStats(stats, pityInfo, simulator, locale = getAppL
     currentPity: pityInfo.sixStar.current,
     currentPity5: pityInfo.fiveStar.current,
     counts: {
-      6: normalizedPoolType === 'weapon' && stats.gifts
-        ? stats.sixStarCount + (stats.gifts.limitedCount || 0)
-        : stats.sixStarCount,
-      '6_std': normalizedPoolType === 'weapon' && stats.gifts
-        ? (stats.gifts.standardCount || 0)
-        : 0,
+      6: stats.sixStarCount,
+      '6_std': 0,
       5: stats.fiveStarCount,
       4: Math.max(0, stats.totalPulls - stats.sixStarCount - stats.fiveStarCount)
     },
