@@ -1,5 +1,4 @@
 import { RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../constants/index.js';
-import { STANDARD_SIX_STAR_CHARACTERS } from '../constants/characterPools.js';
 import { isInfoBookHistoryPull } from './historyInfoBook.js';
 import { buildResourceSummaryFromAggregates } from './resourceEconomy.js';
 import { buildQuotaLedgerFromHistory } from './quotaEconomy.js';
@@ -29,28 +28,8 @@ function isLimitedCharacterPool(type) {
   return normalizedType === 'limited' || normalizedType === 'extra';
 }
 
-/**
- * 辉光庆典(extra)池: 按常驻名单排除法判断是否为目标限定
- * gui.cpp 标准: 池内4个六星均匀分布, 常驻名单中的不是UP
- */
-function isExtraPoolTarget(item) {
-  const name = item?.character_name || item?.item_name || item?.name || '';
-  if (!name) return false;
-  try {
-    const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
-    return !standardSet.has(name);
-  } catch {
-    // 常驻名单不可用时降级: 全部视为目标 (保守行为)
-    return true;
-  }
-}
-
 function isTargetSixStarPull(item, poolType) {
-  if (!isTargetCapablePool(poolType)) return false;
-  if (normalizePoolType(poolType) === 'extra') {
-    return isExtraPoolTarget(item);
-  }
-  return !item?.isStandard;
+  return isTargetCapablePool(poolType) && (normalizePoolType(poolType) === 'extra' || !item?.isStandard);
 }
 
 function readExplicitLimitedFlag(item) {
@@ -241,33 +220,12 @@ export function buildDashboardOverviewSplitStats({
       if (isGift) return;
 
       bucket._quotaHistory.push(item);
+      if (!includeFreePullsInStats && isFree) return;
 
       const rarity = Number(item?.rarity) || 0;
 
-      // 免费十连: 不推进 tempCounter, 六星固定归 slot=30 (gui.cpp)
-      if (isFree) {
-        // 免费十连的六星/五星出货始终计入 counts
-        if (rarity >= 6) {
-          const isTargetSixStar = isTargetSixStarPull(item, poolType);
-          if (isTargetSixStar) {
-            bucket.counts[6] += 1;
-          } else {
-            bucket.counts['6_std'] += 1;
-          }
-          bucket._allSixStarPulls.push({
-            count: 30,  // 固定归入 slot=30
-            isStandard: !isTargetSixStar
-          });
-          if (isTargetSixStar) bucket._upCount += 1;
-          // 免费十连不重置 tempCounter
-        } else if (rarity >= 5) {
-          bucket.counts[5] += 1;
-        }
-        // 免费十连不推进付费保底, 直接跳过
-        if (!includeFreePullsInStats) return;
-      }
-
       bucket.total += 1;
+      // 免费十连不推进付费保底进度 (gui.cpp §2.1.1)
       if (!isFree) tempCounter += 1;
       if (isTargetCapablePool(poolType)) {
         bucket._targetScopePulls += 1;
@@ -284,8 +242,6 @@ export function buildDashboardOverviewSplitStats({
         if (!isFree && !isInfoBookHistoryPull(item)) bucket._chargedCharacterPulls += 1;
       }
 
-      if (isFree) return;  // 免费十连已处理关键统计, 跳过后续
-
       if (rarity >= 6) {
         const isTargetSixStar = isTargetSixStarPull(item, poolType);
         const isLimitedSixStar = isLimitedCharacterPool(poolType)
@@ -301,15 +257,16 @@ export function buildDashboardOverviewSplitStats({
           bucket._arsenalGainCounts[isTargetSixStar ? 6 : '6_std'] += 1;
         }
 
+        // 免费十连六星固定归入 slot=30 且不重置保底 (gui.cpp)
         bucket._allSixStarPulls.push({
-          count: tempCounter,
+          count: isFree ? 30 : tempCounter,
           isStandard: !isTargetSixStar
         });
 
         if (isTargetSixStar) bucket._upCount += 1;
         if (isLimitedSixStar) bucket._limitedSixCount += 1;
 
-        tempCounter = 0;
+        if (!isFree) tempCounter = 0;
         return;
       }
 

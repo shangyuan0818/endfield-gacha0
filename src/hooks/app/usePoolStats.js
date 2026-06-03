@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { EXTRA_POOL_RULES, RARITY_CONFIG, LIMITED_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
-import { STANDARD_SIX_STAR_CHARACTERS } from '../../constants/characterPools.js';
 import {
   calculateCurrentProbability,
   calculatePity5FromHistory,
@@ -94,28 +93,8 @@ function isLimitedCharacterOffrate(pull) {
   return false;
 }
 
-/**
- * 辉光庆典(extra)池: 按常驻名单排除法判断是否为目标限定
- * gui.cpp 标准: 池内4个六星均匀分布, 常驻名单中的不是UP
- */
-function isExtraPoolTarget(pull) {
-  const name = pull?.character_name || pull?.item_name || pull?.name || '';
-  if (!name) return false;
-  try {
-    const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
-    return !standardSet.has(name);
-  } catch {
-    // 常驻名单不可用时降级: 全部视为目标 (保守行为)
-    return true;
-  }
-}
-
 function isTargetSixStarPull(pull, poolType) {
-  if (!isTargetCapablePool(poolType)) return false;
-  if (poolType === 'extra') {
-    return isExtraPoolTarget(pull);
-  }
-  return !pull.isStandard;
+  return isTargetCapablePool(poolType) && (poolType === 'extra' || !pull.isStandard);
 }
 
 function isLimitedSixStarPull(pull, poolType) {
@@ -123,11 +102,11 @@ function isLimitedSixStarPull(pull, poolType) {
     return false;
   }
 
-  if (poolType === 'extra') {
-    return isExtraPoolTarget(pull);
+  if (poolType === 'extra' || !pull.isStandard) {
+    return true;
   }
 
-  return !pull.isStandard || isLimitedCharacterOffrate(pull);
+  return isLimitedCharacterOffrate(pull);
 }
 
 function getHistoryRecordKey(item) {
@@ -244,10 +223,7 @@ export function usePoolStats({
         return; // 赠送不计入稀有度统计
       }
 
-      // 免费十连: 默认不计入4星(避免膨胀饼图), 但六星/五星出货始终计入
-      if (isFreePull(pull)) {
-        if (!includeFreePullsInStats && r < 5) return;
-      }
+      if (!includeFreePullsInStats && isFreePull(pull)) return; // 免费十连默认不计入稀有度统计
       const pullPoolType = getPullPoolType(pull);
 
       if (r === 6) {
