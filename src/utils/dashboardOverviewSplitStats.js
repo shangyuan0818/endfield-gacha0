@@ -36,8 +36,13 @@ function isLimitedCharacterPool(type) {
 function isExtraPoolTarget(item) {
   const name = item?.character_name || item?.item_name || item?.name || '';
   if (!name) return false;
-  const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
-  return !standardSet.has(name);
+  try {
+    const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+    return !standardSet.has(name);
+  } catch {
+    // 常驻名单不可用时降级: 全部视为目标 (保守行为)
+    return true;
+  }
 }
 
 function isTargetSixStarPull(item, poolType) {

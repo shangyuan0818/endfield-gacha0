@@ -101,8 +101,13 @@ function isLimitedCharacterOffrate(pull) {
 function isExtraPoolTarget(pull) {
   const name = pull?.character_name || pull?.item_name || pull?.name || '';
   if (!name) return false;
-  const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
-  return !standardSet.has(name);
+  try {
+    const standardSet = new Set([...STANDARD_SIX_STAR_CHARACTERS]);
+    return !standardSet.has(name);
+  } catch {
+    // 常驻名单不可用时降级: 全部视为目标 (保守行为)
+    return true;
+  }
 }
 
 function isTargetSixStarPull(pull, poolType) {
@@ -296,11 +301,6 @@ export function usePoolStats({
        }
     });
     const realTotalSix = realLimited + realStandard;
-    // gui.cpp 标准: 排除120抽硬保底强制UP (不是随机判定的结果, 不计入胜场)
-    const naturalLimited = realLimited - sparkCount;
-    const naturalTotal = naturalLimited + realStandard;
-    const winRate = naturalTotal > 0 ? (naturalLimited / naturalTotal * 100).toFixed(1) : 0;
-
     // 计算额外赠送机制（池组聚合模式下跳过，因为赠送按单池计算）
     let bonusGiftsLimited = 0;
     let bonusGiftsStandard = 0;
@@ -338,8 +338,6 @@ export function usePoolStats({
     let tempCounter = 0;
     let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
     let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
-    let targetScopeTotal = 0;
-    let limitedScopeTotal = 0;
 
     validPullsList.forEach(pull => {
       const isFree = isFreePull(pull);
@@ -349,12 +347,6 @@ export function usePoolStats({
       if (!isFree) {
         tempCounter++;
         cumulativePullCount++;
-        if (isTargetCapablePool(pullPoolType)) {
-          targetScopeTotal++;
-        }
-        if (isLimitedCharacterPool(pullPoolType)) {
-          limitedScopeTotal++;
-        }
         recordHitIntervalPull(targetSixStarIntervalTracker);
         recordHitIntervalPull(limitedSixStarIntervalTracker);
       }
@@ -415,10 +407,11 @@ export function usePoolStats({
       : '0';
 
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
-    const upHitCount = upSixStarHits.length;
-    const nonSparkUpHitCount = upSixStarHits.filter((pull) => !pull.isSpark).length;
-    const limitedSixStarHitCount = limitedSixStarHits.length;
-    const nonSparkLimitedSixStarHitCount = limitedSixStarHits.filter((pull) => !pull.isSpark).length;
+
+    // gui.cpp 标准: 排除120抽硬保底强制UP (不是随机判定的结果, 不计入胜场)
+    const naturalLimited = realLimited - sparkCount;
+    const naturalTotal = naturalLimited + realStandard;
+    const winRate = naturalTotal > 0 ? (naturalLimited / naturalTotal * 100).toFixed(1) : 0;
 
     // 使用 interval tracker 的真实命中间隔均值 (gui.cpp: sum_up/count_up)
     const avgUpSixStar = averageTrackedIntervals(targetSixStarIntervalTracker.intervals) ?? '0';

@@ -304,7 +304,7 @@ export class GachaSimulator {
     return pullRecords;
   }
 
-  finalizeTenPull(results, currentUpChar) {
+  finalizeTenPull(results, _currentUpChar) {
     const pullRecords = [];
     results.forEach((result, index) => {
       const pullNumber = this.state.totalPulls + index + 1;
