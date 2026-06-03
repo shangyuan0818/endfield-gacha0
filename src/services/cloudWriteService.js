@@ -4,6 +4,11 @@ import {
   resolveCharacterAliasMap,
   resolvePoolAliasMap,
 } from '../../shared/idAliasService.js';
+import { withAuthenticatedSupabaseRequest } from './authFetchService.js';
+
+function shouldRequireBrowserAuthToken() {
+  return typeof window !== 'undefined';
+}
 
 function resolveOwnerId(explicitUserId, currentUserId) {
   return explicitUserId || currentUserId || null;
@@ -96,9 +101,12 @@ export async function upsertPools(supabaseClient, pools, currentUserId) {
     currentUserId,
     resolveAliasValue(poolAliasMap, pool?.id || pool?.pool_id)
   ));
-  const { error } = await supabaseClient.from('pools').upsert(rows, {
-    onConflict: 'pool_id'
-  });
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabaseClient.from('pools').upsert(rows, {
+      onConflict: 'pool_id'
+    }),
+    { requireToken: shouldRequireBrowserAuthToken() }
+  );
 
   if (error) {
     throw error;
@@ -178,9 +186,12 @@ export async function upsertHistory(supabaseClient, records, currentUserId) {
     // 当前已知历史兼容项: character_id / server_id / region
     while (true) {
       // eslint-disable-next-line no-await-in-loop -- retry loop mutates pendingRows between attempts and must stay sequential
-      const { error } = await supabaseClient
-        .from('history')
-        .upsert(pendingRows, { onConflict: group.onConflict });
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabaseClient
+          .from('history')
+          .upsert(pendingRows, { onConflict: group.onConflict }),
+        { requireToken: shouldRequireBrowserAuthToken() }
+      );
 
       if (!error) {
         break;

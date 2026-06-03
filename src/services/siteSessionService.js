@@ -1,6 +1,13 @@
 import { supabase } from '../supabaseClient.js';
 import { fetchJsonWithTimeout } from './supabaseRequest.js';
 
+let cachedSiteSession = null;
+let cachedSiteSessionSyncedAt = 0;
+let pendingSiteSessionRequest = null;
+let pendingSiteSessionSyncSupabase = false;
+
+const SITE_SESSION_CACHE_MS = 15 * 1000;
+
 function buildSupabaseSessionPayload(payload) {
   const accessToken = payload?.supabase?.accessToken;
   const user = payload?.user;
@@ -30,6 +37,26 @@ export async function syncSiteSessionToSupabase(payload) {
   } catch {
     return false;
   }
+}
+
+export function clearSiteSessionCache() {
+  cachedSiteSession = null;
+  cachedSiteSessionSyncedAt = 0;
+  pendingSiteSessionRequest = null;
+  pendingSiteSessionSyncSupabase = false;
+}
+
+function getCachedSiteSession({ syncSupabase = true } = {}) {
+  if (
+    cachedSiteSession
+    && cachedSiteSession.authenticated
+    && (!syncSupabase || cachedSiteSession.supabaseSessionSynced)
+    && Date.now() - cachedSiteSessionSyncedAt < SITE_SESSION_CACHE_MS
+  ) {
+    return cachedSiteSession;
+  }
+
+  return null;
 }
 
 export async function bootstrapSiteSessionFromSupabaseToken(accessToken = '') {
@@ -85,44 +112,71 @@ export async function bootstrapSiteSessionFromSupabaseToken(accessToken = '') {
 }
 
 export async function getCurrentSiteSession({
-  syncSupabase = true,
+  syncSupabase = false,
+  useCache = false,
 } = {}) {
-  const { response, data } = await fetchJsonWithTimeout('/api/auth/session', {
-    method: 'GET',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-    },
-  }, {
-    label: 'auth-session',
-    timeoutMs: 15000,
-    retries: 0,
-  });
-
-  if (!response.ok || data?.success !== true || data?.authenticated !== true) {
-    return {
-      authenticated: false,
-      user: null,
-      profile: null,
-      identities: [],
-      supabaseSessionSynced: false,
-    };
+  if (useCache) {
+    const cached = getCachedSiteSession({ syncSupabase });
+    if (cached) {
+      return cached;
+    }
   }
 
-  const payload = data.data || {};
-  const supabaseSessionSynced = syncSupabase
-    ? await syncSiteSessionToSupabase(payload)
-    : false;
+  if (pendingSiteSessionRequest && (!syncSupabase || pendingSiteSessionSyncSupabase)) {
+    return pendingSiteSessionRequest;
+  }
 
-  return {
-    authenticated: true,
-    user: payload.user || null,
-    profile: payload.profile || null,
-    identities: Array.isArray(payload.identities) ? payload.identities : [],
-    session: payload.session || null,
-    supabase: payload.supabase || null,
-    supabaseSessionSynced,
-  };
+  pendingSiteSessionSyncSupabase = syncSupabase;
+  pendingSiteSessionRequest = (async () => {
+    const { response, data } = await fetchJsonWithTimeout('/api/auth/session', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+      },
+    }, {
+      label: 'auth-session',
+      timeoutMs: 15000,
+      retries: 0,
+    });
+
+    if (!response.ok || data?.success !== true || data?.authenticated !== true) {
+      clearSiteSessionCache();
+      return {
+        authenticated: false,
+        user: null,
+        profile: null,
+        identities: [],
+        supabaseSessionSynced: false,
+      };
+    }
+
+    const payload = data.data || {};
+    const supabaseSessionSynced = syncSupabase
+      ? await syncSiteSessionToSupabase(payload)
+      : false;
+
+    const result = {
+      authenticated: true,
+      user: payload.user || null,
+      profile: payload.profile || null,
+      identities: Array.isArray(payload.identities) ? payload.identities : [],
+      session: payload.session || null,
+      supabase: payload.supabase || null,
+      supabaseSessionSynced,
+    };
+
+    cachedSiteSession = result;
+    cachedSiteSessionSyncedAt = Date.now();
+    return result;
+  })();
+
+  try {
+    return await pendingSiteSessionRequest;
+  } finally {
+    pendingSiteSessionRequest = null;
+    pendingSiteSessionSyncSupabase = false;
+  }
 }
 
 export async function logoutSiteSession() {
@@ -141,10 +195,12 @@ export async function logoutSiteSession() {
   } catch {
     // Supabase sign-out and local state cleanup should still continue.
   }
+  clearSiteSessionCache();
 }
 
 export default {
   bootstrapSiteSessionFromSupabaseToken,
+  clearSiteSessionCache,
   getCurrentSiteSession,
   logoutSiteSession,
   syncSiteSessionToSupabase,

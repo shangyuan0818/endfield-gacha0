@@ -12,7 +12,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useCloudSync } from '../hooks/app';
 import {
   AuthRateLimitError,
+  isOAuthAccountCompletionRequired,
+  isOAuthPasswordSetupRequired,
   loadAccountSecurityState,
+  setupPasswordForOAuthAccount,
   updatePasswordWithCurrentPassword,
 } from '../services/accountSecurityService.js';
 import {
@@ -158,6 +161,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
   const [emailVerificationCode, setEmailVerificationCode] = useState('');
   const [emailVerificationCodeLoading, setEmailVerificationCodeLoading] = useState(false);
+  const [emailVerificationSendCount, setEmailVerificationSendCount] = useState(0);
+  const [emailVerificationDeferred, setEmailVerificationDeferred] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
   const [emailStatusMessage, setEmailStatusMessage] = useState('');
@@ -196,6 +201,25 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
   );
   const pendingEmailChange = user?.new_email || null;
   const passwordChangeRequired = Boolean(accountSecurityState?.passwordChangeRequired);
+  const oauthPasswordSetupRequired = isOAuthPasswordSetupRequired(accountSecurityState);
+  const oauthAccountCompletionRequired = isOAuthAccountCompletionRequired(accountSecurityState);
+  const accountCompletionSteps = useMemo(() => {
+    if (!oauthAccountCompletionRequired) {
+      return [];
+    }
+    return [
+      {
+        key: 'email',
+        done: emailVerified,
+        label: emailVerified ? t('settings.accountCompletion.emailDone') : t('settings.accountCompletion.emailTodo'),
+      },
+      {
+        key: 'password',
+        done: !oauthPasswordSetupRequired,
+        label: !oauthPasswordSetupRequired ? t('settings.accountCompletion.passwordDone') : t('settings.accountCompletion.passwordTodo'),
+      },
+    ];
+  }, [emailVerified, oauthAccountCompletionRequired, oauthPasswordSetupRequired, t]);
   const passwordChangeExpiresAt = useMemo(
     () => formatSecurityDeadline(accountSecurityState?.expiresAt, locale),
     [accountSecurityState?.expiresAt, locale]
@@ -324,7 +348,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       return;
     }
 
-    if (!currentPassword) {
+    if (!oauthPasswordSetupRequired && !currentPassword) {
       setPasswordError(t('settings.error.currentPasswordRequired'));
       return;
     }
@@ -343,11 +367,13 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     setPasswordSuccess('');
     setPasswordLoading(true);
     try {
-      const passwordResult = await updatePasswordWithCurrentPassword({
-        email: user.email,
-        currentPassword,
-        newPassword,
-      });
+      const passwordResult = oauthPasswordSetupRequired
+        ? await setupPasswordForOAuthAccount({ newPassword })
+        : await updatePasswordWithCurrentPassword({
+          email: user.email,
+          currentPassword,
+          newPassword,
+        });
       if (passwordResult?.state) {
         setAccountSecurityState(passwordResult.state);
       } else if (passwordResult?.securityStateUpdated) {
@@ -372,7 +398,11 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       } else if (isInvalidCurrentPasswordError(error)) {
         setPasswordError(t('settings.error.currentPasswordIncorrect'));
       } else {
-        setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+        setPasswordError(
+          error?.code === 'verified_email_required'
+            ? t('settings.error.verifiedEmailRequiredForPassword')
+            : error.message || t('settings.error.passwordUpdateFailed')
+        );
       }
     } finally {
       setPasswordLoading(false);
@@ -403,6 +433,10 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       const result = await requestCurrentEmailVerification({ locale });
       const status = result?.data?.status;
       setEmailVerificationCode('');
+      if (status !== 'already_verified') {
+        setEmailVerificationSendCount((prev) => prev + 1);
+        setEmailVerificationDeferred(false);
+      }
       showEmailStatus(
         status === 'already_verified'
           ? t('settings.success.emailAlreadyVerified')
@@ -433,6 +467,8 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
     try {
       await verifyCurrentEmailCode({ code });
       setEmailVerificationCode('');
+      setEmailVerificationSendCount(0);
+      setEmailVerificationDeferred(false);
       setAccountSecurityState((prev) => ({
         ...(prev || {}),
         emailVerificationRequired: false,
@@ -463,7 +499,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
       return;
     }
 
-    if (!emailCurrentPassword) {
+    if (!oauthPasswordSetupRequired && !emailCurrentPassword) {
       setEmailError(t('settings.error.currentPasswordRequired'));
       return;
     }
@@ -544,6 +580,64 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
           <div className="p-4 flex-1">
             {user ? (
               <div className="space-y-4">
+                {oauthAccountCompletionRequired && (
+                  <div className="border border-amber-300 bg-amber-50 px-3 py-3 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 rounded-sm">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-wider">
+                            {t('settings.accountCompletion.title')}
+                          </div>
+                          <div className="mt-1 text-[11px] leading-5">
+                            {t('settings.accountCompletion.desc')}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {accountCompletionSteps.map((step) => (
+                            <div
+                              key={step.key}
+                              className={`flex items-center gap-2 border px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-sm ${
+                                step.done
+                                  ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                  : 'border-amber-400/40 bg-white/70 text-amber-800 dark:bg-zinc-950/40 dark:text-amber-200'
+                              }`}
+                            >
+                              {step.done ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+                              <span>{step.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {!emailVerified && (
+                            <button
+                              type="button"
+                              onClick={() => { resetEmailModalState(); setShowEmailModal(true); }}
+                              className="flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-amber-50 dark:bg-zinc-950 dark:hover:bg-amber-900/20 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-xs font-bold tracking-wider transition-all uppercase rounded-sm"
+                            >
+                              <Mail size={14} /> {t('settings.accountCompletion.bindEmailAction')}
+                            </button>
+                          )}
+                          {oauthPasswordSetupRequired && (
+                            <button
+                              type="button"
+                              onClick={() => { resetPasswordModalState(); setShowPasswordModal(true); }}
+                              disabled={!emailVerified}
+                              className="flex items-center justify-center gap-2 px-3 py-2 bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-black disabled:text-zinc-400 border border-endfield-yellow text-xs font-bold tracking-wider transition-all uppercase rounded-sm disabled:cursor-not-allowed"
+                            >
+                              <Lock size={14} /> {t('settings.accountCompletion.setPasswordAction')}
+                            </button>
+                          )}
+                        </div>
+                        {oauthPasswordSetupRequired && !emailVerified && (
+                          <div className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                            {t('settings.accountCompletion.passwordLockedHint')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 px-3 py-3 rounded-sm space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -611,6 +705,11 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                       <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                         <KeyRound size={13} /> {t('settings.emailVerificationCode')}
                       </label>
+                      {emailVerificationSendCount > 0 && (
+                        <div className="text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                          {t('settings.emailVerificationSendCount', { count: emailVerificationSendCount })}
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
                         <input
                           type="text"
@@ -635,6 +734,21 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                       <p className="text-[10px] leading-4 text-zinc-500 dark:text-zinc-500">
                         {t('settings.emailVerificationCodeHint')}
                       </p>
+                      {emailVerificationSendCount >= 2 && !emailVerificationDeferred && (
+                        <div className="border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-500/10 px-3 py-2 text-[10px] leading-4 text-amber-800 dark:text-amber-200">
+                          <p>{t('settings.emailVerificationDeferHint')}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEmailVerificationDeferred(true);
+                              showEmailStatus(t('settings.emailVerificationDeferred'), 'success');
+                            }}
+                            className="mt-2 w-full px-3 py-2 border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-950 text-amber-800 dark:text-amber-200 font-bold uppercase tracking-wider rounded-sm hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                          >
+                            {t('settings.emailVerificationDeferAction')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -676,9 +790,11 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                           {t('settings.passwordChangeRequiredTitle')}
                         </div>
                         <div className="text-[11px] leading-5">
-                          {passwordChangeExpiresAt
-                            ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
-                            : t('settings.passwordChangeRequiredDesc')}
+                          {oauthPasswordSetupRequired
+                            ? t('settings.oauthPasswordSetupRequiredDesc')
+                            : passwordChangeExpiresAt
+                              ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
+                              : t('settings.passwordChangeRequiredDesc')}
                         </div>
                       </div>
                     </div>
@@ -690,7 +806,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     onClick={() => { resetPasswordModalState(); setShowPasswordModal(true); }}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-endfield-yellow/10 hover:bg-endfield-yellow text-amber-700 dark:text-endfield-yellow hover:text-black border border-endfield-yellow/50 text-xs font-bold tracking-wider transition-all uppercase rounded-sm"
                   >
-                    <Lock size={14} /> {t('settings.changePassword')}
+                    <Lock size={14} /> {oauthPasswordSetupRequired ? t('settings.setPassword') : t('settings.changePassword')}
                   </button>
                 </div>
               </div>
@@ -943,7 +1059,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                {t('settings.emailModalDesc')}
+                {oauthPasswordSetupRequired ? t('settings.oauthEmailSetupModalDesc') : t('settings.emailModalDesc')}
               </p>
               {emailError && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 px-3 py-2 rounded-sm text-xs flex items-start gap-2">
@@ -967,16 +1083,18 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                     className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
-                  <input
-                    type="password"
-                    value={emailCurrentPassword}
-                    onChange={(event) => setEmailCurrentPassword(event.target.value)}
-                    placeholder={t('settings.currentPasswordPlaceholder')}
-                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
-                  />
-                </div>
+                {!oauthPasswordSetupRequired && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
+                    <input
+                      type="password"
+                      value={emailCurrentPassword}
+                      onChange={(event) => setEmailCurrentPassword(event.target.value)}
+                      placeholder={t('settings.currentPasswordPlaceholder')}
+                      className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               <button
@@ -998,7 +1116,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
             <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex justify-between items-center">
               <h3 className="font-bold text-sm text-slate-700 dark:text-zinc-200 flex items-center gap-2 uppercase tracking-wide">
                 <Lock size={16} className="text-endfield-yellow" />
-                {t('settings.passwordModalTitle')}
+                {oauthPasswordSetupRequired ? t('settings.passwordSetupModalTitle') : t('settings.passwordModalTitle')}
               </h3>
               <button onClick={() => { setShowPasswordModal(false); resetPasswordModalState(); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
                 <X size={18} />
@@ -1017,16 +1135,22 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
               )}
 
               <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    placeholder={t('settings.currentPasswordPlaceholder')}
-                    className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
-                  />
-                </div>
+                {oauthPasswordSetupRequired ? (
+                  <div className="border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-800 dark:text-amber-200">
+                    {t('settings.passwordSetupVerifiedEmailHint')}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.currentPassword')}</label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      placeholder={t('settings.currentPasswordPlaceholder')}
+                      className="w-full px-3 py-2 text-sm border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 rounded-sm focus:ring-1 focus:ring-endfield-yellow focus:border-endfield-yellow outline-none transition-all font-mono"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{t('settings.newPassword')}</label>
                   <input
@@ -1057,7 +1181,7 @@ const SettingsPanel = React.memo(({ onDeleteAllData }) => {
                 disabled={passwordLoading || !!passwordSuccess}
                 className="w-full bg-endfield-yellow hover:bg-yellow-400 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 text-black disabled:text-zinc-400 font-bold uppercase tracking-wider py-2.5 text-xs rounded-sm transition-colors mt-2"
               >
-                {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : t('settings.passwordUpdateAction')}
+                {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : oauthPasswordSetupRequired ? t('settings.passwordSetupAction') : t('settings.passwordUpdateAction')}
               </button>
             </div>
           </div>

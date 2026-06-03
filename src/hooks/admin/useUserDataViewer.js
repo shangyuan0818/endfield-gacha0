@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { executeSupabaseRead } from '../../services/supabaseRequest';
 
 const USER_HISTORY_SAMPLE_LIMIT = 500;
@@ -36,19 +37,25 @@ export function useUserDataViewer(showToast) {
     try {
       const [poolsRes, historyRes] = await Promise.all([
         executeSupabaseRead(
-          () => supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+          () => withAuthenticatedSupabaseRequest(
+            () => supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+            { requireToken: true }
+          ),
           {
             label: 'loadUserData pools',
             retries: 1
           }
         ),
         executeSupabaseRead(
-          () => supabase
-            .from('history')
-            .select('*', { count: 'exact' })
-            .eq('user_id', userId)
-            .order('timestamp', { ascending: false })
-            .limit(USER_HISTORY_SAMPLE_LIMIT),
+          () => withAuthenticatedSupabaseRequest(
+            () => supabase
+              .from('history')
+              .select('*', { count: 'exact' })
+              .eq('user_id', userId)
+              .order('timestamp', { ascending: false })
+              .limit(USER_HISTORY_SAMPLE_LIMIT),
+            { requireToken: true }
+          ),
           {
             label: 'loadUserData history',
             retries: 1
@@ -140,9 +147,15 @@ export function useUserDataViewer(showToast) {
     setUserHistory([]);
 
     try {
-      const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId);
+      const { error: errHistory } = await withAuthenticatedSupabaseRequest(
+        () => supabase.from('history').delete().eq('user_id', selectedUserId),
+        { requireToken: true }
+      );
       if (errHistory) throw errHistory;
-      const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId);
+      const { error: errPools } = await withAuthenticatedSupabaseRequest(
+        () => supabase.from('pools').delete().eq('user_id', selectedUserId),
+        { requireToken: true }
+      );
       if (errPools) throw errPools;
       showToast('已清空该用户的卡池和抽卡记录', 'success');
     } catch (error) {
@@ -165,7 +178,10 @@ export function useUserDataViewer(showToast) {
     setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
 
     try {
-      const { error } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
+        { requireToken: true }
+      );
       if (error) throw error;
       showToast('已清空该卡池的抽卡记录', 'success');
     } catch (error) {
@@ -190,9 +206,15 @@ export function useUserDataViewer(showToast) {
     setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
 
     try {
-      const { error: errHistory } = await supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      const { error: errHistory } = await withAuthenticatedSupabaseRequest(
+        () => supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
+        { requireToken: true }
+      );
       if (errHistory) throw errHistory;
-      const { error: errPools } = await supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId);
+      const { error: errPools } = await withAuthenticatedSupabaseRequest(
+        () => supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
+        { requireToken: true }
+      );
       if (errPools) throw errPools;
       showToast('已删除卡池及其记录', 'success');
     } catch (error) {

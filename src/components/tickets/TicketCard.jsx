@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Clock, RefreshCw, Shield, User } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import ReplyInput from './ReplyInput';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from './constants';
@@ -39,11 +40,14 @@ export default function TicketCard({
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
-      const { data, error } = await supabase
-        .from('ticket_replies')
-        .select('*')
-        .eq('ticket_id', ticket.id)
-        .order('created_at', { ascending: true });
+      const { data, error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('ticket_replies')
+          .select('*')
+          .eq('ticket_id', ticket.id)
+          .order('created_at', { ascending: true }),
+        { requireToken: true }
+      );
 
       if (error) throw error;
 

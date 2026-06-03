@@ -44,12 +44,16 @@ export default function AuthModalView({
   emailCodeAction,
   emailCodeLoading,
   emailCodeValue,
+  emailLoginSendCount,
+  passwordResetSendCount,
   onPasswordChange,
   onAddRecoveryClaim,
   onSubmit,
   onEmailLogin,
   onEmailCodeChange,
   onEmailCodeSubmit,
+  onSkipEmailLoginCode,
+  onSkipPasswordResetEmail,
   oauthProviders,
   onOAuthLogin,
   onSubmitRecoveryRequest,
@@ -138,7 +142,7 @@ export default function AuthModalView({
               {mode === 'login'
                 ? tt('登录以同步你的抽卡数据到云端', 'Sign in to sync your pull history to the cloud.')
                 : mode === 'register'
-                  ? tt('注册后会先发送邮箱验证邮件，完成验证后即可登录并同步数据。', 'Registration sends an email confirmation first. Confirm it, then sign in and sync your data.')
+                  ? tt('注册后可以先进入网站使用；邮箱验证可稍后在设置页完成。', 'You can use the site right after registration. Email verification can be completed later in Settings.')
                   : tt(
                     '输入邮箱地址，系统会优先发送密码重置邮件。多次收不到邮件时，再提交人工恢复申请。',
                     'Enter your email address. We will send a password reset email first. Use manual recovery only if emails repeatedly do not arrive.'
@@ -587,6 +591,17 @@ export default function AuthModalView({
                       'Copy the 6-digit code from the email. You do not need to open a mail link or leave this page.'
                     )}
                   </p>
+                  <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                    {emailCodeAction === 'password_reset'
+                      ? tt(
+                        `已尝试发送 ${passwordResetSendCount || 1} 次。若仍收不到邮件，可重新发送或改用人工恢复。`,
+                        `Sent ${passwordResetSendCount || 1} time(s). If it still does not arrive, resend or use manual recovery.`
+                      )
+                      : tt(
+                        `已尝试发送 ${emailLoginSendCount || 1} 次。若仍收不到邮件，可重新发送或改用密码登录。`,
+                        `Sent ${emailLoginSendCount || 1} time(s). If it still does not arrive, resend or use password sign-in.`
+                      )}
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -612,6 +627,33 @@ export default function AuthModalView({
                     : tt('验证并登录', 'Verify')}
                 </button>
               </div>
+              {(
+                (emailCodeAction === 'password_reset' && (passwordResetSendCount || 0) >= 2)
+                || (emailCodeAction === 'email_login' && (emailLoginSendCount || 0) >= 2)
+              ) && (
+                <div className="border border-amber-200 dark:border-amber-800 bg-white/70 dark:bg-black/20 p-3 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                  <p>
+                    {emailCodeAction === 'password_reset'
+                      ? tt(
+                        '如果两次都没有收到邮件，可以暂时跳过邮件验证码，改走人工恢复。账号注册后的邮箱验证也可以稍后在设置页完成。',
+                        'If two messages did not arrive, skip the mail code for now and use manual recovery. Email verification after registration can also be completed later in Settings.'
+                      )
+                      : tt(
+                        '如果两次都没有收到邮件，可以暂时跳过邮件登录，改用邮箱密码登录。登录后仍可在设置页完成邮箱验证。',
+                        'If two messages did not arrive, skip email sign-in for now and use email plus password. You can still verify email later in Settings.'
+                      )}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={emailCodeAction === 'password_reset' ? onSkipPasswordResetEmail : onSkipEmailLoginCode}
+                    className="mt-2 min-h-[38px] w-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-zinc-950 px-3 py-2 text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200 transition-colors hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  >
+                    {emailCodeAction === 'password_reset'
+                      ? tt('收不到邮件，改用人工恢复', 'Use Manual Recovery')
+                      : tt('暂时跳过，改用密码登录', 'Use Password Sign-In')}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -654,7 +696,7 @@ export default function AuthModalView({
             ) : mode === 'register' ? (
               <>
                 <UserPlus size={20} />
-                {captchaReady === false ? tt('等待验证', 'Waiting for Verification') : tt('发送验证邮件', 'Send Verification Email')}
+                {captchaReady === false ? tt('等待验证', 'Waiting for Verification') : tt('创建账号', 'Create Account')}
               </>
             ) : resendCooldown > 0 ? (
               <>

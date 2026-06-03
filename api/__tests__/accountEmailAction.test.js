@@ -101,6 +101,9 @@ function createAdminClient({
   });
   const deliveryInsert = vi.fn(async () => ({ error: null }));
   const securityUpsert = vi.fn(async () => ({ error: null }));
+  const profileUpdate = vi.fn(() => ({
+    eq: vi.fn(async () => ({ error: null })),
+  }));
   const runtimeRow = mailRuntimeConfig
     ? {
       key: 'mail_runtime_config',
@@ -144,6 +147,12 @@ function createAdminClient({
         };
       }
 
+      if (table === 'profiles') {
+        return {
+          update: profileUpdate,
+        };
+      }
+
       if (table !== 'mail_delivery_events') {
         throw new Error(`Unexpected table: ${table}`);
       }
@@ -155,6 +164,7 @@ function createAdminClient({
     __mocks: {
       deliveryInsert,
       generateLink,
+      profileUpdate,
       securityUpsert,
     },
   };
@@ -340,6 +350,69 @@ describe('api/account-email-action handler', () => {
     expect(adapter.sentMessages[0].to).toBe('current@example.com');
     expect(adapter.sentMessages[1].to).toBe('new.user@example.com');
     expect(adminClient.__mocks.deliveryInsert).toHaveBeenCalledTimes(2);
+  }));
+
+  it('binds a site email for OAuth-only users without requiring current password', withAuthMailEnv(async () => {
+    const adminClient = createAdminClient({
+      accountSecurityState: {
+        password_change_required: true,
+        password_change_reason: 'oauth_password_setup_required',
+        email_verification_required: true,
+        email_verification_requested_at: '2026-06-12T00:00:00.000Z',
+        email_verification_verified_at: null,
+      },
+    });
+    const callerClient = createCallerClient({
+      user: {
+        id: 'user-1',
+        email: 'github.abcdef1234567890abcdef1234567890@oauth.local.invalid',
+        email_confirmed_at: '2026-06-01T00:00:00.000Z',
+      },
+    });
+    const adapter = createMailAdapter();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    mocks.createSupabaseAccessTokenClient.mockReturnValue(callerClient);
+    mocks.createMailProviderAdapter.mockReturnValue(adapter);
+
+    const req = createRequest({
+      body: {
+        action: 'change_email',
+        newEmail: 'site-user@example.com',
+        locale: 'zh-CN',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await accountEmailActionHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      data: {
+        status: 'sent',
+        nextStep: 'enter_verification_code',
+        sent: {
+          current: false,
+          new: true,
+        },
+      },
+    });
+    expect(callerClient.auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(adminClient.__mocks.generateLink).not.toHaveBeenCalled();
+    expect(adminClient.__mocks.profileUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'site-user@example.com',
+      updated_at: expect.any(String),
+    }));
+    expect(adapter.sentMessages).toHaveLength(1);
+    expect(adapter.sentMessages[0]).toMatchObject({
+      to: 'site-user@example.com',
+      templateKey: 'auth.email-verification',
+      eventType: 'email_verification',
+    });
+    expect(adapter.sentMessages[0].payload).toMatchObject({
+      verificationMode: 'account_security_state',
+      codeEntry: true,
+    });
   }));
 
   it('rejects email change when the current password is wrong', withAuthMailEnv(async () => {

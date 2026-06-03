@@ -93,6 +93,10 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     code: '',
     loading: false,
   });
+  const [emailSendAttempts, setEmailSendAttempts] = React.useState({
+    email_login: 0,
+    password_reset: 0,
+  });
   const oauthProviders = React.useMemo(() => getEnabledOAuthProviders(), []);
   const captchaAction = React.useMemo(() => {
     if (mode === 'login' && emailLoginCaptchaVisible) return 'password_reset';
@@ -160,6 +164,25 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     }
     setEmailCodeState({ action: '', email: '', code: '', loading: false });
   }, [mode, resetRecoveryRequestState]);
+
+  const incrementEmailSendAttempt = React.useCallback((action) => {
+    const normalizedAction = String(action || '').trim();
+    if (!normalizedAction) {
+      return;
+    }
+
+    setEmailSendAttempts((prev) => ({
+      ...prev,
+      [normalizedAction]: (prev[normalizedAction] || 0) + 1,
+    }));
+  }, []);
+
+  const resetEmailSendAttempts = React.useCallback(() => {
+    setEmailSendAttempts({
+      email_login: 0,
+      password_reset: 0,
+    });
+  }, []);
 
   const getLocalizedAuthError = React.useCallback((err) => {
     const rawMessage = String(err?.message || err || '').trim();
@@ -473,6 +496,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
         action: 'password_reset',
         captchaPayload,
       });
+      incrementEmailSendAttempt('password_reset');
       setForgotPasswordStatus('checked');
       setResendCooldown(60);
       setEmailCodeState({
@@ -626,6 +650,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
         action: 'email_login',
         captchaPayload,
       });
+      incrementEmailSendAttempt('email_login');
       if (['mail_unavailable', 'mail_paused', 'mail_failed_or_unavailable'].includes(result?.status)) {
         setError(tt(
           '邮件登录暂不可用，请使用密码登录或稍后再试。',
@@ -657,6 +682,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSkipEmailLoginCode = () => {
+    setEmailCodeState({ action: '', email: '', code: '', loading: false });
+    setResendCooldown(0);
+    setError('');
+    setMessage(tt(
+      '已切回密码登录。邮件登录可以之后再试；注册或登录后仍可在设置页验证邮箱。',
+      'Password sign-in is available again. You can retry email sign-in later, and verify email from Settings after signing in.'
+    ));
+  };
+
+  const handleSkipPasswordResetEmail = () => {
+    setResendCooldown(0);
+    setError('');
+    openRecoveryRequestForm('password_reset');
   };
 
   const handleEmailCodeSubmit = async () => {
@@ -892,15 +933,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess, addDurableNo
           setMessage('');
           setError('');
           setEmailCodeState({ action: '', email: '', code: '', loading: false });
+          resetEmailSendAttempts();
           resetRecoveryRequestState();
         }
         if (mode === 'login') {
           setEmailLoginCaptchaVisible(false);
           setCaptchaState(null);
           setEmailCodeState({ action: '', email: '', code: '', loading: false });
+          resetEmailSendAttempts();
         }
         handleEmailChange(event);
       }}
+      emailLoginSendCount={emailSendAttempts.email_login || 0}
+      passwordResetSendCount={emailSendAttempts.password_reset || 0}
+      onSkipEmailLoginCode={handleSkipEmailLoginCode}
+      onSkipPasswordResetEmail={handleSkipPasswordResetEmail}
       onOpenRecoveryRequest={openRecoveryRequestForm}
       onRecoveryClaimChange={handleRecoveryClaimChange}
       onRecoveryClaimedAccountCountChange={(event) => {

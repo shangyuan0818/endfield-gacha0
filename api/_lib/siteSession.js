@@ -1,4 +1,5 @@
 import { createHmac, randomBytes } from 'node:crypto';
+import { loadAuthUserById } from './authAdmin.js';
 import { resolveSupabaseUrl } from './supabaseEnv.js';
 
 const DEFAULT_SESSION_COOKIE = '__Host-eg_session';
@@ -216,6 +217,22 @@ function isSyntheticEmail(email) {
   return String(email || '').trim().toLowerCase().endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`);
 }
 
+function hasUsableEmail(profile = null, authUser = null) {
+  const email = normalizeString(profile?.email || authUser?.email || '', 320).toLowerCase();
+  return Boolean(email && !isSyntheticEmail(email));
+}
+
+function hasSitePassword(authUser = null) {
+  const encryptedPassword = normalizeString(authUser?.encrypted_password, 200);
+  const metadata = authUser?.user_metadata || authUser?.raw_user_meta_data || {};
+  return Boolean(
+    encryptedPassword
+    || metadata?.synthetic_oauth_email === false
+    || metadata?.email_bound_from_profile === true
+    || metadata?.site_password_set === true
+  );
+}
+
 function buildPublicUser({
   userId,
   profile = null,
@@ -223,9 +240,21 @@ function buildPublicUser({
   provider = '',
   emailVerified = false,
 }) {
-  const email = isSyntheticEmail(profile?.email || authUser?.email) ? null : (profile?.email || authUser?.email || null);
+  const rawEmail = profile?.email || authUser?.email || '';
+  const email = isSyntheticEmail(rawEmail) ? null : (rawEmail || null);
+  const normalizedEmail = normalizeString(email, 320).toLowerCase();
+  const normalizedAuthEmail = isSyntheticEmail(authUser?.email)
+    ? ''
+    : normalizeString(authUser?.email, 320).toLowerCase();
+  const authEmailVerified = Boolean(
+    normalizedEmail
+    && normalizedAuthEmail
+    && normalizedEmail === normalizedAuthEmail
+    && (authUser?.email_confirmed_at || authUser?.confirmed_at)
+  );
+  const effectiveEmailVerified = Boolean(email && (emailVerified || authEmailVerified));
   const username = profile?.username || authUser?.user_metadata?.username || authUser?.raw_user_meta_data?.username || 'oauth_user';
-  const verifiedAt = email && emailVerified
+  const verifiedAt = effectiveEmailVerified
     ? authUser?.email_confirmed_at || authUser?.confirmed_at || profile?.updated_at || profile?.created_at || null
     : null;
   return {
@@ -243,7 +272,7 @@ function buildPublicUser({
       username,
       display_name: username,
       site_session: true,
-      email_verified: Boolean(email && emailVerified),
+      email_verified: effectiveEmailVerified,
     },
     created_at: profile?.created_at || authUser?.created_at || null,
     updated_at: profile?.updated_at || authUser?.updated_at || null,
@@ -386,7 +415,7 @@ async function upsertOAuthProfile(adminClient, {
     profile?.displayName || profile?.username,
     `${profile?.provider || 'oauth'}_${String(userId || '').replace(/-/g, '').slice(0, 8)}`
   );
-  const email = profile?.emailVerified === true
+  const email = profile?.provider !== 'github' && profile?.emailVerified === true
     ? normalizeString(profile?.email, 320).toLowerCase() || null
     : null;
   const { data, error } = await adminClient
@@ -401,6 +430,64 @@ async function upsertOAuthProfile(adminClient, {
     })
     .select(PROFILE_FIELDS)
     .single();
+
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
+
+async function upsertOAuthSecurityState(adminClient, {
+  userId,
+  profile,
+  authUser,
+  created = false,
+}) {
+  if (!adminClient?.from || !userId) {
+    return null;
+  }
+
+  const requiresEmail = !hasUsableEmail(profile, authUser);
+  const requiresPassword = !hasSitePassword(authUser);
+  if (!requiresEmail && !requiresPassword) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const patch = {
+    user_id: userId,
+    updated_at: now,
+  };
+  if (requiresEmail) {
+    patch.email_verification_required = true;
+    patch.email_verification_reason = created
+      ? 'oauth_email_setup_required'
+      : 'oauth_email_setup_required_existing';
+    patch.email_verification_requested_at = now;
+    patch.email_verification_token_hash = null;
+    patch.email_verification_token_expires_at = null;
+    patch.email_verification_code_hash = null;
+    patch.email_verification_code_expires_at = null;
+  }
+  if (requiresPassword) {
+    patch.password_change_required = true;
+    patch.password_change_reason = created
+      ? 'oauth_password_setup_required'
+      : 'oauth_password_setup_required_existing';
+    patch.password_change_source = 'oauth';
+    patch.password_change_requested_at = now;
+    patch.password_change_expires_at = null;
+    patch.password_change_recovery_request_id = null;
+    patch.password_change_set_by = null;
+  }
+
+  const { data, error } = await adminClient
+    .from('account_security_states')
+    .upsert(patch, {
+      onConflict: 'user_id',
+    })
+    .select('*')
+    .maybeSingle();
 
   if (error) {
     throw error;
@@ -523,13 +610,15 @@ async function createOAuthAuthUser(adminClient, {
 
 function sanitizeIdentityMetadata(profile) {
   const metadata = profile?.metadata && typeof profile.metadata === 'object' ? profile.metadata : {};
+  const ignoresProviderEmail = profile?.provider === 'github';
   return {
     usernamePresent: Boolean(profile?.username),
-    emailPresent: Boolean(profile?.email),
+    emailPresent: ignoresProviderEmail ? false : Boolean(profile?.email),
     avatarPresent: Boolean(profile?.avatarUrl),
     active: metadata.active === true ? true : metadata.active === false ? false : null,
     trustLevel: Number.isFinite(Number(metadata.trustLevel)) ? Number(metadata.trustLevel) : null,
     profileUrlPresent: Boolean(metadata.profileUrl),
+    providerEmailIgnoredForSiteAuth: ignoresProviderEmail || metadata.emailIgnored === true,
   };
 }
 
@@ -540,7 +629,9 @@ async function upsertOAuthIdentity(adminClient, {
   profileHash,
   secret,
 }) {
-  const email = normalizeString(profile?.email, 320).toLowerCase();
+  const email = profile?.provider === 'github'
+    ? ''
+    : normalizeString(profile?.email, 320).toLowerCase();
   const { data, error } = await adminClient
     .from('app_auth_identities')
     .upsert({
@@ -550,9 +641,10 @@ async function upsertOAuthIdentity(adminClient, {
       display_name: normalizeString(profile.displayName || profile.username, 120) || null,
       avatar_url: normalizeString(profile.avatarUrl, 500) || null,
       email_hash: email ? hmacHex(`email:${email}`, secret) : null,
-      email_verified: profile.emailVerified === true,
+      email_verified: profile?.provider === 'github' ? false : profile.emailVerified === true,
       raw_profile_hash: profileHash || null,
       last_used_at: new Date().toISOString(),
+      disabled_at: null,
       metadata_redacted_json: sanitizeIdentityMetadata(profile),
     }, {
       onConflict: 'provider,provider_subject_hash',
@@ -581,6 +673,33 @@ async function resolveOAuthIdentity(adminClient, {
     throw error;
   }
   return data || null;
+}
+
+async function loadSiteIdentityById(adminClient, identityId) {
+  const normalizedId = normalizeString(identityId, 80);
+  if (!normalizedId) {
+    return null;
+  }
+  const { data, error } = await adminClient
+    .from('app_auth_identities')
+    .select('*')
+    .eq('id', normalizedId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  return data || null;
+}
+
+async function countActiveOAuthIdentities(adminClient, userId, {
+  excludeIdentityId = '',
+} = {}) {
+  const identities = await loadSiteAuthIdentities(adminClient, {
+    userId,
+  });
+  const excludedId = normalizeString(excludeIdentityId, 80);
+  return identities.filter((identity) => identity.id !== excludedId).length;
 }
 
 export async function createSiteSession(adminClient, {
@@ -706,6 +825,7 @@ export async function loadSiteSession(adminClient, {
 
   const now = new Date();
   const profile = await loadProfile(adminClient, sessionRow.user_id);
+  const authUser = await loadAuthUserById(adminClient, sessionRow.user_id).catch(() => null);
   const identities = await loadSiteAuthIdentities(adminClient, {
     userId: sessionRow.user_id,
   });
@@ -741,6 +861,7 @@ export async function loadSiteSession(adminClient, {
     user: buildPublicUser({
       userId: sessionRow.user_id,
       profile,
+      authUser,
       provider: 'site_session',
       emailVerified: hasVerifiedProviderEmail,
     }),
@@ -856,11 +977,14 @@ export async function createOrLinkOAuthUserAndSession(adminClient, {
       userId: identity.user_id,
       provider: profile.provider,
       eventType: 'oauth_callback',
-      outcome: 'identity_disabled',
+      outcome: 'identity_unlinked',
       req,
       secret,
+      metadata: {
+        identityId: identity.id || null,
+      },
     });
-    return { ok: false, code: 'oauth_identity_disabled' };
+    return { ok: false, code: 'oauth_identity_unlinked' };
   }
 
   if (!identity?.user_id) {
@@ -887,9 +1011,18 @@ export async function createOrLinkOAuthUserAndSession(adminClient, {
   }
 
   const userId = identity?.user_id || authUser?.id;
+  if (!authUser && userId) {
+    authUser = await loadAuthUserById(adminClient, userId);
+  }
   const profileRow = created
     ? await upsertOAuthProfile(adminClient, { userId, profile })
     : await loadProfile(adminClient, userId);
+  await upsertOAuthSecurityState(adminClient, {
+    userId,
+    profile: profileRow,
+    authUser,
+    created,
+  });
 
   const sessionResult = await createSiteSession(adminClient, {
     userId,
@@ -939,10 +1072,198 @@ export async function createOrLinkOAuthUserAndSession(adminClient, {
   };
 }
 
+export async function linkOAuthIdentityToSiteSession(adminClient, {
+  profile,
+  subjectHash,
+  profileHash,
+  req,
+  env = readEnvironment(),
+  secret = getSiteSessionSecret(env),
+} = {}) {
+  if (!adminClient?.from) {
+    return { ok: false, code: 'admin_client_unavailable' };
+  }
+  if (!secret) {
+    return { ok: false, code: 'site_session_secret_missing' };
+  }
+  if (!profile?.provider || !subjectHash) {
+    return { ok: false, code: 'oauth_identity_invalid' };
+  }
+
+  const sessionResult = await loadSiteSession(adminClient, {
+    req,
+    env,
+    touch: true,
+  }).catch((error) => ({
+    ok: false,
+    authenticated: false,
+    code: error?.code || 'site_session_lookup_failed',
+    reason: error?.message,
+  }));
+
+  if (!sessionResult?.authenticated || !sessionResult.user?.id) {
+    await persistAuthAudit(adminClient, {
+      provider: profile.provider,
+      eventType: 'oauth_identity_link',
+      outcome: 'site_session_required',
+      req,
+      secret,
+    });
+    return { ok: false, code: 'site_session_required' };
+  }
+
+  const existingIdentity = await resolveOAuthIdentity(adminClient, {
+    provider: profile.provider,
+    subjectHash,
+  });
+
+  if (existingIdentity?.user_id && existingIdentity.user_id !== sessionResult.user.id) {
+    await persistAuthAudit(adminClient, {
+      userId: sessionResult.user.id,
+      provider: profile.provider,
+      eventType: 'oauth_identity_link',
+      outcome: 'identity_already_linked',
+      req,
+      secret,
+      metadata: {
+        identityId: existingIdentity.id || null,
+      },
+    });
+    return { ok: false, code: 'oauth_identity_already_linked' };
+  }
+
+  const identity = await upsertOAuthIdentity(adminClient, {
+    userId: sessionResult.user.id,
+    profile,
+    subjectHash,
+    profileHash,
+    secret,
+  });
+
+  await persistAuthAudit(adminClient, {
+    userId: sessionResult.user.id,
+    provider: profile.provider,
+    eventType: 'oauth_identity_link',
+    outcome: existingIdentity?.disabled_at ? 'relinked' : 'linked',
+    req,
+    secret,
+    metadata: {
+      identityId: identity?.id || null,
+    },
+  });
+
+  return {
+    ok: true,
+    identity: toClientSiteIdentity(identity),
+    user: sessionResult.user,
+  };
+}
+
+export async function unlinkSiteAuthIdentity(adminClient, {
+  identityId,
+  req,
+  env = readEnvironment(),
+  secret = getSiteSessionSecret(env),
+} = {}) {
+  if (!adminClient?.from) {
+    return { ok: false, code: 'admin_client_unavailable' };
+  }
+  if (!secret) {
+    return { ok: false, code: 'site_session_secret_missing' };
+  }
+
+  const sessionResult = await loadSiteSession(adminClient, {
+    req,
+    env,
+    touch: true,
+  }).catch((error) => ({
+    ok: false,
+    authenticated: false,
+    code: error?.code || 'site_session_lookup_failed',
+    reason: error?.message,
+  }));
+
+  if (!sessionResult?.authenticated || !sessionResult.user?.id) {
+    return { ok: false, code: 'site_session_required' };
+  }
+
+  const identity = await loadSiteIdentityById(adminClient, identityId);
+  if (!identity?.id || identity.disabled_at) {
+    return { ok: false, code: 'oauth_identity_not_found' };
+  }
+  if (identity.user_id !== sessionResult.user.id) {
+    await persistAuthAudit(adminClient, {
+      userId: sessionResult.user.id,
+      provider: identity.provider || null,
+      eventType: 'oauth_identity_unlink',
+      outcome: 'identity_forbidden',
+      req,
+      secret,
+      metadata: {
+        identityId: identity.id,
+      },
+    });
+    return { ok: false, code: 'oauth_identity_forbidden' };
+  }
+
+  const remainingOAuthCount = await countActiveOAuthIdentities(adminClient, sessionResult.user.id, {
+    excludeIdentityId: identity.id,
+  });
+  const profile = sessionResult.profile || await loadProfile(adminClient, sessionResult.user.id);
+  if (remainingOAuthCount < 1 && !hasUsableEmail(profile, sessionResult.user)) {
+    await persistAuthAudit(adminClient, {
+      userId: sessionResult.user.id,
+      provider: identity.provider || null,
+      eventType: 'oauth_identity_unlink',
+      outcome: 'last_login_method_blocked',
+      req,
+      secret,
+      metadata: {
+        identityId: identity.id,
+      },
+    });
+    return { ok: false, code: 'oauth_last_login_method' };
+  }
+
+  const { data, error } = await adminClient
+    .from('app_auth_identities')
+    .update({
+      disabled_at: new Date().toISOString(),
+      last_used_at: new Date().toISOString(),
+    })
+    .eq('id', identity.id)
+    .eq('user_id', sessionResult.user.id)
+    .is('disabled_at', null)
+    .select('*')
+    .single();
+
+  if (error) {
+    return { ok: false, code: error.code || 'oauth_identity_unlink_failed', reason: error.message };
+  }
+
+  await persistAuthAudit(adminClient, {
+    userId: sessionResult.user.id,
+    provider: identity.provider || null,
+    eventType: 'oauth_identity_unlink',
+    outcome: 'success',
+    req,
+    secret,
+    metadata: {
+      identityId: identity.id,
+    },
+  });
+
+  return {
+    ok: true,
+    identity: toClientSiteIdentity(data),
+  };
+}
+
 export default {
   appendSetCookieHeader,
   buildSyntheticOAuthEmail,
   clearSiteSessionCookies,
+  linkOAuthIdentityToSiteSession,
   createOrLinkOAuthUserAndSession,
   createSiteSession,
   createSupabaseCompatAccessToken,
@@ -954,4 +1275,5 @@ export default {
   parseCookieHeader,
   revokeSiteSession,
   serializeCookie,
+  unlinkSiteAuthIdentity,
 };

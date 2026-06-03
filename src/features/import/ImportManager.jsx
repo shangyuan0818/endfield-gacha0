@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle, User, Cloud, CloudOff, Layers, Clock } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
 import { supabase } from '../../supabaseClient';
@@ -11,6 +12,11 @@ import {
 import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
 import { useCloudSync } from '../../hooks';
 import { upsertHistory, upsertPools } from '../../services/cloudWriteService.js';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
+import {
+  isOAuthAccountCompletionRequired,
+  loadAccountSecurityState,
+} from '../../services/accountSecurityService.js';
 import {
   filterImportedHistoryRecords,
   prepareOfficialImportPersistenceData,
@@ -111,12 +117,14 @@ function getSyncStatusDetail(syncStatus, t) {
  */
 export default function ImportManager({ isOpen, onClose, onImportComplete, onOpenFileImport }) {
   const { t, locale, formatNumber, formatDateTime } = useI18n();
+  const navigate = useNavigate();
   const [importStatus, setImportStatus] = useState(ImportStatus.IDLE);
   const [importResult, setImportResult] = useState(null);
   const [showGuide, setShowGuide] = useState(false);
   const [saveProgress, setSaveProgress] = useState({ current: 0, total: 0 });
   const [errorMessage, setErrorMessage] = useState('');
   const [fetchStatus, setFetchStatus] = useState('idle'); // 追踪子组件的获取状态
+  const [accountSecuritySnapshot, setAccountSecuritySnapshot] = useState(null);
 
   // 从 stores 获取数据
   const user = useAuthStore(state => state.user);
@@ -127,6 +135,44 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
   const switchGameAccount = usePoolStore(state => state.switchGameAccount);
   const setHistory = useHistoryStore(state => state.setHistory);
   const { loadCloudData } = useCloudSync({ showToast: () => {} });
+  const accountSecurityState = accountSecuritySnapshot?.userId === user?.id
+    ? accountSecuritySnapshot.state
+    : null;
+  const officialImportBlocked = Boolean(
+    isOpen
+    && user
+    && isOAuthAccountCompletionRequired(accountSecurityState)
+  );
+
+  useEffect(() => {
+    if (!isOpen || !user?.id) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const targetUserId = user.id;
+    loadAccountSecurityState()
+      .then((state) => {
+        if (!cancelled) {
+          setAccountSecuritySnapshot({
+            userId: targetUserId,
+            state: state || null,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAccountSecuritySnapshot({
+            userId: targetUserId,
+            state: null,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, user?.id]);
 
   // 处理子组件的获取状态变化
   const handleFetchStatusChange = useCallback((status) => {
@@ -205,7 +251,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
       query = query.eq('game_uid', gameUid);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await withAuthenticatedSupabaseRequest(
+      () => query,
+      { requireToken: true }
+    );
 
     if (error) {
       appLogger.error('[ImportManager] 查询已有记录失败:', error);
@@ -391,6 +440,11 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
     onClose();
   }, [handleReset, onClose]);
 
+  const handleOpenSettings = useCallback(() => {
+    handleClose();
+    navigate('/settings');
+  }, [handleClose, navigate]);
+
   const handleViewImportedData = useCallback(() => {
     if (importResult?.userInfo?.gameUid || importResult?.userInfo?.hgUid) {
       switchGameAccount(importResult.userInfo.gameUid || importResult.userInfo.hgUid);
@@ -506,6 +560,19 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
               </div>
               <p className="text-slate-600 dark:text-zinc-400 text-xs">
                 {t('import.needLoginDesc')}
+              </p>
+            </div>
+          )}
+
+          {/* 导入说明 */}
+          {officialImportBlocked && (
+            <div className="mb-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 p-4 transition-colors" style={{ clipPath: 'polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%)' }}>
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+                <AlertCircle className="w-5 h-5" />
+                <span className="font-bold tracking-widest uppercase">{t('import.accountCompletionRequiredTitle')}</span>
+              </div>
+              <p className="text-slate-600 dark:text-zinc-400 text-xs leading-5">
+                {t('import.accountCompletionRequiredDesc')}
               </p>
             </div>
           )}
@@ -722,6 +789,8 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
               onOpenFileImport={onOpenFileImport}
               onFetchStatusChange={handleFetchStatusChange}
               userId={user.id}
+              accountCompletionRequired={officialImportBlocked}
+              onOpenSettings={handleOpenSettings}
             />
           )}
         </div>

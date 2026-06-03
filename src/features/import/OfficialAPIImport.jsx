@@ -7,7 +7,9 @@ export default function OfficialAPIImport({
   onBack: _onBack,
   onOpenFileImport,
   onFetchStatusChange,
-  userId
+  userId,
+  accountCompletionRequired = false,
+  onOpenSettings,
 }) {
   const [source, setSource] = useState('cn');
 
@@ -71,6 +73,7 @@ export default function OfficialAPIImport({
       clipboardState={clipboardState}
       importMode={importMode}
       backendImportAvailable={Boolean(userId)}
+      accountCompletionRequired={accountCompletionRequired}
       error={error}
       importSummary={importSummary}
       userInfo={userInfo}
@@ -79,6 +82,7 @@ export default function OfficialAPIImport({
       onClipboardRead={handleClipboardRead}
       onImportModeChange={setImportMode}
       onStartImport={handleImport}
+      onOpenSettings={onOpenSettings}
       onOpenFileImport={onOpenFileImport}
       onSelectAccount={handleAccountSelect}
       onCancel={handleCancel}

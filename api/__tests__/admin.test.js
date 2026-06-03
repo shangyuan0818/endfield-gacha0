@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getBearerToken: vi.fn(() => 'token'),
   createSupabaseAccessTokenClient: vi.fn(),
   getSupabaseAnonServerClient: vi.fn(),
+  findAuthUserByEmail: vi.fn(),
   listMergedAdminUsers: vi.fn(),
   parseRequestedJobIds: vi.fn(() => ['official-announcements']),
   runOpsAutomationJobs: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('../_lib/authAdmin.js', () => ({
   getBearerToken: mocks.getBearerToken,
   createSupabaseAccessTokenClient: mocks.createSupabaseAccessTokenClient,
   getSupabaseAnonServerClient: mocks.getSupabaseAnonServerClient,
+  findAuthUserByEmail: mocks.findAuthUserByEmail,
   listMergedAdminUsers: mocks.listMergedAdminUsers,
 }));
 
@@ -90,15 +92,24 @@ function createJsonResponseRecorder() {
   };
 }
 
-function createProfilesQuery(role = 'super_admin') {
+function createProfilesQuery(role = 'super_admin', profilesById = {}) {
   return {
     select: vi.fn(() => ({
-      eq: vi.fn(() => ({
-        single: vi.fn(async () => ({
-          data: { id: 'super-admin-id', role },
-          error: null,
-        })),
-      })),
+      eq: vi.fn((field, value) => {
+        const row = field === 'id' && value !== 'super-admin-id'
+          ? profilesById[value] || null
+          : { id: 'super-admin-id', role };
+        return {
+          maybeSingle: vi.fn(async () => ({
+            data: row,
+            error: null,
+          })),
+          single: vi.fn(async () => ({
+            data: row,
+            error: null,
+          })),
+        };
+      }),
     })),
   };
 }
@@ -642,6 +653,7 @@ describe('api/admin handler', () => {
         })),
       },
     });
+    mocks.findAuthUserByEmail.mockResolvedValue(null);
   });
 
   it('returns merged users for the users route', async () => {
@@ -717,6 +729,142 @@ describe('api/admin handler', () => {
     });
   });
 
+  it('syncs a synthetic OAuth auth email from the profile when issuing a temporary password', async () => {
+    const targetProfile = {
+      id: 'target-user-id',
+      email: 'github-user@example.com',
+    };
+    const adminClient = {
+      from: vi.fn((table) => {
+        if (table === 'profiles') {
+          return createProfilesQuery('super_admin', {
+            'target-user-id': targetProfile,
+          });
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: {
+              user: {
+                id: 'target-user-id',
+                email: 'github.abcdef1234567890@oauth.local.invalid',
+                user_metadata: {
+                  synthetic_oauth_email: true,
+                  auth_provider: 'github',
+                  username: 'github-user',
+                },
+              },
+            },
+            error: null,
+          })),
+          listUsers: vi.fn(async () => ({
+            data: { users: [] },
+            error: null,
+          })),
+          updateUserById: vi.fn(async () => ({ error: null })),
+        },
+      },
+    };
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin-user-reset-password',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        userId: 'target-user-id',
+        temporaryPassword: 'TempPass123',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.findAuthUserByEmail).toHaveBeenCalledWith(adminClient, 'github-user@example.com');
+    expect(adminClient.auth.admin.updateUserById).toHaveBeenCalledWith('target-user-id', {
+      password: 'TempPass123',
+      email: 'github-user@example.com',
+      email_confirm: true,
+      user_metadata: {
+        synthetic_oauth_email: false,
+        auth_provider: 'github',
+        username: 'github-user',
+        email_bound_from_profile: true,
+      },
+    });
+    expect(res.body).toEqual({
+      success: true,
+      userId: 'target-user-id',
+      emailSynced: true,
+    });
+  });
+
+  it('rejects temporary password email sync when the profile email belongs to another auth account', async () => {
+    const adminClient = {
+      from: vi.fn((table) => {
+        if (table === 'profiles') {
+          return createProfilesQuery('super_admin', {
+            'target-user-id': {
+              id: 'target-user-id',
+              email: 'github-user@example.com',
+            },
+          });
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: {
+              user: {
+                id: 'target-user-id',
+                email: 'github.abcdef1234567890@oauth.local.invalid',
+                user_metadata: {
+                  synthetic_oauth_email: true,
+                },
+              },
+            },
+            error: null,
+          })),
+          listUsers: vi.fn(async () => ({
+            data: { users: [] },
+            error: null,
+          })),
+          updateUserById: vi.fn(async () => ({ error: null })),
+        },
+      },
+    };
+    mocks.findAuthUserByEmail.mockResolvedValue({
+      id: 'other-user-id',
+      email: 'github-user@example.com',
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'POST',
+      url: 'https://example.com/api/admin-user-reset-password',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        userId: 'target-user-id',
+        temporaryPassword: 'TempPass123',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(409);
+    expect(adminClient.auth.admin.updateUserById).not.toHaveBeenCalled();
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Profile email is already used by another auth account',
+      code: 'auth_email_already_used',
+    });
+  });
+
   it('rejects a too-simple temporary password from the admin reset route', async () => {
     const adminClient = createAdminClient();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
@@ -766,6 +914,7 @@ describe('api/admin handler', () => {
     expect(res.body).toEqual({
       success: true,
       userId: 'target-user-id',
+      emailSynced: false,
     });
   });
 
