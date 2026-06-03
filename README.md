@@ -26,11 +26,12 @@
 git clone https://github.com/MoguJunn/endfield-gacha.git
 cd gacha-analyzer
 npm install
-cp .env.example .env
+cp .env.contributor.example .env.local
 npm run dev
 ```
 
 Node.js 需要 `>=22.17.0 <27`，npm 建议使用仓库锁定的 `npm@11.2.0`。
+外部贡献者默认使用 `.env.contributor.example`，只包含公开读取所需变量；维护者调试后台、邮件、BOT 或自动化时再使用 `.env.example` 补齐服务端密钥。
 
 ## 常用验证
 

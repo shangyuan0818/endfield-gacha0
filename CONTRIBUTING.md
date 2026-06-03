@@ -8,6 +8,16 @@
 - 触及公开页面、统计、导入、缓存、自动化或部署配置时，优先对齐现有代码和文档边界。
 - 不要提交秘密、真实 token、生产数据库连接串、私有后端地址或临时调试账号。
 
+## 本地环境
+
+外部贡献者请复制安全模板：
+
+```bash
+cp .env.contributor.example .env.local
+```
+
+该模板只包含浏览器端公开变量。`VITE_SUPABASE_PUBLISHABLE_KEY` 需要由维护者提供低权限公开 key，或改用贡献者自己的本地 Supabase。不要把 service role、JWT secret、SMTP 密码、OAuth Client Secret、BOT token、Cron secret 或 CAPTCHA secret 写入 `.env.local` 后提交。
+
 ## 最低验证
 
 公开主链改动建议至少跑：
