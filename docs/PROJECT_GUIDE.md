@@ -14,11 +14,11 @@
 
 ```bash
 npm install
-cp .env.example .env
+cp .env.contributor.example .env.local
 npm run dev
 ```
 
-私有代理和旧后端不在公开仓库内。`npm run dev:backend*`、`npm run test:harness` 在缺少私有目录时会安全退出。
+外部贡献者默认使用 `.env.contributor.example`：它只包含公开读取和前端 UI 所需的 `VITE_*` 变量，不能用于后台、邮件、BOT、运营自动化或服务端写入任务。维护者需要调试完整服务端链路时，再从 `.env.example` 复制到本地私有 `.env.local` 并补齐服务端密钥。私有代理和旧后端不在公开仓库内。`npm run dev:backend*`、`npm run test:harness` 在缺少私有目录时会安全退出。
 
 ## 验证矩阵
 
@@ -41,6 +41,16 @@ npm run dev
 | `npm run test:official-announcements-feed` | 官方公告 feed |
 
 ## 环境变量
+
+贡献者安全模板：
+
+```bash
+cp .env.contributor.example .env.local
+```
+
+这个模板只允许填写浏览器端可公开变量，例如 `VITE_SUPABASE_URL`、`VITE_SUPABASE_PUBLISHABLE_KEY`、`VITE_APP_URL` 和前端功能开关。`VITE_SUPABASE_PUBLISHABLE_KEY` 可以出现在浏览器中，但必须是受 RLS 限制的低权限公开 key。不要把 `SUPABASE_SECRET_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`SUPABASE_JWT_SECRET`、SMTP 密码、OAuth Client Secret、BOT token、Cron secret 或 CAPTCHA secret 交给外部贡献者。
+
+维护者完整模板：
 
 ```env
 # Supabase
