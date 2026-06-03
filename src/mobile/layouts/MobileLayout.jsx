@@ -39,7 +39,7 @@ function MobileRouteFallback({ label }) {
 /**
  * 移动端主布局 (重构版)
  */
-function MobileLayout() {
+function MobileLayout({ onOAuthSessionSynced }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, userRole, authResolved, showAuthModal, closeAuthModal, setUser } = useAuthStore();
@@ -59,7 +59,12 @@ function MobileLayout() {
     clearRead: clearReadDurableNotifications,
   } = useDurableNotifications();
   useScrollToHighlight();
-  useOAuthCallbackNotice({ location, navigate, addDurableNotification });
+  useOAuthCallbackNotice({
+    location,
+    navigate,
+    addDurableNotification,
+    onSessionSynced: onOAuthSessionSynced,
+  });
 
   useEffect(() => {
     if (activeTab === 'home' && !isHomeSubpage && location.pathname !== getMobilePathForTab('home')) {

@@ -4,6 +4,7 @@ import {
   rejectDisallowedBrowserOrigin,
 } from '../../_lib/http.js';
 import {
+  findAuthUserByEmail,
   getSupabaseAdminClient,
   listMergedAdminUsers,
 } from '../../_lib/authAdmin.js';
@@ -49,6 +50,101 @@ const PASSWORD_RESET_LIMIT = {
   windowMs: 10 * 60 * 1000,
   max: 20,
 };
+const SYNTHETIC_OAUTH_EMAIL_SUFFIX = '@oauth.local.invalid';
+
+function normalizeAuthEmail(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized || normalized.length > 320) {
+    return '';
+  }
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) ? normalized : '';
+}
+
+function isSyntheticOAuthAuthUser(authUser) {
+  const email = String(authUser?.email || '').trim().toLowerCase();
+  const metadata = authUser?.user_metadata || authUser?.raw_user_meta_data || {};
+  return email.endsWith(SYNTHETIC_OAUTH_EMAIL_SUFFIX)
+    || metadata?.synthetic_oauth_email === true;
+}
+
+async function loadAdminAuthUser(adminClient, userId) {
+  const getUserById = adminClient?.auth?.admin?.getUserById;
+  if (typeof getUserById !== 'function') {
+    return null;
+  }
+
+  const { data, error } = await getUserById.call(adminClient.auth.admin, userId);
+  if (error) {
+    throw error;
+  }
+  return data?.user || data || null;
+}
+
+async function loadProfileEmailForAuthSync(adminClient, userId) {
+  const query = adminClient
+    .from('profiles')
+    .select('id, email')
+    .eq('id', userId);
+
+  const { data, error } = typeof query.maybeSingle === 'function'
+    ? await query.maybeSingle()
+    : await query.single();
+
+  if (error) {
+    throw error;
+  }
+  return normalizeAuthEmail(data?.email);
+}
+
+async function buildTemporaryPasswordAuthUpdate(adminClient, userId, temporaryPassword) {
+  const payload = {
+    password: temporaryPassword,
+  };
+  const authUser = await loadAdminAuthUser(adminClient, userId);
+  if (!isSyntheticOAuthAuthUser(authUser)) {
+    return {
+      payload,
+      emailSynced: false,
+      email: null,
+    };
+  }
+
+  const profileEmail = await loadProfileEmailForAuthSync(adminClient, userId);
+  if (!profileEmail) {
+    return {
+      payload,
+      emailSynced: false,
+      email: null,
+    };
+  }
+
+  if (typeof adminClient?.auth?.admin?.listUsers === 'function') {
+    const existingAuthUser = await findAuthUserByEmail(adminClient, profileEmail);
+    if (existingAuthUser?.id && existingAuthUser.id !== userId) {
+      const error = new Error('Profile email is already used by another auth account');
+      error.status = 409;
+      error.code = 'auth_email_already_used';
+      throw error;
+    }
+  }
+
+  const metadata = {
+    ...(authUser?.user_metadata || authUser?.raw_user_meta_data || {}),
+    synthetic_oauth_email: false,
+    email_bound_from_profile: true,
+  };
+
+  return {
+    payload: {
+      ...payload,
+      email: profileEmail,
+      email_confirm: true,
+      user_metadata: metadata,
+    },
+    emailSynced: true,
+    email: profileEmail,
+  };
+}
 
 function getTemporaryPasswordError(password) {
   const validation = validateAccountPassword(password);
@@ -326,9 +422,15 @@ async function handleUserResetPassword(req, res, adminClient) {
   }
 
   try {
-    const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(normalizedUserId, {
-      password: normalizedPassword,
-    });
+    const authUpdate = await buildTemporaryPasswordAuthUpdate(
+      adminClient,
+      normalizedUserId,
+      normalizedPassword
+    );
+    const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(
+      normalizedUserId,
+      authUpdate.payload
+    );
 
     if (updateAuthError) {
       throw updateAuthError;
@@ -337,11 +439,13 @@ async function handleUserResetPassword(req, res, adminClient) {
     return res.status(200).json({
       success: true,
       userId: normalizedUserId,
+      emailSynced: authUpdate.emailSynced,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(error?.status || 500).json({
       success: false,
       error: error?.message || 'Failed to reset user password',
+      code: error?.code || undefined,
     });
   }
 }
@@ -435,9 +539,15 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
       });
     }
 
-    const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(normalizedUserId, {
-      password: normalizedPassword,
-    });
+    const authUpdate = await buildTemporaryPasswordAuthUpdate(
+      adminClient,
+      normalizedUserId,
+      normalizedPassword
+    );
+    const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(
+      normalizedUserId,
+      authUpdate.payload
+    );
 
     if (updateAuthError) {
       throw updateAuthError;
@@ -505,13 +615,15 @@ async function handleResetRecoveryPassword(req, res, adminClient) {
       nextStep: issueMetadata.nextStep,
       expiresAt: issueMetadata.expiresAt,
       forceChangeRequired: issueMetadata.forceChangeRequired,
+      emailSynced: authUpdate.emailSynced,
       securityStateUpdated: !securityStateError,
       recoveryRequestUpdated: !updateRequestError,
     });
   } catch (error) {
-    return res.status(500).json({
+    return res.status(error?.status || 500).json({
       success: false,
       error: error?.message || 'Failed to reset recovery password',
+      code: error?.code || undefined,
     });
   }
 }

@@ -1,11 +1,8 @@
 import {
   appendOAuthResultParams,
   createOAuthState,
-  createSignedOAuthCookie,
-  getAppUrl,
   getOAuthStateSecret,
   normalizeOAuthReturnTo,
-  serializeOAuthPendingCookie,
   verifyOAuthState,
 } from '../../_lib/oauthState.js';
 import {
@@ -27,8 +24,8 @@ import {
 } from '../../_lib/http.js';
 import { getSupabaseAdminClient } from '../../_lib/authAdmin.js';
 import {
-  appendSetCookieHeader,
   createOrLinkOAuthUserAndSession,
+  linkOAuthIdentityToSiteSession,
 } from '../../_lib/siteSession.js';
 
 function readEnvironment() {
@@ -38,15 +35,6 @@ function readEnvironment() {
 function getProviderFromRequest(req, fallbackProvider = '') {
   const queryProvider = req?.query?.provider;
   return normalizeOAuthProvider(queryProvider || fallbackProvider);
-}
-
-function isSecureRequest(req, env = readEnvironment()) {
-  const appUrl = getAppUrl(env, req);
-  if (appUrl.startsWith('https://')) {
-    return true;
-  }
-  const proto = String(req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim();
-  return proto === 'https';
 }
 
 function sendJsonError(res, status, code, message, details = {}) {
@@ -257,6 +245,7 @@ export function createOAuthCallbackHandler(fallbackProvider) {
     }
 
     const returnTo = normalizeOAuthReturnTo(stateResult.payload.returnTo || '/', env, req);
+    const intent = String(stateResult.payload.intent || 'login').trim().toLowerCase();
     if (providerError) {
       return redirectWithOAuthResult(res, req, {
         returnTo,
@@ -325,52 +314,64 @@ export function createOAuthCallbackHandler(fallbackProvider) {
       const subjectHash = hashOAuthSubject(provider, profile.subject, secret);
       const profileHash = hashOAuthProfile(profile);
       const adminClient = getSupabaseAdminClient();
-      if (adminClient) {
-        try {
-          const signInResult = await createOrLinkOAuthUserAndSession(adminClient, {
+      if (!adminClient) {
+        return redirectWithOAuthResult(res, req, {
+          returnTo,
+          provider,
+          status: 'error',
+          code: 'oauth_session_unavailable',
+          env,
+        });
+      }
+
+      try {
+        if (intent === 'link') {
+          const linkResult = await linkOAuthIdentityToSiteSession(adminClient, {
             profile,
             subjectHash,
             profileHash,
             req,
-            res,
             env,
             secret,
           });
 
-          if (signInResult.ok) {
-            return redirectWithOAuthResult(res, req, {
-              returnTo,
-              provider,
-              status: 'signed_in',
-              code: signInResult.created ? 'oauth_account_created' : 'oauth_signed_in',
-              env,
-            });
-          }
-        } catch {
-          // Keep the previous pending-binding behavior if the new session tables
-          // are not ready yet. The callback is still verified below.
+          return redirectWithOAuthResult(res, req, {
+            returnTo,
+            provider,
+            status: linkResult.ok ? 'linked' : 'error',
+            code: linkResult.ok ? 'oauth_identity_linked' : (linkResult.code || 'oauth_identity_link_failed'),
+            env,
+          });
         }
+
+        const signInResult = await createOrLinkOAuthUserAndSession(adminClient, {
+          profile,
+          subjectHash,
+          profileHash,
+          req,
+          res,
+          env,
+          secret,
+        });
+
+        return redirectWithOAuthResult(res, req, {
+          returnTo,
+          provider,
+          status: signInResult.ok ? 'signed_in' : 'error',
+          code: signInResult.ok
+            ? (signInResult.created ? 'oauth_account_created' : 'oauth_signed_in')
+            : (signInResult.code || 'oauth_session_create_failed'),
+          env,
+        });
+      } catch {
+        return redirectWithOAuthResult(res, req, {
+          returnTo,
+          provider,
+          status: 'error',
+          code: intent === 'link' ? 'oauth_identity_link_failed' : 'oauth_session_create_failed',
+          env,
+        });
       }
-
-      const pendingCookie = createSignedOAuthCookie({
-        provider,
-        displayName: profile.displayName || profile.username || config.label,
-        avatarUrl: profile.avatarUrl,
-        subjectHash,
-        profileHash,
-      }, { env, secret });
-
-      appendSetCookieHeader(res, serializeOAuthPendingCookie(pendingCookie, {
-        secure: isSecureRequest(req, env),
-      }));
-
-      return redirectWithOAuthResult(res, req, {
-        returnTo,
-        provider,
-        status: 'verified',
-        code: 'oauth_profile_verified',
-        env,
-      });
     } catch (error) {
       return redirect(res, appendOAuthResultParams(returnTo || '/', {
         oauth_status: 'error',

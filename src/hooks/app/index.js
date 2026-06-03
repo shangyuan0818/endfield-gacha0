@@ -1,4 +1,5 @@
 export { useAppInitialization } from './useAppInitialization';
+export { useAuthenticatedSessionSync } from './useAuthenticatedSessionSync';
 export { useCloudSync } from './useCloudSync';
 export { useCurrentPoolData } from './useCurrentPoolData';
 export { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory';

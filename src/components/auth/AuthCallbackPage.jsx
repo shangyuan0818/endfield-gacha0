@@ -5,6 +5,10 @@ import { supabase } from '../../supabaseClient.js';
 import { normalizeOAuthReturnTo } from '../../services/authOAuthService.js';
 import useAuthStore from '../../stores/useAuthStore.js';
 import { useI18n } from '../../i18n/index.js';
+import {
+  buildBridgeCallbackForwardUrl,
+  getBridgeProviderFromState,
+} from './authCallbackBridge.js';
 
 function cleanCallbackUrl(next) {
   const url = new URL(window.location.href);
@@ -23,6 +27,7 @@ function getCallbackParams() {
     error: searchParams.get('error') || hashParams.get('error') || '',
     errorDescription: searchParams.get('error_description') || hashParams.get('error_description') || '',
     code: searchParams.get('code') || hashParams.get('code') || '',
+    state: searchParams.get('state') || hashParams.get('state') || '',
   };
 }
 
@@ -84,6 +89,18 @@ export default function AuthCallbackPage() {
       const providerError = callbackParams.error;
       const providerErrorDescription = callbackParams.errorDescription;
       const code = callbackParams.code;
+      const bridgeProvider = getBridgeProviderFromState(callbackParams.state);
+
+      if (bridgeProvider) {
+        window.location.replace(buildBridgeCallbackForwardUrl({
+          provider: bridgeProvider,
+          code,
+          state: callbackParams.state,
+          error: providerError,
+          errorDescription: providerErrorDescription,
+        }));
+        return;
+      }
 
       if (providerError) {
         cleanCallbackUrl(next);
@@ -236,8 +253,8 @@ export default function AuthCallbackPage() {
         {isError ? (
           <p className="mt-4 text-[11px] leading-5 text-zinc-500 dark:text-zinc-500">
             {tt(
-              '如果多次失败，请确认第三方登录已在认证服务中启用，并且允许回跳地址包含本站 /auth/callback。',
-              'If this keeps failing, confirm that the provider is enabled in Auth and that /auth/callback is allowed as a redirect URL.'
+              '如果多次失败，请先使用邮箱登录，并联系管理员检查第三方平台的回调地址和服务端凭据。',
+              'If this keeps failing, use email sign-in for now and ask the administrator to check the provider callback URL and server credentials.'
             )}
           </p>
         ) : null}

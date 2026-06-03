@@ -155,7 +155,7 @@ async function loadAccountSecurityState(adminClient, userId) {
 
   const { data, error } = await adminClient
     .from('account_security_states')
-    .select('email_verification_required, email_verification_requested_at, email_verification_verified_at')
+    .select('email_verification_required, email_verification_requested_at, email_verification_verified_at, password_change_required, password_change_reason')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -468,15 +468,6 @@ export default async function handler(req, res) {
     }
     const currentUser = userResult.currentUser;
 
-    const currentEmail = getNormalizedEmail(currentUser.email);
-    if (!currentEmail) {
-      return res.status(400).json({
-        success: false,
-        error: 'Current account does not have a valid email address',
-        code: 'current_email_invalid',
-      });
-    }
-
     const runtimeState = await safeLoadMailRuntimeState(adminClient, env);
     if (!isAuthMailEnabled(env, runtimeState)) {
       return res.status(503).json({
@@ -503,6 +494,16 @@ export default async function handler(req, res) {
       || currentUser?.profile_role === 'super_admin';
     const emailVerificationRequired = Boolean(accountSecurityState?.email_verification_required)
       || (!accountSecurityState && !isEmailConfirmed(currentUser) && !isSuperAdmin);
+    const isOAuthEmailSetup = Boolean(accountSecurityState?.password_change_required)
+      && String(accountSecurityState?.password_change_reason || '').startsWith('oauth_password_setup_required');
+    const currentEmail = getNormalizedEmail(currentUser.email);
+    if (!currentEmail && (action !== ACTIONS.CHANGE_EMAIL || !isOAuthEmailSetup)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Current account does not have a valid email address',
+        code: 'current_email_invalid',
+      });
+    }
 
     if (action === ACTIONS.RESEND_VERIFICATION) {
       if (isEmailConfirmed(currentUser) && !emailVerificationRequired) {
@@ -618,6 +619,84 @@ export default async function handler(req, res) {
       });
     }
 
+    const existingUser = await findAuthUserByEmail(adminClient, nextEmail);
+    if (existingUser?.id && existingUser.id !== currentUser.id) {
+      return res.status(409).json({
+        success: false,
+        error: 'Email already registered',
+        code: 'email_already_registered',
+      });
+    }
+
+    if (isOAuthEmailSetup) {
+      const nextBlock = getRuntimeRecipientBlock(runtimeState, MAIL_EVENT_TYPES.EMAIL_VERIFICATION, nextEmail);
+      if (nextBlock.blocked) {
+        return res.status(503).json({
+          success: false,
+          error: nextBlock.reason,
+          code: nextBlock.code,
+        });
+      }
+
+      const token = createEmailVerificationToken();
+      const verificationCode = createEmailVerificationCode();
+      const storedToken = await storeAccountEmailVerificationToken(adminClient, currentUser.id, {
+        token,
+        code: verificationCode,
+        now,
+        reason: 'oauth_email_setup_required',
+      });
+      const { error: profileError } = await adminClient
+        .from('profiles')
+        .update({
+          email: nextEmail,
+          updated_at: now.toISOString(),
+        })
+        .eq('id', currentUser.id);
+      if (profileError) {
+        throw profileError;
+      }
+
+      const mailResult = await sendAccountMail({
+        adminClient,
+        eventType: MAIL_EVENT_TYPES.EMAIL_VERIFICATION,
+        templateKey: 'auth.email-verification',
+        email: nextEmail,
+        actionLink: buildAccountEmailVerificationUrl(env, req, token),
+        verificationCode,
+        locale,
+        env,
+        now,
+        controls,
+        relatedEntityId: ACTIONS.RESEND_VERIFICATION,
+        payload: {
+          action: ACTIONS.RESEND_VERIFICATION,
+          verificationMode: 'account_security_state',
+          tokenExpiresAt: storedToken.tokenExpiresAt.toISOString(),
+          codeEntry: true,
+          codeExpiresAt: storedToken.codeExpiresAt.toISOString(),
+        },
+      });
+      const providerResult = mailResult.providerResult || {};
+      if (!providerResult.ok) {
+        return res.status(502).json({
+          success: false,
+          error: 'Unable to send verification email',
+          code: providerResult.code || 'mail_send_failed',
+        });
+      }
+
+      return sendAccountEmailResponse(res, {
+        status: providerResult.dryRun ? 'dry_run' : 'sent',
+        nextStep: 'enter_verification_code',
+        dryRun: Boolean(providerResult.dryRun),
+        sent: {
+          current: false,
+          new: true,
+        },
+      });
+    }
+
     if (currentPassword.length < 1) {
       return res.status(400).json({
         success: false,
@@ -641,15 +720,6 @@ export default async function handler(req, res) {
         success: false,
         error: 'Current password is incorrect',
         code: 'invalid_current_password',
-      });
-    }
-
-    const existingUser = await findAuthUserByEmail(adminClient, nextEmail);
-    if (existingUser?.id && existingUser.id !== currentUser.id) {
-      return res.status(409).json({
-        success: false,
-        error: 'Email already registered',
-        code: 'email_already_registered',
       });
     }
 

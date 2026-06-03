@@ -13,6 +13,7 @@
  * @date 2026-02-24
  */
 
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import {
   resolveAliasValue,
@@ -56,6 +57,120 @@ export function initSupabaseAdmin(supabaseUrl, serviceRoleKey) {
   console.log('[FullImportService] Supabase Admin initialized');
 }
 
+function normalizeString(value, maxLength = 4096) {
+  const text = String(value || '').trim();
+  if (!text || text.length > maxLength) {
+    return '';
+  }
+  return text;
+}
+
+function base64UrlToBuffer(value) {
+  const normalized = normalizeString(value).replace(/-/g, '+').replace(/_/g, '/');
+  if (!normalized) {
+    return Buffer.alloc(0);
+  }
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+  return Buffer.from(padded, 'base64');
+}
+
+function base64UrlToJson(value) {
+  const buffer = base64UrlToBuffer(value);
+  if (!buffer.length) {
+    return null;
+  }
+  try {
+    return JSON.parse(buffer.toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function hmacBase64Url(value, secret) {
+  return createHmac('sha256', secret)
+    .update(value)
+    .digest('base64url');
+}
+
+function signaturesMatch(actualSignature, expectedSignature) {
+  const actual = Buffer.from(String(actualSignature || ''));
+  const expected = Buffer.from(String(expectedSignature || ''));
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+async function loadUserByVerifiedJwtPayload(supabase, payload) {
+  const userId = normalizeString(payload?.sub, 128);
+  if (!userId) {
+    throw new Error('Invalid access token');
+  }
+
+  const { data: authData, error: authUserError } = await supabase.auth.admin.getUserById(userId);
+  const authUser = authData?.user || authData || null;
+  if (authUser?.id) {
+    return authUser;
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, email, username, role')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (profile?.id) {
+    return {
+      id: profile.id,
+      email: profile.email || payload.email || null,
+      role: 'authenticated',
+      app_metadata: payload.app_metadata || {},
+      user_metadata: {
+        ...(payload.user_metadata || {}),
+        username: profile.username || payload.user_metadata?.username || '',
+        profile_role: profile.role || null,
+      },
+    };
+  }
+
+  throw new Error(authUserError?.message || profileError?.message || 'Invalid access token');
+}
+
+async function verifySiteSessionCompatToken(supabase, accessToken) {
+  const jwtSecret = normalizeString(process.env.SUPABASE_JWT_SECRET || '');
+  if (!jwtSecret) {
+    throw new Error('Site session token verification is not configured');
+  }
+
+  const parts = normalizeString(accessToken, 8192).split('.');
+  if (parts.length !== 3) {
+    throw new Error('Invalid access token');
+  }
+
+  const [encodedHeader, encodedPayload, signature] = parts;
+  const header = base64UrlToJson(encodedHeader);
+  const payload = base64UrlToJson(encodedPayload);
+  if (header?.alg !== 'HS256' || !payload) {
+    throw new Error('Invalid access token');
+  }
+
+  const unsigned = `${encodedHeader}.${encodedPayload}`;
+  const expectedSignature = hmacBase64Url(unsigned, jwtSecret);
+  if (!signaturesMatch(signature, expectedSignature)) {
+    throw new Error('Invalid access token');
+  }
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(Number(payload.exp)) || Number(payload.exp) <= nowSeconds) {
+    throw new Error('Invalid or expired session');
+  }
+  if (payload.aud !== 'authenticated' || payload.role !== 'authenticated') {
+    throw new Error('Invalid access token');
+  }
+  if (payload.user_metadata?.site_session !== true && payload.app_metadata?.provider !== 'site_session') {
+    throw new Error('Invalid access token');
+  }
+
+  return loadUserByVerifiedJwtPayload(supabase, payload);
+}
+
 /**
  * 使用前端 Supabase access token 校验当前调用者身份
  * @param {string} accessToken
@@ -70,12 +185,11 @@ export async function verifySupabaseAccessToken(accessToken) {
 
   const { data, error } = await supabase.auth.getUser(accessToken);
   const user = data?.user || null;
-
-  if (error || !user?.id) {
-    throw new Error(error?.message || 'Invalid access token');
+  if (!error && user?.id) {
+    return user;
   }
 
-  return user;
+  return verifySiteSessionCompatToken(supabase, accessToken);
 }
 
 /**

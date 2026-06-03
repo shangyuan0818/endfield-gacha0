@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let mockSupabaseClient;
@@ -5,6 +6,93 @@ let mockSupabaseClient;
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => mockSupabaseClient),
 }));
+
+function toBase64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function createCompatAccessToken(payload, secret = 'test-jwt-secret') {
+  const header = toBase64UrlJson({ alg: 'HS256', typ: 'JWT' });
+  const body = toBase64UrlJson(payload);
+  const unsigned = `${header}.${body}`;
+  const signature = createHmac('sha256', secret).update(unsigned).digest('base64url');
+  return `${unsigned}.${signature}`;
+}
+
+describe('verifySupabaseAccessToken', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.SUPABASE_JWT_SECRET = 'test-jwt-secret';
+  });
+
+  it('keeps accepting native Supabase access tokens', async () => {
+    mockSupabaseClient = {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: {
+            user: { id: 'native-user' },
+          },
+          error: null,
+        })),
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const { initSupabaseAdmin, verifySupabaseAccessToken } = await import('../../backend/fullImportService.js');
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    await expect(verifySupabaseAccessToken('native-token')).resolves.toEqual({ id: 'native-user' });
+    expect(mockSupabaseClient.auth.getUser).toHaveBeenCalledWith('native-token');
+    expect(mockSupabaseClient.auth.admin.getUserById).not.toHaveBeenCalled();
+  });
+
+  it('accepts signed site-session compatible tokens for OAuth users', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = createCompatAccessToken({
+      iss: 'https://db.15963574.xyz/auth/v1',
+      sub: 'oauth-user',
+      aud: 'authenticated',
+      role: 'authenticated',
+      email: '',
+      app_metadata: {
+        provider: 'site_session',
+      },
+      user_metadata: {
+        site_session: true,
+      },
+      exp: nowSeconds + 3600,
+      iat: nowSeconds,
+    });
+    mockSupabaseClient = {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { message: 'Auth session missing' },
+        })),
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: {
+              user: { id: 'oauth-user', email: 'github.hash@oauth.local.invalid' },
+            },
+            error: null,
+          })),
+        },
+      },
+    };
+
+    const { initSupabaseAdmin, verifySupabaseAccessToken } = await import('../../backend/fullImportService.js');
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    await expect(verifySupabaseAccessToken(token)).resolves.toEqual({
+      id: 'oauth-user',
+      email: 'github.hash@oauth.local.invalid',
+    });
+    expect(mockSupabaseClient.auth.getUser).toHaveBeenCalledWith(token);
+    expect(mockSupabaseClient.auth.admin.getUserById).toHaveBeenCalledWith('oauth-user');
+  });
+});
 
 describe('savePoolsToServer', () => {
   beforeEach(() => {

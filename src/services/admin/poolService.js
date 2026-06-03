@@ -6,6 +6,10 @@ import { supabase } from '../../supabaseClient';
 import { buildManualCharacterId, buildManualPoolId } from '../../utils/canonicalEntityUtils';
 import { executeSupabaseRead } from '../supabaseRequest';
 import {
+  getCurrentAuthenticatedUser,
+  withAuthenticatedSupabaseRequest,
+} from '../authFetchService.js';
+import {
   buildCharacterSelfAliasRows,
   buildPoolSelfAliasRows,
   inferPoolAliasSource,
@@ -99,12 +103,15 @@ function normalizePoolCharacterRows(rows = [], characters = [], poolData = {}) {
 }
 
 async function saveManagedCharacterWithAliases(characterData) {
-  const { error } = await supabase.rpc('admin_upsert_character_with_aliases', {
-    p_character_id: characterData.id,
-    p_insert_payload: characterData,
-    p_update_payload: characterData,
-    p_alias_rows: buildCharacterSelfAliasRows(characterData.id)
-  });
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase.rpc('admin_upsert_character_with_aliases', {
+      p_character_id: characterData.id,
+      p_insert_payload: characterData,
+      p_update_payload: characterData,
+      p_alias_rows: buildCharacterSelfAliasRows(characterData.id)
+    }),
+    { requireToken: true }
+  );
 
   if (!error) {
     return;
@@ -121,13 +128,16 @@ async function saveManagedCharacterWithAliases(characterData) {
 }
 
 async function upsertPoolWithAliases({ poolId, insertPayload, updatePayload, aliasRows, poolCharacterRows = [] }) {
-  const { error } = await supabase.rpc('admin_upsert_pool_with_aliases', {
-    p_pool_id: poolId,
-    p_insert_payload: insertPayload,
-    p_update_payload: updatePayload,
-    p_alias_rows: aliasRows,
-    p_pool_character_rows: poolCharacterRows
-  });
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase.rpc('admin_upsert_pool_with_aliases', {
+      p_pool_id: poolId,
+      p_insert_payload: insertPayload,
+      p_update_payload: updatePayload,
+      p_alias_rows: aliasRows,
+      p_pool_character_rows: poolCharacterRows
+    }),
+    { requireToken: true }
+  );
 
   if (!error) {
     return;
@@ -144,12 +154,15 @@ async function upsertPoolWithAliases({ poolId, insertPayload, updatePayload, ali
 }
 
 async function upsertPoolCharacter(poolId, characterId, isUp = false) {
-  const { error } = await supabase
-    .from('pool_characters')
-    .upsert(
-      { pool_id: poolId, character_id: characterId, is_up: isUp },
-      { onConflict: 'pool_id,character_id' }
-    );
+  const { error } = await withAuthenticatedSupabaseRequest(
+    () => supabase
+      .from('pool_characters')
+      .upsert(
+        { pool_id: poolId, character_id: characterId, is_up: isUp },
+        { onConflict: 'pool_id,character_id' }
+      ),
+    { requireToken: true }
+  );
 
   if (error) {
     throw error;
@@ -157,10 +170,13 @@ async function upsertPoolCharacter(poolId, characterId, isUp = false) {
 }
 
 async function replacePoolCharacters(poolId, rows = []) {
-  const { error: deleteError } = await supabase
-    .from('pool_characters')
-    .delete()
-    .eq('pool_id', poolId);
+  const { error: deleteError } = await withAuthenticatedSupabaseRequest(
+    () => supabase
+      .from('pool_characters')
+      .delete()
+      .eq('pool_id', poolId),
+    { requireToken: true }
+  );
 
   if (deleteError) {
     throw deleteError;
@@ -170,16 +186,19 @@ async function replacePoolCharacters(poolId, rows = []) {
     return;
   }
 
-  const { error: insertError } = await supabase
-    .from('pool_characters')
-    .upsert(
-      rows.map((row) => ({
-        pool_id: poolId,
-        character_id: row.character_id,
-        is_up: Boolean(row.is_up)
-      })),
-      { onConflict: 'pool_id,character_id' }
-    );
+  const { error: insertError } = await withAuthenticatedSupabaseRequest(
+    () => supabase
+      .from('pool_characters')
+      .upsert(
+        rows.map((row) => ({
+          pool_id: poolId,
+          character_id: row.character_id,
+          is_up: Boolean(row.is_up)
+        })),
+        { onConflict: 'pool_id,character_id' }
+      ),
+    { requireToken: true }
+  );
 
   if (insertError) {
     throw insertError;
@@ -353,11 +372,14 @@ export const removeCharacterFromPool = async (poolId, characterId) => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { error } = await supabase
-      .from('pool_characters')
-      .delete()
-      .eq('pool_id', poolId)
-      .eq('character_id', characterId);
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('pool_characters')
+        .delete()
+        .eq('pool_id', poolId)
+        .eq('character_id', characterId),
+      { requireToken: true }
+    );
 
     if (error) throw error;
     return { success: true };
@@ -370,8 +392,7 @@ export const removeCharacterFromPool = async (poolId, characterId) => {
  * 创建新的UP角色
  */
 export const createUpCharacter = async (characterName, poolType, poolStartTime, rotationBaseCount = 0) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('请先登录');
+  await getCurrentAuthenticatedUser({ requireUser: true });
 
   const characterType = poolType === 'weapon' ? 'weapon' : 'character';
   const charId = buildManualCharacterId(characterName, characterType);
@@ -405,7 +426,7 @@ export const savePool = async (poolData, editingPool, characters, editingPoolCha
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getCurrentAuthenticatedUser({ requireUser: true });
     if (!user) return { success: false, error: '请先登录' };
 
     const poolCharacterRows = buildRowsToPersist({
@@ -479,10 +500,13 @@ export const deletePool = async (poolId) => {
   if (!supabase) return { success: false, error: 'Supabase 未初始化' };
 
   try {
-    const { error } = await supabase
-      .from('pools')
-      .delete()
-      .eq('pool_id', poolId);
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('pools')
+        .delete()
+        .eq('pool_id', poolId),
+      { requireToken: true }
+    );
 
     if (error) throw error;
     return { success: true };
@@ -512,10 +536,13 @@ export const recalculateIsStandard = async (pools) => {
     }
 
     // 2. 获取所有6星记录
-    const { data: records, error: fetchError } = await supabase
-      .from('history')
-      .select('record_id, pool_id, rarity, character_name, item_name, is_standard')
-      .eq('rarity', 6);
+    const { data: records, error: fetchError } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('history')
+        .select('record_id, pool_id, rarity, character_name, item_name, is_standard')
+        .eq('rarity', 6),
+      { requireToken: true }
+    );
 
     if (fetchError) throw fetchError;
 
@@ -573,10 +600,13 @@ export const recalculateIsStandard = async (pools) => {
 
       for (const update of batch) {
         // eslint-disable-next-line no-await-in-loop -- per-record normalization updates stay sequential for granular failure logs
-        const { error: updateError } = await supabase
-          .from('history')
-          .update({ is_standard: update.is_standard })
-          .eq('record_id', update.record_id);
+        const { error: updateError } = await withAuthenticatedSupabaseRequest(
+          () => supabase
+            .from('history')
+            .update({ is_standard: update.is_standard })
+            .eq('record_id', update.record_id),
+          { requireToken: true }
+        );
 
         if (updateError) {
           appLogger.warn('更新记录失败:', update.record_id, updateError);

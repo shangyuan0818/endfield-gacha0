@@ -1,5 +1,15 @@
 import { supabase } from '../supabaseClient.js';
+import { withAuthenticatedSupabaseRequest } from './authFetchService.js';
 import { getPreferredUsername, normalizeUsername } from '../utils/usernameValidation.js';
+
+function isMissingSupabaseAuthSessionError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    error?.name === 'AuthSessionMissingError'
+    || error?.code === 'session_not_found'
+    || message.includes('auth session missing')
+  );
+}
 
 export async function updateOwnUsername(user, nextUsername) {
   if (!supabase) {
@@ -16,31 +26,52 @@ export async function updateOwnUsername(user, nextUsername) {
   };
   const previousUsername = getPreferredUsername(user);
 
-  const { data: authData, error: authError } = await supabase.auth.updateUser({
+  let authData = null;
+  let authMetadataUpdated = false;
+  const { data: nextAuthData, error: authError } = await supabase.auth.updateUser({
     data: {
       ...previousMetadata,
       username: normalizedUsername,
     },
-  });
+  }).catch((error) => ({ data: null, error }));
 
-  if (authError) {
+  if (authError && !isMissingSupabaseAuthSessionError(authError)) {
     throw authError;
   }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ username: normalizedUsername })
-    .eq('id', user.id);
+  if (!authError) {
+    authData = nextAuthData;
+    authMetadataUpdated = true;
+  }
+
+  const { error: profileError } = await withAuthenticatedSupabaseRequest(
+    () => supabase
+      .from('profiles')
+      .update({ username: normalizedUsername })
+      .eq('id', user.id),
+    { requireToken: true }
+  );
 
   if (profileError) {
     // Best-effort rollback to avoid auth metadata/profile divergence.
+    if (authMetadataUpdated) {
+      await supabase.auth.updateUser({
+        data: {
+          ...previousMetadata,
+          username: previousUsername,
+        },
+      }).catch(() => null);
+    }
+    throw profileError;
+  }
+
+  if (!authMetadataUpdated) {
     await supabase.auth.updateUser({
       data: {
         ...previousMetadata,
-        username: previousUsername,
+        username: normalizedUsername,
       },
     }).catch(() => null);
-    throw profileError;
   }
 
   return authData?.user || {

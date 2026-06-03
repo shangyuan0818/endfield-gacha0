@@ -53,27 +53,39 @@ describe('authIdentityService', () => {
     expect(grouped.get('linuxdo')).toHaveLength(2);
   });
 
-  it('keeps site-managed OAuth providers visible but blocks old Supabase identity linking', async () => {
-    expect(isLoginIdentityProviderAvailable('github', {})).toBe(true);
-    expect(isLoginIdentityProviderAvailable('linuxdo', {})).toBe(true);
+  it('starts site-managed OAuth linking through the same-origin bridge', async () => {
+    const env = {
+      VITE_AUTH_OAUTH_GITHUB_ENABLED: 'true',
+      VITE_AUTH_OAUTH_LINUXDO_ENABLED: 'true',
+    };
+    expect(isLoginIdentityProviderAvailable('github', env)).toBe(true);
+    expect(isLoginIdentityProviderAvailable('linuxdo', env)).toBe(true);
+    const assign = vi.fn();
 
-    await expect(linkLoginIdentity('github', {
+    const result = await linkLoginIdentity('github', {
       returnTo: '/settings',
-      env: {},
-    })).rejects.toThrow('unsupported_identity_provider');
+      env,
+      origin: 'https://ef-gacha.mogujun.icu',
+      assign,
+    });
 
-    await expect(linkLoginIdentity('linuxdo', {
-      returnTo: '/settings',
-      env: {},
-    })).rejects.toThrow('unsupported_identity_provider');
-
+    expect(result.strategy).toBe('bridge');
+    expect(assign).toHaveBeenCalledWith('https://ef-gacha.mogujun.icu/api/auth/oauth/github/start?returnTo=%2Fsettings&intent=link');
     expect(supabase.auth.linkIdentity).not.toHaveBeenCalled();
+  });
+
+  it('hides bridge providers when the public env flag is disabled', () => {
+    expect(isLoginIdentityProviderAvailable('github', {})).toBe(false);
+    expect(isLoginIdentityProviderAvailable('linuxdo', {})).toBe(false);
   });
 
   it('merges Supabase identities with site-managed OAuth identities', async () => {
     supabase.auth.getUserIdentities.mockResolvedValue({
       data: {
-        identities: [{ id: 'email-1', provider: 'email', email: 'user@example.test' }],
+        identities: [
+          { id: 'email-1', provider: 'email', email: 'user@example.test' },
+          { id: 'legacy-github-1', provider: 'github', identity_data: { username: 'legacy-octo' } },
+        ],
       },
       error: null,
     });
@@ -99,14 +111,40 @@ describe('authIdentityService', () => {
       id: 'site-github-1',
       source: 'site_session',
     });
+    expect(identities.some((identity) => identity.id === 'legacy-github-1')).toBe(false);
   });
 
-  it('passes the selected identity to Supabase unlinkIdentity', async () => {
-    const identity = { id: 'github-1', provider: 'github' };
+  it('passes non-bridge identities to Supabase unlinkIdentity', async () => {
+    const identity = { id: 'unknown-1', provider: 'unknown' };
     supabase.auth.unlinkIdentity.mockResolvedValue({ data: {}, error: null });
 
     await unlinkLoginIdentity(identity);
 
     expect(supabase.auth.unlinkIdentity).toHaveBeenCalledWith(identity);
+  });
+
+  it('unlinks bridge-managed identities through the same-origin API', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      data: {
+        identity: { id: 'site-github-1', provider: 'github', source: 'site_session' },
+      },
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await unlinkLoginIdentity({
+      id: 'site-github-1',
+      provider: 'github',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/identities/unlink', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ identityId: 'site-github-1' }),
+    }));
+    expect(supabase.auth.unlinkIdentity).not.toHaveBeenCalled();
   });
 });

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import MobileLayout from './layouts/MobileLayout';
 import ErrorBoundary from '../components/ErrorBoundary';
 import MobileLoadingScreen from './components/MobileLoadingScreen';
-import { useCloudSync, useAppInitialization, useNotificationBadges } from '../hooks/app';
+import { useCloudSync, useAppInitialization, useAuthenticatedSessionSync, useNotificationBadges } from '../hooks/app';
 import { useToast } from '../hooks';
 import { ThemeProvider } from '../contexts/ThemeContext';
 
@@ -18,6 +18,13 @@ function MobileApp() {
 
   // 云同步 Hook - 提供 loadCloudData 函数
   const { loadCloudData, loadPublicPools } = useCloudSync({ showToast });
+  const { applySiteSession } = useAuthenticatedSessionSync({ loadCloudData });
+  const handleOAuthSessionSynced = useCallback(async (siteSession) => {
+    await applySiteSession(siteSession, {
+      source: 'oauth_callback',
+    });
+    return true;
+  }, [applySiteSession]);
 
   // 应用初始化 Hook - 处理会话、加载云端数据到 stores
   useAppInitialization({ loadCloudData, loadPublicPools });
@@ -32,7 +39,7 @@ function MobileApp() {
           <MobileLoadingScreen onComplete={() => setIsLoading(false)} />
         )}
         <div className={isLoading ? 'hidden' : 'block'}>
-          <MobileLayout />
+          <MobileLayout onOAuthSessionSynced={handleOAuthSessionSynced} />
         </div>
       </ErrorBoundary>
     </ThemeProvider>

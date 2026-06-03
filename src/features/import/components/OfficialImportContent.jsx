@@ -171,6 +171,7 @@ export default function OfficialImportContent({
   clipboardState,
   importMode,
   backendImportAvailable,
+  accountCompletionRequired = false,
   error,
   importSummary,
   userInfo,
@@ -179,6 +180,7 @@ export default function OfficialImportContent({
   onClipboardRead,
   onImportModeChange,
   onStartImport,
+  onOpenSettings,
   onOpenFileImport,
   onSelectAccount,
   onCancel,
@@ -451,9 +453,39 @@ export default function OfficialImportContent({
             </div>
           )}
 
+          {accountCompletionRequired && (
+            <div
+              className="border border-amber-300 bg-amber-50 px-3 py-3 text-amber-800 transition-colors dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+              style={{ clipPath: 'polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%)' }}
+            >
+              <div className="flex items-start gap-3">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-black uppercase tracking-widest">
+                    {t('import.official.accountCompletionTitle')}
+                  </div>
+                  <p className="mt-1 text-[11px] leading-5 text-amber-700 dark:text-amber-200/90">
+                    {t('import.official.accountCompletionDesc')}
+                  </p>
+                  {typeof onOpenSettings === 'function' && (
+                    <button
+                      type="button"
+                      onClick={onOpenSettings}
+                      className="mt-3 inline-flex items-center gap-2 border border-amber-400 bg-white px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-600 dark:bg-zinc-950 dark:text-amber-200 dark:hover:bg-amber-900/20"
+                      style={{ clipPath: 'polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%)' }}
+                    >
+                      {t('import.official.accountCompletionOpenSettings')}
+                      <ArrowRight size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={onStartImport}
-            disabled={!tokenInput.trim()}
+            disabled={!tokenInput.trim() || accountCompletionRequired}
             className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-bold py-4 text-sm tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 group relative overflow-hidden disabled:cursor-not-allowed"
             style={{ clipPath: 'polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%)' }}
           >
@@ -559,7 +591,7 @@ export default function OfficialImportContent({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <button
               onClick={onStartImport}
-              disabled={!tokenInput.trim()}
+              disabled={!tokenInput.trim() || accountCompletionRequired}
               className="w-full bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:bg-zinc-300 dark:disabled:bg-zinc-800 disabled:text-zinc-500 text-black font-bold py-3 text-sm tracking-wider transition-colors disabled:cursor-not-allowed"
             >
               {t('import.official.retrySameToken')}

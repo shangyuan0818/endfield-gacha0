@@ -4,6 +4,8 @@ import { useLocation } from 'react-router-dom';
 import { useI18n } from '../../i18n/index.js';
 import { useAuthStore } from '../../stores';
 import { isUserEmailVerified } from '../../services/accountEmailService.js';
+import { emitAuthSessionSync, subscribeAuthSessionSync } from '../../services/authSessionEvents.js';
+import { getCurrentSiteSession } from '../../services/siteSessionService.js';
 import {
   getIdentityDisplayValue,
   groupAuthIdentities,
@@ -56,8 +58,11 @@ function getErrorMessage(error, t) {
   if (raw.includes('identity_already_exists') || raw.includes('already exists')) {
     return t('settings.authIdentity.errorAlreadyLinked');
   }
-  if (raw.includes('at least two') || raw.includes('only identity')) {
+  if (raw.includes('at least two') || raw.includes('only identity') || raw.includes('oauth_last_login_method')) {
     return t('settings.authIdentity.errorLastIdentity');
+  }
+  if (raw.includes('site_session_required')) {
+    return t('settings.authIdentity.errorSessionRequired');
   }
   if (raw.includes('supabase_not_configured')) {
     return t('settings.authIdentity.errorUnavailable');
@@ -79,6 +84,8 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
   const { t, formatDateTime } = useI18n();
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const setUserRole = useAuthStore((state) => state.setUserRole);
   const styles = useMemo(() => getVisualClasses(variant), [variant]);
   const [identities, setIdentities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +156,15 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
     };
   }, [t, user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) {
+      return undefined;
+    }
+    return subscribeAuthSessionSync(() => {
+      refresh({ silent: true }).catch(() => null);
+    });
+  }, [refresh, user?.id]);
+
   const handleLink = async (providerKey) => {
     setActionLoading(providerKey);
     setError('');
@@ -181,6 +197,15 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
     setSuccess('');
     try {
       await unlinkLoginIdentity(identity);
+      const siteSession = await getCurrentSiteSession({
+        syncSupabase: true,
+        useCache: false,
+      }).catch(() => null);
+      if (siteSession?.authenticated && siteSession.user) {
+        setUser(siteSession.user);
+        setUserRole(siteSession.profile?.role || siteSession.user?.profile_role || 'user');
+        emitAuthSessionSync({ source: 'login-identity-unlink' });
+      }
       await refresh({ silent: true });
       setSuccess(t('settings.authIdentity.unlinkSuccess'));
     } catch (unlinkError) {
@@ -246,7 +271,7 @@ export default function LoginIdentitiesSection({ variant = 'desktop' }) {
         const isLinked = isEmail ? Boolean(user.email) : Boolean(identity);
         const isProviderReady = isLoginIdentityProviderAvailable(providerKey);
         const isPlanned = !isEmail && !isLinked && (Boolean(meta.planned) || !isProviderReady);
-        const canUnlink = Boolean(meta.canUnlink && identity?.source !== 'site_session');
+        const canUnlink = Boolean(meta.canUnlink && identity);
         const Icon = getProviderIcon(providerKey);
         const displayValue = isEmail ? user.email : getIdentityDisplayValue(identity);
         const statusLabel = isPlanned

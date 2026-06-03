@@ -4,7 +4,7 @@ import Footer from './components/layout/Footer';
 import GachaModals from './components/modals/GachaModals';
 import DataImportWizardModal from './components/modals/DataImportWizardModal';
 import { LoadingBar, NotificationCenter } from './components/ui';
-import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight, useDurableNotifications } from './hooks';
+import { useToast, useConfirm, useCloudSync, useCurrentPoolData, useNotificationBadges, useAppInitialization, useAuthenticatedSessionSync, usePoolOperations, useHistoryOperations, useDataExportImport, usePoolRealtimeSubscription, useUserRole, useScrollToHighlight, useDurableNotifications } from './hooks';
 import { useAuthStore, useAppStore, useHistoryStore, usePoolStore } from './stores';
 import { getDesktopPathForTab, getDesktopTabFromPath, normalizeAppTab } from './constants/appRoutes';
 import AppHeader from './components/layout/AppHeader';
@@ -79,7 +79,6 @@ export default function GachaAnalyzer() {
     clearRead: clearReadDurableNotifications,
   } = useDurableNotifications();
   const { confirmState, handleConfirm, handleCancel } = useConfirm();
-  useOAuthCallbackNotice({ location, navigate, addDurableNotification });
 
   useEffect(() => subscribePublicCacheWarnings((event) => {
     addDurableNotification(buildPublicCacheWarningNotification(event, { locale }));
@@ -97,6 +96,21 @@ export default function GachaAnalyzer() {
     deleteUserDataFromCloud,
     migrateLocalToCloud
   } = useCloudSync({ showToast });
+
+  const { applySiteSession } = useAuthenticatedSessionSync({ loadCloudData });
+  const handleOAuthSessionSynced = useCallback(async (siteSession) => {
+    await applySiteSession(siteSession, {
+      source: 'oauth_callback',
+    });
+    return true;
+  }, [applySiteSession]);
+
+  useOAuthCallbackNotice({
+    location,
+    navigate,
+    addDurableNotification,
+    onSessionSynced: handleOAuthSessionSynced,
+  });
 
   // 应用初始化 Hook - 处理会话、全局统计、last_seen 更新
   useAppInitialization({ loadCloudData, loadPublicPools });

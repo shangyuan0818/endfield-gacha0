@@ -14,6 +14,7 @@ import {
   resolveCharacterAliasMap,
   resolvePoolAliasMap,
 } from '../../../shared/idAliasService.js';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
 import { clampHistoryPity } from '../../utils/historyRecordUtils';
@@ -97,15 +98,16 @@ export function useCloudSync({ showToast }) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
 
-        const historyQuery = supabase
-          .from('history')
-          .select('*')
-          .eq('user_id', currentUser.id)
-          .order('record_id', { ascending: true })
-          .range(from, to);
-
         // eslint-disable-next-line no-await-in-loop -- paginated history reads are cursor-like and must remain sequential
-        const { data: pageData, error: historyError } = await historyQuery;
+        const { data: pageData, error: historyError } = await withAuthenticatedSupabaseRequest(
+          () => supabase
+            .from('history')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('record_id', { ascending: true })
+            .range(from, to),
+          { requireToken: true }
+        );
         if (historyError) throw historyError;
 
         if (pageData && pageData.length > 0) {
@@ -319,11 +321,14 @@ export function useCloudSync({ showToast }) {
     if (!supabase || !user) return false;
 
     try {
-      const { error } = await supabase
-        .from('history')
-        .delete()
-        .eq('user_id', user.id)
-        .in('record_id', recordIds);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('history')
+          .delete()
+          .eq('user_id', user.id)
+          .in('record_id', recordIds),
+        { requireToken: true }
+      );
 
       if (error) throw error;
       return true;
@@ -339,11 +344,14 @@ export function useCloudSync({ showToast }) {
     if (!supabase || !user) return false;
 
     try {
-      const { error } = await supabase
-        .from('history')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('pool_id', poolId);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('history')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('pool_id', poolId),
+        { requireToken: true }
+      );
 
       if (error) throw error;
       return true;
@@ -359,11 +367,14 @@ export function useCloudSync({ showToast }) {
     if (!supabase || !user) return false;
 
     try {
-      const { error } = await supabase
-        .from('pools')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('pool_id', poolId);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('pools')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('pool_id', poolId),
+        { requireToken: true }
+      );
 
       if (error) throw error;
       return true;
@@ -379,17 +390,23 @@ export function useCloudSync({ showToast }) {
     if (!supabase || !user) return false;
 
     try {
-      const { error: historyError } = await supabase
-        .from('history')
-        .delete()
-        .eq('user_id', user.id);
+      const { error: historyError } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('history')
+          .delete()
+          .eq('user_id', user.id),
+        { requireToken: true }
+      );
 
       if (historyError) throw historyError;
 
-      const { error: poolError } = await supabase
-        .from('pools')
-        .delete()
-        .eq('user_id', user.id);
+      const { error: poolError } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('pools')
+          .delete()
+          .eq('user_id', user.id),
+        { requireToken: true }
+      );
 
       if (poolError) throw poolError;
 

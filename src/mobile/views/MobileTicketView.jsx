@@ -6,6 +6,7 @@ import {
 import useAuthStore from '../../stores/useAuthStore';
 import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from '../../components/tickets/constants';
@@ -39,10 +40,13 @@ function MobileTicketView({ addDurableNotification } = {}) {
     if (!user || !supabase) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tickets')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('tickets')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        { requireToken: true }
+      );
 
       if (error) {
         if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
@@ -63,9 +67,12 @@ function MobileTicketView({ addDurableNotification } = {}) {
 
   // 创建工单
   const handleCreate = async (formData) => {
-    const { error } = await supabase
-      .from('tickets')
-      .insert({ ...formData, user_id: user.id });
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase
+        .from('tickets')
+        .insert({ ...formData, user_id: user.id }),
+      { requireToken: true }
+    );
     if (!error) {
       setShowCreate(false);
       await loadTickets();
@@ -76,7 +83,10 @@ function MobileTicketView({ addDurableNotification } = {}) {
   const handleStatusChange = async (ticketId, newStatus) => {
     const updateData = { status: newStatus, updated_at: new Date().toISOString() };
     if (newStatus === 'resolved') updateData.resolved_by = user.id;
-    const { error } = await supabase.from('tickets').update(updateData).eq('id', ticketId);
+    const { error } = await withAuthenticatedSupabaseRequest(
+      () => supabase.from('tickets').update(updateData).eq('id', ticketId),
+      { requireToken: true }
+    );
     if (!error) await loadTickets();
   };
 
@@ -487,11 +497,14 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
-      const { data } = await supabase
-        .from('ticket_replies')
-        .select('*')
-        .eq('ticket_id', ticketId)
-        .order('created_at', { ascending: true });
+      const { data } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('ticket_replies')
+          .select('*')
+          .eq('ticket_id', ticketId)
+          .order('created_at', { ascending: true }),
+        { requireToken: true }
+      );
       if (data) {
         const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
         setReplies(attachPublicProfiles(data, profilesMap));

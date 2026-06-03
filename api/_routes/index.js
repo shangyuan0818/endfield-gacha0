@@ -1,10 +1,12 @@
 import accountRecoveryRequestHandler from './root/account-recovery-request.js';
 import accountEmailActionHandler from './root/account-email-action.js';
 import accountEmailVerifyHandler from './root/account-email-verify.js';
+import accountPasswordSetupHandler from './root/account-password-setup.js';
 import accountSecurityStateHandler from './root/account-security-state.js';
 import adminHandler from './root/admin.js';
 import announcementsHandler from './root/announcements.js';
 import authEmailActionHandler from './root/auth-email-action.js';
+import { authIdentityUnlinkHandler } from './root/auth-identities.js';
 import authSessionHandler, { authSessionLogoutHandler } from './root/auth-session.js';
 import {
   githubOAuthCallbackHandler,
@@ -82,6 +84,7 @@ export const API_ROUTE_ENTRIES = [
   ['/api/account-recovery-request', accountRecoveryRequestHandler],
   ['/api/account-email-action', accountEmailActionHandler],
   ['/api/account-email-verify', accountEmailVerifyHandler],
+  ['/api/account-password-setup', accountPasswordSetupHandler],
   ['/api/account-security-state', accountSecurityStateHandler],
   ['/api/admin', adminHandler],
   ['/api/admin-ops-automation', adminHandler],
@@ -105,6 +108,7 @@ export const API_ROUTE_ENTRIES = [
   ['/api/auth/oauth/linuxdo/supabase-authorize', linuxdoSupabaseAuthorizeHandler],
   ['/api/auth/oauth/qq/callback', qqOAuthCallbackHandler],
   ['/api/auth/oauth/qq/start', qqOAuthStartHandler],
+  ['/api/auth/identities/unlink', authIdentityUnlinkHandler],
   ['/api/auth/session', authSessionHandler],
   ['/api/auth/session/logout', authSessionLogoutHandler],
   ['/api/auth-pow-challenge', authPowChallengeHandler],

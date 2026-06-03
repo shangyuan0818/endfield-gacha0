@@ -16,8 +16,8 @@
  */
 
 import { queuedFetch } from './requestQueue.js';
-import { supabase } from '../supabaseClient';
 import { appLogger } from './appLogger.js';
+import { getSupabaseAccessToken } from '../services/authFetchService.js';
 import { fetchWithTimeout } from '../services/supabaseRequest.js';
 
 function normalizeImportSource(source) {
@@ -106,42 +106,26 @@ export class NetworkConnectionError extends Error {
   }
 }
 
-function isSessionNearExpiry(session) {
-  if (!session?.expires_at) {
-    return false;
-  }
-
-  return (session.expires_at * 1000) - Date.now() < 60 * 1000;
-}
-
 async function getCurrentAccessToken(options = {}) {
-  if (!supabase) {
-    return null;
+  try {
+    return await getSupabaseAccessToken({
+      syncSiteSession: true,
+      useSiteSessionCache: !options.forceRefresh,
+      allowSiteSessionToken: options.allowSiteSessionToken !== false,
+    });
+  } catch (error) {
+    throw new AuthChainError(error?.message || '获取登录状态失败', 'session');
   }
-
-  const { data: sessionData, error } = await supabase.auth.getSession();
-  if (error) {
-    throw new AuthChainError(error.message || '获取登录状态失败', 'session');
-  }
-
-  const session = sessionData?.session || null;
-  if (!session?.access_token) {
-    return null;
-  }
-
-  if (options.forceRefresh || isSessionNearExpiry(session)) {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession(session);
-    if (refreshError) {
-      throw new AuthChainError('登录状态已过期，请重新登录后再导入数据', 'session');
-    }
-    return refreshData?.session?.access_token || null;
-  }
-
-  return session.access_token;
 }
 
 async function getAuthHeaders(required = false, options = {}) {
-  const accessToken = await getCurrentAccessToken(options);
+  let accessToken = await getCurrentAccessToken(options);
+  if (!accessToken && required && !options.forceRefresh) {
+    accessToken = await getCurrentAccessToken({
+      ...options,
+      forceRefresh: true,
+    });
+  }
   if (!accessToken) {
     if (required) {
       throw new AuthChainError('请先登录后再导入数据', 'auth');
@@ -658,7 +642,10 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
     throw new AuthChainError('请先登录后再导入数据', 'import-full');
   }
 
-  const authHeaders = await getAuthHeaders(true, { forceRefresh: true });
+  const authHeaders = await getAuthHeaders(true, {
+    forceRefresh: true,
+    allowSiteSessionToken: false,
+  });
 
   if (onProgress) {
     onProgress({

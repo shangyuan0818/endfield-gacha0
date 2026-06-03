@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { executeSupabaseMutation, executeSupabaseRead } from '../../services/supabaseRequest';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { supabase } from '../../supabaseClient';
 import { useAuthStore } from '../../stores';
 
@@ -20,11 +21,14 @@ export function useUserRole() {
     const fetchUserRole = async () => {
       try {
         const { data: profile, error } = await executeSupabaseRead(
-          () => supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', user.id)
-            .maybeSingle(),
+          () => withAuthenticatedSupabaseRequest(
+            () => supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle(),
+            { requireToken: true }
+          ),
           {
             label: 'load user role',
             retries: 2,
@@ -36,9 +40,12 @@ export function useUserRole() {
         // 如果 profile 不存在，尝试创建一个
         if (!profile) {
           await executeSupabaseMutation(
-            () => supabase
-              .from('profiles')
-              .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' }),
+            () => withAuthenticatedSupabaseRequest(
+              () => supabase
+                .from('profiles')
+                .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' }),
+              { requireToken: true }
+            ),
             {
               label: 'create default user profile'
             }

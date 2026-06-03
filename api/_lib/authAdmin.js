@@ -8,6 +8,7 @@ import {
 const PAGE_SIZE = 200;
 const MAX_PAGES = 50;
 const PROFILE_FIELDS = 'id, username, email, role, created_at, updated_at, last_seen_at';
+const SYNTHETIC_OAUTH_EMAIL_SUFFIX = '@oauth.local.invalid';
 // Self-hosted gateways may reject very long PostgREST `in.(...)` query strings.
 // Keep profile batches small enough to avoid 502s on auth/profile merge flows.
 const PROFILE_CHUNK_SIZE = 25;
@@ -80,6 +81,19 @@ export async function findAuthUserByEmail(adminClient, normalizedEmail) {
   return users.find((user) => String(user?.email || '').toLowerCase() === normalizedEmail) || null;
 }
 
+export async function loadAuthUserById(adminClient, userId) {
+  const getUserById = adminClient?.auth?.admin?.getUserById;
+  if (typeof getUserById !== 'function' || !userId) {
+    return null;
+  }
+
+  const { data, error } = await getUserById.call(adminClient.auth.admin, userId);
+  if (error) {
+    throw error;
+  }
+  return data?.user || data || null;
+}
+
 export async function listAllAuthUsers(adminClient) {
   const users = [];
   let page = 1;
@@ -142,10 +156,11 @@ function buildFallbackUsername(authUser) {
 }
 
 function buildProfileSeed(authUser) {
+  const email = String(authUser?.email || '').trim().toLowerCase();
   return {
     id: authUser.id,
     username: buildFallbackUsername(authUser),
-    email: String(authUser?.email || '').trim().toLowerCase() || null,
+    email: email.endsWith(SYNTHETIC_OAUTH_EMAIL_SUFFIX) ? null : email || null,
     role: 'user'
   };
 }
@@ -221,7 +236,7 @@ export async function listMergedAdminUsers(adminClient, { repairProfiles = false
       return {
         id: authUser.id,
         username: profile?.username || buildFallbackUsername(authUser),
-        email: profile?.email || String(authUser?.email || '').trim().toLowerCase() || null,
+        email: profile?.email || (String(authUser?.email || '').trim().toLowerCase().endsWith(SYNTHETIC_OAUTH_EMAIL_SUFFIX) ? null : String(authUser?.email || '').trim().toLowerCase() || null),
         role: profile?.role || 'user',
         created_at: profile?.created_at || authUser?.created_at || null,
         updated_at: profile?.updated_at || authUser?.updated_at || null,

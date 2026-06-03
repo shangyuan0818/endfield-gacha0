@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, MessageSquare, Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicProfileService';
+import { withAuthenticatedSupabaseRequest } from '../services/authFetchService.js';
 import CreateTicketForm from './tickets/CreateTicketForm';
 import TicketCard from './tickets/TicketCard';
 import { getTicketStatus } from './tickets/constants';
@@ -24,10 +25,13 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('tickets')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('tickets')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        { requireToken: true }
+      );
 
       if (error) {
         if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
@@ -55,12 +59,15 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
 
   const handleCreateTicket = useCallback(async (formData) => {
     try {
-      const { error } = await supabase
-        .from('tickets')
-        .insert({
-          ...formData,
-          user_id: user.id,
-        });
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('tickets')
+          .insert({
+            ...formData,
+            user_id: user.id,
+          }),
+        { requireToken: true }
+      );
 
       if (error) throw error;
 
@@ -83,10 +90,13 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
         updateData.resolved_by = user.id;
       }
 
-      const { error } = await supabase
-        .from('tickets')
-        .update(updateData)
-        .eq('id', ticketId);
+      const { error } = await withAuthenticatedSupabaseRequest(
+        () => supabase
+          .from('tickets')
+          .update(updateData)
+          .eq('id', ticketId),
+        { requireToken: true }
+      );
 
       if (error) throw error;
 

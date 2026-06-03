@@ -155,3 +155,63 @@ export async function updatePasswordWithCurrentPassword({
     };
   }
 }
+
+export function isOAuthPasswordSetupRequired(state) {
+  return Boolean(
+    state?.passwordChangeRequired
+    && String(state?.reason || '').startsWith('oauth_password_setup_required')
+  );
+}
+
+export function isOAuthEmailSetupRequired(state) {
+  return Boolean(
+    state?.emailVerificationRequired
+    && String(state?.emailVerificationReason || '').startsWith('oauth_email_setup_required')
+  );
+}
+
+export function isOAuthAccountCompletionRequired(state) {
+  return Boolean(
+    isOAuthEmailSetupRequired(state)
+    || isOAuthPasswordSetupRequired(state)
+  );
+}
+
+export async function setupPasswordForOAuthAccount({
+  newPassword,
+}) {
+  await checkAuthActionRateLimit('change_password');
+
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) {
+    throw new Error('当前登录已失效，请重新登录后重试');
+  }
+
+  const { response, data: payload } = await fetchJsonWithTimeout('/api/account-password-setup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      newPassword,
+    }),
+  }, {
+    label: 'account-password-setup',
+    timeoutMs: 20000,
+    retries: 0,
+  });
+
+  if (!response.ok || payload?.success !== true) {
+    const error = new Error(payload?.error || 'Failed to set account password');
+    error.code = payload?.code || `http_${response.status}`;
+    error.status = response.status;
+    throw error;
+  }
+
+  return {
+    securityStateUpdated: true,
+    state: payload.state || EMPTY_ACCOUNT_SECURITY_STATE,
+    securityStateError: null,
+  };
+}

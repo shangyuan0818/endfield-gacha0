@@ -52,7 +52,8 @@ async function executeWithTimeout(buildRequest, {
     const timeoutId = window.setTimeout(() => abortController.abort(), timeoutMs);
 
     try {
-      let request = buildRequest();
+      // eslint-disable-next-line no-await-in-loop -- each retry must rebuild the request with the latest auth headers
+      let request = await buildRequest();
       if (typeof request?.abortSignal === 'function') {
         request = request.abortSignal(abortController.signal);
       }

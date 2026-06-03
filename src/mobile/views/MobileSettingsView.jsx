@@ -21,7 +21,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { APP_VERSION_LABEL } from '../../constants/appMeta';
 import {
   AuthRateLimitError,
+  isOAuthPasswordSetupRequired,
   loadAccountSecurityState,
+  setupPasswordForOAuthAccount,
   updatePasswordWithCurrentPassword,
 } from '../../services/accountSecurityService.js';
 import {
@@ -176,6 +178,8 @@ function MobileSettingsView() {
   const [emailVerificationLoading, setEmailVerificationLoading] = useState(false);
   const [emailVerificationCode, setEmailVerificationCode] = useState('');
   const [emailVerificationCodeLoading, setEmailVerificationCodeLoading] = useState(false);
+  const [emailVerificationSendCount, setEmailVerificationSendCount] = useState(0);
+  const [emailVerificationDeferred, setEmailVerificationDeferred] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [emailSuccess, setEmailSuccess] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -212,6 +216,7 @@ function MobileSettingsView() {
   );
   const pendingEmailChange = user?.new_email || null;
   const passwordChangeRequired = Boolean(accountSecurityState?.passwordChangeRequired);
+  const oauthPasswordSetupRequired = isOAuthPasswordSetupRequired(accountSecurityState);
   const passwordChangeExpiresAt = useMemo(
     () => formatSecurityDeadline(accountSecurityState?.expiresAt, locale),
     [accountSecurityState?.expiresAt, locale]
@@ -325,7 +330,7 @@ function MobileSettingsView() {
       return;
     }
 
-    if (!currentPassword) {
+    if (!oauthPasswordSetupRequired && !currentPassword) {
       setPasswordError(t('settings.error.currentPasswordRequired'));
       return;
     }
@@ -346,11 +351,13 @@ function MobileSettingsView() {
     setPasswordLoading(true);
 
     try {
-      const passwordResult = await updatePasswordWithCurrentPassword({
-        email: user.email,
-        currentPassword,
-        newPassword,
-      });
+      const passwordResult = oauthPasswordSetupRequired
+        ? await setupPasswordForOAuthAccount({ newPassword })
+        : await updatePasswordWithCurrentPassword({
+          email: user.email,
+          currentPassword,
+          newPassword,
+        });
 
       if (passwordResult?.state) {
         setAccountSecurityState(passwordResult.state);
@@ -377,7 +384,11 @@ function MobileSettingsView() {
       } else if (isInvalidCurrentPasswordError(error)) {
         setPasswordError(t('settings.error.currentPasswordIncorrect'));
       } else {
-        setPasswordError(error.message || t('settings.error.passwordUpdateFailed'));
+        setPasswordError(
+          error?.code === 'verified_email_required'
+            ? t('settings.error.verifiedEmailRequiredForPassword')
+            : error.message || t('settings.error.passwordUpdateFailed')
+        );
       }
     } finally {
       setPasswordLoading(false);
@@ -402,6 +413,10 @@ function MobileSettingsView() {
       const result = await requestCurrentEmailVerification({ locale });
       const status = result?.data?.status;
       setEmailVerificationCode('');
+      if (status !== 'already_verified') {
+        setEmailVerificationSendCount((prev) => prev + 1);
+        setEmailVerificationDeferred(false);
+      }
       showToast(
         status === 'already_verified'
           ? t('settings.success.emailAlreadyVerified')
@@ -431,6 +446,8 @@ function MobileSettingsView() {
     try {
       await verifyCurrentEmailCode({ code });
       setEmailVerificationCode('');
+      setEmailVerificationSendCount(0);
+      setEmailVerificationDeferred(false);
       setAccountSecurityState((prev) => ({
         ...(prev || {}),
         emailVerificationRequired: false,
@@ -461,7 +478,7 @@ function MobileSettingsView() {
       return;
     }
 
-    if (!emailCurrentPassword) {
+    if (!oauthPasswordSetupRequired && !emailCurrentPassword) {
       setEmailError(t('settings.error.currentPasswordRequired'));
       return;
     }
@@ -680,6 +697,11 @@ function MobileSettingsView() {
                     <label className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                       <KeyRound size={13} /> {t('settings.emailVerificationCode')}
                     </label>
+                    {emailVerificationSendCount > 0 && (
+                      <p className="mb-2 text-[10px] leading-4 text-amber-700 dark:text-amber-300">
+                        {t('settings.emailVerificationSendCount', { count: emailVerificationSendCount })}
+                      </p>
+                    )}
                     <div className="grid grid-cols-1 gap-2">
                       <input
                         type="text"
@@ -704,6 +726,21 @@ function MobileSettingsView() {
                     <p className="mt-2 text-[10px] leading-4 text-zinc-500 dark:text-zinc-500">
                       {t('settings.emailVerificationCodeHint')}
                     </p>
+                    {emailVerificationSendCount >= 2 && !emailVerificationDeferred && (
+                      <div className="mt-3 rounded-[0.95rem] border border-amber-300/60 bg-amber-50 px-3 py-3 text-[10px] leading-4 text-amber-800 dark:border-amber-700/70 dark:bg-amber-500/10 dark:text-amber-200">
+                        <p>{t('settings.emailVerificationDeferHint')}</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEmailVerificationDeferred(true);
+                            showToast(t('settings.emailVerificationDeferred'), 'success');
+                          }}
+                          className="mt-2 w-full rounded-[0.85rem] border border-amber-300 bg-white px-3 py-2 text-xs font-bold uppercase tracking-widest text-amber-800 transition-colors hover:bg-amber-50 dark:border-amber-700 dark:bg-zinc-950 dark:text-amber-200 dark:hover:bg-amber-900/20"
+                        >
+                          {t('settings.emailVerificationDeferAction')}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -735,9 +772,11 @@ function MobileSettingsView() {
                         {t('settings.passwordChangeRequiredTitle')}
                       </div>
                       <div className="text-[11px] leading-5 text-amber-100/90">
-                        {passwordChangeExpiresAt
-                          ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
-                          : t('settings.passwordChangeRequiredDesc')}
+                        {oauthPasswordSetupRequired
+                          ? t('settings.oauthPasswordSetupRequiredDesc')
+                          : passwordChangeExpiresAt
+                            ? t('settings.passwordChangeRequiredDescWithExpiry', { value: passwordChangeExpiresAt })
+                            : t('settings.passwordChangeRequiredDesc')}
                       </div>
                     </div>
                   </div>
@@ -755,7 +794,9 @@ function MobileSettingsView() {
             >
               <div className="flex items-center gap-3">
                 <Lock size={16} className="text-zinc-400" />
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{t('settings.changePassword')}</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  {oauthPasswordSetupRequired ? t('settings.setPassword') : t('settings.changePassword')}
+                </span>
               </div>
               <ChevronRight size={16} className="text-zinc-300" />
             </button>
@@ -1042,7 +1083,7 @@ function MobileSettingsView() {
             </div>
             <div className="p-5 space-y-4">
               <p className="text-xs leading-relaxed text-slate-500 dark:text-zinc-400">
-                {t('settings.emailModalDesc')}
+                {oauthPasswordSetupRequired ? t('settings.oauthEmailSetupModalDesc') : t('settings.emailModalDesc')}
               </p>
               {emailError && (
                 <div className="mobile-ux-soft-card mobile-ux-soft-card--danger flex items-start gap-2 px-3 py-2 text-xs text-red-300">
@@ -1070,18 +1111,20 @@ function MobileSettingsView() {
                     className="mobile-ux-input px-4 py-3 text-sm font-mono"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
-                    {t('settings.currentPassword')}
-                  </label>
-                  <input
-                    type="password"
-                    value={emailCurrentPassword}
-                    onChange={(event) => setEmailCurrentPassword(event.target.value)}
-                    placeholder={t('settings.currentPasswordPlaceholder')}
-                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
-                  />
-                </div>
+                {!oauthPasswordSetupRequired && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                      {t('settings.currentPassword')}
+                    </label>
+                    <input
+                      type="password"
+                      value={emailCurrentPassword}
+                      onChange={(event) => setEmailCurrentPassword(event.target.value)}
+                      placeholder={t('settings.currentPasswordPlaceholder')}
+                      className="mobile-ux-input px-4 py-3 text-sm font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               <button
@@ -1103,7 +1146,7 @@ function MobileSettingsView() {
             <div className="mobile-ux-modal-header">
               <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-zinc-100">
                 <Lock size={16} />
-                {t('settings.passwordModalTitle')}
+                {oauthPasswordSetupRequired ? t('settings.passwordSetupModalTitle') : t('settings.passwordModalTitle')}
               </h3>
               <button
                 onClick={() => {
@@ -1130,18 +1173,24 @@ function MobileSettingsView() {
               )}
 
               <div className="space-y-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
-                    {t('settings.currentPassword')}
-                  </label>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(event) => setCurrentPassword(event.target.value)}
-                    placeholder={t('settings.currentPasswordPlaceholder')}
-                    className="mobile-ux-input px-4 py-3 text-sm font-mono"
-                  />
-                </div>
+                {oauthPasswordSetupRequired ? (
+                  <div className="rounded-[0.95rem] border border-amber-300/60 bg-amber-50 px-3 py-3 text-[11px] leading-5 text-amber-800 dark:border-amber-700/70 dark:bg-amber-500/10 dark:text-amber-200">
+                    {t('settings.passwordSetupVerifiedEmailHint')}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
+                      {t('settings.currentPassword')}
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      placeholder={t('settings.currentPasswordPlaceholder')}
+                      className="mobile-ux-input px-4 py-3 text-sm font-mono"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2">
                     {t('settings.newPassword')}
@@ -1176,7 +1225,7 @@ function MobileSettingsView() {
                 disabled={passwordLoading || !!passwordSuccess}
                 className="w-full rounded-full bg-endfield-yellow py-3 text-xs font-bold uppercase tracking-widest text-black touch-feedback disabled:opacity-50 transition-colors hover:bg-yellow-400 disabled:bg-zinc-700"
               >
-                {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : t('settings.passwordUpdateAction')}
+                {passwordLoading ? t('settings.passwordUpdating') : passwordSuccess ? t('settings.passwordUpdated') : oauthPasswordSetupRequired ? t('settings.passwordSetupAction') : t('settings.passwordUpdateAction')}
               </button>
             </div>
           </div>

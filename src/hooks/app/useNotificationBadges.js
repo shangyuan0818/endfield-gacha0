@@ -3,6 +3,7 @@ import {
   fetchPublicApiJson,
   shouldAllowPublicSupabaseFallback,
 } from '../../services/publicResourceClient';
+import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRequest';
 import { supabase } from '../../supabaseClient';
 import { useAuthStore, useAppStore } from '../../stores';
@@ -368,13 +369,18 @@ export function useNotificationBadges() {
       try {
         const lastViewed = getStorageItem(STORAGE_KEYS.TICKETS_LAST_VIEWED, 0);
         const since = lastViewed ? new Date(lastViewed).toISOString() : '1970-01-01T00:00:00Z';
-        let query = supabase
-          .from('tickets')
-          .select('*', { count: 'exact', head: true })
-          .gt('updated_at', since);
-        if (!isSuperAdmin) query = query.eq('user_id', user.id);
         const { count, error } = await executeSupabaseRead(
-          () => query,
+          () => withAuthenticatedSupabaseRequest(
+            () => {
+              let query = supabase
+                .from('tickets')
+                .select('*', { count: 'exact', head: true })
+                .gt('updated_at', since);
+              if (!isSuperAdmin) query = query.eq('user_id', user.id);
+              return query;
+            },
+            { requireToken: true }
+          ),
           { label: 'load unread ticket count', retries: 1 },
         );
         if (!error) return count || 0;
