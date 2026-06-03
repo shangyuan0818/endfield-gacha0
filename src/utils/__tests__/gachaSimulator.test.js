@@ -93,4 +93,42 @@ describe('gachaSimulator state import', () => {
 
     expect(simulator.getState().freeTenPullsReceived).toBe(1);
   });
+
+  it('rejects single pulls for weapon pools because weapons are claimed in sets of ten', () => {
+    const simulator = createSimulator('weapon');
+
+    expect(() => simulator.pullSingle()).toThrow('武器池按申领进行');
+  });
+
+  it('runs weapon ten-pulls as one arsenal claim and advances claim-based pity', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const simulator = createSimulator('weapon', null, '测试武器', {
+      up: [{ name: '测试武器' }],
+      offBanner: [{ name: '常驻武器' }],
+      fiveStar: [{ name: '测试五星武器' }],
+      fourStar: [{ name: '测试四星武器' }],
+    });
+    simulator.updateState({
+      totalPulls: 70,
+      sixStarPity: 10,
+      guaranteedLimitedPity: 70,
+      hasReceivedGuaranteedLimited: false,
+    });
+
+    const results = simulator.pullTen();
+
+    expect(results).toHaveLength(10);
+    expect(results.some((result) => result.rarity === 6 && result.isUp)).toBe(true);
+    expect(simulator.getState()).toMatchObject({
+      totalPulls: 80,
+      sixStarPity: 0,
+      guaranteedLimitedPity: 80,
+      hasReceivedGuaranteedLimited: true,
+      sixStarCount: 1,
+      upSixStarCount: 1,
+    });
+    expect(simulator.getState().pullHistory).toHaveLength(10);
+    expect(simulator.getStatistics().avgPullsPerSixStar).toBe('10.0');
+  });
 });

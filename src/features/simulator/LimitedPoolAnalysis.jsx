@@ -113,8 +113,11 @@ const LimitedPoolAnalysis = ({ currentPool, stats, effectivePity, pityInfo }) =>
   const targetRateLabel = isWeapon ? t('simulator.analysis.targetRate') : t('simulator.analysis.upRate');
   const targetProbabilityFooter = targetProbabilityInfo
     ? targetProbabilityInfo.isHardGuaranteeNextPull
-      ? t('simulator.analysis.targetGuaranteed', { label: targetLabel })
-      : t('simulator.analysis.targetProbabilityDetail', {
+      ? t(
+          isWeapon ? 'simulator.analysis.targetClaimGuaranteed' : 'simulator.analysis.targetGuaranteed',
+          { label: targetLabel }
+        )
+      : t(isWeapon ? 'simulator.analysis.targetClaimProbabilityDetail' : 'simulator.analysis.targetProbabilityDetail', {
           label: targetLabel,
           current: currentTargetProbabilityPercent,
           rateLabel: targetRateLabel,

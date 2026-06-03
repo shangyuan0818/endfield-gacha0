@@ -473,7 +473,10 @@ export function useGachaSimulatorController() {
       settings: normalizedSettings,
     };
   }, [availableFreePulls, currentPoolType, infoBookTenPullAvailable, resourceSettings]);
-  const canAffordSinglePull = canAffordSimulatorPull(resourceLedger, currentPullCosts.single);
+  const isWeaponPool = currentPoolType === 'weapon';
+  const canAffordSinglePull = isWeaponPool
+    ? false
+    : canAffordSimulatorPull(resourceLedger, currentPullCosts.single);
   const canAffordTenPull = canAffordSimulatorPull(resourceLedger, currentPullCosts.ten);
   const getPullDisabledReason = useCallback(
     (cost, canAfford) => {
@@ -505,7 +508,9 @@ export function useGachaSimulatorController() {
     },
     [isAnimating, locale, poolCharactersList, resourceLedger, t]
   );
-  const singlePullDisabledReason = getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
+  const singlePullDisabledReason = isWeaponPool
+    ? t('simulator.toast.weaponSingleDisabled')
+    : getPullDisabledReason(currentPullCosts.single, canAffordSinglePull);
   const tenPullDisabledReason = getPullDisabledReason(currentPullCosts.ten, canAffordTenPull);
   const currentSimPoolIdValue = currentSimPool?.id ?? null;
   const currentSimPoolFeaturedLead = currentSimPoolSource ? getPoolFeaturedLead(currentSimPoolSource) : null;
@@ -840,6 +845,11 @@ export function useGachaSimulatorController() {
     (type, options = {}) => {
       const { isInfoBookPull = false, isFreePull = false, conversionPlan = null } = options;
 
+      if (type === 'single' && normalizeSimulatorPoolType(simulator.poolType) === 'weapon') {
+        showToastMessage(t('simulator.toast.weaponSingleDisabled'));
+        return;
+      }
+
       if (conversionPlan?.originiteNeeded > 0) {
         adjustResourceAmount('jade', 'convertOriginite', conversionPlan.originiteNeeded);
       }
@@ -924,6 +934,11 @@ export function useGachaSimulatorController() {
   const handlePull = useCallback(
     (type) => {
       if (isAnimating) {
+        return;
+      }
+
+      if (type === 'single' && normalizeSimulatorPoolType(simulator.poolType) === 'weapon') {
+        showToastMessage(t('simulator.toast.weaponSingleDisabled'));
         return;
       }
 
@@ -1666,6 +1681,7 @@ export function useGachaSimulatorController() {
     toggleTenPull,
     toggleCnOriginiteDoubleBonus,
     toggleInfiniteResources,
+    isWeaponPool,
     updateResourceSetting: adjustResourceAmount,
   };
 }

@@ -78,6 +78,7 @@ const GachaSimulator = () => {
     disableOriginitePromptToday,
     toggleCnOriginiteDoubleBonus,
     toggleInfiniteResources,
+    isWeaponPool,
   } = useGachaSimulatorController();
   const normalizedSimulatorPoolType = normalizeSimulatorPoolType(simulator.poolType);
   const shareCardRef = useRef(null);
@@ -217,6 +218,7 @@ const GachaSimulator = () => {
               tenCost={currentPullCosts.ten}
               availableFreePulls={availableFreePulls}
               infoBookTenPullAvailable={infoBookTenPullAvailable}
+              isWeaponPool={isWeaponPool}
             />
           </div>
         </div>

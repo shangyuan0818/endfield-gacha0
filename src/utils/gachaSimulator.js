@@ -7,6 +7,7 @@
 import {
   simulateSinglePull,
   simulateTenPull,
+  simulateWeaponTenClaim,
   simulateCharacterFreeTen,
   checkInfoBookAvailable,
   calculateExpectedPulls
@@ -93,6 +94,22 @@ function getRulesByPoolType(poolType) {
     default:
       return LIMITED_POOL_RULES;
   }
+}
+
+function normalizeSimulatorPoolType(poolType) {
+  if (poolType === 'limited_weapon' || poolType === 'weapon') {
+    return 'weapon';
+  }
+
+  if (poolType === 'limited_character' || poolType === 'limited') {
+    return 'limited';
+  }
+
+  if (poolType === 'standard_pool' || poolType === 'standard') {
+    return 'standard';
+  }
+
+  return poolType;
 }
 
 /**
@@ -194,6 +211,10 @@ export class GachaSimulator {
    * @returns {Object} 抽卡结果
    */
   pullSingle() {
+    if (normalizeSimulatorPoolType(this.poolType) === 'weapon') {
+      throw new Error('武器池按申领进行，每次申领固定获得10件武器');
+    }
+
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
@@ -237,6 +258,10 @@ export class GachaSimulator {
    * @returns {Array} 十连结果数组
    */
   pullTen() {
+    if (normalizeSimulatorPoolType(this.poolType) === 'weapon') {
+      return this.pullWeaponClaim();
+    }
+
     // 获取当前UP角色（如果是限定池）
     const currentUpChar = (this.poolType === 'limited' || this.poolType === 'limited_character')
       ? this.getCurrentUpCharacter()
@@ -280,6 +305,64 @@ export class GachaSimulator {
       hasReceivedInfoBook: infoBook || this.state.hasReceivedInfoBook,
       // 如果获得情报书，标记为未激活（需要切换到下一个池才能使用）
       hasUnactivatedInfoBook: infoBook ? true : this.state.hasUnactivatedInfoBook,
+      lastPullResult: pullRecords,
+      upSixStarCount: this.state.upSixStarCount + upSixStars
+    });
+
+    return pullRecords;
+  }
+
+  /**
+   * 武库申领（每次固定获得10件武器）
+   * @returns {Array} 申领结果数组
+   */
+  pullWeaponClaim() {
+    const currentUpChar = this.currentUpCharacter || null;
+    const { results, nextState } = simulateWeaponTenClaim(
+      this.state,
+      this.rules,
+      currentUpChar,
+      this.poolCharactersList
+    );
+    const pullRecords = [];
+
+    let sixStars = 0;
+    let fiveStars = 0;
+    let upSixStars = 0;
+
+    results.forEach((result, index) => {
+      const pullNumber = this.state.totalPulls + index + 1;
+
+      if (result.rarity === 6) {
+        sixStars += 1;
+        if (result.isUp) upSixStars += 1;
+      }
+      if (result.rarity === 5) {
+        fiveStars += 1;
+      }
+
+      pullRecords.push({
+        pullNumber,
+        rarity: result.rarity,
+        isUp: result.isUp,
+        isLimited: result.isLimited,
+        characterName: result.characterName,
+        timestamp: Date.now() + index,
+        batchIndex: index,
+        isTenPull: true
+      });
+    });
+
+    const totalPulls = this.state.totalPulls + pullRecords.length;
+    const gifts = this.checkGifts(totalPulls);
+
+    this.updateState({
+      ...nextState,
+      totalPulls,
+      sixStarCount: this.state.sixStarCount + sixStars,
+      fiveStarCount: this.state.fiveStarCount + fiveStars,
+      pullHistory: [...this.state.pullHistory, ...pullRecords],
+      giftsReceived: Number(gifts.standardCount || 0) + Number(gifts.limitedCount || 0),
       lastPullResult: pullRecords,
       upSixStarCount: this.state.upSixStarCount + upSixStars
     });
@@ -687,25 +770,34 @@ export class GachaSimulator {
       guaranteedLimitedPity: maxGuaranteedPity
     } = this.rules;
 
+    const safePercentage = (current, max) => {
+      const numericMax = Number(max || 0);
+      if (numericMax <= 0) {
+        return '0.0';
+      }
+      return (Number(current || 0) / numericMax * 100).toFixed(1);
+    };
+    const safeRemaining = (current, max) => Math.max(Number(max || 0) - Number(current || 0), 0);
+
     return {
       sixStar: {
         current: sixStarPity,
         max: maxSixStarPity,
-        percentage: (sixStarPity / maxSixStarPity * 100).toFixed(1),
-        remaining: maxSixStarPity - sixStarPity
+        percentage: safePercentage(sixStarPity, maxSixStarPity),
+        remaining: safeRemaining(sixStarPity, maxSixStarPity)
       },
       fiveStar: {
         current: fiveStarPity,
         max: maxFiveStarPity,
-        percentage: (fiveStarPity / maxFiveStarPity * 100).toFixed(1),
-        remaining: maxFiveStarPity - fiveStarPity
+        percentage: safePercentage(fiveStarPity, maxFiveStarPity),
+        remaining: safeRemaining(fiveStarPity, maxFiveStarPity)
       },
       guaranteedUp: {
         isActive: isGuaranteedUp,
         current: guaranteedLimitedPity,
         max: maxGuaranteedPity,
-        percentage: (guaranteedLimitedPity / maxGuaranteedPity * 100).toFixed(1),
-        remaining: maxGuaranteedPity - guaranteedLimitedPity,
+        percentage: safePercentage(guaranteedLimitedPity, maxGuaranteedPity),
+        remaining: safeRemaining(guaranteedLimitedPity, maxGuaranteedPity),
         hasReceived: hasReceivedGuaranteedLimited
       }
     };

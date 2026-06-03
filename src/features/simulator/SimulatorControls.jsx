@@ -45,7 +45,8 @@ const SimulatorControls = ({
   singleCost,
   tenCost,
   availableFreePulls = 0,
-  infoBookTenPullAvailable = false
+  infoBookTenPullAvailable = false,
+  isWeaponPool = false
 }) => {
   const { t, locale } = useI18n();
   const hasFree = availableFreePulls > 0;
@@ -113,7 +114,13 @@ const SimulatorControls = ({
 
           <div className="relative z-10 flex flex-col items-center justify-center h-full">
             <span className={`text-lg font-black uppercase tracking-widest mb-2 flex items-center gap-2 ${hasInfoBook || hasFree ? 'text-white' : 'text-black'}`}>
-              {hasInfoBook ? t('simulator.controls.infoBookTen') : hasFree ? t('simulator.controls.freeTen') : t('simulator.controls.defaultTen')}
+              {hasInfoBook
+                ? t('simulator.controls.infoBookTen')
+                : hasFree
+                  ? t('simulator.controls.freeTen')
+                  : isWeaponPool
+                    ? t('simulator.controls.weaponClaim')
+                    : t('simulator.controls.defaultTen')}
               <Star size={16} className={hasInfoBook || hasFree ? 'fill-white' : 'fill-black'} />
             </span>
             <div className={`flex items-center gap-2 px-4 py-1.5 rounded-none border ${

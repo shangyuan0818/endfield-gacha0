@@ -12,6 +12,7 @@ import {
   checkGuaranteedLimitedTrigger,
   checkInfoBookAvailable,
   simulateCharacterFreeTen,
+  simulateWeaponTenClaim,
 } from '../probabilityEngine.js';
 
 describe('probabilityEngine', () => {
@@ -85,6 +86,80 @@ describe('probabilityEngine', () => {
       rarity: 5,
       isUp: false,
       isLimited: false,
+    });
+  });
+
+  it('guarantees a six-star weapon on the fourth claim after three missed claims', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const { results, nextState } = simulateWeaponTenClaim({
+      totalPulls: 30,
+      sixStarPity: 30,
+      guaranteedLimitedPity: 30,
+      hasReceivedGuaranteedLimited: false,
+    }, WEAPON_POOL_RULES, '测试武器', {
+      up: ['测试武器'],
+      offBanner: ['常驻武器'],
+      fiveStar: ['测试五星武器'],
+      fourStar: ['测试四星武器'],
+    });
+
+    expect(results).toHaveLength(10);
+    expect(results.filter((result) => result.rarity === 6)).toHaveLength(1);
+    expect(results.some((result) => result.rarity >= 5)).toBe(true);
+    expect(nextState).toMatchObject({
+      sixStarPity: 0,
+      guaranteedLimitedPity: 40,
+      hasReceivedGuaranteedLimited: false,
+    });
+  });
+
+  it('guarantees the target weapon on the eighth claim before the first target hit', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const { results, nextState } = simulateWeaponTenClaim({
+      totalPulls: 70,
+      sixStarPity: 10,
+      guaranteedLimitedPity: 70,
+      hasReceivedGuaranteedLimited: false,
+    }, WEAPON_POOL_RULES, '测试武器', {
+      up: ['测试武器'],
+      offBanner: ['常驻武器'],
+      fiveStar: ['测试五星武器'],
+      fourStar: ['测试四星武器'],
+    });
+
+    expect(results).toHaveLength(10);
+    expect(results.some((result) => result.rarity === 6 && result.isUp)).toBe(true);
+    expect(nextState).toMatchObject({
+      sixStarPity: 0,
+      guaranteedLimitedPity: 80,
+      hasReceivedGuaranteedLimited: true,
+    });
+  });
+
+  it('does not repeat the target weapon guarantee after it has already been received', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.999);
+
+    const { results, nextState } = simulateWeaponTenClaim({
+      totalPulls: 150,
+      sixStarPity: 30,
+      guaranteedLimitedPity: 80,
+      hasReceivedGuaranteedLimited: true,
+    }, WEAPON_POOL_RULES, '测试武器', {
+      up: ['测试武器'],
+      offBanner: ['常驻武器'],
+      fiveStar: ['测试五星武器'],
+      fourStar: ['测试四星武器'],
+    });
+
+    expect(results).toHaveLength(10);
+    expect(results.some((result) => result.rarity === 6)).toBe(true);
+    expect(results.some((result) => result.rarity === 6 && result.isUp)).toBe(false);
+    expect(nextState).toMatchObject({
+      sixStarPity: 0,
+      guaranteedLimitedPity: 80,
+      hasReceivedGuaranteedLimited: true,
     });
   });
 });
