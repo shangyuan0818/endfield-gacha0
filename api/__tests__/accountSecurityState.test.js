@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   createSupabaseAccessTokenClient: vi.fn(),
   getBearerToken: vi.fn(() => 'token'),
   getSupabaseAdminClient: vi.fn(),
+  loadAuthUserById: vi.fn(),
 }));
 
 vi.mock('../_lib/http.js', () => ({
@@ -17,6 +18,7 @@ vi.mock('../_lib/authAdmin.js', () => ({
   createSupabaseAccessTokenClient: mocks.createSupabaseAccessTokenClient,
   getBearerToken: mocks.getBearerToken,
   getSupabaseAdminClient: mocks.getSupabaseAdminClient,
+  loadAuthUserById: mocks.loadAuthUserById,
 }));
 
 import accountSecurityStateHandler from '../_routes/root/account-security-state.js';
@@ -60,6 +62,11 @@ function createRequest({
 }
 
 function createAdminClient({
+  profileRow = {
+    id: 'user-1',
+    email: 'user@example.com',
+    role: 'user',
+  },
   stateRow = {
     password_change_required: true,
     password_change_reason: 'account_recovery_temporary_password',
@@ -75,30 +82,45 @@ function createAdminClient({
   stateError = null,
   upsertError = null,
 } = {}) {
-  const maybeSingle = vi.fn(async () => ({
+  const stateMaybeSingle = vi.fn(async () => ({
     data: stateRow,
     error: stateError,
   }));
-  const eq = vi.fn(() => ({ maybeSingle }));
-  const select = vi.fn(() => ({ eq }));
+  const stateEq = vi.fn(() => ({ maybeSingle: stateMaybeSingle }));
+  const stateSelect = vi.fn(() => ({ eq: stateEq }));
   const upsert = vi.fn(async () => ({ error: upsertError }));
+  const profileMaybeSingle = vi.fn(async () => ({
+    data: profileRow,
+    error: null,
+  }));
+  const profileEq = vi.fn(() => ({ maybeSingle: profileMaybeSingle }));
+  const profileSelect = vi.fn(() => ({ eq: profileEq }));
 
   return {
     from: vi.fn((table) => {
-      if (table !== 'account_security_states') {
-        throw new Error(`Unexpected table: ${table}`);
+      if (table === 'profiles') {
+        return {
+          select: profileSelect,
+        };
       }
 
-      return {
-        select,
-        upsert,
-      };
+      if (table === 'account_security_states') {
+        return {
+          select: stateSelect,
+          upsert,
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
     }),
     __securityStateMocks: {
-      select,
-      eq,
-      maybeSingle,
+      select: stateSelect,
+      eq: stateEq,
+      maybeSingle: stateMaybeSingle,
       upsert,
+      profileSelect,
+      profileEq,
+      profileMaybeSingle,
     },
   };
 }
@@ -107,6 +129,13 @@ describe('api/account-security-state handler', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getBearerToken.mockReturnValue('token');
+    mocks.loadAuthUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      email_confirmed_at: null,
+      encrypted_password: null,
+      user_metadata: {},
+    });
     mocks.createSupabaseAccessTokenClient.mockReturnValue({
       auth: {
         getUser: vi.fn(async () => ({
@@ -146,6 +175,107 @@ describe('api/account-security-state handler', () => {
       },
     });
     expect(JSON.stringify(res.body)).not.toContain('password_change_');
+  });
+
+  it('does not keep blocking OAuth import when email and password setup are already complete', async () => {
+    const adminClient = createAdminClient({
+      profileRow: {
+        id: 'user-1',
+        email: 'site-user@example.com',
+        role: 'user',
+      },
+      stateRow: {
+        password_change_required: true,
+        password_change_reason: 'oauth_password_setup_required:github',
+        password_change_source: 'oauth',
+        password_change_requested_at: '2026-06-04T00:00:00.000Z',
+        password_change_expires_at: null,
+        password_change_recovery_request_id: null,
+        email_verification_required: true,
+        email_verification_reason: 'oauth_email_setup_required',
+        email_verification_requested_at: '2026-06-04T00:00:00.000Z',
+        email_verification_verified_at: '2026-06-04T01:00:00.000Z',
+      },
+    });
+    mocks.loadAuthUserById.mockResolvedValue({
+      id: 'user-1',
+      email: 'site-user@example.com',
+      email_confirmed_at: '2026-06-04T01:00:00.000Z',
+      encrypted_password: '$2a$10$hashed',
+      user_metadata: {
+        site_password_set: true,
+        email_bound_from_profile: true,
+      },
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest();
+    const res = createJsonResponseRecorder();
+
+    await accountSecurityStateHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.state).toMatchObject({
+      passwordChangeRequired: false,
+      reason: 'oauth_password_setup_required:github',
+      emailVerificationRequired: false,
+      emailVerificationReason: 'oauth_email_setup_required',
+      emailVerificationVerifiedAt: '2026-06-04T01:00:00.000Z',
+    });
+  });
+
+  it('does not keep blocking super admin import because of stale OAuth completion state', async () => {
+    const adminClient = createAdminClient({
+      profileRow: {
+        id: 'admin-1',
+        email: 'admin@example.com',
+        role: 'super_admin',
+      },
+      stateRow: {
+        password_change_required: true,
+        password_change_reason: 'oauth_password_setup_required:github',
+        password_change_source: 'oauth',
+        password_change_requested_at: '2026-06-04T00:00:00.000Z',
+        password_change_expires_at: null,
+        password_change_recovery_request_id: null,
+        email_verification_required: true,
+        email_verification_reason: 'oauth_email_setup_required',
+        email_verification_requested_at: '2026-06-04T00:00:00.000Z',
+        email_verification_verified_at: null,
+      },
+    });
+    mocks.createSupabaseAccessTokenClient.mockReturnValue({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: {
+            user: {
+              id: 'admin-1',
+              app_metadata: { role: 'super_admin' },
+            },
+          },
+          error: null,
+        })),
+      },
+    });
+    mocks.loadAuthUserById.mockResolvedValue({
+      id: 'admin-1',
+      email: 'admin@example.com',
+      email_confirmed_at: null,
+      encrypted_password: null,
+      user_metadata: {},
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest();
+    const res = createJsonResponseRecorder();
+
+    await accountSecurityStateHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.state).toMatchObject({
+      passwordChangeRequired: false,
+      emailVerificationRequired: false,
+    });
   });
 
   it('clears the password-change requirement for the current user', async () => {

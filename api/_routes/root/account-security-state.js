@@ -1,5 +1,6 @@
 import {
   getSupabaseAdminClient,
+  loadAuthUserById,
 } from '../../_lib/authAdmin.js';
 import { resolveAuthenticatedRequestUser } from '../../_lib/siteAuth.js';
 import {
@@ -40,8 +41,95 @@ function toClientSecurityState(row) {
   };
 }
 
+function normalizeEmail(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized || normalized.length > 320) {
+    return '';
+  }
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) ? normalized : '';
+}
+
 function isAuthEmailConfirmed(user) {
   return Boolean(user?.email_confirmed_at || user?.confirmed_at);
+}
+
+function isSuperAdminUser(user, profile = null) {
+  return user?.app_metadata?.role === 'super_admin'
+    || user?.profile_role === 'super_admin'
+    || profile?.role === 'super_admin';
+}
+
+function hasSitePassword(authUser = null) {
+  const metadata = authUser?.user_metadata || authUser?.raw_user_meta_data || {};
+  return Boolean(
+    authUser?.encrypted_password
+    || metadata?.site_password_set === true
+    || metadata?.email_bound_from_profile === true
+  );
+}
+
+async function loadProfile(adminClient, userId) {
+  const { data, error } = await adminClient
+    .from('profiles')
+    .select('id, email, role')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+function normalizeEffectiveSecurityState(row, {
+  currentUser,
+  profile,
+  authUser,
+} = {}) {
+  if (!row) {
+    return null;
+  }
+
+  const next = { ...row };
+  const superAdmin = isSuperAdminUser(currentUser, profile);
+  const profileEmail = normalizeEmail(profile?.email);
+  const authEmail = normalizeEmail(authUser?.email || currentUser?.email);
+  const hasUsableEmail = Boolean(profileEmail || authEmail);
+  const emailVerified = Boolean(
+    row.email_verification_verified_at
+    || isAuthEmailConfirmed(authUser)
+    || isAuthEmailConfirmed(currentUser)
+  );
+  const emailReason = String(row.email_verification_reason || '');
+  const passwordReason = String(row.password_change_reason || '');
+  const isOAuthEmailSetup = emailReason.startsWith('oauth_email_setup_required');
+  const isOAuthPasswordSetup = passwordReason.startsWith('oauth_password_setup_required');
+
+  if (
+    (superAdmin && isOAuthEmailSetup)
+    || (
+      row.email_verification_required === true
+      && isOAuthEmailSetup
+      && hasUsableEmail
+      && emailVerified
+    )
+  ) {
+    next.email_verification_required = false;
+  }
+
+  if (
+    (superAdmin && isOAuthPasswordSetup)
+    || (
+      row.password_change_required === true
+      && isOAuthPasswordSetup
+      && hasSitePassword(authUser)
+    )
+  ) {
+    next.password_change_required = false;
+  }
+
+  return next;
 }
 
 async function resolveCurrentUser(req, {
@@ -120,6 +208,14 @@ export default async function handler(req, res) {
       }
     }
 
+    const [
+      profile,
+      authUser,
+    ] = await Promise.all([
+      loadProfile(adminClient, currentUser.id),
+      loadAuthUserById(adminClient, currentUser.id),
+    ]);
+
     const { data: stateRow, error: stateError } = await adminClient
       .from('account_security_states')
       .select('password_change_required, password_change_reason, password_change_source, password_change_requested_at, password_change_expires_at, password_change_recovery_request_id, email_verification_required, email_verification_reason, email_verification_requested_at, email_verification_verified_at')
@@ -130,14 +226,19 @@ export default async function handler(req, res) {
       throw stateError;
     }
 
-    const fallbackEmailVerificationRequired = !stateRow
+    const effectiveStateRow = normalizeEffectiveSecurityState(stateRow, {
+      currentUser,
+      profile,
+      authUser,
+    });
+
+    const fallbackEmailVerificationRequired = !effectiveStateRow
       && !isAuthEmailConfirmed(currentUser)
-      && currentUser?.app_metadata?.role !== 'super_admin'
-      && currentUser?.profile_role !== 'super_admin';
+      && !isSuperAdminUser(currentUser, profile);
 
     return res.status(200).json({
       success: true,
-      state: toClientSecurityState(stateRow || (fallbackEmailVerificationRequired ? {
+      state: toClientSecurityState(effectiveStateRow || (fallbackEmailVerificationRequired ? {
         email_verification_required: true,
         email_verification_reason: 'unverified_email',
         email_verification_requested_at: null,
