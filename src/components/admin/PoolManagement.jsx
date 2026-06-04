@@ -1,14 +1,16 @@
-import React from 'react';
-import { Search, Plus, Database, RotateCw, ArrowUpDown, Filter } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Plus, Database, RotateCw, ArrowUpDown, Filter, CalendarDays, List } from 'lucide-react';
 import { usePools } from '../../hooks/admin/usePools';
 import { PoolCard, PoolEditDialog } from './pools';
 import VirtualizedList from './VirtualizedList';
+import HomeVersionTimelineManager from './HomeVersionTimelineManager.jsx';
 
 /**
  * 卡池管理界面
  * 超级管理员专用，用于管理所有卡池的 CRUD 操作
  */
 const PoolManagement = ({ showToast }) => {
+  const [activeTab, setActiveTab] = useState('pools');
   const {
     // 数据
     pools,
@@ -63,6 +65,37 @@ const PoolManagement = ({ showToast }) => {
 
   return (
     <div className="space-y-4">
+      <div className="flex border border-zinc-200 bg-white p-1 dark:border-zinc-800 dark:bg-zinc-950">
+        <button
+          type="button"
+          onClick={() => setActiveTab('pools')}
+          className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition-colors ${
+            activeTab === 'pools'
+              ? 'bg-red-500 text-white'
+              : 'text-slate-500 hover:bg-zinc-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <List size={14} />
+          卡池列表
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('versions')}
+          className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-bold transition-colors ${
+            activeTab === 'versions'
+              ? 'bg-blue-600 text-white'
+              : 'text-slate-500 hover:bg-zinc-100 hover:text-slate-800 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100'
+          }`}
+        >
+          <CalendarDays size={14} />
+          版本管理
+        </button>
+      </div>
+
+      {activeTab === 'versions' ? (
+        <HomeVersionTimelineManager pools={pools} showToast={showToast} />
+      ) : (
+        <>
       {/* 工具栏 */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex-1 min-w-[200px] relative">
@@ -184,6 +217,8 @@ const PoolManagement = ({ showToast }) => {
         onAddAllCharacters={addAllCharactersToPool}
         onRemoveAllCharacters={removeAllCharactersFromPool}
       />
+        </>
+      )}
     </div>
   );
 };

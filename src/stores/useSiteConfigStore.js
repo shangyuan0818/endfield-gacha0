@@ -7,9 +7,19 @@ import { executeSupabaseRead } from '../services/supabaseRequest.js';
 import { supabase } from '../supabaseClient.js';
 import { APP_BUILD_INFO, APP_VERSION_LABEL } from '../constants/appMeta.js';
 import { readStorageValue, STORAGE_KEYS, writeStorageValue } from '../utils/storageUtils.js';
+import {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  DEFAULT_HOME_VERSION_TIMELINE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  HOME_VERSION_TIMELINE_CONFIG_KEY,
+} from '../utils/homeVersionTimeline.js';
 
-export const HOME_NEXT_VERSION_TARGET_CONFIG_KEY = 'home_next_version_target_at';
-export const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-05T12:00:00+08:00';
+export {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  DEFAULT_HOME_VERSION_TIMELINE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  HOME_VERSION_TIMELINE_CONFIG_KEY,
+};
 
 const VERSION_CONFIG_METADATA = {
   site_version: { label: '站点版本', category: 'general' },

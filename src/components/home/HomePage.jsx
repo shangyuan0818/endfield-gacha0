@@ -23,11 +23,12 @@ import {
 } from '../../utils/poolTimeUtils';
 import usePoolStore from '../../stores/usePoolStore';
 import useSiteConfigStore, {
-  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
-  HOME_NEXT_VERSION_TARGET_CONFIG_KEY
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  HOME_VERSION_TIMELINE_CONFIG_KEY,
 } from '../../stores/useSiteConfigStore';
 import CountdownTimer from './CountdownTimer';
 import HeirloomsPreviewCard from './HeirloomsPreviewCard';
+import NextVersionCountdownCard from './NextVersionCountdownCard';
 import HomeAnnouncementContent from './AnnouncementContent';
 import CollapsibleContent from './CollapsibleContent';
 import HomeFriendlyLinksCard from './FriendlyLinksCard';
@@ -51,6 +52,11 @@ import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '
 import { resolveGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import {
+  buildHomeRotationVersionSections,
+  buildHomeVersionCountdownTitle,
+  resolveHomeVersionPlan,
+} from '../../utils/homeVersionTimeline.js';
+import {
   getAnnouncementSeverityMeta,
   getAnnouncementTypeLabel,
   splitSiteAnnouncements
@@ -66,15 +72,10 @@ const HomePage = React.memo(() => {
   const nextVersionTargetConfigValue = useSiteConfigStore(
     (state) => state.config[HOME_NEXT_VERSION_TARGET_CONFIG_KEY]
   );
+  const versionTimelineConfigValue = useSiteConfigStore(
+    (state) => state.config[HOME_VERSION_TIMELINE_CONFIG_KEY]
+  );
   const communityLinkLabel = ENGLISH_COMMUNITY_DISCORD_URL.replace(/^https?:\/\//u, '');
-
-  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
-  const nextVersionTargetDate = useMemo(() => {
-    const configuredValue = nextVersionTargetConfigValue || DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
-    return Number.isFinite(Date.parse(configuredValue))
-      ? configuredValue
-      : DEFAULT_HOME_NEXT_VERSION_TARGET_DATE;
-  }, [nextVersionTargetConfigValue]);
 
   const [now, setNow] = useState(new Date());
   useEffect(() => {
@@ -82,8 +83,25 @@ const HomePage = React.memo(() => {
     return () => clearInterval(timer);
   }, []);
 
+  const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
+  const versionPlan = useMemo(() => resolveHomeVersionPlan({
+    timelineConfig: versionTimelineConfigValue,
+    legacyTargetAt: nextVersionTargetConfigValue,
+    locale,
+    now,
+  }), [locale, nextVersionTargetConfigValue, now, versionTimelineConfigValue]);
+  const nextVersionTargetDate = versionPlan.targetAt;
+  const nextVersionCountdownTitle = useMemo(() => buildHomeVersionCountdownTitle(versionPlan, {
+    baseTitle: t('home.nextVersionCountdown'),
+  }), [t, versionPlan]);
+
   const limitedPoolSchedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
   const poolSchedule = useMemo(() => getHomeRotationPoolSchedule(poolsArray), [poolsArray]);
+  const poolScheduleVersionSections = useMemo(() => buildHomeRotationVersionSections({
+    poolSchedule,
+    versionPlan,
+    now,
+  }), [now, poolSchedule, versionPlan]);
   const currentUpInfo = useMemo(() => getCurrentUpPoolInfo(poolsArray, now), [poolsArray, now]);
 
   const countdowns = useMemo(() => {
@@ -133,13 +151,13 @@ const HomePage = React.memo(() => {
     if (!main) {
       main = {
         targetDate: nextVersionTargetDate,
-        title: t('home.nextVersionCountdown'),
+        title: nextVersionCountdownTitle,
         subTitle: t('home.nextVersionWaiting')
       };
     }
 
     return { main, secondary: secondaryCountdown };
-  }, [isEnglish, limitedPoolSchedule, nextVersionTargetDate, now, poolsArray, t]);
+  }, [isEnglish, limitedPoolSchedule, nextVersionCountdownTitle, nextVersionTargetDate, now, poolsArray, t]);
 
   const initialCollapseState = useMemo(() => getHomeCollapseState(), []);
   const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
@@ -613,7 +631,7 @@ const HomePage = React.memo(() => {
           </div>
         )}
 
-        <HomeRotationScheduleCard poolSchedule={poolSchedule} now={now} />
+        <HomeRotationScheduleCard poolSchedule={poolSchedule} versionSections={poolScheduleVersionSections} now={now} />
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.3fr] gap-6">
           <HomeFriendlyLinksCard />
@@ -621,13 +639,11 @@ const HomePage = React.memo(() => {
           <div className="flex flex-col gap-6">
             <HeirloomsPreviewCard />
             <div className="shrink-0 min-h-32">
-              <CountdownTimer
+              <NextVersionCountdownCard
                 targetDate={nextVersionTargetDate}
-                title={t('home.nextVersionCountdown')}
+                title={nextVersionCountdownTitle}
                 subTitle={t('home.nextVersionRelease')}
-                customEndedContent={<span>{t('home.versionLaunched')}</span>}
-                size="small"
-                scheduleDate={nextVersionTargetDate}
+                endedText={t('home.versionLaunched')}
                 scheduleLabel={t('home.countdown.releaseAt')}
               />
             </div>

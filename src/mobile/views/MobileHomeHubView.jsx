@@ -5,7 +5,11 @@ import GameAnnouncementFeed from '../../components/home/GameAnnouncementFeed';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { useAppStore, useAuthStore } from '../../stores';
 import usePoolStore from '../../stores/usePoolStore';
-import useSiteConfigStore, { useJsonConfig } from '../../stores/useSiteConfigStore';
+import useSiteConfigStore, {
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  HOME_VERSION_TIMELINE_CONFIG_KEY,
+  useJsonConfig
+} from '../../stores/useSiteConfigStore';
 import { useI18n } from '../../i18n/index.js';
 import {
   getActiveHomeCountdownPools,
@@ -18,7 +22,11 @@ import { localizeEntityName, localizePoolName } from '../../utils/gameDataI18n.j
 import { getLocalizedAnnouncementContent, getLocalizedAnnouncementTitle } from '../../utils/announcementLocale.js';
 import { resolveGameAnnouncementDigest } from '../../utils/gameAnnouncementDigest.js';
 import { getAnnouncementTypeLabel, splitSiteAnnouncements } from '../../utils/announcementMeta.js';
-import { DEFAULT_HOME_ROADMAP_SUMMARY, normalizeHomeRoadmapItems } from '../../constants/homeRoadmap.js';
+import {
+  buildHomeRotationVersionSections,
+  buildHomeVersionCountdownTitle,
+  resolveHomeVersionPlan,
+} from '../../utils/homeVersionTimeline.js';
 
 const DEFAULT_LINKS = [
   { id: 'yituliu-calculator', title: '一图流攒抽计算器', url: 'https://ef.yituliu.cn/tools/gacha-calculator', icon: 'bar-chart-2' }, 
@@ -56,23 +64,6 @@ function resolveFriendlyLinkId(item, fallbackIndex = 0) {
   return DEFAULT_LINKS[fallbackIndex]?.id || null;
 }
 
-function normalizeRoadmapStatus(status) {
-  const normalized = String(status || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/gu, '_');
-
-  if (['completed', 'done', 'shipped', 'finished'].includes(normalized)) {
-    return 'completed';
-  }
-
-  if (['in_progress', 'inprogress', 'progress', 'ongoing', 'active', 'working'].includes(normalized)) {
-    return 'in_progress';
-  }
-
-  return 'planned';
-}
-
 function BackButton({ label, onClick }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} className="touch-feedback inline-flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 transition-colors">
@@ -89,9 +80,13 @@ export default function MobileHomeHubView() {
   const storedGameAnnouncementDigest = useAppStore((state) => state.gameAnnouncementDigest);
   const pools = usePoolStore((state) => state.pools);
   const getConfig = useSiteConfigStore((state) => state.getConfig);
+  const nextVersionTargetConfigValue = useSiteConfigStore(
+    (state) => state.config[HOME_NEXT_VERSION_TARGET_CONFIG_KEY]
+  );
+  const versionTimelineConfigValue = useSiteConfigStore(
+    (state) => state.config[HOME_VERSION_TIMELINE_CONFIG_KEY]
+  );
   const links = useJsonConfig('home_friendly_links', DEFAULT_LINKS);
-  const roadmapConfig = useJsonConfig('home_roadmap_items', DEFAULT_HOME_ROADMAP_SUMMARY);
-  const roadmap = normalizeHomeRoadmapItems(roadmapConfig, DEFAULT_HOME_ROADMAP_SUMMARY);
   const [now, setNow] = useState(new Date());
   const [activeView, setActiveView] = useState('home');
   const heroSlogan = (() => {
@@ -110,6 +105,21 @@ export default function MobileHomeHubView() {
   const poolsArray = useMemo(() => (Array.isArray(pools) ? pools : []), [pools]);
   const schedule = useMemo(() => getLimitedPoolSchedule(poolsArray), [poolsArray]);
   const homeRotationSchedule = useMemo(() => getHomeRotationPoolSchedule(poolsArray), [poolsArray]);
+  const versionPlan = useMemo(() => resolveHomeVersionPlan({
+    timelineConfig: versionTimelineConfigValue,
+    legacyTargetAt: nextVersionTargetConfigValue,
+    locale,
+    now,
+  }), [locale, nextVersionTargetConfigValue, now, versionTimelineConfigValue]);
+  const nextVersionTargetDate = versionPlan.targetAt;
+  const nextVersionCardTitle = useMemo(() => buildHomeVersionCountdownTitle(versionPlan, {
+    baseTitle: t('home.mobile.nextVersionTitle'),
+  }), [t, versionPlan]);
+  const homeRotationVersionSections = useMemo(() => buildHomeRotationVersionSections({
+    poolSchedule: homeRotationSchedule,
+    versionPlan,
+    now,
+  }), [homeRotationSchedule, now, versionPlan]);
   const { temporary: temporaryAnnouncements, updates: updateAnnouncements } = useMemo(
     () => splitSiteAnnouncements(announcements),
     [announcements]
@@ -136,19 +146,6 @@ export default function MobileHomeHubView() {
     })(),
   })), [links, t]);
 
-  const translatedRoadmap = useMemo(() => (Array.isArray(roadmap) ? roadmap : []).map((item) => ({
-    ...item,
-    status: normalizeRoadmapStatus(item.status),
-    title: item.id ? t(`home.roadmap.item.${item.id}.title`, {}, item.title) : item.title,
-    description: item.id ? t(`home.roadmap.item.${item.id}.description`, {}, item.description) : item.description,
-  })), [roadmap, t]);
-
-  const roadmapCounts = useMemo(() => ({
-    completed: translatedRoadmap.filter((item) => item.status === 'completed').length,
-    inProgress: translatedRoadmap.filter((item) => item.status === 'in_progress').length,
-    planned: translatedRoadmap.filter((item) => item.status === 'planned').length,
-  }), [translatedRoadmap]);
-
   const countdown = useMemo(() => {
     const limitedCountdown = getLimitedPoolCountdownState(schedule, now);
     if (limitedCountdown?.isActive) {
@@ -157,10 +154,34 @@ export default function MobileHomeHubView() {
 
     const activeHomeCountdownPools = getActiveHomeCountdownPools(poolsArray, now);
     const activeExtraCountdown = activeHomeCountdownPools.find((pool) => pool.poolType === 'extra');
-    return activeExtraCountdown || activeHomeCountdownPools[0] || limitedCountdown;
-  }, [now, poolsArray, schedule]);
+    if (activeExtraCountdown || activeHomeCountdownPools[0] || limitedCountdown) {
+      return activeExtraCountdown || activeHomeCountdownPools[0] || limitedCountdown;
+    }
+
+    const target = new Date(nextVersionTargetDate);
+    if (!Number.isFinite(target.getTime())) {
+      return null;
+    }
+
+    const diff = Math.max(0, target.getTime() - now.getTime());
+    return {
+      active: false,
+      isActive: false,
+      isVersionCountdown: true,
+      displayName: versionPlan.countdownVersion?.displayName || t('home.mobile.nextVersionTitle'),
+      targetDate: nextVersionTargetDate,
+      scheduleDate: nextVersionTargetDate,
+      startDate: nextVersionTargetDate,
+      days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diff % (1000 * 60)) / 1000),
+    };
+  }, [nextVersionTargetDate, now, poolsArray, schedule, t, versionPlan.countdownVersion?.displayName]);
   const localizedCountdownName = useMemo(() => (
-    countdown?.poolType === 'extra'
+    countdown?.isVersionCountdown
+      ? countdown.displayName || t('home.mobile.nextVersionTitle')
+      : countdown?.poolType === 'extra'
       ? countdown.displayName || countdown.name || t('common.unknown')
       : localizeEntityName(countdown?.name, {
         locale,
@@ -174,13 +195,19 @@ export default function MobileHomeHubView() {
     }
 
     return t('home.countdown.scheduleTime', {
-      label: t('home.countdown.startsAt'),
+      label: countdown?.isVersionCountdown ? t('home.countdown.releaseAt') : t('home.countdown.startsAt'),
       time: formatDateTime(scheduleDate, { timeZoneName: 'short' }, t('common.timeUnknown')),
     });
-  }, [countdown?.scheduleDate, countdown?.startDate, formatDateTime, t]);
+  }, [countdown?.isVersionCountdown, countdown?.scheduleDate, countdown?.startDate, formatDateTime, t]);
 
   const rotationPreview = useMemo(() => {
-    const sorted = [...homeRotationSchedule].sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    const sorted = homeRotationVersionSections
+      .flatMap((section) => (section.pools || []).map((pool) => ({
+        ...pool,
+        versionName: section.name,
+        foldedExtraCount: Array.isArray(pool.foldedExtraPools) ? pool.foldedExtraPools.length : 0,
+      })))
+      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     if (!sorted.length) return [];
     let index = sorted.findIndex((pool) => now >= new Date(pool.startDate) && now < new Date(pool.endDate));
     if (index === -1) index = sorted.findIndex((pool) => now < new Date(pool.startDate));
@@ -205,10 +232,31 @@ export default function MobileHomeHubView() {
         active,
         ended,
         isExtraPool,
+        versionName: pool.versionName,
+        foldedExtraCount: pool.foldedExtraCount,
         label: active ? (isEnglish ? 'Live' : '进行中') : ended ? (isEnglish ? 'Ended' : '已结束') : (isEnglish ? 'Queued' : '待开启'),
       };
     });
-  }, [homeRotationSchedule, isEnglish, locale, now]);
+  }, [homeRotationVersionSections, isEnglish, locale, now]);
+
+  const nextVersionCountdown = useMemo(() => {
+    const target = new Date(nextVersionTargetDate);
+    if (!Number.isFinite(target.getTime())) {
+      return null;
+    }
+
+    const diff = Math.max(0, target.getTime() - now.getTime());
+    return {
+      days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diff % (1000 * 60)) / 1000),
+    };
+  }, [nextVersionTargetDate, now]);
+  const nextVersionScheduleMeta = useMemo(() => t('home.countdown.scheduleTime', {
+    label: t('home.countdown.releaseAt'),
+    time: formatDateTime(nextVersionTargetDate, { timeZoneName: 'short' }, t('common.timeUnknown')),
+  }), [formatDateTime, nextVersionTargetDate, t]);
 
   if (activeView === 'announcements') {
     return (
@@ -370,8 +418,8 @@ export default function MobileHomeHubView() {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,250,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,250,0,0.03)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="text-[9px] font-bold tracking-[0.2em] text-amber-600 dark:text-ef-yellow mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-amber-400 dark:bg-ef-yellow animate-pulse"></span>{t('countdown.system')}</div>
-              <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white tracking-normal mb-1 uppercase">{countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
-              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-1 tracking-widest">{countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
+              <h3 className="max-w-[75%] text-xl font-black text-slate-900 dark:text-white tracking-normal mb-1 uppercase">{countdown.isVersionCountdown ? nextVersionCardTitle : countdown.active ? t('home.poolEndingCountdown', { name: localizedCountdownName }) : t('home.poolStartingCountdown', { name: localizedCountdownName })}</h3>
+              <p className="text-[9px] text-slate-500 dark:text-zinc-500 font-mono mb-1 tracking-widest">{countdown.isVersionCountdown ? t('home.nextVersionRelease') : countdown.active ? t('home.mobile.countdownEnding', {}, isEnglish ? 'ENDING COUNTDOWN' : '结束倒计时') : t('home.mobile.countdownStarting', {}, isEnglish ? 'STARTING COUNTDOWN' : '开始倒计时')}</p>
               {countdownScheduleMeta ? (
                 <p className="mb-4 text-[10px] text-slate-500 dark:text-zinc-400 font-mono tracking-wide">{countdownScheduleMeta}</p>
               ) : <div className="mb-4" />}
@@ -395,7 +443,13 @@ export default function MobileHomeHubView() {
               <div key={pool.name + pool.startDate} className="flex items-center gap-3 text-xs bg-zinc-100 dark:bg-zinc-900 p-2 rounded-lg border border-zinc-200 dark:border-zinc-800/50">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${pool.active ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.8)]' : pool.isExtraPool ? 'bg-cyan-500' : (pool.ended ? 'bg-zinc-500' : 'bg-blue-500')}`}></span>
                   <span className="w-10 text-[10px] text-slate-500 dark:text-zinc-500 font-mono shrink-0">{formatDateTime(pool.startDate, { month: 'numeric', day: 'numeric', includeYear: false }, t('common.timeUnknown'))}</span>
-                  <span className="flex-1 text-slate-900 dark:text-white font-bold truncate">{pool.displayName || pool.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold text-slate-900 dark:text-white">{pool.displayName || pool.name}</span>
+                    <span className="mt-0.5 block truncate text-[9px] text-slate-500 dark:text-zinc-500">
+                      {pool.versionName || t('home.mobile.currentRotation')}
+                      {pool.foldedExtraCount > 0 ? ` · 已合并 ${pool.foldedExtraCount} 个过期附加池` : ''}
+                    </span>
+                  </span>
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${pool.active ? 'bg-green-500/20 text-green-700 dark:text-green-400' : (pool.ended ? 'bg-zinc-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-500' : 'bg-blue-500/20 text-blue-700 dark:text-blue-300')}`}>{pool.label}</span>
               </div>
             )) : (
@@ -405,18 +459,19 @@ export default function MobileHomeHubView() {
       </div>
 
       {/* Next Version Countdown */}
-      <div onClick={() => setActiveView('roadmap')} className="cursor-pointer rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{isEnglish ? 'SYSTEM UPGRADE' : '功能升级'}</div>
-          <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-normal mb-3 uppercase">{t('home.roadmap.title')}</h3>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px] font-bold uppercase tracking-widest border border-blue-200 dark:border-blue-800/50">
-               <Sparkles size={12} /> {roadmapCounts.inProgress} {t('home.roadmap.status.inProgress', {}, '进行中')}
+      {nextVersionCountdown ? (
+        <div onClick={() => setActiveView('roadmap')} className="cursor-pointer rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-ef-card p-4 mb-8 flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="text-[9px] font-bold tracking-[0.2em] text-slate-500 dark:text-zinc-500 mb-1 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-sm bg-zinc-600"></span>{t('countdown.system')}</div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white tracking-normal mb-2 uppercase">{nextVersionCardTitle}</h3>
+            <div className="flex items-baseline gap-1 countdown-nums font-bold text-3xl text-slate-700 dark:text-zinc-300 tracking-tighter">
+                <span>{String(nextVersionCountdown.days).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'D' : '天'}</span>
+                <span>{String(nextVersionCountdown.hours).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'H' : '时'}</span>
+                <span>{String(nextVersionCountdown.minutes).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 mr-1 font-sans font-bold">{isEnglish ? 'M' : '分'}</span>
+                <span>{String(nextVersionCountdown.seconds || 0).padStart(2, '0')}</span><span className="text-slate-400 dark:text-zinc-600 text-xs relative top-[-4px] ml-0.5 font-sans font-bold">{isEnglish ? 'S' : '秒'}</span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 rounded text-[10px] font-bold uppercase tracking-widest border border-zinc-200 dark:border-zinc-800">
-               {roadmapCounts.planned} {t('home.roadmap.status.planned', {}, '计划中')}
-            </div>
-          </div>
-      </div>
+            <div className="mt-2 text-[10px] text-slate-500 dark:text-zinc-500 font-mono">{nextVersionScheduleMeta}</div>
+        </div>
+      ) : null}
 
       {/* Friendly Links */}
       <div className="mb-6">
