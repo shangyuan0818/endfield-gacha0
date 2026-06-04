@@ -43,6 +43,19 @@ npm run test:manual-placeholder-audit
 
 JSON 报告中的 `manualPlaceholderRetirement` 会列出 `char_manual_*`、`weapon_manual_*`、`special_manual_*`、`joint_manual_*`、`weaponbox_manual_*` 等 placeholder 的 alias 目标、引用计数和退场状态。`ready_to_merge` 只能说明已有唯一非手动 canonical target；真正迁移前仍必须生成可回滚计划，覆盖 alias 保留、`history`、`pool_characters`、`featured_characters` 和导出兼容校验。
 
+`DATA-NEW-018` 生产前复核优先使用轻量快照命令。它不拉取整张 `history`，只读取角色、卡池、alias、卡池阵容，并对 placeholder 逐项做引用计数查询，适合版本更新前快速确认是否有可迁移项：
+
+```bash
+npm run audit:manual-placeholder:production-snapshot -- --write-json supabase/manual/data-backfill/manual-placeholder-production-snapshot.generated.json
+npm run generate:manual-placeholder-candidate-plan -- --audit supabase/manual/data-backfill/manual-placeholder-production-snapshot.generated.json --out supabase/manual/data-backfill/manual-placeholder-production-candidate-plan.generated.json
+npm run generate:manual-placeholder-migration-plan -- --audit supabase/manual/data-backfill/manual-placeholder-production-snapshot.generated.json --out supabase/manual/data-backfill/manual-placeholder-production-migration-plan.generated.json
+npm run test:manual-placeholder-candidate-plan
+```
+
+2026-06-03 21:10:49 的轻量生产快照显示：角色 / 武器 placeholder 6 个、卡池 placeholder 4 个，全部仍为 `needs_official_id`，可迁移项为 0。因此当前不能执行真实生产回填；下一步必须等待官方 ID 或由管理员人工提供 placeholder -> canonical ID 映射，并重新生成审阅计划。
+
+补充阶段增加官方 ID 候选审阅计划，解决“当前 alias 尚未写入 canonical target，但导入或同步数据里可能已经出现同名官方 ID”的情况。审阅计划会读取轻量快照中的角色、卡池和 alias 源行，按 alias、同名角色 / 武器、同类型 UP 与开始日期匹配出候选，但只输出 `review_only` JSON，不写库、不生成执行 SQL。管理员确认唯一目标后，应先写入 alias，再重新生成正式迁移计划。
+
 第二阶段增加演练迁移规划器，仍然不写库。它只读取审计 JSON 中的 `manualPlaceholderRetirement`，为 `ready_to_merge` 生成影响表、引用更新、alias 保留、执行顺序和回滚快照要求；`conflicting_alias_targets`、`manual_target_only`、`needs_official_id` 会被明确列入 blocked，不会生成自动迁移操作：
 
 ```bash
@@ -52,14 +65,14 @@ npm run test:manual-placeholder-migration-plan
 
 该 JSON 计划的 `writesDatabase` 必须恒为 `false`。真正 apply 前仍需要最新生产审计、人工审核、数据库快照和单独的受控 SQL / RPC 实现。
 
-第三阶段增加受控 apply SQL 审核工件生成器。它只读取第二阶段演练计划中的 `status: "ready"` 项，blocked 项不会进入实际 `UPDATE`；SQL 内含人工确认 token、source / target / alias guard、引用归零检查、公共缓存刷新尝试，并默认以 `ROLLBACK` 结束。首版不会删除源 placeholder 主记录，只迁移 `history`、`pool_characters`、`pools.featured_characters` 引用并保留旧 ID alias：
+第三阶段增加受控执行 SQL 审核工件生成器。它只读取第二阶段演练计划中的 `status: "ready"` 项，blocked 项不会进入实际 `UPDATE`；SQL 内含人工确认 token、source / target / alias guard、引用归零检查、公共缓存刷新尝试，并默认以 `ROLLBACK` 结束。首版不会删除源 placeholder 主记录，只迁移 `history`、`pool_characters`、`pools.featured_characters` 引用并保留旧 ID alias：
 
 ```bash
 npm run generate:manual-placeholder-apply-sql -- supabase/manual/data-backfill/manual-placeholder-migration-plan.generated.json supabase/manual/data-backfill/manual-placeholder-apply.generated.sql
 npm run test:manual-placeholder-apply-sql
 ```
 
-该 SQL 是审阅 / 演练工件，不会被脚本自动执行。真正 apply 前仍需重新拉取生产审计、保存数据库快照、管理员确认变更窗口，并人工把结尾 `ROLLBACK` 改为 `COMMIT`。
+该 SQL 是审阅 / 演练工件，不会被脚本自动执行。真正应用前仍需重新拉取生产审计、保存数据库快照、管理员确认变更窗口，并人工把结尾 `ROLLBACK` 改为 `COMMIT`。
 
 ## 下一批实现顺序
 
