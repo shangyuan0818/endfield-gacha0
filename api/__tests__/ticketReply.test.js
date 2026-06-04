@@ -357,6 +357,52 @@ describe('api/tickets/reply handler', () => {
     expect(JSON.stringify(res.body)).not.toContain('decision');
   }));
 
+  it('moves a pending ticket to processing when staff replies', withTicketMailEnv(async () => {
+    const adminClient = createTicketReplyAdminClient({
+      ticket: {
+        id: 'ticket-1',
+        user_id: 'ticket-owner-id',
+        title: '导入失败',
+        status: 'pending',
+        target_role: 'admin',
+        created_at: '2026-06-10T01:00:00.000Z',
+        updated_at: '2026-06-10T01:30:00.000Z',
+      },
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest();
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    const ticketUpdateCall = adminClient.state.calls.find((call) => (
+      call.table === 'tickets' && call.operation === 'update'
+    ));
+    expect(ticketUpdateCall?.patch).toMatchObject({
+      status: 'processing',
+    });
+    expect(adminClient.state.tickets[0]).toMatchObject({
+      id: 'ticket-1',
+      status: 'processing',
+    });
+    expect(mocks.enqueueMailOutboxEvent).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        ticketStatus: 'processing',
+      }),
+    }));
+    expect(res.body).toMatchObject({
+      success: true,
+      partial: false,
+      ticket: {
+        id: 'ticket-1',
+        status: 'processing',
+        previousStatus: 'pending',
+        statusChanged: true,
+      },
+    });
+  }));
+
   it('keeps user self replies private and does not enqueue ticket mail', withTicketMailEnv(async () => {
     configureCaller('ticket-owner-id');
     const adminClient = createTicketReplyAdminClient({
@@ -365,6 +411,15 @@ describe('api/tickets/reply handler', () => {
         email: 'ticket.owner@example.com',
         username: 'owner',
         role: 'user',
+      },
+      ticket: {
+        id: 'ticket-1',
+        user_id: 'ticket-owner-id',
+        title: '导入失败',
+        status: 'pending',
+        target_role: 'admin',
+        created_at: '2026-06-10T01:00:00.000Z',
+        updated_at: '2026-06-10T01:30:00.000Z',
       },
     });
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
@@ -380,9 +435,23 @@ describe('api/tickets/reply handler', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
+    const ticketUpdateCall = adminClient.state.calls.find((call) => (
+      call.table === 'tickets' && call.operation === 'update'
+    ));
+    expect(ticketUpdateCall?.patch).not.toHaveProperty('status');
+    expect(adminClient.state.tickets[0]).toMatchObject({
+      id: 'ticket-1',
+      status: 'pending',
+    });
     expect(mocks.enqueueMailOutboxEvent).not.toHaveBeenCalled();
     expect(res.body).toMatchObject({
       success: true,
+      ticket: {
+        id: 'ticket-1',
+        status: 'pending',
+        previousStatus: 'pending',
+        statusChanged: false,
+      },
       mailNotification: {
         enabled: true,
         attempted: false,

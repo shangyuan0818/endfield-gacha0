@@ -1,13 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertCircle, MessageSquare, Plus, RefreshCw } from 'lucide-react';
-import { supabase } from '../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicProfileService';
-import { withAuthenticatedSupabaseRequest } from '../services/authFetchService.js';
+import { createTicket, loadTickets as loadTicketRows, updateTicketStatus } from '../services/ticketService.js';
+import { loadTicketReplyWorkflowSummaries } from '../services/ticketWorkflowService.js';
 import CreateTicketForm from './tickets/CreateTicketForm';
 import TicketCard from './tickets/TicketCard';
 import { getTicketStatus } from './tickets/constants';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../constants/community';
 import { useI18n } from '../i18n/index.js';
+import {
+  enrichTicketsWithWorkflow,
+  filterTicketsByWorkflow,
+  getTicketWorkflowCounts,
+} from '../utils/ticketWorkflow.js';
 
 const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotification }) => {
   const { isEnglish, locale, formatNumber } = useI18n();
@@ -25,33 +30,31 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
 
     setLoading(true);
     try {
-      const { data, error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('tickets')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        { requireToken: true }
-      );
-
-      if (error) {
-        if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
-          setTableExists(false);
-          setTickets([]);
-        } else {
-          showToast?.(tt('加载工单失败', 'Failed to load tickets'), 'error');
-        }
+      const result = await loadTicketRows();
+      if (result.tableExists === false) {
+        setTableExists(false);
+        setTickets([]);
         return;
       }
 
       setTableExists(true);
-      const profilesMap = await loadPublicProfilesMap((data || []).map((ticket) => ticket.user_id));
-      setTickets(attachPublicProfiles(data || [], profilesMap));
+      const rows = Array.isArray(result.tickets) ? result.tickets : [];
+      const [profilesMap, replySummaries] = await Promise.all([
+        loadPublicProfilesMap(rows.map((ticket) => ticket.user_id)),
+        loadTicketReplyWorkflowSummaries(rows.map((ticket) => ticket.id)),
+      ]);
+      const ticketsWithProfiles = attachPublicProfiles(rows, profilesMap);
+      setTickets(enrichTicketsWithWorkflow(ticketsWithProfiles, {
+        currentUserId: user?.id,
+        currentUserRole: userRole,
+        replySummaries,
+      }));
     } catch (error) {
       showToast?.(`${tt('加载工单失败', 'Failed to load tickets')}: ${error.message}`, 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast, tt, user]);
+  }, [showToast, tt, user, userRole]);
 
   useEffect(() => {
     loadTickets();
@@ -59,47 +62,18 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
 
   const handleCreateTicket = useCallback(async (formData) => {
     try {
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('tickets')
-          .insert({
-            ...formData,
-            user_id: user.id,
-          }),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
-
+      await createTicket(formData);
       showToast?.(tt('工单提交成功', 'Ticket submitted successfully'), 'success');
       setShowCreateForm(false);
       await loadTickets();
     } catch (error) {
       showToast?.(`${tt('提交工单失败', 'Failed to submit ticket')}: ${error.message}`, 'error');
     }
-  }, [loadTickets, showToast, tt, user?.id]);
+  }, [loadTickets, showToast, tt]);
 
   const handleStatusChange = useCallback(async (ticketId, newStatus) => {
     try {
-      const updateData = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (newStatus === 'resolved') {
-        updateData.resolved_by = user.id;
-      }
-
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('tickets')
-          .update(updateData)
-          .eq('id', ticketId),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
-
+      await updateTicketStatus(ticketId, newStatus);
       showToast?.(
         `${tt('工单已更新为', 'Ticket updated to')} ${ticketStatus[newStatus]?.label || tt('已更新', 'updated')}`,
         'success'
@@ -108,21 +82,13 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
     } catch (error) {
       showToast?.(`${tt('更新失败', 'Update failed')}: ${error.message}`, 'error');
     }
-  }, [loadTickets, showToast, ticketStatus, tt, user?.id]);
+  }, [loadTickets, showToast, ticketStatus, tt]);
 
   const filteredTickets = useMemo(() => {
-    return tickets.filter((ticket) => {
-      if (filter === 'my') return ticket.user_id === user?.id;
-      if (filter === 'pending') return ticket.status === 'pending';
-      return true;
-    });
+    return filterTicketsByWorkflow(tickets, filter, user?.id);
   }, [tickets, filter, user]);
 
-  const stats = useMemo(() => ({
-    total: tickets.length,
-    pending: tickets.filter((ticket) => ticket.status === 'pending').length,
-    my: tickets.filter((ticket) => ticket.user_id === user?.id).length,
-  }), [tickets, user]);
+  const stats = useMemo(() => getTicketWorkflowCounts(tickets, user?.id), [tickets, user]);
 
   if (!user) {
     return (
@@ -195,16 +161,28 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
             {tt('我的', 'Mine')} ({formatNumber(stats.my)})
           </button>
           {(userRole === 'admin' || userRole === 'super_admin') && (
-            <button
-              onClick={() => setFilter('pending')}
-              className={`min-h-[40px] px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border whitespace-normal text-center leading-tight ${
-                filter === 'pending'
-                  ? 'bg-amber-500 text-white border-amber-500'
-                  : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
-              }`}
-            >
-              {tt('待处理', 'Pending')} ({formatNumber(stats.pending)})
-            </button>
+            <>
+              <button
+                onClick={() => setFilter('needs_staff')}
+                className={`min-h-[40px] px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border whitespace-normal text-center leading-tight ${
+                  filter === 'needs_staff'
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+                }`}
+              >
+                {tt('需要处理', 'Needs Staff')} ({formatNumber(stats.needsStaff)})
+              </button>
+              <button
+                onClick={() => setFilter('waiting_user')}
+                className={`min-h-[40px] px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-sm transition-colors border whitespace-normal text-center leading-tight ${
+                  filter === 'waiting_user'
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-white dark:bg-zinc-900 text-zinc-500 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600'
+                }`}
+              >
+                {tt('等待用户', 'Waiting User')} ({formatNumber(stats.waitingUser)})
+              </button>
+            </>
           )}
         </div>
 
@@ -263,8 +241,10 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
           <p className="text-zinc-500 font-mono text-sm">
             {filter === 'my'
               ? tt('无工单记录', 'No tickets from you')
-              : filter === 'pending'
-                ? tt('无待处理工单', 'No pending tickets')
+              : filter === 'needs_staff'
+                ? tt('没有需要处理的工单', 'No tickets need staff action')
+                : filter === 'waiting_user'
+                  ? tt('没有等待用户回复的工单', 'No tickets are waiting for users')
                 : tt('暂无工单', 'No tickets yet')}
           </p>
         </div>

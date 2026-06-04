@@ -1,14 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, Clock, RefreshCw, Shield, User } from 'lucide-react';
-import { supabase } from '../../supabaseClient';
+import { ChevronDown, ChevronUp, Clock, MessageCircle, RefreshCw, Shield, User } from 'lucide-react';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
 import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import ReplyInput from './ReplyInput';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from './constants';
 import { useI18n } from '../../i18n/index.js';
 import { buildTicketReplyNotification } from '../../utils/notificationModel.js';
 import { submitTicketReply } from '../../services/ticketReplyService.js';
+import { loadTicketReplies } from '../../services/ticketService.js';
 
 export default function TicketCard({
   ticket,
@@ -40,18 +39,8 @@ export default function TicketCard({
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
-      const { data, error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('ticket_replies')
-          .select('*')
-          .eq('ticket_id', ticket.id)
-          .order('created_at', { ascending: true }),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
-
-      const rows = data || [];
+      const result = await loadTicketReplies(ticket.id);
+      const rows = Array.isArray(result.replies) ? result.replies : [];
       const profilesMap = await loadPublicProfilesMap(rows.map((reply) => reply.user_id));
       setReplies(attachPublicProfiles(rows, profilesMap));
     } catch (error) {
@@ -145,6 +134,24 @@ export default function TicketCard({
                 <Clock size={12} />
                 {formatDateTime(ticket.created_at, { hour12: false })}
               </span>
+              {ticket.workflow?.lastReplyAt && (
+                <span className={`flex items-center gap-1 ${
+                  ticket.workflow?.needsStaffAttention
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : ticket.workflow?.waitingForUser
+                      ? 'text-blue-600 dark:text-blue-400'
+                      : 'text-slate-500 dark:text-zinc-500'
+                }`}>
+                  <MessageCircle size={12} />
+                  {ticket.workflow?.needsStaffAttention
+                    ? tt('用户有新回复', 'User replied')
+                    : ticket.workflow?.waitingForUser
+                      ? tt('等待用户回复', 'Waiting for user')
+                      : tt('最后回复', 'Last reply')}
+                  {' · '}
+                  {formatDateTime(ticket.workflow.lastReplyAt, { hour12: false })}
+                </span>
+              )}
               {ticket.target_role === 'super_admin' && (
                 <span className="flex items-center gap-1 text-purple-500">
                   <Shield size={12} />

@@ -6,17 +6,22 @@ export async function submitTicketReply({
   content,
   locale = 'zh-CN',
 } = {}) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  }).catch(() => null);
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const { response, data: payload } = await fetchJsonWithTimeout('/api/tickets/reply', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       ticketId,
       content,

@@ -4,9 +4,14 @@ import {
   AlertCircle
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
-import { supabase } from '../../supabaseClient';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
+import {
+  createTicket,
+  loadTicketReplies,
+  loadTickets as loadTicketRows,
+  updateTicketStatus,
+} from '../../services/ticketService.js';
+import { loadTicketReplyWorkflowSummaries } from '../../services/ticketWorkflowService.js';
 import { buildUsernameHandle } from '../../utils/usernameValidation.js';
 import { ACCOUNT_RECOVERY_QQ_GROUP, ENGLISH_COMMUNITY_DISCORD_URL } from '../../constants/community';
 import { getTicketPriorities, getTicketStatus, getTicketTypes } from '../../components/tickets/constants';
@@ -14,6 +19,11 @@ import { useI18n } from '../../i18n/index.js';
 import { MobilePillTabs, MobileStickyHeader } from '../components/ux/MobilePrimitives.jsx';
 import { buildTicketReplyNotification } from '../../utils/notificationModel.js';
 import { submitTicketReply } from '../../services/ticketReplyService.js';
+import {
+  enrichTicketsWithWorkflow,
+  filterTicketsByWorkflow,
+  getTicketWorkflowCounts,
+} from '../../utils/ticketWorkflow.js';
 
 // 常用表情（精简版）
 const EMOJI_LIST = [
@@ -37,73 +47,54 @@ function MobileTicketView({ addDurableNotification } = {}) {
 
   // 加载工单
   const loadTickets = useCallback(async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
     setLoading(true);
     try {
-      const { data, error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('tickets')
-          .select('*')
-          .order('created_at', { ascending: false }),
-        { requireToken: true }
-      );
-
-      if (error) {
-        if (error.code === '42P01' || error.message?.includes('does not exist') || error.code === 'PGRST200') {
-          setTableExists(false);
-          setTickets([]);
-        }
+      const result = await loadTicketRows();
+      if (result.tableExists === false) {
+        setTableExists(false);
+        setTickets([]);
+        return;
       }
 
       setTableExists(true);
-      const profilesMap = await loadPublicProfilesMap((data || []).map((ticket) => ticket.user_id));
-      setTickets(attachPublicProfiles(data || [], profilesMap));
+      const rows = Array.isArray(result.tickets) ? result.tickets : [];
+      const [profilesMap, replySummaries] = await Promise.all([
+        loadPublicProfilesMap(rows.map((ticket) => ticket.user_id)),
+        loadTicketReplyWorkflowSummaries(rows.map((ticket) => ticket.id)),
+      ]);
+      const ticketsWithProfiles = attachPublicProfiles(rows, profilesMap);
+      setTickets(enrichTicketsWithWorkflow(ticketsWithProfiles, {
+        currentUserId: user?.id,
+        currentUserRole: userRole,
+        replySummaries,
+      }));
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, userRole]);
 
   useEffect(() => { loadTickets(); }, [loadTickets]);
 
   // 创建工单
   const handleCreate = async (formData) => {
-    const { error } = await withAuthenticatedSupabaseRequest(
-      () => supabase
-        .from('tickets')
-        .insert({ ...formData, user_id: user.id }),
-      { requireToken: true }
-    );
-    if (!error) {
-      setShowCreate(false);
-      await loadTickets();
-    }
+    await createTicket(formData);
+    setShowCreate(false);
+    await loadTickets();
   };
 
   // 更新状态
   const handleStatusChange = async (ticketId, newStatus) => {
-    const updateData = { status: newStatus, updated_at: new Date().toISOString() };
-    if (newStatus === 'resolved') updateData.resolved_by = user.id;
-    const { error } = await withAuthenticatedSupabaseRequest(
-      () => supabase.from('tickets').update(updateData).eq('id', ticketId),
-      { requireToken: true }
-    );
-    if (!error) await loadTickets();
+    await updateTicketStatus(ticketId, newStatus);
+    await loadTickets();
   };
 
   // 过滤
   const filteredTickets = useMemo(() => {
-    return tickets.filter(t => {
-      if (filter === 'my') return t.user_id === user?.id;
-      if (filter === 'pending') return t.status === 'pending';
-      return true;
-    });
+    return filterTicketsByWorkflow(tickets, filter, user?.id);
   }, [tickets, filter, user]);
 
-  const stats = useMemo(() => ({
-    total: tickets.length,
-    pending: tickets.filter((ticket) => ticket.status === 'pending').length,
-    my: tickets.filter((ticket) => ticket.user_id === user?.id).length
-  }), [tickets, user]);
+  const stats = useMemo(() => getTicketWorkflowCounts(tickets, user?.id), [tickets, user]);
 
   if (!user) {
     return (
@@ -120,7 +111,10 @@ function MobileTicketView({ addDurableNotification } = {}) {
   const filterOptions = [
     { value: 'all', label: `${tt('全部', 'All')} (${formatNumber(stats.total)})` },
     { value: 'my', label: `${tt('我的', 'Mine')} (${formatNumber(stats.my)})` },
-    ...(isAdmin ? [{ value: 'pending', label: `${tt('待处理', 'Pending')} (${formatNumber(stats.pending)})` }] : [])
+    ...(isAdmin ? [
+      { value: 'needs_staff', label: `${tt('需要处理', 'Needs Staff')} (${formatNumber(stats.needsStaff)})` },
+      { value: 'waiting_user', label: `${tt('等待用户', 'Waiting User')} (${formatNumber(stats.waitingUser)})` },
+    ] : [])
   ];
 
   return (
@@ -209,8 +203,10 @@ function MobileTicketView({ addDurableNotification } = {}) {
           <p className="text-xs text-slate-500 dark:text-zinc-500 font-mono">
             {filter === 'my'
               ? tt('无工单记录', 'No tickets from you')
-              : filter === 'pending'
-                ? tt('无待处理工单', 'No pending tickets')
+              : filter === 'needs_staff'
+                ? tt('没有需要处理的工单', 'No tickets need staff action')
+                : filter === 'waiting_user'
+                  ? tt('没有等待用户回复的工单', 'No tickets are waiting for users')
                 : tt('暂无工单', 'No tickets yet')}
           </p>
         </div>
@@ -415,6 +411,23 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
                 {formatDateTime(ticket.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
               </span>
             </div>
+            {ticket.workflow?.lastReplyAt && (
+              <div className={`mt-1 text-[9px] font-mono ${
+                ticket.workflow?.needsStaffAttention
+                  ? 'text-amber-600 dark:text-amber-300'
+                  : ticket.workflow?.waitingForUser
+                    ? 'text-sky-600 dark:text-sky-300'
+                    : 'text-slate-500 dark:text-zinc-400'
+              }`}>
+                {ticket.workflow?.needsStaffAttention
+                  ? tt('用户有新回复', 'User replied')
+                  : ticket.workflow?.waitingForUser
+                    ? tt('等待用户回复', 'Waiting for user')
+                    : tt('最后回复', 'Last reply')}
+                {' · '}
+                {formatDateTime(ticket.workflow.lastReplyAt, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+              </div>
+            )}
           </div>
           <div className="text-slate-400 dark:text-zinc-600 shrink-0">
             {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -497,18 +510,10 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
-      const { data } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('ticket_replies')
-          .select('*')
-          .eq('ticket_id', ticketId)
-          .order('created_at', { ascending: true }),
-        { requireToken: true }
-      );
-      if (data) {
-        const profilesMap = await loadPublicProfilesMap(data.map(reply => reply.user_id));
-        setReplies(attachPublicProfiles(data, profilesMap));
-      }
+      const result = await loadTicketReplies(ticketId);
+      const rows = Array.isArray(result.replies) ? result.replies : [];
+      const profilesMap = await loadPublicProfilesMap(rows.map(reply => reply.user_id));
+      setReplies(attachPublicProfiles(rows, profilesMap));
       setReplyError('');
     } catch (error) {
       setReplyError(`${tt('加载回复失败', 'Failed to load replies')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
