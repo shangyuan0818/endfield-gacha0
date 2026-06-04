@@ -159,12 +159,16 @@ export async function fetchPublicApiJson(path, {
   memoryTtlMs = PUBLIC_RESOURCE_MEMORY_TTL,
   snapshotKey = null,
   useSnapshotFallback = false,
+  usePublicApiInDev = false,
 } = {}) {
-  if (!shouldUsePublicApi()) {
+  const usePublicApi = shouldUsePublicApi() || usePublicApiInDev;
+  if (!usePublicApi) {
     return useSnapshotFallback ? readPublicResourceSnapshot(snapshotKey) : null;
   }
 
-  const cacheVersion = await getPublicCacheVersion(forceRefresh).catch(() => null);
+  const cacheVersion = shouldUsePublicApi()
+    ? await getPublicCacheVersion(forceRefresh).catch(() => null)
+    : 'dev';
   const url = buildPublicApiUrl(path, {
     params,
     cacheVersion,

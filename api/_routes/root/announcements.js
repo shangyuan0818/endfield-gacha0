@@ -115,8 +115,33 @@ function inferAnnouncementSourceMeta(record = {}) {
   };
 }
 
+function isManualAnnouncementSourceId(value) {
+  return String(value ?? '').trim() === '';
+}
+
 function decorateAnnouncementRecords(records) {
   return (Array.isArray(records) ? records : []).map(inferAnnouncementSourceMeta);
+}
+
+function dedupeAnnouncements(records = []) {
+  const byKey = new Map();
+  records.forEach((record) => {
+    const key = record?.id || record?.source_id || `${record?.title || ''}:${record?.updated_at || record?.created_at || ''}`;
+    if (!key || byKey.has(key)) return;
+    byKey.set(key, record);
+  });
+  return Array.from(byKey.values());
+}
+
+function sortSiteAnnouncements(records = []) {
+  return dedupeAnnouncements(records)
+    .filter(record => isManualAnnouncementSourceId(record?.source_id))
+    .sort((left, right) => {
+      const priorityDelta = Number(right?.priority || 0) - Number(left?.priority || 0);
+      if (priorityDelta !== 0) return priorityDelta;
+      return new Date(right?.updated_at || right?.created_at || 0).getTime()
+        - new Date(left?.updated_at || left?.created_at || 0).getTime();
+    });
 }
 
 function mergePayload(previousPayload, nextPartialPayload) {
@@ -132,19 +157,34 @@ function mergePayload(previousPayload, nextPartialPayload) {
 }
 
 async function fetchSiteAnnouncements(supabase) {
-  const { data, error } = await supabase
-    .from('announcements')
-    .select(ANNOUNCEMENT_COLUMNS)
-    .eq('is_active', true)
-    .is('source_id', null)
-    .order('priority', { ascending: false })
-    .order('updated_at', { ascending: false });
+  const [nullSourceResult, emptySourceResult] = await Promise.all([
+    supabase
+      .from('announcements')
+      .select(ANNOUNCEMENT_COLUMNS)
+      .eq('is_active', true)
+      .is('source_id', null)
+      .order('priority', { ascending: false })
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('announcements')
+      .select(ANNOUNCEMENT_COLUMNS)
+      .eq('is_active', true)
+      .eq('source_id', '')
+      .order('priority', { ascending: false })
+      .order('updated_at', { ascending: false })
+  ]);
 
-  if (error) {
-    throw error;
+  if (nullSourceResult.error) {
+    throw nullSourceResult.error;
+  }
+  if (emptySourceResult.error) {
+    throw emptySourceResult.error;
   }
 
-  return decorateAnnouncementRecords(data || []);
+  return decorateAnnouncementRecords(sortSiteAnnouncements([
+    ...(nullSourceResult.data || []),
+    ...(emptySourceResult.data || [])
+  ]));
 }
 
 async function fetchRecentGameAnnouncements(supabase, cutoffIso) {
@@ -153,6 +193,7 @@ async function fetchRecentGameAnnouncements(supabase, cutoffIso) {
     .select(ANNOUNCEMENT_COLUMNS)
     .eq('is_active', true)
     .not('source_id', 'is', null)
+    .neq('source_id', '')
     .gte('published_at', cutoffIso)
     .order('published_at', { ascending: false });
 
@@ -169,6 +210,7 @@ async function fetchLatestGameAnnouncements(supabase, limit) {
     .select(ANNOUNCEMENT_COLUMNS)
     .eq('is_active', true)
     .not('source_id', 'is', null)
+    .neq('source_id', '')
     .order('published_at', { ascending: false })
     .limit(limit);
 
@@ -311,6 +353,7 @@ export const __internal = {
   getCacheKey,
   mergePayload,
   normalizeCutoffIso,
+  sortSiteAnnouncements,
   normalizeLimit,
   parseQuery
 };

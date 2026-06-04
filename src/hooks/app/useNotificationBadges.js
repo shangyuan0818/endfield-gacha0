@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
-import {
-  fetchPublicApiJson,
-  shouldAllowPublicSupabaseFallback,
-} from '../../services/publicResourceClient';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
-import { executeSupabaseRead, fetchWithTimeout } from '../../services/supabaseRequest';
-import { supabase } from '../../supabaseClient';
+import { fetchPublicApiJson } from '../../services/publicResourceClient';
+import { fetchWithTimeout } from '../../services/supabaseRequest';
+import { loadTickets } from '../../services/ticketService.js';
 import { useAuthStore, useAppStore } from '../../stores';
 import { STORAGE_KEYS, hasNewContent, getStorageItem } from '../../utils';
 import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementCalendar.js';
@@ -13,6 +9,8 @@ import { findGameAnnouncementCalendarImage } from '../../utils/gameAnnouncementC
 const GAME_ANNOUNCEMENT_VISIBLE_DAYS = 7;
 const GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT = 5;
 const GAME_ANNOUNCEMENT_SOURCE_GROUPS = Object.freeze(['game', 'official']);
+const LEGACY_PLACEHOLDER_ANNOUNCEMENT_IDS = new Set(['1']);
+const LEGACY_PLACEHOLDER_ANNOUNCEMENT_TITLES = new Set(['欢迎使用抽卡分析器']);
 
 function getRecentGameAnnouncementCutoffIso(now = Date.now()) {
   return new Date(now - GAME_ANNOUNCEMENT_VISIBLE_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -75,6 +73,21 @@ function sortByPriority(records) {
     if (pd !== 0) return pd;
     return new Date(b?.updated_at || b?.created_at || 0) - new Date(a?.updated_at || a?.created_at || 0);
   });
+}
+
+function isLegacyPlaceholderAnnouncement(record = {}) {
+  const id = String(record?.id ?? '').trim();
+  const title = String(record?.title ?? '').trim();
+  return LEGACY_PLACEHOLDER_ANNOUNCEMENT_IDS.has(id)
+    && LEGACY_PLACEHOLDER_ANNOUNCEMENT_TITLES.has(title);
+}
+
+function normalizeSiteAnnouncementRecords(records = []) {
+  return sortByPriority(
+    (Array.isArray(records) ? records : [])
+      .filter(record => record?.is_active !== false)
+      .filter(record => !isLegacyPlaceholderAnnouncement(record))
+  );
 }
 
 function sortGameAnnouncements(records) {
@@ -155,50 +168,6 @@ function appendPinnedGameCalendarRecord(records = [], candidates = []) {
   return [...records, announcement];
 }
 
-async function loadSiteAnnouncementsFromDb() {
-  if (!supabase) return null;
-  const { data, error } = await executeSupabaseRead(
-    () => supabase
-      .from('announcements')
-      .select('*')
-      .eq('is_active', true)
-      .is('source_id', null)
-      .order('priority', { ascending: false }),
-    { label: 'load site announcements', retries: 1 },
-  );
-  return error ? null : (data || []);
-}
-
-async function loadGameAnnouncementsFromDb(cutoffIso = getRecentGameAnnouncementCutoffIso()) {
-  if (!supabase) return null;
-  const { data, error } = await executeSupabaseRead(
-    () => supabase
-      .from('announcements')
-      .select('*')
-      .eq('is_active', true)
-      .not('source_id', 'is', null)
-      .gte('published_at', cutoffIso)
-      .order('published_at', { ascending: false }),
-    { label: 'load game announcements', retries: 1 },
-  );
-  return error ? null : (data || []);
-}
-
-async function loadLatestGameAnnouncementsFromDb(limit = GAME_ANNOUNCEMENT_HISTORY_FALLBACK_LIMIT * GAME_ANNOUNCEMENT_SOURCE_GROUPS.length) {
-  if (!supabase) return null;
-  const { data, error } = await executeSupabaseRead(
-    () => supabase
-      .from('announcements')
-      .select('*')
-      .eq('is_active', true)
-      .not('source_id', 'is', null)
-      .order('published_at', { ascending: false })
-      .limit(limit),
-    { label: 'load latest game announcements', retries: 1 },
-  );
-  return error ? null : (data || []);
-}
-
 async function loadAnnouncementsFromLocal() {
   const resp = await fetchWithTimeout('/announcements.json', undefined, {
     label: 'load announcements fallback',
@@ -220,6 +189,7 @@ async function loadAnnouncementsFromApi({
     label: 'load announcements api',
     timeoutMs: 15000,
     retries: 1,
+    usePublicApiInDev: true,
   });
 
   return response?.data || null;
@@ -282,10 +252,7 @@ export function useNotificationBadges() {
         siteRecords = Array.isArray(apiPayload.siteAnnouncements) ? apiPayload.siteAnnouncements : [];
       } else {
         try {
-          const dbRecords = shouldAllowPublicSupabaseFallback()
-            ? await loadSiteAnnouncementsFromDb()
-            : null;
-          siteRecords = dbRecords ?? await loadAnnouncementsFromLocal();
+          siteRecords = await loadAnnouncementsFromLocal();
         } catch {
           siteRecords = [];
         }
@@ -293,7 +260,7 @@ export function useNotificationBadges() {
 
       if (cancelled) return;
 
-      const sortedSiteRecords = sortByPriority(siteRecords);
+      const sortedSiteRecords = normalizeSiteAnnouncementRecords(siteRecords);
       setAnnouncements(sortedSiteRecords);
 
       if (sortedSiteRecords.length > 0 && sortedSiteRecords[0]?.updated_at) {
@@ -302,28 +269,12 @@ export function useNotificationBadges() {
         setHasNewAnnouncement(false);
       }
 
-      let dbGameRecords = Array.isArray(apiPayload?.recentGameAnnouncements)
+      const dbGameRecords = Array.isArray(apiPayload?.recentGameAnnouncements)
         ? apiPayload.recentGameAnnouncements
         : [];
-      let latestDbGameRecords = Array.isArray(apiPayload?.latestGameAnnouncements)
+      const latestDbGameRecords = Array.isArray(apiPayload?.latestGameAnnouncements)
         ? apiPayload.latestGameAnnouncements
         : [];
-
-      if (!apiPayload) {
-        if (shouldAllowPublicSupabaseFallback()) {
-          try {
-            dbGameRecords = await loadGameAnnouncementsFromDb(cutoffIso) || [];
-          } catch {
-            dbGameRecords = [];
-          }
-
-          try {
-            latestDbGameRecords = await loadLatestGameAnnouncementsFromDb() || [];
-          } catch {
-            latestDbGameRecords = [];
-          }
-        }
-      }
 
       let gameRecords = buildGameAnnouncementDisplaySet({
         recentRecords: dbGameRecords,
@@ -365,25 +316,12 @@ export function useNotificationBadges() {
 
   useEffect(() => {
     const load = async () => {
-      if (!supabase || !user) return 0;
+      if (!user) return 0;
       try {
         const lastViewed = getStorageItem(STORAGE_KEYS.TICKETS_LAST_VIEWED, 0);
         const since = lastViewed ? new Date(lastViewed).toISOString() : '1970-01-01T00:00:00Z';
-        const { count, error } = await executeSupabaseRead(
-          () => withAuthenticatedSupabaseRequest(
-            () => {
-              let query = supabase
-                .from('tickets')
-                .select('*', { count: 'exact', head: true })
-                .gt('updated_at', since);
-              if (!isSuperAdmin) query = query.eq('user_id', user.id);
-              return query;
-            },
-            { requireToken: true }
-          ),
-          { label: 'load unread ticket count', retries: 1 },
-        );
-        if (!error) return count || 0;
+        const result = await loadTickets({ updatedAfter: since });
+        return Array.isArray(result.tickets) ? result.tickets.length : 0;
       } catch {
         // ignored
       }
@@ -401,3 +339,10 @@ export function useNotificationBadges() {
 }
 
 export default useNotificationBadges;
+
+export const __internal = {
+  buildGameAnnouncementDisplaySet,
+  isLegacyPlaceholderAnnouncement,
+  loadAnnouncementsFromLocal,
+  normalizeSiteAnnouncementRecords,
+};

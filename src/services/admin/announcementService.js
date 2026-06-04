@@ -1,96 +1,114 @@
-import { supabase } from '../../supabaseClient';
-import { executeSupabaseRead } from '../supabaseRequest';
-import { withAuthenticatedSupabaseRequest } from '../authFetchService.js';
+import { getSupabaseAccessToken } from '../authFetchService.js';
+import { fetchJsonWithTimeout } from '../supabaseRequest.js';
 
-export async function loadAnnouncements() {
-  const { data, error } = await executeSupabaseRead(
-    () => withAuthenticatedSupabaseRequest(
-      () => supabase
-        .from('announcements')
-        .select('*')
-        .is('source_id', null)
-        .order('priority', { ascending: false }),
-      { requireToken: true }
-    ),
-    {
-      label: 'loadAnnouncements',
-      retries: 1
-    }
-  );
+const ADMIN_ANNOUNCEMENTS_TIMEOUT_MS = 45000;
+const ADMIN_ANNOUNCEMENTS_ENDPOINT = '/api/admin-announcements';
 
-  if (error) throw error;
-  return data || [];
+async function buildAdminAnnouncementHeaders(extraHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  }).catch(() => null);
+
+  const headers = {
+    Accept: 'application/json',
+    ...extraHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return headers;
 }
 
-export async function createAnnouncement(announcementForm) {
-  const { data, error } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('announcements')
-      .insert({
-        title: announcementForm.title,
-        title_en: announcementForm.title_en || null,
-        content: announcementForm.content,
-        content_en: announcementForm.content_en || null,
-        version: announcementForm.version,
-        announcement_type: announcementForm.announcement_type || 'update',
-        severity: announcementForm.severity || 'info',
-        is_active: announcementForm.is_active,
-        priority: announcementForm.priority
-      })
-      .select()
-      .single(),
-    { requireToken: true }
-  );
+function throwAdminAnnouncementError(data, response, fallbackMessage, fallbackCode) {
+  const error = new Error(data?.error || `${fallbackMessage} (${response.status})`);
+  error.code = data?.code || fallbackCode;
+  error.status = response.status;
+  throw error;
+}
 
-  if (error) throw error;
+async function requestAdminAnnouncements({
+  method = 'GET',
+  body = null,
+  label = 'admin-announcements',
+  retries = method === 'GET' ? 1 : 0,
+} = {}) {
+  const headers = await buildAdminAnnouncementHeaders(
+    body ? { 'Content-Type': 'application/json' } : {}
+  );
+  const { response, data } = await fetchJsonWithTimeout(ADMIN_ANNOUNCEMENTS_ENDPOINT, {
+    method,
+    credentials: 'same-origin',
+    headers,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  }, {
+    label,
+    timeoutMs: ADMIN_ANNOUNCEMENTS_TIMEOUT_MS,
+    retries,
+  });
+
+  if (!response.ok || data?.success !== true) {
+    throwAdminAnnouncementError(data, response, '公告管理操作失败', 'admin_announcements_request_failed');
+  }
+
   return data;
 }
 
-export async function updateAnnouncement(announcementId, announcementForm) {
-  const updatedAt = new Date().toISOString();
-  const { error } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('announcements')
-      .update({
-        title: announcementForm.title,
-        title_en: announcementForm.title_en || null,
-        content: announcementForm.content,
-        content_en: announcementForm.content_en || null,
-        version: announcementForm.version,
-        announcement_type: announcementForm.announcement_type || 'update',
-        severity: announcementForm.severity || 'info',
-        is_active: announcementForm.is_active,
-        priority: announcementForm.priority,
-        updated_at: updatedAt
-      })
-      .eq('id', announcementId),
-    { requireToken: true }
-  );
+export async function loadAnnouncements() {
+  const result = await requestAdminAnnouncements({
+    label: 'admin-announcements-load',
+  });
+  return Array.isArray(result.announcements) ? result.announcements : [];
+}
 
-  if (error) throw error;
-  return updatedAt;
+export async function createAnnouncement(announcementForm) {
+  const result = await requestAdminAnnouncements({
+    method: 'POST',
+    body: announcementForm,
+    label: 'admin-announcement-create',
+  });
+  return result.announcement || null;
+}
+
+export async function updateAnnouncement(announcementId, announcementForm) {
+  const result = await requestAdminAnnouncements({
+    method: 'PATCH',
+    body: {
+      id: announcementId,
+      ...announcementForm,
+    },
+    label: 'admin-announcement-update',
+  });
+  return result.updated_at || result.announcement?.updated_at || new Date().toISOString();
 }
 
 export async function setAnnouncementActive(announcementId, isActive) {
-  const { error } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('announcements')
-      .update({ is_active: isActive })
-      .eq('id', announcementId),
-    { requireToken: true }
-  );
-
-  if (error) throw error;
+  await requestAdminAnnouncements({
+    method: 'PATCH',
+    body: {
+      action: 'setActive',
+      id: announcementId,
+      isActive,
+    },
+    label: 'admin-announcement-toggle',
+  });
 }
 
 export async function deleteAnnouncement(announcementId) {
-  const { error } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('announcements')
-      .delete()
-      .eq('id', announcementId),
-    { requireToken: true }
-  );
-
-  if (error) throw error;
+  await requestAdminAnnouncements({
+    method: 'DELETE',
+    body: {
+      id: announcementId,
+    },
+    label: 'admin-announcement-delete',
+  });
 }
+
+export default {
+  createAnnouncement,
+  deleteAnnouncement,
+  loadAnnouncements,
+  setAnnouncementActive,
+  updateAnnouncement,
+};
