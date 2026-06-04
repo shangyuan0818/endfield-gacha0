@@ -157,6 +157,10 @@ function assertNoSensitiveValue(value, label = 'serialized output') {
   assert.equal(serialized.includes('reset-token-secret'), false, `${label} must not include reset token`);
 }
 
+function indexActions(actions = []) {
+  return new Map(actions.map((action) => [action.id, action]));
+}
+
 class QueryBuilder {
   constructor(client, table) {
     this.client = client;
@@ -290,6 +294,15 @@ const adminClient = createFakeAdminClient({
       updated_at: '2026-06-07T11:00:00.000Z',
       created_at: '2026-06-01T00:00:00.000Z',
     },
+    {
+      pool_id: 'manual_pool_limited_pool_1ihpjl_20260604_1a122i',
+      name: '拳出无悔（前瞻）',
+      type: 'limited',
+      start_time: '2026-06-05T04:00:00.000Z',
+      end_time: '2026-06-26T03:59:59.000Z',
+      updated_at: '2026-06-07T11:30:00.000Z',
+      created_at: '2026-06-01T00:00:00.000Z',
+    },
   ],
   characters: [
     {
@@ -298,6 +311,22 @@ const adminClient = createFakeAdminClient({
       type: 'character',
       rarity: 6,
       updated_at: '2026-06-07T10:00:00.000Z',
+      created_at: '2026-06-01T00:00:00.000Z',
+    },
+    {
+      id: 'manual_character_char_z2rl9u_b4rq6d',
+      name: '卡缪',
+      type: 'character',
+      rarity: 6,
+      updated_at: '2026-06-07T10:10:00.000Z',
+      created_at: '2026-06-01T00:00:00.000Z',
+    },
+    {
+      id: 'manual_weapon_wp_6cxvd0_rfw9a8',
+      name: '孤舟',
+      type: 'weapon',
+      rarity: 6,
+      updated_at: '2026-06-07T10:20:00.000Z',
       created_at: '2026-06-01T00:00:00.000Z',
     },
   ],
@@ -373,7 +402,7 @@ const adminClient = createFakeAdminClient({
       job_label: '官方公告同步',
       trigger_type: 'cron',
       status: 'success',
-      summary: { ops: { presentationStatus: 'success' } },
+      summary: { ops: { presentationStatus: 'success', durationMs: 42000 } },
       error_message: '',
       started_at: '2026-06-07T12:00:00.000Z',
       finished_at: '2026-06-07T12:01:00.000Z',
@@ -386,7 +415,7 @@ const adminClient = createFakeAdminClient({
       job_label: '卡池轮换同步',
       trigger_type: 'manual',
       status: 'failure',
-      summary: { ops: { presentationStatus: 'failure' } },
+      summary: { ops: { presentationStatus: 'failure', failureType: 'source_fetch', durationMs: 75000 } },
       error_message: 'source unavailable',
       started_at: '2026-06-07T10:00:00.000Z',
       finished_at: '2026-06-07T10:01:00.000Z',
@@ -583,8 +612,35 @@ assert.equal(health.ok, true);
 assert.equal(health.generatedAt, NOW.toISOString());
 assert.equal(health.content.items.length, 4);
 assert.equal(health.publicCache.epoch.cacheVersion, '1780000000000');
+assert.equal(health.publicCache.analytics.level, 'notice');
+assert.equal(health.publicCache.analytics.sampledRows, 2);
+assert.equal(health.publicCache.analytics.analytics.sampledRows, 1);
+assert.equal(health.publicCache.analytics.analytics.totalPullsSample, 1200);
+assert.equal(health.publicCache.analytics.trends.sampledRows, 1);
+assert.equal(health.publicCache.analytics.sourceVersions.includes('analytics-v1'), true);
+assert.equal(health.publicCache.analytics.sourceVersions.includes('trend-v1'), true);
+assert.equal(health.publicCache.analytics.latestAt, '2026-06-07T12:42:00.000Z');
 assert.equal(health.publicCache.aggregates.length, 2);
+assert.equal(health.publicCache.aggregates[0].sampledRows, 1);
+assert.equal(health.publicCache.aggregates[1].sampledRows, 1);
 assert.equal(health.ops.countsByStatus.failure, 1);
+assert.equal(health.ops.health.maxConsecutiveFailures, 1);
+assert.equal(health.ops.health.worstJobId, 'pool-schedule');
+assert.equal(health.ops.health.worstJobLabel, '卡池轮换同步');
+assert.equal(health.ops.health.p95DurationMs, 75000);
+assert.equal(health.ops.health.sampledDurations, 2);
+assert.equal(health.ops.health.latestSuccessAt, '2026-06-07T12:01:00.000Z');
+assert.equal(health.ops.health.latestFailureAt, '2026-06-07T10:01:00.000Z');
+assert.equal(health.ops.cron.missedCount, 1);
+assert.equal(health.ops.cron.pendingCount, 0);
+assert.equal(health.ops.cron.nextExpectedAt, '2026-06-09T02:00:00.000Z');
+assert.equal(health.ops.cron.schedules[0].status, 'missed');
+assert.equal(health.ops.cron.schedules[0].scheduleText, '每日北京时间 10:00');
+assert.equal(health.ops.cron.schedules[0].lastExpectedAt, '2026-06-08T02:00:00.000Z');
+assert.equal(health.ops.cron.schedules[0].latestCronAt, '2026-06-07T12:01:00.000Z');
+assert.equal(health.ops.latestRuns[0].durationMs, 42000);
+assert.equal(health.ops.latestRuns[1].durationMs, 75000);
+assert.equal(health.ops.latestRuns[1].failureType, 'source_fetch');
 assert.equal(health.mail.config.stalwartSmtpConfigured, true);
 assert.equal(health.mail.config.deliveryFeedbackSecretConfigured, true);
 assert.equal(health.mail.config.inboundWebhookSecretConfigured, true);
@@ -615,8 +671,34 @@ assert.equal(Object.hasOwn(health.mail.budgets.topItems[0], 'bucketKeyHash'), fa
 assert.equal(health.queues.accountRecovery.pending, 1);
 assert.equal(health.queues.developerApi.pending, 1);
 assert.equal(health.queues.tickets.urgentOpen, 1);
+assert.equal(health.dataReadiness.officialId.total, 3);
+assert.equal(health.dataReadiness.officialId.characterCount, 1);
+assert.equal(health.dataReadiness.officialId.weaponCount, 1);
+assert.equal(health.dataReadiness.officialId.poolCount, 1);
+assert.equal(health.dataReadiness.officialId.samples.characters[0].name, '孤舟');
+assert.equal(health.dataReadiness.officialId.samples.pools[0].name, '拳出无悔（前瞻）');
+assert.ok(health.warnings.some(item => item.includes('手动占位 ID')));
 assert.equal(health.overall.level, 'warning');
-assert.equal(health.overall.attentionCount, 7);
+assert.equal(health.overall.attentionCount, 12);
+assert.equal(health.workbench.highestSeverity, 'danger');
+assert.ok(Array.isArray(health.workbench.actions));
+assert.equal(health.workbench.countsBySeverity.danger, 1);
+assert.ok(health.workbench.countsBySeverity.warning >= 5);
+assert.ok(health.workbench.countsBySeverity.notice >= 3);
+const actions = indexActions(health.workbench.actions);
+assert.equal(actions.get('tickets-open')?.severity, 'danger');
+assert.equal(actions.get('tickets-open')?.target, 'tickets');
+assert.equal(actions.get('account-recovery-pending')?.target, 'accountRecovery');
+assert.equal(actions.get('developer-api-pending')?.target, 'developerApi');
+assert.equal(actions.get('mail-failed-outbox')?.target, 'mailStatus');
+assert.equal(actions.get('mail-due-outbox')?.target, 'mailStatus');
+assert.equal(actions.get('mail-budget-pressure')?.target, 'mailStatus');
+assert.equal(actions.get('mail-suppression-active')?.target, 'mailStatus');
+assert.equal(actions.get('ops-automation-failures')?.target, 'automation');
+assert.equal(actions.get('official-id-backlog')?.target, 'pools');
+assert.equal(actions.get('public-analytics-stale')?.target, 'siteHealth');
+assert.equal(actions.get('site-health-warnings')?.target, 'siteHealth');
+assert.equal(JSON.stringify(health.workbench).includes('smtp-password-secret'), false);
 assertNoSensitiveValue(health, 'site health');
 
 const partialHealth = await buildAdminSiteHealth({

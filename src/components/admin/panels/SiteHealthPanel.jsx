@@ -5,6 +5,7 @@ import {
   Bell,
   Bot,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Database,
   Mail,
@@ -39,6 +40,14 @@ function formatAge(value, nowValue) {
   return `${days} 天前`;
 }
 
+function formatDurationMs(value) {
+  const durationMs = Number(value);
+  if (!Number.isFinite(durationMs) || durationMs < 0) return '未记录';
+  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+  const seconds = durationMs / 1000;
+  return `${seconds.toFixed(seconds >= 10 ? 0 : 1)}s`;
+}
+
 function valueFromCounts(counts, key) {
   return Number(counts?.[key] || 0);
 }
@@ -69,6 +78,58 @@ function getStatusMeta(level) {
         label: '需要关注',
         className: 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200',
         icon: AlertTriangle,
+      };
+  }
+}
+
+function getCronStatusMeta(status) {
+  switch (status) {
+    case 'ok':
+      return { label: '已按预期执行', tone: 'default' };
+    case 'pending':
+      return { label: '等待执行', tone: 'notice' };
+    case 'missed':
+      return { label: '已错过预期时间', tone: 'warning' };
+    default:
+      return { label: '未记录', tone: 'default' };
+  }
+}
+
+function getPublicAnalyticsStatusMeta(level) {
+  switch (level) {
+    case 'ok':
+      return { label: '近期已刷新', tone: 'default' };
+    case 'notice':
+      return { label: '可能不是最新', tone: 'notice' };
+    case 'warning':
+      return { label: '需要刷新或检查', tone: 'warning' };
+    default:
+      return { label: '无法确认', tone: 'warning' };
+  }
+}
+
+function getWorkbenchActionMeta(severity) {
+  switch (severity) {
+    case 'danger':
+      return {
+        label: '优先处理',
+        className: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300',
+        iconClassName: 'text-red-500',
+        icon: AlertTriangle,
+      };
+    case 'warning':
+      return {
+        label: '需要检查',
+        className: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200',
+        iconClassName: 'text-amber-500',
+        icon: ShieldAlert,
+      };
+    default:
+      return {
+        label: '待处理',
+        className: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300',
+        iconClassName: 'text-blue-500',
+        icon: Activity,
       };
   }
 }
@@ -123,6 +184,72 @@ function StatCard({ label, value, subtext, tone = 'default', onClick }) {
       <div className="mt-2 text-2xl font-semibold leading-none">{value}</div>
       {subtext ? <div className="mt-2 text-xs text-current opacity-75">{subtext}</div> : null}
     </Component>
+  );
+}
+
+function WorkbenchActionList({ workbench, onNavigate, generatedAt }) {
+  const actions = Array.isArray(workbench?.actions) ? workbench.actions : [];
+
+  if (!actions.length) {
+    return (
+      <Section title="今日处理清单" icon={CheckCircle2}>
+        <div className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+          当前没有需要立即处理的事项。可以继续查看下方更新时间、缓存和队列状态。
+        </div>
+      </Section>
+    );
+  }
+
+  return (
+    <Section
+      title="今日处理清单"
+      icon={Bell}
+      action={(
+        <div className="hidden items-center gap-2 text-xs text-slate-500 dark:text-zinc-400 sm:flex">
+          <span>优先 {workbench?.countsBySeverity?.danger || 0}</span>
+          <span>检查 {workbench?.countsBySeverity?.warning || 0}</span>
+          <span>待处理 {workbench?.countsBySeverity?.notice || 0}</span>
+        </div>
+      )}
+    >
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        {actions.map((action) => {
+          const meta = getWorkbenchActionMeta(action.severity);
+          const Icon = meta.icon;
+          const canNavigate = Boolean(action.target && onNavigate);
+          const Component = canNavigate ? 'button' : 'div';
+
+          return (
+            <Component
+              key={action.id}
+              type={canNavigate ? 'button' : undefined}
+              onClick={canNavigate ? () => onNavigate(action.target) : undefined}
+              className={`min-h-[112px] w-full border p-3 text-left transition-colors ${meta.className} ${canNavigate ? 'hover:brightness-95 dark:hover:brightness-125' : ''}`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0">
+                  <Icon size={18} className={meta.iconClassName} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold">{action.title}</span>
+                    <span className="border border-current/20 px-1.5 py-0.5 text-[11px] opacity-80">
+                      {meta.label}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm leading-5 opacity-85">{action.description}</div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs opacity-75">
+                    <span>数量：{action.count}</span>
+                    {action.updatedAt ? <span>更新：{formatAge(action.updatedAt, generatedAt)}</span> : null}
+                  </div>
+                </div>
+                {canNavigate ? <ChevronRight size={16} className="mt-1 shrink-0 opacity-60" /> : null}
+              </div>
+            </Component>
+          );
+        })}
+      </div>
+    </Section>
   );
 }
 
@@ -205,10 +332,18 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
     const urgentTickets = Number(health?.queues?.tickets?.urgentOpen || 0);
     return { recovery, developerApi, tickets, urgentTickets };
   }, [health]);
+  const officialIdStats = health?.dataReadiness?.officialId || {};
+  const officialIdBacklog = Number(officialIdStats.total || 0);
   const mailConfig = health?.mail?.config || {};
   const mailFailed = valueFromCounts(health?.mail?.outbox?.countsByStatus, 'failed');
   const mailDue = Number(health?.mail?.outbox?.dueQueued || 0);
   const opsFailures = valueFromCounts(health?.ops?.countsByStatus, 'failure');
+  const opsHealth = health?.ops?.health || {};
+  const opsCron = health?.ops?.cron || {};
+  const opsMissedSchedules = Number(opsCron.missedCount || 0);
+  const opsMaxConsecutiveFailures = Number(opsHealth.maxConsecutiveFailures || 0);
+  const publicAnalytics = health?.publicCache?.analytics || {};
+  const publicAnalyticsMeta = getPublicAnalyticsStatusMeta(publicAnalytics.level);
 
   return (
     <div className="space-y-4">
@@ -257,16 +392,26 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
         </div>
       ) : health ? (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <WorkbenchActionList
+            workbench={health.workbench}
+            onNavigate={onNavigate}
+            generatedAt={generatedAt}
+          />
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
             <StatCard
               label="自动化失败"
-              value={opsFailures}
-              subtext={countsToText(health?.ops?.countsByStatus, [
-                { key: 'success', label: '成功' },
-                { key: 'failure', label: '失败' },
-                { key: 'skipped', label: '跳过' },
-              ])}
-              tone={opsFailures > 0 ? 'warning' : 'default'}
+              value={opsFailures + opsMissedSchedules}
+              subtext={opsMissedSchedules > 0
+                ? `定时任务已错过 ${opsMissedSchedules} 项`
+                : opsMaxConsecutiveFailures > 0
+                ? `${opsHealth.worstJobLabel || opsHealth.worstJobId || '任务'} 连续失败 ${opsMaxConsecutiveFailures} 次`
+                : countsToText(health?.ops?.countsByStatus, [
+                  { key: 'success', label: '成功' },
+                  { key: 'failure', label: '失败' },
+                  { key: 'skipped', label: '跳过' },
+                ])}
+              tone={opsMissedSchedules > 0 || opsMaxConsecutiveFailures > 0 || opsFailures > 0 ? 'warning' : 'default'}
               onClick={onNavigate ? () => onNavigate('automation') : undefined}
             />
             <StatCard
@@ -274,6 +419,7 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
               value={queueStats.tickets}
               subtext={`紧急 ${queueStats.urgentTickets}`}
               tone={queueStats.urgentTickets > 0 ? 'danger' : queueStats.tickets > 0 ? 'notice' : 'default'}
+              onClick={onNavigate ? () => onNavigate('tickets') : undefined}
             />
             <StatCard
               label="账号恢复"
@@ -296,6 +442,13 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
               tone={mailFailed > 0 ? 'warning' : mailDue > 0 ? 'notice' : 'default'}
               onClick={onNavigate ? () => onNavigate('mailStatus') : undefined}
             />
+            <StatCard
+              label="官方 ID 待处理"
+              value={officialIdBacklog}
+              subtext={`角色 ${officialIdStats.characterCount || 0} / 武器 ${officialIdStats.weaponCount || 0} / 卡池 ${officialIdStats.poolCount || 0}`}
+              tone={officialIdBacklog > 0 ? 'warning' : 'default'}
+              onClick={onNavigate ? () => onNavigate(Number(officialIdStats.poolCount || 0) > 0 ? 'pools' : 'characters') : undefined}
+            />
           </div>
 
           <WarningList warnings={health.warnings || []} />
@@ -316,6 +469,26 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
 
             <Section title="公共缓存与聚合" icon={Database}>
               <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <StatCard
+                    label="公共统计状态"
+                    value={publicAnalyticsMeta.label}
+                    subtext={`最近刷新 ${formatAge(publicAnalytics.latestAt, generatedAt)}`}
+                    tone={publicAnalyticsMeta.tone}
+                  />
+                  <StatCard
+                    label="缓存采样行"
+                    value={publicAnalytics.sampledRows || 0}
+                    subtext={`卡池 ${publicAnalytics.analytics?.sampledRows || 0} / 趋势 ${publicAnalytics.trends?.sampledRows || 0}`}
+                    tone={Number(publicAnalytics.sampledRows || 0) > 0 ? 'default' : 'notice'}
+                  />
+                  <StatCard
+                    label="样本抽数"
+                    value={Number(publicAnalytics.analytics?.totalPullsSample || 0).toLocaleString('zh-CN')}
+                    subtext={(publicAnalytics.sourceVersions || []).slice(0, 2).join(', ') || '未记录 source version'}
+                    tone="default"
+                  />
+                </div>
                 <div className="border border-zinc-100 p-3 text-sm dark:border-zinc-800">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-medium text-slate-700 dark:text-zinc-200">公共缓存版本</span>
@@ -329,6 +502,11 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
                     <div className="md:col-span-2">更新时间：{formatDateTime(health.publicCache?.epoch?.updatedAt)}</div>
                   </div>
                 </div>
+                {(publicAnalytics.warnings || []).length ? (
+                  <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+                    {(publicAnalytics.warnings || []).slice(0, 3).join(' / ')}
+                  </div>
+                ) : null}
                 {(health.publicCache?.aggregates || []).map((item) => (
                   <div key={item.table || item.key || item.label} className="border border-zinc-100 p-3 text-sm dark:border-zinc-800">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -338,12 +516,101 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
                     {item.ok === false ? (
                       <div className="mt-2 text-xs text-red-600 dark:text-red-400">{item.error}</div>
                     ) : (
-                      <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
-                        {item.latest?.poolId || item.latest?.metric || 'latest'} · {formatDateTime(item.latestAt)}
+                      <div className="mt-2 space-y-1 text-xs text-slate-500 dark:text-zinc-500">
+                        <div>{item.latest?.poolId || item.latest?.metric || 'latest'} · {formatDateTime(item.latestAt)}</div>
+                        <div>采样 {item.sampledRows || 0} 行 · {(item.sourceVersions || []).slice(0, 2).join(', ') || '未记录版本'}</div>
                       </div>
                     )}
                   </div>
                 ))}
+              </div>
+            </Section>
+
+            <Section
+              title="新版本数据准备"
+              icon={ShieldAlert}
+              action={onNavigate ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('characters')}
+                    className="text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                  >
+                    角色管理
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('pools')}
+                    className="text-xs text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                  >
+                    卡池管理
+                  </button>
+                </div>
+              ) : null}
+            >
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <StatCard
+                  label="角色占位 ID"
+                  value={officialIdStats.characterCount || 0}
+                  subtext={`采样角色/武器 ${officialIdStats.sampledCharacters || 0}`}
+                  tone={Number(officialIdStats.characterCount || 0) > 0 ? 'warning' : 'default'}
+                  onClick={onNavigate ? () => onNavigate('characters') : undefined}
+                />
+                <StatCard
+                  label="武器占位 ID"
+                  value={officialIdStats.weaponCount || 0}
+                  subtext="等待官方 ID 后回填"
+                  tone={Number(officialIdStats.weaponCount || 0) > 0 ? 'warning' : 'default'}
+                  onClick={onNavigate ? () => onNavigate('characters') : undefined}
+                />
+                <StatCard
+                  label="卡池占位 ID"
+                  value={officialIdStats.poolCount || 0}
+                  subtext={`采样卡池 ${officialIdStats.sampledPools || 0}`}
+                  tone={Number(officialIdStats.poolCount || 0) > 0 ? 'warning' : 'default'}
+                  onClick={onNavigate ? () => onNavigate('pools') : undefined}
+                />
+              </div>
+              {officialIdBacklog > 0 ? (
+                <div className="mt-4 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+                  仍有手动占位 ID 未回填。新版本数据上线前，先确认官方 ID 或在迁移计划里人工指定映射；不要直接删除占位行。
+                </div>
+              ) : (
+                <div className="mt-4 border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+                  当前采样范围内没有手动占位 ID。
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="border border-zinc-100 p-3 text-xs dark:border-zinc-800">
+                  <div className="mb-2 font-medium text-slate-700 dark:text-zinc-200">角色 / 武器样本</div>
+                  {(officialIdStats.samples?.characters || []).length ? (
+                    <div className="space-y-1">
+                      {officialIdStats.samples.characters.slice(0, 4).map((item) => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 text-slate-500 dark:text-zinc-500">
+                          <span className="min-w-0 truncate">{item.name || item.id}</span>
+                          <span className="shrink-0 font-mono">{item.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 dark:text-zinc-500">暂无待处理样本</div>
+                  )}
+                </div>
+                <div className="border border-zinc-100 p-3 text-xs dark:border-zinc-800">
+                  <div className="mb-2 font-medium text-slate-700 dark:text-zinc-200">卡池样本</div>
+                  {(officialIdStats.samples?.pools || []).length ? (
+                    <div className="space-y-1">
+                      {officialIdStats.samples.pools.slice(0, 4).map((item) => (
+                        <div key={item.id} className="flex items-center justify-between gap-3 text-slate-500 dark:text-zinc-500">
+                          <span className="min-w-0 truncate">{item.name || item.id}</span>
+                          <span className="shrink-0 font-mono">{item.type || 'unknown'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 dark:text-zinc-500">暂无待处理样本</div>
+                  )}
+                </div>
               </div>
             </Section>
 
@@ -362,19 +629,81 @@ export default function SiteHealthPanel({ showToast, onNavigate }) {
             >
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <StatCard label="成功" value={valueFromCounts(health.ops?.countsByStatus, 'success')} subtext="最近采样" />
-                <StatCard label="失败" value={opsFailures} subtext="需排查" tone={opsFailures > 0 ? 'warning' : 'default'} />
-                <StatCard label="跳过" value={valueFromCounts(health.ops?.countsByStatus, 'skipped')} subtext="去重 / 条件不满足" />
+                <StatCard
+                  label="连续失败"
+                  value={opsMaxConsecutiveFailures}
+                  subtext={opsHealth.worstJobLabel || '按任务统计'}
+                  tone={opsMaxConsecutiveFailures > 0 ? 'warning' : 'default'}
+                />
+                <StatCard
+                  label="p95 耗时"
+                  value={formatDurationMs(opsHealth.p95DurationMs)}
+                  subtext={`样本 ${opsHealth.sampledDurations || 0}`}
+                  tone={Number(opsHealth.p95DurationMs || 0) > 60000 ? 'warning' : 'default'}
+                />
               </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-2">
+                <div className="border border-zinc-100 px-3 py-2 text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                  最近成功：{formatAge(opsHealth.latestSuccessAt, generatedAt)}
+                </div>
+                <div className="border border-zinc-100 px-3 py-2 text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                  最近失败：{formatAge(opsHealth.latestFailureAt, generatedAt)}
+                </div>
+                <div className="border border-zinc-100 px-3 py-2 text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                  下次定时：{formatDateTime(opsCron.nextExpectedAt)}
+                </div>
+                <div className="border border-zinc-100 px-3 py-2 text-slate-500 dark:border-zinc-800 dark:text-zinc-400">
+                  定时错过：{opsMissedSchedules}
+                </div>
+              </div>
+              {(opsCron.schedules || []).length ? (
+                <div className="mt-4 space-y-2">
+                  {opsCron.schedules.map((schedule) => {
+                    const meta = getCronStatusMeta(schedule.status);
+                    return (
+                      <div
+                        key={schedule.id}
+                        className="grid grid-cols-1 gap-2 border border-zinc-100 px-3 py-2 text-xs dark:border-zinc-800 md:grid-cols-[minmax(0,1fr)_auto]"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-slate-700 dark:text-zinc-200">{schedule.label}</span>
+                            <span className={`border px-1.5 py-0.5 ${
+                              meta.tone === 'warning'
+                                ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200'
+                                : meta.tone === 'notice'
+                                ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300'
+                                : 'border-zinc-200 bg-zinc-50 text-slate-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400'
+                            }`}
+                            >
+                              {meta.label}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-slate-500 dark:text-zinc-500">
+                            {schedule.scheduleText}，宽限 {schedule.graceMinutes} 分钟
+                          </div>
+                        </div>
+                        <div className="text-left text-slate-400 dark:text-zinc-500 md:text-right">
+                          <div>上次预期：{formatDateTime(schedule.lastExpectedAt)}</div>
+                          <div>最近执行：{formatDateTime(schedule.latestCronAt)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
               <div className="mt-4 space-y-2">
                 {(health.ops?.latestRuns || []).slice(0, 5).map((run) => (
                   <div key={run.id} className="flex items-start justify-between gap-3 border border-zinc-100 px-3 py-2 text-xs dark:border-zinc-800">
                     <div className="min-w-0">
                       <div className="font-medium text-slate-700 dark:text-zinc-200">{run.jobLabel || run.jobId}</div>
-                      <div className="mt-1 truncate text-slate-500 dark:text-zinc-500">{run.error || run.triggerType || '无错误'}</div>
+                      <div className="mt-1 truncate text-slate-500 dark:text-zinc-500">
+                        {run.error || run.failureType || run.triggerType || '无错误'}
+                      </div>
                     </div>
                     <div className="shrink-0 text-right text-slate-400 dark:text-zinc-500">
                       <div>{run.presentationStatus || run.status}</div>
-                      <div>{formatAge(run.updatedAt, generatedAt)}</div>
+                      <div>{formatDurationMs(run.durationMs)} · {formatAge(run.updatedAt, generatedAt)}</div>
                     </div>
                   </div>
                 ))}

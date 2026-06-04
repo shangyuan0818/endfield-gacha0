@@ -149,7 +149,12 @@ export default function DesktopAppRoutes({
             <TabPanelFallback label={tt('正在校验管理权限...', 'Checking admin access...')} />
           ) : isSuperAdmin ? (
             <Suspense fallback={<TabPanelFallback label={tt('正在加载管理后台...', 'Loading admin panel...')} />}>
-              <AdminPanel showToast={showToast} addDurableNotification={addDurableNotification} />
+              <AdminPanel
+                user={user}
+                userRole={userRole}
+                showToast={showToast}
+                addDurableNotification={addDurableNotification}
+              />
             </Suspense>
           ) : (
             <Navigate to="/" replace />

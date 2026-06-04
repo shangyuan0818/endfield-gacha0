@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound, Bot, Globe, Activity, Mail } from 'lucide-react';
+import { Shield, RefreshCw, ChevronRight, Users, Database, Layers, Star, Bell, Settings, KeyRound, Bot, Globe, Activity, Mail, MessageSquare } from 'lucide-react';
 import { useAdminData, useUserDataViewer } from '../hooks/admin';
 
 const CharacterManagement = lazy(() => import('./admin/CharacterManagement'));
@@ -13,6 +13,7 @@ const MailStatusPanel = lazy(() => import('./admin/panels/MailStatusPanel'));
 const SiteConfigPanel = lazy(() => import('./admin/panels/SiteConfigPanel'));
 const AccountRecoveryPanel = lazy(() => import('./admin/panels/AccountRecoveryPanel'));
 const DeveloperApiPanel = lazy(() => import('./admin/panels/DeveloperApiPanel'));
+const TicketPanel = lazy(() => import('./TicketPanel'));
 
 // 侧边栏菜单项配置
 const MENU_ITEMS = [
@@ -24,6 +25,7 @@ const MENU_ITEMS = [
   { id: 'characters', label: '角色管理', icon: Star },
   { id: 'announcements', label: '公告管理', icon: Bell },
   { id: 'automation', label: '运营自动化', icon: Bot },
+  { id: 'tickets', label: '工单处理', icon: MessageSquare },
   { id: 'developerApi', label: '开发者 API', icon: Globe },
   { id: 'accountRecovery', label: '账号恢复', icon: KeyRound },
   { id: 'siteConfig', label: '站点配置', icon: Settings },
@@ -35,7 +37,7 @@ const AdminPanelFallback = () => (
   </div>
 );
 
-const AdminPanel = React.memo(({ showToast, addDurableNotification }) => {
+const AdminPanel = React.memo(({ user, userRole, showToast, addDurableNotification }) => {
   const [activeMenu, setActiveMenu] = React.useState('siteHealth');
 
   // 使用拆分后的 hooks
@@ -146,6 +148,16 @@ const AdminPanel = React.memo(({ showToast, addDurableNotification }) => {
 
       case 'automation':
         return <AutomationPanel showToast={showToast} onNavigate={setActiveMenu} />;
+
+      case 'tickets':
+        return (
+          <TicketPanel
+            user={user}
+            userRole={userRole}
+            showToast={showToast}
+            addDurableNotification={addDurableNotification}
+          />
+        );
 
       case 'siteConfig':
         return <SiteConfigPanel showToast={showToast} />;
