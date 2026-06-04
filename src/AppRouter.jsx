@@ -12,6 +12,7 @@ const PrivacyPolicy = lazy(() => import('./components/legal/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./components/legal/TermsOfService'));
 const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'));
 const AuthCallbackPage = lazy(() => import('./components/auth/AuthCallbackPage.jsx'));
+const SiteStatusPage = lazy(() => import('./components/status/SiteStatusPage.jsx'));
 
 /**
  * 应用路由配置
@@ -21,6 +22,7 @@ const AuthCallbackPage = lazy(() => import('./components/auth/AuthCallbackPage.j
  * - /terms : 用户协议
  * - /reset-password : 密码重置页
  * - /auth/callback : 第三方登录回调页
+ * - /status : 公开服务状态页
  */
 function AppRouter() {
   return (
@@ -40,6 +42,14 @@ function AppRouter() {
           element={
             <Suspense fallback={<MobileLoadingFallback />}>
               <AuthCallbackPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/status"
+          element={
+            <Suspense fallback={<MobileLoadingFallback />}>
+              <SiteStatusPage />
             </Suspense>
           }
         />
