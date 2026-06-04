@@ -169,6 +169,50 @@ function sumReference(items = [], key) {
   return items.reduce((total, item) => total + (Number(item.references?.[key]) || 0), 0);
 }
 
+function normalizeReferenceOverrideMap(value) {
+  if (value instanceof Map) {
+    return value;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return new Map();
+  }
+
+  return new Map(Object.entries(value));
+}
+
+function normalizeCountOverride(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : null;
+}
+
+function applyReferenceOverrides(items = [], overridesInput) {
+  const overrides = normalizeReferenceOverrideMap(overridesInput);
+  if (overrides.size === 0) {
+    return items;
+  }
+
+  return items.map((item) => {
+    const itemOverrides = overrides.get(item.id);
+    if (!itemOverrides || typeof itemOverrides !== 'object') {
+      return item;
+    }
+
+    const references = { ...(item.references || {}) };
+    Object.entries(itemOverrides).forEach(([key, value]) => {
+      const count = normalizeCountOverride(value);
+      if (count !== null) {
+        references[key] = count;
+      }
+    });
+
+    return {
+      ...item,
+      references,
+    };
+  });
+}
+
 export function buildManualPlaceholderRetirementReport({
   pools = [],
   characters = [],
@@ -176,6 +220,7 @@ export function buildManualPlaceholderRetirementReport({
   poolAliasRows = [],
   historyRows = [],
   poolCharacterRows = [],
+  referenceCountOverrides = {},
 } = {}) {
   const historyCharacterCounts = countRowsBy(historyRows, 'character_id');
   const historyPoolCounts = countRowsBy(historyRows, 'pool_id');
@@ -183,7 +228,7 @@ export function buildManualPlaceholderRetirementReport({
   const poolCharacterPoolCounts = countRowsBy(poolCharacterRows, 'pool_id');
   const featuredCharacterCounts = countFeaturedCharacterRefs(pools);
 
-  const characterPlaceholders = buildPlaceholderRows({
+  const characterPlaceholders = applyReferenceOverrides(buildPlaceholderRows({
     rows: characters,
     idKey: 'id',
     classifyIdSource: classifyCharacterIdSource,
@@ -198,9 +243,9 @@ export function buildManualPlaceholderRetirementReport({
       name: row?.name || null,
       type: row?.type || null,
     }),
-  });
+  }), referenceCountOverrides.characters);
 
-  const poolPlaceholders = buildPlaceholderRows({
+  const poolPlaceholders = applyReferenceOverrides(buildPlaceholderRows({
     rows: pools,
     idKey: 'pool_id',
     classifyIdSource: classifyPoolIdSource,
@@ -217,7 +262,7 @@ export function buildManualPlaceholderRetirementReport({
       end_time: row?.end_time || null,
       up_character: row?.up_character || null,
     }),
-  });
+  }), referenceCountOverrides.pools);
 
   const characterSummary = summarizePlaceholders(characterPlaceholders);
   const poolSummary = summarizePlaceholders(poolPlaceholders);

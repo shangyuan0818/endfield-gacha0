@@ -468,6 +468,35 @@ async function main() {
     missingPoolSelfAliases,
     historyPoolReferences,
     historyCharacterReferences,
+    candidateSourceRows: {
+      characters: characters.map(row => ({
+        id: row.id,
+        name: row.name || null,
+        type: row.type || null,
+        source: row.source,
+      })),
+      pools: pools.map(row => ({
+        pool_id: row.pool_id,
+        name: row.name || null,
+        type: row.type || null,
+        start_time: row.start_time || null,
+        end_time: row.end_time || null,
+        up_character: row.up_character || null,
+        source: row.source,
+      })),
+      characterAliasRows: characterAliasRows.map(row => ({
+        source: row.source || null,
+        alias_id: row.alias_id || null,
+        character_id: row.character_id || null,
+        is_primary: row.is_primary === true,
+      })),
+      poolAliasRows: poolAliasRows.map(row => ({
+        source: row.source || null,
+        alias_id: row.alias_id || null,
+        pool_id: row.pool_id || null,
+        is_primary: row.is_primary === true,
+      })),
+    },
     manualPlaceholderRetirement,
   };
 

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildManualPlaceholderMigrationPlan } from './lib/manualPlaceholderMigrationPlan.mjs';
+import { buildManualPlaceholderCandidateReviewPlan } from './lib/manualPlaceholderCandidatePlan.mjs';
 
 function parseArgs(argv) {
   const options = {
@@ -52,22 +52,10 @@ async function readJsonFile(filePath) {
   };
 }
 
-function extractRetirementReport(data) {
-  if (data?.manualPlaceholderRetirement) {
-    return data.manualPlaceholderRetirement;
-  }
-
-  if (data?.summary && Array.isArray(data?.characters) && Array.isArray(data?.pools)) {
-    return data;
-  }
-
-  throw new Error('输入 JSON 缺少 manualPlaceholderRetirement，或不是 manual placeholder retirement report。');
-}
-
 function buildDefaultOutPath(auditPath) {
   const absoluteInput = path.resolve(process.cwd(), auditPath);
   const parsedPath = path.parse(absoluteInput);
-  return path.join(parsedPath.dir, `${parsedPath.name}.manual-placeholder-migration-plan.generated.json`);
+  return path.join(parsedPath.dir, `${parsedPath.name}.manual-placeholder-candidate-plan.generated.json`);
 }
 
 async function writeOutputFile(filePath, contents) {
@@ -84,22 +72,21 @@ async function main() {
   }
 
   const { absolutePath, data } = await readJsonFile(options.audit);
-  const retirementReport = extractRetirementReport(data);
-  const plan = buildManualPlaceholderMigrationPlan(retirementReport, {
+  const plan = buildManualPlaceholderCandidateReviewPlan(data, {
     generatedFrom: path.basename(absolutePath),
   });
   const outputPath = options.out || buildDefaultOutPath(options.audit);
   const absoluteOutputPath = await writeOutputFile(outputPath, `${JSON.stringify(plan, null, 2)}\n`);
 
-  console.log('# DATA-NEW-017 manual placeholder 迁移演练计划');
+  console.log('# DATA-NEW-018 manual placeholder 官方 ID 候选审阅计划');
   console.log(`输入审计报告: ${absolutePath}`);
-  console.log(`输出演练计划: ${absoluteOutputPath}`);
-  console.log(`可迁移角色/武器: ${plan.summary.readyCharacterMigrations}`);
-  console.log(`可迁移卡池: ${plan.summary.readyPoolMigrations}`);
-  console.log(`阻塞角色/武器: ${plan.summary.blockedCharacterPlaceholders}`);
-  console.log(`阻塞卡池: ${plan.summary.blockedPoolPlaceholders}`);
-  console.log(`预计引用更新行数: ${plan.summary.estimatedReferenceUpdateCount}`);
-  console.log('注意：该计划不写数据库；执行前仍需人工审核和最新生产审计。');
+  console.log(`输出审阅计划: ${absoluteOutputPath}`);
+  console.log(`角色/武器 placeholder: ${plan.summary.characterPlaceholders.totalPlaceholders}`);
+  console.log(`角色/武器候选项: ${plan.summary.characterPlaceholders.placeholdersWithCandidates}`);
+  console.log(`卡池 placeholder: ${plan.summary.poolPlaceholders.totalPlaceholders}`);
+  console.log(`卡池候选项: ${plan.summary.poolPlaceholders.placeholdersWithCandidates}`);
+  console.log(`总待审阅项: ${plan.summary.totalWithCandidates}`);
+  console.log('注意：该计划只供人工审阅，不写数据库、不生成迁移 SQL。确认唯一目标后，应先写入 alias，再重新生成正式迁移计划。');
 }
 
 const isDirectRun = process.argv[1]
@@ -107,7 +94,11 @@ const isDirectRun = process.argv[1]
 
 if (isDirectRun) {
   main().catch((error) => {
-    console.error('[generate-manual-placeholder-migration-plan] 执行失败:', error);
+    console.error('[generate-manual-placeholder-candidate-plan] 执行失败:', error);
     process.exitCode = 1;
   });
 }
+
+export {
+  parseArgs,
+};

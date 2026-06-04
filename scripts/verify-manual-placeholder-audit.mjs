@@ -101,6 +101,65 @@ const report = buildManualPlaceholderRetirementReport({
   ],
 });
 
+const overrideReport = buildManualPlaceholderRetirementReport({
+  characters: [
+    { id: 'char_manual_override_abc123', name: '覆盖角色', type: 'character' },
+  ],
+  pools: [
+    {
+      pool_id: 'special_manual_override_20260605_abc123',
+      name: '覆盖卡池',
+      type: 'limited',
+      featured_characters: ['char_manual_override_abc123'],
+    },
+  ],
+  characterAliasRows: [
+    {
+      source: 'internal',
+      alias_id: 'char_manual_override_abc123',
+      character_id: 'char_manual_override_abc123',
+      is_primary: true,
+    },
+  ],
+  poolAliasRows: [
+    {
+      source: 'internal',
+      alias_id: 'special_manual_override_20260605_abc123',
+      pool_id: 'special_manual_override_20260605_abc123',
+      is_primary: true,
+    },
+  ],
+  historyRows: [
+    {
+      pool_id: 'special_manual_override_20260605_abc123',
+      character_id: 'char_manual_override_abc123',
+    },
+  ],
+  referenceCountOverrides: {
+    characters: {
+      char_manual_override_abc123: {
+        historyRows: 7,
+      },
+    },
+    pools: {
+      special_manual_override_20260605_abc123: {
+        historyRows: 11,
+      },
+    },
+  },
+});
+
+assert.equal(overrideReport.summary.historyCharacterManualReferenceCount, 7);
+assert.equal(overrideReport.summary.historyPoolManualReferenceCount, 11);
+assert.equal(
+  overrideReport.characters.find(item => item.id === 'char_manual_override_abc123')?.references.historyRows,
+  7
+);
+assert.equal(
+  overrideReport.pools.find(item => item.id === 'special_manual_override_20260605_abc123')?.references.historyRows,
+  11
+);
+
 assert.equal(report.summary.characterPlaceholderCount, 3);
 assert.equal(report.summary.poolPlaceholderCount, 2);
 assert.equal(report.summary.readyCharacterMergeCount, 1);
