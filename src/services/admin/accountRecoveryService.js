@@ -1,74 +1,87 @@
-import { supabase } from '../../supabaseClient';
-import { executeSupabaseRead, fetchWithTimeout } from '../supabaseRequest';
-import { loadPublicProfilesMap } from '../publicProfileService';
-import {
-  getSupabaseAccessToken,
-  withAuthenticatedSupabaseRequest,
-} from '../authFetchService.js';
+import { getSupabaseAccessToken } from '../authFetchService.js';
+import { fetchJsonWithTimeout, fetchWithTimeout } from '../supabaseRequest';
+
+async function getOptionalNativeToken() {
+  return getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+}
+
+async function buildAdminHeaders(baseHeaders = {}) {
+  const token = await getOptionalNativeToken();
+  const headers = {
+    ...baseHeaders,
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export async function loadAccountRecoveryRequests() {
-  const { data, error } = await executeSupabaseRead(
-    () => withAuthenticatedSupabaseRequest(
-      () => supabase
-        .from('account_recovery_requests')
-        .select('*')
-        .order('created_at', { ascending: false }),
-      { requireToken: true }
-    ),
-    {
-      label: 'loadAccountRecoveryRequests',
-      retries: 1
-    }
-  );
+  const headers = await buildAdminHeaders({
+    Accept: 'application/json',
+  });
+  const { response, data } = await fetchJsonWithTimeout('/api/admin-account-recovery', {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers,
+  }, {
+    label: 'admin-account-recovery-load',
+    timeoutMs: 45000,
+    retries: 1,
+  });
 
-  if (error) {
+  if (!response.ok || data?.success !== true) {
+    const error = new Error(data?.error || '加载账号恢复申请失败');
+    error.status = response.status;
+    error.code = 'account_recovery_load_failed';
     throw error;
   }
 
-  const requests = data || [];
-  const handledByProfiles = await loadPublicProfilesMap(requests.map((item) => item.handled_by));
-
-  return requests.map((item) => ({
-    ...item,
-    handlerProfile: handledByProfiles.get(item.handled_by) || null
-  }));
+  return Array.isArray(data.requests) ? data.requests : [];
 }
 
 export async function updateAccountRecoveryRequest(requestId, updateData) {
-  const payload = {
-    ...updateData,
-    updated_at: new Date().toISOString()
-  };
+  const headers = await buildAdminHeaders({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  });
+  const { response, data } = await fetchJsonWithTimeout('/api/admin-account-recovery', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({
+      requestId,
+      status: updateData?.status,
+      admin_note: updateData?.admin_note ?? updateData?.adminNote ?? '',
+    }),
+  }, {
+    label: 'admin-account-recovery-update',
+    timeoutMs: 45000,
+  });
 
-  if (payload.status && payload.status !== 'pending' && !payload.handled_at) {
-    payload.handled_at = new Date().toISOString();
-  }
-
-  const { error } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('account_recovery_requests')
-      .update(payload)
-      .eq('id', requestId),
-    { requireToken: true }
-  );
-
-  if (error) {
+  if (!response.ok || data?.success !== true) {
+    const error = new Error(data?.error || '更新账号恢复申请失败');
+    error.status = response.status;
+    error.code = 'account_recovery_update_failed';
     throw error;
   }
+
+  return data.request || null;
 }
 
 export async function resetRecoveryRequestPassword(requestId, userId, temporaryPassword, adminNote) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin-reset-recovery-password', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       requestId,
       userId,

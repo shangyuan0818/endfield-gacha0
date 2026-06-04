@@ -1,9 +1,14 @@
 import accountRecoveryRequestHandler from './root/account-recovery-request.js';
 import accountEmailActionHandler from './root/account-email-action.js';
 import accountEmailVerifyHandler from './root/account-email-verify.js';
+import accountGachaDataHandler from './root/account-gacha-data.js';
+import accountLastSeenHandler from './root/account-last-seen.js';
 import accountPasswordSetupHandler from './root/account-password-setup.js';
+import accountProfileHandler from './root/account-profile.js';
 import accountSecurityStateHandler from './root/account-security-state.js';
 import adminHandler from './root/admin.js';
+import adminCharactersHandler from './root/admin-characters.js';
+import adminPoolsHandler from './root/admin-pools.js';
 import announcementsHandler from './root/announcements.js';
 import authEmailActionHandler from './root/auth-email-action.js';
 import { authIdentityUnlinkHandler } from './root/auth-identities.js';
@@ -31,8 +36,10 @@ import poolRostersHandler from './root/pool-rosters.js';
 import publicCacheVersionHandler from './root/public-cache-version.js';
 import puzzlesHandler from './root/puzzles.js';
 import selfDeleteAccountHandler from './root/self-delete-account.js';
+import siteStatusHandler from './root/site-status.js';
 import statsHandler from './root/stats.js';
 import ticketReplyHandler from './root/ticket-reply.js';
+import ticketsHandler from './root/tickets.js';
 import wikiAssetProxyHandler from './root/wiki-asset-proxy.js';
 import wikiProxyHandler from './root/wiki-proxy.js';
 import devApplicationsHandler from './dev/applications/index.js';
@@ -84,9 +91,16 @@ export const API_ROUTE_ENTRIES = [
   ['/api/account-recovery-request', accountRecoveryRequestHandler],
   ['/api/account-email-action', accountEmailActionHandler],
   ['/api/account-email-verify', accountEmailVerifyHandler],
+  ['/api/account-gacha-data', accountGachaDataHandler],
+  ['/api/account-last-seen', accountLastSeenHandler],
   ['/api/account-password-setup', accountPasswordSetupHandler],
+  ['/api/account-profile', accountProfileHandler],
   ['/api/account-security-state', accountSecurityStateHandler],
   ['/api/admin', adminHandler],
+  ['/api/admin-account-recovery', adminHandler],
+  ['/api/admin-announcements', adminHandler],
+  ['/api/admin-characters', adminCharactersHandler],
+  ['/api/admin-pools', adminPoolsHandler],
   ['/api/admin-ops-automation', adminHandler],
   ['/api/admin-mail-alert', adminHandler],
   ['/api/admin-mail-budget-config', adminHandler],
@@ -95,6 +109,7 @@ export const API_ROUTE_ENTRIES = [
   ['/api/admin-public-cache-bump', adminHandler],
   ['/api/admin-reset-recovery-password', adminHandler],
   ['/api/admin-site-health', adminHandler],
+  ['/api/admin-user-data', adminHandler],
   ['/api/admin-users', adminHandler],
   ['/api/admin-delete-user', adminHandler],
   ['/api/admin-user-reset-password', adminHandler],
@@ -124,7 +139,9 @@ export const API_ROUTE_ENTRIES = [
   ['/api/public-cache-version', publicCacheVersionHandler],
   ['/api/puzzles', puzzlesHandler],
   ['/api/self-delete-account', selfDeleteAccountHandler],
+  ['/api/site-status', siteStatusHandler],
   ['/api/stats', statsHandler],
+  ['/api/tickets', ticketsHandler],
   ['/api/tickets/reply', ticketReplyHandler],
   ['/api/wiki-asset-proxy', wikiAssetProxyHandler],
   ['/api/wiki-proxy', wikiProxyHandler],

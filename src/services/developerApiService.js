@@ -1,17 +1,28 @@
 import { fetchWithTimeout } from './supabaseRequest.js';
 import { getSupabaseAccessToken } from './authFetchService.js';
 
-export async function loadMyDeveloperApplications() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+async function buildAuthHeaders(baseHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    ...baseHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
+  return headers;
+}
+
+export async function loadMyDeveloperApplications() {
+  const headers = await buildAuthHeaders();
 
   const response = await fetchWithTimeout('/api/dev/applications/me', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'dev-applications-me',
     timeoutMs: 30000,
@@ -26,17 +37,14 @@ export async function loadMyDeveloperApplications() {
 }
 
 export async function submitDeveloperApplication({ name, useCase }) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAuthHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/dev/applications', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       name,
       useCase,

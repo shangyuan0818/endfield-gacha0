@@ -1,6 +1,4 @@
 import { useCallback, useRef } from 'react';
-import { supabase } from '../../supabaseClient';
-import { upsertHistory, upsertPools } from '../../services/cloudWriteService';
 import { getBootstrapVisiblePools } from '../../services/bootstrapService';
 import {
   loadAllPoolsForCatalog,
@@ -10,14 +8,15 @@ import {
   normalizeRemotePoolType
 } from '../../services/poolReadService';
 import {
-  resolveAliasValue,
-  resolveCharacterAliasMap,
-  resolvePoolAliasMap,
-} from '../../../shared/idAliasService.js';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
+  deleteAccountGachaPool,
+  deleteAccountGachaPoolHistory,
+  deleteAccountGachaRecords,
+  deleteAllAccountGachaData,
+  loadAccountGachaData,
+  saveAccountGachaData,
+} from '../../services/accountGachaDataService.js';
 import { useAuthStore, usePoolStore, useHistoryStore } from '../../stores';
 import { getPoolTypeFromId } from '../../stores/usePoolStore';
-import { clampHistoryPity } from '../../utils/historyRecordUtils';
 import { getMessage } from '../../i18n/index.js';
 
 async function loadLatestVisiblePools(options = {}) {
@@ -64,8 +63,6 @@ export function useCloudSync({ showToast }) {
 
   // 从云端加载数据（只加载当前用户的数据）
   const loadCloudData = useCallback(async (targetUser = null) => {
-    if (!supabase) return null;
-
     const currentUser = targetUser || useAuthStore.getState().user;
     if (!currentUser) {
       return { pools: [], history: [] };
@@ -88,76 +85,8 @@ export function useCloudSync({ showToast }) {
           ? latestVisiblePools
           : (Array.isArray(fallbackPools) ? fallbackPools : []);
 
-      // 分页加载历史记录（Supabase 默认限制 1000 行）
-      const PAGE_SIZE = 1000;
-      let allHistory = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-
-        // eslint-disable-next-line no-await-in-loop -- paginated history reads are cursor-like and must remain sequential
-        const { data: pageData, error: historyError } = await withAuthenticatedSupabaseRequest(
-          () => supabase
-            .from('history')
-            .select('*')
-            .eq('user_id', currentUser.id)
-            .order('record_id', { ascending: true })
-            .range(from, to),
-          { requireToken: true }
-        );
-        if (historyError) throw historyError;
-
-        if (pageData && pageData.length > 0) {
-          allHistory = allHistory.concat(pageData);
-          page++;
-          hasMore = pageData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      const [poolAliasMap, characterAliasMap] = await Promise.all([
-        resolvePoolAliasMap(
-          supabase,
-          allHistory.map(h => h?.pool_id),
-          'official_api'
-        ),
-        resolveCharacterAliasMap(
-          supabase,
-          allHistory.map(h => h?.character_id),
-          'official_api'
-        ),
-      ]);
-
-      const formattedHistory = allHistory.map(h => ({
-        id: h.record_id,
-        rarity: h.rarity,
-        isStandard: h.is_standard,
-        specialType: h.special_type,
-        timestamp: h.timestamp,
-        poolId: resolveAliasValue(poolAliasMap, h.pool_id),
-        user_id: h.user_id,
-        name: h.character_name || h.item_name,
-        character_name: h.character_name,
-        item_name: h.item_name,
-        character_id: resolveAliasValue(characterAliasMap, h.character_id),
-        batchId: h.batch_id,
-        batch_id: h.batch_id,
-        seqId: h.seq_id,
-        seq_id: h.seq_id,
-        pity: clampHistoryPity(h.pity),
-        isNew: h.is_new || false,
-        is_new: h.is_new,
-        isFree: h.is_free || false,
-        is_free: h.is_free,
-        gameUid: h.game_uid,
-        game_uid: h.game_uid,
-        nickName: h.nick_name,
-        nick_name: h.nick_name
-      }));
+      const accountData = await loadAccountGachaData();
+      const formattedHistory = accountData.history;
 
       const knownPoolsMap = new Map();
       [...catalogPools, ...visiblePools].forEach((pool) => {
@@ -276,12 +205,12 @@ export function useCloudSync({ showToast }) {
   }, [setPools]);
 
   const savePoolToCloud = useCallback(async (pool, _showNotification = false) => {
-    if (!supabase || !user) {
+    if (!user) {
       return false;
     }
 
     try {
-      await upsertPools(supabase, [pool], user.id);
+      await saveAccountGachaData({ pools: [pool] });
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -291,10 +220,10 @@ export function useCloudSync({ showToast }) {
 
   // 保存历史记录到云端
   const saveHistoryToCloud = useCallback(async (records) => {
-    if (!supabase || !user || records.length === 0) return;
+    if (!user || records.length === 0) return;
 
     try {
-      await upsertHistory(supabase, records, user.id);
+      await saveAccountGachaData({ history: records });
     } catch (error) {
       const errorMessage = error.message || '';
       if (errorMessage.includes('policy') || errorMessage.includes('violates row-level security')) {
@@ -318,19 +247,10 @@ export function useCloudSync({ showToast }) {
 
   // 从云端删除历史记录
   const deleteHistoryFromCloud = useCallback(async (recordIds) => {
-    if (!supabase || !user) return false;
+    if (!user) return false;
 
     try {
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('history')
-          .delete()
-          .eq('user_id', user.id)
-          .in('record_id', recordIds),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
+      await deleteAccountGachaRecords(recordIds);
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -341,19 +261,10 @@ export function useCloudSync({ showToast }) {
 
   // 从云端删除指定卡池的所有历史记录
   const deletePoolHistoryFromCloud = useCallback(async (poolId) => {
-    if (!supabase || !user) return false;
+    if (!user) return false;
 
     try {
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('history')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('pool_id', poolId),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
+      await deleteAccountGachaPoolHistory(poolId);
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -364,19 +275,10 @@ export function useCloudSync({ showToast }) {
 
   // 从云端删除卡池本身
   const deletePoolFromCloud = useCallback(async (poolId) => {
-    if (!supabase || !user) return false;
+    if (!user) return false;
 
     try {
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('pools')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('pool_id', poolId),
-        { requireToken: true }
-      );
-
-      if (error) throw error;
+      await deleteAccountGachaPool(poolId);
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -387,29 +289,10 @@ export function useCloudSync({ showToast }) {
 
   // 删除当前用户的全部云端抽卡数据（仅作用于本人拥有的数据，不删除账号）
   const deleteUserDataFromCloud = useCallback(async () => {
-    if (!supabase || !user) return false;
+    if (!user) return false;
 
     try {
-      const { error: historyError } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('history')
-          .delete()
-          .eq('user_id', user.id),
-        { requireToken: true }
-      );
-
-      if (historyError) throw historyError;
-
-      const { error: poolError } = await withAuthenticatedSupabaseRequest(
-        () => supabase
-          .from('pools')
-          .delete()
-          .eq('user_id', user.id),
-        { requireToken: true }
-      );
-
-      if (poolError) throw poolError;
-
+      await deleteAllAccountGachaData();
       return true;
     } catch (error) {
       setSyncError(error.message);
@@ -419,7 +302,7 @@ export function useCloudSync({ showToast }) {
 
   // 迁移本地数据到云端
   const migrateLocalToCloud = useCallback(async () => {
-    if (!supabase || !user) return false;
+    if (!user) return false;
 
     setSyncing(true);
     setSyncError(null);

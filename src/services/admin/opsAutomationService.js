@@ -1,9 +1,5 @@
-import { supabase } from '../../supabaseClient';
-import { executeSupabaseRead } from '../supabaseRequest';
-import {
-  getSupabaseAccessToken,
-  withAuthenticatedSupabaseRequest,
-} from '../authFetchService.js';
+import { getSupabaseAccessToken } from '../authFetchService.js';
+import { fetchJsonWithTimeout } from '../supabaseRequest';
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -15,59 +11,47 @@ export async function loadOpsAutomationRuns({
   triggerType = 'all',
   limit = 20,
 } = {}) {
-  if (!supabase) {
-    throw new Error('Supabase 未配置，无法读取自动化审计记录');
-  }
-
   const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 200);
   const normalizedJobId = normalizeText(jobId);
   const normalizedStatus = normalizeText(status);
   const normalizedTriggerType = normalizeText(triggerType);
-  let query = supabase
-    .from('ops_automation_runs')
-    .select([
-      'id',
-      'job_id',
-      'job_label',
-      'trigger_type',
-      'status',
-      'dry_run',
-      'dedupe_key',
-      'source_tag',
-      'source_url',
-      'summary',
-      'top_changed_fields',
-      'preview',
-      'review_bundle',
-      'error_message',
-      'started_at',
-      'finished_at',
-      'created_at',
-      'updated_at',
-    ].join(', '))
-    .order('created_at', { ascending: false })
-    .limit(safeLimit);
+  const params = new URLSearchParams({
+    limit: String(safeLimit),
+  });
+  if (normalizedJobId && normalizedJobId !== 'all') params.set('jobId', normalizedJobId);
+  if (normalizedStatus && normalizedStatus !== 'all') params.set('status', normalizedStatus);
+  if (normalizedTriggerType && normalizedTriggerType !== 'all') params.set('triggerType', normalizedTriggerType);
 
-  if (normalizedJobId && normalizedJobId !== 'all') {
-    query = query.eq('job_id', normalizedJobId);
-  }
-  if (normalizedStatus && normalizedStatus !== 'all') {
-    query = query.eq('status', normalizedStatus);
-  }
-  if (normalizedTriggerType && normalizedTriggerType !== 'all') {
-    query = query.eq('trigger_type', normalizedTriggerType);
+  const token = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    Accept: 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const { data, error } = await executeSupabaseRead(
-    () => withAuthenticatedSupabaseRequest(
-      () => query,
-      { requireToken: true }
-    ),
-    { label: 'loadOpsAutomationRuns', retries: 1 },
-  );
+  const { response, data } = await fetchJsonWithTimeout(`/api/admin-ops-automation?${params.toString()}`, {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers,
+  }, {
+    label: 'admin-ops-automation-load',
+    timeoutMs: 45000,
+    retries: 1,
+  });
 
-  if (error) throw error;
-  return data || [];
+  if (!response.ok || data?.success !== true) {
+    const error = new Error(data?.error || `请求失败 (${response.status})`);
+    error.status = response.status;
+    error.code = 'admin_ops_automation_load_failed';
+    throw error;
+  }
+
+  return Array.isArray(data.runs) ? data.runs : [];
 }
 
 export async function triggerManualSync(job = 'official-announcements', {
@@ -75,14 +59,23 @@ export async function triggerManualSync(job = 'official-announcements', {
   refreshMode = forceRefresh ? 'summary' : 'incremental',
   announcementLimit = null,
 } = {}) {
-  const token = await getSupabaseAccessToken();
-  if (!token) throw new Error('未登录或会话已过期');
+  const token = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
   const res = await fetch('/api/admin-ops-automation', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...headers,
     },
     body: JSON.stringify({ job, forceRefresh, refreshMode, announcementLimit }),
   });

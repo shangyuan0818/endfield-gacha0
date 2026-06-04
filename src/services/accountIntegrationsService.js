@@ -1,6 +1,21 @@
 import { fetchWithTimeout } from './supabaseRequest.js';
 import { getSupabaseAccessToken } from './authFetchService.js';
 
+async function buildAuthHeaders(baseHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    ...baseHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return headers;
+}
+
 function getApiErrorMessage(result, fallback) {
   if (typeof result?.error === 'string') {
     return result.error;
@@ -14,16 +29,12 @@ function getApiErrorMessage(result, fallback) {
 }
 
 export async function loadOwnBindings() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    return [];
-  }
+  const headers = await buildAuthHeaders();
 
   const response = await fetchWithTimeout('/api/integrations/bindings/me', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'binding-status',
     timeoutMs: 30000,
@@ -31,6 +42,9 @@ export async function loadOwnBindings() {
 
   const result = await response.json().catch(() => null);
   if (!response.ok || result?.success !== true) {
+    if (response.status === 401 || response.status === 403) {
+      return [];
+    }
     throw new Error(getApiErrorMessage(result, '读取绑定状态失败'));
   }
 
@@ -38,17 +52,14 @@ export async function loadOwnBindings() {
 }
 
 export async function createBindingChallenge(provider) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAuthHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/integrations/bindings/challenge', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({ provider }),
   }, {
     label: 'binding-challenge',
@@ -64,17 +75,14 @@ export async function createBindingChallenge(provider) {
 }
 
 export async function revokeBinding(provider) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAuthHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/integrations/bindings/revoke', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({ provider }),
   }, {
     label: 'binding-revoke',
@@ -90,17 +98,14 @@ export async function revokeBinding(provider) {
 }
 
 export async function notifyOfficialBotImportUpdated({ summary, userInfo }) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    return { notified: false, reason: 'missing_access_token' };
-  }
+  const headers = await buildAuthHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/integrations/bot/import-notify', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       summary: summary || {},
       userInfo: userInfo || {},
@@ -112,6 +117,9 @@ export async function notifyOfficialBotImportUpdated({ summary, userInfo }) {
 
   const result = await response.json().catch(() => null);
   if (!response.ok || result?.success !== true) {
+    if (response.status === 401 || response.status === 403) {
+      return { notified: false, reason: 'authentication_required' };
+    }
     throw new Error(getApiErrorMessage(result, '通知官方 BOT 导入更新失败'));
   }
 

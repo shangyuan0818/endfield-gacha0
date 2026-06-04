@@ -2,17 +2,22 @@ import { fetchWithTimeout } from '../supabaseRequest.js';
 import { getSupabaseAccessToken } from '../authFetchService.js';
 
 async function fetchAdminRoute(route, init = {}, label = route) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    ...(init.headers || {}),
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const response = await fetchWithTimeout(`/api/admin?route=${route}`, {
     ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...(init.headers || {}),
-    },
+    credentials: init.credentials || 'same-origin',
+    headers,
   }, {
     label,
     timeoutMs: 45000,

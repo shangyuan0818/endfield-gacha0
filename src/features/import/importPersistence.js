@@ -1,10 +1,13 @@
 import { normalizeIsStandard } from '../../utils/poolUtils.js';
 import { clampHistoryPity } from '../../utils/historyRecordUtils.js';
-import {
-  resolveAliasValue,
-  resolveCharacterAliasMap,
-  resolvePoolAliasMap,
-} from '../../../shared/idAliasService.js';
+
+function resolveAliasValue(aliasMap, inputValue) {
+  const normalized = typeof inputValue === 'string' ? inputValue.trim() : String(inputValue || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  return aliasMap?.[normalized] || normalized;
+}
 
 function inferPoolTypeFromId(poolId) {
   if (!poolId) return 'standard';
@@ -52,7 +55,7 @@ function buildPoolLookups(pools = []) {
   return { poolUpCharacterMap, poolTypeMap };
 }
 
-function buildCanonicalPoolEntries(records, poolAliasMap) {
+function buildCanonicalPoolEntries(records, poolAliasMap = {}) {
   const entryMap = new Map();
 
   records.forEach((record) => {
@@ -82,10 +85,7 @@ function buildImportedHistoryRecords({
 }) {
   return records.map((record, index) => {
     const canonicalPoolId = resolveAliasValue(poolAliasMap, record.pool_id);
-    const canonicalCharacterId = resolveAliasValue(
-      characterAliasMap,
-      record.character_id || record.item_id
-    );
+    const canonicalCharacterId = resolveAliasValue(characterAliasMap, record.character_id || record.item_id);
 
     const poolHash = simpleStringHash(record.pool_id || 'unknown');
     const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
@@ -131,31 +131,19 @@ function buildImportedHistoryRecords({
 }
 
 export async function prepareOfficialImportPersistenceData({
-  supabase,
   records,
   userInfo,
   pools,
+  poolAliasMap = {},
+  characterAliasMap = {},
 }) {
-  if (!supabase || !Array.isArray(records) || records.length === 0) {
+  if (!Array.isArray(records) || records.length === 0) {
     return {
       currentGameUid: userInfo?.gameUid || userInfo?.hgUid || null,
       poolEntries: [],
       historyRecords: [],
     };
   }
-
-  const [poolAliasMap, characterAliasMap] = await Promise.all([
-    resolvePoolAliasMap(
-      supabase,
-      records.map((record) => record?.pool_id),
-      'official_api'
-    ),
-    resolveCharacterAliasMap(
-      supabase,
-      records.map((record) => record?.character_id || record?.item_id),
-      'official_api'
-    ),
-  ]);
 
   const { poolUpCharacterMap, poolTypeMap } = buildPoolLookups(pools);
 

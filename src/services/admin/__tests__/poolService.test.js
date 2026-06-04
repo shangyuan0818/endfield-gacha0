@@ -1,21 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../supabaseClient.js', () => ({
-  supabase: null,
+import { getSupabaseAccessToken } from '../../authFetchService.js';
+import { fetchJsonWithTimeout } from '../../supabaseRequest.js';
+import {
+  buildPoolAliasRowsForSave,
+  createUpCharacter,
+  deletePool,
+  loadPools,
+  recalculateIsStandard,
+  savePool,
+} from '../poolService.js';
+
+vi.mock('../../authFetchService.js', () => ({
+  getSupabaseAccessToken: vi.fn(),
 }));
 
 vi.mock('../../supabaseRequest.js', () => ({
-  executeSupabaseRead: vi.fn(),
+  fetchJsonWithTimeout: vi.fn(),
 }));
-
-vi.mock('../../../utils/appLogger.js', () => ({
-  default: {
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}));
-
-import { buildPoolAliasRowsForSave } from '../poolService.js';
 
 describe('poolService alias helpers', () => {
   it('builds self aliases for the canonical pool id', () => {
@@ -80,5 +82,210 @@ describe('poolService alias helpers', () => {
 
     const keys = rows.map(row => `${row.source}:${row.alias_id}`);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe('poolService same-origin API client', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSupabaseAccessToken.mockResolvedValue(null);
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+      },
+      data: {
+        success: true,
+        data: [
+          {
+            pool_id: 'pool-1',
+          },
+        ],
+      },
+    });
+  });
+
+  it('loads pools with same-origin cookies when no native token is available', async () => {
+    await expect(loadPools()).resolves.toEqual({
+      success: true,
+      data: [
+        {
+          pool_id: 'pool-1',
+        },
+      ],
+    });
+
+    expect(getSupabaseAccessToken).toHaveBeenCalledWith({
+      syncSiteSession: false,
+      useSiteSessionCache: true,
+      allowSiteSessionToken: false,
+    });
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/admin-pools?mode=pools', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+      },
+    }, expect.objectContaining({
+      label: 'admin-pools-load',
+    }));
+  });
+
+  it('uses a native Supabase token when one is available', async () => {
+    getSupabaseAccessToken.mockResolvedValue('native-token');
+
+    await loadPools();
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/admin-pools?mode=pools', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        Authorization: 'Bearer native-token',
+      },
+    }, expect.any(Object));
+  });
+
+  it('saves pools through the same-origin admin route', async () => {
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+      },
+      data: {
+        success: true,
+        isNew: true,
+        addedCount: 1,
+        poolId: 'pool-created',
+      },
+    });
+
+    await expect(savePool(
+      { name: '测试卡池', type: 'limited' },
+      null,
+      [{ id: 'char-1', name: '测试角色', type: 'character' }],
+      [{ character_id: 'char-1', is_up: true }]
+    )).resolves.toMatchObject({
+      success: true,
+      isNew: true,
+      addedCount: 1,
+      poolId: 'pool-created',
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/admin-pools', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'savePool',
+        poolData: { name: '测试卡池', type: 'limited' },
+        editingPool: null,
+        characters: [{ id: 'char-1', name: '测试角色', type: 'character' }],
+        editingPoolCharacters: [{ character_id: 'char-1', is_up: true }],
+      }),
+    }, expect.objectContaining({
+      label: 'admin-pool-save',
+    }));
+  });
+
+  it('creates an up character through the same-origin route', async () => {
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+      },
+      data: {
+        success: true,
+        character: {
+          id: 'char-created',
+          name: '测试角色',
+        },
+      },
+    });
+
+    await expect(createUpCharacter('测试角色', 'limited', '2026-06-05T04:00:00.000Z')).resolves.toEqual({
+      id: 'char-created',
+      name: '测试角色',
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/admin-pools', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'createUpCharacter',
+        characterName: '测试角色',
+        poolType: 'limited',
+        poolStartTime: '2026-06-05T04:00:00.000Z',
+        rotationBaseCount: 0,
+      }),
+    }), expect.objectContaining({
+      label: 'admin-pool-create-up-character',
+    }));
+  });
+
+  it('deletes pools and recalculates history through the same-origin route', async () => {
+    fetchJsonWithTimeout
+      .mockResolvedValueOnce({
+        response: {
+          ok: true,
+          status: 200,
+        },
+        data: {
+          success: true,
+          poolId: 'pool-1',
+        },
+      })
+      .mockResolvedValueOnce({
+        response: {
+          ok: true,
+          status: 200,
+        },
+        data: {
+          success: true,
+          changedCount: 2,
+        },
+      });
+
+    await expect(deletePool('pool-1')).resolves.toEqual({ success: true });
+    await expect(recalculateIsStandard([{ pool_id: 'pool-1' }])).resolves.toMatchObject({
+      success: true,
+      changedCount: 2,
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenNthCalledWith(1, '/api/admin-pools', expect.objectContaining({
+      method: 'DELETE',
+      body: JSON.stringify({ poolId: 'pool-1' }),
+    }), expect.objectContaining({
+      label: 'admin-pool-delete',
+    }));
+    expect(fetchJsonWithTimeout).toHaveBeenNthCalledWith(2, '/api/admin-pools', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'recalculateIsStandard',
+        pools: [{ pool_id: 'pool-1' }],
+      }),
+    }), expect.objectContaining({
+      label: 'admin-pool-recalculate-is-standard',
+    }));
+  });
+
+  it('returns readable failures when the admin route rejects the request', async () => {
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: false,
+        status: 403,
+      },
+      data: {
+        success: false,
+        error: 'Super admin role required',
+      },
+    });
+
+    await expect(loadPools()).resolves.toEqual({
+      success: false,
+      error: 'Super admin role required',
+    });
   });
 });

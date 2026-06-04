@@ -158,6 +158,14 @@ function canReplyToTicket(ticket, profile) {
   };
 }
 
+function resolveTicketStatusAfterReply(ticket, permission) {
+  if (permission?.canManage && !permission?.isOwner && ticket?.status === 'pending') {
+    return 'processing';
+  }
+
+  return ticket?.status || null;
+}
+
 async function loadTicket(adminClient, ticketId) {
   const query = adminClient
     .from('tickets')
@@ -383,17 +391,30 @@ export default async function handler(req, res) {
       throw insertError;
     }
 
+    const previousStatus = ticket.status || null;
+    const nextStatus = resolveTicketStatusAfterReply(ticket, permission);
+    const ticketUpdatePatch = {
+      updated_at: nowIso,
+    };
+    if (nextStatus && nextStatus !== previousStatus) {
+      ticketUpdatePatch.status = nextStatus;
+    }
+
     const { error: ticketUpdateError } = await adminClient
       .from('tickets')
-      .update({
-        updated_at: nowIso,
-      })
+      .update(ticketUpdatePatch)
       .eq('id', ticket.id);
 
+    const effectiveStatus = ticketUpdateError ? previousStatus : nextStatus;
+    const ticketForNotification = {
+      ...ticket,
+      status: effectiveStatus,
+      updated_at: ticketUpdateError ? ticket.updated_at : nowIso,
+    };
     const mailNotification = await enqueueTicketReplyMail({
       req,
       adminClient,
-      ticket,
+      ticket: ticketForNotification,
       reply,
       actorProfile: callerProfile,
       permission,
@@ -409,6 +430,12 @@ export default async function handler(req, res) {
         id: reply?.id || null,
         ticket_id: reply?.ticket_id || ticket.id,
         created_at: reply?.created_at || nowIso,
+      },
+      ticket: {
+        id: ticket.id,
+        status: effectiveStatus,
+        previousStatus,
+        statusChanged: Boolean(!ticketUpdateError && nextStatus && nextStatus !== previousStatus),
       },
       warnings: ticketUpdateError
         ? [{ code: 'ticket_updated_at_failed' }]
@@ -426,5 +453,6 @@ export default async function handler(req, res) {
 export const __internal = {
   canReplyToTicket,
   isTicketReplyMailEnabled,
+  resolveTicketStatusAfterReply,
   summarizeMailNotification,
 };

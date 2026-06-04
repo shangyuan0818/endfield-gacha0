@@ -5,7 +5,7 @@ import appLogger from '../../utils/appLogger.js';
 
 export function canUsePrivateCloudDataFromSiteSession(siteSession, fallbackUser = null) {
   if (siteSession?.authenticated) {
-    return Boolean(siteSession.supabaseSessionSynced || siteSession.supabase?.accessToken);
+    return true;
   }
 
   return Boolean(fallbackUser);

@@ -693,6 +693,108 @@ async function saveHistoryToServer(records, userId) {
   };
 }
 
+function isPublicAnalyticsRefreshFunctionMissing(error) {
+  const code = String(error?.code || '').trim();
+  const message = String(error?.message || error?.details || '').toLowerCase();
+  return ['42883', 'PGRST202', 'PGRST204', 'PGRST205'].includes(code)
+    || message.includes('refresh_public_analytics_cache')
+    || message.includes('could not find the function')
+    || message.includes('schema cache');
+}
+
+function normalizePublicAnalyticsRefreshResult(data, functionName) {
+  const payload = data && typeof data === 'object' ? data : {};
+  return {
+    functionName,
+    refreshedPools: Number(payload.refreshedPools ?? payload.pool?.refreshedPools ?? 0),
+    refreshedTrendRows: Number(payload.refreshedTrendRows ?? payload.trends?.refreshedTrendRows ?? 0),
+    updatedAt: payload.updatedAt || payload.pool?.updatedAt || payload.trends?.updatedAt || null,
+  };
+}
+
+async function refreshPublicAnalyticsAfterImport(supabase, {
+  savedRecords = 0,
+  reason = 'official-import',
+} = {}) {
+  const savedCount = Number(savedRecords) || 0;
+  if (savedCount <= 0) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'no_new_records',
+      savedRecords: savedCount,
+    };
+  }
+
+  if (!supabase || typeof supabase.rpc !== 'function') {
+    return {
+      ok: false,
+      reason,
+      savedRecords: savedCount,
+      error: 'Supabase RPC client is not configured',
+      attempts: [],
+    };
+  }
+
+  const attempts = [];
+  const callRpc = async (functionName) => {
+    const { data, error } = await supabase.rpc(functionName);
+    attempts.push({
+      functionName,
+      ok: !error,
+      ...(error ? { error: error.message || String(error) } : {}),
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  };
+
+  try {
+    const data = await callRpc('refresh_public_analytics_cache');
+    return {
+      ok: true,
+      reason,
+      savedRecords: savedCount,
+      ...normalizePublicAnalyticsRefreshResult(data, 'refresh_public_analytics_cache'),
+      attempts,
+    };
+  } catch (error) {
+    if (!isPublicAnalyticsRefreshFunctionMissing(error)) {
+      return {
+        ok: false,
+        reason,
+        savedRecords: savedCount,
+        error: error?.message || 'Failed to refresh public analytics cache',
+        attempts,
+      };
+    }
+  }
+
+  try {
+    const data = await callRpc('refresh_public_pool_analytics_cache');
+    return {
+      ok: true,
+      reason,
+      savedRecords: savedCount,
+      partial: true,
+      warning: 'public_analytics_wrapper_unavailable',
+      ...normalizePublicAnalyticsRefreshResult(data, 'refresh_public_pool_analytics_cache'),
+      attempts,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason,
+      savedRecords: savedCount,
+      error: error?.message || 'Failed to refresh public analytics cache',
+      attempts,
+    };
+  }
+}
+
 /**
  * 处理抽卡记录（转换格式、计算 pity、去重）
  * 将 API 原始格式转换为数据库格式
@@ -992,13 +1094,22 @@ export async function executeFullImport({
     // 9. 保存记录
     updateProgress({ progress: 90, message: '正在保存数据...' });
     const saveResult = await saveHistoryToServer(processedRecords, userId);
+    const savedRecords = Number.isFinite(Number(saveResult?.saved))
+      ? Number(saveResult.saved)
+      : processedRecords.length;
+
+    updateProgress({ progress: 95, message: '正在刷新公共统计...' });
+    const publicAnalyticsRefresh = await refreshPublicAnalyticsAfterImport(supabase, {
+      savedRecords,
+      reason: `official-import:${source}:${normalizedImportMode}`,
+    });
+    if (publicAnalyticsRefresh.ok === false) {
+      console.warn('[FullImportService] 公共统计刷新失败:', publicAnalyticsRefresh.error);
+    }
 
     // 10. 完成
     updateProgress({ progress: 100, message: '导入完成' });
     const poolSummary = buildImportPoolSummary(recordsResult.data.results);
-    const savedRecords = Number.isFinite(Number(saveResult?.saved))
-      ? Number(saveResult.saved)
-      : processedRecords.length;
     const fetchStrategy = recordsResult.data.fetchStrategy || (
       normalizedImportMode === FULL_IMPORT_MODES.INCREMENTAL && existingSeqIds.size > 0
         ? 'incremental_official_fetch_with_context_guard'
@@ -1019,6 +1130,10 @@ export async function executeFullImport({
         earlyStoppedPools: recordsResult.data.earlyStopped || [],
         partialPools: recordsResult.data.partial || [],
         failedPools: recordsResult.data.failed || [],
+        publicAnalyticsRefresh,
+        warnings: publicAnalyticsRefresh.ok === false
+          ? [`公共统计刷新失败：${publicAnalyticsRefresh.error || '未知错误'}`]
+          : [],
         account: {
           gameUid: account.gameUid,
           nickName: account.nickName,

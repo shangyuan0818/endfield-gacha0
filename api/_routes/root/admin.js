@@ -51,6 +51,7 @@ const PASSWORD_RESET_LIMIT = {
   max: 20,
 };
 const SYNTHETIC_OAUTH_EMAIL_SUFFIX = '@oauth.local.invalid';
+const ADMIN_USER_HISTORY_SAMPLE_LIMIT = 500;
 
 function normalizeAuthEmail(value) {
   const normalized = String(value || '').trim().toLowerCase();
@@ -165,6 +166,87 @@ function getTemporaryPasswordError(password) {
   }
 }
 
+function normalizeAdminEditableRole(value, {
+  allowSuperAdmin = false,
+} = {}) {
+  const normalized = String(value || '').trim();
+  const allowed = allowSuperAdmin ? new Set(['user', 'admin', 'super_admin']) : new Set(['user', 'admin']);
+  return allowed.has(normalized) ? normalized : '';
+}
+
+function normalizeAdminCreateUserPayload(raw = {}) {
+  const email = normalizeAuthEmail(raw.email);
+  const password = String(raw.password || '');
+  const username = String(raw.username || '').trim().slice(0, 80) || email.split('@')[0];
+  const role = normalizeAdminEditableRole(raw.role || 'user');
+
+  if (!email) {
+    throw Object.assign(new Error('Email is required'), { status: 400 });
+  }
+
+  const passwordError = getTemporaryPasswordError(password);
+  if (passwordError) {
+    throw Object.assign(new Error(passwordError), { status: 400 });
+  }
+
+  if (!role) {
+    throw Object.assign(new Error('Invalid role'), { status: 400 });
+  }
+
+  return {
+    email,
+    password,
+    username,
+    role,
+  };
+}
+
+function normalizeAdminProfileUpdatePayload(raw = {}) {
+  const userId = normalizeAdminUserId(raw.userId || raw.user_id);
+  const username = String(raw.username || '').trim().slice(0, 80);
+  const role = normalizeAdminEditableRole(raw.role);
+
+  if (!userId) {
+    throw Object.assign(new Error('User ID is required'), { status: 400 });
+  }
+  if (!username) {
+    throw Object.assign(new Error('Username is required'), { status: 400 });
+  }
+  if (!role) {
+    throw Object.assign(new Error('Invalid role'), { status: 400 });
+  }
+
+  return {
+    userId,
+    username,
+    role,
+  };
+}
+
+const RECOVERY_REQUEST_STATUSES = new Set(['pending', 'processing', 'verified', 'rejected', 'closed']);
+
+function normalizeAccountRecoveryPatch(raw = {}) {
+  const requestId = String(raw.requestId || raw.request_id || raw.id || '').trim();
+  const status = String(raw.status || '').trim();
+  const adminNote = String(raw.admin_note ?? raw.adminNote ?? '').trim();
+
+  if (!requestId) {
+    throw Object.assign(new Error('Recovery request ID is required'), { status: 400 });
+  }
+
+  if (status && !RECOVERY_REQUEST_STATUSES.has(status)) {
+    throw Object.assign(new Error('Invalid recovery request status'), { status: 400 });
+  }
+
+  return {
+    requestId,
+    patch: {
+      ...(status ? { status } : {}),
+      admin_note: adminNote,
+    },
+  };
+}
+
 function parseRequestBody(req) {
   if (!req.body) {
     return {};
@@ -179,6 +261,22 @@ function parseRequestBody(req) {
   }
 
   return req.body;
+}
+
+function getRequestUrl(req) {
+  try {
+    return new URL(req.url || '', 'https://example.com');
+  } catch {
+    return new URL('https://example.com/');
+  }
+}
+
+function normalizeAdminUserId(value) {
+  return String(value || '').trim().slice(0, 160);
+}
+
+function normalizePoolId(value) {
+  return String(value || '').trim().slice(0, 160);
 }
 
 function readEnvironment() {
@@ -218,7 +316,9 @@ function readAdminRoute(req) {
     const pathnameRouteMap = {
       '/api/admin': 'users',
       '/api/admin-users': 'users',
+      '/api/admin-account-recovery': 'account-recovery',
       '/api/admin-delete-user': 'delete-user',
+      '/api/admin-announcements': 'announcements',
       '/api/admin-user-reset-password': 'user-reset-password',
       '/api/admin-reset-recovery-password': 'reset-recovery-password',
       '/api/admin-ops-automation': 'ops-automation',
@@ -229,6 +329,7 @@ function readAdminRoute(req) {
       '/api/admin-mail-alert': 'mail-alert',
       '/api/admin-mail-budget-config': 'mail-budget-config',
       '/api/admin-mail-runtime-config': 'mail-runtime-config',
+      '/api/admin-user-data': 'user-data',
     };
 
     return pathnameRouteMap[normalizedPath] || '';
@@ -241,13 +342,27 @@ function getAdminRouteConfig(route) {
   switch (route) {
     case 'users':
       return {
-        methods: 'GET, OPTIONS',
+        methods: 'GET, POST, PATCH, OPTIONS',
+        headers: 'Content-Type, Authorization',
+      };
+    case 'announcements':
+      return {
+        methods: 'GET, POST, PATCH, DELETE, OPTIONS',
+        headers: 'Content-Type, Authorization',
+      };
+    case 'user-data':
+      return {
+        methods: 'GET, DELETE, OPTIONS',
+        headers: 'Content-Type, Authorization',
+      };
+    case 'account-recovery':
+      return {
+        methods: 'GET, PATCH, OPTIONS',
         headers: 'Content-Type, Authorization',
       };
     case 'delete-user':
     case 'user-reset-password':
     case 'reset-recovery-password':
-    case 'ops-automation':
     case 'public-cache-bump':
     case 'mail-outbox-drain':
     case 'mail-smoke-test':
@@ -261,6 +376,11 @@ function getAdminRouteConfig(route) {
     case 'api-clients-rotate-verifier':
       return {
         methods: 'POST, OPTIONS',
+        headers: 'Content-Type, Authorization',
+      };
+    case 'ops-automation':
+      return {
+        methods: 'GET, POST, OPTIONS',
         headers: 'Content-Type, Authorization',
       };
     case 'api-clients':
@@ -297,10 +417,6 @@ async function verifySuperAdmin(req, adminClient) {
 }
 
 async function handleUsers(req, res, adminClient) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
-
   const authResult = await verifySuperAdmin(req, adminClient);
   if (authResult.error) {
     return res.status(authResult.error.status).json({
@@ -309,21 +425,371 @@ async function handleUsers(req, res, adminClient) {
     });
   }
 
-  try {
+  if (req.method === 'GET') {
+    try {
     const users = await listMergedAdminUsers(adminClient, {
       repairProfiles: true,
     });
 
+      return res.status(200).json({
+        success: true,
+        users,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load admin users',
+      });
+    }
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const payload = normalizeAdminCreateUserPayload(parseRequestBody(req));
+      const createUser = adminClient?.auth?.admin?.createUser;
+      if (typeof createUser !== 'function') {
+        return res.status(503).json({
+          success: false,
+          error: 'Auth admin create user is unavailable',
+        });
+      }
+
+      const { data, error } = await createUser.call(adminClient.auth.admin, {
+        email: payload.email,
+        password: payload.password,
+        email_confirm: true,
+        user_metadata: {
+          username: payload.username,
+        },
+      });
+
+      if (error || !data?.user?.id) {
+        throw error || new Error('Create user failed');
+      }
+
+      const userId = data.user.id;
+      const { error: profileError } = await adminClient
+        .from('profiles')
+        .upsert({
+          id: userId,
+          username: payload.username,
+          email: payload.email,
+          role: payload.role,
+        }, {
+          onConflict: 'id',
+        });
+
+      if (profileError) {
+        const deleteUser = adminClient?.auth?.admin?.deleteUser;
+        if (typeof deleteUser === 'function') {
+          await deleteUser.call(adminClient.auth.admin, userId).catch(() => null);
+        }
+        throw profileError;
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: {
+          id: userId,
+          email: payload.email,
+          username: payload.username,
+          role: payload.role,
+        },
+      });
+    } catch (error) {
+      return res.status(error?.status || 400).json({
+        success: false,
+        error: error?.message || 'Create user failed',
+      });
+    }
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const payload = normalizeAdminProfileUpdatePayload(parseRequestBody(req));
+      if (payload.userId === authResult.callerUser.id && payload.role !== 'super_admin') {
+        return res.status(400).json({
+          success: false,
+          error: 'Cannot change current super admin role here',
+        });
+      }
+
+      const { data, error } = await adminClient.rpc('admin_update_profile', {
+        p_target_user_id: payload.userId,
+        p_username: payload.username,
+        p_role: payload.role,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return res.status(200).json({
+        success: true,
+        profile: data,
+      });
+    } catch (error) {
+      return res.status(error?.status || 500).json({
+        success: false,
+        error: error?.message || 'Failed to update user profile',
+      });
+    }
+  }
+
+  return res.status(405).json({ success: false, error: 'Method not allowed' });
+}
+
+async function loadAdminUserPools(adminClient, userId) {
+  const { data, error } = await adminClient
+    .from('pools')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
+async function loadAdminUserHistorySample(adminClient, userId) {
+  const query = adminClient
+    .from('history')
+    .select('*', { count: 'exact' })
+    .eq('user_id', userId)
+    .order('timestamp', { ascending: false })
+    .limit(ADMIN_USER_HISTORY_SAMPLE_LIMIT);
+
+  const { data, error, count } = await query;
+  if (error) {
+    throw error;
+  }
+
+  const history = Array.isArray(data) ? data : [];
+  const totalCount = typeof count === 'number' ? count : history.length;
+  return {
+    history,
+    meta: {
+      sampleLimit: ADMIN_USER_HISTORY_SAMPLE_LIMIT,
+      totalCount,
+      loadedCount: history.length,
+      isTruncated: totalCount > history.length,
+    },
+  };
+}
+
+async function handleUserData(req, res, adminClient) {
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  if (req.method === 'GET') {
+    const url = getRequestUrl(req);
+    const userId = normalizeAdminUserId(url.searchParams.get('userId') || url.searchParams.get('user_id'));
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required',
+      });
+    }
+
+    try {
+      const [pools, historyResult] = await Promise.all([
+        loadAdminUserPools(adminClient, userId),
+        loadAdminUserHistorySample(adminClient, userId),
+      ]);
+
+      return res.status(200).json({
+        success: true,
+        userId,
+        pools,
+        history: historyResult.history,
+        historyMeta: historyResult.meta,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load user data',
+      });
+    }
+  }
+
+  if (req.method !== 'DELETE') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const body = parseRequestBody(req);
+  const action = String(body.action || '').trim();
+  const userId = normalizeAdminUserId(body.userId || body.user_id);
+  const poolId = normalizePoolId(body.poolId || body.pool_id);
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      error: 'User ID is required',
+    });
+  }
+
+  if (!['purgeUserData', 'purgePoolRecords', 'deletePool'].includes(action)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Unsupported user data action',
+    });
+  }
+
+  if (['purgePoolRecords', 'deletePool'].includes(action) && !poolId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Pool ID is required',
+    });
+  }
+
+  try {
+    const historyDelete = adminClient
+      .from('history')
+      .delete()
+      .eq('user_id', userId);
+    const { error: historyError } = poolId
+      ? await historyDelete.eq('pool_id', poolId)
+      : await historyDelete;
+
+    if (historyError) {
+      throw historyError;
+    }
+
+    let poolsDeleted = false;
+    if (action !== 'purgePoolRecords') {
+      const poolsDelete = adminClient
+        .from('pools')
+        .delete()
+        .eq('user_id', userId);
+      const { error: poolsError } = poolId
+        ? await poolsDelete.eq('pool_id', poolId)
+        : await poolsDelete;
+
+      if (poolsError) {
+        throw poolsError;
+      }
+      poolsDeleted = true;
+    }
+
     return res.status(200).json({
       success: true,
-      users,
+      action,
+      userId,
+      poolId: poolId || null,
+      deleted: {
+        history: true,
+        pools: poolsDeleted,
+      },
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      error: error?.message || 'Failed to load admin users',
+      error: error?.message || 'Failed to update user data',
     });
   }
+}
+
+async function handleAccountRecovery(req, res, adminClient) {
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const { data, error } = await adminClient
+        .from('account_recovery_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      const requests = Array.isArray(data) ? data : [];
+      const handledByIds = [...new Set(requests.map(item => item?.handled_by).filter(Boolean))];
+      let profileMap = new Map();
+      if (handledByIds.length > 0) {
+        const { data: profiles, error: profileError } = await adminClient
+          .from('public_profiles')
+          .select('id, username, role')
+          .in('id', handledByIds);
+
+        if (!profileError && Array.isArray(profiles)) {
+          profileMap = new Map(profiles.map(profile => [profile.id, profile]));
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        requests: requests.map(item => ({
+          ...item,
+          handlerProfile: profileMap.get(item?.handled_by) || null,
+        })),
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load account recovery requests',
+      });
+    }
+  }
+
+  if (req.method === 'PATCH') {
+    try {
+      const { requestId, patch } = normalizeAccountRecoveryPatch(parseRequestBody(req));
+      const nowIso = new Date().toISOString();
+      const payload = {
+        ...patch,
+        updated_at: nowIso,
+      };
+
+      if (payload.status && payload.status !== 'pending') {
+        payload.handled_by = authResult.callerUser.id;
+        payload.handled_at = nowIso;
+      }
+
+      const { data, error } = await adminClient
+        .from('account_recovery_requests')
+        .update(payload)
+        .eq('id', requestId)
+        .select('*')
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        return res.status(404).json({
+          success: false,
+          error: 'Recovery request not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        request: data,
+      });
+    } catch (error) {
+      return res.status(error?.status || 500).json({
+        success: false,
+        error: error?.message || 'Failed to update account recovery request',
+      });
+    }
+  }
+
+  return res.status(405).json({ success: false, error: 'Method not allowed' });
 }
 
 async function handleDeleteUser(req, res, adminClient) {
@@ -700,16 +1166,76 @@ function readAnnouncementLimit(req) {
 }
 
 async function handleOpsAutomation(req, res, adminClient) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
-
   const authResult = await verifySuperAdmin(req, adminClient);
   if (authResult.error) {
     return res.status(authResult.error.status).json({
       success: false,
       error: authResult.error.message,
     });
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const url = getRequestUrl(req);
+      const safeLimit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 20, 1), 200);
+      const jobId = String(url.searchParams.get('jobId') || url.searchParams.get('job_id') || '').trim();
+      const status = String(url.searchParams.get('status') || '').trim();
+      const triggerType = String(url.searchParams.get('triggerType') || url.searchParams.get('trigger_type') || '').trim();
+
+      let query = adminClient
+        .from('ops_automation_runs')
+        .select([
+          'id',
+          'job_id',
+          'job_label',
+          'trigger_type',
+          'status',
+          'dry_run',
+          'dedupe_key',
+          'source_tag',
+          'source_url',
+          'summary',
+          'top_changed_fields',
+          'preview',
+          'review_bundle',
+          'error_message',
+          'started_at',
+          'finished_at',
+          'created_at',
+          'updated_at',
+        ].join(', '))
+        .order('created_at', { ascending: false })
+        .limit(safeLimit);
+
+      if (jobId && jobId !== 'all') {
+        query = query.eq('job_id', jobId);
+      }
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+      if (triggerType && triggerType !== 'all') {
+        query = query.eq('trigger_type', triggerType);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        throw error;
+      }
+
+      return res.status(200).json({
+        success: true,
+        runs: Array.isArray(data) ? data : [],
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load ops automation runs',
+      });
+    }
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
   }
 
   try {
@@ -779,6 +1305,286 @@ async function handlePublicCacheBump(req, res, adminClient) {
     updatedAt: result.updatedAt,
     ...(analyticsRefresh ? { analyticsRefresh } : {}),
   });
+}
+
+function serializeAnnouncementRow(row) {
+  return {
+    id: row?.id,
+    title: row?.title || '',
+    title_en: row?.title_en || null,
+    content: row?.content || '',
+    content_en: row?.content_en || null,
+    version: row?.version || '',
+    announcement_type: row?.announcement_type || 'update',
+    severity: row?.severity || 'info',
+    is_active: row?.is_active !== false,
+    priority: Number(row?.priority) || 0,
+    source_id: row?.source_id || null,
+    source_url: row?.source_url || null,
+    published_at: row?.published_at || null,
+    summary: row?.summary || null,
+    created_at: row?.created_at || null,
+    updated_at: row?.updated_at || null,
+  };
+}
+
+function applyManualAnnouncementSourceFilter(query) {
+  if (typeof query?.or === 'function') {
+    return query.or('source_id.is.null,source_id.eq.');
+  }
+  return query.is('source_id', null);
+}
+
+function normalizeAnnouncementPatch(body = {}, {
+  partial = false,
+} = {}) {
+  const patch = {};
+
+  const readText = (key, maxLength) => {
+    if (!(key in body)) {
+      return undefined;
+    }
+    return String(body?.[key] ?? '').trim().slice(0, maxLength);
+  };
+
+  const title = readText('title', 240);
+  if (title !== undefined) {
+    if (!title) {
+      return { ok: false, error: 'Announcement title is required' };
+    }
+    patch.title = title;
+  }
+
+  const content = readText('content', 80_000);
+  if (content !== undefined) {
+    if (!content) {
+      return { ok: false, error: 'Announcement content is required' };
+    }
+    patch.content = content;
+  }
+
+  const titleEn = readText('title_en', 240);
+  if (titleEn !== undefined) {
+    patch.title_en = titleEn || null;
+  }
+
+  const contentEn = readText('content_en', 80_000);
+  if (contentEn !== undefined) {
+    patch.content_en = contentEn || null;
+  }
+
+  const version = readText('version', 80);
+  if (version !== undefined) {
+    patch.version = version || '1.0.0';
+  }
+
+  const announcementType = readText('announcement_type', 40);
+  if (announcementType !== undefined) {
+    patch.announcement_type = announcementType || 'update';
+  }
+
+  const severity = readText('severity', 40);
+  if (severity !== undefined) {
+    patch.severity = severity || 'info';
+  }
+
+  if ('is_active' in body) {
+    patch.is_active = body?.is_active !== false;
+  }
+
+  if ('priority' in body) {
+    const priority = Number.parseInt(body?.priority, 10);
+    patch.priority = Number.isFinite(priority) ? priority : 0;
+  }
+
+  if (!partial) {
+    if (!patch.title) {
+      return { ok: false, error: 'Announcement title is required' };
+    }
+    if (!patch.content) {
+      return { ok: false, error: 'Announcement content is required' };
+    }
+    patch.version = patch.version || '1.0.0';
+    patch.announcement_type = patch.announcement_type || 'update';
+    patch.severity = patch.severity || 'info';
+    patch.is_active = patch.is_active !== false;
+    patch.priority = Number.isFinite(patch.priority) ? patch.priority : 0;
+  }
+
+  return {
+    ok: true,
+    patch,
+  };
+}
+
+async function handleAnnouncements(req, res, adminClient) {
+  if (!['GET', 'POST', 'PATCH', 'DELETE'].includes(req.method)) {
+    return res.status(405).json({ success: false, error: 'Method not allowed' });
+  }
+
+  const authResult = await verifySuperAdmin(req, adminClient);
+  if (authResult.error) {
+    return res.status(authResult.error.status).json({
+      success: false,
+      error: authResult.error.message,
+    });
+  }
+
+  if (req.method === 'GET') {
+    try {
+      const query = adminClient
+        .from('announcements')
+        .select('*');
+      const { data, error } = await applyManualAnnouncementSourceFilter(query)
+        .order('priority', { ascending: false })
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      return res.status(200).json({
+        success: true,
+        announcements: Array.isArray(data) ? data.map(serializeAnnouncementRow) : [],
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to load announcements',
+      });
+    }
+  }
+
+  const body = parseRequestBody(req);
+  const announcementId = String(body?.id || body?.announcementId || body?.announcement_id || '').trim();
+
+  if (req.method === 'POST') {
+    const normalized = normalizeAnnouncementPatch(body);
+    if (!normalized.ok) {
+      return res.status(400).json({
+        success: false,
+        error: normalized.error,
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+    const insertPayload = {
+      ...normalized.patch,
+      source_id: null,
+      updated_at: nowIso,
+    };
+
+    try {
+      const { data, error } = await adminClient
+        .from('announcements')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return res.status(200).json({
+        success: true,
+        announcement: serializeAnnouncementRow(data || insertPayload),
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to create announcement',
+      });
+    }
+  }
+
+  if (!announcementId) {
+    return res.status(400).json({
+      success: false,
+      error: 'Announcement ID is required',
+    });
+  }
+
+  if (req.method === 'PATCH') {
+    const action = String(body?.action || '').trim();
+    const normalized = action === 'setActive'
+      ? { ok: true, patch: { is_active: body?.isActive ?? body?.is_active } }
+      : normalizeAnnouncementPatch(body, { partial: true });
+    if (!normalized.ok) {
+      return res.status(400).json({
+        success: false,
+        error: normalized.error,
+      });
+    }
+
+    const patch = {
+      ...normalized.patch,
+      updated_at: new Date().toISOString(),
+    };
+    if ('is_active' in patch) {
+      patch.is_active = patch.is_active !== false;
+    }
+
+    try {
+      const updateQuery = adminClient
+        .from('announcements')
+        .update(patch)
+        .eq('id', announcementId);
+      const { data: updatedData, error: updateError } = await applyManualAnnouncementSourceFilter(updateQuery)
+        .select('*')
+        .maybeSingle();
+
+      if (updateError) {
+        throw updateError;
+      }
+      if (!updatedData) {
+        return res.status(404).json({
+          success: false,
+          error: 'Announcement not found',
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        announcement: serializeAnnouncementRow(updatedData),
+        updated_at: updatedData.updated_at || patch.updated_at,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to update announcement',
+      });
+    }
+  }
+
+  try {
+    const deleteQuery = adminClient
+      .from('announcements')
+      .delete()
+      .eq('id', announcementId);
+    const { data, error } = await applyManualAnnouncementSourceFilter(deleteQuery)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        error: 'Announcement not found',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      id: data.id || announcementId,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || 'Failed to delete announcement',
+    });
+  }
 }
 
 function serializeSiteConfigRow(row) {
@@ -2092,6 +2898,12 @@ export default async function handler(req, res) {
   switch (route) {
     case 'users':
       return handleUsers(req, res, adminClient);
+    case 'account-recovery':
+      return handleAccountRecovery(req, res, adminClient);
+    case 'announcements':
+      return handleAnnouncements(req, res, adminClient);
+    case 'user-data':
+      return handleUserData(req, res, adminClient);
     case 'delete-user':
       return handleDeleteUser(req, res, adminClient);
     case 'user-reset-password':

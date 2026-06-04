@@ -1,17 +1,27 @@
 import { fetchWithTimeout } from '../supabaseRequest.js';
 import { getSupabaseAccessToken } from '../authFetchService.js';
 
-export async function loadSiteHealth() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+async function buildAdminHeaders(baseHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    ...baseHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
+  return headers;
+}
 
+export async function loadSiteHealth() {
+  const headers = await buildAdminHeaders();
   const response = await fetchWithTimeout('/api/admin?route=site-health', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'admin-site-health',
     timeoutMs: 45000,
@@ -26,17 +36,14 @@ export async function loadSiteHealth() {
 }
 
 export async function drainMailOutbox() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin?route=mail-outbox-drain', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({ source: 'admin-mail-status-panel' }),
   }, {
     label: 'admin-mail-outbox-drain',
@@ -52,17 +59,14 @@ export async function drainMailOutbox() {
 }
 
 export async function sendMailSmokeTest({ recipientEmail, locale = 'zh-CN' } = {}) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin?route=mail-smoke-test', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       recipientEmail,
       locale,
@@ -81,17 +85,14 @@ export async function sendMailSmokeTest({ recipientEmail, locale = 'zh-CN' } = {
 }
 
 export async function sendAdminAlertMail({ summary, secondary, locale = 'zh-CN' } = {}) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin?route=mail-alert', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       summary,
       secondary,
@@ -111,17 +112,14 @@ export async function sendAdminAlertMail({ summary, secondary, locale = 'zh-CN' 
 }
 
 export async function updateMailRuntimeConfig(payload = {}) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin?route=mail-runtime-config', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify(payload),
   }, {
     label: 'admin-mail-runtime-config',
@@ -137,17 +135,14 @@ export async function updateMailRuntimeConfig(payload = {}) {
 }
 
 export async function updateMailBudgetConfig(payload = {}) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin?route=mail-budget-config', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify(payload),
   }, {
     label: 'admin-mail-budget-config',

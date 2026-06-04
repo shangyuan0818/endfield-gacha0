@@ -1,24 +1,37 @@
-import { supabase } from '../../supabaseClient';
 import {
-  executeSupabaseRpc,
+  fetchJsonWithTimeout,
   fetchWithTimeout,
 } from '../supabaseRequest';
-import {
-  getSupabaseAccessToken,
-  withAuthenticatedSupabaseRequest,
-} from '../authFetchService.js';
+import { getSupabaseAccessToken } from '../authFetchService.js';
+
+async function getOptionalNativeToken() {
+  return getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+}
+
+async function buildAdminHeaders(baseHeaders = {}) {
+  const token = await getOptionalNativeToken();
+  const headers = {
+    ...baseHeaders,
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 export async function loadUsers() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    Accept: 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin-users', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'admin-users',
     timeoutMs: 45000
@@ -33,36 +46,44 @@ export async function loadUsers() {
 }
 
 export async function updateUserProfile(userId, userForm) {
-  const { error, data } = await executeSupabaseRpc(
-    () => withAuthenticatedSupabaseRequest(
-      () => supabase.rpc('admin_update_profile', {
-        p_target_user_id: userId,
-        p_username: userForm.username,
-        p_role: userForm.role,
-      }),
-      { requireToken: true }
-    ),
-    {
-      label: 'admin_update_profile'
-    }
-  );
+  const headers = await buildAdminHeaders({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  });
+  const { response, data } = await fetchJsonWithTimeout('/api/admin-users', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({
+      userId,
+      username: userForm.username,
+      role: userForm.role,
+    }),
+  }, {
+    label: 'admin-update-profile',
+    timeoutMs: 45000,
+  });
 
-  if (error) throw error;
-  return data;
+  if (!response.ok || data?.success !== true) {
+    const error = new Error(data?.error || '更新用户失败');
+    error.status = response.status;
+    error.code = 'admin_update_profile_failed';
+    throw error;
+  }
+
+  return data.profile;
 }
 
 export async function createUser(userForm) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  });
 
-  const response = await fetchWithTimeout(`${supabase.supabaseUrl}/functions/v1/admin-create-user`, {
+  const response = await fetchWithTimeout('/api/admin-users', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       email: userForm.email.trim(),
       password: userForm.password,
@@ -83,17 +104,14 @@ export async function createUser(userForm) {
 }
 
 export async function deleteUser(userId) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin-delete-user', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({ userId })
   }, {
     label: 'admin-delete-user',
@@ -109,17 +127,14 @@ export async function deleteUser(userId) {
 }
 
 export async function resetUserPassword(userId, temporaryPassword) {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
-  }
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
 
   const response = await fetchWithTimeout('/api/admin-user-reset-password', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       userId,
       temporaryPassword

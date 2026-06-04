@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '../../supabaseClient';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
-import { executeSupabaseRead } from '../../services/supabaseRequest';
+import {
+  deleteAdminUserData,
+  loadAdminUserData,
+} from '../../services/admin/userDataService.js';
 
 const USER_HISTORY_SAMPLE_LIMIT = 500;
 
@@ -27,7 +28,7 @@ export function useUserDataViewer(showToast) {
 
   // 加载用户数据
   const loadUserData = useCallback(async (userId) => {
-    if (!supabase || !userId) return;
+    if (!userId) return;
 
     setUserDataLoading(true);
     setSelectedUserId(userId);
@@ -35,48 +36,19 @@ export function useUserDataViewer(showToast) {
     setUserHistoryMeta(EMPTY_HISTORY_META);
 
     try {
-      const [poolsRes, historyRes] = await Promise.all([
-        executeSupabaseRead(
-          () => withAuthenticatedSupabaseRequest(
-            () => supabase.from('pools').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
-            { requireToken: true }
-          ),
-          {
-            label: 'loadUserData pools',
-            retries: 1
-          }
-        ),
-        executeSupabaseRead(
-          () => withAuthenticatedSupabaseRequest(
-            () => supabase
-              .from('history')
-              .select('*', { count: 'exact' })
-              .eq('user_id', userId)
-              .order('timestamp', { ascending: false })
-              .limit(USER_HISTORY_SAMPLE_LIMIT),
-            { requireToken: true }
-          ),
-          {
-            label: 'loadUserData history',
-            retries: 1
-          }
-        )
-      ]);
-
-      if (poolsRes.error) throw poolsRes.error;
-      if (historyRes.error) throw historyRes.error;
-
-      const nextPools = poolsRes.data || [];
-      const nextHistory = historyRes.data || [];
-      const totalCount = typeof historyRes.count === 'number' ? historyRes.count : nextHistory.length;
+      const result = await loadAdminUserData(userId);
+      const nextPools = result.pools || [];
+      const nextHistory = result.history || [];
+      const nextMeta = result.historyMeta || {};
+      const totalCount = typeof nextMeta.totalCount === 'number' ? nextMeta.totalCount : nextHistory.length;
 
       setUserPools(nextPools);
       setUserHistory(nextHistory);
       setUserHistoryMeta({
-        sampleLimit: USER_HISTORY_SAMPLE_LIMIT,
+        sampleLimit: nextMeta.sampleLimit || USER_HISTORY_SAMPLE_LIMIT,
         totalCount,
         loadedCount: nextHistory.length,
-        isTruncated: totalCount > nextHistory.length
+        isTruncated: Boolean(nextMeta.isTruncated ?? (totalCount > nextHistory.length))
       });
     } catch (error) {
       setUserPools([]);
@@ -135,7 +107,7 @@ export function useUserDataViewer(showToast) {
 
   // 清空用户所有数据
   const handleDeleteUserData = useCallback(async () => {
-    if (!supabase || !selectedUserId) return;
+    if (!selectedUserId) return;
     if (!window.confirm('确定要清空该用户的所有卡池和抽卡记录吗？此操作不可恢复。')) return;
 
     setActionLoading('purgeUserData');
@@ -147,16 +119,10 @@ export function useUserDataViewer(showToast) {
     setUserHistory([]);
 
     try {
-      const { error: errHistory } = await withAuthenticatedSupabaseRequest(
-        () => supabase.from('history').delete().eq('user_id', selectedUserId),
-        { requireToken: true }
-      );
-      if (errHistory) throw errHistory;
-      const { error: errPools } = await withAuthenticatedSupabaseRequest(
-        () => supabase.from('pools').delete().eq('user_id', selectedUserId),
-        { requireToken: true }
-      );
-      if (errPools) throw errPools;
+      await deleteAdminUserData({
+        action: 'purgeUserData',
+        userId: selectedUserId,
+      });
       showToast('已清空该用户的卡池和抽卡记录', 'success');
     } catch (error) {
       setUserPools(backupPools);
@@ -169,7 +135,7 @@ export function useUserDataViewer(showToast) {
 
   // 清空指定卡池的记录
   const handleDeletePoolRecords = useCallback(async (poolId) => {
-    if (!supabase || !selectedUserId) return;
+    if (!selectedUserId) return;
     if (!window.confirm('确定清空该卡池的所有抽卡记录吗？此操作不可恢复。')) return;
 
     setActionLoading(`purge_records_${poolId}`);
@@ -178,11 +144,11 @@ export function useUserDataViewer(showToast) {
     setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
 
     try {
-      const { error } = await withAuthenticatedSupabaseRequest(
-        () => supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
-        { requireToken: true }
-      );
-      if (error) throw error;
+      await deleteAdminUserData({
+        action: 'purgePoolRecords',
+        userId: selectedUserId,
+        poolId,
+      });
       showToast('已清空该卡池的抽卡记录', 'success');
     } catch (error) {
       setUserHistory(backupHistory);
@@ -194,7 +160,7 @@ export function useUserDataViewer(showToast) {
 
   // 删除卡池及其记录
   const handleDeletePool = useCallback(async (poolId) => {
-    if (!supabase || !selectedUserId) return;
+    if (!selectedUserId) return;
     if (!window.confirm('确定删除该卡池及其所有记录吗？此操作不可恢复。')) return;
 
     setActionLoading(`delete_pool_${poolId}`);
@@ -206,16 +172,11 @@ export function useUserDataViewer(showToast) {
     setUserHistory(prev => prev.filter(h => h.pool_id !== poolId));
 
     try {
-      const { error: errHistory } = await withAuthenticatedSupabaseRequest(
-        () => supabase.from('history').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
-        { requireToken: true }
-      );
-      if (errHistory) throw errHistory;
-      const { error: errPools } = await withAuthenticatedSupabaseRequest(
-        () => supabase.from('pools').delete().eq('user_id', selectedUserId).eq('pool_id', poolId),
-        { requireToken: true }
-      );
-      if (errPools) throw errPools;
+      await deleteAdminUserData({
+        action: 'deletePool',
+        userId: selectedUserId,
+        poolId,
+      });
       showToast('已删除卡池及其记录', 'success');
     } catch (error) {
       setUserPools(backupPools);

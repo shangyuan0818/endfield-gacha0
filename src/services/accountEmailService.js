@@ -1,4 +1,3 @@
-import { supabase } from '../supabaseClient';
 import { fetchJsonWithTimeout } from './supabaseRequest.js';
 import { getSupabaseAccessToken } from './authFetchService.js';
 
@@ -24,21 +23,22 @@ async function postAccountEmailAction(body, {
   label = 'account-email-action',
   timeoutMs = 30000,
 } = {}) {
-  if (!supabase) {
-    throw new AccountEmailActionError('Supabase is not configured', { code: 'supabase_not_configured' });
-  }
-
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new AccountEmailActionError('当前登录态已失效，请重新登录后再试', { code: 'session_expired', status: 401 });
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const { response, data: payload } = await fetchJsonWithTimeout('/api/account-email-action', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify(body),
   }, {
     label,
@@ -84,22 +84,23 @@ export async function requestCurrentEmailVerification({ locale } = {}) {
 }
 
 export async function verifyCurrentEmailCode({ code } = {}) {
-  if (!supabase) {
-    throw new AccountEmailActionError('Supabase is not configured', { code: 'supabase_not_configured' });
-  }
-
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new AccountEmailActionError('当前登录态已失效，请重新登录后再试', { code: 'session_expired', status: 401 });
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const normalizedCode = String(code || '').replace(/\D/g, '').slice(0, 6);
   const { response, data: payload } = await fetchJsonWithTimeout('/api/account-email-verify', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({ code: normalizedCode }),
   }, {
     label: 'account-email-verify:code',

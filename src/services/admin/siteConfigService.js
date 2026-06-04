@@ -3,21 +3,27 @@ import { getSupabaseAccessToken } from '../authFetchService.js';
 
 const SITE_CONFIG_TIMEOUT_MS = 45000;
 
-async function getAdminAccessToken() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+async function buildAdminHeaders(baseHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    ...baseHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
-  return accessToken;
+  return headers;
 }
 
 export async function loadAdminSiteConfigItems() {
-  const accessToken = await getAdminAccessToken();
+  const headers = await buildAdminHeaders();
   const response = await fetchWithTimeout('/api/admin?route=site-config', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'admin-site-config-load',
     timeoutMs: SITE_CONFIG_TIMEOUT_MS,
@@ -32,13 +38,13 @@ export async function loadAdminSiteConfigItems() {
 }
 
 export async function saveAdminSiteConfigItem({ key, value, label, category } = {}) {
-  const accessToken = await getAdminAccessToken();
+  const headers = await buildAdminHeaders({
+    'Content-Type': 'application/json',
+  });
   const response = await fetchWithTimeout('/api/admin?route=site-config', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       key,
       value,

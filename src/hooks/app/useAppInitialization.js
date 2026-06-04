@@ -6,6 +6,7 @@ import { characterCache } from '../../utils/characterUtils';
 import appLogger from '../../utils/appLogger.js';
 import { getValidatedSupabaseSession } from '../../services/authFetchService.js';
 import { getCurrentSiteSession } from '../../services/siteSessionService.js';
+import { updateAccountLastSeen } from '../../services/accountLastSeenService.js';
 import { subscribeAuthSessionSync } from '../../services/authSessionEvents.js';
 import {
   canUsePrivateCloudDataFromSiteSession,
@@ -37,9 +38,8 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
 
   // 更新用户最后在线时间
   const updateLastSeen = useCallback(async () => {
-    if (!supabase) return;
     try {
-      await supabase.rpc('update_last_seen');
+      await updateAccountLastSeen();
     } catch {
       // 静默失败，不影响用户体验
     }
@@ -85,7 +85,7 @@ export function useAppInitialization({ loadCloudData, loadPublicPools }) {
         setAuthResolved(true);
 
         // 更新最后在线时间
-        if (session?.user) {
+        if (effectiveUser) {
           updateLastSeen();
         }
 

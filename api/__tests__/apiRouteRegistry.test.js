@@ -19,11 +19,16 @@ const OFFICIAL_BOT_PATHS = [
 ];
 
 const INTERNAL_OPERATION_PATHS = [
+  '/api/admin-account-recovery',
+  '/api/admin-announcements',
+  '/api/admin-characters',
   '/api/admin-mail-alert',
   '/api/admin-mail-budget-config',
   '/api/admin-mail-outbox-drain',
   '/api/admin-mail-smoke-test',
+  '/api/admin-pools',
   '/api/admin-site-health',
+  '/api/admin-user-data',
   '/api/mail-delivery-feedback',
   '/api/mail-inbound',
   '/api/mail-outbox-worker',
@@ -46,8 +51,16 @@ const AUTH_OPERATION_PATHS = [
 const USER_OPERATION_PATHS = [
   '/api/account-email-action',
   '/api/account-email-verify',
+  '/api/account-gacha-data',
+  '/api/account-last-seen',
   '/api/account-password-setup',
+  '/api/account-profile',
+  '/api/tickets',
   '/api/tickets/reply',
+];
+
+const PUBLIC_STATUS_PATHS = [
+  '/api/site-status',
 ];
 
 describe('API route registry', () => {
@@ -93,6 +106,15 @@ describe('API route registry', () => {
     const routeEntries = new Map(getApiRouteEntries());
 
     USER_OPERATION_PATHS.forEach((path) => {
+      expect(routeEntries.has(path)).toBe(true);
+      expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
+    });
+  });
+
+  it('registers public service status endpoints', () => {
+    const routeEntries = new Map(getApiRouteEntries());
+
+    PUBLIC_STATUS_PATHS.forEach((path) => {
       expect(routeEntries.has(path)).toBe(true);
       expect(getApiRouteHandler(path)).toEqual(expect.any(Function));
     });

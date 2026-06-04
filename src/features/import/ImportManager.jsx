@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Save, RefreshCw, HelpCircle, X, AlertCircle, CheckCircle, User, Cloud, CloudOff, Layers, Clock } from 'lucide-react';
 import { useAuthStore, useHistoryStore, usePoolStore } from '../../stores';
-import { supabase } from '../../supabaseClient';
 import {
   buildImportedGameAccountMetadataEntries,
   getHistoryRecordGameUid,
@@ -11,8 +10,11 @@ import {
 } from '../../utils/gameAccountMetadata.js';
 import { applyCloudDataToStores } from '../../utils/cloudDataSync.js';
 import { useCloudSync } from '../../hooks';
-import { upsertHistory, upsertPools } from '../../services/cloudWriteService.js';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
+import {
+  loadAccountGachaSeqKeys,
+  resolveAccountGachaAliases,
+  saveAccountGachaData,
+} from '../../services/accountGachaDataService.js';
 import {
   isOAuthAccountCompletionRequired,
   loadAccountSecurityState,
@@ -110,6 +112,27 @@ function getSyncStatusDetail(syncStatus, t) {
     label: t('common.unknown'),
     className: 'text-slate-600 dark:text-zinc-400'
   };
+}
+
+async function resolveImportAliasMaps(records) {
+  const poolIds = [...new Set((Array.isArray(records) ? records : [])
+    .map(record => record?.pool_id)
+    .filter(Boolean))];
+  const characterIds = [...new Set((Array.isArray(records) ? records : [])
+    .map(record => record?.character_id || record?.item_id)
+    .filter(Boolean))];
+
+  if (poolIds.length === 0 && characterIds.length === 0) {
+    return {
+      poolAliases: {},
+      characterAliases: {},
+    };
+  }
+
+  return resolveAccountGachaAliases({
+    poolIds,
+    characterIds,
+  });
 }
 
 /**
@@ -210,15 +233,15 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
    * 修改为：首次创建，后续不更新（避免多账号导入时覆盖）
    */
   const savePoolsToServer = useCallback(async (poolEntries) => {
-    if (!supabase || !user || poolEntries.length === 0) return;
-    await upsertPools(supabase, poolEntries, user.id);
+    if (!user || poolEntries.length === 0) return;
+    await saveAccountGachaData({ pools: poolEntries });
   }, [user]);
 
   /**
    * 直接保存历史记录到 Supabase
    */
   const saveHistoryToServer = useCallback(async (records) => {
-    if (!supabase || !user || records.length === 0) return;
+    if (!user || records.length === 0) return;
 
     const batchSize = 100;
     let savedCount = 0;
@@ -226,7 +249,7 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       // eslint-disable-next-line no-await-in-loop -- history batches must be persisted in order so progress and retry boundaries stay deterministic
-      await upsertHistory(supabase, batch, user.id);
+      await saveAccountGachaData({ history: batch });
       savedCount += batch.length;
       setSaveProgress({ current: savedCount, total: records.length });
     }
@@ -238,31 +261,15 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
    * 注意：seqId 是每个卡池独立的序列号，不同卡池可能有相同的 seqId
    */
   const getExistingSeqIds = useCallback(async (gameUid) => {
-    if (!supabase || !user) return new Set();
+    if (!user) return new Set();
 
-    let query = supabase
-      .from('history')
-      .select('seq_id, game_uid, pool_id')
-      .eq('user_id', user.id)
-      .not('seq_id', 'is', null);
-
-    // 如果指定了 gameUid，只查询该账号的记录
-    if (gameUid) {
-      query = query.eq('game_uid', gameUid);
-    }
-
-    const { data, error } = await withAuthenticatedSupabaseRequest(
-      () => query,
-      { requireToken: true }
-    );
-
-    if (error) {
+    try {
+      const { keys } = await loadAccountGachaSeqKeys({ gameUid });
+      return new Set(keys.map(r => `${r.gameUid || 'unknown'}:${r.poolId || 'unknown'}:${r.seqId}`));
+    } catch (error) {
       appLogger.error('[ImportManager] 查询已有记录失败:', error);
       return new Set();
     }
-
-    // 返回 game_uid:pool_id:seq_id 组合的 Set（包含 pool_id 以区分不同卡池）
-    return new Set(data.map(r => `${r.game_uid || 'unknown'}:${r.pool_id || 'unknown'}:${r.seq_id}`));
   }, [user]);
 
   /**
@@ -358,10 +365,16 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
         poolEntries,
         historyRecords,
       } = await prepareOfficialImportPersistenceData({
-        supabase,
         records: result.records,
         userInfo: result.userInfo,
         pools,
+        ...await resolveImportAliasMaps(result.records).catch((aliasError) => {
+          appLogger.warn('[ImportManager] 解析导入 ID 映射失败，将使用原始 ID 继续保存:', aliasError);
+          return {
+            poolAliases: {},
+            characterAliases: {},
+          };
+        }),
       });
 
       // 1. 保存卡池到服务器

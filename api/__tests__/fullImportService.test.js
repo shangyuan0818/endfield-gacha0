@@ -198,6 +198,15 @@ describe('executeFullImport import mode metadata', () => {
   it('returns selected mode and save counts without changing full-fetch dedupe semantics', async () => {
     const operations = [];
     const insertedPoolIds = new Set();
+    const rpc = vi.fn(async (functionName) => ({
+      data: {
+        refreshedPools: 1,
+        refreshedTrendRows: 3,
+        updatedAt: '2026-06-05T12:00:00.000Z',
+      },
+      error: null,
+      functionName,
+    }));
 
     mockSupabaseClient = {
       auth: {
@@ -208,6 +217,7 @@ describe('executeFullImport import mode metadata', () => {
           })),
         },
       },
+      rpc,
       __operations: operations,
       from(tableName) {
         if (tableName === 'pool_id_aliases' || tableName === 'character_id_aliases') {
@@ -352,7 +362,15 @@ describe('executeFullImport import mode metadata', () => {
       newRecords: 1,
       savedRecords: 1,
       duplicates: 0,
+      publicAnalyticsRefresh: {
+        ok: true,
+        functionName: 'refresh_public_analytics_cache',
+        refreshedPools: 1,
+        refreshedTrendRows: 3,
+      },
+      warnings: [],
     });
+    expect(rpc).toHaveBeenCalledWith('refresh_public_analytics_cache');
     expect(authChainFunctions.fetchAllRecordsConcurrent).toHaveBeenCalledWith(
       'u8-token',
       '1',
@@ -374,6 +392,14 @@ describe('executeFullImport import mode metadata', () => {
     const operations = [];
     const insertedPoolIds = new Set();
     let historySelectCalls = 0;
+    const rpc = vi.fn(async () => ({
+      data: {
+        refreshedPools: 1,
+        refreshedTrendRows: 3,
+        updatedAt: '2026-06-05T12:00:00.000Z',
+      },
+      error: null,
+    }));
 
     mockSupabaseClient = {
       auth: {
@@ -384,6 +410,7 @@ describe('executeFullImport import mode metadata', () => {
           })),
         },
       },
+      rpc,
       __operations: operations,
       from(tableName) {
         if (tableName === 'pool_id_aliases' || tableName === 'character_id_aliases') {
@@ -568,7 +595,316 @@ describe('executeFullImport import mode metadata', () => {
       savedRecords: 1,
       duplicates: 1,
       earlyStoppedPools: earlyStopped,
+      publicAnalyticsRefresh: {
+        ok: true,
+        functionName: 'refresh_public_analytics_cache',
+      },
     });
+    expect(rpc).toHaveBeenCalledWith('refresh_public_analytics_cache');
+    expect(operations).toEqual([
+      { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'history', action: 'upsert', count: 1 },
+    ]);
+  });
+
+  it('skips public analytics refresh when incremental import has no new records', async () => {
+    const operations = [];
+    const insertedPoolIds = new Set();
+    const rpc = vi.fn();
+
+    mockSupabaseClient = {
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: { user: { id: '00000000-0000-0000-0000-000000000001' } },
+            error: null,
+          })),
+        },
+      },
+      rpc,
+      __operations: operations,
+      from(tableName) {
+        if (tableName === 'pool_id_aliases' || tableName === 'character_id_aliases') {
+          return {
+            select() {
+              return {
+                in: async () => ({ data: [], error: null }),
+              };
+            },
+          };
+        }
+
+        if (tableName === 'pools') {
+          return {
+            select() {
+              return {
+                in: async (_column, values) => ({
+                  data: (values || [])
+                    .filter((poolId) => insertedPoolIds.has(String(poolId)))
+                    .map((poolId) => ({ pool_id: String(poolId) })),
+                  error: null,
+                }),
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              (rows || []).forEach((row) => insertedPoolIds.add(String(row.pool_id)));
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'history') {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    eq() {
+                      return {
+                        range: async () => ({
+                          data: [{ pool_id: 'special_1_2_1', seq_id: '1' }],
+                          error: null,
+                        }),
+                      };
+                    },
+                  };
+                },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table access: ${tableName}`);
+      },
+    };
+
+    const { executeFullImport, initSupabaseAdmin } = await import('../../backend/fullImportService.js');
+
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    const result = await executeFullImport({
+      token: 'AbCdEfGhIjKlMnOpQrStUvWx',
+      accountIndex: 0,
+      userId: '00000000-0000-0000-0000-000000000001',
+      updateProgress: vi.fn(),
+      authChainFunctions: {
+        grantAppToken: vi.fn(async () => ({
+          success: true,
+          data: { token: 'app-token' },
+        })),
+        fetchBindingList: vi.fn(async () => ({
+          success: true,
+          data: {
+            accounts: [{
+              uid: 'hg-uid',
+              gameUid: '10000001',
+              nickName: '测试账号',
+              serverId: '1',
+            }],
+          },
+        })),
+        fetchU8TokenByUid: vi.fn(async () => ({
+          success: true,
+          data: { token: 'u8-token' },
+        })),
+        fetchAllRecordsConcurrent: vi.fn(async () => ({
+          success: true,
+          data: {
+            totalRecords: 1,
+            partial: [],
+            failed: [],
+            fetchStrategy: 'incremental_official_fetch_with_context_guard',
+            results: [{
+              type: 'char',
+              poolType: 'E_CharacterGachaPoolType_Special',
+              currentUpCharacter: '测试角色',
+              records: [{
+                poolId: 'special_1_2_1',
+                poolName: '测试限定池',
+                seqId: '1',
+                charId: 'char_test',
+                charName: '测试角色',
+                rarity: 6,
+                gachaTs: '1767225600000',
+                isFree: false,
+                isNew: true,
+              }],
+            }],
+          },
+        })),
+      },
+      source: 'cn',
+      importMode: 'incremental',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      totalRecords: 1,
+      newRecords: 0,
+      savedRecords: 0,
+      duplicates: 1,
+      publicAnalyticsRefresh: {
+        ok: true,
+        skipped: true,
+        reason: 'no_new_records',
+      },
+    });
+    expect(rpc).not.toHaveBeenCalled();
+    expect(operations).toEqual([
+      { tableName: 'pools', action: 'upsert', count: 1 },
+    ]);
+  });
+
+  it('keeps import successful when public analytics refresh fails after saving records', async () => {
+    const operations = [];
+    const insertedPoolIds = new Set();
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { message: 'refresh timeout' },
+    }));
+
+    mockSupabaseClient = {
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: { user: { id: '00000000-0000-0000-0000-000000000001' } },
+            error: null,
+          })),
+        },
+      },
+      rpc,
+      __operations: operations,
+      from(tableName) {
+        if (tableName === 'pool_id_aliases' || tableName === 'character_id_aliases') {
+          return {
+            select() {
+              return {
+                in: async () => ({ data: [], error: null }),
+              };
+            },
+          };
+        }
+
+        if (tableName === 'pools') {
+          return {
+            select() {
+              return {
+                in: async (_column, values) => ({
+                  data: (values || [])
+                    .filter((poolId) => insertedPoolIds.has(String(poolId)))
+                    .map((poolId) => ({ pool_id: String(poolId) })),
+                  error: null,
+                }),
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              (rows || []).forEach((row) => insertedPoolIds.add(String(row.pool_id)));
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'history') {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    eq() {
+                      return {
+                        range: async () => ({ data: [], error: null }),
+                      };
+                    },
+                  };
+                },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table access: ${tableName}`);
+      },
+    };
+
+    const { executeFullImport, initSupabaseAdmin } = await import('../../backend/fullImportService.js');
+
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    const result = await executeFullImport({
+      token: 'AbCdEfGhIjKlMnOpQrStUvWx',
+      accountIndex: 0,
+      userId: '00000000-0000-0000-0000-000000000001',
+      updateProgress: vi.fn(),
+      authChainFunctions: {
+        grantAppToken: vi.fn(async () => ({
+          success: true,
+          data: { token: 'app-token' },
+        })),
+        fetchBindingList: vi.fn(async () => ({
+          success: true,
+          data: {
+            accounts: [{
+              uid: 'hg-uid',
+              gameUid: '10000001',
+              nickName: '测试账号',
+              serverId: '1',
+            }],
+          },
+        })),
+        fetchU8TokenByUid: vi.fn(async () => ({
+          success: true,
+          data: { token: 'u8-token' },
+        })),
+        fetchAllRecordsConcurrent: vi.fn(async () => ({
+          success: true,
+          data: {
+            totalRecords: 1,
+            partial: [],
+            failed: [],
+            results: [{
+              type: 'char',
+              poolType: 'E_CharacterGachaPoolType_Special',
+              currentUpCharacter: '测试角色',
+              records: [{
+                poolId: 'special_1_2_1',
+                poolName: '测试限定池',
+                seqId: '1',
+                charId: 'char_test',
+                charName: '测试角色',
+                rarity: 6,
+                gachaTs: '1767225600000',
+                isFree: false,
+                isNew: true,
+              }],
+            }],
+          },
+        })),
+      },
+      source: 'cn',
+      importMode: 'full',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      newRecords: 1,
+      savedRecords: 1,
+      publicAnalyticsRefresh: {
+        ok: false,
+        error: 'refresh timeout',
+      },
+    });
+    expect(result.data.warnings).toEqual(['公共统计刷新失败：refresh timeout']);
+    expect(rpc).toHaveBeenCalledWith('refresh_public_analytics_cache');
     expect(operations).toEqual([
       { tableName: 'pools', action: 'upsert', count: 1 },
       { tableName: 'history', action: 'upsert', count: 1 },

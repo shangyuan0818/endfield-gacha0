@@ -80,12 +80,27 @@ describe('useAuthenticatedSessionSync', () => {
     expect(useHistoryStore.getState().history).toEqual(cloudData.history);
   });
 
-  it('does not load private data when the site session has no compatible Supabase token', async () => {
-    const loadCloudData = vi.fn();
+  it('loads private data for a site session even when only HttpOnly cookies are available', async () => {
+    const cloudData = {
+      pools: [
+        { id: 'limited_pool', name: '特许寻访', type: 'limited_character' },
+      ],
+      history: [
+        {
+          id: 'record-1',
+          user_id: 'user-1',
+          poolId: 'limited_pool',
+          gameUid: 'game-1',
+          rarity: 6,
+        },
+      ],
+    };
+    const loadCloudData = vi.fn().mockResolvedValue(cloudData);
     const { result } = renderHook(() => useAuthenticatedSessionSync({ loadCloudData }));
 
+    let appliedCloudData;
     await act(async () => {
-      await result.current.applySiteSession({
+      appliedCloudData = await result.current.applySiteSession({
         authenticated: true,
         user: {
           id: 'user-1',
@@ -98,7 +113,10 @@ describe('useAuthenticatedSessionSync', () => {
     expect(useAuthStore.getState().user).toMatchObject({
       id: 'user-1',
     });
-    expect(loadCloudData).not.toHaveBeenCalled();
-    expect(useHistoryStore.getState().history).toEqual([]);
+    expect(appliedCloudData).toBe(cloudData);
+    expect(loadCloudData).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'user-1',
+    }));
+    expect(useHistoryStore.getState().history).toEqual(cloudData.history);
   });
 });

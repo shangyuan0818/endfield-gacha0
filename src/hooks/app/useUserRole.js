@@ -1,7 +1,5 @@
 import { useEffect } from 'react';
-import { executeSupabaseMutation, executeSupabaseRead } from '../../services/supabaseRequest';
-import { withAuthenticatedSupabaseRequest } from '../../services/authFetchService.js';
-import { supabase } from '../../supabaseClient';
+import { loadCurrentAccountProfile } from '../../services/accountProfileService.js';
 import { useAuthStore } from '../../stores';
 
 /**
@@ -13,55 +11,30 @@ export function useUserRole() {
   const setUserRole = useAuthStore(state => state.setUserRole);
 
   useEffect(() => {
-    if (!supabase || !user) {
+    if (!user) {
       setUserRole(null);
       return;
     }
 
+    let cancelled = false;
     const fetchUserRole = async () => {
       try {
-        const { data: profile, error } = await executeSupabaseRead(
-          () => withAuthenticatedSupabaseRequest(
-            () => supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', user.id)
-              .maybeSingle(),
-            { requireToken: true }
-          ),
-          {
-            label: 'load user role',
-            retries: 2,
-          }
-        );
-
-        if (error) throw error;
-
-        // 如果 profile 不存在，尝试创建一个
-        if (!profile) {
-          await executeSupabaseMutation(
-            () => withAuthenticatedSupabaseRequest(
-              () => supabase
-                .from('profiles')
-                .insert({ id: user.id, username: user.email?.split('@')[0], role: 'user' }),
-              { requireToken: true }
-            ),
-            {
-              label: 'create default user profile'
-            }
-          );
-          // 创建profile失败时，依然设置默认role，不影响用户使用
-          setUserRole('user');
-        } else {
-          setUserRole(profile.role || 'user');
+        const { profile } = await loadCurrentAccountProfile();
+        if (!cancelled) {
+          setUserRole(profile?.role || 'user');
         }
-
       } catch {
-        setUserRole('user');
+        if (!cancelled) {
+          setUserRole('user');
+        }
       }
     };
 
     fetchUserRole();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, setUserRole]);
 }
 

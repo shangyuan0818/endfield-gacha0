@@ -144,6 +144,97 @@ function createAdminClient({ role = 'super_admin', deleteError = null } = {}) {
   };
 }
 
+function createAdminUserDataClient({ role = 'super_admin', historyDeleteError = null, poolsDeleteError = null } = {}) {
+  const state = {
+    poolFilters: [],
+    historyFilters: [],
+    deleteCalls: [],
+    pools: [
+      {
+        pool_id: 'pool-1',
+        user_id: 'target-user-id',
+        name: '测试卡池',
+        created_at: '2026-06-01T00:00:00.000Z',
+      },
+    ],
+    history: [
+      {
+        record_id: 1,
+        user_id: 'target-user-id',
+        pool_id: 'pool-1',
+        rarity: 6,
+        timestamp: '2026-06-02T00:00:00.000Z',
+      },
+    ],
+  };
+
+  function createSelectQuery(table) {
+    const query = {
+      filters: [],
+      select: vi.fn(() => query),
+      eq: vi.fn((column, value) => {
+        query.filters.push({ column, value });
+        if (table === 'pools') {
+          state.poolFilters.push({ column, value });
+        }
+        if (table === 'history') {
+          state.historyFilters.push({ column, value });
+        }
+        return query;
+      }),
+      order: vi.fn(() => {
+        if (table === 'pools') {
+          return Promise.resolve({ data: state.pools, error: null });
+        }
+        return query;
+      }),
+      limit: vi.fn(async () => ({
+        data: state.history,
+        error: null,
+        count: state.history.length + 10,
+      })),
+    };
+    return query;
+  }
+
+  function createDeleteQuery(table) {
+    const query = {
+      filters: [],
+      eq: vi.fn((column, value) => {
+        query.filters.push({ column, value });
+        return query;
+      }),
+      then(resolve, reject) {
+        state.deleteCalls.push({
+          table,
+          filters: [...query.filters],
+        });
+        const error = table === 'history' ? historyDeleteError : poolsDeleteError;
+        return Promise.resolve({ data: null, error }).then(resolve, reject);
+      },
+    };
+    return query;
+  }
+
+  return {
+    from: vi.fn((table) => {
+      if (table === 'profiles') {
+        return createProfilesQuery(role);
+      }
+
+      if (table === 'pools' || table === 'history') {
+        return {
+          select: (...args) => createSelectQuery(table).select(...args),
+          delete: () => createDeleteQuery(table),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+    __userDataState: state,
+  };
+}
+
 function createPublicCacheBumpAdminClient({
   role = 'super_admin',
   upsertError = null,
@@ -792,6 +883,163 @@ describe('api/admin handler', () => {
         { id: 'user-2', email: 'two@example.com' },
       ],
     });
+  });
+
+  it('loads a target user data sample through the admin user-data route', async () => {
+    const adminClient = createAdminUserDataClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'GET',
+      url: 'https://example.com/api/admin?route=user-data&userId=target-user-id',
+      headers: { authorization: 'Bearer token' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.from).toHaveBeenCalledWith('pools');
+    expect(adminClient.from).toHaveBeenCalledWith('history');
+    expect(adminClient.__userDataState.poolFilters).toContainEqual({
+      column: 'user_id',
+      value: 'target-user-id',
+    });
+    expect(adminClient.__userDataState.historyFilters).toContainEqual({
+      column: 'user_id',
+      value: 'target-user-id',
+    });
+    expect(res.body).toMatchObject({
+      success: true,
+      userId: 'target-user-id',
+      pools: [
+        expect.objectContaining({
+          pool_id: 'pool-1',
+          user_id: 'target-user-id',
+        }),
+      ],
+      history: [
+        expect.objectContaining({
+          record_id: 1,
+          user_id: 'target-user-id',
+        }),
+      ],
+      historyMeta: {
+        sampleLimit: 500,
+        totalCount: 11,
+        loadedCount: 1,
+        isTruncated: true,
+      },
+    });
+  });
+
+  it('deletes only target pool records through the admin user-data route', async () => {
+    const adminClient = createAdminUserDataClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'DELETE',
+      url: 'https://example.com/api/admin?route=user-data',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        action: 'purgePoolRecords',
+        userId: 'target-user-id',
+        poolId: 'pool-1',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.__userDataState.deleteCalls).toEqual([
+      {
+        table: 'history',
+        filters: [
+          { column: 'user_id', value: 'target-user-id' },
+          { column: 'pool_id', value: 'pool-1' },
+        ],
+      },
+    ]);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: 'purgePoolRecords',
+      deleted: {
+        history: true,
+        pools: false,
+      },
+    });
+  });
+
+  it('deletes a target pool and its records through the admin user-data route', async () => {
+    const adminClient = createAdminUserDataClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'DELETE',
+      url: 'https://example.com/api/admin-user-data',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        action: 'deletePool',
+        userId: 'target-user-id',
+        poolId: 'pool-1',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.__userDataState.deleteCalls).toEqual([
+      {
+        table: 'history',
+        filters: [
+          { column: 'user_id', value: 'target-user-id' },
+          { column: 'pool_id', value: 'pool-1' },
+        ],
+      },
+      {
+        table: 'pools',
+        filters: [
+          { column: 'user_id', value: 'target-user-id' },
+          { column: 'pool_id', value: 'pool-1' },
+        ],
+      },
+    ]);
+    expect(res.body).toMatchObject({
+      success: true,
+      action: 'deletePool',
+      poolId: 'pool-1',
+      deleted: {
+        history: true,
+        pools: true,
+      },
+    });
+  });
+
+  it('rejects admin user-data deletion without required pool id', async () => {
+    const adminClient = createAdminUserDataClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      method: 'DELETE',
+      url: 'https://example.com/api/admin?route=user-data',
+      headers: { authorization: 'Bearer token' },
+      body: {
+        action: 'deletePool',
+        userId: 'target-user-id',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Pool ID is required',
+    });
+    expect(adminClient.__userDataState.deleteCalls).toEqual([]);
   });
 
   it('rejects deleting the current super admin', async () => {

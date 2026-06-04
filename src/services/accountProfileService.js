@@ -1,88 +1,98 @@
-import { supabase } from '../supabaseClient.js';
-import { withAuthenticatedSupabaseRequest } from './authFetchService.js';
-import { getPreferredUsername, normalizeUsername } from '../utils/usernameValidation.js';
+import { getSupabaseAccessToken } from './authFetchService.js';
+import { fetchJsonWithTimeout } from './supabaseRequest.js';
+import { normalizeUsername } from '../utils/usernameValidation.js';
 
-function isMissingSupabaseAuthSessionError(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return (
-    error?.name === 'AuthSessionMissingError'
-    || error?.code === 'session_not_found'
-    || message.includes('auth session missing')
-  );
+async function buildAccountProfileHeaders(extraHeaders = {}) {
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  }).catch(() => null);
+
+  const headers = {
+    Accept: 'application/json',
+    ...extraHeaders,
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+  return headers;
+}
+
+function throwAccountProfileError(data, response, fallbackMessage, fallbackCode) {
+  const error = new Error(data?.error || `${fallbackMessage} (${response.status})`);
+  error.code = data?.code || fallbackCode;
+  error.status = response.status;
+  throw error;
+}
+
+function mergeUpdatedUser(user, payloadUser, profile) {
+  const username = profile?.username || payloadUser?.user_metadata?.username || user?.user_metadata?.username || '';
+  return {
+    ...(user || {}),
+    ...(payloadUser || {}),
+    user_metadata: {
+      ...(user?.user_metadata || {}),
+      ...(payloadUser?.user_metadata || {}),
+      username,
+      display_name: username,
+    },
+    profile_role: profile?.role || payloadUser?.profile_role || user?.profile_role || 'user',
+  };
+}
+
+export async function loadCurrentAccountProfile() {
+  const headers = await buildAccountProfileHeaders();
+  const { response, data } = await fetchJsonWithTimeout('/api/account-profile', {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers,
+  }, {
+    label: 'account-profile',
+    timeoutMs: 15000,
+    retries: 1,
+  });
+
+  if (!response.ok || data?.success !== true) {
+    throwAccountProfileError(data, response, '账号资料读取失败', 'account_profile_load_failed');
+  }
+
+  return {
+    profile: data?.profile || null,
+    user: data?.user || null,
+    source: data?.source || 'unknown',
+  };
 }
 
 export async function updateOwnUsername(user, nextUsername) {
-  if (!supabase) {
-    throw new Error('Supabase 未配置，无法修改用户名');
-  }
-
   if (!user?.id) {
     throw new Error('当前登录态已失效，请重新登录后再试');
   }
 
   const normalizedUsername = normalizeUsername(nextUsername);
-  const previousMetadata = {
-    ...(user?.user_metadata || {}),
-  };
-  const previousUsername = getPreferredUsername(user);
+  const headers = await buildAccountProfileHeaders({
+    'Content-Type': 'application/json',
+  });
 
-  let authData = null;
-  let authMetadataUpdated = false;
-  const { data: nextAuthData, error: authError } = await supabase.auth.updateUser({
-    data: {
-      ...previousMetadata,
-      username: normalizedUsername,
-    },
-  }).catch((error) => ({ data: null, error }));
+  const { response, data } = await fetchJsonWithTimeout('/api/account-profile', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({ username: normalizedUsername }),
+  }, {
+    label: 'account-profile-update',
+    timeoutMs: 15000,
+    retries: 0,
+  });
 
-  if (authError && !isMissingSupabaseAuthSessionError(authError)) {
-    throw authError;
+  if (!response.ok || data?.success !== true) {
+    throwAccountProfileError(data, response, '用户名保存失败', 'account_profile_update_failed');
   }
 
-  if (!authError) {
-    authData = nextAuthData;
-    authMetadataUpdated = true;
-  }
-
-  const { error: profileError } = await withAuthenticatedSupabaseRequest(
-    () => supabase
-      .from('profiles')
-      .update({ username: normalizedUsername })
-      .eq('id', user.id),
-    { requireToken: true }
-  );
-
-  if (profileError) {
-    // Best-effort rollback to avoid auth metadata/profile divergence.
-    if (authMetadataUpdated) {
-      await supabase.auth.updateUser({
-        data: {
-          ...previousMetadata,
-          username: previousUsername,
-        },
-      }).catch(() => null);
-    }
-    throw profileError;
-  }
-
-  if (!authMetadataUpdated) {
-    await supabase.auth.updateUser({
-      data: {
-        ...previousMetadata,
-        username: normalizedUsername,
-      },
-    }).catch(() => null);
-  }
-
-  return authData?.user || {
-    ...user,
-    user_metadata: {
-      ...previousMetadata,
-      username: normalizedUsername,
-    },
-  };
+  return mergeUpdatedUser(user, data?.user || null, data?.profile || null);
 }
 
 export default {
+  loadCurrentAccountProfile,
   updateOwnUsername,
 };

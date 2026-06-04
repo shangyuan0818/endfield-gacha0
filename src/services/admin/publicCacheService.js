@@ -1,4 +1,3 @@
-import { supabase } from '../../supabaseClient.js';
 import { fetchWithTimeout } from '../supabaseRequest.js';
 import appLogger from '../../utils/appLogger.js';
 import { getSupabaseAccessToken } from '../authFetchService.js';
@@ -50,20 +49,23 @@ function getAnalyticsRefreshWarning(analyticsRefresh) {
 }
 
 export async function bumpPublicCache(scope = 'public', reason = 'admin') {
-  if (!supabase) {
-    throw new Error('Supabase 未配置，无法刷新公共缓存版本');
-  }
-
-  const token = await getSupabaseAccessToken();
-  if (!token) {
-    throw new Error('未登录或会话已过期');
+  const token = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
 
   const response = await fetchWithTimeout('/api/admin-public-cache-bump', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
+      ...headers,
     },
     body: JSON.stringify({ scope, reason }),
   }, {

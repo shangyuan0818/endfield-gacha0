@@ -3,7 +3,7 @@
  *
  * 主同步路径统一为：
  * - `useCloudSync`
- * - `cloudWriteService`
+ * - `accountGachaDataService`
  *
  * 保留一个空壳导出，仅用于兼容历史导入路径，避免残留引用在编译阶段直接报错。
  */

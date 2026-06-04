@@ -1,7 +1,10 @@
 import { fetchVisiblePools } from './publicCatalog.js';
-
-const HOME_NEXT_VERSION_TARGET_CONFIG_KEY = 'home_next_version_target_at';
-const DEFAULT_HOME_NEXT_VERSION_TARGET_DATE = '2026-06-05T12:00:00+08:00';
+import {
+  DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+  HOME_NEXT_VERSION_TARGET_CONFIG_KEY,
+  HOME_VERSION_TIMELINE_CONFIG_KEY,
+  resolveHomeVersionPlan,
+} from '../../src/utils/homeVersionTimeline.js';
 
 function normalizePoolType(type) {
   if (type === 'limited_character' || type === 'limited') return 'limited';
@@ -86,7 +89,7 @@ export async function fetchSiteOverview(adminClient, { siteUrl = '' } = {}) {
     adminClient
       .from('site_config')
       .select('key, value')
-      .in('key', [HOME_NEXT_VERSION_TARGET_CONFIG_KEY]),
+      .in('key', [HOME_NEXT_VERSION_TARGET_CONFIG_KEY, HOME_VERSION_TIMELINE_CONFIG_KEY]),
     fetchVisiblePools(adminClient),
   ]);
 
@@ -95,9 +98,12 @@ export async function fetchSiteOverview(adminClient, { siteUrl = '' } = {}) {
   }
 
   const siteConfigMap = new Map((siteConfigResult.data || []).map((row) => [row.key, row.value]));
-  const nextVersionTargetAt = String(
-    siteConfigMap.get(HOME_NEXT_VERSION_TARGET_CONFIG_KEY) || DEFAULT_HOME_NEXT_VERSION_TARGET_DATE
-  );
+  const versionPlan = resolveHomeVersionPlan({
+    timelineConfig: siteConfigMap.get(HOME_VERSION_TIMELINE_CONFIG_KEY),
+    legacyTargetAt: siteConfigMap.get(HOME_NEXT_VERSION_TARGET_CONFIG_KEY) || DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
+    locale: 'zh-CN',
+  });
+  const nextVersionTargetAt = versionPlan.targetAt;
 
   const nowMs = Date.now();
   const visiblePools = Array.isArray(pools) ? pools : [];
@@ -120,6 +126,9 @@ export async function fetchSiteOverview(adminClient, { siteUrl = '' } = {}) {
     site_url: siteUrl,
     next_version: {
       target_at: nextVersionTargetAt,
+      name: versionPlan.countdownVersion?.name || null,
+      name_en: versionPlan.countdownVersion?.nameEn || null,
+      source: versionPlan.source,
       countdown: buildCountdownParts(parseDateMs(nextVersionTargetAt), nowMs),
     },
     current_limited_pool: simplifyPool(currentLimitedPool, nowMs),

@@ -1,13 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../supabaseClient.js', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-    },
-  },
-}));
-
 vi.mock('../../supabaseRequest.js', () => ({
   fetchWithTimeout: vi.fn(),
 }));
@@ -23,7 +15,6 @@ vi.mock('../../../utils/appLogger.js', () => ({
   },
 }));
 
-import { supabase } from '../../../supabaseClient.js';
 import { getSupabaseAccessToken } from '../../authFetchService.js';
 import { fetchWithTimeout } from '../../supabaseRequest.js';
 import {
@@ -42,13 +33,6 @@ function mockJsonResponse(payload, ok = true, status = 200) {
 describe('publicCacheService warning subscriptions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    supabase.auth.getSession.mockResolvedValue({
-      data: {
-        session: {
-          access_token: 'test-access-token',
-        },
-      },
-    });
     getSupabaseAccessToken.mockResolvedValue('test-access-token');
   });
 

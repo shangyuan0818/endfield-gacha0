@@ -49,16 +49,20 @@ const EMPTY_ACCOUNT_SECURITY_STATE = Object.freeze({
 });
 
 export async function loadAccountSecurityState() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    return EMPTY_ACCOUNT_SECURITY_STATE;
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {};
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const { response, data: payload } = await fetchJsonWithTimeout('/api/account-security-state', {
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
   }, {
     label: 'account-security-state',
     timeoutMs: 20000,
@@ -66,6 +70,9 @@ export async function loadAccountSecurityState() {
   });
 
   if (!response.ok || payload?.success !== true) {
+    if (response.status === 401 || response.status === 403) {
+      return EMPTY_ACCOUNT_SECURITY_STATE;
+    }
     throw new Error(payload?.error || 'Failed to load account security state');
   }
 
@@ -73,17 +80,22 @@ export async function loadAccountSecurityState() {
 }
 
 export async function clearPasswordChangeRequired() {
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    return EMPTY_ACCOUNT_SECURITY_STATE;
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const { response, data: payload } = await fetchJsonWithTimeout('/api/account-security-state', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       action: 'clear_password_change_required',
     }),
@@ -94,6 +106,9 @@ export async function clearPasswordChangeRequired() {
   });
 
   if (!response.ok || payload?.success !== true) {
+    if (response.status === 401 || response.status === 403) {
+      return EMPTY_ACCOUNT_SECURITY_STATE;
+    }
     throw new Error(payload?.error || 'Failed to clear account security state');
   }
 
@@ -182,17 +197,22 @@ export async function setupPasswordForOAuthAccount({
 }) {
   await checkAuthActionRateLimit('change_password');
 
-  const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) {
-    throw new Error('当前登录已失效，请重新登录后重试');
+  const accessToken = await getSupabaseAccessToken({
+    syncSiteSession: false,
+    useSiteSessionCache: true,
+    allowSiteSessionToken: false,
+  });
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   const { response, data: payload } = await fetchJsonWithTimeout('/api/account-password-setup', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    credentials: 'same-origin',
+    headers,
     body: JSON.stringify({
       newPassword,
     }),
