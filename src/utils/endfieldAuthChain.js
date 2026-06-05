@@ -112,6 +112,7 @@ async function getCurrentAccessToken(options = {}) {
       syncSiteSession: true,
       useSiteSessionCache: !options.forceRefresh,
       allowSiteSessionToken: options.allowSiteSessionToken !== false,
+      preferSiteSessionToken: options.preferSiteSessionToken === true,
     });
   } catch (error) {
     throw new AuthChainError(error?.message || '获取登录状态失败', 'session');
@@ -645,6 +646,7 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
   const authHeaders = await getAuthHeaders(true, {
     forceRefresh: true,
     allowSiteSessionToken: true,
+    preferSiteSessionToken: true,
   });
 
   if (onProgress) {

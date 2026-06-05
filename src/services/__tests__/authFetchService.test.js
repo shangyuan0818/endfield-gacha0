@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { supabase } from '../../supabaseClient.js';
 import {
@@ -21,6 +22,29 @@ vi.mock('../../supabaseClient.js', () => ({
 vi.mock('../siteSessionService.js', () => ({
   getCurrentSiteSession: vi.fn(),
 }));
+
+function toBase64UrlJson(value) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function createSiteSessionCompatToken() {
+  return [
+    toBase64UrlJson({ alg: 'HS256', typ: 'JWT' }),
+    toBase64UrlJson({
+      sub: 'user-1',
+      aud: 'authenticated',
+      role: 'authenticated',
+      app_metadata: {
+        provider: 'site_session',
+      },
+      user_metadata: {
+        site_session: true,
+      },
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }),
+    'signature',
+  ].join('.');
+}
 
 describe('authFetchService', () => {
   beforeEach(() => {
@@ -72,6 +96,60 @@ describe('authFetchService', () => {
 
     await expect(getSupabaseAccessToken()).resolves.toBe('native-token');
     expect(getCurrentSiteSession).not.toHaveBeenCalled();
+  });
+
+  it('refreshes a Supabase-cached site-session token through the site session endpoint', async () => {
+    getCurrentSiteSession.mockResolvedValue({
+      authenticated: true,
+      supabase: {
+        accessToken: 'fresh-site-session-token',
+      },
+    });
+    supabase.auth.getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: createSiteSessionCompatToken(),
+          user: {
+            id: 'user-1',
+          },
+        },
+      },
+    });
+    supabase.auth.getUser.mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-1',
+        },
+      },
+    });
+
+    await expect(getSupabaseAccessToken()).resolves.toBe('fresh-site-session-token');
+    expect(getCurrentSiteSession).toHaveBeenCalledWith({
+      syncSupabase: false,
+      useCache: true,
+    });
+  });
+
+  it('can explicitly prefer a fresh site-session token over a native Supabase token', async () => {
+    getCurrentSiteSession.mockResolvedValue({
+      authenticated: true,
+      supabase: {
+        accessToken: 'fresh-site-session-token',
+      },
+    });
+    supabase.auth.getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'native-token',
+          user: {
+            id: 'user-1',
+          },
+        },
+      },
+    });
+
+    await expect(getSupabaseAccessToken({ preferSiteSessionToken: true })).resolves.toBe('fresh-site-session-token');
+    expect(supabase.auth.getSession).not.toHaveBeenCalled();
   });
 
   it('uses a verified Supabase client token when no site session is needed', async () => {

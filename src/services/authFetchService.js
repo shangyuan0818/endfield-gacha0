@@ -5,6 +5,58 @@ async function clearInvalidSupabaseSession() {
   await supabase?.auth?.signOut?.({ scope: 'local' }).catch(() => null);
 }
 
+function decodeJwtPayload(accessToken = '') {
+  const [, payloadPart] = String(accessToken || '').split('.');
+  if (!payloadPart) {
+    return null;
+  }
+
+  try {
+    const normalized = payloadPart
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(Math.ceil(payloadPart.length / 4) * 4, '=');
+    const decoded = typeof atob === 'function'
+      ? atob(normalized)
+      : globalThis.Buffer?.from?.(normalized, 'base64')?.toString?.('binary');
+    if (!decoded) {
+      return null;
+    }
+    const json = decodeURIComponent(
+      Array.from(decoded, (char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function isSiteSessionCompatToken(accessToken = '') {
+  const payload = decodeJwtPayload(accessToken);
+  return Boolean(
+    payload?.user_metadata?.site_session === true
+    || payload?.app_metadata?.provider === 'site_session'
+  );
+}
+
+async function getSiteSessionAccessToken({
+  useSiteSessionCache = true,
+  allowSiteSessionToken = true,
+} = {}) {
+  const siteSession = await getCurrentSiteSession({
+    syncSupabase: false,
+    useCache: useSiteSessionCache,
+  }).catch(() => null);
+  const siteSessionToken = allowSiteSessionToken ? siteSession?.supabase?.accessToken || null : null;
+  if (siteSessionToken) {
+    return siteSessionToken;
+  }
+  if (siteSession?.authenticated) {
+    return null;
+  }
+  return null;
+}
+
 export async function getValidatedSupabaseSession() {
   if (!supabase) {
     return null;
@@ -38,27 +90,43 @@ export async function getSupabaseAccessToken({
   syncSiteSession = true,
   useSiteSessionCache = true,
   allowSiteSessionToken = true,
+  preferSiteSessionToken = false,
 } = {}) {
   if (!supabase) {
     return null;
   }
 
+  if (syncSiteSession && allowSiteSessionToken && preferSiteSessionToken) {
+    const siteSessionToken = await getSiteSessionAccessToken({
+      useSiteSessionCache,
+      allowSiteSessionToken,
+    });
+    if (siteSessionToken) {
+      return siteSessionToken;
+    }
+  }
+
   const nativeSession = await getValidatedSupabaseSession();
   if (nativeSession?.access_token) {
+    if (syncSiteSession && allowSiteSessionToken && isSiteSessionCompatToken(nativeSession.access_token)) {
+      const siteSessionToken = await getSiteSessionAccessToken({
+        useSiteSessionCache,
+        allowSiteSessionToken,
+      });
+      if (siteSessionToken) {
+        return siteSessionToken;
+      }
+    }
     return nativeSession.access_token;
   }
 
   if (syncSiteSession) {
-    const siteSession = await getCurrentSiteSession({
-      syncSupabase: false,
-      useCache: useSiteSessionCache,
-    }).catch(() => null);
-    const siteSessionToken = allowSiteSessionToken ? siteSession?.supabase?.accessToken || null : null;
+    const siteSessionToken = await getSiteSessionAccessToken({
+      useSiteSessionCache,
+      allowSiteSessionToken,
+    });
     if (siteSessionToken) {
       return siteSessionToken;
-    }
-    if (siteSession?.authenticated) {
-      return null;
     }
   }
 
@@ -70,6 +138,7 @@ export async function getAuthFetchHeaders(baseHeaders = {}, {
   syncSiteSession = true,
   useSiteSessionCache = true,
   allowSiteSessionToken = true,
+  preferSiteSessionToken = false,
 } = {}) {
   const headers = {
     ...baseHeaders,
@@ -78,6 +147,7 @@ export async function getAuthFetchHeaders(baseHeaders = {}, {
     syncSiteSession,
     useSiteSessionCache,
     allowSiteSessionToken,
+    preferSiteSessionToken,
   });
 
   if (accessToken && !headers.Authorization && !headers.authorization) {
