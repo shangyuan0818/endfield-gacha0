@@ -37,7 +37,7 @@ const SklandImageImportDialog = ({
 
           <div className="p-4 space-y-4">
             <div className="rounded border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/10 px-3 py-3 text-sm text-orange-700 dark:text-orange-300">
-              这是一条浏览器侧辅助导入链，不直接服务端抓取森空岛。流程是：打开图鉴页，在控制台执行提取脚本，复制 JSON，回到这里粘贴后批量写回 `avatar_url`。也可使用 `npm run fetch:skland-images` 自动抓取图片到 `public/avatars` 并写回本地静态路径；`npm run sync:local-avatars` 现已改为“森空岛官方 Wiki 主源 + Team Stardust 图鉴兜底”的本地静态头像同步链。
+              {'这是一条浏览器侧辅助导入链，不直接服务端抓取森空岛。流程是：打开图鉴页，在控制台执行提取脚本，复制 JSON，回到这里粘贴后批量写回 `avatar_url`。也可使用 `npm run fetch:skland-images` 或 `npm run sync:local-avatars` 自动抓取图片到 `public/avatars` 并写回本地静态路径；本地同步链默认增量更新，来源优先级为“森空岛官方 Wiki > warfarin.wiki > Team Stardust > 旧 avatars bucket”。'}
             </div>
 
             <ol className="list-decimal pl-5 space-y-2 text-sm text-slate-600 dark:text-zinc-400">
