@@ -428,6 +428,73 @@ function splitHistoryUpsertGroups(records) {
   return { compositeKeyRecords, legacyRecords };
 }
 
+const HISTORY_OPTIONAL_COLUMNS = ['character_id', 'server_id', 'region'];
+
+function detectMissingHistoryOptionalColumn(error) {
+  const message = String(error?.message || '');
+
+  for (const column of HISTORY_OPTIONAL_COLUMNS) {
+    if (
+      message.includes(`history.${column} does not exist`)
+      || message.includes(`Could not find the '${column}' column`)
+    ) {
+      return column;
+    }
+  }
+
+  return null;
+}
+
+function omitHistoryColumns(rows, omittedColumns) {
+  if (!omittedColumns.length) {
+    return rows;
+  }
+
+  return rows.map((row) => {
+    const nextRow = { ...row };
+    omittedColumns.forEach((column) => {
+      delete nextRow[column];
+    });
+    return nextRow;
+  });
+}
+
+async function upsertHistoryGroupsWithOptionalColumnFallback(supabase, upsertGroups) {
+  const supportedOptionalColumns = new Set(HISTORY_OPTIONAL_COLUMNS);
+
+  for (const group of upsertGroups) {
+    if (group.rows.length === 0) continue;
+
+    let pendingRows = omitHistoryColumns(
+      group.rows,
+      HISTORY_OPTIONAL_COLUMNS.filter(column => !supportedOptionalColumns.has(column))
+    );
+
+    while (true) {
+      // eslint-disable-next-line no-await-in-loop -- schema fallback must retry the same group with fewer columns
+      const result = await supabase
+        .from('history')
+        .upsert(pendingRows, { onConflict: group.onConflict });
+
+      if (!result.error) {
+        break;
+      }
+
+      const missingColumn = detectMissingHistoryOptionalColumn(result.error);
+      if (!missingColumn || !supportedOptionalColumns.has(missingColumn)) {
+        throw result.error;
+      }
+
+      supportedOptionalColumns.delete(missingColumn);
+      console.warn(`[FullImportService] history.${missingColumn} 不存在，当前批次将按旧表结构保存`);
+      pendingRows = omitHistoryColumns(
+        group.rows,
+        HISTORY_OPTIONAL_COLUMNS.filter(column => !supportedOptionalColumns.has(column))
+      );
+    }
+  }
+}
+
 /**
  * 归一化 isStandard 字段（与前端 poolUtils.js 保持一致）
  * 注意：API 原始数据使用驼峰命名 (rarity/charId)，需要兼容两种格式
@@ -656,21 +723,11 @@ async function saveHistoryToServer(records, userId) {
           { rows: legacyRecords, onConflict: 'user_id,record_id' }
         ];
 
-        let error = null;
-        for (const group of upsertGroups) {
-          if (group.rows.length === 0) continue;
-
-          const result = await supabase
-            .from('history')
-            .upsert(group.rows, { onConflict: group.onConflict });
-
-          if (result.error) {
-            error = result.error;
-            break;
-          }
-        }
-
-        if (error) {
+        try {
+          await upsertHistoryGroupsWithOptionalColumnFallback(supabase, upsertGroups);
+          success = true;
+          savedCount += batch.length;
+        } catch (error) {
           lastError = error;
           // 检查是否是 pity 约束错误
           if (error.message.includes('pity_check') || error.message.includes('pity')) {
@@ -688,17 +745,10 @@ async function saveHistoryToServer(records, userId) {
             ];
 
             let retryError = null;
-            for (const group of retryGroups) {
-              if (group.rows.length === 0) continue;
-
-              const result = await supabase
-                .from('history')
-                .upsert(group.rows, { onConflict: group.onConflict });
-
-              if (result.error) {
-                retryError = result.error;
-                break;
-              }
+            try {
+              await upsertHistoryGroupsWithOptionalColumnFallback(supabase, retryGroups);
+            } catch (err) {
+              retryError = err;
             }
 
             if (!retryError) {
@@ -713,9 +763,6 @@ async function saveHistoryToServer(records, userId) {
             console.warn(`[FullImportService] 批次 ${batchIndex} 失败，${retry + 1}/${maxRetries} 次重试: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, 1000 * (retry + 1))); // 递增延迟
           }
-        } else {
-          success = true;
-          savedCount += batch.length;
         }
       } catch (err) {
         lastError = err;

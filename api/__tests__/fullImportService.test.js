@@ -520,6 +520,225 @@ describe('executeFullImport import mode metadata', () => {
     expect(updateProgress).toHaveBeenCalledWith({ progress: 100, message: '导入完成' });
   });
 
+  it('falls back to legacy history schema when character_id is absent', async () => {
+    const operations = [];
+    const insertedPoolIds = new Set();
+    let historyUpsertAttempts = 0;
+    const rpc = vi.fn(async () => ({
+      data: {
+        refreshedPools: 1,
+        refreshedTrendRows: 3,
+        updatedAt: '2026-06-05T12:00:00.000Z',
+      },
+      error: null,
+    }));
+
+    mockSupabaseClient = {
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => ({
+            data: { user: { id: '00000000-0000-0000-0000-000000000001' } },
+            error: null,
+          })),
+        },
+      },
+      rpc,
+      __operations: operations,
+      from(tableName) {
+        if (tableName === 'pool_id_aliases' || tableName === 'character_id_aliases') {
+          return {
+            select() {
+              return {
+                in: async () => ({ data: [], error: null }),
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'pools') {
+          return {
+            select() {
+              return {
+                in: async (_column, values) => ({
+                  data: (values || [])
+                    .filter((poolId) => insertedPoolIds.has(String(poolId)))
+                    .map((poolId) => ({ pool_id: String(poolId) })),
+                  error: null,
+                }),
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              (rows || []).forEach((row) => insertedPoolIds.add(String(row.pool_id)));
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'history') {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    eq() {
+                      return {
+                        range: async () => ({ data: [], error: null }),
+                      };
+                    },
+                  };
+                },
+              };
+            },
+            async upsert(rows) {
+              historyUpsertAttempts += 1;
+              operations.push({
+                tableName,
+                action: 'upsert',
+                count: rows.length,
+                hasCharacterId: Object.prototype.hasOwnProperty.call(rows[0] || {}, 'character_id'),
+                hasServerId: Object.prototype.hasOwnProperty.call(rows[0] || {}, 'server_id'),
+                hasRegion: Object.prototype.hasOwnProperty.call(rows[0] || {}, 'region'),
+              });
+              if (historyUpsertAttempts === 1) {
+                return {
+                  error: {
+                    message: "Could not find the 'character_id' column of 'history' in the schema cache",
+                  },
+                };
+              }
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'characters') {
+          return {
+            select() {
+              return {
+                limit: async () => ({ data: [], error: null }),
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'profiles') {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    maybeSingle: async () => ({
+                      data: { id: '00000000-0000-0000-0000-000000000001' },
+                      error: null,
+                    }),
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        throw new Error(`Unexpected table access: ${tableName}`);
+      },
+    };
+
+    const { executeFullImport, initSupabaseAdmin } = await import('../../backend/fullImportService.js');
+
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    const result = await executeFullImport({
+      token: 'AbCdEfGhIjKlMnOpQrStUvWx',
+      accountIndex: 0,
+      userId: '00000000-0000-0000-0000-000000000001',
+      updateProgress: vi.fn(),
+      authChainFunctions: {
+        grantAppToken: vi.fn(async () => ({
+          success: true,
+          data: { token: 'app-token' },
+        })),
+        fetchBindingList: vi.fn(async () => ({
+          success: true,
+          data: {
+            accounts: [{
+              uid: 'hg-uid',
+              gameUid: '10000001',
+              nickName: '测试账号',
+              serverId: '1',
+            }],
+          },
+        })),
+        fetchU8TokenByUid: vi.fn(async () => ({
+          success: true,
+          data: { token: 'u8-token' },
+        })),
+        fetchAllRecordsConcurrent: vi.fn(async () => ({
+          success: true,
+          data: {
+            totalRecords: 1,
+            partial: [],
+            failed: [],
+            results: [{
+              type: 'char',
+              poolType: 'E_CharacterGachaPoolType_Special',
+              currentUpCharacter: '测试角色',
+              records: [{
+                poolId: 'special_1_2_1',
+                poolName: '测试限定池',
+                seqId: '1',
+                charId: 'char_test',
+                charName: '测试角色',
+                rarity: 6,
+                gachaTs: '1767225600000',
+                isFree: false,
+                isNew: true,
+              }],
+            }],
+          },
+        })),
+      },
+      source: 'cn',
+      importMode: 'full',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toMatchObject({
+      newRecords: 1,
+      savedRecords: 1,
+    });
+    expect(historyUpsertAttempts).toBe(2);
+    expect(operations).toEqual([
+      { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'pool_id_aliases', action: 'upsert', count: 2 },
+      { tableName: 'characters', action: 'upsert', count: 1 },
+      { tableName: 'character_id_aliases', action: 'upsert', count: 2 },
+      {
+        tableName: 'history',
+        action: 'upsert',
+        count: 1,
+        hasCharacterId: true,
+        hasServerId: true,
+        hasRegion: true,
+      },
+      {
+        tableName: 'history',
+        action: 'upsert',
+        count: 1,
+        hasCharacterId: false,
+        hasServerId: true,
+        hasRegion: true,
+      },
+    ]);
+  });
+
   it('passes existing official record keys to incremental fetch and reuses them for dedupe', async () => {
     const operations = [];
     const insertedPoolIds = new Set();
