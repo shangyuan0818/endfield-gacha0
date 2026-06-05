@@ -59,7 +59,7 @@ describe('endfieldAuthChain auth headers', () => {
       syncSiteSession: true,
       useSiteSessionCache: true,
       allowSiteSessionToken: true,
-      preferSiteSessionToken: false,
+      preferSiteSessionToken: true,
     });
     const [requestUrl, requestInit, requestOptions] = fetchWithTimeout.mock.calls[0];
     const parsedUrl = new URL(requestUrl, 'http://localhost');
@@ -95,13 +95,13 @@ describe('endfieldAuthChain auth headers', () => {
       syncSiteSession: true,
       useSiteSessionCache: true,
       allowSiteSessionToken: true,
-      preferSiteSessionToken: false,
+      preferSiteSessionToken: true,
     });
     expect(getSupabaseAccessToken).toHaveBeenNthCalledWith(2, {
       syncSiteSession: true,
       useSiteSessionCache: false,
       allowSiteSessionToken: true,
-      preferSiteSessionToken: false,
+      preferSiteSessionToken: true,
     });
     const [, requestInit] = fetchWithTimeout.mock.calls[0];
     expect(requestInit).toEqual({

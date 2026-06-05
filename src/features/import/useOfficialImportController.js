@@ -23,6 +23,35 @@ import {
 import { useI18n } from '../../i18n/index.js';
 import appLogger from '../../utils/appLogger.js';
 
+function getAuthDiagnosticMessage(reason) {
+  switch (reason) {
+    case 'compat_jwt_secret_missing':
+      return '导入后端未配置站内会话校验密钥';
+    case 'compat_jwt_signature_mismatch':
+      return '导入后端与主站会话密钥不一致';
+    case 'compat_jwt_expired':
+      return '导入登录令牌已过期，或后端服务器时间不同步';
+    case 'compat_jwt_user_not_found':
+      return '导入后端连接的账号数据库与主站不一致，或账号记录缺失';
+    case 'compat_jwt_not_site_session':
+      return '导入后端收到的不是本站会话令牌';
+    case 'access_token_malformed':
+      return '导入后端收到的登录令牌格式不完整';
+    default:
+      return '';
+  }
+}
+
+function appendAuthDiagnostic(errorMessage, err) {
+  const reason = err?.data?.auth?.reason || err?.data?.data?.auth?.reason || '';
+  if (!reason) {
+    return errorMessage;
+  }
+
+  const readable = getAuthDiagnosticMessage(reason) || reason;
+  return `${errorMessage}（诊断：${readable} / ${reason}）`;
+}
+
 function normalizeImportError(err, t) {
   let errorMessage = err.message || t('import.error.unknown');
 
@@ -34,7 +63,7 @@ function normalizeImportError(err, t) {
     errorMessage = t('import.error.authFailed', { message: err.message });
   }
 
-  return errorMessage;
+  return appendAuthDiagnostic(errorMessage, err);
 }
 
 function looksLikeTokenInvalidError(message) {

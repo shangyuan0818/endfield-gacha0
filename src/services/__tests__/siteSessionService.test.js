@@ -120,6 +120,15 @@ describe('siteSessionService', () => {
     expect(result.authenticated).toBe(true);
     expect(result.supabaseSessionSynced).toBe(false);
     expect(supabase.auth.setSession).not.toHaveBeenCalled();
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/auth\/session\?_/), expect.objectContaining({
+      cache: 'no-store',
+      headers: expect.objectContaining({
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
+      }),
+    }), expect.objectContaining({
+      label: 'auth-session',
+    }));
   });
 
   it('syncs authenticated site sessions back to the Supabase client only when explicitly requested', async () => {

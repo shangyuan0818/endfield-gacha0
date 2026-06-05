@@ -576,9 +576,13 @@ export async function fetchImportQueueStatus(source = 'cn') {
   }
 }
 
-export async function fetchFullImportStatus(taskId, source = 'cn') {
+export async function fetchFullImportStatus(taskId, source = 'cn', options = {}) {
   const proxyBase = getProxyBase(source);
-  const authHeaders = await getAuthHeaders(true);
+  const authHeaders = await getAuthHeaders(true, {
+    forceRefresh: options.forceRefresh === true,
+    allowSiteSessionToken: true,
+    preferSiteSessionToken: true,
+  });
   const response = await fetchWithTimeout(`${proxyBase}?action=import-status&taskId=${encodeURIComponent(taskId)}&source=${encodeURIComponent(normalizeImportSource(source))}`, {
     headers: authHeaders
   }, {
@@ -598,6 +602,7 @@ export async function fetchFullImportStatus(taskId, source = 'cn') {
 async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300000, source = 'cn') {
   const startTime = Date.now();
   const pollInterval = 2000;
+  let authRefreshRetried = false;
 
   while (Date.now() - startTime < maxWaitTime) {
     try {
@@ -624,6 +629,24 @@ async function pollFullImportUntilComplete(taskId, onProgress, maxWaitTime = 300
       await delay(pollInterval);
     } catch (error) {
       if (error instanceof AuthChainError) {
+        const reason = error?.data?.auth?.reason || '';
+        if (
+          error.step === 'import-status' &&
+          !authRefreshRetried &&
+          (
+            error.data?.code === 'AUTH_SESSION_INVALID' ||
+            reason.startsWith('compat_jwt_') ||
+            reason === 'access_token_malformed'
+          )
+        ) {
+          authRefreshRetried = true;
+          appLogger.warn('[pollFullImportUntilComplete] 登录令牌校验失败，刷新后重试一次...', reason || error.message);
+          // eslint-disable-next-line no-await-in-loop -- one forced auth refresh belongs to the current polling task
+          await fetchFullImportStatus(taskId, source, { forceRefresh: true });
+          // eslint-disable-next-line no-await-in-loop -- retry pacing is intentionally sequential
+          await delay(pollInterval);
+          continue;
+        }
         throw error;
       }
 

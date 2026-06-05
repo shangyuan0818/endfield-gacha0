@@ -25,6 +25,16 @@ import { fetchWithNetworkRetry } from './lib/networkFetch.js';
 // Supabase Admin 客户端（需要 SUPABASE_SECRET_KEY；旧 service_role_key 仍兼容）
 let supabaseAdmin = null;
 
+export class AuthTokenVerificationError extends Error {
+  constructor(code, message = 'Invalid or expired session', details = {}) {
+    super(message);
+    this.name = 'AuthTokenVerificationError';
+    this.code = code;
+    this.publicCode = code;
+    this.publicDetails = sanitizeAuthVerificationDetails(details);
+  }
+}
+
 export const FULL_IMPORT_MODES = {
   INCREMENTAL: 'incremental',
   FULL: 'full',
@@ -86,6 +96,27 @@ function base64UrlToJson(value) {
   }
 }
 
+function sanitizeAuthVerificationDetails(details = {}) {
+  const sanitized = {};
+  if (Number.isFinite(Number(details.exp))) {
+    sanitized.exp = Number(details.exp);
+  }
+  if (Number.isFinite(Number(details.now))) {
+    sanitized.now = Number(details.now);
+  }
+  if (Number.isFinite(Number(details.secondsSinceExpiry))) {
+    sanitized.secondsSinceExpiry = Number(details.secondsSinceExpiry);
+  }
+  if (details.tokenKind) {
+    sanitized.tokenKind = String(details.tokenKind).slice(0, 80);
+  }
+  return sanitized;
+}
+
+function createAuthTokenError(code, details = {}) {
+  return new AuthTokenVerificationError(code, 'Invalid or expired session', details);
+}
+
 function hmacBase64Url(value, secret) {
   return createHmac('sha256', secret)
     .update(value)
@@ -101,16 +132,16 @@ function signaturesMatch(actualSignature, expectedSignature) {
 async function loadUserByVerifiedJwtPayload(supabase, payload) {
   const userId = normalizeString(payload?.sub, 128);
   if (!userId) {
-    throw new Error('Invalid access token');
+    throw createAuthTokenError('compat_jwt_missing_subject');
   }
 
-  const { data: authData, error: authUserError } = await supabase.auth.admin.getUserById(userId);
+  const { data: authData } = await supabase.auth.admin.getUserById(userId);
   const authUser = authData?.user || authData || null;
   if (authUser?.id) {
     return authUser;
   }
 
-  const { data: profile, error: profileError } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
     .select('id, email, username, role')
     .eq('id', userId)
@@ -130,45 +161,67 @@ async function loadUserByVerifiedJwtPayload(supabase, payload) {
     };
   }
 
-  throw new Error(authUserError?.message || profileError?.message || 'Invalid access token');
+  throw createAuthTokenError('compat_jwt_user_not_found');
 }
 
 async function verifySiteSessionCompatToken(supabase, accessToken) {
   const jwtSecret = normalizeString(process.env.SUPABASE_JWT_SECRET || '');
   if (!jwtSecret) {
-    throw new Error('Site session token verification is not configured');
+    throw createAuthTokenError('compat_jwt_secret_missing');
   }
 
   const parts = normalizeString(accessToken, 8192).split('.');
   if (parts.length !== 3) {
-    throw new Error('Invalid access token');
+    throw createAuthTokenError('access_token_malformed');
   }
 
   const [encodedHeader, encodedPayload, signature] = parts;
   const header = base64UrlToJson(encodedHeader);
   const payload = base64UrlToJson(encodedPayload);
   if (header?.alg !== 'HS256' || !payload) {
-    throw new Error('Invalid access token');
+    throw createAuthTokenError('compat_jwt_invalid_header_or_payload');
   }
 
   const unsigned = `${encodedHeader}.${encodedPayload}`;
   const expectedSignature = hmacBase64Url(unsigned, jwtSecret);
   if (!signaturesMatch(signature, expectedSignature)) {
-    throw new Error('Invalid access token');
+    const tokenKind = payload?.user_metadata?.site_session === true || payload?.app_metadata?.provider === 'site_session'
+      ? 'site_session'
+      : 'non_site_session';
+    throw createAuthTokenError('compat_jwt_signature_mismatch', { tokenKind });
   }
 
   const nowSeconds = Math.floor(Date.now() / 1000);
   if (!Number.isFinite(Number(payload.exp)) || Number(payload.exp) <= nowSeconds) {
-    throw new Error('Invalid or expired session');
+    throw createAuthTokenError('compat_jwt_expired', {
+      exp: Number(payload.exp),
+      now: nowSeconds,
+      secondsSinceExpiry: nowSeconds - Number(payload.exp || 0),
+    });
   }
   if (payload.aud !== 'authenticated' || payload.role !== 'authenticated') {
-    throw new Error('Invalid access token');
+    throw createAuthTokenError('compat_jwt_invalid_claims');
   }
   if (payload.user_metadata?.site_session !== true && payload.app_metadata?.provider !== 'site_session') {
-    throw new Error('Invalid access token');
+    throw createAuthTokenError('compat_jwt_not_site_session');
   }
 
   return loadUserByVerifiedJwtPayload(supabase, payload);
+}
+
+export function getAuthVerificationPublicDetails(error) {
+  if (error instanceof AuthTokenVerificationError || error?.publicCode) {
+    return {
+      reason: error.publicCode || error.code || 'auth_session_invalid',
+      ...(error.publicDetails && Object.keys(error.publicDetails).length > 0
+        ? { details: error.publicDetails }
+        : {}),
+    };
+  }
+
+  return {
+    reason: 'auth_session_invalid',
+  };
 }
 
 /**

@@ -92,6 +92,116 @@ describe('verifySupabaseAccessToken', () => {
     expect(mockSupabaseClient.auth.getUser).toHaveBeenCalledWith(token);
     expect(mockSupabaseClient.auth.admin.getUserById).toHaveBeenCalledWith('oauth-user');
   });
+
+  it('reports a missing backend JWT secret for site-session compatible tokens', async () => {
+    delete process.env.SUPABASE_JWT_SECRET;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = createCompatAccessToken({
+      sub: 'oauth-user',
+      aud: 'authenticated',
+      role: 'authenticated',
+      app_metadata: {
+        provider: 'site_session',
+      },
+      user_metadata: {
+        site_session: true,
+      },
+      exp: nowSeconds + 3600,
+    });
+    mockSupabaseClient = {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { message: 'Auth session missing' },
+        })),
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const { initSupabaseAdmin, verifySupabaseAccessToken } = await import('../../backend/fullImportService.js');
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    await expect(verifySupabaseAccessToken(token)).rejects.toMatchObject({
+      publicCode: 'compat_jwt_secret_missing',
+    });
+  });
+
+  it('reports backend JWT signature mismatches without exposing token data', async () => {
+    process.env.SUPABASE_JWT_SECRET = 'different-secret';
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = createCompatAccessToken({
+      sub: 'oauth-user',
+      aud: 'authenticated',
+      role: 'authenticated',
+      app_metadata: {
+        provider: 'site_session',
+      },
+      user_metadata: {
+        site_session: true,
+      },
+      exp: nowSeconds + 3600,
+    }, 'test-jwt-secret');
+    mockSupabaseClient = {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { message: 'Auth session missing' },
+        })),
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const { initSupabaseAdmin, verifySupabaseAccessToken } = await import('../../backend/fullImportService.js');
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    await expect(verifySupabaseAccessToken(token)).rejects.toMatchObject({
+      publicCode: 'compat_jwt_signature_mismatch',
+      publicDetails: {
+        tokenKind: 'site_session',
+      },
+    });
+  });
+
+  it('reports expired site-session compatible tokens with safe timing details', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const token = createCompatAccessToken({
+      sub: 'oauth-user',
+      aud: 'authenticated',
+      role: 'authenticated',
+      app_metadata: {
+        provider: 'site_session',
+      },
+      user_metadata: {
+        site_session: true,
+      },
+      exp: nowSeconds - 30,
+    });
+    mockSupabaseClient = {
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { message: 'Auth session missing' },
+        })),
+        admin: {
+          getUserById: vi.fn(),
+        },
+      },
+    };
+
+    const { initSupabaseAdmin, verifySupabaseAccessToken } = await import('../../backend/fullImportService.js');
+    initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
+
+    await expect(verifySupabaseAccessToken(token)).rejects.toMatchObject({
+      publicCode: 'compat_jwt_expired',
+      publicDetails: {
+        exp: nowSeconds - 30,
+      },
+    });
+  });
 });
 
 describe('savePoolsToServer', () => {

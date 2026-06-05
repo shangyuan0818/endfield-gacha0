@@ -128,11 +128,17 @@ export async function getCurrentSiteSession({
 
   pendingSiteSessionSyncSupabase = syncSupabase;
   pendingSiteSessionRequest = (async () => {
-    const { response, data } = await fetchJsonWithTimeout('/api/auth/session', {
+    const sessionEndpoint = useCache
+      ? '/api/auth/session'
+      : `/api/auth/session?_=${Date.now()}`;
+    const { response, data } = await fetchJsonWithTimeout(sessionEndpoint, {
       method: 'GET',
       credentials: 'same-origin',
+      cache: 'no-store',
       headers: {
         Accept: 'application/json',
+        'Cache-Control': 'no-store',
+        Pragma: 'no-cache',
       },
     }, {
       label: 'auth-session',
