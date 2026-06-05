@@ -108,7 +108,11 @@ export async function getSupabaseAccessToken({
 
   const nativeSession = await getValidatedSupabaseSession();
   if (nativeSession?.access_token) {
-    if (syncSiteSession && allowSiteSessionToken && isSiteSessionCompatToken(nativeSession.access_token)) {
+    const isCompatToken = isSiteSessionCompatToken(nativeSession.access_token);
+    if (isCompatToken && !allowSiteSessionToken) {
+      return null;
+    }
+    if (syncSiteSession && allowSiteSessionToken && isCompatToken) {
       const siteSessionToken = await getSiteSessionAccessToken({
         useSiteSessionCache,
         allowSiteSessionToken,

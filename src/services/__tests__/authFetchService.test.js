@@ -210,6 +210,29 @@ describe('authFetchService', () => {
     await expect(getSupabaseAccessToken({ allowSiteSessionToken: false })).resolves.toBeNull();
   });
 
+  it('does not return a Supabase-cached site-session token when site-session tokens are disallowed', async () => {
+    supabase.auth.getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: createSiteSessionCompatToken(),
+          user: {
+            id: 'user-1',
+          },
+        },
+      },
+    });
+    supabase.auth.getUser.mockResolvedValue({
+      data: {
+        user: {
+          id: 'user-1',
+        },
+      },
+    });
+
+    await expect(getSupabaseAccessToken({ allowSiteSessionToken: false })).resolves.toBeNull();
+    expect(getCurrentSiteSession).not.toHaveBeenCalled();
+  });
+
   it('clears invalid native Supabase state before falling back to the site session', async () => {
     getCurrentSiteSession.mockResolvedValue({
       authenticated: true,
