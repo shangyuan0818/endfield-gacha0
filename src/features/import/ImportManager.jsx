@@ -116,10 +116,10 @@ function getSyncStatusDetail(syncStatus, t) {
 
 async function resolveImportAliasMaps(records) {
   const poolIds = [...new Set((Array.isArray(records) ? records : [])
-    .map(record => record?.pool_id)
+    .map(record => record?.pool_id || record?.poolId)
     .filter(Boolean))];
   const characterIds = [...new Set((Array.isArray(records) ? records : [])
-    .map(record => record?.character_id || record?.item_id)
+    .map(record => record?.character_id || record?.item_id || record?.charId || record?.weaponId)
     .filter(Boolean))];
 
   if (poolIds.length === 0 && characterIds.length === 0) {

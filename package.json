@@ -65,6 +65,7 @@
     "test:manual-placeholder-candidate-plan": "node scripts/verify-manual-placeholder-candidate-plan.mjs",
     "test:manual-placeholder-migration-plan": "node scripts/verify-manual-placeholder-migration-plan.mjs",
     "test:manual-placeholder-apply-sql": "node scripts/verify-manual-placeholder-apply-sql.mjs",
+    "test:official-import-id-reconciliation": "node scripts/verify-official-import-id-reconciliation.mjs",
     "bot:official:telegram": "node bots/official/run-telegram-polling.mjs",
     "bot:official:telegram:init": "node scripts/bootstrap-official-telegram-bot-env.mjs",
     "ops:automation": "node scripts/run-ops-automation.mjs",

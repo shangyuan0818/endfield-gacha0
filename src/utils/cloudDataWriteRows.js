@@ -65,7 +65,7 @@ export function serializeHistoryForUpsert(
     special_type: record.specialType || record.special_type || null,
     character_name: record.character_name || record.characterName || record.name || null,
     item_name: record.item_name || record.name || record.character_name || record.characterName || null,
-    character_id: resolvedCharacterId || record.character_id || record.item_id || null,
+    character_id: resolvedCharacterId || record.character_id || record.item_id || record.charId || record.weaponId || null,
     batch_id: record.batchId || record.batch_id || null,
     seq_id: record.seqId || record.seq_id || null,
     pity: clampHistoryPity(record.pity),

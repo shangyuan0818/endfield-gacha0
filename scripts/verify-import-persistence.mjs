@@ -4,53 +4,14 @@ import {
   prepareOfficialImportPersistenceData,
 } from '../src/features/import/importPersistence.js';
 
-function createAliasMock(rowsByTable) {
-  return {
-    from(tableName) {
-      return {
-        select() {
-          return {
-            async in(columnName, values) {
-              assert.equal(columnName, 'alias_id', '别名查询应按 alias_id 过滤');
-              return {
-                data: (rowsByTable[tableName] || []).filter((row) => values.includes(row.alias_id)),
-                error: null,
-              };
-            },
-          };
-        },
-      };
-    },
-  };
-}
+const poolAliases = {
+  special_alias_alpha: 'special_1_0_1',
+  special_1_0_1: 'special_1_0_1',
+};
 
-const supabase = createAliasMock({
-  pool_id_aliases: [
-    {
-      id: 1,
-      source: 'official_api',
-      alias_id: 'special_alias_alpha',
-      pool_id: 'special_1_0_1',
-      is_primary: true,
-    },
-    {
-      id: 2,
-      source: 'official_api',
-      alias_id: 'special_1_0_1',
-      pool_id: 'special_1_0_1',
-      is_primary: true,
-    },
-  ],
-  character_id_aliases: [
-    {
-      id: 1,
-      source: 'official_api',
-      alias_id: 'char_alias_alpha',
-      character_id: 'char_alpha',
-      is_primary: true,
-    },
-  ],
-});
+const characterAliases = {
+  char_alias_alpha: 'char_alpha',
+};
 
 const records = [
   {
@@ -93,13 +54,14 @@ const pools = [
 ];
 
 const prepared = await prepareOfficialImportPersistenceData({
-  supabase,
   records,
   userInfo: {
     gameUid: '1000123456',
     nickName: '测试账号',
   },
   pools,
+  poolAliases,
+  characterAliases,
 });
 
 assert.equal(prepared.currentGameUid, '1000123456', '应保留当前导入账号 UID');
@@ -122,7 +84,6 @@ assert.equal(duplicateCount, 1, '去重统计应正确计数');
 assert.equal(newRecords[0].seqId, '1002', '未命中去重键的记录应保留');
 
 const jointPrepared = await prepareOfficialImportPersistenceData({
-  supabase,
   records: [
     {
       pool_id: 'joint_1_2_2',
@@ -151,5 +112,40 @@ assert.equal(jointPrepared.poolEntries[0].id, 'joint_1_2_2', 'Joint 卡池目录
 assert.equal(jointPrepared.poolEntries[0].type, 'extra', 'Joint 官方池应归一化为 extra');
 assert.equal(jointPrepared.historyRecords[0].poolId, 'joint_1_2_2', 'Joint 历史记录应保留卡池维度去重键');
 assert.equal(jointPrepared.historyRecords[0].isStandard, false, '附加寻访 6 星不应因缺少单 UP 而标为常驻歪出');
+
+const camelCasePrepared = await prepareOfficialImportPersistenceData({
+  records: [
+    {
+      poolId: 'special_2_0_1',
+      poolName: '新版本限定池',
+      charId: 'char_new_official',
+      charName: '新角色',
+      rarity: 6,
+      seqId: '2001',
+      pity: 62,
+      timestamp: '2026-06-05T08:00:00.000Z',
+    },
+    {
+      poolId: 'weaponbox_2_0_1',
+      poolName: '新版本武器池',
+      weaponId: 'weapon_new_official',
+      weaponName: '新武器',
+      rarity: 6,
+      seqId: '2002',
+      pity: 45,
+      timestamp: '2026-06-05T08:00:10.000Z',
+    },
+  ],
+  userInfo: {
+    gameUid: '1000123456',
+    nickName: '测试账号',
+  },
+  pools: [],
+});
+
+assert.equal(camelCasePrepared.poolEntries.length, 2, '官方 camelCase poolId 应能创建 canonical 卡池目录');
+assert.equal(camelCasePrepared.poolEntries[0].id, 'special_2_0_1', '应直接读取官方 poolId');
+assert.equal(camelCasePrepared.historyRecords[0].character_id, 'char_new_official', '应直接读取官方 charId');
+assert.equal(camelCasePrepared.historyRecords[1].character_id, 'weapon_new_official', '应直接读取官方 weaponId');
 
 console.log('ARCH-020 import persistence verification passed');

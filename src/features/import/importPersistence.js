@@ -59,14 +59,15 @@ function buildCanonicalPoolEntries(records, poolAliasMap = {}) {
   const entryMap = new Map();
 
   records.forEach((record) => {
-    const canonicalPoolId = resolveAliasValue(poolAliasMap, record?.pool_id);
+    const rawPoolId = record?.pool_id || record?.poolId;
+    const canonicalPoolId = resolveAliasValue(poolAliasMap, rawPoolId);
     if (!canonicalPoolId || entryMap.has(canonicalPoolId)) {
       return;
     }
 
     entryMap.set(canonicalPoolId, {
       id: canonicalPoolId,
-      name: record.pool_name || canonicalPoolId,
+      name: record.pool_name || record.poolName || canonicalPoolId,
       type: inferPoolTypeFromId(canonicalPoolId),
       locked: false,
     });
@@ -84,16 +85,18 @@ function buildImportedHistoryRecords({
   poolTypeMap,
 }) {
   return records.map((record, index) => {
-    const canonicalPoolId = resolveAliasValue(poolAliasMap, record.pool_id);
-    const canonicalCharacterId = resolveAliasValue(characterAliasMap, record.character_id || record.item_id);
+    const rawPoolId = record.pool_id || record.poolId;
+    const rawCharacterId = record.character_id || record.item_id || record.charId || record.weaponId;
+    const canonicalPoolId = resolveAliasValue(poolAliasMap, rawPoolId);
+    const canonicalCharacterId = resolveAliasValue(characterAliasMap, rawCharacterId);
 
-    const poolHash = simpleStringHash(record.pool_id || 'unknown');
+    const poolHash = simpleStringHash(rawPoolId || 'unknown');
     const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
     const numericId = (poolHash * 10000000) + seqNum;
-    const poolType = poolTypeMap.get(record.pool_id)
+    const poolType = poolTypeMap.get(rawPoolId)
       || poolTypeMap.get(canonicalPoolId)
-      || inferPoolTypeFromId(canonicalPoolId || record.pool_id);
-    const upCharacter = poolUpCharacterMap.get(record.pool_id) || poolUpCharacterMap.get(canonicalPoolId);
+      || inferPoolTypeFromId(canonicalPoolId || rawPoolId);
+    const upCharacter = poolUpCharacterMap.get(rawPoolId) || poolUpCharacterMap.get(canonicalPoolId);
     const isStandard = normalizeIsStandard(record, poolType, upCharacter);
 
     const resolvedServerId = String(userInfo?.serverId || '1');
@@ -134,9 +137,14 @@ export async function prepareOfficialImportPersistenceData({
   records,
   userInfo,
   pools,
-  poolAliasMap = {},
-  characterAliasMap = {},
+  poolAliasMap = null,
+  characterAliasMap = null,
+  poolAliases = null,
+  characterAliases = null,
 }) {
+  const resolvedPoolAliasMap = poolAliasMap || poolAliases || {};
+  const resolvedCharacterAliasMap = characterAliasMap || characterAliases || {};
+
   if (!Array.isArray(records) || records.length === 0) {
     return {
       currentGameUid: userInfo?.gameUid || userInfo?.hgUid || null,
@@ -149,12 +157,12 @@ export async function prepareOfficialImportPersistenceData({
 
   return {
     currentGameUid: userInfo?.gameUid || userInfo?.hgUid || null,
-    poolEntries: buildCanonicalPoolEntries(records, poolAliasMap),
+    poolEntries: buildCanonicalPoolEntries(records, resolvedPoolAliasMap),
     historyRecords: buildImportedHistoryRecords({
       records,
       userInfo,
-      poolAliasMap,
-      characterAliasMap,
+      poolAliasMap: resolvedPoolAliasMap,
+      characterAliasMap: resolvedCharacterAliasMap,
       poolUpCharacterMap,
       poolTypeMap,
     }),

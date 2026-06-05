@@ -12,6 +12,10 @@ import {
   upsertHistoryRowsWithOptionalColumnFallback,
 } from '../../../src/utils/cloudDataWriteRows.js';
 import { clampHistoryPity } from '../../../src/utils/historyRecordUtils.js';
+import {
+  reconcileOfficialCharacterIds,
+  reconcileOfficialPoolIds,
+} from '../../../backend/lib/officialIdReconciliation.js';
 
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 500;
@@ -210,16 +214,20 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
   }
 
   if (pools.length > 0) {
+    await reconcileOfficialPoolIds(adminClient, pools, {
+      userId,
+    });
+
     const poolAliasMap = await resolvePoolAliasMap(
       adminClient,
-      pools.map(pool => pool?.id || pool?.pool_id),
+      pools.map(pool => pool?.id || pool?.pool_id || pool?.poolId),
       'official_api'
     );
     const rows = pools.map(pool => ({
       ...serializePoolForUpsert(
         pool,
         userId,
-        resolveAliasValue(poolAliasMap, pool?.id || pool?.pool_id)
+        resolveAliasValue(poolAliasMap, pool?.id || pool?.pool_id || pool?.poolId)
       ),
       user_id: userId,
     }));
@@ -230,6 +238,16 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
   }
 
   if (history.length > 0) {
+    await reconcileOfficialPoolIds(adminClient, history.map(record => ({
+      ...record,
+      pool_id: record?.poolId || record?.pool_id,
+      name: record?.pool_name || record?.poolName,
+      type: record?.poolType || record?.type,
+    })), {
+      userId,
+    });
+    await reconcileOfficialCharacterIds(adminClient, history);
+
     const [poolAliasMap, characterAliasMap] = await Promise.all([
       resolvePoolAliasMap(
         adminClient,
@@ -238,7 +256,7 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
       ),
       resolveCharacterAliasMap(
         adminClient,
-        history.map(record => record?.character_id || record?.item_id),
+        history.map(record => record?.character_id || record?.item_id || record?.charId || record?.weaponId),
         'official_api'
       ),
     ]);
@@ -247,7 +265,7 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
         record,
         userId,
         resolveAliasValue(poolAliasMap, record?.poolId || record?.pool_id),
-        resolveAliasValue(characterAliasMap, record?.character_id || record?.item_id)
+        resolveAliasValue(characterAliasMap, record?.character_id || record?.item_id || record?.charId || record?.weaponId)
       ),
       user_id: userId,
     }));

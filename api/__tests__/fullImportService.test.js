@@ -264,7 +264,7 @@ describe('savePoolsToServer', () => {
     };
   });
 
-  it('creates fallback pools for unknown official ids without manually writing alias rows', async () => {
+  it('creates fallback pools for unknown official ids and writes official self aliases', async () => {
     const { initSupabaseAdmin, savePoolsToServer } = await import('../../backend/fullImportService.js');
 
     initSupabaseAdmin('https://example.supabase.co', 'service-role-key');
@@ -287,6 +287,7 @@ describe('savePoolsToServer', () => {
     });
     expect(mockSupabaseClient.__operations).toEqual([
       'pools.upsert',
+      'pool_id_aliases.upsert',
     ]);
   });
 });
@@ -337,6 +338,10 @@ describe('executeFullImport import mode metadata', () => {
                 in: async () => ({ data: [], error: null }),
               };
             },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
           };
         }
 
@@ -373,6 +378,20 @@ describe('executeFullImport import mode metadata', () => {
                     },
                   };
                 },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'characters') {
+          return {
+            select() {
+              return {
+                limit: async () => ({ data: [], error: null }),
               };
             },
             async upsert(rows) {
@@ -493,6 +512,9 @@ describe('executeFullImport import mode metadata', () => {
     );
     expect(operations).toEqual([
       { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'pool_id_aliases', action: 'upsert', count: 2 },
+      { tableName: 'characters', action: 'upsert', count: 1 },
+      { tableName: 'character_id_aliases', action: 'upsert', count: 2 },
       { tableName: 'history', action: 'upsert', count: 1 },
     ]);
     expect(updateProgress).toHaveBeenCalledWith({ progress: 100, message: '导入完成' });
@@ -529,6 +551,10 @@ describe('executeFullImport import mode metadata', () => {
               return {
                 in: async () => ({ data: [], error: null }),
               };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
             },
           };
         }
@@ -572,6 +598,20 @@ describe('executeFullImport import mode metadata', () => {
                     },
                   };
                 },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'characters') {
+          return {
+            select() {
+              return {
+                limit: async () => ({ data: [], error: null }),
               };
             },
             async upsert(rows) {
@@ -695,7 +735,7 @@ describe('executeFullImport import mode metadata', () => {
     expect([...fetchCall[4].existingRecordKeys]).toEqual([
       '10000001:special_1_2_1:1',
     ]);
-    expect(historySelectCalls).toBe(1);
+    expect(historySelectCalls).toBe(2);
     expect(result.success).toBe(true);
     expect(result.data).toMatchObject({
       importMode: 'incremental',
@@ -713,6 +753,9 @@ describe('executeFullImport import mode metadata', () => {
     expect(rpc).toHaveBeenCalledWith('refresh_public_analytics_cache');
     expect(operations).toEqual([
       { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'pool_id_aliases', action: 'upsert', count: 2 },
+      { tableName: 'characters', action: 'upsert', count: 2 },
+      { tableName: 'character_id_aliases', action: 'upsert', count: 4 },
       { tableName: 'history', action: 'upsert', count: 1 },
     ]);
   });
@@ -740,6 +783,10 @@ describe('executeFullImport import mode metadata', () => {
               return {
                 in: async () => ({ data: [], error: null }),
               };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
             },
           };
         }
@@ -780,6 +827,20 @@ describe('executeFullImport import mode metadata', () => {
                     },
                   };
                 },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'characters') {
+          return {
+            select() {
+              return {
+                limit: async () => ({ data: [], error: null }),
               };
             },
             async upsert(rows) {
@@ -867,6 +928,9 @@ describe('executeFullImport import mode metadata', () => {
     expect(rpc).not.toHaveBeenCalled();
     expect(operations).toEqual([
       { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'pool_id_aliases', action: 'upsert', count: 2 },
+      { tableName: 'characters', action: 'upsert', count: 1 },
+      { tableName: 'character_id_aliases', action: 'upsert', count: 2 },
     ]);
   });
 
@@ -896,6 +960,10 @@ describe('executeFullImport import mode metadata', () => {
               return {
                 in: async () => ({ data: [], error: null }),
               };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
             },
           };
         }
@@ -933,6 +1001,20 @@ describe('executeFullImport import mode metadata', () => {
                     },
                   };
                 },
+              };
+            },
+            async upsert(rows) {
+              operations.push({ tableName, action: 'upsert', count: rows.length });
+              return { error: null };
+            },
+          };
+        }
+
+        if (tableName === 'characters') {
+          return {
+            select() {
+              return {
+                limit: async () => ({ data: [], error: null }),
               };
             },
             async upsert(rows) {
@@ -1017,6 +1099,9 @@ describe('executeFullImport import mode metadata', () => {
     expect(rpc).toHaveBeenCalledWith('refresh_public_analytics_cache');
     expect(operations).toEqual([
       { tableName: 'pools', action: 'upsert', count: 1 },
+      { tableName: 'pool_id_aliases', action: 'upsert', count: 2 },
+      { tableName: 'characters', action: 'upsert', count: 1 },
+      { tableName: 'character_id_aliases', action: 'upsert', count: 2 },
       { tableName: 'history', action: 'upsert', count: 1 },
     ]);
   });

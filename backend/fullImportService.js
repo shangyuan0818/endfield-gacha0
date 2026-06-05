@@ -22,6 +22,10 @@ import {
   resolvePoolAliasMap,
 } from './lib/idAliasService.js';
 import { fetchWithNetworkRetry } from './lib/networkFetch.js';
+import {
+  reconcileOfficialCharacterIds,
+  reconcileOfficialPoolIds,
+} from './lib/officialIdReconciliation.js';
 
 // Supabase Admin 客户端（需要 SUPABASE_SECRET_KEY；旧 service_role_key 仍兼容）
 let supabaseAdmin = null;
@@ -554,6 +558,10 @@ async function getExistingSeqIds(userId, gameUid) {
  */
 export async function savePoolsToServer(pools, userId) {
   const supabase = getSupabaseAdmin();
+  const reconciliation = await reconcileOfficialPoolIds(supabase, pools, {
+    userId,
+  });
+
   const poolAliasMap = await resolvePoolAliasMap(
     supabase,
     pools.map(pool => pool?.pool_id),
@@ -605,7 +613,12 @@ export async function savePoolsToServer(pools, userId) {
   // Source alias remaps are owned by pool management / announcement sync,
   // while internal self aliases are maintained by the database trigger.
 
-  return { success: true, created: newPools.length };
+  return {
+    success: true,
+    created: newPools.length + Number(reconciliation?.created || 0),
+    migrated: Number(reconciliation?.migrated || 0),
+    skipped: Number(reconciliation?.skipped || 0),
+  };
 }
 
 /**
@@ -873,15 +886,27 @@ async function processRecords(rawRecords, account, _userId, existingSeqIds, sour
   const supabase = getSupabaseAdmin();
   const sourcePoolIds = [];
   const sourceCharacterIds = [];
+  const officialCharacterRecords = [];
 
   for (const poolData of rawRecords.results) {
     const { type, poolType, records } = poolData;
 
     records.forEach((record) => {
       sourcePoolIds.push(getOfficialPoolId(record, type, poolType));
-      sourceCharacterIds.push(record.charId || record.weaponId || record.character_id || null);
+      const officialCharacterId = record.charId || record.weaponId || record.character_id || record.item_id || null;
+      sourceCharacterIds.push(officialCharacterId);
+      if (officialCharacterId) {
+        officialCharacterRecords.push({
+          ...record,
+          id: officialCharacterId,
+          type: record.weaponId || type === 'weapon' ? 'weapon' : 'character',
+          name: record.charName || record.weaponName || record.character_name || record.item_name || record.name,
+        });
+      }
     });
   }
+
+  await reconcileOfficialCharacterIds(supabase, officialCharacterRecords);
 
   const [poolAliasMap, characterAliasMap] = await Promise.all([
     resolvePoolAliasMap(supabase, sourcePoolIds, 'official_api'),
@@ -905,8 +930,7 @@ async function processRecords(rawRecords, account, _userId, existingSeqIds, sour
       const poolHash = simpleStringHash(poolId || 'unknown');
       const normalizedPoolType = getPoolTypeFromId(poolId, type, poolType);
       const uniqueKey = seqId ? `${gameUid}:${poolId}:${seqId}` : null;
-      const rawCharacterId = record.charId || record.weaponId || record.character_id || null;
-      // eslint-disable-next-line no-unused-vars
+      const rawCharacterId = record.charId || record.weaponId || record.character_id || record.item_id || null;
       const characterId = resolveAliasValue(characterAliasMap, rawCharacterId);
 
       // 去重
@@ -961,6 +985,7 @@ async function processRecords(rawRecords, account, _userId, existingSeqIds, sour
         rarity: parseInt(rarity, 10),
         character_name: characterName,
         item_name: characterName,
+        character_id: characterId,
         timestamp: timestamp,
         
         // 计算字段
@@ -1134,9 +1159,7 @@ export async function executeFullImport({
 
     // 7. 获取已存在的记录（用于去重）
     updateProgress({ progress: 75, message: '正在检查重复记录...' });
-    if (!existingSeqIds) {
-      existingSeqIds = await getExistingSeqIds(userId, account.gameUid);
-    }
+    existingSeqIds = await getExistingSeqIds(userId, account.gameUid);
 
     // 8. 处理记录
     updateProgress({ progress: 80, message: '正在处理数据...' });
