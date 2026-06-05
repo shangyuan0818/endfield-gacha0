@@ -440,6 +440,7 @@ describe('site-session admin routes', () => {
           p_target_user_id: 'target-user-id',
           p_username: '新名称',
           p_role: 'admin',
+          p_actor_user_id: 'super-admin-id',
         },
       },
     ]);

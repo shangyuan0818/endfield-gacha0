@@ -301,6 +301,7 @@ describe('/api/admin-pools', () => {
       name: '新卡池',
       user_id: 'real-super-admin',
     });
+    expect(rpcCall.payload.p_actor_user_id).toBe('real-super-admin');
     expect(rpcCall.payload.p_insert_payload.user_id).not.toBe('attacker-user');
   });
 

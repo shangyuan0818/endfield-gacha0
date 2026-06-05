@@ -518,6 +518,7 @@ async function handleUsers(req, res, adminClient) {
         p_target_user_id: payload.userId,
         p_username: payload.username,
         p_role: payload.role,
+        p_actor_user_id: authResult.callerUser.id,
       });
 
       if (error) {

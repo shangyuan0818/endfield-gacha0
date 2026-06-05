@@ -377,16 +377,20 @@ export async function syncPools(announcementRecords) {
         const name = pool.source_title
           || (pool.up_character ? `${pool.type === 'weapon' ? '武器' : '限定'}-${pool.up_character}` : '未命名卡池');
 
+        const payload = {
+          name,
+          type: pool.type === 'limited' ? 'limited_character' : pool.type,
+          description: `${name}（官方公告自动解析）`,
+          start_time: pool.start_time || null,
+          end_time: pool.end_time || null,
+          up_character: pool.up_character || null,
+          featured_characters: featuredIds.length > 0 ? featuredIds : null,
+          banner_url: null,
+        };
         const { error } = await supabase.rpc('admin_upsert_pool_with_aliases', {
           p_pool_id: poolId,
-          p_name: name,
-          p_type: pool.type === 'limited' ? 'limited_character' : pool.type,
-          p_description: `${name}（官方公告自动解析）`,
-          p_start_time: pool.start_time || null,
-          p_end_time: pool.end_time || null,
-          p_up_character: pool.up_character || null,
-          p_featured_characters: featuredIds.length > 0 ? featuredIds : null,
-          p_banner_url: null,
+          p_insert_payload: payload,
+          p_update_payload: payload,
           p_alias_rows: [
             { source: 'internal', alias_id: poolId, is_primary: true },
             { source: 'official_notice', alias_id: poolId, is_primary: false },

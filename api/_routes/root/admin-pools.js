@@ -205,6 +205,7 @@ async function saveManagedCharacterWithAliases(adminClient, characterData) {
 }
 
 async function upsertPoolWithAliases(adminClient, {
+  actorUserId,
   poolId,
   insertPayload,
   updatePayload,
@@ -217,6 +218,7 @@ async function upsertPoolWithAliases(adminClient, {
     p_update_payload: updatePayload,
     p_alias_rows: aliasRows,
     p_pool_character_rows: poolCharacterRows,
+    p_actor_user_id: actorUserId || null,
   });
 
   if (!error) return;
@@ -315,9 +317,11 @@ async function handleSavePool(res, adminClient, authResult, body) {
     }
 
     await upsertPoolWithAliases(adminClient, {
+      actorUserId: authResult.user.id,
       poolId: targetPoolId,
       insertPayload: {
         ...poolData,
+        user_id: authResult.user.id,
         pool_id: targetPoolId,
       },
       updatePayload: poolData,
@@ -351,6 +355,7 @@ async function handleSavePool(res, adminClient, authResult, body) {
   };
 
   await upsertPoolWithAliases(adminClient, {
+    actorUserId: authResult.user.id,
     poolId,
     insertPayload: newPoolData,
     updatePayload: newPoolData,
