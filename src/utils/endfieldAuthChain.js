@@ -644,7 +644,7 @@ export async function importAllRecordsFullyOnBackend(initialToken, accountIndex,
 
   const authHeaders = await getAuthHeaders(true, {
     forceRefresh: true,
-    allowSiteSessionToken: false,
+    allowSiteSessionToken: true,
   });
 
   if (onProgress) {

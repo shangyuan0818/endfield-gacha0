@@ -108,8 +108,8 @@ describe('endfieldAuthChain auth headers', () => {
     });
   });
 
-  it('requires a native Supabase token when submitting a full backend import', async () => {
-    getSupabaseAccessToken.mockResolvedValue('native-token');
+  it('allows the shared site-session aware token when submitting a full backend import', async () => {
+    getSupabaseAccessToken.mockResolvedValue('site-session-token');
     fetchWithTimeout
       .mockResolvedValueOnce(jsonResponse({
         success: true,
@@ -128,14 +128,14 @@ describe('endfieldAuthChain auth headers', () => {
     expect(getSupabaseAccessToken).toHaveBeenNthCalledWith(1, {
       syncSiteSession: true,
       useSiteSessionCache: false,
-      allowSiteSessionToken: false,
+      allowSiteSessionToken: true,
     });
     expect(queuedFetch).toHaveBeenCalledWith(
       expect.stringContaining('action=import-full'),
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({
-          Authorization: 'Bearer native-token',
+          Authorization: 'Bearer site-session-token',
         }),
       }),
       expect.any(Object)
