@@ -1,0 +1,574 @@
+import {
+  classifyCharacterIdSource,
+  classifyPoolIdSource,
+  normalizeEntityNameForMatch,
+  normalizePoolType,
+} from './canonicalEntityUtils.js';
+import {
+  buildCharacterSelfAliasRows,
+  buildPoolSelfAliasRows,
+  upsertCharacterAliases,
+  upsertPoolAliases,
+} from './idAliasService.js';
+
+const MAX_CATALOG_ROWS = 2000;
+const MIN_POOL_MATCH_SCORE = 40;
+const MIN_CHARACTER_MATCH_SCORE = 50;
+
+function normalizeText(value) {
+  return typeof value === 'string' ? value.trim() : String(value || '').trim();
+}
+
+function uniqueById(rows, getId) {
+  const map = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = normalizeText(getId(row));
+    if (!id || map.has(id)) {
+      continue;
+    }
+    map.set(id, row);
+  }
+  return Array.from(map.values());
+}
+
+function stripPreviewNoise(value) {
+  return normalizeText(value)
+    .replace(/（[^）]*(前瞻|不准确)[^）]*）/g, '')
+    .replace(/\([^)]*(前瞻|不准确)[^)]*\)/g, '')
+    .replace(/前瞻|六星不准确|不准确/g, '');
+}
+
+function normalizeNameKey(value) {
+  return normalizeEntityNameForMatch(stripPreviewNoise(value));
+}
+
+function isGenericPoolName(value) {
+  const key = normalizeNameKey(value);
+  return new Set([
+    '限定角色池',
+    '限定池',
+    '武器池',
+    '附加寻访',
+    '基础寻访',
+    '启程寻访',
+    'standard',
+    'beginner',
+  ]).has(key);
+}
+
+function normalizeDateKey(value) {
+  return normalizeText(value).slice(0, 10);
+}
+
+function isOfficialImportPoolId(poolId) {
+  return classifyPoolIdSource(poolId) === 'official';
+}
+
+function isManualPoolId(poolId) {
+  const source = classifyPoolIdSource(poolId);
+  return source === 'manual_placeholder' || source === 'legacy_manual_seed';
+}
+
+function isOfficialImportCharacterId(characterId) {
+  const source = classifyCharacterIdSource(characterId);
+  return Boolean(characterId) && source !== 'manual_placeholder' && source !== 'custom' && source !== 'unknown';
+}
+
+function isManualCharacterId(characterId) {
+  return classifyCharacterIdSource(characterId) === 'manual_placeholder';
+}
+
+async function resolveQueryResult(query, fallbackData = []) {
+  if (!query) {
+    return { data: fallbackData, error: null, skipped: true };
+  }
+
+  if (typeof query.then === 'function') {
+    return query;
+  }
+
+  if ('data' in query || 'error' in query) {
+    return query;
+  }
+
+  return { data: fallbackData, error: null, skipped: true };
+}
+
+async function loadTableRows(adminClient, tableName, columns) {
+  if (!adminClient?.from) {
+    return [];
+  }
+
+  const query = adminClient.from(tableName).select(columns);
+  const limitedQuery = typeof query?.limit === 'function' ? query.limit(MAX_CATALOG_ROWS) : query;
+  const { data, error } = await resolveQueryResult(limitedQuery, []);
+  if (error) {
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+async function selectEq(adminClient, tableName, columns, columnName, value) {
+  const table = adminClient?.from?.(tableName);
+  const query = table?.select?.(columns);
+  const filteredQuery = typeof query?.eq === 'function' ? query.eq(columnName, value) : null;
+  const { data, error } = await resolveQueryResult(filteredQuery, []);
+  if (error) {
+    throw error;
+  }
+  return Array.isArray(data) ? data : [];
+}
+
+async function upsertRows(adminClient, tableName, rows, options = {}) {
+  const normalizedRows = (Array.isArray(rows) ? rows : []).filter(Boolean);
+  if (normalizedRows.length === 0) {
+    return;
+  }
+
+  const { error } = await adminClient
+    .from(tableName)
+    .upsert(normalizedRows, options);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function updateEq(adminClient, tableName, values, columnName, value) {
+  const table = adminClient?.from?.(tableName);
+  const query = table?.update?.(values);
+  const filteredQuery = typeof query?.eq === 'function' ? query.eq(columnName, value) : null;
+  const { error } = await resolveQueryResult(filteredQuery, null);
+  if (error) {
+    throw error;
+  }
+}
+
+async function deleteEq(adminClient, tableName, columnName, value) {
+  const table = adminClient?.from?.(tableName);
+  const query = table?.delete?.();
+  const filteredQuery = typeof query?.eq === 'function' ? query.eq(columnName, value) : null;
+  const { error } = await resolveQueryResult(filteredQuery, null);
+  if (error) {
+    throw error;
+  }
+}
+
+function normalizePoolCandidate(pool) {
+  const poolId = normalizeText(pool?.pool_id || pool?.id || pool?.poolId);
+  if (!poolId || !isOfficialImportPoolId(poolId)) {
+    return null;
+  }
+
+  return {
+    pool_id: poolId,
+    name: normalizeText(pool?.name || pool?.pool_name || pool?.poolName) || poolId,
+    type: normalizePoolType(pool?.type || pool?.pool_type || pool?.poolType),
+    start_time: pool?.start_time || pool?.startTime || null,
+    end_time: pool?.end_time || pool?.endTime || null,
+    up_character: normalizeText(pool?.up_character || pool?.upCharacter || pool?.currentUpCharacter) || null,
+    featured_characters: Array.isArray(pool?.featured_characters) ? pool.featured_characters : null,
+    user_id: pool?.user_id || null,
+  };
+}
+
+function normalizeCharacterCandidate(record) {
+  const id = normalizeText(record?.id || record?.character_id || record?.item_id || record?.charId || record?.weaponId);
+  if (!id || !isOfficialImportCharacterId(id)) {
+    return null;
+  }
+
+  const explicitType = normalizeText(record?.type || record?.recordType);
+  const inferredType = explicitType === 'weapon' || record?.weaponId || id.startsWith('weapon_')
+    ? 'weapon'
+    : 'character';
+
+  return {
+    id,
+    name: normalizeText(
+      record?.name
+      || record?.character_name
+      || record?.item_name
+      || record?.charName
+      || record?.weaponName
+    ) || id,
+    type: inferredType,
+    rarity: Number.parseInt(String(record?.rarity || record?.qualityLevel || ''), 10) || null,
+  };
+}
+
+function scorePoolCandidate(officialPool, manualPool) {
+  if (normalizePoolType(officialPool?.type) !== normalizePoolType(manualPool?.type)) {
+    return 0;
+  }
+
+  let score = 0;
+  const officialUpKey = normalizeNameKey(officialPool?.up_character);
+  const manualUpKey = normalizeNameKey(manualPool?.up_character);
+  const officialNameKey = normalizeNameKey(officialPool?.name);
+  const manualNameKey = normalizeNameKey(manualPool?.name);
+
+  if (officialUpKey && manualUpKey && officialUpKey === manualUpKey) {
+    score += 60;
+  }
+
+  if (
+    officialNameKey
+    && manualNameKey
+    && officialNameKey === manualNameKey
+    && !isGenericPoolName(officialPool?.name)
+  ) {
+    score += 45;
+  }
+
+  const officialStart = normalizeDateKey(officialPool?.start_time);
+  const manualStart = normalizeDateKey(manualPool?.start_time);
+  if (officialStart && manualStart) {
+    score += officialStart === manualStart ? 10 : -25;
+  }
+
+  return Math.max(0, score);
+}
+
+function scoreCharacterCandidate(officialCharacter, manualCharacter) {
+  if (normalizeText(officialCharacter?.type) !== normalizeText(manualCharacter?.type)) {
+    return 0;
+  }
+
+  const officialNameKey = normalizeNameKey(officialCharacter?.name);
+  const manualNameKey = normalizeNameKey(manualCharacter?.name);
+  return officialNameKey && manualNameKey && officialNameKey === manualNameKey ? 80 : 0;
+}
+
+function findUniqueMatch(target, candidates, scorer, minScore) {
+  const scored = candidates
+    .map(candidate => ({ candidate, score: scorer(target, candidate) }))
+    .filter(item => item.score >= minScore)
+    .sort((left, right) => right.score - left.score);
+
+  if (scored.length === 0) {
+    return { match: null, reason: 'no_match' };
+  }
+
+  if (scored.length > 1 && scored[0].score === scored[1].score) {
+    return { match: null, reason: 'ambiguous_match' };
+  }
+
+  return { match: scored[0].candidate, reason: 'matched', score: scored[0].score };
+}
+
+function buildMergedPoolRow(officialPool, manualPool, userId) {
+  return {
+    pool_id: officialPool.pool_id,
+    name: officialPool.name || manualPool?.name || officialPool.pool_id,
+    type: officialPool.type || manualPool?.type || 'standard',
+    start_time: officialPool.start_time || manualPool?.start_time || null,
+    end_time: officialPool.end_time || manualPool?.end_time || null,
+    up_character: officialPool.up_character || manualPool?.up_character || null,
+    featured_characters: officialPool.featured_characters || manualPool?.featured_characters || null,
+    user_id: officialPool.user_id || manualPool?.user_id || userId || null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function buildMergedCharacterRow(officialCharacter, manualCharacter) {
+  const aliases = new Set([
+    ...(Array.isArray(manualCharacter?.aliases) ? manualCharacter.aliases : []),
+    manualCharacter?.id,
+    officialCharacter?.name,
+  ].map(normalizeText).filter(Boolean));
+
+  return {
+    id: officialCharacter.id,
+    name: officialCharacter.name || manualCharacter?.name || officialCharacter.id,
+    type: officialCharacter.type || manualCharacter?.type || 'character',
+    rarity: officialCharacter.rarity || manualCharacter?.rarity || null,
+    aliases: Array.from(aliases),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function copyPoolCharactersToTarget(adminClient, sourcePoolId, targetPoolId) {
+  const rows = await selectEq(
+    adminClient,
+    'pool_characters',
+    'pool_id, character_id, is_up, created_at',
+    'pool_id',
+    sourcePoolId
+  );
+
+  if (rows.length > 0) {
+    await upsertRows(
+      adminClient,
+      'pool_characters',
+      rows.map(row => ({
+        ...row,
+        pool_id: targetPoolId,
+      })),
+      { onConflict: 'pool_id,character_id' }
+    );
+  }
+
+  await deleteEq(adminClient, 'pool_characters', 'pool_id', sourcePoolId);
+}
+
+async function copyCharacterPoolRosterToTarget(adminClient, sourceCharacterId, targetCharacterId) {
+  const rows = await selectEq(
+    adminClient,
+    'pool_characters',
+    'pool_id, character_id, is_up, created_at',
+    'character_id',
+    sourceCharacterId
+  );
+
+  if (rows.length > 0) {
+    await upsertRows(
+      adminClient,
+      'pool_characters',
+      rows.map(row => ({
+        ...row,
+        character_id: targetCharacterId,
+      })),
+      { onConflict: 'pool_id,character_id' }
+    );
+  }
+
+  await deleteEq(adminClient, 'pool_characters', 'character_id', sourceCharacterId);
+}
+
+async function replaceFeaturedCharacterRefs(adminClient, sourceCharacterId, targetCharacterId) {
+  const pools = await loadTableRows(
+    adminClient,
+    'pools',
+    'pool_id, featured_characters'
+  );
+  const updates = pools
+    .filter(pool => Array.isArray(pool.featured_characters) && pool.featured_characters.includes(sourceCharacterId))
+    .map(pool => ({
+      pool_id: pool.pool_id,
+      featured_characters: Array.from(new Set(pool.featured_characters.map(
+        item => item === sourceCharacterId ? targetCharacterId : item
+      ))),
+    }));
+
+  for (const update of updates) {
+    await updateEq(adminClient, 'pools', {
+      featured_characters: update.featured_characters,
+      updated_at: new Date().toISOString(),
+    }, 'pool_id', update.pool_id);
+  }
+}
+
+async function updateHistoryCharacterIdIfPresent(adminClient, sourceCharacterId, targetCharacterId) {
+  try {
+    await updateEq(adminClient, 'history', {
+      character_id: targetCharacterId,
+      updated_at: new Date().toISOString(),
+    }, 'character_id', sourceCharacterId);
+  } catch (error) {
+    const message = String(error?.message || '');
+    if (
+      message.includes('history.character_id does not exist')
+      || message.includes("Could not find the 'character_id' column")
+    ) {
+      return;
+    }
+    throw error;
+  }
+}
+
+async function migratePoolPlaceholder(adminClient, sourcePool, targetPoolId) {
+  await upsertPoolAliases(adminClient, [
+    ...buildPoolSelfAliasRows(targetPoolId, 'official_api'),
+    {
+      source: 'manual_placeholder',
+      alias_id: sourcePool.pool_id,
+      pool_id: targetPoolId,
+      is_primary: false,
+      note: `Official import retired manual pool id ${sourcePool.pool_id}`,
+    },
+  ]);
+
+  await updateEq(adminClient, 'history', {
+    pool_id: targetPoolId,
+    updated_at: new Date().toISOString(),
+  }, 'pool_id', sourcePool.pool_id);
+
+  await copyPoolCharactersToTarget(adminClient, sourcePool.pool_id, targetPoolId);
+  await deleteEq(adminClient, 'pools', 'pool_id', sourcePool.pool_id);
+}
+
+async function migrateCharacterPlaceholder(adminClient, sourceCharacter, targetCharacterId) {
+  await upsertCharacterAliases(adminClient, [
+    ...buildCharacterSelfAliasRows(targetCharacterId, 'official_api'),
+    {
+      source: 'manual_placeholder',
+      alias_id: sourceCharacter.id,
+      character_id: targetCharacterId,
+      is_primary: false,
+      note: `Official import retired manual character id ${sourceCharacter.id}`,
+    },
+  ]);
+
+  await updateHistoryCharacterIdIfPresent(adminClient, sourceCharacter.id, targetCharacterId);
+  await copyCharacterPoolRosterToTarget(adminClient, sourceCharacter.id, targetCharacterId);
+  await replaceFeaturedCharacterRefs(adminClient, sourceCharacter.id, targetCharacterId);
+  await deleteEq(adminClient, 'characters', 'id', sourceCharacter.id);
+}
+
+export async function reconcileOfficialPoolIds(adminClient, pools, {
+  userId = null,
+} = {}) {
+  const officialPools = uniqueById(
+    (Array.isArray(pools) ? pools : []).map(normalizePoolCandidate).filter(Boolean),
+    row => row.pool_id
+  );
+
+  if (officialPools.length === 0) {
+    return { created: 0, migrated: 0, skipped: 0, operations: [] };
+  }
+
+  const existingPools = await loadTableRows(
+    adminClient,
+    'pools',
+    'pool_id, name, type, start_time, end_time, up_character, featured_characters, user_id'
+  );
+  const byId = new Map(existingPools.map(row => [normalizeText(row.pool_id), row]));
+  const manualPools = existingPools.filter(row => isManualPoolId(row.pool_id));
+  const operations = [];
+  const targetRows = [];
+
+  for (const officialPool of officialPools) {
+    const existingTarget = byId.get(officialPool.pool_id);
+    const { match, reason, score } = findUniqueMatch(
+      officialPool,
+      manualPools.filter(row => normalizeText(row.pool_id) !== officialPool.pool_id),
+      scorePoolCandidate,
+      MIN_POOL_MATCH_SCORE
+    );
+
+    if (!existingTarget || match) {
+      targetRows.push(buildMergedPoolRow(officialPool, match || existingTarget, userId));
+    }
+
+    if (!match) {
+      operations.push({
+        kind: 'pool',
+        officialId: officialPool.pool_id,
+        action: existingTarget ? 'already_official' : 'created_official',
+        reason,
+      });
+      continue;
+    }
+
+    operations.push({
+      kind: 'pool',
+      officialId: officialPool.pool_id,
+      manualId: match.pool_id,
+      action: 'migrated_manual_placeholder',
+      score,
+    });
+  }
+
+  await upsertRows(adminClient, 'pools', targetRows, { onConflict: 'pool_id' });
+
+  for (const operation of operations) {
+    if (operation.action !== 'migrated_manual_placeholder') {
+      continue;
+    }
+    const sourcePool = byId.get(operation.manualId);
+    await migratePoolPlaceholder(adminClient, sourcePool, operation.officialId);
+  }
+
+  await upsertPoolAliases(
+    adminClient,
+    officialPools.flatMap(pool => buildPoolSelfAliasRows(pool.pool_id, 'official_api'))
+  );
+
+  return {
+    created: operations.filter(item => item.action === 'created_official').length,
+    migrated: operations.filter(item => item.action === 'migrated_manual_placeholder').length,
+    skipped: operations.filter(item => item.reason === 'ambiguous_match').length,
+    operations,
+  };
+}
+
+export async function reconcileOfficialCharacterIds(adminClient, records) {
+  const officialCharacters = uniqueById(
+    (Array.isArray(records) ? records : []).map(normalizeCharacterCandidate).filter(Boolean),
+    row => row.id
+  );
+
+  if (officialCharacters.length === 0) {
+    return { created: 0, migrated: 0, skipped: 0, operations: [] };
+  }
+
+  const existingCharacters = await loadTableRows(
+    adminClient,
+    'characters',
+    'id, name, type, rarity, aliases'
+  );
+  const byId = new Map(existingCharacters.map(row => [normalizeText(row.id), row]));
+  const manualCharacters = existingCharacters.filter(row => isManualCharacterId(row.id));
+  const operations = [];
+  const targetRows = [];
+
+  for (const officialCharacter of officialCharacters) {
+    const existingTarget = byId.get(officialCharacter.id);
+    const { match, reason, score } = findUniqueMatch(
+      officialCharacter,
+      manualCharacters.filter(row => normalizeText(row.id) !== officialCharacter.id),
+      scoreCharacterCandidate,
+      MIN_CHARACTER_MATCH_SCORE
+    );
+
+    if (!existingTarget || match) {
+      targetRows.push(buildMergedCharacterRow(officialCharacter, match || existingTarget));
+    }
+
+    if (!match) {
+      operations.push({
+        kind: 'character',
+        officialId: officialCharacter.id,
+        action: existingTarget ? 'already_official' : 'created_official',
+        reason,
+      });
+      continue;
+    }
+
+    operations.push({
+      kind: 'character',
+      officialId: officialCharacter.id,
+      manualId: match.id,
+      action: 'migrated_manual_placeholder',
+      score,
+    });
+  }
+
+  await upsertRows(adminClient, 'characters', targetRows, { onConflict: 'id' });
+
+  for (const operation of operations) {
+    if (operation.action !== 'migrated_manual_placeholder') {
+      continue;
+    }
+    const sourceCharacter = byId.get(operation.manualId);
+    await migrateCharacterPlaceholder(adminClient, sourceCharacter, operation.officialId);
+  }
+
+  await upsertCharacterAliases(
+    adminClient,
+    officialCharacters.flatMap(character => buildCharacterSelfAliasRows(character.id, 'official_api'))
+  );
+
+  return {
+    created: operations.filter(item => item.action === 'created_official').length,
+    migrated: operations.filter(item => item.action === 'migrated_manual_placeholder').length,
+    skipped: operations.filter(item => item.reason === 'ambiguous_match').length,
+    operations,
+  };
+}
+
+export default {
+  reconcileOfficialCharacterIds,
+  reconcileOfficialPoolIds,
+};
