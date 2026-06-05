@@ -15,6 +15,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import {
   resolveAliasValue,
   resolveCharacterAliasMap,
@@ -61,6 +62,9 @@ export function initSupabaseAdmin(supabaseUrl, serviceRoleKey) {
     auth: {
       autoRefreshToken: false,
       persistSession: false
+    },
+    realtime: {
+      transport: WebSocket
     }
   });
 
