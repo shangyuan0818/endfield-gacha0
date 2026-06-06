@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import fs from 'node:fs';
+import path from 'node:path';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
 import {
   buildPublicCacheKey,
@@ -31,6 +33,8 @@ const cache = {
 };
 
 const CACHE_TTL = 60 * 1000; // 60秒缓存
+const CHARACTER_CATALOG_RPC_TIMEOUT_MS = 8500;
+const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const PRIVATE_CHARACTER_CATALOG_KEYS = new Set([
   'user_id',
   'game_uid',
@@ -50,6 +54,81 @@ function getSupabaseClient() {
   }
   
   return createClient(supabaseUrl, supabaseKey);
+}
+
+function createServerTimeoutError(label, timeoutMs) {
+  const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+  error.code = 'SERVER_TIMEOUT';
+  return error;
+}
+
+function withServerTimeout(promise, timeoutMs, label) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(createServerTimeoutError(label, timeoutMs)), timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+function resolvePublicFilePath(publicPath) {
+  const normalizedPath = String(publicPath || '').split(/[?#]/u)[0];
+  if (!normalizedPath.startsWith('/avatars/')) {
+    return null;
+  }
+
+  const relativePath = normalizedPath.replace(/^\/+/u, '').replace(/[\\/]+/gu, path.sep);
+  const absolutePath = path.resolve(PUBLIC_DIR, relativePath);
+  const publicRoot = `${PUBLIC_DIR}${path.sep}`;
+  return absolutePath.startsWith(publicRoot) ? absolutePath : null;
+}
+
+function resolveOptimizedLocalAvatarUrl(avatarUrl) {
+  const value = String(avatarUrl || '').trim();
+  if (!value || !value.startsWith('/avatars/') || !/\.png(?:[?#].*)?$/iu.test(value)) {
+    return avatarUrl || null;
+  }
+
+  const [pathname, suffix = ''] = value.split(/([?#].*)/u);
+  const webpPathname = pathname.replace(/\.png$/iu, '.webp');
+  const webpFilePath = resolvePublicFilePath(webpPathname);
+  if (webpFilePath && fs.existsSync(webpFilePath)) {
+    return `${webpPathname}${suffix}`;
+  }
+
+  return value;
+}
+
+function normalizeCharacterAvatarRecord(record) {
+  if (!record || typeof record !== 'object') {
+    return record;
+  }
+
+  return {
+    ...record,
+    ...(record.avatar_url ? { avatar_url: resolveOptimizedLocalAvatarUrl(record.avatar_url) } : {}),
+    ...(record.avatarUrl ? { avatarUrl: resolveOptimizedLocalAvatarUrl(record.avatarUrl) } : {}),
+  };
+}
+
+function normalizeCharacterCatalogAvatars(catalog) {
+  if (!catalog || typeof catalog !== 'object') {
+    return catalog;
+  }
+
+  return {
+    ...catalog,
+    characters: Array.isArray(catalog.characters)
+      ? catalog.characters.map(normalizeCharacterAvatarRecord)
+      : catalog.characters,
+    rows: Array.isArray(catalog.rows)
+      ? catalog.rows.map(normalizeCharacterAvatarRecord)
+      : catalog.rows,
+  };
 }
 
 async function fetchVisiblePools(supabase) {
@@ -124,6 +203,94 @@ function sortPoolCatalogRecords(left, right) {
   }
 
   return String(left?.pool_id || left?.id || '').localeCompare(String(right?.pool_id || right?.id || ''));
+}
+
+async function fetchCharactersTable(supabase) {
+  const { data, error } = await supabase
+    .from('characters')
+    .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
+    .order('name');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(normalizeCharacterAvatarRecord);
+}
+
+function buildCharacterCatalogFallback(characters = []) {
+  const rows = (Array.isArray(characters) ? characters : [])
+    .filter((character) => (character?.type || 'character') === 'character')
+    .filter((character) => Number(character?.rarity) >= 4)
+    .map((character) => ({
+      id: character.id || character.name,
+      name: character.name,
+      avatarUrl: character.avatar_url || character.avatarUrl || null,
+      rarity: Number(character.rarity) || 0,
+      type: character.type || 'character',
+      isLimited: Boolean(character.is_limited ?? character.isLimited),
+      releaseDate: character.release_date || character.releaseDate || null,
+      ownerUsers: 0,
+      unownedUsers: 0,
+      ownershipRate: 0,
+      fullPotentialUsers: 0,
+      fullPotentialRateOfOwners: 0,
+      fullPotentialRateOfContributors: 0,
+      totalCopies: 0,
+      avgCopiesPerOwner: 0,
+      copyDistribution: {},
+      quota: {},
+    }));
+
+  return {
+    totalContributors: 0,
+    summary: {
+      totalCharacters: rows.length,
+      ownedCharacters: 0,
+      unownedCharacters: rows.length,
+      ownershipRate: 0,
+      fullPotentialCharacters: 0,
+      quota: {},
+      characterQuota: {},
+      weaponQuota: {},
+      excessTrustTokens: 0,
+    },
+    characters: rows,
+    fallback: true,
+    fallbackReason: 'character_catalog_timeout',
+  };
+}
+
+async function fetchCharacterCatalogStatsCached(supabase) {
+  const { data, error } = await withServerTimeout(
+    supabase.rpc('get_character_catalog_stats_cached'),
+    CHARACTER_CATALOG_RPC_TIMEOUT_MS,
+    'get_character_catalog_stats_cached'
+  );
+  if (error) {
+    throw error;
+  }
+
+  return normalizeCharacterCatalogAvatars(data);
+}
+
+async function fetchCharacterCatalogForStats(supabase) {
+  try {
+    return {
+      data: await fetchCharacterCatalogStatsCached(supabase),
+      partial: false,
+      source: 'origin',
+      error: null,
+    };
+  } catch (error) {
+    const fallbackCharacters = await fetchCharactersTable(supabase);
+    return {
+      data: buildCharacterCatalogFallback(fallbackCharacters),
+      partial: true,
+      source: 'character-table-fallback',
+      error,
+    };
+  }
 }
 
 function stripPrivateCharacterCatalogFields(value) {
@@ -437,14 +604,7 @@ async function handleCharacters(supabase, res, now, context) {
     });
   }
 
-  const { data, error } = await supabase
-    .from('characters')
-    .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
-    .order('name');
-
-  if (error) {
-    throw error;
-  }
+  const data = await fetchCharactersTable(supabase);
 
   cache.characters = data || [];
   cache.charactersLastFetch = now;
@@ -528,21 +688,20 @@ async function handleCharacterCatalog(supabase, res, now, context) {
     });
   }
 
-  const { data, error } = await supabase.rpc('get_character_catalog_stats_cached');
-  if (error) {
-    throw error;
-  }
+  const catalogResult = await fetchCharacterCatalogForStats(supabase);
 
-  cache.characterCatalog = sanitizeCharacterCatalog(data);
+  cache.characterCatalog = sanitizeCharacterCatalog(catalogResult.data);
   cache.characterCatalogLastFetch = now;
   setTypeMeta('character_catalog', context);
 
   return sendStatsJson(res, 'character_catalog', {
     cached: false,
+    partial: catalogResult.partial,
     data: { characterCatalog: cache.characterCatalog },
-    source: 'origin',
+    source: catalogResult.source,
     context,
-    lastFetch: cache.characterCatalogLastFetch
+    lastFetch: cache.characterCatalogLastFetch,
+    error: catalogResult.partial ? (catalogResult.error?.message || 'character_catalog_fallback') : null,
   });
 }
 
@@ -568,13 +727,10 @@ async function handleAll(supabase, res, now, context) {
   ] = await Promise.allSettled([
     fetchVisiblePools(supabase),
     fetchPoolCatalog(supabase),
-    supabase
-      .from('characters')
-      .select('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config')
-      .order('name'),
+    fetchCharactersTable(supabase),
     supabase.rpc('get_global_stats_cached'),
     supabase.rpc('get_character_ranking_stats_cached'),
-    supabase.rpc('get_character_catalog_stats_cached')
+    fetchCharacterCatalogForStats(supabase)
   ]);
 
   // 处理卡池
@@ -598,7 +754,7 @@ async function handleAll(supabase, res, now, context) {
 
   // 处理角色
   if (charactersResult.status === 'fulfilled' && !charactersResult.value.error) {
-    result.characters = charactersResult.value.data || [];
+    result.characters = charactersResult.value || [];
     cache.characters = result.characters;
     cache.charactersLastFetch = now;
     setTypeMeta('characters', getAllChildContext(context, 'characters'));
@@ -629,6 +785,11 @@ async function handleAll(supabase, res, now, context) {
     cache.characterCatalog = result.characterCatalog;
     cache.characterCatalogLastFetch = now;
     setTypeMeta('character_catalog', getAllChildContext(context, 'character_catalog'));
+  } else if (characterCatalogResult.status === 'fulfilled' && characterCatalogResult.value.data) {
+    result.characterCatalog = sanitizeCharacterCatalog(characterCatalogResult.value.data);
+    cache.characterCatalog = result.characterCatalog;
+    cache.characterCatalogLastFetch = now;
+    setTypeMeta('character_catalog', getAllChildContext(context, 'character_catalog'));
   } else if (cache.characterCatalog !== null) {
     result.characterCatalog = sanitizeCharacterCatalog(cache.characterCatalog);
   }
@@ -642,7 +803,7 @@ async function handleAll(supabase, res, now, context) {
       globalSummaryResult,
       characterRankingResult,
       characterCatalogResult
-    ].some((resultItem) => resultItem.status === 'rejected' || resultItem.value?.error),
+    ].some((resultItem) => resultItem.status === 'rejected' || resultItem.value?.error || resultItem.value?.partial),
     data: result,
     source: 'origin',
     context,

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
+  from: vi.fn(),
   createClient: vi.fn(),
   rejectDisallowedBrowserOrigin: vi.fn(() => false),
   resolveSupabaseUrl: vi.fn(() => 'https://example.supabase.co'),
@@ -87,7 +88,9 @@ describe('/api/stats character_catalog privacy', () => {
     vi.clearAllMocks();
     mocks.createClient.mockReturnValue({
       rpc: mocks.rpc,
+      from: mocks.from,
     });
+    mocks.from.mockReset();
     mocks.rpc.mockResolvedValue({
       data: {
         totalContributors: 1,
@@ -103,6 +106,7 @@ describe('/api/stats character_catalog privacy', () => {
           {
             id: 'char_public',
             name: '公开角色',
+            avatarUrl: '/avatars/characters/chr_0031_mifu.png',
             rarity: 6,
             ownerUsers: 1,
             unownedUsers: 0,
@@ -132,6 +136,7 @@ describe('/api/stats character_catalog privacy', () => {
             {
               id: 'char_public',
               name: '公开角色',
+              avatarUrl: '/avatars/characters/chr_0031_mifu.webp',
               ownerUsers: 1,
             },
           ],
@@ -146,6 +151,68 @@ describe('/api/stats character_catalog privacy', () => {
       },
     });
     expect(mocks.rpc).toHaveBeenCalledWith('get_character_catalog_stats_cached');
+    expectNoPrivateIdentifiers(res.body);
+  });
+
+  it('falls back to a lightweight character catalog when the aggregate RPC fails', async () => {
+    const order = vi.fn(async () => ({
+      data: [
+        {
+          id: 'chr_0031_mifu',
+          name: '弭弗',
+          avatar_url: '/avatars/characters/chr_0031_mifu.png',
+          rarity: 6,
+          type: 'character',
+          is_limited: true,
+          release_date: '2026-06-05',
+        },
+        {
+          id: 'wpn_funnel_0015',
+          name: '焰羽火燎',
+          avatar_url: '/avatars/weapons/wpn_funnel_0015.png',
+          rarity: 6,
+          type: 'weapon',
+        },
+      ],
+      error: null,
+    }));
+    const select = vi.fn(() => ({ order }));
+    mocks.from.mockReturnValue({ select });
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: new Error('aggregate timeout'),
+    });
+
+    const res = await call({ type: 'character_catalog', v: 'fallback-test' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      partial: true,
+      data: {
+        characterCatalog: {
+          totalContributors: 0,
+          summary: {
+            totalCharacters: 1,
+            ownedCharacters: 0,
+          },
+          characters: [
+            {
+              id: 'chr_0031_mifu',
+              name: '弭弗',
+              avatarUrl: '/avatars/characters/chr_0031_mifu.webp',
+              ownerUsers: 0,
+            },
+          ],
+        },
+      },
+      meta: {
+        source: 'character-table-fallback',
+        partial: true,
+      },
+    });
+    expect(select).toHaveBeenCalledWith('id, name, avatar_url, rarity, type, aliases, is_limited, release_date, created_at, updated_at, pool_config');
+    expect(order).toHaveBeenCalledWith('name');
     expectNoPrivateIdentifiers(res.body);
   });
 });

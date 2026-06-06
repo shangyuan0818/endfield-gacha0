@@ -25,6 +25,9 @@ const GLOBAL_STATS_CACHE_TTL = 120 * 1000;
 const CHARACTER_RANKING_CACHE_TTL = 120 * 1000;
 const CHARACTER_CATALOG_CACHE_TTL = 120 * 1000;
 const STATS_API_TIMEOUT_MS = 25000;
+const STATS_API_TYPE_TIMEOUT_MS = {
+  character_catalog: 12000,
+};
 const EXPECTED_LIMITED_UP_DISPLAY_COUNT = 6;
 const globalStatsRequestState = {
   data: null,
@@ -77,8 +80,8 @@ async function fetchStatsApi(type) {
   const result = await fetchPublicApiJson('/api/stats', {
     params: { type },
     label: `stats api ${type}`,
-    timeoutMs: STATS_API_TIMEOUT_MS,
-    retries: 1
+    timeoutMs: STATS_API_TYPE_TIMEOUT_MS[type] || STATS_API_TIMEOUT_MS,
+    retries: type === 'character_catalog' ? 0 : 1
   });
 
   return result?.data || null;
