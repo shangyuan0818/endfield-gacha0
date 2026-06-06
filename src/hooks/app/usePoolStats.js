@@ -21,11 +21,19 @@ function isGiftPull(pull) {
 }
 
 function isFreePull(pull) {
-  return pull?.isFree === true || pull?.is_free === true;
+  return pull?.isFree === true
+    || pull?.is_free === true
+    || pull?.isFreePull === true
+    || pull?.is_free_pull === true;
 }
 
 function isGuaranteedPull(pull) {
-  return pull?.specialType === 'guaranteed' || pull?.special_type === 'guaranteed';
+  return pull?.specialType === 'guaranteed'
+    || pull?.special_type === 'guaranteed'
+    || pull?.isGuaranteed === true
+    || pull?.is_guaranteed === true
+    || pull?.isSpark === true
+    || pull?.is_spark === true;
 }
 
 function normalizePoolType(type) {
@@ -101,7 +109,8 @@ function isTargetSixStarPull(pull, poolType) {
 }
 
 function shouldExcludeFromWinRate(pull, poolType) {
-  return normalizePoolType(poolType) === 'limited' && isGuaranteedPull(pull);
+  const normalizedType = normalizePoolType(poolType);
+  return (normalizedType === 'limited' || normalizedType === 'weapon') && isGuaranteedPull(pull);
 }
 
 function isLimitedSixStarPull(pull, poolType) {
@@ -266,7 +275,7 @@ export function usePoolStats({
     let offStandardCount = 0;  // 歪到常驻角色
     let offLimitedCount = 0;   // 歪到非当期限定角色
     normalizedCurrentPoolHistory.forEach(pull => {
-       if (pull.rarity === 6 && !isGiftPull(pull) && (includeFreePullsInStats || !isFreePull(pull))) {
+       if (pull.rarity === 6 && !isGiftPull(pull) && !isFreePull(pull)) {
           const pullPoolType = getPullPoolType(pull);
           if (shouldExcludeFromWinRate(pull, pullPoolType)) {
             return;
@@ -371,7 +380,7 @@ export function usePoolStats({
         const pullRecord = {
           count: effectiveSixStarCount,
           isStandard: pull.isStandard,
-          isGuaranteed: pull.specialType === 'guaranteed',
+          isGuaranteed: isGuaranteedPull(pull),
           isSpark
         };
         sixStarPulls.push(pullRecord);

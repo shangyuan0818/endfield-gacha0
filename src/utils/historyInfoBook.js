@@ -38,7 +38,10 @@ export function isGiftHistoryPull(item) {
 }
 
 export function isFreeHistoryPull(item) {
-  return item?.isFree === true || item?.is_free === true;
+  return item?.isFree === true
+    || item?.is_free === true
+    || item?.isFreePull === true
+    || item?.is_free_pull === true;
 }
 
 export function isInfoBookHistoryPull(item) {

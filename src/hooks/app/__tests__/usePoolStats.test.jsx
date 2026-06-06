@@ -387,7 +387,7 @@ describe('usePoolStats', () => {
         id: 'l2',
         rarity: 6,
         isStandard: false,
-        specialType: 'guaranteed',
+        isGuaranteed: true,
         poolId: 'pool_limited',
         timestamp: '2026-04-15T10:01:00.000Z',
         seqId: '2',
@@ -440,7 +440,7 @@ describe('usePoolStats', () => {
         id: 'r2',
         rarity: 6,
         isStandard: false,
-        isFree: true,
+        isFreePull: true,
         poolId: 'pool_limited',
         timestamp: '2026-04-15T10:01:00.000Z',
         seqId: '2',
@@ -452,6 +452,14 @@ describe('usePoolStats', () => {
         poolId: 'pool_limited',
         timestamp: '2026-04-15T10:02:00.000Z',
         seqId: '3',
+      },
+      {
+        id: 'r4',
+        rarity: 6,
+        isStandard: true,
+        poolId: 'pool_limited',
+        timestamp: '2026-04-15T10:03:00.000Z',
+        seqId: '4',
       },
     ];
 
@@ -472,36 +480,39 @@ describe('usePoolStats', () => {
     }));
 
     expect(excluded.result.current.stats).toMatchObject({
-      total: 2,
-      paidTotal: 2,
+      total: 3,
+      paidTotal: 3,
       freePullCount: 1,
       counts: {
         6: 1,
-        '6_std': 0,
-        5: 0,
-        4: 1,
-      },
-      resourceSummary: {
-        totalPulls: 2,
-        chargedPulls: 2,
-      },
-    });
-    expect(included.result.current.stats).toMatchObject({
-      total: 3,
-      paidTotal: 2,
-      freePullCount: 1,
-      counts: {
-        6: 2,
-        '6_std': 0,
+        '6_std': 1,
         5: 0,
         4: 1,
       },
       resourceSummary: {
         totalPulls: 3,
-        chargedPulls: 2,
+        chargedPulls: 3,
       },
     });
-    expect(included.result.current.stats.pityStats.history.map(({ count }) => count)).toEqual([30, 2]);
+    expect(included.result.current.stats).toMatchObject({
+      total: 4,
+      paidTotal: 3,
+      freePullCount: 1,
+      counts: {
+        6: 2,
+        '6_std': 1,
+        5: 0,
+        4: 1,
+      },
+      resourceSummary: {
+        totalPulls: 4,
+        chargedPulls: 3,
+      },
+    });
+    expect(included.result.current.stats.winRate).toBe('50.0');
+    expect(included.result.current.stats.upSixStarCount).toBe(1);
+    expect(included.result.current.stats.stdSixStarCount).toBe(1);
+    expect(included.result.current.stats.pityStats.history.map(({ count }) => count)).toEqual([30, 2, 1]);
     expect(included.result.current.stats.pityStats.distribution[2]).toMatchObject({
       range: '21-30',
       count: 1,
@@ -509,7 +520,7 @@ describe('usePoolStats', () => {
     });
     expect(included.result.current.stats.pityStats.distribution[0]).toMatchObject({
       range: '1-10',
-      count: 1,
+      count: 2,
       limited: 1,
     });
   });

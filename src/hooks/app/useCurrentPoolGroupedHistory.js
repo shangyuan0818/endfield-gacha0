@@ -33,7 +33,12 @@ function normalizePoolType(type) {
 }
 
 function isGuaranteedHistoryPull(item) {
-  return item?.specialType === 'guaranteed' || item?.special_type === 'guaranteed';
+  return item?.specialType === 'guaranteed'
+    || item?.special_type === 'guaranteed'
+    || item?.isGuaranteed === true
+    || item?.is_guaranteed === true
+    || item?.isSpark === true
+    || item?.is_spark === true;
 }
 
 function getAcquisitionMethod(item) {
