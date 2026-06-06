@@ -112,4 +112,36 @@ describe('poolTimeUtils homepage pool schedule', () => {
       poolData: expect.objectContaining({ id: 'limited_2' }),
     });
   });
+
+  it('uses the explicit UP character for homepage countdown and rotation even when the pool roster includes other six-stars', () => {
+    const limitedPoolWithRoster = {
+      id: 'limited_mifu',
+      type: 'limited',
+      name: '拳出无悔',
+      up_character: '弭弗',
+      featured_characters: ['余烬', '弭弗', '庄方宜'],
+      resolved_roster: {
+        up: [
+          { name: '余烬' },
+          { name: '弭弗' },
+          { name: '庄方宜' },
+        ],
+      },
+      start_time: '2026-06-05T04:00:00.000Z',
+      end_time: '2026-06-26T04:00:00.000Z',
+    };
+
+    const currentPool = getCurrentUpPoolInfo([limitedPoolWithRoster], new Date('2026-06-06T04:00:00.000Z'));
+    const schedule = getHomeRotationPoolSchedule([limitedPoolWithRoster]);
+
+    expect(currentPool).toMatchObject({
+      name: '弭弗',
+      poolData: expect.objectContaining({ id: 'limited_mifu' }),
+    });
+    expect(schedule[0]).toMatchObject({
+      id: 'limited_mifu',
+      name: '弭弗',
+      featuredNames: ['弭弗'],
+    });
+  });
 });

@@ -45,10 +45,26 @@ function getDefaultPoolFeaturedNames(pool) {
   return [];
 }
 
+function shouldPreferSingleUpName(pool) {
+  const normalizedType = String(pool?.type || '').trim();
+  if (!normalizedType) {
+    return false;
+  }
+
+  return normalizedType !== 'extra'
+    && normalizedType !== 'standard'
+    && normalizedType !== 'standard_pool'
+    && normalizedType !== 'beginner';
+}
+
 export function getPoolFeaturedNames(pool) {
   const rosterUpNames = extractRosterUpNames(pool);
   const explicitFeaturedNames = Array.isArray(pool?.featured_characters) ? pool.featured_characters : [];
   const singleUpName = canonicalizeCharacterRef(pool?.up_character || pool?.upCharacter || '');
+
+  if (singleUpName && shouldPreferSingleUpName(pool)) {
+    return [singleUpName];
+  }
 
   if (rosterUpNames.length > 0) {
     return dedupeNames(rosterUpNames);

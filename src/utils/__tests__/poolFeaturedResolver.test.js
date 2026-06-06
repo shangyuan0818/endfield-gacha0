@@ -40,6 +40,25 @@ describe('poolFeaturedResolver', () => {
     expect(getPoolFeaturedLead(pool)).toBe('莱万汀');
   });
 
+  it('prefers the explicit single UP for limited pools even when the roster contains other six-stars', () => {
+    const pool = {
+      type: 'limited',
+      name: '拳出无悔',
+      up_character: '弭弗',
+      featured_characters: ['余烬', '弭弗', '庄方宜'],
+      resolved_roster: {
+        up: [
+          { name: '余烬' },
+          { name: '弭弗' },
+          { name: '庄方宜' },
+        ],
+      },
+    };
+
+    expect(getPoolFeaturedNames(pool)).toEqual(['弭弗']);
+    expect(getPoolFeaturedLead(pool)).toBe('弭弗');
+  });
+
   it('falls back to pool name when no featured names exist', () => {
     expect(getPoolFeaturedLead({ name: '未命名卡池' })).toBe('未命名卡池');
   });
