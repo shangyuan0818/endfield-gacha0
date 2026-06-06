@@ -66,7 +66,12 @@ export function classifyCharacterIdSource(characterId) {
     return 'manual_placeholder';
   }
 
-  if (normalized.startsWith('char_') || normalized.startsWith('weapon_')) {
+  if (
+    normalized.startsWith('char_')
+    || normalized.startsWith('chr_')
+    || normalized.startsWith('weapon_')
+    || normalized.startsWith('wpn_')
+  ) {
     return 'seeded';
   }
 

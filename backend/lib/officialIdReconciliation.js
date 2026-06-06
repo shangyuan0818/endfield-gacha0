@@ -71,7 +71,15 @@ function isManualPoolId(poolId) {
 
 function isOfficialImportCharacterId(characterId) {
   const source = classifyCharacterIdSource(characterId);
-  return Boolean(characterId) && source !== 'manual_placeholder' && source !== 'custom' && source !== 'unknown';
+  return Boolean(characterId) && (source === 'seeded' || source === 'source_raw');
+}
+
+function isStableOfficialCharacterId(characterId) {
+  return classifyCharacterIdSource(characterId) === 'seeded';
+}
+
+function isRawOfficialImportCharacterAliasId(characterId) {
+  return classifyCharacterIdSource(characterId) === 'source_raw';
 }
 
 function isManualCharacterId(characterId) {
@@ -185,6 +193,7 @@ function normalizeCharacterCandidate(record) {
 
   return {
     id,
+    idSource: classifyCharacterIdSource(id),
     name: normalizeText(
       record?.name
       || record?.character_name
@@ -237,7 +246,32 @@ function scoreCharacterCandidate(officialCharacter, manualCharacter) {
 
   const officialNameKey = normalizeNameKey(officialCharacter?.name);
   const manualNameKey = normalizeNameKey(manualCharacter?.name);
-  return officialNameKey && manualNameKey && officialNameKey === manualNameKey ? 80 : 0;
+  if (!officialNameKey || !manualNameKey || officialNameKey !== manualNameKey) {
+    return 0;
+  }
+
+  let score = 80;
+  const officialRarity = Number.parseInt(String(officialCharacter?.rarity || ''), 10);
+  const candidateRarity = Number.parseInt(String(manualCharacter?.rarity || ''), 10);
+  if (Number.isFinite(officialRarity) && Number.isFinite(candidateRarity)) {
+    score += officialRarity === candidateRarity ? 8 : -12;
+  }
+
+  const candidateId = normalizeText(manualCharacter?.id).toLowerCase();
+  const candidateSource = classifyCharacterIdSource(candidateId);
+  if (candidateSource === 'manual_placeholder') {
+    score -= 10;
+  }
+  if (candidateId.startsWith('chr_') || candidateId.startsWith('wpn_')) {
+    score += 8;
+  } else if (candidateId.startsWith('char_') || candidateId.startsWith('weapon_')) {
+    score += 2;
+  }
+  if (normalizeText(manualCharacter?.avatar_url)) {
+    score += 4;
+  }
+
+  return Math.max(0, score);
 }
 
 function findUniqueMatch(target, candidates, scorer, minScore) {
@@ -285,6 +319,21 @@ function buildMergedCharacterRow(officialCharacter, manualCharacter) {
     rarity: officialCharacter.rarity || manualCharacter?.rarity || null,
     aliases: Array.from(aliases),
     updated_at: new Date().toISOString(),
+  };
+}
+
+function isCanonicalCharacterMatchCandidate(character) {
+  const source = classifyCharacterIdSource(character?.id);
+  return source === 'seeded' || source === 'manual_placeholder';
+}
+
+function buildRawOfficialCharacterAliasRow(rawCharacter, targetCharacterId) {
+  return {
+    source: 'official_api',
+    alias_id: rawCharacter.id,
+    character_id: targetCharacterId,
+    is_primary: false,
+    note: `Official import raw character id ${rawCharacter.id} resolved by name ${rawCharacter.name || ''}`.trim(),
   };
 }
 
@@ -416,6 +465,18 @@ async function migrateCharacterPlaceholder(adminClient, sourceCharacter, targetC
   await deleteEq(adminClient, 'characters', 'id', sourceCharacter.id);
 }
 
+async function retireRawCharacterDuplicate(adminClient, sourceCharacter, targetCharacterId) {
+  await updateEq(adminClient, 'character_id_aliases', {
+    character_id: targetCharacterId,
+    is_primary: false,
+    updated_at: new Date().toISOString(),
+  }, 'character_id', sourceCharacter.id);
+  await updateHistoryCharacterIdIfPresent(adminClient, sourceCharacter.id, targetCharacterId);
+  await copyCharacterPoolRosterToTarget(adminClient, sourceCharacter.id, targetCharacterId);
+  await replaceFeaturedCharacterRefs(adminClient, sourceCharacter.id, targetCharacterId);
+  await deleteEq(adminClient, 'characters', 'id', sourceCharacter.id);
+}
+
 export async function reconcileOfficialPoolIds(adminClient, pools, {
   userId = null,
 } = {}) {
@@ -494,19 +555,21 @@ export async function reconcileOfficialPoolIds(adminClient, pools, {
 }
 
 export async function reconcileOfficialCharacterIds(adminClient, records) {
-  const officialCharacters = uniqueById(
+  const importCharacters = uniqueById(
     (Array.isArray(records) ? records : []).map(normalizeCharacterCandidate).filter(Boolean),
     row => row.id
   );
+  const officialCharacters = importCharacters.filter(character => isStableOfficialCharacterId(character.id));
+  const rawAliasCharacters = importCharacters.filter(character => isRawOfficialImportCharacterAliasId(character.id));
 
-  if (officialCharacters.length === 0) {
-    return { created: 0, migrated: 0, skipped: 0, operations: [] };
+  if (officialCharacters.length === 0 && rawAliasCharacters.length === 0) {
+    return { created: 0, migrated: 0, aliased: 0, rawDuplicatesRetired: 0, skipped: 0, operations: [] };
   }
 
   const existingCharacters = await loadTableRows(
     adminClient,
     'characters',
-    'id, name, type, rarity, aliases'
+    'id, name, type, rarity, aliases, avatar_url'
   );
   const byId = new Map(existingCharacters.map(row => [normalizeText(row.id), row]));
   const manualCharacters = existingCharacters.filter(row => isManualCharacterId(row.id));
@@ -555,14 +618,53 @@ export async function reconcileOfficialCharacterIds(adminClient, records) {
     await migrateCharacterPlaceholder(adminClient, sourceCharacter, operation.officialId);
   }
 
-  await upsertCharacterAliases(
-    adminClient,
-    officialCharacters.flatMap(character => buildCharacterSelfAliasRows(character.id, 'official_api'))
-  );
+  const canonicalCandidates = [
+    ...existingCharacters,
+    ...targetRows,
+  ].filter(isCanonicalCharacterMatchCandidate);
+  const characterAliasRows = officialCharacters
+    .flatMap(character => buildCharacterSelfAliasRows(character.id, 'official_api'));
+
+  for (const rawCharacter of rawAliasCharacters) {
+    const existingRawDuplicate = byId.get(rawCharacter.id);
+    const { match, reason, score } = findUniqueMatch(
+      rawCharacter,
+      canonicalCandidates.filter(row => normalizeText(row.id) !== rawCharacter.id),
+      scoreCharacterCandidate,
+      MIN_CHARACTER_MATCH_SCORE
+    );
+
+    if (!match) {
+      operations.push({
+        kind: 'character',
+        officialId: rawCharacter.id,
+        action: 'skipped_raw_alias',
+        reason,
+      });
+      continue;
+    }
+
+    characterAliasRows.push(buildRawOfficialCharacterAliasRow(rawCharacter, match.id));
+    operations.push({
+      kind: 'character',
+      officialId: rawCharacter.id,
+      canonicalId: match.id,
+      action: existingRawDuplicate ? 'retired_raw_duplicate' : 'aliased_raw_id',
+      score,
+    });
+
+    if (existingRawDuplicate) {
+      await retireRawCharacterDuplicate(adminClient, existingRawDuplicate, match.id);
+    }
+  }
+
+  await upsertCharacterAliases(adminClient, characterAliasRows);
 
   return {
     created: operations.filter(item => item.action === 'created_official').length,
     migrated: operations.filter(item => item.action === 'migrated_manual_placeholder').length,
+    aliased: operations.filter(item => item.action === 'aliased_raw_id').length,
+    rawDuplicatesRetired: operations.filter(item => item.action === 'retired_raw_duplicate').length,
     skipped: operations.filter(item => item.reason === 'ambiguous_match').length,
     operations,
   };

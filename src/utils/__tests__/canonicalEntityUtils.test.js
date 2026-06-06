@@ -23,6 +23,12 @@ describe('canonicalEntityUtils manual id helpers', () => {
     expect(classifyCharacterIdSource(weaponId)).toBe('manual_placeholder');
   });
 
+  it('classifies wiki asset ids as seeded and numeric import ids as raw aliases', () => {
+    expect(classifyCharacterIdSource('chr_0020_meurs')).toBe('seeded');
+    expect(classifyCharacterIdSource('wpn_sword_0017')).toBe('seeded');
+    expect(classifyCharacterIdSource('45')).toBe('source_raw');
+  });
+
   it('creates official-like manual pool ids without classifying them as official ids', () => {
     const limitedPoolId = buildManualPoolId({
       type: 'limited',

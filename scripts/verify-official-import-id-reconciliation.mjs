@@ -213,4 +213,76 @@ assert.ok(adminClient.__state.character_id_aliases.some(row => (
   && row.character_id === officialCharacterId
 )), '手动角色 ID 应保留为指向官方角色的 alias');
 
+const canonicalCatcherId = 'chr_0020_meurs';
+const rawCatcherId = '45';
+adminClient.__state.characters.push(
+  {
+    id: canonicalCatcherId,
+    name: '卡契尔',
+    type: 'character',
+    rarity: 4,
+    aliases: ['Catcher'],
+    avatar_url: '/avatars/characters/chr_0020_meurs.webp',
+  },
+  {
+    id: rawCatcherId,
+    name: '卡契尔',
+    type: 'character',
+    rarity: 4,
+    aliases: [],
+    avatar_url: null,
+  }
+);
+adminClient.__state.history.push({
+  record_id: 2,
+  user_id: 'user-1',
+  game_uid: 'game-1',
+  pool_id: officialPoolId,
+  seq_id: '1002',
+  character_id: rawCatcherId,
+  updated_at: null,
+});
+adminClient.__state.pool_characters.push({
+  pool_id: officialPoolId,
+  character_id: rawCatcherId,
+  is_up: false,
+  created_at: '2026-06-01T00:00:00.000Z',
+});
+adminClient.__state.pools[0].featured_characters = [rawCatcherId];
+adminClient.__state.character_id_aliases.push(
+  {
+    source: 'internal',
+    alias_id: rawCatcherId,
+    character_id: rawCatcherId,
+    is_primary: true,
+  },
+  {
+    source: 'official_api',
+    alias_id: rawCatcherId,
+    character_id: rawCatcherId,
+    is_primary: true,
+  }
+);
+
+const rawAliasResult = await reconcileOfficialCharacterIds(adminClient, [{
+  charId: rawCatcherId,
+  charName: '卡契尔',
+  rarity: 4,
+}]);
+
+assert.equal(rawAliasResult.created, 0, '数字 raw ID 不应创建新的角色主记录');
+assert.equal(rawAliasResult.rawDuplicatesRetired, 1, '已存在的数字重复角色应退场');
+assert.ok(!adminClient.__state.characters.some(character => character.id === rawCatcherId), '数字角色主记录应被删除');
+assert.equal(adminClient.__state.history.find(row => row.record_id === 2).character_id, canonicalCatcherId, 'history.character_id 应从数字 ID 改回 canonical ID');
+assert.ok(adminClient.__state.pool_characters.some(row => (
+  row.pool_id === officialPoolId
+  && row.character_id === canonicalCatcherId
+)), 'pool_characters.character_id 应从数字 ID 改回 canonical ID');
+assert.deepEqual(adminClient.__state.pools[0].featured_characters, [canonicalCatcherId], 'featured_characters 应从数字 ID 改回 canonical ID');
+assert.ok(adminClient.__state.character_id_aliases.some(row => (
+  row.source === 'official_api'
+  && row.alias_id === rawCatcherId
+  && row.character_id === canonicalCatcherId
+)), '数字 raw ID 应保留为指向 canonical ID 的 official_api alias');
+
 console.log('DATA-NEW-018 official import ID reconciliation verification passed');

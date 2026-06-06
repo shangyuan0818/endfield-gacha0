@@ -26,6 +26,7 @@ import {
   reconcileOfficialCharacterIds,
   reconcileOfficialPoolIds,
 } from './lib/officialIdReconciliation.js';
+import { classifyCharacterIdSource } from './lib/canonicalEntityUtils.js';
 
 // Supabase Admin 客户端（需要 SUPABASE_SECRET_KEY；旧 service_role_key 仍兼容）
 let supabaseAdmin = null;
@@ -81,6 +82,20 @@ function normalizeString(value, maxLength = 4096) {
     return '';
   }
   return text;
+}
+
+function normalizeResolvedCharacterIdForStorage(rawCharacterId, resolvedCharacterId) {
+  const rawId = normalizeString(rawCharacterId, 160);
+  const resolvedId = normalizeString(resolvedCharacterId, 160);
+  if (!resolvedId) {
+    return null;
+  }
+
+  if (rawId && rawId === resolvedId && classifyCharacterIdSource(rawId) === 'source_raw') {
+    return null;
+  }
+
+  return resolvedId;
 }
 
 function base64UrlToBuffer(value) {
@@ -471,7 +486,6 @@ async function upsertHistoryGroupsWithOptionalColumnFallback(supabase, upsertGro
     );
 
     while (true) {
-      // eslint-disable-next-line no-await-in-loop -- schema fallback must retry the same group with fewer columns
       const result = await supabase
         .from('history')
         .upsert(pendingRows, { onConflict: group.onConflict });
@@ -978,7 +992,10 @@ async function processRecords(rawRecords, account, _userId, existingSeqIds, sour
       const normalizedPoolType = getPoolTypeFromId(poolId, type, poolType);
       const uniqueKey = seqId ? `${gameUid}:${poolId}:${seqId}` : null;
       const rawCharacterId = record.charId || record.weaponId || record.character_id || record.item_id || null;
-      const characterId = resolveAliasValue(characterAliasMap, rawCharacterId);
+      const characterId = normalizeResolvedCharacterIdForStorage(
+        rawCharacterId,
+        resolveAliasValue(characterAliasMap, rawCharacterId)
+      );
 
       // 去重
       if (uniqueKey && existingSeqIds.has(uniqueKey)) {

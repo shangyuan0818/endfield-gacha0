@@ -1,4 +1,5 @@
 import { clampHistoryPity, splitHistoryUpsertGroups } from './historyRecordUtils.js';
+import { classifyCharacterIdSource } from './canonicalEntityUtils.js';
 
 function resolveOwnerId(explicitUserId, currentUserId) {
   return explicitUserId || currentUserId || null;
@@ -27,6 +28,25 @@ function normalizeRecordId(record) {
   }
 
   return recordId;
+}
+
+function normalizeText(value) {
+  return typeof value === 'string' ? value.trim() : String(value || '').trim();
+}
+
+function normalizeCharacterIdForStorage(record, resolvedCharacterId) {
+  const rawCharacterId = normalizeText(record.character_id || record.item_id || record.charId || record.weaponId);
+  const candidateId = normalizeText(resolvedCharacterId || rawCharacterId);
+
+  if (!candidateId) {
+    return null;
+  }
+
+  if (rawCharacterId && candidateId === rawCharacterId && classifyCharacterIdSource(rawCharacterId) === 'source_raw') {
+    return null;
+  }
+
+  return candidateId;
 }
 
 export function serializePoolForUpsert(pool, currentUserId, resolvedPoolId = null) {
@@ -65,7 +85,7 @@ export function serializeHistoryForUpsert(
     special_type: record.specialType || record.special_type || null,
     character_name: record.character_name || record.characterName || record.name || null,
     item_name: record.item_name || record.name || record.character_name || record.characterName || null,
-    character_id: resolvedCharacterId || record.character_id || record.item_id || record.charId || record.weaponId || null,
+    character_id: normalizeCharacterIdForStorage(record, resolvedCharacterId),
     batch_id: record.batchId || record.batch_id || null,
     seq_id: record.seqId || record.seq_id || null,
     pity: clampHistoryPity(record.pity),

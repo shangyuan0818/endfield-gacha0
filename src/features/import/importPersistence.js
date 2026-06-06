@@ -1,5 +1,6 @@
 import { normalizeIsStandard } from '../../utils/poolUtils.js';
 import { clampHistoryPity } from '../../utils/historyRecordUtils.js';
+import { classifyCharacterIdSource } from '../../utils/canonicalEntityUtils.js';
 
 function resolveAliasValue(aliasMap, inputValue) {
   const normalized = typeof inputValue === 'string' ? inputValue.trim() : String(inputValue || '').trim();
@@ -7,6 +8,21 @@ function resolveAliasValue(aliasMap, inputValue) {
     return null;
   }
   return aliasMap?.[normalized] || normalized;
+}
+
+function normalizeCharacterIdForStorage(rawCharacterId, resolvedCharacterId) {
+  const rawId = typeof rawCharacterId === 'string' ? rawCharacterId.trim() : String(rawCharacterId || '').trim();
+  const candidateId = typeof resolvedCharacterId === 'string' ? resolvedCharacterId.trim() : String(resolvedCharacterId || '').trim();
+
+  if (!candidateId) {
+    return null;
+  }
+
+  if (rawId && rawId === candidateId && classifyCharacterIdSource(rawId) === 'source_raw') {
+    return null;
+  }
+
+  return candidateId;
 }
 
 function inferPoolTypeFromId(poolId) {
@@ -88,7 +104,10 @@ function buildImportedHistoryRecords({
     const rawPoolId = record.pool_id || record.poolId;
     const rawCharacterId = record.character_id || record.item_id || record.charId || record.weaponId;
     const canonicalPoolId = resolveAliasValue(poolAliasMap, rawPoolId);
-    const canonicalCharacterId = resolveAliasValue(characterAliasMap, rawCharacterId);
+    const canonicalCharacterId = normalizeCharacterIdForStorage(
+      rawCharacterId,
+      resolveAliasValue(characterAliasMap, rawCharacterId)
+    );
 
     const poolHash = simpleStringHash(rawPoolId || 'unknown');
     const seqNum = record.seqId ? parseInt(record.seqId, 10) : index;
