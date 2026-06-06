@@ -215,4 +215,29 @@ describe('/api/stats character_catalog privacy', () => {
     expect(order).toHaveBeenCalledWith('name');
     expectNoPrivateIdentifiers(res.body);
   });
+
+  it('returns a partial response when character ranking aggregation is unavailable', async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: new Error('ranking timeout'),
+    });
+
+    const res = await call({ type: 'character_ranking', v: 'ranking-timeout-test' });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      cached: false,
+      partial: true,
+      data: {
+        characterRanking: null,
+      },
+      meta: {
+        source: 'origin-timeout',
+        partial: true,
+      },
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('get_character_ranking_stats_cached');
+    expectNoPrivateIdentifiers(res.body);
+  });
 });

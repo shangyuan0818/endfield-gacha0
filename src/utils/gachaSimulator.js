@@ -26,6 +26,34 @@ import {
 
 import { characterCache } from './characterUtils.js';
 
+function normalizeEntityName(value) {
+  return String(value || '').trim();
+}
+
+function resolveRosterAvatarUrl(poolCharactersList, characterName) {
+  const targetName = normalizeEntityName(characterName);
+  if (!targetName || !poolCharactersList) {
+    return null;
+  }
+
+  const buckets = ['items', 'up', 'offBanner', 'fiveStar', 'fourStar'];
+  for (const bucket of buckets) {
+    const entries = Array.isArray(poolCharactersList?.[bucket]) ? poolCharactersList[bucket] : [];
+    const matchedEntry = entries.find((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return false;
+      }
+      return normalizeEntityName(entry.name) === targetName || normalizeEntityName(entry.id) === targetName;
+    });
+    const avatarUrl = matchedEntry?.avatarUrl || matchedEntry?.avatar_url || null;
+    if (avatarUrl) {
+      return avatarUrl;
+    }
+  }
+
+  return null;
+}
+
 /**
  * 创建初始模拟器状态
  * @param {string} poolType - 卡池类型
@@ -158,6 +186,13 @@ export class GachaSimulator {
     this.poolCharactersList = list;
   }
 
+  resolvePullAvatarUrl(characterName) {
+    return resolveRosterAvatarUrl(this.poolCharactersList, characterName)
+      || characterCache.searchByName(characterName, false)?.avatar_url
+      || characterCache.searchByName(characterName, true)?.avatar_url
+      || null;
+  }
+
   /**
    * 获取当前UP角色
    * @returns {string} UP角色名称
@@ -229,6 +264,7 @@ export class GachaSimulator {
       isUp: result.isUp,
       isLimited: result.isLimited,
       characterName: result.characterName,
+      avatarUrl: result.avatarUrl || this.resolvePullAvatarUrl(result.characterName),
       timestamp: Date.now()
     };
 
@@ -280,6 +316,7 @@ export class GachaSimulator {
         isUp: result.isUp,
         isLimited: result.isLimited,
         characterName: result.characterName,
+        avatarUrl: result.avatarUrl || this.resolvePullAvatarUrl(result.characterName),
         timestamp: Date.now() + index, // 加上微小偏移区分
         batchIndex: index,
         isTenPull: true
@@ -347,6 +384,7 @@ export class GachaSimulator {
         isUp: result.isUp,
         isLimited: result.isLimited,
         characterName: result.characterName,
+        avatarUrl: result.avatarUrl || this.resolvePullAvatarUrl(result.characterName),
         timestamp: Date.now() + index,
         batchIndex: index,
         isTenPull: true
@@ -393,6 +431,7 @@ export class GachaSimulator {
         isUp: result.isUp,
         isLimited: result.isLimited,
         characterName: result.characterName,
+        avatarUrl: result.avatarUrl || this.resolvePullAvatarUrl(result.characterName),
         timestamp: Date.now() + index,
         batchIndex: index,
         isTenPull: true,
@@ -451,6 +490,7 @@ export class GachaSimulator {
         isUp: result.isUp,
         isLimited: result.isLimited,
         characterName: result.characterName,
+        avatarUrl: result.avatarUrl || this.resolvePullAvatarUrl(result.characterName),
         timestamp: Date.now() + index,
         batchIndex: index,
         isTenPull: true,

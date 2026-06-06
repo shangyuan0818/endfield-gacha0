@@ -23,6 +23,9 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
           const existing = characters.get(name);
           if (existing) {
             existing.count++;
+            if (!existing.avatarUrl && item.avatarUrl) {
+              existing.avatarUrl = item.avatarUrl;
+            }
             if (item.isInfoBookPull) {
               existing.infoBookCount++;
             }
@@ -33,6 +36,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
             characters.set(name, {
               name,
               count: 1,
+              avatarUrl: item.avatarUrl || null,
               rarity: item.rarity,
               isStandard: !item.isUp && item.rarity === 6,
               isLimited: item.isUp && item.rarity === 6,
@@ -118,7 +122,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                 `}>
                   {(() => {
                     const charData = characterCache.searchByName(char.name, false);
-                    const avatarUrl = charData?.avatar_url;
+                    const avatarUrl = char.avatarUrl || charData?.avatar_url || characterCache.searchByName(char.name, true)?.avatar_url;
                     const localizedName = localizeEntityName(char.name, { locale, type: entityType }) || char.name;
 
                     if (avatarUrl) {
@@ -137,7 +141,7 @@ const CharacterStats = ({ pullHistory, poolType: _poolType }) => {
                     return null;
                   })()}
                   <div className={`w-full h-full items-center justify-center ${
-                    characterCache.searchByName(char.name, false)?.avatar_url ? 'hidden' : 'flex'
+                    char.avatarUrl || characterCache.searchByName(char.name, false)?.avatar_url || characterCache.searchByName(char.name, true)?.avatar_url ? 'hidden' : 'flex'
                   }`}>
                     <User size={14} />
                   </div>

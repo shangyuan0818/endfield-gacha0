@@ -100,6 +100,32 @@ describe('gachaSimulator state import', () => {
     expect(() => simulator.pullSingle()).toThrow('武器池按申领进行');
   });
 
+  it('keeps roster avatar urls on four-star and five-star simulator results', () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const roster = {
+      up: [{ name: '测试UP', avatarUrl: '/avatars/up.webp' }],
+      offBanner: [{ name: '测试常驻', avatarUrl: '/avatars/off.webp' }],
+      fiveStar: [{ name: '测试五星', avatarUrl: '/avatars/five.webp' }],
+      fourStar: [{ name: '测试四星', avatarUrl: '/avatars/four.webp' }],
+    };
+
+    const fiveStarSimulator = createSimulator('limited', null, '测试UP', roster);
+    fiveStarSimulator.updateState({ fiveStarPity: 9 });
+    expect(fiveStarSimulator.pullSingle()).toMatchObject({
+      rarity: 5,
+      characterName: '测试五星',
+      avatarUrl: '/avatars/five.webp',
+    });
+
+    randomSpy.mockReturnValue(0.999);
+    const fourStarSimulator = createSimulator('limited', null, '测试UP', roster);
+    expect(fourStarSimulator.pullSingle()).toMatchObject({
+      rarity: 4,
+      characterName: '测试四星',
+      avatarUrl: '/avatars/four.webp',
+    });
+  });
+
   it('runs weapon ten-pulls as one arsenal claim and advances claim-based pity', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.999);
 

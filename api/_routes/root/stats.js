@@ -34,6 +34,7 @@ const cache = {
 
 const CACHE_TTL = 60 * 1000; // 60秒缓存
 const CHARACTER_CATALOG_RPC_TIMEOUT_MS = 8500;
+const CHARACTER_RANKING_RPC_TIMEOUT_MS = 8500;
 const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 const PRIVATE_CHARACTER_CATALOG_KEYS = new Set([
   'user_id',
@@ -272,6 +273,19 @@ async function fetchCharacterCatalogStatsCached(supabase) {
   }
 
   return normalizeCharacterCatalogAvatars(data);
+}
+
+async function fetchCharacterRankingStatsCached(supabase) {
+  const { data, error } = await withServerTimeout(
+    supabase.rpc('get_character_ranking_stats_cached'),
+    CHARACTER_RANKING_RPC_TIMEOUT_MS,
+    'get_character_ranking_stats_cached'
+  );
+  if (error) {
+    throw error;
+  }
+
+  return data ?? null;
 }
 
 async function fetchCharacterCatalogForStats(supabase) {
@@ -659,9 +673,20 @@ async function handleCharacterRanking(supabase, res, now, context) {
     });
   }
 
-  const { data, error } = await supabase.rpc('get_character_ranking_stats_cached');
-  if (error) {
-    throw error;
+  let data = null;
+  try {
+    data = await fetchCharacterRankingStatsCached(supabase);
+  } catch (error) {
+    return sendStatsJson(res, 'character_ranking', {
+      cached: cache.characterRanking !== null,
+      partial: true,
+      stale: cache.characterRanking !== null,
+      data: { characterRanking: cache.characterRanking ?? null },
+      source: cache.characterRanking !== null ? 'memory-cache' : 'origin-timeout',
+      context,
+      lastFetch: cache.characterRankingLastFetch,
+      error: error?.message || 'character_ranking_timeout'
+    });
   }
 
   cache.characterRanking = data ?? null;
@@ -729,7 +754,7 @@ async function handleAll(supabase, res, now, context) {
     fetchPoolCatalog(supabase),
     fetchCharactersTable(supabase),
     supabase.rpc('get_global_stats_cached'),
-    supabase.rpc('get_character_ranking_stats_cached'),
+    fetchCharacterRankingStatsCached(supabase),
     fetchCharacterCatalogForStats(supabase)
   ]);
 
@@ -772,7 +797,7 @@ async function handleAll(supabase, res, now, context) {
   }
 
   if (characterRankingResult.status === 'fulfilled' && !characterRankingResult.value.error) {
-    result.characterRanking = characterRankingResult.value.data ?? null;
+    result.characterRanking = characterRankingResult.value ?? null;
     cache.characterRanking = result.characterRanking;
     cache.characterRankingLastFetch = now;
     setTypeMeta('character_ranking', getAllChildContext(context, 'character_ranking'));

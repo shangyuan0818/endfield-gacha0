@@ -5,7 +5,7 @@ import { calculateArsenalQuotaRewardForRarity, getLocalizedResourceLabel, RESOUR
 import ShareActionStatus from '../../components/share/ShareActionStatus';
 import { useI18n } from '../../i18n/index.js';
 
-const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index, poolType, t, locale }) => {
+const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, avatarUrl: resultAvatarUrl, index, poolType, t, locale }) => {
   // 延迟动画
   const delay = `${index * 100}ms`;
 
@@ -47,7 +47,7 @@ const RarityCard = ({ rarity, isUp, isLimited, isStandard, characterName, index,
 
   // 获取角色头像
   const charData = characterName ? characterCache.searchByName(characterName, false) : null;
-  const avatarUrl = charData?.avatar_url;
+  const avatarUrl = resultAvatarUrl || charData?.avatar_url || (characterName ? characterCache.searchByName(characterName, true)?.avatar_url : null);
   const arsenalReward = poolType !== 'weapon' ? calculateArsenalQuotaRewardForRarity(rarity) : 0;
 
   return (

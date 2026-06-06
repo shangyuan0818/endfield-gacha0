@@ -72,6 +72,7 @@ function dedupeEntries(items = []) {
       ...item,
       name: normalizedName,
       id: item?.id || normalizedName,
+      avatarUrl: item?.avatarUrl || item?.avatar_url || null,
     });
   });
   return output;
@@ -117,6 +118,7 @@ export function buildBucketsFromPoolCharacters(records = [], { expectedType = 'c
     const entry = {
       id: character.id || normalizedName,
       name: normalizedName,
+      avatarUrl: character.avatar_url || character.avatarUrl || null,
       rarity: Number(character.rarity) || 0,
       type: character.type,
       isUp
@@ -167,6 +169,7 @@ function buildBucketsFromCharacters(characters = [], { currentUpName = null } = 
       return {
         id: character?.id || normalizedName,
         name: normalizedName,
+        avatarUrl: character?.avatar_url || character?.avatarUrl || null,
         rarity: Number(character?.rarity) || 0,
         type: character?.type,
         isUp
@@ -305,6 +308,7 @@ export async function fetchPoolRosterBuckets(poolId, { expectedType = 'character
         name,
         rarity,
         type,
+        avatar_url,
         is_limited,
         aliases,
         pool_config
