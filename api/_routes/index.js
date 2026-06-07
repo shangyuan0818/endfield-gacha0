@@ -36,6 +36,8 @@ import poolRostersHandler from './root/pool-rosters.js';
 import publicCacheVersionHandler from './root/public-cache-version.js';
 import puzzlesHandler from './root/puzzles.js';
 import selfDeleteAccountHandler from './root/self-delete-account.js';
+import statusAdminHandler from './root/status-admin.js';
+import statusProbeHandler from './root/status-probe.js';
 import siteStatusHandler from './root/site-status.js';
 import statsHandler from './root/stats.js';
 import ticketReplyHandler from './root/ticket-reply.js';
@@ -139,6 +141,8 @@ export const API_ROUTE_ENTRIES = [
   ['/api/public-cache-version', publicCacheVersionHandler],
   ['/api/puzzles', puzzlesHandler],
   ['/api/self-delete-account', selfDeleteAccountHandler],
+  ['/api/status-admin', statusAdminHandler],
+  ['/api/status-probe', statusProbeHandler],
   ['/api/site-status', siteStatusHandler],
   ['/api/stats', statsHandler],
   ['/api/tickets', ticketsHandler],

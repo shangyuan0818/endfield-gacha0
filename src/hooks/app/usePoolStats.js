@@ -376,8 +376,6 @@ export function usePoolStats({
     const limitedSixStarIntervalTracker = createHitIntervalTracker(); // UI-007: 限定六星(UP+歪限定)
     const targetSixStarIntervalTracker = createHitIntervalTracker();
     let tempCounter = 0;
-    let cumulativePullCount = 0; // 累计有效抽数（用于判断Spark）
-    let hasGotUpBefore120 = false; // 前120抽内是否已通过概率获得UP
     let targetScopeTotal = 0;
     let limitedScopeTotal = 0;
 
@@ -386,7 +384,6 @@ export function usePoolStats({
       const pullPoolType = getPullPoolType(pull);
       if (!isFree) {
         tempCounter++;
-        cumulativePullCount++;
         recordHitIntervalPull(targetSixStarIntervalTracker);
         recordHitIntervalPull(limitedSixStarIntervalTracker);
       }
@@ -403,9 +400,6 @@ export function usePoolStats({
         const isUp = isTargetSixStarPull(pull, pullPoolType);
         const recordKey = getHistoryRecordKey(pull);
         const isSpark = recordKey ? limitedSparkRecordKeys.has(recordKey) : false;
-        if (isUp && cumulativePullCount < 120) {
-          hasGotUpBefore120 = true;
-        }
 
         // UI-007: 判断歪出的6星是否为限定角色
         const isActuallyLimited = isLimitedSixStarPull(pull, pullPoolType);

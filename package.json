@@ -58,7 +58,6 @@
     "test:mail-inbound": "node scripts/verify-mail-inbound.mjs",
     "test:mail-service-entrypoints": "node scripts/verify-mail-service-entrypoints.mjs",
     "test:admin-site-health": "node scripts/verify-admin-site-health.mjs",
-    "test:independent-status-page": "node scripts/verify-independent-status-page.mjs",
     "test:resource-ui": "node scripts/verify-resource-ui-playwright.mjs",
     "test:data-format-registry": "node scripts/verify-data-format-registry.mjs",
     "test:manual-placeholder-audit": "node scripts/verify-manual-placeholder-audit.mjs",

@@ -32,6 +32,8 @@ const INTERNAL_OPERATION_PATHS = [
   '/api/mail-delivery-feedback',
   '/api/mail-inbound',
   '/api/mail-outbox-worker',
+  '/api/status-admin',
+  '/api/status-probe',
 ];
 
 const AUTH_OPERATION_PATHS = [
