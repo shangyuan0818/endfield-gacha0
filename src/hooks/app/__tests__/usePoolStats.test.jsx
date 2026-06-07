@@ -427,6 +427,66 @@ describe('usePoolStats', () => {
     expect(result.current.stats.stdSixStarCount).toBe(1);
   });
 
+  it('detects legacy 120th paid limited UP hits as guarantee records for win-rate', () => {
+    const normalizedCurrentPoolHistory = Array.from({ length: 120 }, (_, index) => ({
+      id: `heat-${index + 1}`,
+      rarity: 4,
+      isStandard: false,
+      poolId: 'special_1_0_2',
+      timestamp: new Date(Date.UTC(2026, 1, 25, 10, index, 0)).toISOString(),
+      seqId: String(index + 1),
+      character_name: '四星角色',
+    }));
+
+    normalizedCurrentPoolHistory[62] = {
+      ...normalizedCurrentPoolHistory[62],
+      rarity: 6,
+      isStandard: true,
+      character_name: '余烬',
+    };
+    normalizedCurrentPoolHistory[114] = {
+      ...normalizedCurrentPoolHistory[114],
+      rarity: 6,
+      isStandard: true,
+      character_name: '别礼',
+    };
+    normalizedCurrentPoolHistory[119] = {
+      ...normalizedCurrentPoolHistory[119],
+      rarity: 6,
+      isStandard: false,
+      character_name: '伊冯',
+    };
+
+    const { result } = renderHook(() => usePoolStats({
+      normalizedCurrentPoolHistory,
+      currentPool: {
+        id: 'special_1_0_2',
+        type: 'limited',
+        up_character: '伊冯',
+        isGroupMode: false,
+      },
+      currentPoolId: 'special_1_0_2',
+      selectedPools: [
+        { id: 'special_1_0_2', type: 'limited', up_character: '伊冯' },
+      ],
+    }));
+
+    expect(result.current.stats.counts).toMatchObject({
+      6: 1,
+      '6_std': 2,
+    });
+    expect(result.current.stats.winRate).toBe('0.0');
+    expect(result.current.stats.sixStarCount).toBe(2);
+    expect(result.current.stats.upSixStarCount).toBe(0);
+    expect(result.current.stats.stdSixStarCount).toBe(2);
+    expect(result.current.stats.sparkCount).toBe(1);
+    expect(result.current.stats.pityStats.history.map(({ count, isSpark }) => ({ count, isSpark }))).toEqual([
+      { count: 63, isSpark: false },
+      { count: 52, isSpark: false },
+      { count: 5, isSpark: true },
+    ]);
+  });
+
   it('includes free ten pulls in stats only when the toggle is enabled', () => {
     const normalizedCurrentPoolHistory = [
       {

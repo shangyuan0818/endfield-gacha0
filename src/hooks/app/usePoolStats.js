@@ -130,6 +130,42 @@ function getHistoryRecordKey(item) {
   return value == null ? null : String(value);
 }
 
+function buildLimitedSparkRecordKeys(history, getPullPoolType, isGroupMode) {
+  const sparkRecordKeys = new Set();
+  if (isGroupMode) {
+    return sparkRecordKeys;
+  }
+
+  let cumulativePullCount = 0;
+  let hasGotUpBefore120 = false;
+
+  history.forEach((pull) => {
+    if (isGiftPull(pull) || isFreePull(pull)) {
+      return;
+    }
+
+    cumulativePullCount += 1;
+    const pullPoolType = getPullPoolType(pull);
+    if (Number(pull?.rarity) !== 6 || pullPoolType !== 'limited') {
+      return;
+    }
+
+    const isUp = isTargetSixStarPull(pull, pullPoolType);
+    if (isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+      const recordKey = getHistoryRecordKey(pull);
+      if (recordKey) {
+        sparkRecordKeys.add(recordKey);
+      }
+    }
+
+    if (isUp && cumulativePullCount < 120) {
+      hasGotUpBefore120 = true;
+    }
+  });
+
+  return sparkRecordKeys;
+}
+
 /**
  * 卡池统计 Hook
  * 处理统计计算逻辑：stats、groupedHistory、filteredGroupedHistory、effectivePity 等
@@ -192,6 +228,11 @@ export function usePoolStats({
 
       return normalizedPoolType;
     };
+    const limitedSparkRecordKeys = buildLimitedSparkRecordKeys(
+      normalizedCurrentPoolHistory,
+      getPullPoolType,
+      currentPool?.isGroupMode
+    );
     const paidPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item) && !isFreePull(item));
     const quotaPullsList = normalizedCurrentPoolHistory.filter((item) => !isGiftPull(item));
     const validPullsList = quotaPullsList.filter((item) => (
@@ -277,7 +318,8 @@ export function usePoolStats({
     normalizedCurrentPoolHistory.forEach(pull => {
        if (pull.rarity === 6 && !isGiftPull(pull) && !isFreePull(pull)) {
           const pullPoolType = getPullPoolType(pull);
-          if (shouldExcludeFromWinRate(pull, pullPoolType)) {
+          const recordKey = getHistoryRecordKey(pull);
+          if (shouldExcludeFromWinRate(pull, pullPoolType) || (recordKey && limitedSparkRecordKeys.has(recordKey))) {
             return;
           }
           if (isTargetSixStarPull(pull, pullPoolType)) {
@@ -359,10 +401,8 @@ export function usePoolStats({
         // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
         // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = isTargetSixStarPull(pull, pullPoolType);
-        let isSpark = false;
-        if (!currentPool.isGroupMode && pullPoolType === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
-          isSpark = true;
-        }
+        const recordKey = getHistoryRecordKey(pull);
+        const isSpark = recordKey ? limitedSparkRecordKeys.has(recordKey) : false;
         if (isUp && cumulativePullCount < 120) {
           hasGotUpBefore120 = true;
         }
