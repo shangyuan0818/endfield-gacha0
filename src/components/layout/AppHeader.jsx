@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, LogIn, LogOut, Settings, Info, CloudOff, MessageSquare } from 'lucide-react';
+import { BarChart3, LogIn, LogOut, Settings, Info, CloudOff, MessageSquare, Activity } from 'lucide-react';
 import { NotificationBadge } from '../ui';
 import HeaderPoolTimeInfo from './HeaderPoolTimeInfo';
 import { isSupabaseConfigured } from '../../supabaseClient';
@@ -8,6 +8,8 @@ import { STORAGE_KEYS, markAsViewed } from '../../utils';
 import LocaleSwitcher from '../common/LocaleSwitcher.jsx';
 import { useI18n } from '../../i18n/index.js';
 import { useHorizontalWheelScroll } from '../../hooks/useHorizontalWheelScroll.js';
+
+const SITE_STATUS_PAGE_URL = 'https://endfield-status-page.vercel.app/';
 
 const NavTab = ({ id, label, showDot, onClick, className = '', activeTab, setActiveTab }) => {
   const isActive = activeTab === id;
@@ -189,6 +191,16 @@ export default function AppHeader({
               >
                 <Info size={16} />
               </button>
+
+              <a
+                href={SITE_STATUS_PAGE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-sm transition-all duration-200 text-slate-500 dark:text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 border border-transparent"
+                title={t('nav.siteStatus')}
+              >
+                <Activity size={16} />
+              </a>
           </div>
 
           {/* 登录/用户区域 */}

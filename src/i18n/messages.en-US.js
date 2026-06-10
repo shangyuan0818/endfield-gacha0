@@ -45,6 +45,7 @@ const messages = {
   "nav.tickets": "Tickets",
   "nav.settings": "Settings",
   "nav.about": "About",
+  "nav.siteStatus": "Service Status",
   "nav.login": "Log In",
   "nav.logout": "Log Out",
   "nav.guest": "Guest",

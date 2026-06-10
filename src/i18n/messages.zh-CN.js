@@ -45,6 +45,7 @@ const messages = {
   "nav.tickets": "工单",
   "nav.settings": "设置",
   "nav.about": "关于",
+  "nav.siteStatus": "服务状态",
   "nav.login": "登录",
   "nav.logout": "退出登录",
   "nav.guest": "游客",
