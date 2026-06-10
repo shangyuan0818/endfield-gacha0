@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { X, Save, Star, Users, UserPlus, CheckCircle, CheckSquare, Square, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import DateTimePicker from '../../common/DateTimePicker';
+import { PanelToolbarButton } from '../panels/shared/PanelUi.jsx';
+
+const FIELD_INPUT_CLASS = 'w-full border bg-white px-3 py-1.5 text-xs text-slate-700 outline-none transition-colors focus:border-amber-500 dark:bg-zinc-900 dark:text-zinc-300 dark:focus:border-endfield-yellow';
+const FIELD_BORDER_CLASS = 'border-zinc-300 dark:border-zinc-700';
+const FIELD_LABEL_CLASS = 'mb-1 block text-xs font-medium text-slate-700 dark:text-zinc-300';
 
 function parseFeaturedCharactersInput(value) {
   return Array.from(new Set(
@@ -20,12 +25,12 @@ const CharacterTag = ({ char, isInPool, isUp, onClick }) => {
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded transition-all ${
+      className={`inline-flex items-center gap-1 border px-2 py-1 text-xs transition-all ${
         isInPool
           ? isUp
-            ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300 font-bold ring-2 ring-orange-400'
-            : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
-          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+            ? 'border-orange-400 bg-orange-50 font-bold text-orange-600 dark:border-orange-600 dark:bg-orange-900/40 dark:text-orange-300'
+            : 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400'
+          : 'border-zinc-200 bg-zinc-50 text-zinc-400 hover:border-zinc-300 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-600 dark:hover:border-zinc-700 dark:hover:bg-zinc-800'
       }`}
       title={`${char.name}${isInPool ? ' ✓ 在池中' : ' ✗ 不在池中'}${isUp ? ' [UP]' : ''} · 添加: ${addedDate}`}
     >
@@ -56,17 +61,17 @@ const CharacterGroup = ({
   const allSelected = inPoolCount === items.length;
 
   return (
-    <div className="p-3 bg-zinc-50/50 dark:bg-zinc-800/30 rounded border border-zinc-200 dark:border-zinc-700">
-      <div className="flex items-center justify-between mb-2">
+    <div className="border border-zinc-200 bg-zinc-50/50 p-2.5 dark:border-zinc-800 dark:bg-zinc-800/30">
+      <div className="mb-2 flex items-center justify-between">
         <button
           type="button"
           onClick={onToggleCollapsed}
-          className="flex items-center gap-2 min-w-0 text-left"
+          className="flex min-w-0 items-center gap-2 text-left"
         >
           {collapsed ? <ChevronRight size={14} className={colorClass} /> : <ChevronDown size={14} className={colorClass} />}
           <Star size={14} className={colorClass} />
-          <span className={`text-xs font-medium ${colorClass}`}>{label}</span>
-          <span className="text-xs text-slate-400 dark:text-zinc-500">
+          <span className={`text-xs font-semibold uppercase tracking-wider ${colorClass}`}>{label}</span>
+          <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">
             {inPoolCount}/{items.length}
           </span>
         </button>
@@ -74,14 +79,14 @@ const CharacterGroup = ({
           <button
             onClick={() => onAddAll(items)}
             disabled={allSelected}
-            className="text-xs px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
           >
             全选
           </button>
           <button
             onClick={() => onRemoveAll(items)}
             disabled={inPoolCount === 0}
-            className="text-xs px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 dark:hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/50"
           >
             清空
           </button>
@@ -177,24 +182,25 @@ const PoolDraftDiffPreview = ({ diff }) => {
   ].filter(Boolean);
 
   return (
-    <div className="p-2 bg-slate-50 dark:bg-zinc-950/40 border border-zinc-200 dark:border-zinc-800 rounded text-xs text-slate-600 dark:text-zinc-400 space-y-2">
+    <div className="space-y-2 border border-zinc-200 bg-zinc-50 p-2.5 text-xs text-slate-600 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-400">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-medium text-slate-700 dark:text-zinc-300">
+        <span className="flex items-center gap-2 font-semibold text-slate-700 dark:text-zinc-300">
+          <span className="h-3 w-1 bg-amber-500 dark:bg-endfield-yellow" aria-hidden="true"></span>
           {diff.mode === 'create' ? '保存预览：将创建卡池' : '保存前差异预览'}
         </span>
-        <span className={diff.hasChanges ? 'text-amber-600 dark:text-amber-300' : 'text-green-600 dark:text-green-400'}>
+        <span className={diff.hasChanges ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-400'}>
           {diff.hasChanges ? `${fieldChanges.length} 个字段变化` : '暂无差异'}
         </span>
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        <span className="px-2 py-0.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded">
+        <span className="border border-zinc-200 bg-white px-2 py-0.5 font-mono text-[11px] dark:border-zinc-800 dark:bg-zinc-900">
           阵容 {roster.originalCount || 0} → {roster.currentCount || 0}
         </span>
         {rosterChanges.map((item) => (
           <span
             key={item}
-            className="px-2 py-0.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 text-amber-700 dark:text-amber-300 rounded"
+            className="border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
           >
             {item}
           </span>
@@ -204,7 +210,7 @@ const PoolDraftDiffPreview = ({ diff }) => {
       {fieldChanges.length > 0 && (
         <div className="space-y-1">
           {fieldChanges.slice(0, 5).map((change) => (
-            <div key={change.key} className="grid grid-cols-[5rem_1fr] gap-2">
+            <div key={change.key} className="grid grid-cols-[5rem_1fr] gap-2 text-[11px]">
               <span className="text-slate-500 dark:text-zinc-500">{change.label}</span>
               <span className="break-all">
                 <span className="text-slate-400 dark:text-zinc-500">{formatDiffValue(change.before)}</span>
@@ -214,13 +220,13 @@ const PoolDraftDiffPreview = ({ diff }) => {
             </div>
           ))}
           {fieldChanges.length > 5 && (
-            <div className="text-slate-400 dark:text-zinc-500">另有 {fieldChanges.length - 5} 个字段变化</div>
+            <div className="text-[11px] text-slate-400 dark:text-zinc-500">另有 {fieldChanges.length - 5} 个字段变化</div>
           )}
         </div>
       )}
 
       {(roster.added?.length || roster.removed?.length || roster.upChanged?.length) && (
-        <div className="space-y-1 text-slate-500 dark:text-zinc-500">
+        <div className="space-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
           {roster.added?.length > 0 && <div>新增：{summarizeNames(roster.added)}</div>}
           {roster.removed?.length > 0 && <div>移除：{summarizeNames(roster.removed)}</div>}
           {roster.upChanged?.length > 0 && <div>UP 变化：{summarizeNames(roster.upChanged)}</div>}
@@ -308,7 +314,7 @@ const PoolEditDialog = ({
     {
       key: 'six-standard',
       label: '6星常驻',
-      colorClass: 'text-yellow-600 dark:text-endfield-yellow',
+      colorClass: 'text-amber-600 dark:text-endfield-yellow',
       items: visibleChars.filter(c => c.rarity === 6 && !c.is_limited).sort(sortByAddedDateThenName)
     },
     {
@@ -356,36 +362,38 @@ const PoolEditDialog = ({
   return (
     <>
       {/* 背景遮罩 */}
-      <div className="fixed inset-0 bg-black/50 z-40" onClick={handleClose}></div>
+      <div className="animate-fade-in-fast fixed inset-0 z-40 bg-black/50" onClick={handleClose}></div>
 
       {/* 对话框 */}
-      <div className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-4xl md:max-h-[90vh] z-50">
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 h-full md:h-auto max-h-full overflow-hidden flex flex-col">
+      <div className="fixed inset-4 z-50 md:inset-auto md:left-1/2 md:top-1/2 md:max-h-[90vh] md:w-full md:max-w-4xl md:-translate-x-1/2 md:-translate-y-1/2">
+        <div className="animate-scale-up flex h-full max-h-full flex-col overflow-hidden border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900 md:h-auto">
           {/* 对话框标题 */}
-          <div className="flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0">
-            <h3 className="text-lg font-bold text-slate-700 dark:text-zinc-300">
+          <div className="flex shrink-0 items-center justify-between border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800">
+            <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-zinc-200">
+              <span className="h-3.5 w-1 bg-amber-500 dark:bg-endfield-yellow" aria-hidden="true"></span>
               {editingPool ? '编辑卡池' : '新增卡池'}
             </h3>
             <button
               onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+              className="p-1 text-slate-400 transition-colors hover:bg-zinc-100 hover:text-slate-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
           {/* 表单内容 */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="flex-1 overflow-y-auto p-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {/* 左栏：基本信息 */}
-              <div className="space-y-4">
-                <h4 className="font-bold text-slate-600 dark:text-zinc-400 text-sm border-b border-zinc-200 dark:border-zinc-700 pb-2">
+              <div className="space-y-3">
+                <h4 className="flex items-center gap-2 border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:border-zinc-800 dark:text-zinc-300">
+                  <span className="h-3 w-1 bg-amber-500 dark:bg-endfield-yellow" aria-hidden="true"></span>
                   基本信息
                 </h4>
 
                 {/* 卡池名称 */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                  <label className={FIELD_LABEL_CLASS}>
                     卡池名称 *
                   </label>
                   <input
@@ -393,12 +401,12 @@ const PoolEditDialog = ({
                     value={poolForm.name}
                     onChange={(e) => setPoolForm(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="例如：终末序曲 - 莱万汀UP"
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                    className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS}`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                  <label className={FIELD_LABEL_CLASS}>
                     英文卡池名称
                   </label>
                   <input
@@ -406,7 +414,7 @@ const PoolEditDialog = ({
                     value={poolForm.name_en || ''}
                     onChange={(e) => setPoolForm(prev => ({ ...prev, name_en: e.target.value }))}
                     placeholder="e.g. Laevatain Featured Banner"
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                    className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS}`}
                   />
                   <div className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">
                     英文站点优先使用此译名；留空则继续使用自动占位翻译。
@@ -415,13 +423,13 @@ const PoolEditDialog = ({
 
                 {/* 卡池类型 */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                  <label className={FIELD_LABEL_CLASS}>
                     卡池类型 *
                   </label>
                   <select
                     value={poolForm.type}
                     onChange={(e) => handlePoolTypeChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                    className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS}`}
                   >
                     <option value="limited">限定角色池</option>
                     <option value="extra">附加寻访</option>
@@ -433,12 +441,12 @@ const PoolEditDialog = ({
                 {/* 武器池特殊选项 */}
                 {(poolForm.type === 'weapon' || poolForm.type === 'limited_weapon') && (
                   <div>
-                    <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-zinc-300">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-zinc-300">
                       <input
                         type="checkbox"
                         checked={poolForm.is_limited_weapon}
                         onChange={(e) => setPoolForm(prev => ({ ...prev, is_limited_weapon: e.target.checked }))}
-                        className="w-4 h-4"
+                        className="h-4 w-4 accent-amber-500"
                       />
                       是否为限定武器池（影响赠送规则）
                     </label>
@@ -447,7 +455,7 @@ const PoolEditDialog = ({
 
                 {isExtraPool ? (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                    <label className={FIELD_LABEL_CLASS}>
                       附加寻访 6★ 名单 *
                     </label>
                     <textarea
@@ -455,20 +463,20 @@ const PoolEditDialog = ({
                       onChange={(e) => setPoolForm(prev => ({ ...prev, featured_characters_text: e.target.value }))}
                       placeholder={'每行一个，或用逗号分隔\n例如：\n莱万汀\n伊冯\n洁尔佩塔\n余烬'}
                       rows={5}
-                      className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 resize-none text-sm"
+                      className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS} resize-none`}
                     />
-                    <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
+                    <div className="mt-2 text-[11px] text-slate-500 dark:text-zinc-500">
                       需填写 4 个不重复的 6★ 角色；保存时会自动将这 4 位标记为本池 UP。
                     </div>
-                    <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-slate-400 dark:text-zinc-500">当前已识别 {featuredCharacters.length}/4：</span>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-slate-400 dark:text-zinc-500">当前已识别 <span className="font-mono">{featuredCharacters.length}/4</span>：</span>
                       {featuredCharacters.map((name) => (
                         <span
                           key={name}
-                          className={`text-xs px-2 py-0.5 rounded ${
+                          className={`border px-2 py-0.5 text-xs ${
                             checkUpCharacterExists(name, 'character')
-                              ? 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300'
-                              : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                              ? 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-300'
+                              : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300'
                           }`}
                         >
                           {name}
@@ -478,7 +486,7 @@ const PoolEditDialog = ({
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                    <label className={FIELD_LABEL_CLASS}>
                       UP 角色/武器名称
                     </label>
                     <input
@@ -486,16 +494,16 @@ const PoolEditDialog = ({
                       value={poolForm.up_character}
                       onChange={(e) => setPoolForm(prev => ({ ...prev, up_character: e.target.value }))}
                       placeholder="例如：莱万汀"
-                      className={`w-full px-3 py-2 border rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 ${
+                      className={`${FIELD_INPUT_CLASS} ${
                         poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character, expectedCharacterType)
                           ? 'border-amber-400 dark:border-amber-600'
-                          : 'border-zinc-300 dark:border-zinc-700'
+                          : FIELD_BORDER_CLASS
                       }`}
                     />
                     {poolForm.up_character.trim() && !checkUpCharacterExists(poolForm.up_character, expectedCharacterType) && (
-                      <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded text-xs">
+                      <div className="animate-fade-in-up-small mt-2 border border-amber-200 bg-amber-50 p-2 text-xs dark:border-amber-800 dark:bg-amber-900/20">
                         <div className="flex items-start gap-2">
-                          <UserPlus size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                          <UserPlus size={14} className="mt-0.5 shrink-0 text-amber-500" />
                           <div className="text-amber-700 dark:text-amber-400">
                             <p className="font-medium">
                               将自动创建新{expectedCharacterType === 'weapon' ? '武器' : '角色'}「{poolForm.up_character.trim()}」
@@ -506,7 +514,7 @@ const PoolEditDialog = ({
                       </div>
                     )}
                     {poolForm.up_character.trim() && checkUpCharacterExists(poolForm.up_character, expectedCharacterType) && (
-                      <div className="mt-1 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                      <div className="animate-fade-in-up-small mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                         <CheckCircle size={12} />
                         {expectedCharacterType === 'weapon' ? '武器已存在' : '角色已存在'}
                       </div>
@@ -547,7 +555,7 @@ const PoolEditDialog = ({
 
                 {/* Banner URL */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                  <label className={FIELD_LABEL_CLASS}>
                     Banner 图片 URL
                   </label>
                   <input
@@ -555,13 +563,13 @@ const PoolEditDialog = ({
                     value={poolForm.banner_url}
                     onChange={(e) => setPoolForm(prev => ({ ...prev, banner_url: e.target.value }))}
                     placeholder="https://..."
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 text-sm"
+                    className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS} font-mono`}
                   />
                 </div>
 
                 {/* 描述 */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                  <label className={FIELD_LABEL_CLASS}>
                     描述
                   </label>
                   <textarea
@@ -569,45 +577,46 @@ const PoolEditDialog = ({
                     onChange={(e) => setPoolForm(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="卡池描述..."
                     rows={2}
-                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 resize-none text-sm"
+                    className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS} resize-none`}
                   />
                 </div>
               </div>
 
               {/* 右栏：卡池角色管理 */}
-              <div className="space-y-4">
-                <h4 className="font-bold text-slate-600 dark:text-zinc-400 text-sm border-b border-zinc-200 dark:border-zinc-700 pb-2 flex items-center gap-2">
-                  <Users size={14} />
+              <div className="space-y-3">
+                <h4 className="flex items-center gap-2 border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:border-zinc-800 dark:text-zinc-300">
+                  <span className="h-3 w-1 bg-amber-500 dark:bg-endfield-yellow" aria-hidden="true"></span>
+                  <Users size={14} className="text-amber-500 dark:text-endfield-yellow" />
                   卡池角色管理
                 </h4>
 
                 <div className="space-y-3">
                   {/* 快捷操作 */}
                   {allChars.length > 0 && (
-                    <div className="flex items-center gap-2 p-2 bg-zinc-100 dark:bg-zinc-800 rounded flex-wrap">
+                    <div className="flex flex-wrap items-center gap-2 border border-zinc-200 bg-zinc-50 p-2 dark:border-zinc-800 dark:bg-zinc-800/50">
                       <span className="text-xs text-slate-500 dark:text-zinc-400">当前筛选：</span>
                       <button
                         onClick={() => onAddAllCharacters(visibleChars)}
                         disabled={visibleChars.length === 0}
-                        className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                        className="border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-600 transition-colors hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
                       >
                         全选
                       </button>
                       <button
                         onClick={() => onRemoveAllCharacters(visibleChars)}
                         disabled={visibleChars.length === 0}
-                        className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                        className="border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-900/50"
                       >
                         清空
                       </button>
-                      <span className="text-xs text-slate-400 dark:text-zinc-500 ml-auto">
-                        已选 {selectedSummary.total}/{allChars.length} · 显示 {visibleChars.length}
+                      <span className="ml-auto text-[11px] text-slate-400 dark:text-zinc-500">
+                        已选 <span className="font-mono">{selectedSummary.total}/{allChars.length}</span> · 显示 <span className="font-mono">{visibleChars.length}</span>
                       </span>
                     </div>
                   )}
 
                   {allChars.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
                       <div className="relative">
                         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-zinc-500" />
                         <input
@@ -615,13 +624,13 @@ const PoolEditDialog = ({
                           value={candidateQuery}
                           onChange={(event) => setCandidateQuery(event.target.value)}
                           placeholder="搜索名称、ID、别名"
-                          className="w-full pl-8 pr-3 py-2 text-xs border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                          className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS} py-2 pl-8`}
                         />
                       </div>
                       <select
                         value={candidateFilter}
                         onChange={(event) => setCandidateFilter(event.target.value)}
-                        className="px-3 py-2 text-xs border border-zinc-300 dark:border-zinc-700 rounded-none bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300"
+                        className={`${FIELD_INPUT_CLASS} ${FIELD_BORDER_CLASS} w-auto py-2`}
                       >
                         <option value="all">全部候选</option>
                         <option value="selected">只看已选</option>
@@ -633,14 +642,14 @@ const PoolEditDialog = ({
                   )}
 
                   {allChars.length > 0 && (
-                    <div className="p-2 bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900 rounded text-xs text-blue-700 dark:text-blue-300">
+                    <div className="border border-blue-100 bg-blue-50 p-2 text-[11px] leading-4 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
                       当前为浏览器草稿：已选 {selectedSummary.total} 个，6★ {selectedSummary.six} 个，5★ {selectedSummary.five} 个，4★ {selectedSummary.four} 个；候选按添加日期新到旧排序，点击保存后才同步到数据库。
                     </div>
                   )}
 
                   <PoolDraftDiffPreview diff={poolDraftDiff} />
 
-                  <div className="max-h-[48vh] overflow-y-auto pr-1 space-y-3">
+                  <div className="max-h-[48vh] space-y-2.5 overflow-y-auto pr-1">
                     {/* 按稀有度分组 */}
                     {groupedCharacters.map(group => (
                       <CharacterGroup
@@ -658,20 +667,20 @@ const PoolEditDialog = ({
                     ))}
 
                     {allChars.length > 0 && visibleChars.length === 0 && (
-                      <p className="text-sm text-slate-400 dark:text-zinc-500 italic text-center py-4">
+                      <p className="border border-dashed border-zinc-200 py-4 text-center text-xs italic text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
                         当前筛选下没有匹配的{poolType === 'weapon' ? '武器' : '角色'}
                       </p>
                     )}
                   </div>
 
                   {allChars.length === 0 && (
-                    <p className="text-sm text-slate-400 dark:text-zinc-500 italic text-center py-4">
+                    <p className="border border-dashed border-zinc-200 py-4 text-center text-xs italic text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
                       暂无{poolType === 'weapon' ? '武器' : '角色'}数据，请先在角色管理中添加
                     </p>
                   )}
 
                   {isExtraPool && allChars.length > 0 && (
-                    <div className="p-3 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-900 rounded text-xs text-cyan-700 dark:text-cyan-300">
+                    <div className="border border-cyan-200 bg-cyan-50 p-2.5 text-xs text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-300">
                       <p className="font-medium">附加寻访配置说明</p>
                       <p className="mt-1 opacity-80">
                         • 仅这 4 位 6★ 会按 UP 处理；5★ / 4★ 可在上方草稿中手动维护。
@@ -684,21 +693,18 @@ const PoolEditDialog = ({
           </div>
 
           {/* 对话框操作按钮 */}
-          <div className="flex items-center gap-2 p-4 border-t border-zinc-200 dark:border-zinc-800 shrink-0">
-            <button
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-zinc-100 px-3 py-2.5 dark:border-zinc-800">
+            <PanelToolbarButton onClick={handleClose}>
+              取消
+            </PanelToolbarButton>
+            <PanelToolbarButton
               onClick={handleSave}
               disabled={actionLoading === 'save'}
-              className="flex items-center gap-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-none transition-colors disabled:opacity-50"
+              tone="primary"
             >
-              <Save size={16} />
+              <Save size={14} />
               {actionLoading === 'save' ? '保存中...' : '保存'}
-            </button>
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 border border-zinc-300 dark:border-zinc-700 text-slate-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-none"
-            >
-              取消
-            </button>
+            </PanelToolbarButton>
           </div>
         </div>
       </div>

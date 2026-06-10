@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Activity,
   AlertTriangle,
-  CheckCircle2,
   Clock3,
-  Play,
+  Gauge,
   Mail,
+  Play,
   RefreshCw,
   Save,
   Send,
@@ -19,6 +20,13 @@ import {
   updateMailBudgetConfig,
   updateMailRuntimeConfig,
 } from '../../../services/admin/siteHealthService.js';
+import {
+  BooleanBadge as PanelBooleanBadge,
+  PanelSection,
+  PanelToolbarButton,
+  StatCard,
+  StatusDot,
+} from './shared/PanelUi.jsx';
 
 const MAIL_RUNTIME_EVENTS = [
   { key: 'authMailActions', label: '认证邮件' },
@@ -27,6 +35,8 @@ const MAIL_RUNTIME_EVENTS = [
   { key: 'ticketReply', label: '工单 staff 回复' },
   { key: 'adminAlert', label: '管理员告警' },
 ];
+
+const FIELD_CLASS = 'w-full border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-colors focus:border-amber-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200';
 
 function formatDateTime(value) {
   if (!value) return '未记录';
@@ -151,17 +161,7 @@ function effectiveEventLabel(eventState) {
 }
 
 function BooleanBadge({ value, label, falseLabel }) {
-  return (
-    <span className={`inline-flex items-center gap-1 border px-2 py-1 text-xs ${
-      value
-        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
-        : 'border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400'
-    }`}
-    >
-      {value ? <CheckCircle2 size={12} /> : <ShieldAlert size={12} />}
-      {value ? label : (falseLabel || label)}
-    </span>
-  );
+  return <PanelBooleanBadge value={value} label={value ? label : (falseLabel || label)} />;
 }
 
 function formatProviderKey(providerKey, dryRun) {
@@ -169,6 +169,14 @@ function formatProviderKey(providerKey, dryRun) {
   const base = raw.replace(/:dry-run$/i, '') || '未配置';
   return dryRun ? `${base}（演练模式）` : base;
 }
+
+const BUDGET_RISK_DOT_TONE = {
+  exceeded: 'danger',
+  warning: 'warning',
+  notice: 'notice',
+  disabled: 'unknown',
+  ok: 'ok',
+};
 
 function RiskBadge({ risk }) {
   const styles = {
@@ -187,36 +195,27 @@ function RiskBadge({ risk }) {
   };
 
   return (
-    <span className={`inline-flex items-center border px-2 py-0.5 text-[11px] ${styles[risk] || styles.ok}`}>
+    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] transition-colors ${styles[risk] || styles.ok}`}>
+      <StatusDot
+        tone={BUDGET_RISK_DOT_TONE[risk] || 'ok'}
+        pulse={risk === 'exceeded' || risk === 'warning'}
+      />
       {labels[risk] || risk || '正常'}
     </span>
-  );
-}
-
-function MetricCard({ label, value, detail, tone = 'default' }) {
-  const toneClass = {
-    danger: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300',
-    warning: 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200',
-    notice: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300',
-    default: 'border-zinc-200 bg-zinc-50 text-slate-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200',
-  }[tone];
-
-  return (
-    <div className={`min-h-[94px] border p-3 ${toneClass}`}>
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="mt-2 text-2xl font-semibold leading-none">{value}</div>
-      {detail ? <div className="mt-2 text-xs opacity-75">{detail}</div> : null}
-    </div>
   );
 }
 
 function CountList({ counts, labels }) {
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-      {labels.map(({ key, label }) => (
-        <div key={key} className="border border-zinc-100 px-3 py-2 text-xs dark:border-zinc-800">
-          <div className="text-slate-400 dark:text-zinc-500">{label}</div>
-          <div className="mt-1 font-mono text-lg text-slate-700 dark:text-zinc-200">{countValue(counts, key)}</div>
+      {labels.map(({ key, label }, index) => (
+        <div
+          key={key}
+          className="animate-fade-in-up-small border border-zinc-100 px-2.5 py-1.5 transition-colors hover:border-zinc-200 dark:border-zinc-800 dark:hover:border-zinc-700"
+          style={{ animationDelay: `${index * 40}ms` }}
+        >
+          <div className="text-[11px] text-slate-400 dark:text-zinc-500">{label}</div>
+          <div className="mt-0.5 font-mono text-lg font-semibold leading-tight text-slate-700 dark:text-zinc-200">{countValue(counts, key)}</div>
         </div>
       ))}
     </div>
@@ -472,55 +471,45 @@ export default function MailStatusPanel({ showToast }) {
   const canSaveRuntime = !loading && !runtimeSaving;
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-3">
+      <div className="animate-fade-in-up flex flex-wrap items-center justify-between gap-3 border border-l-4 border-zinc-200 border-l-amber-500 bg-white px-3 py-2.5 shadow-sm dark:border-zinc-800 dark:border-l-endfield-yellow dark:bg-zinc-900">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-zinc-400">
-            <Mail size={16} />
+          <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-zinc-400">
+            <Mail size={14} className="shrink-0 text-amber-500 dark:text-endfield-yellow" />
             <span>查看邮件 outbox、投递事件、suppression 和发信开关。这里不显示原始邮箱或密钥。</span>
           </div>
           {generatedAt ? (
-            <div className="mt-1 text-xs text-slate-400 dark:text-zinc-500">
+            <div className="mt-1 font-mono text-[11px] text-slate-400 dark:text-zinc-500">
               生成时间：{formatDateTime(generatedAt)}
             </div>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handleDrain}
-            disabled={!canDrain}
-            className="inline-flex items-center gap-2 border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"
-          >
-            {draining ? <RefreshCw size={15} className="animate-spin" /> : <Play size={15} />}
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <PanelToolbarButton onClick={handleDrain} disabled={!canDrain} tone="primary">
+            {draining ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
             处理到期队列
-          </button>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={loading || draining}
-            className="inline-flex items-center gap-2 border border-zinc-300 px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </PanelToolbarButton>
+          <PanelToolbarButton onClick={refresh} disabled={loading || draining}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             刷新
-          </button>
+          </PanelToolbarButton>
         </div>
       </div>
 
       {error ? (
-        <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
-          {error}
+        <div className="animate-fade-in-up-small flex items-start gap-2.5 border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+          <StatusDot tone="danger" pulse className="mt-0.5" />
+          <span className="break-all">{error}</span>
         </div>
       ) : null}
 
       {loading && !health ? (
-        <div className="flex items-center justify-center border border-zinc-200 py-16 text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
+        <div className="animate-fade-in-up flex items-center justify-center border border-zinc-200 py-16 text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
           <RefreshCw size={20} className="animate-spin" />
         </div>
       ) : (
         <>
-          <div className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-zinc-200">发信开关</div>
+          <PanelSection title="发信开关" icon={Mail} delay={0}>
             <div className="flex flex-wrap gap-2">
               <BooleanBadge value={config.workerEnabled === true} label="队列处理器已启用" falseLabel="队列处理器未启用" />
               <BooleanBadge value={config.killSwitch === false} label="环境紧急停发已关闭" falseLabel="环境紧急停发已开启" />
@@ -530,62 +519,63 @@ export default function MailStatusPanel({ showToast }) {
               <BooleanBadge value={config.deliveryFeedbackSecretConfigured === true} label="投递反馈 Secret 已配置" falseLabel="投递反馈 Secret 未配置" />
               <BooleanBadge value={config.inboundWebhookSecretConfigured === true} label="入站 Webhook Secret 已配置" falseLabel="入站 Webhook Secret 未配置" />
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-500 dark:text-zinc-500 md:grid-cols-3">
-              <div>Provider：{config.provider || '未配置'}</div>
-              <div>服务标识：{formatProviderKey(config.providerKey, config.dryRun)}</div>
-              <div>发信域：{config.sendingDomain || config.fromDomain || '未配置'}</div>
+            <div className="mt-2.5 grid grid-cols-1 gap-1.5 text-[11px] text-slate-500 dark:text-zinc-500 md:grid-cols-3">
+              <div className="border border-zinc-100 px-2.5 py-1.5 transition-colors hover:border-zinc-200 dark:border-zinc-800 dark:hover:border-zinc-700">Provider：<span className="font-mono text-slate-700 dark:text-zinc-300">{config.provider || '未配置'}</span></div>
+              <div className="border border-zinc-100 px-2.5 py-1.5 transition-colors hover:border-zinc-200 dark:border-zinc-800 dark:hover:border-zinc-700">服务标识：<span className="font-mono text-slate-700 dark:text-zinc-300">{formatProviderKey(config.providerKey, config.dryRun)}</span></div>
+              <div className="border border-zinc-100 px-2.5 py-1.5 transition-colors hover:border-zinc-200 dark:border-zinc-800 dark:hover:border-zinc-700">发信域：<span className="font-mono text-slate-700 dark:text-zinc-300">{config.sendingDomain || config.fromDomain || '未配置'}</span></div>
             </div>
-          </div>
+          </PanelSection>
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-              <SlidersHorizontal size={16} className="text-blue-500" />
-              运行期开关
-            </div>
-            <div className="mb-3 text-xs text-slate-500 dark:text-zinc-500">
+          <PanelSection title="运行期开关" icon={SlidersHorizontal} delay={60}>
+            <div className="mb-3 text-[11px] leading-4 text-slate-500 dark:text-zinc-500">
               运行期开关只会进一步收紧发信范围；环境变量关闭时，这里选择“允许”也不会绕过硬闸门。此处不保存 SMTP 密码、Webhook Secret 或任何 Vercel 环境变量。
             </div>
-            <form onSubmit={handleRuntimeSave} className="space-y-4">
+            <form onSubmit={handleRuntimeSave} className="space-y-3">
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <label className="space-y-1 text-xs text-slate-500 dark:text-zinc-500">
+                <label className="space-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
                   <span>运行期紧急停发</span>
                   <select
                     value={runtimeDraft.killSwitch}
                     onChange={(event) => handleRuntimeFieldChange('killSwitch', event.target.value)}
-                    className="min-h-10 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                    className={FIELD_CLASS}
                   >
                     <option value="inherit">继承环境变量</option>
                     <option value="enabled">开启紧急停发</option>
                     <option value="disabled">关闭运行期紧急停发</option>
                   </select>
                 </label>
-                <label className="space-y-1 text-xs text-slate-500 dark:text-zinc-500">
+                <label className="space-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
                   <span>备注</span>
                   <input
                     value={runtimeDraft.note}
                     onChange={(event) => handleRuntimeFieldChange('note', event.target.value)}
                     maxLength={240}
                     placeholder="可选：记录本次调整原因"
-                    className="min-h-10 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                    className={FIELD_CLASS}
                   />
                 </label>
               </div>
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-                {MAIL_RUNTIME_EVENTS.map(({ key, label }) => {
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-5">
+                {MAIL_RUNTIME_EVENTS.map(({ key, label }, index) => {
                   const eventState = runtime?.events?.[key] || {};
                   return (
-                    <label key={key} className="space-y-1 text-xs text-slate-500 dark:text-zinc-500">
-                      <span>{label}</span>
+                    <label
+                      key={key}
+                      className="animate-fade-in-up-small space-y-1 border border-zinc-100 p-2 text-[11px] text-slate-500 transition-colors hover:border-zinc-200 dark:border-zinc-800 dark:text-zinc-500 dark:hover:border-zinc-700"
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
+                      <span className="font-medium text-slate-600 dark:text-zinc-400">{label}</span>
                       <select
                         value={runtimeDraft.events?.[key] || 'inherit'}
                         onChange={(event) => handleRuntimeEventChange(key, event.target.value)}
-                        className="min-h-10 w-full border border-zinc-300 bg-white px-2 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                        className={FIELD_CLASS}
                       >
                         <option value="inherit">继承</option>
                         <option value="enabled">允许</option>
                         <option value="disabled">关闭</option>
                       </select>
-                      <span className="block text-[11px] text-slate-400 dark:text-zinc-600">
+                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-zinc-600">
+                        <StatusDot tone={eventState.effective ? 'ok' : 'unknown'} />
                         {runtimeStatusLabel(eventState.runtime)} / {effectiveEventLabel(eventState)}
                       </span>
                     </label>
@@ -593,97 +583,98 @@ export default function MailStatusPanel({ showToast }) {
                 })}
               </div>
               <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <label className="space-y-1 text-xs text-slate-500 dark:text-zinc-500">
+                <label className="space-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
                   <span>运行期禁用事件</span>
                   <input
                     value={runtimeDraft.disabledEvents}
                     onChange={(event) => handleRuntimeFieldChange('disabledEvents', event.target.value)}
                     placeholder="password_reset, ticket_reply"
-                    className="min-h-10 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                    className={FIELD_CLASS}
                   />
                 </label>
-                <label className="space-y-1 text-xs text-slate-500 dark:text-zinc-500">
+                <label className="space-y-1 text-[11px] text-slate-500 dark:text-zinc-500">
                   <span>运行期暂停域名</span>
                   <input
                     value={runtimeDraft.pausedDomains}
                     onChange={(event) => handleRuntimeFieldChange('pausedDomains', event.target.value)}
                     placeholder="example.com, blocked.example"
-                    className="min-h-10 w-full border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                    className={FIELD_CLASS}
                   />
                 </label>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-3 text-xs text-slate-500 dark:border-zinc-800 dark:text-zinc-500">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-2.5 text-[11px] text-slate-500 dark:border-zinc-800 dark:text-zinc-500">
                 <span>
                   环境硬闸门：队列处理器 {runtime?.hardLimits?.workerEnabled ? '开启' : '关闭'} / 环境紧急停发 {runtime?.hardLimits?.envKillSwitch ? '开启' : '关闭'} / 运行期紧急停发 {runtime?.controls?.runtimeKillSwitch || 'inherit'}
                 </span>
-                <button
-                  type="submit"
-                  disabled={!canSaveRuntime}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 border border-blue-300 bg-blue-50 px-4 py-2 text-sm text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
-                >
-                  {runtimeSaving ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+                <PanelToolbarButton type="submit" disabled={!canSaveRuntime} tone="primary">
+                  {runtimeSaving ? <RefreshCw size={14} className="animate-spin" /> : <Save size={14} />}
                   保存运行期开关
-                </button>
+                </PanelToolbarButton>
               </div>
             </form>
-          </section>
+          </PanelSection>
 
           {warnings.length > 0 ? (
-            <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
+            <div className="animate-fade-in-up border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:border-amber-900/70 dark:bg-amber-950/30 dark:text-amber-200">
               <div className="flex items-center gap-2 font-medium">
-                <AlertTriangle size={16} />
+                <StatusDot tone="warning" pulse />
+                <AlertTriangle size={14} />
                 邮件检查告警
               </div>
-              <div className="mt-2 space-y-1 text-xs">
+              <div className="mt-2 space-y-1 text-[11px]">
                 {warnings.slice(0, 8).map((warning, index) => (
-                  <div key={`${warning}-${index}`} className="break-all">{warning}</div>
+                  <div
+                    key={`${warning}-${index}`}
+                    className="animate-fade-in-up-small break-all"
+                    style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                  >
+                    {warning}
+                  </div>
                 ))}
               </div>
             </div>
           ) : null}
 
           {drainResult ? (
-            <div className="border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
-              <div className="font-medium">最近一次队列处理：{drainResult.code || 'unknown'}</div>
-              <div className="mt-1 text-xs">
+            <div className="animate-fade-in-up-small border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+              <div className="flex items-center gap-2 font-medium">
+                <StatusDot tone="notice" />
+                最近一次队列处理：{drainResult.code || 'unknown'}
+              </div>
+              <div className="mt-1 font-mono text-[11px]">
                 读取 {drainResult.stats?.loaded || 0} / 真实发送 {drainResult.stats?.sent || 0} / 演练 {drainResult.stats?.dryRun || 0} / 失败 {drainResult.stats?.failed || 0} / 重试 {drainResult.stats?.retried || 0}
               </div>
             </div>
           ) : null}
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-              <Send size={16} className="text-blue-500" />
-              测试邮件
-            </div>
-            <form onSubmit={handleSmokeTest} className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+          <PanelSection title="测试邮件" icon={Send} delay={120}>
+            <form onSubmit={handleSmokeTest} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
               <input
                 type="email"
                 value={smokeRecipient}
                 onChange={(event) => setSmokeRecipient(event.target.value)}
                 placeholder="测试收件邮箱"
-                className="min-h-10 border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                className={FIELD_CLASS}
               />
-              <button
-                type="submit"
-                disabled={!canSmokeTest}
-                className="inline-flex min-h-10 items-center justify-center gap-2 border border-blue-300 bg-blue-50 px-4 py-2 text-sm text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
-              >
-                {smokeTesting ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
+              <PanelToolbarButton type="submit" disabled={!canSmokeTest} tone="primary" className="justify-center">
+                {smokeTesting ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
                 发送测试
-              </button>
+              </PanelToolbarButton>
             </form>
-            <div className="mt-2 text-xs text-slate-500 dark:text-zinc-500">
+            <div className="mt-2 text-[11px] leading-4 text-slate-500 dark:text-zinc-500">
               测试邮件会写入脱敏投递事件；如果当前是演练模式或队列处理器未启用，页面只显示配置结果，不会伪装成真实投递。
             </div>
             {smokeResult ? (
-              <div className={`mt-3 border px-3 py-2 text-xs ${
+              <div className={`animate-fade-in-up-small mt-2.5 border px-2.5 py-2 text-[11px] ${
                 smokeResult.ok
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
                   : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200'
               }`}
               >
-                <div className="font-medium">{smokeResult.code || 'mail_smoke_test_result'}</div>
+                <div className="flex items-center gap-2 font-mono font-medium">
+                  <StatusDot tone={smokeResult.ok ? 'ok' : 'warning'} pulse={!smokeResult.ok} />
+                  {smokeResult.code || 'mail_smoke_test_result'}
+                </div>
                 <div className="mt-1">
                   服务 {formatProviderKey(smokeResult.providerKey, smokeResult.dryRun)} / 模式 {smokeResult.dryRun ? '演练' : '真实发信'} / 收件人 {smokeResult.recipient?.redacted || 'redacted'}
                 </div>
@@ -695,70 +686,64 @@ export default function MailStatusPanel({ showToast }) {
                 ) : null}
               </div>
             ) : null}
-          </section>
+          </PanelSection>
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-              <ShieldAlert size={16} className="text-amber-500" />
-              管理员告警邮件
-            </div>
-            <form onSubmit={handleAdminAlert} className="space-y-3">
+          <PanelSection title="管理员告警邮件" icon={ShieldAlert} delay={180}>
+            <form onSubmit={handleAdminAlert} className="space-y-2.5">
               <textarea
                 value={alertSummary}
                 onChange={(event) => setAlertSummary(event.target.value)}
                 rows={3}
                 maxLength={240}
                 placeholder="可选：填写一条脱敏告警摘要"
-                className="w-full resize-y border border-zinc-300 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-amber-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                className={`resize-y ${FIELD_CLASS}`}
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-slate-500 dark:text-zinc-500">
+                <div className="text-[11px] leading-4 text-slate-500 dark:text-zinc-500">
                   只会入队发给当前超级管理员自己的账号邮箱，用于验证 admin.alert 链路；不支持任意收件人或批量发送。
                 </div>
-                <button
-                  type="submit"
-                  disabled={!canSendAlert}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-950/50"
-                >
-                  {alertSending ? <RefreshCw size={15} className="animate-spin" /> : <ShieldAlert size={15} />}
+                <PanelToolbarButton type="submit" disabled={!canSendAlert} tone="primary">
+                  {alertSending ? <RefreshCw size={14} className="animate-spin" /> : <ShieldAlert size={14} />}
                   入队告警
-                </button>
+                </PanelToolbarButton>
               </div>
             </form>
             {alertResult ? (
-              <div className={`mt-3 border px-3 py-2 text-xs ${
+              <div className={`animate-fade-in-up-small mt-2.5 border px-2.5 py-2 text-[11px] ${
                 ['queued', 'deduped'].includes(alertResult.status)
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300'
                   : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200'
               }`}
               >
-                <div className="font-medium">{alertResult.status || 'unknown'} / {alertResult.code || 'admin_alert_mail_result'}</div>
-                <div className="mt-1">
+                <div className="flex items-center gap-2 font-mono font-medium">
+                  <StatusDot
+                    tone={['queued', 'deduped'].includes(alertResult.status) ? 'ok' : 'warning'}
+                    pulse={!['queued', 'deduped'].includes(alertResult.status)}
+                  />
+                  {alertResult.status || 'unknown'} / {alertResult.code || 'admin_alert_mail_result'}
+                </div>
+                <div className="mt-1 font-mono">
                   enabled {alertResult.enabled ? 'yes' : 'no'} / attempted {alertResult.attempted ? 'yes' : 'no'} / outbox {alertResult.outboxId || 'n/a'}
                 </div>
               </div>
             ) : null}
-          </section>
+          </PanelSection>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-            <MetricCard label="待发送总数" value={queued} detail="当前 queued outbox 总数" tone={queued > 0 ? 'notice' : 'default'} />
-            <MetricCard label="到期队列" value={dueQueued} detail="queued 且已到 next_attempt_at" tone={dueQueued > 0 ? 'notice' : 'default'} />
-            <MetricCard label="失败" value={failed} detail="需要人工排查或等待重试" tone={failed > 0 ? 'warning' : 'default'} />
-            <MetricCard label="Suppressed" value={suppressed} detail="已被退信 / 投诉 / 暂停拦截" tone={suppressed > 0 ? 'warning' : 'default'} />
-            <MetricCard label="活跃 suppression" value={suppression.active || 0} detail="邮箱 hash 或域名停发规则" tone={Number(suppression.active || 0) > 0 ? 'warning' : 'default'} />
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            <StatCard label="待发送总数" value={queued} subtext="当前 queued outbox 总数" tone={queued > 0 ? 'notice' : 'default'} delay={0} />
+            <StatCard label="到期队列" value={dueQueued} subtext="queued 且已到 next_attempt_at" tone={dueQueued > 0 ? 'notice' : 'default'} delay={40} />
+            <StatCard label="失败" value={failed} subtext="需要人工排查或等待重试" tone={failed > 0 ? 'warning' : 'default'} delay={80} />
+            <StatCard label="Suppressed" value={suppressed} subtext="已被退信 / 投诉 / 暂停拦截" tone={suppressed > 0 ? 'warning' : 'default'} delay={120} />
+            <StatCard label="活跃 suppression" value={suppression.active || 0} subtext="邮箱 hash 或域名停发规则" tone={Number(suppression.active || 0) > 0 ? 'warning' : 'default'} delay={160} />
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <MetricCard label="入站事件" value={inboundCount} detail="由 /api/mail-inbound 脱敏记录" tone={inboundCount > 0 ? 'notice' : 'default'} />
-            <MetricCard label="投递事件样本" value={deliveryEvents.sampled || 0} detail="最近 mail_delivery_events 采样数" />
-            <MetricCard label="预算高水位" value={highWaterBudgetCount} detail="warning / exceeded 配置项" tone={highWaterBudgetCount > 0 ? 'warning' : 'default'} />
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+            <StatCard label="入站事件" value={inboundCount} subtext="由 /api/mail-inbound 脱敏记录" tone={inboundCount > 0 ? 'notice' : 'default'} delay={0} />
+            <StatCard label="投递事件样本" value={deliveryEvents.sampled || 0} subtext="最近 mail_delivery_events 采样数" delay={40} />
+            <StatCard label="预算高水位" value={highWaterBudgetCount} subtext="warning / exceeded 配置项" tone={highWaterBudgetCount > 0 ? 'warning' : 'default'} delay={80} />
           </div>
 
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-                <Clock3 size={16} className="text-amber-500" />
-                Outbox 状态
-              </div>
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+            <PanelSection title="Outbox 状态" icon={Clock3} delay={240}>
               <CountList
                 counts={outbox.countsByStatus}
                 labels={[
@@ -770,16 +755,12 @@ export default function MailStatusPanel({ showToast }) {
                   { key: 'cancelled', label: 'Cancelled' },
                 ]}
               />
-              <div className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
-                最近更新时间：{formatDateTime(outbox.latestAt)}（{formatAge(outbox.latestAt, generatedAt)}）
+              <div className="mt-2.5 text-[11px] text-slate-400 dark:text-zinc-500">
+                最近更新时间：<span className="font-mono">{formatDateTime(outbox.latestAt)}</span>（{formatAge(outbox.latestAt, generatedAt)}）
               </div>
-            </section>
+            </PanelSection>
 
-            <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-                <ShieldAlert size={16} className="text-amber-500" />
-                Suppression
-              </div>
+            <PanelSection title="Suppression" icon={ShieldAlert} delay={280}>
               <CountList
                 counts={suppression.countsByReason}
                 labels={[
@@ -789,29 +770,29 @@ export default function MailStatusPanel({ showToast }) {
                   { key: 'domain_pause', label: 'Domain pause' },
                 ]}
               />
-              <div className="mt-3 text-xs text-slate-500 dark:text-zinc-500">
+              <div className="mt-2.5 text-[11px] text-slate-500 dark:text-zinc-500">
                 活跃域名：{(suppression.domains || []).join('、') || '无'}
               </div>
-            </section>
+            </PanelSection>
           </div>
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-zinc-200">
-                <ShieldAlert size={16} className="text-blue-500" />
-                邮件发送预算
-              </div>
-              <div className="text-xs text-slate-400 dark:text-zinc-500">
+          <PanelSection
+            title="邮件发送预算"
+            icon={Gauge}
+            delay={320}
+            action={(
+              <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">
                 配置 {budgets.sampledConfig || 0} 项 / 活跃计数桶 {budgets.activeCounters || 0} / 最近更新 {formatDateTime(budgets.latestAt)}
               </div>
-            </div>
+            )}
+          >
             {budgetItems.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">
+              <div className="border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-slate-400 dark:border-zinc-800 dark:text-zinc-500">
                 暂无预算计数。真实入队后会显示各事件类型的使用率。
               </div>
             ) : (
               <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {budgetItems.map((item) => {
+                {budgetItems.map((item, index) => {
                   const draftKey = `${item.scope}:${item.eventType}`;
                   const draft = budgetDrafts[draftKey] || {
                     windowSeconds: String(item.windowSeconds || ''),
@@ -820,19 +801,23 @@ export default function MailStatusPanel({ showToast }) {
                   };
                   const saving = budgetSavingKey === draftKey;
                   return (
-                  <div key={draftKey} className="grid grid-cols-1 gap-3 py-3 text-xs md:grid-cols-[1.1fr_0.9fr_1.1fr_1.4fr]">
+                  <div
+                    key={draftKey}
+                    className="animate-fade-in-up-small grid grid-cols-1 gap-3 py-2 text-xs transition-colors hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 md:grid-cols-[1.1fr_0.9fr_1.1fr_1.4fr]"
+                    style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                  >
                     <div className="min-w-0">
                       <div className="font-mono text-slate-700 dark:text-zinc-200">{item.scope} / {item.eventType}</div>
-                      <div className="mt-1 text-slate-400 dark:text-zinc-500">当前窗口 {formatWindow(item.windowSeconds)} · buckets {item.activeBuckets || 0}</div>
+                      <div className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">当前窗口 {formatWindow(item.windowSeconds)} · buckets {item.activeBuckets || 0}</div>
                     </div>
                     <div>
                       <RiskBadge risk={item.risk} />
-                      <div className="mt-1 text-slate-400 dark:text-zinc-500">重置：{formatDateTime(item.resetAt)}</div>
+                      <div className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">重置：{formatDateTime(item.resetAt)}</div>
                     </div>
                     <div className="min-w-0">
-                      <div className="h-2 overflow-hidden bg-zinc-100 dark:bg-zinc-800">
+                      <div className="h-1.5 overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                         <div
-                          className={`h-full ${
+                          className={`h-full transition-all duration-500 ${
                             item.risk === 'exceeded'
                               ? 'bg-red-500'
                               : item.risk === 'warning'
@@ -844,7 +829,7 @@ export default function MailStatusPanel({ showToast }) {
                           style={{ width: `${Math.min(100, Math.max(0, Number(item.usageRatio || 0) * 100))}%` }}
                         />
                       </div>
-                      <div className="mt-1 text-slate-500 dark:text-zinc-400">
+                      <div className="mt-1 font-mono text-[11px] text-slate-500 dark:text-zinc-400">
                         {formatPercent(item.usageRatio)} · 已用 {item.maxUsed || 0} / 上限 {item.maxAttempts || 0}
                       </div>
                     </div>
@@ -857,7 +842,7 @@ export default function MailStatusPanel({ showToast }) {
                           max="31536000"
                           value={draft.windowSeconds}
                           onChange={(event) => handleBudgetDraftChange(item, 'windowSeconds', event.target.value)}
-                          className="min-h-9 w-full border border-zinc-300 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                          className={`font-mono ${FIELD_CLASS}`}
                         />
                       </label>
                       <label className="space-y-1 text-[11px] text-slate-400 dark:text-zinc-500">
@@ -868,60 +853,66 @@ export default function MailStatusPanel({ showToast }) {
                           max="1000000"
                           value={draft.maxAttempts}
                           onChange={(event) => handleBudgetDraftChange(item, 'maxAttempts', event.target.value)}
-                          className="min-h-9 w-full border border-zinc-300 bg-white px-2 py-1 text-xs text-slate-700 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+                          className={`font-mono ${FIELD_CLASS}`}
                         />
                       </label>
-                      <label className="flex min-h-9 items-end gap-2 text-[11px] text-slate-500 dark:text-zinc-500">
+                      <label className="flex items-end gap-2 pb-1.5 text-[11px] text-slate-500 dark:text-zinc-500">
                         <input
                           type="checkbox"
                           checked={draft.enabled !== false}
                           onChange={(event) => handleBudgetDraftChange(item, 'enabled', event.target.checked)}
-                          className="mb-1"
                         />
                         启用
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => handleBudgetSave(item)}
-                        disabled={Boolean(budgetSavingKey)}
-                        className="inline-flex min-h-9 items-center justify-center gap-1 border border-blue-300 bg-blue-50 px-3 py-1 text-xs text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"
-                      >
-                        {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
-                        保存
-                      </button>
+                      <div className="flex items-end">
+                        <PanelToolbarButton onClick={() => handleBudgetSave(item)} disabled={Boolean(budgetSavingKey)}>
+                          {saving ? <RefreshCw size={13} className="animate-spin" /> : <Save size={13} />}
+                          保存
+                        </PanelToolbarButton>
+                      </div>
                     </div>
                   </div>
                   );
                 })}
               </div>
             )}
-          </section>
+          </PanelSection>
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-zinc-200">最近失败 / Suppressed outbox</div>
+          <PanelSection title="最近失败 / Suppressed outbox" icon={AlertTriangle} delay={380}>
             {(outbox.latestFailures || []).length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">暂无失败记录</div>
+              <div className="border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-slate-400 dark:border-zinc-800 dark:text-zinc-500">暂无失败记录</div>
             ) : (
               <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {outbox.latestFailures.map((row) => (
-                  <div key={row.id} className="grid grid-cols-1 gap-2 py-3 text-xs md:grid-cols-[1.1fr_0.9fr_0.9fr_1.4fr]">
-                    <div className="min-w-0">
-                      <div className="font-mono text-slate-600 dark:text-zinc-300 break-all">{row.id}</div>
-                      <div className="mt-1 text-slate-400 dark:text-zinc-500">{formatDateTime(row.updatedAt)}</div>
+                {outbox.latestFailures.map((row, index) => (
+                  <div
+                    key={row.id}
+                    className="animate-fade-in-up-small grid grid-cols-1 gap-2 py-2 text-xs transition-colors hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 md:grid-cols-[1.1fr_0.9fr_0.9fr_1.4fr]"
+                    style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                  >
+                    <div className="flex min-w-0 items-start gap-2">
+                      <StatusDot
+                        tone={row.status === 'failed' ? 'danger' : 'warning'}
+                        pulse={row.status === 'failed'}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0">
+                        <div className="break-all font-mono text-slate-600 dark:text-zinc-300">{row.id}</div>
+                        <div className="mt-1 text-[11px] text-slate-400 dark:text-zinc-500">{formatDateTime(row.updatedAt)}</div>
+                      </div>
                     </div>
-                    <div>{row.eventType || 'unknown'} / {row.status || 'unknown'}</div>
-                    <div>{row.recipientDomain || '无域名'} / attempts {row.attemptCount || 0}</div>
+                    <div className="font-mono text-slate-600 dark:text-zinc-300">{row.eventType || 'unknown'} / {row.status || 'unknown'}</div>
+                    <div className="font-mono text-slate-600 dark:text-zinc-300">{row.recipientDomain || '无域名'} / attempts {row.attemptCount || 0}</div>
                     <div className="min-w-0 text-slate-400 dark:text-zinc-500">
-                      <div>{row.lastErrorCode || '无错误码'}</div>
+                      <div className="font-mono">{row.lastErrorCode || '无错误码'}</div>
                       {summarizeRedactedError(row.lastError) ? (
-                        <div className="mt-1 break-all text-[11px] text-slate-500 dark:text-zinc-400">
+                        <div className="mt-1 break-all font-mono text-[11px] text-slate-500 dark:text-zinc-400">
                           {summarizeRedactedError(row.lastError)}
                         </div>
                       ) : null}
                       {row.lastError?.diagnostics ? (
                         <details className="mt-1">
-                          <summary className="cursor-pointer text-[11px] text-blue-500">脱敏诊断</summary>
-                          <pre className="mt-1 max-h-28 overflow-auto bg-zinc-50 p-2 text-[10px] leading-relaxed text-slate-500 dark:bg-zinc-950 dark:text-zinc-400">
+                          <summary className="cursor-pointer text-[11px] text-amber-600 transition-colors hover:text-amber-700 dark:text-amber-300 dark:hover:text-amber-200">脱敏诊断</summary>
+                          <pre className="mt-1 max-h-28 overflow-auto border border-zinc-100 bg-zinc-50 p-2 font-mono text-[10px] leading-relaxed text-slate-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
                             {JSON.stringify(row.lastError.diagnostics, null, 2)}
                           </pre>
                         </details>
@@ -931,24 +922,27 @@ export default function MailStatusPanel({ showToast }) {
                 ))}
               </div>
             )}
-          </section>
+          </PanelSection>
 
-          <section className="border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="mb-3 text-sm font-semibold text-slate-700 dark:text-zinc-200">最近投递事件</div>
+          <PanelSection title="最近投递事件" icon={Activity} delay={440}>
             {(deliveryEvents.latestEvents || []).length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">暂无投递事件</div>
+              <div className="border border-dashed border-zinc-200 px-3 py-6 text-center text-xs text-slate-400 dark:border-zinc-800 dark:text-zinc-500">暂无投递事件</div>
             ) : (
               <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {deliveryEvents.latestEvents.map((event) => (
-                  <div key={event.id} className="grid grid-cols-1 gap-2 py-3 text-xs md:grid-cols-[1.2fr_1fr_1fr]">
-                    <div className="font-mono text-slate-600 dark:text-zinc-300">{event.id}</div>
-                    <div>{event.providerKey || 'unknown'} / {event.eventType || 'unknown'}</div>
-                    <div className="text-slate-400 dark:text-zinc-500">{formatDateTime(event.createdAt)}</div>
+                {deliveryEvents.latestEvents.map((event, index) => (
+                  <div
+                    key={event.id}
+                    className="animate-fade-in-up-small grid grid-cols-1 gap-2 py-2 text-xs transition-colors hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 md:grid-cols-[1.2fr_1fr_1fr]"
+                    style={{ animationDelay: `${Math.min(index, 6) * 40}ms` }}
+                  >
+                    <div className="break-all font-mono text-slate-600 dark:text-zinc-300">{event.id}</div>
+                    <div className="font-mono text-slate-600 dark:text-zinc-300">{event.providerKey || 'unknown'} / {event.eventType || 'unknown'}</div>
+                    <div className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">{formatDateTime(event.createdAt)}</div>
                   </div>
                 ))}
               </div>
             )}
-          </section>
+          </PanelSection>
         </>
       )}
     </div>

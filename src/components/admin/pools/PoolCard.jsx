@@ -1,5 +1,6 @@
 import React from 'react';
 import { Edit2, Trash2, Calendar, Star, Layers, Swords, Users } from 'lucide-react';
+import { StatusDot, PanelToolbarButton } from '../panels/shared/PanelUi.jsx';
 
 /**
  * 获取类型图标
@@ -15,7 +16,7 @@ const getTypeIcon = (type) => {
     case 'limited_weapon':
       return <Swords size={14} className="text-slate-500 dark:text-zinc-400" />;
     default:
-      return <Layers size={14} className="text-yellow-600 dark:text-endfield-yellow" />;
+      return <Layers size={14} className="text-amber-500 dark:text-endfield-yellow" />;
   }
 };
 
@@ -44,15 +45,34 @@ const getTypeColor = (type) => {
   switch (type) {
     case 'limited':
     case 'limited_character':
-      return 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+      return 'border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900 dark:bg-orange-950/30 dark:text-orange-300';
     case 'extra':
-      return 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300';
+      return 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-300';
     case 'weapon':
     case 'limited_weapon':
-      return 'bg-slate-100 dark:bg-zinc-700 text-slate-600 dark:text-zinc-400';
+      return 'border-zinc-200 bg-zinc-50 text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400';
     default:
-      return 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-endfield-yellow';
+      return 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-endfield-yellow';
   }
+};
+
+/**
+ * 获取卡池进行状态（仅呈现层推导，用于 StatusDot 展示）
+ */
+const getPoolStatus = (pool) => {
+  if (!pool.start_time && !pool.end_time) return null;
+
+  const now = Date.now();
+  const start = pool.start_time ? new Date(pool.start_time).getTime() : null;
+  const end = pool.end_time ? new Date(pool.end_time).getTime() : null;
+
+  if (Number.isFinite(start) && now < start) {
+    return { label: '未开始', tone: 'notice', pulse: false };
+  }
+  if (Number.isFinite(end) && now > end) {
+    return { label: '已结束', tone: 'unknown', pulse: false };
+  }
+  return { label: '进行中', tone: 'ok', pulse: true };
 };
 
 /**
@@ -83,9 +103,9 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
   const fourStars = poolChars.filter(c => c.rarity === 4);
 
   return (
-    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-slate-600 dark:text-zinc-400 flex items-center gap-1">
+    <div className="mt-2.5 border-t border-zinc-100 pt-2.5 dark:border-zinc-800">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
           <Users size={12} />
           卡池角色一览
         </span>
@@ -93,7 +113,7 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
       <div className="space-y-1.5">
         {sixStars.length > 0 && (
           <div className="flex items-start gap-1">
-            <span className="text-xs text-orange-500 font-medium shrink-0 w-8">6★</span>
+            <span className="w-8 shrink-0 font-mono text-[11px] font-semibold text-orange-500">6★</span>
             <div className="flex flex-wrap gap-1">
               {sixStars.slice(0, 6).map(char => {
                 const isUp = featuredCharacterSet.has(char.name);
@@ -101,12 +121,12 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
                 return (
                   <span
                     key={char.id}
-                    className={`text-xs px-1.5 py-0.5 rounded ${
+                    className={`border px-1.5 py-0.5 text-[11px] transition-colors ${
                       isUp
-                        ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300 font-bold ring-1 ring-orange-400'
+                        ? 'border-orange-400 bg-orange-50 font-bold text-orange-600 dark:border-orange-600 dark:bg-orange-900/40 dark:text-orange-300'
                         : isLimited
-                          ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                          : 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400'
+                          ? 'border-red-100 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400'
+                          : 'border-amber-100 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-300'
                     }`}
                     title={`${char.name}${isUp ? ' [当期UP]' : isLimited ? ' [限定]' : ' [常驻]'}`}
                   >
@@ -115,39 +135,39 @@ const PoolCharacterList = ({ pool, poolCharacters, characters }) => {
                 );
               })}
               {sixStars.length > 6 && (
-                <span className="text-xs text-slate-400">+{sixStars.length - 6}</span>
+                <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">+{sixStars.length - 6}</span>
               )}
             </div>
           </div>
         )}
         {fiveStars.length > 0 && (
           <div className="flex items-start gap-1">
-            <span className="text-xs text-purple-500 font-medium shrink-0 w-8">5★</span>
+            <span className="w-8 shrink-0 font-mono text-[11px] font-semibold text-purple-500">5★</span>
             <div className="flex flex-wrap gap-1">
               {fiveStars.slice(0, 4).map(char => (
                 <span
                   key={char.id}
-                  className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400"
+                  className="border border-purple-100 bg-purple-50 px-1.5 py-0.5 text-[11px] text-purple-600 dark:border-purple-900 dark:bg-purple-900/20 dark:text-purple-400"
                 >
                   {char.name.length > 4 ? char.name.slice(0, 4) + '...' : char.name}
                 </span>
               ))}
               {fiveStars.length > 4 && (
-                <span className="text-xs text-slate-400">+{fiveStars.length - 4}</span>
+                <span className="font-mono text-[11px] text-slate-400 dark:text-zinc-500">+{fiveStars.length - 4}</span>
               )}
             </div>
           </div>
         )}
         {fourStars.length > 0 && (
           <div className="flex items-start gap-1">
-            <span className="text-xs text-blue-500 font-medium shrink-0 w-8">4★</span>
-            <span className="text-xs text-slate-400 dark:text-zinc-500">
-              共 {fourStars.length} 个
+            <span className="w-8 shrink-0 font-mono text-[11px] font-semibold text-blue-500">4★</span>
+            <span className="text-[11px] text-slate-400 dark:text-zinc-500">
+              共 <span className="font-mono">{fourStars.length}</span> 个
             </span>
           </div>
         )}
         {poolChars.length === 0 && (
-          <p className="text-xs text-slate-400 dark:text-zinc-500 italic">
+          <p className="text-[11px] italic text-slate-400 dark:text-zinc-500">
             暂无角色配置，点击编辑来添加
           </p>
         )}
@@ -170,16 +190,17 @@ const PoolCard = ({
   const featuredCharacters = Array.isArray(pool.featured_characters)
     ? pool.featured_characters.filter(Boolean)
     : [];
+  const poolStatus = getPoolStatus(pool);
 
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors">
+    <div className="group border border-zinc-200 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md motion-reduce:hover:translate-y-0 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700">
       {/* Banner 图片 */}
       {pool.banner_url && (
-        <div className="relative w-full h-24 overflow-hidden">
+        <div className="relative h-24 w-full overflow-hidden">
           <img
             src={pool.banner_url}
             alt={pool.name}
-            className="w-full h-full object-cover"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
             onError={(e) => {
               e.target.style.display = 'none';
             }}
@@ -189,40 +210,51 @@ const PoolCard = ({
       )}
 
       {/* 卡池信息 */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3 mb-2">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+      <div className="p-2.5">
+        <div className="mb-1.5 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-center gap-2">
               {getTypeIcon(pool.type)}
-              <h4 className="font-bold text-slate-700 dark:text-zinc-300 truncate">
+              <h4 className="truncate text-sm font-bold text-slate-700 dark:text-zinc-200">
                 {pool.name}
               </h4>
             </div>
-            <span className={`text-xs px-2 py-0.5 rounded font-medium ${getTypeColor(pool.type)}`}>
-              {getTypeLabel(pool.type)}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={`border px-1.5 py-0.5 text-[11px] font-medium ${getTypeColor(pool.type)}`}>
+                {getTypeLabel(pool.type)}
+              </span>
+              {poolStatus && (
+                <span className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
+                  <StatusDot tone={poolStatus.tone} pulse={poolStatus.pulse} />
+                  {poolStatus.label}
+                </span>
+              )}
+              <span className="truncate font-mono text-[10px] text-slate-400 dark:text-zinc-600" title={pool.pool_id}>
+                {pool.pool_id}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* UP 角色 */}
         {pool.up_character && pool.type !== 'extra' && (
-          <div className="flex items-center gap-2 mt-2 text-sm text-slate-600 dark:text-zinc-400">
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-600 dark:text-zinc-400">
             <Star size={12} className="text-orange-500" />
             UP: {pool.up_character}
           </div>
         )}
 
         {pool.type === 'extra' && featuredCharacters.length > 0 && (
-          <div className="mt-2 text-sm text-slate-600 dark:text-zinc-400">
-            <div className="flex items-center gap-2">
+          <div className="mt-1.5 text-xs text-slate-600 dark:text-zinc-400">
+            <div className="flex items-center gap-1.5">
               <Star size={12} className="text-cyan-500" />
               6★ 名单
             </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
+            <div className="mt-1 flex flex-wrap gap-1">
               {featuredCharacters.map((name) => (
                 <span
                   key={name}
-                  className="text-xs px-1.5 py-0.5 rounded bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300"
+                  className="border border-cyan-200 bg-cyan-50 px-1.5 py-0.5 text-[11px] text-cyan-700 dark:border-cyan-900 dark:bg-cyan-950/30 dark:text-cyan-300"
                 >
                   {name}
                 </span>
@@ -233,14 +265,14 @@ const PoolCard = ({
 
         {/* 描述 */}
         {pool.description && (
-          <p className="text-xs text-slate-500 dark:text-zinc-500 mt-2 line-clamp-2">
+          <p className="mt-1.5 line-clamp-2 text-[11px] text-slate-500 dark:text-zinc-500">
             {pool.description}
           </p>
         )}
 
         {/* 时间范围 */}
         {(pool.start_time || pool.end_time) && (
-          <div className="flex items-center gap-2 mt-2 text-xs text-slate-400 dark:text-zinc-600">
+          <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[11px] text-slate-400 dark:text-zinc-500">
             <Calendar size={12} />
             {pool.start_time && new Date(pool.start_time).toLocaleDateString()}
             {pool.start_time && pool.end_time && ' - '}
@@ -256,23 +288,22 @@ const PoolCard = ({
         />
 
         {/* 操作按钮 */}
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-          <button
+        <div className="mt-2.5 flex items-center gap-2 border-t border-zinc-100 pt-2.5 dark:border-zinc-800">
+          <PanelToolbarButton
             onClick={() => onEdit(pool)}
             disabled={actionLoading === pool.pool_id}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-none transition-colors disabled:opacity-50"
           >
             <Edit2 size={12} />
             编辑
-          </button>
-          <button
+          </PanelToolbarButton>
+          <PanelToolbarButton
             onClick={() => onDelete(pool)}
             disabled={actionLoading === pool.pool_id}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-none transition-colors disabled:opacity-50"
+            tone="danger"
           >
             <Trash2 size={12} />
             {actionLoading === pool.pool_id ? '删除中...' : '删除'}
-          </button>
+          </PanelToolbarButton>
         </div>
       </div>
     </div>

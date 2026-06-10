@@ -7,6 +7,10 @@ import {
   parseRequestedJobIds,
 } from './opsAutomation.js';
 import {
+  filterJobIdsBySchedule,
+  loadOpsAutomationScheduleConfig,
+} from './opsAutomationScheduleConfig.js';
+import {
   bumpPublicCacheEpoch,
   refreshPublicAnalyticsCache,
 } from './publicCache.js';
@@ -914,12 +918,28 @@ export async function runOpsAutomationJobs({
     };
   }
 
+  // cron 触发时按 site_config 的执行时机配置过滤任务；手动 / API 触发不受限
+  let effectiveJobIds = jobIds;
+  let scheduleSkippedJobs = [];
+  if (triggerType === 'cron') {
+    const scheduleConfig = await loadOpsAutomationScheduleConfig(supabase);
+    const gate = filterJobIdsBySchedule(jobIds, scheduleConfig);
+    effectiveJobIds = gate.allowed;
+    scheduleSkippedJobs = gate.skipped;
+    if (scheduleSkippedJobs.length) {
+      serverLogger.info('[ops-automation] schedule gate skipped jobs', {
+        weekday: gate.weekday,
+        skipped: scheduleSkippedJobs,
+      });
+    }
+  }
+
   const results = {};
   const jobGraph = [];
   let announcementRecords = null;
   let poolResult = null;
 
-  if (jobIds.includes('official-announcements')) {
+  if (effectiveJobIds.includes('official-announcements')) {
     const announcementRun = await runSingleAutomationJob('official-announcements', {
       triggerType,
       supabase,
@@ -934,7 +954,7 @@ export async function runOpsAutomationJobs({
     announcementRecords = announcementRun.result?.records || announcementRun.result?.rawRecords || null;
   }
 
-  if (jobIds.includes('pool-schedule')) {
+  if (effectiveJobIds.includes('pool-schedule')) {
     const poolRun = await runSingleAutomationJob('pool-schedule', {
       triggerType,
       supabase,
@@ -947,7 +967,7 @@ export async function runOpsAutomationJobs({
     poolResult = poolRun.result;
   }
 
-  if (jobIds.includes('wiki-catalog')) {
+  if (effectiveJobIds.includes('wiki-catalog')) {
     const wikiRun = await runSingleAutomationJob('wiki-catalog', {
       triggerType,
       supabase,
@@ -967,6 +987,7 @@ export async function runOpsAutomationJobs({
     status: hasErrors ? 500 : 200,
     results: sanitizeResponseResults(results),
     jobGraph,
+    scheduleSkippedJobs,
     runContext: {
       ...runContext,
       finishedAt: new Date().toISOString(),
@@ -979,6 +1000,9 @@ export function buildOpsAutomationHttpPayload(runResult = {}) {
     success: Boolean(runResult.ok),
     partial: Boolean(runResult.partial),
     jobGraph: Array.isArray(runResult.jobGraph) ? runResult.jobGraph : [],
+    ...(Array.isArray(runResult.scheduleSkippedJobs) && runResult.scheduleSkippedJobs.length
+      ? { scheduleSkippedJobs: runResult.scheduleSkippedJobs }
+      : {}),
     ...(runResult.results || {}),
   };
 }
