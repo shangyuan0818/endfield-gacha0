@@ -134,6 +134,22 @@ function buildPoolSummary(row, poolById) {
   return { ids, known, missing };
 }
 
+function getRowStartTimestamp(row) {
+  const time = new Date(row?.startsAt || '').getTime();
+  return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER;
+}
+
+// 时间轴顺序直接由版本开始时间决定，不再手动维护排序值
+function sortRowEntriesByStartsAt(rows) {
+  return rows
+    .map((row, originalIndex) => ({ row, originalIndex }))
+    .sort((left, right) => {
+      const timeDiff = getRowStartTimestamp(left.row) - getRowStartTimestamp(right.row);
+      if (timeDiff !== 0) return timeDiff;
+      return left.originalIndex - right.originalIndex;
+    });
+}
+
 export default function HomeVersionTimelineManager({ pools = [], showToast }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -176,6 +192,10 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
   ), [rows]);
   const activeIndex = Math.min(Math.max(activeRowIndex, 0), Math.max(rows.length - 1, 0));
   const activeRow = rows[activeIndex] || null;
+  const sortedRowEntries = useMemo(() => sortRowEntriesByStartsAt(rows), [rows]);
+  const versionNumberByIndex = useMemo(() => new Map(
+    sortedRowEntries.map((entry, sortedIndex) => [entry.originalIndex, sortedIndex + 1])
+  ), [sortedRowEntries]);
   const activeSummary = activeRow ? buildPoolSummary(activeRow, poolById) : { ids: [], known: [], missing: [] };
   const validation = useMemo(() => validateHomeVersionTimelineRows(rows), [rows]);
   const preview = useMemo(() => (
@@ -311,7 +331,12 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
 
     setSaving(true);
     try {
-      const serialized = serializeHomeVersionTimelineRows(rows);
+      // 持久化顺序与时间轴一致：按开始时间排序并按序重写排序值
+      const orderedRows = sortRowEntriesByStartsAt(rows).map((entry, index) => ({
+        ...entry.row,
+        order: String((index + 1) * 10),
+      }));
+      const serialized = serializeHomeVersionTimelineRows(orderedRows);
       const success = await useSiteConfigStore.getState().updateConfig(HOME_VERSION_TIMELINE_CONFIG_KEY, serialized, {
         label: '首页版本时间线',
         category: 'content',
@@ -342,6 +367,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
     const rowErrors = validation.rowErrors[index] || [];
     const selected = index === activeIndex;
     const summary = buildPoolSummary(row, poolById);
+    const versionNumber = versionNumberByIndex.get(index) || 1;
     const flagTone = selected
       ? 'bg-amber-400 text-zinc-950 dark:bg-endfield-yellow'
       : 'bg-zinc-200 text-slate-600 hover:bg-amber-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700';
@@ -354,11 +380,11 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
         type="button"
         onClick={() => setActiveRowIndex(index)}
         className="flex items-stretch text-left"
-        aria-label={`版本节点 ${index + 1}`}
+        aria-label={`版本节点 ${versionNumber}`}
       >
         <div className={`flex items-center gap-2 whitespace-nowrap py-1.5 pl-2.5 pr-3 transition-colors ${flagTone} ${row.enabled ? '' : 'opacity-55'}`}>
           <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${selected ? 'text-zinc-950/60' : 'opacity-60'}`}>
-            VER.{String(index + 1).padStart(2, '0')}
+            VER.{String(versionNumber).padStart(2, '0')}
           </span>
           <span className="text-xs font-black tracking-wide">{row.name || '未命名版本'}</span>
           <span className={`border-l pl-2 font-mono text-[9px] font-bold ${selected ? 'border-zinc-950/30 text-zinc-950/70' : 'border-current/30 opacity-70'}`}>
@@ -443,17 +469,17 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
         )}
       >
         <div className="pool-card-rail-scrollbar flex items-stretch gap-6 overflow-x-auto overflow-y-hidden px-1 pb-2 pt-1">
-          {rows.map((row, index) => {
+          {sortedRowEntries.map(({ row, originalIndex }) => {
             const summary = buildPoolSummary(row, poolById);
-            const selected = index === activeIndex;
-            const isDragOver = dragOverIndex === index;
+            const selected = originalIndex === activeIndex;
+            const isDragOver = dragOverIndex === originalIndex;
             return (
-              <div key={`version-timeline-${row.id || index}`} className="flex shrink-0 flex-col">
-                {renderVersionFlag(row, index)}
+              <div key={`version-timeline-${row.id || originalIndex}`} className="flex shrink-0 flex-col">
+                {renderVersionFlag(row, originalIndex)}
                 <div
-                  onDragOver={(event) => handleVersionDragOver(event, index)}
+                  onDragOver={(event) => handleVersionDragOver(event, originalIndex)}
                   onDragLeave={handleVersionDragLeave}
-                  onDrop={(event) => handleVersionDrop(event, index)}
+                  onDrop={(event) => handleVersionDrop(event, originalIndex)}
                   className={`flex min-h-[88px] flex-1 items-stretch gap-2 border-l-[3px] pl-3 pt-2 transition-colors ${
                     isDragOver
                       ? 'border-amber-500 bg-amber-50/70 dark:border-endfield-yellow dark:bg-endfield-yellow/10'
@@ -462,7 +488,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                         : 'border-zinc-200 dark:border-zinc-800'
                   }`}
                 >
-                  {summary.known.map((pool) => renderVersionPoolCard(pool, index))}
+                  {summary.known.map((pool) => renderVersionPoolCard(pool, originalIndex))}
                   {summary.missing.map((poolId) => (
                     <div
                       key={poolId}
@@ -472,7 +498,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                         <span className="min-w-0 truncate font-mono text-[10px] text-amber-700 dark:text-amber-300">{poolId}</span>
                         <button
                           type="button"
-                          onClick={() => removePoolFromRow(index, poolId)}
+                          onClick={() => removePoolFromRow(originalIndex, poolId)}
                           className="shrink-0 text-amber-400 transition-colors hover:text-red-500"
                           aria-label={`从版本移除 ${poolId}`}
                         >
@@ -502,7 +528,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
       {activeRow ? (
         <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
           <PanelSection
-            title={`版本节点 ${activeIndex + 1}`}
+            title={`版本节点 ${versionNumberByIndex.get(activeIndex) || activeIndex + 1}`}
             icon={LayoutTemplate}
             delay={80}
             action={(
@@ -589,14 +615,6 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                   onChange={(event) => updateRow(activeIndex, { durationDays: event.target.value })}
                   className={FIELD_MONO_CLASS}
                   placeholder="例如 21"
-                />
-              </label>
-              <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500">
-                排序
-                <input
-                  value={activeRow.order}
-                  onChange={(event) => updateRow(activeIndex, { order: event.target.value })}
-                  className={FIELD_MONO_CLASS}
                 />
               </label>
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500 md:col-span-2">
