@@ -12,10 +12,11 @@ const TICKET_SELECT_FIELDS = '*';
 const REPLY_SELECT_FIELDS = 'id, ticket_id, user_id, content, is_internal, created_at';
 const REPLY_SUMMARY_FIELDS = 'id, ticket_id, user_id, is_internal, created_at';
 
-const VALID_TYPES = new Set(['bug', 'data', 'feature', 'account', 'question', 'other']);
+const VALID_TYPES = new Set(['bug', 'data', 'data_issue', 'feature', 'account', 'question', 'other']);
 const VALID_PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const VALID_TARGET_ROLES = new Set(['admin', 'super_admin']);
 const VALID_STATUSES = new Set(['pending', 'processing', 'resolved', 'rejected', 'closed']);
+const REOPENABLE_STATUSES = new Set(['resolved', 'rejected', 'closed']);
 
 function parseRequestBody(req) {
   if (!req.body) return {};
@@ -127,7 +128,12 @@ function normalizeCreatePayload(body, profile) {
     return { ok: false, error: 'Missing ticket content', code: 'ticket_content_required' };
   }
 
-  const type = VALID_TYPES.has(String(body.type || '').trim()) ? String(body.type).trim() : 'question';
+  const requestedType = String(body.type || '').trim();
+  const type = requestedType === 'data'
+    ? 'data_issue'
+    : VALID_TYPES.has(requestedType)
+      ? requestedType
+      : 'question';
   const priority = VALID_PRIORITIES.has(String(body.priority || '').trim()) ? String(body.priority).trim() : 'medium';
   const requestedTargetRole = String(body.target_role || '').trim();
   let targetRole = VALID_TARGET_ROLES.has(requestedTargetRole) ? requestedTargetRole : 'admin';
@@ -224,6 +230,18 @@ async function handleCreateTicket(req, res, adminClient, profile) {
 
 async function handleUpdateTicketStatus(req, res, adminClient, profile) {
   const body = parseRequestBody(req);
+  const action = String(body.action || '').trim();
+  if (action === 'reopen') {
+    await handleReopenTicket(req, res, adminClient, profile);
+    return;
+  }
+
+  const ticketIds = normalizeTicketIds(body.ticketIds || body.ticket_ids || body.ids);
+  if (ticketIds.length > 0) {
+    await handleBulkUpdateTicketStatus(req, res, adminClient, profile, ticketIds);
+    return;
+  }
+
   const ticketId = String(body.ticketId || body.ticket_id || '').trim();
   const status = String(body.status || '').trim();
   if (!ticketId) {
@@ -263,6 +281,115 @@ async function handleUpdateTicketStatus(req, res, adminClient, profile) {
     ticket: data || {
       ...ticket,
       ...patch,
+    },
+  });
+}
+
+async function handleBulkUpdateTicketStatus(req, res, adminClient, profile, ticketIds) {
+  const body = parseRequestBody(req);
+  const status = String(body.status || '').trim();
+  if (!VALID_STATUSES.has(status)) {
+    return sendError(res, 400, 'Unsupported ticket status', 'ticket_status_invalid');
+  }
+
+  const { data: tickets, error: ticketError } = await adminClient
+    .from('tickets')
+    .select(TICKET_SELECT_FIELDS)
+    .in('id', ticketIds)
+    .limit(MAX_TICKET_IDS);
+  if (ticketError) throw ticketError;
+
+  const rows = Array.isArray(tickets) ? tickets : [];
+  const allowedTickets = rows.filter((ticket) => canManageTicket(ticket, profile));
+  if (allowedTickets.length === 0) {
+    return sendError(res, 403, 'Ticket update not allowed', 'ticket_update_forbidden');
+  }
+
+  const patch = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (status === 'resolved') {
+    patch.resolved_by = profile.id;
+  }
+
+  const allowedIds = allowedTickets.map((ticket) => ticket.id).filter(Boolean);
+  const { data, error } = await adminClient
+    .from('tickets')
+    .update(patch)
+    .in('id', allowedIds)
+    .select(TICKET_SELECT_FIELDS);
+  if (error) throw error;
+
+  const updatedTickets = Array.isArray(data) && data.length > 0
+    ? data
+    : allowedTickets.map((ticket) => ({ ...ticket, ...patch }));
+
+  return res.status(200).json({
+    success: true,
+    tickets: updatedTickets,
+    meta: {
+      requested: ticketIds.length,
+      matched: rows.length,
+      updated: updatedTickets.length,
+      denied: Math.max(0, rows.length - allowedTickets.length),
+      missing: Math.max(0, ticketIds.length - rows.length),
+    },
+  });
+}
+
+async function handleReopenTicket(req, res, adminClient, profile) {
+  const body = parseRequestBody(req);
+  const ticketId = String(body.ticketId || body.ticket_id || '').trim();
+  if (!ticketId) {
+    return sendError(res, 400, 'Missing ticketId', 'ticket_id_required');
+  }
+
+  const ticket = await loadTicketById(adminClient, ticketId);
+  if (!ticket) {
+    return sendError(res, 404, 'Ticket not found', 'ticket_not_found');
+  }
+
+  const isOwner = Boolean(ticket?.user_id && profile?.id && ticket.user_id === profile.id);
+  if (!isOwner && !canManageTicket(ticket, profile)) {
+    return sendError(res, 403, 'Ticket reopen not allowed', 'ticket_reopen_forbidden');
+  }
+
+  if (!REOPENABLE_STATUSES.has(String(ticket.status || '').trim())) {
+    return res.status(200).json({
+      success: true,
+      ticket,
+      meta: {
+        reopened: false,
+        reason: 'ticket_already_active',
+      },
+    });
+  }
+
+  const patch = {
+    status: 'pending',
+    updated_at: new Date().toISOString(),
+    resolved_by: null,
+    resolution_note: null,
+  };
+
+  const { data, error } = await adminClient
+    .from('tickets')
+    .update(patch)
+    .eq('id', ticket.id)
+    .select(TICKET_SELECT_FIELDS)
+    .single();
+  if (error) throw error;
+
+  return res.status(200).json({
+    success: true,
+    ticket: data || {
+      ...ticket,
+      ...patch,
+    },
+    meta: {
+      reopened: true,
+      previousStatus: ticket.status || null,
     },
   });
 }

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   createSupabaseAccessTokenClient: vi.fn(),
   ensureProfileForAuthUser: vi.fn(),
   getSupabaseAdminClient: vi.fn(),
+  resolveAuthenticatedRequestUser: vi.fn(),
   getRequesterIp: vi.fn(() => '203.0.113.20'),
   enqueueMailOutboxEvent: vi.fn(),
 }));
@@ -25,6 +26,10 @@ vi.mock('../_lib/authAdmin.js', () => ({
   ensureProfileForAuthUser: mocks.ensureProfileForAuthUser,
   getBearerToken: mocks.getBearerToken,
   getSupabaseAdminClient: mocks.getSupabaseAdminClient,
+}));
+
+vi.mock('../_lib/siteAuth.js', () => ({
+  resolveAuthenticatedRequestUser: mocks.resolveAuthenticatedRequestUser,
 }));
 
 vi.mock('../_lib/authSecurityGuards.js', () => ({
@@ -222,6 +227,7 @@ function createTicketReplyAdminClient({
           ticket_id: query.insertPayload.ticket_id,
           user_id: query.insertPayload.user_id,
           content: query.insertPayload.content,
+          is_internal: Boolean(query.insertPayload.is_internal),
           created_at: '2026-06-10T02:00:00.000Z',
         };
         state.replies.push(inserted);
@@ -241,6 +247,13 @@ function createTicketReplyAdminClient({
 }
 
 function configureCaller(userId = 'admin-user-id') {
+  mocks.resolveAuthenticatedRequestUser.mockResolvedValue({
+    ok: true,
+    user: {
+      id: userId,
+      email: `${userId}@example.com`,
+    },
+  });
   mocks.createSupabaseAccessTokenClient.mockReturnValue({
     auth: {
       getUser: vi.fn(async () => ({
@@ -319,6 +332,7 @@ describe('api/tickets/reply handler', () => {
         ticket_id: 'ticket-1',
         user_id: 'admin-user-id',
         content: '管理员已回复，请查看。',
+        is_internal: false,
       }),
     ]);
     expect(mocks.enqueueMailOutboxEvent).toHaveBeenCalledWith(expect.objectContaining({
@@ -344,6 +358,7 @@ describe('api/tickets/reply handler', () => {
       reply: {
         id: 'reply-1',
         ticket_id: 'ticket-1',
+        is_internal: false,
       },
       mailNotification: {
         enabled: true,
@@ -457,6 +472,141 @@ describe('api/tickets/reply handler', () => {
         attempted: false,
         status: 'skipped',
         code: 'ticket_reply_mail_only_for_staff_reply',
+      },
+    });
+  }));
+
+  it('saves staff internal notes without updating the ticket or sending mail', withTicketMailEnv(async () => {
+    const adminClient = createTicketReplyAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      body: {
+        ticketId: 'ticket-1',
+        content: '内部排查：怀疑是历史数据格式问题。',
+        isInternal: true,
+        locale: 'zh-CN',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(adminClient.state.replies).toEqual([
+      expect.objectContaining({
+        ticket_id: 'ticket-1',
+        user_id: 'admin-user-id',
+        content: '内部排查：怀疑是历史数据格式问题。',
+        is_internal: true,
+      }),
+    ]);
+    expect(adminClient.state.calls.some((call) => call.table === 'tickets' && call.operation === 'update')).toBe(false);
+    expect(mocks.enqueueMailOutboxEvent).not.toHaveBeenCalled();
+    expect(res.body).toMatchObject({
+      success: true,
+      partial: false,
+      reply: {
+        id: 'reply-1',
+        ticket_id: 'ticket-1',
+        is_internal: true,
+      },
+      ticket: {
+        id: 'ticket-1',
+        status: 'processing',
+        previousStatus: 'processing',
+        statusChanged: false,
+      },
+      mailNotification: {
+        enabled: true,
+        attempted: false,
+        status: 'skipped',
+        code: 'ticket_internal_note_no_mail',
+      },
+    });
+  }));
+
+  it('rejects internal notes from normal ticket owners', withTicketMailEnv(async () => {
+    configureCaller('ticket-owner-id');
+    const adminClient = createTicketReplyAdminClient({
+      callerProfile: {
+        id: 'ticket-owner-id',
+        email: 'ticket.owner@example.com',
+        username: 'owner',
+        role: 'user',
+      },
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      body: {
+        ticketId: 'ticket-1',
+        content: '我不应该能写内部备注。',
+        isInternal: true,
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({
+      code: 'ticket_internal_note_forbidden',
+    });
+    expect(adminClient.state.replies).toEqual([]);
+    expect(mocks.enqueueMailOutboxEvent).not.toHaveBeenCalled();
+  }));
+
+  it('moves owner replies on resolved tickets back to pending', withTicketMailEnv(async () => {
+    configureCaller('ticket-owner-id');
+    const adminClient = createTicketReplyAdminClient({
+      callerProfile: {
+        id: 'ticket-owner-id',
+        email: 'ticket.owner@example.com',
+        username: 'owner',
+        role: 'user',
+      },
+      ticket: {
+        id: 'ticket-1',
+        user_id: 'ticket-owner-id',
+        title: '导入失败',
+        status: 'resolved',
+        target_role: 'admin',
+        created_at: '2026-06-10T01:00:00.000Z',
+        updated_at: '2026-06-10T01:30:00.000Z',
+      },
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+
+    const req = createRequest({
+      body: {
+        ticketId: 'ticket-1',
+        content: '问题还在，请继续看一下。',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const ticketUpdateCall = adminClient.state.calls.find((call) => (
+      call.table === 'tickets' && call.operation === 'update'
+    ));
+    expect(ticketUpdateCall?.patch).toMatchObject({
+      status: 'pending',
+    });
+    expect(adminClient.state.tickets[0]).toMatchObject({
+      id: 'ticket-1',
+      status: 'pending',
+    });
+    expect(mocks.enqueueMailOutboxEvent).not.toHaveBeenCalled();
+    expect(res.body).toMatchObject({
+      success: true,
+      ticket: {
+        id: 'ticket-1',
+        status: 'pending',
+        previousStatus: 'resolved',
+        statusChanged: true,
       },
     });
   }));

@@ -5,6 +5,7 @@ export async function submitTicketReply({
   ticketId,
   content,
   locale = 'zh-CN',
+  isInternal = false,
 } = {}) {
   const accessToken = await getSupabaseAccessToken({
     syncSiteSession: false,
@@ -26,6 +27,7 @@ export async function submitTicketReply({
       ticketId,
       content,
       locale,
+      isInternal: Boolean(isInternal),
     }),
   }, {
     label: 'ticket-reply',

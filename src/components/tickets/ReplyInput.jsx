@@ -59,7 +59,16 @@ function EmojiPicker({ onClose, onSelect }) {
   );
 }
 
-export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
+export default function ReplyInput({
+  value,
+  onChange,
+  onSubmit,
+  submitting,
+  canUseInternalNote = false,
+  publicReplyAllowed = true,
+  mode = 'public',
+  onModeChange,
+}) {
   const { isEnglish } = useI18n();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef(null);
@@ -93,11 +102,47 @@ export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
   return (
     <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950">
       <div className="flex flex-col gap-2">
+        {canUseInternalNote && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!publicReplyAllowed}
+              onClick={() => onModeChange?.('public')}
+              className={`px-3 py-1.5 text-xs border transition-colors ${
+                mode === 'public'
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-200'
+                  : 'border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
+              } disabled:opacity-40`}
+            >
+              {tt('公开回复', 'Public reply')}
+            </button>
+            <button
+              type="button"
+              onClick={() => onModeChange?.('internal')}
+              className={`px-3 py-1.5 text-xs border transition-colors ${
+                mode === 'internal'
+                  ? 'border-amber-500 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-200'
+                  : 'border-zinc-200 bg-white text-zinc-500 hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400'
+              }`}
+            >
+              {tt('内部备注', 'Internal note')}
+            </button>
+            {mode === 'internal' && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-300">
+                {tt('仅管理员可见，不会通知用户。', 'Only staff can see this. Users are not notified.')}
+              </span>
+            )}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={tt('输入回复内容... (Ctrl+Enter 发送)', 'Write a reply... (Ctrl+Enter to send)')}
+          placeholder={
+            mode === 'internal'
+              ? tt('输入内部备注... (Ctrl+Enter 保存)', 'Write an internal note... (Ctrl+Enter to save)')
+              : tt('输入回复内容... (Ctrl+Enter 发送)', 'Write a reply... (Ctrl+Enter to send)')
+          }
           className="w-full px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-none text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[60px] max-h-[120px] resize-y"
           onKeyDown={handleKeyDown}
           rows={2}
@@ -125,7 +170,11 @@ export default function ReplyInput({ value, onChange, onSubmit, submitting }) {
             className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-none transition-colors disabled:opacity-50 flex items-center gap-2 text-sm whitespace-normal text-center leading-tight"
           >
             <Send size={14} />
-            {submitting ? tt('发送中...', 'Sending...') : tt('发送', 'Send')}
+            {submitting
+              ? tt('处理中...', 'Saving...')
+              : mode === 'internal'
+                ? tt('保存备注', 'Save Note')
+                : tt('发送', 'Send')}
           </button>
         </div>
       </div>

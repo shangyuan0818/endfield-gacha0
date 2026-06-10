@@ -1,7 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, MessageSquare, Plus, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckSquare, MessageSquare, Plus, RefreshCw, Square } from 'lucide-react';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../services/publicProfileService';
-import { createTicket, loadTickets as loadTicketRows, updateTicketStatus } from '../services/ticketService.js';
+import {
+  bulkUpdateTicketStatus,
+  createTicket,
+  loadTickets as loadTicketRows,
+  reopenTicket,
+  updateTicketStatus,
+} from '../services/ticketService.js';
 import { loadTicketReplyWorkflowSummaries } from '../services/ticketWorkflowService.js';
 import CreateTicketForm from './tickets/CreateTicketForm';
 import TicketCard from './tickets/TicketCard';
@@ -13,6 +19,7 @@ import {
   filterTicketsByWorkflow,
   getTicketWorkflowCounts,
 } from '../utils/ticketWorkflow.js';
+import { markTicketsViewed } from '../utils/ticketSupportUtils.js';
 
 const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotification }) => {
   const { isEnglish, locale, formatNumber } = useI18n();
@@ -22,13 +29,19 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
   const [expandedTicketId, setExpandedTicketId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [tableExists, setTableExists] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [selectedTicketIds, setSelectedTicketIds] = useState([]);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
   const ticketStatus = getTicketStatus(locale);
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
+  const canUseAdminActions = userRole === 'admin' || userRole === 'super_admin';
 
   const loadTickets = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
+    setLoadError('');
     try {
       const result = await loadTicketRows();
       if (result.tableExists === false) {
@@ -50,6 +63,7 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
         replySummaries,
       }));
     } catch (error) {
+      setLoadError(`${tt('加载工单失败', 'Failed to load tickets')}: ${error.message}`);
       showToast?.(`${tt('加载工单失败', 'Failed to load tickets')}: ${error.message}`, 'error');
     } finally {
       setLoading(false);
@@ -60,18 +74,27 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
     loadTickets();
   }, [loadTickets]);
 
+  useEffect(() => {
+    if (user) {
+      markTicketsViewed();
+    }
+  }, [user]);
+
   const handleCreateTicket = useCallback(async (formData) => {
+    setActionError('');
     try {
       await createTicket(formData);
       showToast?.(tt('工单提交成功', 'Ticket submitted successfully'), 'success');
       setShowCreateForm(false);
       await loadTickets();
     } catch (error) {
+      setActionError(`${tt('提交工单失败', 'Failed to submit ticket')}: ${error.message}`);
       showToast?.(`${tt('提交工单失败', 'Failed to submit ticket')}: ${error.message}`, 'error');
     }
   }, [loadTickets, showToast, tt]);
 
   const handleStatusChange = useCallback(async (ticketId, newStatus) => {
+    setActionError('');
     try {
       await updateTicketStatus(ticketId, newStatus);
       showToast?.(
@@ -80,15 +103,90 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
       );
       await loadTickets();
     } catch (error) {
+      setActionError(`${tt('更新失败', 'Update failed')}: ${error.message}`);
       showToast?.(`${tt('更新失败', 'Update failed')}: ${error.message}`, 'error');
     }
   }, [loadTickets, showToast, ticketStatus, tt]);
+
+  const handleBulkStatusChange = useCallback(async (newStatus) => {
+    if (selectedTicketIds.length === 0) return;
+    setActionError('');
+    setBulkUpdating(true);
+    try {
+      const result = await bulkUpdateTicketStatus(selectedTicketIds, newStatus);
+      const updated = Number(result.meta?.updated || result.tickets?.length || 0);
+      const denied = Number(result.meta?.denied || 0);
+      showToast?.(
+        denied > 0
+          ? tt(`已更新 ${updated} 个工单，${denied} 个无权限`, `Updated ${updated} tickets; ${denied} denied`)
+          : tt(`已更新 ${updated} 个工单`, `Updated ${updated} tickets`),
+        denied > 0 ? 'warning' : 'success'
+      );
+      setSelectedTicketIds([]);
+      await loadTickets();
+    } catch (error) {
+      setActionError(`${tt('批量更新失败', 'Bulk update failed')}: ${error.message}`);
+      showToast?.(`${tt('批量更新失败', 'Bulk update failed')}: ${error.message}`, 'error');
+    } finally {
+      setBulkUpdating(false);
+    }
+  }, [loadTickets, selectedTicketIds, showToast, tt]);
+
+  const handleReopenTicket = useCallback(async (ticketId) => {
+    setActionError('');
+    try {
+      const result = await reopenTicket(ticketId);
+      showToast?.(
+        result.meta?.reopened === false
+          ? tt('工单仍在处理中', 'Ticket is already active')
+          : tt('工单已重新打开', 'Ticket reopened'),
+        'success'
+      );
+      await loadTickets();
+    } catch (error) {
+      setActionError(`${tt('重新打开失败', 'Failed to reopen')}: ${error.message}`);
+      showToast?.(`${tt('重新打开失败', 'Failed to reopen')}: ${error.message}`, 'error');
+    }
+  }, [loadTickets, showToast, tt]);
 
   const filteredTickets = useMemo(() => {
     return filterTicketsByWorkflow(tickets, filter, user?.id);
   }, [tickets, filter, user]);
 
   const stats = useMemo(() => getTicketWorkflowCounts(tickets, user?.id), [tickets, user]);
+  const selectableTicketIds = useMemo(() => {
+    if (!canUseAdminActions) return [];
+    return filteredTickets
+      .filter((ticket) => userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin'))
+      .map((ticket) => ticket.id)
+      .filter(Boolean);
+  }, [canUseAdminActions, filteredTickets, userRole]);
+  const selectedVisibleCount = selectedTicketIds.filter((id) => selectableTicketIds.includes(id)).length;
+  const allVisibleSelected = selectableTicketIds.length > 0 && selectedVisibleCount === selectableTicketIds.length;
+
+  const toggleTicketSelection = useCallback((ticketId, checked) => {
+    setSelectedTicketIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(ticketId);
+      } else {
+        next.delete(ticketId);
+      }
+      return Array.from(next);
+    });
+  }, []);
+
+  const toggleVisibleSelection = useCallback(() => {
+    setSelectedTicketIds((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        selectableTicketIds.forEach((id) => next.delete(id));
+      } else {
+        selectableTicketIds.forEach((id) => next.add(id));
+      }
+      return Array.from(next);
+    });
+  }, [allVisibleSelected, selectableTicketIds]);
 
   if (!user) {
     return (
@@ -204,6 +302,45 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
         </div>
       </div>
 
+      {(loadError || actionError) && (
+        <div className="border border-red-200 dark:border-red-900/40 bg-red-50/80 dark:bg-red-950/20 px-4 py-3 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            {loadError && <div>{loadError}</div>}
+            {actionError && <div>{actionError}</div>}
+          </div>
+        </div>
+      )}
+
+      {canUseAdminActions && selectableTicketIds.length > 0 && (
+        <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={toggleVisibleSelection}
+            className="flex items-center gap-2 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white"
+          >
+            {allVisibleSelected ? <CheckSquare size={16} /> : <Square size={16} />}
+            {tt('选择当前列表', 'Select visible')} ({formatNumber(selectedVisibleCount)}/{formatNumber(selectableTicketIds.length)})
+          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-zinc-500 dark:text-zinc-400">
+              {tt('批量状态', 'Bulk status')}
+            </span>
+            {['processing', 'resolved', 'closed'].map((status) => (
+              <button
+                key={status}
+                type="button"
+                disabled={selectedTicketIds.length === 0 || bulkUpdating}
+                onClick={() => handleBulkStatusChange(status)}
+                className="px-3 py-1.5 text-xs border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-600 dark:text-zinc-300 hover:border-zinc-400 dark:hover:border-zinc-500 disabled:opacity-50"
+              >
+                {ticketStatus[status]?.label || status}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {showCreateForm && (
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-sm p-6 relative overflow-hidden">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none"></div>
@@ -259,9 +396,13 @@ const TicketPanel = React.memo(({ user, userRole, showToast, addDurableNotificat
               showToast={showToast}
               addDurableNotification={addDurableNotification}
               onStatusChange={handleStatusChange}
+              onReopen={handleReopenTicket}
               onReply={loadTickets}
               expanded={expandedTicketId === ticket.id}
               onToggle={() => setExpandedTicketId(expandedTicketId === ticket.id ? null : ticket.id)}
+              selectable={canUseAdminActions && selectableTicketIds.includes(ticket.id)}
+              selected={selectedTicketIds.includes(ticket.id)}
+              onSelectionChange={toggleTicketSelection}
             />
           ))}
         </div>

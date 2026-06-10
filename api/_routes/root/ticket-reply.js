@@ -25,6 +25,7 @@ const REPLY_LIMIT = {
 
 const MAX_REPLY_LENGTH = 2000;
 const TICKET_FIELDS = 'id, user_id, title, status, target_role, updated_at, created_at';
+const OWNER_REPLY_REOPEN_STATUSES = new Set(['resolved', 'rejected']);
 
 function readEnvironment() {
   return globalThis.process?.env || {};
@@ -158,9 +159,17 @@ function canReplyToTicket(ticket, profile) {
   };
 }
 
-function resolveTicketStatusAfterReply(ticket, permission) {
+function resolveTicketStatusAfterReply(ticket, permission, { isInternal = false } = {}) {
+  if (isInternal) {
+    return ticket?.status || null;
+  }
+
   if (permission?.canManage && !permission?.isOwner && ticket?.status === 'pending') {
     return 'processing';
+  }
+
+  if (permission?.isOwner && OWNER_REPLY_REOPEN_STATUSES.has(String(ticket?.status || '').trim())) {
+    return 'pending';
   }
 
   return ticket?.status || null;
@@ -346,6 +355,7 @@ export default async function handler(req, res) {
   const ticketId = String(body.ticketId || body.ticket_id || '').trim();
   const content = String(body.content || '').trim();
   const locale = String(body.locale || body.lang || 'zh-CN').trim().slice(0, 16) || 'zh-CN';
+  const isInternal = body.isInternal === true || body.is_internal === true;
 
   if (!ticketId) {
     return res.status(400).json({ success: false, error: 'Missing ticketId' });
@@ -367,13 +377,21 @@ export default async function handler(req, res) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
 
-    if (ticket.status === 'closed') {
-      return res.status(400).json({ success: false, error: 'Ticket is closed' });
-    }
-
     const permission = canReplyToTicket(ticket, callerProfile);
     if (!permission.allowed) {
       return res.status(403).json({ success: false, error: 'Ticket reply not allowed' });
+    }
+
+    if (isInternal && !permission.canManage) {
+      return res.status(403).json({
+        success: false,
+        error: 'Internal note is only available to staff',
+        code: 'ticket_internal_note_forbidden',
+      });
+    }
+
+    if (ticket.status === 'closed' && !isInternal) {
+      return res.status(400).json({ success: false, error: 'Ticket is closed' });
     }
 
     const nowIso = new Date().toISOString();
@@ -383,8 +401,9 @@ export default async function handler(req, res) {
         ticket_id: ticket.id,
         user_id: callerUser.id,
         content,
+        is_internal: isInternal,
       })
-      .select('id, ticket_id, created_at')
+      .select('id, ticket_id, is_internal, created_at')
       .single();
 
     if (insertError) {
@@ -392,36 +411,46 @@ export default async function handler(req, res) {
     }
 
     const previousStatus = ticket.status || null;
-    const nextStatus = resolveTicketStatusAfterReply(ticket, permission);
-    const ticketUpdatePatch = {
-      updated_at: nowIso,
-    };
-    if (nextStatus && nextStatus !== previousStatus) {
-      ticketUpdatePatch.status = nextStatus;
-    }
+    const nextStatus = resolveTicketStatusAfterReply(ticket, permission, { isInternal });
+    let ticketUpdateError = null;
+    if (!isInternal) {
+      const ticketUpdatePatch = {
+        updated_at: nowIso,
+      };
+      if (nextStatus && nextStatus !== previousStatus) {
+        ticketUpdatePatch.status = nextStatus;
+      }
 
-    const { error: ticketUpdateError } = await adminClient
-      .from('tickets')
-      .update(ticketUpdatePatch)
-      .eq('id', ticket.id);
+      const updateResult = await adminClient
+        .from('tickets')
+        .update(ticketUpdatePatch)
+        .eq('id', ticket.id);
+      ticketUpdateError = updateResult?.error || null;
+    }
 
     const effectiveStatus = ticketUpdateError ? previousStatus : nextStatus;
     const ticketForNotification = {
       ...ticket,
       status: effectiveStatus,
-      updated_at: ticketUpdateError ? ticket.updated_at : nowIso,
+      updated_at: ticketUpdateError || isInternal ? ticket.updated_at : nowIso,
     };
-    const mailNotification = await enqueueTicketReplyMail({
-      req,
-      adminClient,
-      ticket: ticketForNotification,
-      reply,
-      actorProfile: callerProfile,
-      permission,
-      locale,
-      nowIso,
-      runtimeState,
-    });
+    const mailNotification = isInternal
+      ? summarizeMailNotification(null, {
+        enabled: isTicketReplyMailEnabled(readEnvironment(), runtimeState),
+        attempted: false,
+        reason: 'ticket_internal_note_no_mail',
+      })
+      : await enqueueTicketReplyMail({
+        req,
+        adminClient,
+        ticket: ticketForNotification,
+        reply,
+        actorProfile: callerProfile,
+        permission,
+        locale,
+        nowIso,
+        runtimeState,
+      });
 
     return res.status(200).json({
       success: true,
@@ -429,6 +458,7 @@ export default async function handler(req, res) {
       reply: {
         id: reply?.id || null,
         ticket_id: reply?.ticket_id || ticket.id,
+        is_internal: Boolean(reply?.is_internal || isInternal),
         created_at: reply?.created_at || nowIso,
       },
       ticket: {

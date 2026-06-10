@@ -243,13 +243,14 @@ function createAdminClient({
           return { data: maybeSingle ? inserted : [inserted], error: null };
         }
         if (query.operation === 'update') {
-          let updated = null;
+          const updatedRows = [];
           state.tickets = state.tickets.map((row) => {
             if (!matchesFilters(row, query.filters)) return row;
-            updated = { ...row, ...query.updatePatch };
+            const updated = { ...row, ...query.updatePatch };
+            updatedRows.push(updated);
             return updated;
           });
-          return { data: maybeSingle ? updated : updated ? [updated] : [], error: null };
+          return { data: maybeSingle ? updatedRows[0] || null : updatedRows, error: null };
         }
         const rows = state.tickets.filter((row) => matchesFilters(row, query.filters));
         return { data: maybeSingle ? rows[0] || null : rows.slice(0, query.limitCount || rows.length), error: null };
@@ -404,6 +405,94 @@ describe('/api/tickets', () => {
       id: 'ticket-other',
       status: 'resolved',
       resolved_by: 'admin-1',
+    });
+  });
+
+  it('allows admins to bulk update visible admin-targeted tickets and reports denied rows', async () => {
+    const adminClient = createAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    configureAuth({ id: 'admin-1', role: 'admin' });
+    const req = createRequest({
+      method: 'PATCH',
+      body: {
+        ticketIds: ['ticket-own', 'ticket-other', 'ticket-super', 'ticket-missing'],
+        status: 'closed',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await ticketsHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.tickets.map((ticket) => ticket.id)).toEqual(['ticket-own', 'ticket-other']);
+    expect(res.body.tickets.every((ticket) => ticket.status === 'closed')).toBe(true);
+    expect(res.body.meta).toMatchObject({
+      requested: 4,
+      matched: 3,
+      updated: 2,
+      denied: 1,
+      missing: 1,
+    });
+  });
+
+  it('allows ticket owners to reopen a resolved ticket', async () => {
+    const adminClient = createAdminClient();
+    adminClient.state.tickets.push({
+      id: 'ticket-resolved-own',
+      user_id: 'user-1',
+      type: 'bug',
+      title: '已解决的问题',
+      content: '需要继续补充',
+      priority: 'medium',
+      status: 'resolved',
+      target_role: 'admin',
+      created_at: '2026-06-01T04:00:00.000Z',
+      updated_at: '2026-06-01T04:00:00.000Z',
+      resolved_by: 'admin-1',
+      resolution_note: '已处理',
+    });
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    configureAuth({ id: 'user-1', role: 'user' });
+    const req = createRequest({
+      method: 'PATCH',
+      body: {
+        ticketId: 'ticket-resolved-own',
+        action: 'reopen',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await ticketsHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.ticket).toMatchObject({
+      id: 'ticket-resolved-own',
+      status: 'pending',
+      resolved_by: null,
+      resolution_note: null,
+    });
+    expect(res.body.meta).toMatchObject({
+      reopened: true,
+      previousStatus: 'resolved',
+    });
+  });
+
+  it('rejects reopening tickets outside the caller permission boundary', async () => {
+    configureAuth({ id: 'user-1', role: 'user' });
+    const req = createRequest({
+      method: 'PATCH',
+      body: {
+        ticketId: 'ticket-other',
+        action: 'reopen',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await ticketsHandler(req, res);
+
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({
+      code: 'ticket_reopen_forbidden',
     });
   });
 

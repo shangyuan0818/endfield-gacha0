@@ -51,6 +51,7 @@ describe('ticketReplyService', () => {
         ticketId: 'ticket-1',
         content: '管理员已回复。',
         locale: 'zh-CN',
+        isInternal: false,
       }),
     }, expect.objectContaining({
       label: 'ticket-reply',
@@ -76,8 +77,36 @@ describe('ticketReplyService', () => {
         ticketId: 'ticket-1',
         content: '补充一下复现步骤。',
         locale: 'zh-CN',
+        isInternal: false,
       }),
     }, expect.any(Object));
+  });
+
+  it('submits internal notes when requested by staff UI', async () => {
+    await submitTicketReply({
+      ticketId: 'ticket-1',
+      content: '内部备注。',
+      locale: 'zh-CN',
+      isInternal: true,
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/tickets/reply', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer access-token',
+      },
+      body: JSON.stringify({
+        ticketId: 'ticket-1',
+        content: '内部备注。',
+        locale: 'zh-CN',
+        isInternal: true,
+      }),
+    }, expect.objectContaining({
+      label: 'ticket-reply',
+      timeoutMs: 30000,
+    }));
   });
 
   it('surfaces the server-side reply error message', async () => {

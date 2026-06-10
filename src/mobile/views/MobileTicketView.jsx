@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   MessageSquare, Plus, Send, ChevronDown, ChevronUp, User, Shield, RefreshCw, X, Smile,
-  AlertCircle
+  AlertCircle, Clipboard, RotateCcw
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 import { attachPublicProfiles, loadPublicProfilesMap } from '../../services/publicProfileService';
@@ -9,6 +9,7 @@ import {
   createTicket,
   loadTicketReplies,
   loadTickets as loadTicketRows,
+  reopenTicket,
   updateTicketStatus,
 } from '../../services/ticketService.js';
 import { loadTicketReplyWorkflowSummaries } from '../../services/ticketWorkflowService.js';
@@ -24,6 +25,12 @@ import {
   filterTicketsByWorkflow,
   getTicketWorkflowCounts,
 } from '../../utils/ticketWorkflow.js';
+import {
+  buildTicketDiagnostic,
+  canReopenTicket,
+  copyTextToClipboard,
+  markTicketsViewed,
+} from '../../utils/ticketSupportUtils.js';
 
 // 常用表情（精简版）
 const EMOJI_LIST = [
@@ -42,6 +49,8 @@ function MobileTicketView({ addDurableNotification } = {}) {
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
@@ -49,6 +58,7 @@ function MobileTicketView({ addDurableNotification } = {}) {
   const loadTickets = useCallback(async () => {
     if (!user) return;
     setLoading(true);
+    setLoadError('');
     try {
       const result = await loadTicketRows();
       if (result.tableExists === false) {
@@ -69,24 +79,55 @@ function MobileTicketView({ addDurableNotification } = {}) {
         currentUserRole: userRole,
         replySummaries,
       }));
+    } catch (error) {
+      setLoadError(`${tt('加载工单失败', 'Failed to load tickets')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
     } finally {
       setLoading(false);
     }
-  }, [user, userRole]);
+  }, [tt, user, userRole]);
 
   useEffect(() => { loadTickets(); }, [loadTickets]);
 
+  useEffect(() => {
+    if (user) {
+      markTicketsViewed();
+    }
+  }, [user]);
+
   // 创建工单
   const handleCreate = async (formData) => {
-    await createTicket(formData);
-    setShowCreate(false);
-    await loadTickets();
+    setActionError('');
+    try {
+      await createTicket(formData);
+      setShowCreate(false);
+      await loadTickets();
+    } catch (error) {
+      setActionError(`${tt('提交工单失败', 'Failed to submit ticket')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
+      throw error;
+    }
   };
 
   // 更新状态
   const handleStatusChange = async (ticketId, newStatus) => {
-    await updateTicketStatus(ticketId, newStatus);
-    await loadTickets();
+    setActionError('');
+    try {
+      await updateTicketStatus(ticketId, newStatus);
+      await loadTickets();
+    } catch (error) {
+      setActionError(`${tt('更新失败', 'Update failed')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
+      throw error;
+    }
+  };
+
+  const handleReopen = async (ticketId) => {
+    setActionError('');
+    try {
+      await reopenTicket(ticketId);
+      await loadTickets();
+    } catch (error) {
+      setActionError(`${tt('重新打开失败', 'Failed to reopen')}: ${error?.message || tt('未知错误', 'Unknown error')}`);
+      throw error;
+    }
   };
 
   // 过滤
@@ -187,6 +228,16 @@ function MobileTicketView({ addDurableNotification } = {}) {
         />
       )}
 
+      {(loadError || actionError) && (
+        <div className="mobile-ux-soft-card mobile-ux-soft-card--danger flex items-start gap-2 p-3 text-[11px] leading-relaxed text-red-700 dark:text-red-200">
+          <AlertCircle size={14} className="mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            {loadError && <div>{loadError}</div>}
+            {actionError && <div>{actionError}</div>}
+          </div>
+        </div>
+      )}
+
       {!tableExists ? (
         <div className="mobile-ux-soft-card mobile-ux-soft-card--warning p-5 py-8 text-center">
           <AlertCircle size={32} className="mx-auto mb-3 text-amber-500 dark:text-amber-300" />
@@ -221,6 +272,7 @@ function MobileTicketView({ addDurableNotification } = {}) {
               expanded={expandedId === ticket.id}
               onToggle={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
               onStatusChange={handleStatusChange}
+              onReopen={handleReopen}
               onReply={loadTickets}
               addDurableNotification={addDurableNotification}
               locale={locale}
@@ -382,7 +434,7 @@ function CreateForm({ userRole, onSubmit, onCancel }) {
   );
 }
 
-function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReply, addDurableNotification, locale, formatDateTime }) {
+function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onStatusChange, onReopen, onReply, addDurableNotification, locale, formatDateTime }) {
   const { isEnglish } = useI18n();
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const ticketTypes = getTicketTypes(locale);
@@ -392,48 +444,77 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
   const TypeIcon = typeConfig.icon;
   const isOwner = ticket.user_id === currentUserId;
   const canManage = userRole === 'super_admin' || (userRole === 'admin' && ticket.target_role === 'admin');
+  const canReopen = isOwner && canReopenTicket(ticket);
+  const publicReplyAllowed = ticket.status !== 'closed' && (isOwner || canManage);
+  const internalNoteAllowed = canManage;
+
+  const handleCopyDiagnostic = useCallback(async () => {
+    const copied = await copyTextToClipboard(buildTicketDiagnostic(ticket));
+    if (!copied) {
+      // Mobile view has no toast channel here, so leave the action silent on success
+      // and use the button title for the fallback affordance.
+      window.alert?.(tt('复制失败，请长按手动复制页面信息。', 'Copy failed. Please copy the page details manually.'));
+    }
+  }, [ticket, tt]);
 
   return (
     <div className="mobile-ux-card overflow-hidden">
-      <button onClick={onToggle} className="w-full p-3 text-left touch-feedback">
+      <div className="w-full p-3 text-left">
         <div className="flex items-start gap-3">
-          <div className={`mobile-ux-card-chip p-1.5 shrink-0 ${typeConfig.color}`}>
-            <TypeIcon size={14} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-slate-900 dark:text-zinc-100 break-words">{ticket.title}</p>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <span className={`text-[9px] px-1.5 py-0.5 font-bold ${statusConfig.color}`}>{statusConfig.label}</span>
-              <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
-                {ticket.profiles ? buildUsernameHandle(ticket.profiles) : tt('用户', 'User')}
-              </span>
-              <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
-                {formatDateTime(ticket.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
-              </span>
+          <button type="button" onClick={onToggle} className="flex min-w-0 flex-1 items-start gap-3 text-left touch-feedback">
+            <div className={`mobile-ux-card-chip p-1.5 shrink-0 ${typeConfig.color}`}>
+              <TypeIcon size={14} />
             </div>
-            {ticket.workflow?.lastReplyAt && (
-              <div className={`mt-1 text-[9px] font-mono ${
-                ticket.workflow?.needsStaffAttention
-                  ? 'text-amber-600 dark:text-amber-300'
-                  : ticket.workflow?.waitingForUser
-                    ? 'text-sky-600 dark:text-sky-300'
-                    : 'text-slate-500 dark:text-zinc-400'
-              }`}>
-                {ticket.workflow?.needsStaffAttention
-                  ? tt('用户有新回复', 'User replied')
-                  : ticket.workflow?.waitingForUser
-                    ? tt('等待用户回复', 'Waiting for user')
-                    : tt('最后回复', 'Last reply')}
-                {' · '}
-                {formatDateTime(ticket.workflow.lastReplyAt, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-slate-900 dark:text-zinc-100 break-words">{ticket.title}</p>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className={`text-[9px] px-1.5 py-0.5 font-bold ${statusConfig.color}`}>{statusConfig.label}</span>
+                <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
+                  {ticket.profiles ? buildUsernameHandle(ticket.profiles) : tt('用户', 'User')}
+                </span>
+                <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
+                  {formatDateTime(ticket.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+                </span>
               </div>
-            )}
-          </div>
-          <div className="text-slate-400 dark:text-zinc-600 shrink-0">
-            {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              {ticket.workflow?.lastReplyAt && (
+                <div className={`mt-1 text-[9px] font-mono ${
+                  ticket.workflow?.needsStaffAttention
+                    ? 'text-amber-600 dark:text-amber-300'
+                    : ticket.workflow?.waitingForUser
+                      ? 'text-sky-600 dark:text-sky-300'
+                      : 'text-slate-500 dark:text-zinc-400'
+                }`}>
+                  {ticket.workflow?.needsStaffAttention
+                    ? tt('用户有新回复', 'User replied')
+                    : ticket.workflow?.waitingForUser
+                      ? tt('等待用户回复', 'Waiting for user')
+                      : tt('最后回复', 'Last reply')}
+                  {' · '}
+                  {formatDateTime(ticket.workflow.lastReplyAt, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
+                </div>
+              )}
+            </div>
+          </button>
+          <div className="flex shrink-0 items-center gap-1 text-slate-400 dark:text-zinc-600">
+            <button
+              type="button"
+              onClick={handleCopyDiagnostic}
+              className="rounded-full border border-zinc-200 bg-zinc-50 p-1.5 text-slate-500 touch-feedback dark:border-white/8 dark:bg-white/5 dark:text-zinc-400"
+              title={tt('复制诊断', 'Copy diagnostics')}
+            >
+              <Clipboard size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={onToggle}
+              className="rounded-full p-1.5 touch-feedback"
+              title={expanded ? tt('收起', 'Collapse') : tt('展开', 'Expand')}
+            >
+              {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
           </div>
         </div>
-      </button>
+      </div>
 
       {/* 展开内容 */}
       {expanded && (
@@ -443,6 +524,20 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
               {ticket.content}
             </p>
           </div>
+
+          {canReopen && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-200 bg-amber-50/80 p-3 text-[10px] leading-relaxed text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+              <span>{tt('问题仍未解决时，可以重新打开工单并补充说明。', 'If the issue is still unresolved, reopen it and add details.')}</span>
+              <button
+                type="button"
+                onClick={() => onReopen?.(ticket.id)}
+                className="flex items-center gap-1 rounded-full bg-amber-500 px-3 py-1.5 font-bold uppercase text-white touch-feedback"
+              >
+                <RotateCcw size={12} />
+                {tt('重新打开', 'Reopen')}
+              </button>
+            </div>
+          )}
 
           {canManage && ticket.status !== 'closed' && (
             <div className="flex flex-wrap gap-2 border-t border-zinc-200 dark:border-white/8 p-3">
@@ -479,11 +574,13 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
             </div>
           )}
 
-          {ticket.status !== 'closed' && (isOwner || canManage) && (
+          {(publicReplyAllowed || internalNoteAllowed) && (
             <ReplySection
               ticketId={ticket.id}
               ticketStatus={ticket.status}
               authorRole={userRole}
+              canManage={canManage}
+              publicReplyAllowed={publicReplyAllowed}
               onReply={onReply}
               addDurableNotification={addDurableNotification}
               locale={locale}
@@ -496,7 +593,7 @@ function TicketCard({ ticket, userRole, currentUserId, expanded, onToggle, onSta
   );
 }
 
-function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableNotification, locale, formatDateTime }) {
+function ReplySection({ ticketId, ticketStatus, authorRole, canManage, publicReplyAllowed, onReply, addDurableNotification, locale, formatDateTime }) {
   const { isEnglish } = useI18n();
   const tt = useCallback((zh, en) => (isEnglish ? en : zh), [isEnglish]);
   const [replies, setReplies] = useState([]);
@@ -505,7 +602,14 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
   const [submitting, setSubmitting] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [replyError, setReplyError] = useState('');
+  const [replyMode, setReplyMode] = useState(publicReplyAllowed ? 'public' : 'internal');
   const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (!publicReplyAllowed && replyMode === 'public') {
+      setReplyMode('internal');
+    }
+  }, [publicReplyAllowed, replyMode]);
 
   const loadReplies = useCallback(async () => {
     setLoadingReplies(true);
@@ -531,20 +635,24 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
     setSubmitting(true);
     setReplyError('');
     const submittedAt = new Date().toISOString();
+    const isInternal = canManage && replyMode === 'internal';
     try {
       const result = await submitTicketReply({
         ticketId,
         content: replyText.trim(),
         locale,
+        isInternal,
       });
       const createdAt = result?.reply?.created_at || submittedAt;
       setReplyText('');
-      addDurableNotification?.(buildTicketReplyNotification({
-        authorRole,
-        ticketStatus,
-        createdAt,
-        dedupeKey: `ticket-reply:${createdAt}:${authorRole || 'user'}`
-      }, { locale }));
+      if (!isInternal) {
+        addDurableNotification?.(buildTicketReplyNotification({
+          authorRole,
+          ticketStatus,
+          createdAt,
+          dedupeKey: `ticket-reply:${createdAt}:${authorRole || 'user'}`
+        }, { locale }));
+      }
       loadReplies();
       onReply?.();
     } catch (error) {
@@ -574,7 +682,7 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
       ) : replies.length > 0 ? (
         <div className="max-h-60 divide-y divide-zinc-200 overflow-y-auto dark:divide-white/8">
           {replies.map(reply => (
-            <div key={reply.id} className="p-3">
+            <div key={reply.id} className={`p-3 ${reply.is_internal ? 'bg-amber-50/60 dark:bg-amber-500/10' : ''}`}>
               <div className="flex items-center gap-2 mb-1">
                 <div className={`w-5 h-5 flex items-center justify-center text-white text-[8px] shrink-0 ${
                   reply.profiles?.role === 'super_admin' ? 'bg-purple-500' :
@@ -586,6 +694,11 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
                 <span className="text-[10px] font-bold text-slate-700 dark:text-zinc-300">
                   {reply.profiles ? buildUsernameHandle(reply.profiles) : tt('用户', 'User')}
                 </span>
+                {reply.is_internal && (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[8px] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-100">
+                    {tt('内部备注', 'Internal note')}
+                  </span>
+                )}
                 <span className="text-[9px] text-slate-500 dark:text-zinc-400 font-mono">
                   {formatDateTime(reply.created_at, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}
                 </span>
@@ -601,6 +714,38 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
       )}
 
       <div className="border-t border-zinc-200 bg-zinc-50/75 p-3 dark:border-white/8 dark:bg-white/[0.03]">
+        {canManage && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!publicReplyAllowed}
+              onClick={() => setReplyMode('public')}
+              className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase transition-colors ${
+                replyMode === 'public'
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-100'
+                  : 'border-zinc-200 bg-white text-slate-500 dark:border-white/8 dark:bg-white/5 dark:text-zinc-400'
+              } disabled:opacity-40`}
+            >
+              {tt('公开回复', 'Public reply')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setReplyMode('internal')}
+              className={`rounded-full border px-3 py-1.5 text-[10px] font-bold uppercase transition-colors ${
+                replyMode === 'internal'
+                  ? 'border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-100'
+                  : 'border-zinc-200 bg-white text-slate-500 dark:border-white/8 dark:bg-white/5 dark:text-zinc-400'
+              }`}
+            >
+              {tt('内部备注', 'Internal note')}
+            </button>
+            {replyMode === 'internal' && (
+              <span className="text-[10px] leading-relaxed text-amber-700 dark:text-amber-200">
+                {tt('仅管理员可见，不会通知用户。', 'Only staff can see this. Users are not notified.')}
+              </span>
+            )}
+          </div>
+        )}
         {replyError && (
           <div className="mb-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-relaxed text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
             <AlertCircle size={12} className="mt-0.5 shrink-0" />
@@ -612,7 +757,7 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
             ref={textareaRef}
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            placeholder={tt('输入回复...', 'Write a reply...')}
+            placeholder={replyMode === 'internal' ? tt('输入内部备注...', 'Write an internal note...') : tt('输入回复...', 'Write a reply...')}
             className="mobile-ux-input min-h-[48px] max-h-[96px] resize-none px-3 py-2 text-xs"
             rows={2}
           />
@@ -643,7 +788,11 @@ function ReplySection({ ticketId, ticketStatus, authorRole, onReply, addDurableN
             className="flex items-center gap-1 rounded-full bg-endfield-yellow px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black touch-feedback disabled:opacity-50 whitespace-normal text-center leading-tight"
           >
             <Send size={12} />
-            {submitting ? tt('发送中...', 'Sending...') : tt('发送', 'Send')}
+            {submitting
+              ? tt('处理中...', 'Saving...')
+              : replyMode === 'internal'
+                ? tt('保存备注', 'Save Note')
+                : tt('发送', 'Send')}
           </button>
         </div>
       </div>

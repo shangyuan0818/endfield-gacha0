@@ -110,6 +110,64 @@ export async function updateTicketStatus(ticketId, status) {
   };
 }
 
+export async function bulkUpdateTicketStatus(ticketIds = [], status) {
+  const ids = [...new Set((Array.isArray(ticketIds) ? ticketIds : []).map((id) => String(id || '').trim()).filter(Boolean))];
+  if (ids.length === 0) {
+    return {
+      tickets: [],
+      meta: {
+        requested: 0,
+        matched: 0,
+        updated: 0,
+        denied: 0,
+        missing: 0,
+      },
+    };
+  }
+
+  const headers = await buildTicketHeaders({ json: true });
+  const data = await requestTicketJson('/api/tickets', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({
+      ticketIds: ids,
+      status,
+    }),
+  }, {
+    label: 'ticket-bulk-status-update',
+    fallbackMessage: '工单批量状态更新失败',
+    fallbackCode: 'ticket_bulk_update_failed',
+  });
+
+  return {
+    tickets: Array.isArray(data.tickets) ? data.tickets : [],
+    meta: data.meta || null,
+  };
+}
+
+export async function reopenTicket(ticketId) {
+  const headers = await buildTicketHeaders({ json: true });
+  const data = await requestTicketJson('/api/tickets', {
+    method: 'PATCH',
+    credentials: 'same-origin',
+    headers,
+    body: JSON.stringify({
+      ticketId,
+      action: 'reopen',
+    }),
+  }, {
+    label: 'ticket-reopen',
+    fallbackMessage: '工单重新打开失败',
+    fallbackCode: 'ticket_reopen_failed',
+  });
+
+  return {
+    ticket: data.ticket || null,
+    meta: data.meta || null,
+  };
+}
+
 export async function loadTicketReplies(ticketId) {
   const headers = await buildTicketHeaders();
   const params = new URLSearchParams({
@@ -159,9 +217,11 @@ export async function loadTicketReplyRowsForWorkflow(ticketIds = []) {
 }
 
 export default {
+  bulkUpdateTicketStatus,
   createTicket,
   loadTicketReplies,
   loadTicketReplyRowsForWorkflow,
   loadTickets,
+  reopenTicket,
   updateTicketStatus,
 };

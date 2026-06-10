@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  bulkUpdateTicketStatus,
   createTicket,
   loadTicketReplies,
   loadTicketReplyRowsForWorkflow,
   loadTickets,
+  reopenTicket,
   updateTicketStatus,
 } from '../ticketService.js';
 import { getSupabaseAccessToken } from '../authFetchService.js';
@@ -176,6 +178,121 @@ describe('ticketService', () => {
       }),
     }, expect.objectContaining({
       label: 'ticket-status-update',
+    }));
+  });
+
+  it('bulk updates ticket status through the same-origin endpoint', async () => {
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+      },
+      data: {
+        success: true,
+        tickets: [
+          {
+            id: 'ticket-1',
+            status: 'closed',
+          },
+        ],
+        meta: {
+          requested: 2,
+          matched: 1,
+          updated: 1,
+          denied: 0,
+          missing: 1,
+        },
+      },
+    });
+
+    await expect(bulkUpdateTicketStatus(['ticket-1', 'ticket-1', ' ticket-2 '], 'closed')).resolves.toEqual({
+      tickets: [
+        {
+          id: 'ticket-1',
+          status: 'closed',
+        },
+      ],
+      meta: {
+        requested: 2,
+        matched: 1,
+        updated: 1,
+        denied: 0,
+        missing: 1,
+      },
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/tickets', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ticketIds: ['ticket-1', 'ticket-2'],
+        status: 'closed',
+      }),
+    }, expect.objectContaining({
+      label: 'ticket-bulk-status-update',
+    }));
+  });
+
+  it('returns an empty bulk update result without calling the API when no ticket id is supplied', async () => {
+    await expect(bulkUpdateTicketStatus(['', null], 'closed')).resolves.toEqual({
+      tickets: [],
+      meta: {
+        requested: 0,
+        matched: 0,
+        updated: 0,
+        denied: 0,
+        missing: 0,
+      },
+    });
+
+    expect(fetchJsonWithTimeout).not.toHaveBeenCalled();
+  });
+
+  it('reopens tickets through the same-origin endpoint', async () => {
+    fetchJsonWithTimeout.mockResolvedValue({
+      response: {
+        ok: true,
+        status: 200,
+      },
+      data: {
+        success: true,
+        ticket: {
+          id: 'ticket-1',
+          status: 'pending',
+        },
+        meta: {
+          reopened: true,
+        },
+      },
+    });
+
+    await expect(reopenTicket('ticket-1')).resolves.toEqual({
+      ticket: {
+        id: 'ticket-1',
+        status: 'pending',
+      },
+      meta: {
+        reopened: true,
+      },
+    });
+
+    expect(fetchJsonWithTimeout).toHaveBeenCalledWith('/api/tickets', {
+      method: 'PATCH',
+      credentials: 'same-origin',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ticketId: 'ticket-1',
+        action: 'reopen',
+      }),
+    }, expect.objectContaining({
+      label: 'ticket-reopen',
     }));
   });
 
