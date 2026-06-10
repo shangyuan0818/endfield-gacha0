@@ -270,6 +270,10 @@ describe('api/site-status route', () => {
     delete process.env.SUPABASE_URL;
     delete process.env.SUPABASE_SECRET_KEY;
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.STATUS_ALERT_TELEGRAM_BOT_TOKEN;
+    delete process.env.STATUS_ALERT_TELEGRAM_CHAT_ID;
+    delete process.env.TELEGRAM_STATUS_BOT_TOKEN;
+    delete process.env.TELEGRAM_STATUS_CHAT_ID;
   });
 
   it('returns public status JSON for GET requests', async () => {
@@ -283,7 +287,7 @@ describe('api/site-status route', () => {
     await handler(req, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.headers['Cache-Control']).toContain('s-maxage');
+    expect(res.headers['Cache-Control']).toBe('no-store');
     expect(mocks.rejectDisallowedBrowserOrigin).toHaveBeenCalledWith(req, res, {
       methods: 'GET, OPTIONS',
     });

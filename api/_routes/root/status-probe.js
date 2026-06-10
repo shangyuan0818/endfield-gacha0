@@ -4,7 +4,8 @@ import {
   hasStatusProbeConfig,
   verifyStatusProbeRequest,
 } from '../../_lib/statusAdminAuth.js';
-import { upsertProbeReport } from '../../_lib/statusProbeReports.js';
+import { processStatusAlert } from '../../_lib/statusAlertNotifications.js';
+import { pruneProbeHeartbeatHistory, upsertProbeReport } from '../../_lib/statusProbeReports.js';
 import {
   resolveSupabaseSecretKey,
   resolveSupabaseUrl,
@@ -89,7 +90,16 @@ export default async function handler(req, res) {
 
   try {
     const body = await readJsonBody(req);
-    const report = await upsertProbeReport(getSupabaseClient(), body);
+    const supabase = getSupabaseClient();
+    const report = await upsertProbeReport(supabase, body);
+    await processStatusAlert(supabase, {
+      type: 'probe',
+      id: report.probe_id,
+      label: report.label,
+      status: report.status,
+      summary: report.summary,
+    }).catch(() => null);
+    await pruneProbeHeartbeatHistory(supabase).catch(() => null);
     return res.status(200).json({
       success: true,
       data: {

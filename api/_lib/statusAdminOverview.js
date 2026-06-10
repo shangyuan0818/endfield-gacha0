@@ -1,5 +1,7 @@
 import { buildPublicSiteStatus } from './publicSiteStatus.js';
-import { buildProbeSummary, loadProbeReports } from './statusProbeReports.js';
+import { loadEndpointHeartbeatHistory } from './statusEndpointHeartbeats.js';
+import { getStatusEndpointTargets } from './statusEndpointProbe.js';
+import { buildProbeSummary, loadProbeHeartbeatHistory, loadProbeReports } from './statusProbeReports.js';
 
 function readEnvironment() {
   return globalThis.process?.env || {};
@@ -14,9 +16,10 @@ function normalizeStatus(status) {
   return ['ok', 'notice', 'warning', 'unknown'].includes(status) ? status : 'unknown';
 }
 
-function deriveOverall(publicStatus, probes) {
+function deriveOverall(publicStatus, probes, endpointServices = []) {
   const statuses = [
     ...(publicStatus?.services || []).map((item) => normalizeStatus(item.status)),
+    ...endpointServices.map((item) => normalizeStatus(item.status)),
     ...probes.map((item) => normalizeStatus(item.status)),
   ];
 
@@ -64,21 +67,84 @@ function buildRuntimeSummary(env = readEnvironment()) {
   };
 }
 
+async function safeLoad(loader, fallback) {
+  try {
+    return await loader();
+  } catch {
+    return fallback;
+  }
+}
+
+function attachServiceHistories(publicStatus, histories = new Map()) {
+  return {
+    ...publicStatus,
+    services: (publicStatus?.services || []).map((service) => ({
+      ...service,
+      history: histories.get(service.id) || service.history || [],
+    })),
+  };
+}
+
+function buildEndpointServices(histories = new Map(), env = readEnvironment(), {
+  excludeIds = new Set(),
+} = {}) {
+  const configuredTargets = getStatusEndpointTargets(env);
+  const configuredIds = new Set(configuredTargets.map((target) => target.id));
+  const services = configuredTargets.map((target) => {
+    const history = histories.get(target.id) || [];
+    const latest = history[history.length - 1] || null;
+    return {
+      id: target.id,
+      label: target.label,
+      status: latest?.level || latest?.status || 'unknown',
+      summary: latest?.summary || '尚无定时检测记录。',
+      detail: target.url,
+      checkedAt: latest?.time || latest?.checkedAt || null,
+      responseMs: latest?.responseMs ?? null,
+      history,
+    };
+  });
+
+  for (const [id, history] of histories) {
+    if (configuredIds.has(id) || excludeIds.has(id)) continue;
+    const latest = history[history.length - 1] || null;
+    services.push({
+      id,
+      label: latest?.label || id,
+      status: latest?.level || latest?.status || 'unknown',
+      summary: latest?.summary || '历史检测记录。',
+      detail: latest?.detail || null,
+      checkedAt: latest?.time || latest?.checkedAt || null,
+      responseMs: latest?.responseMs ?? null,
+      history,
+    });
+  }
+
+  return services;
+}
+
 export async function buildStatusAdminOverview({
   supabase = null,
   env = readEnvironment(),
   now = new Date(),
 } = {}) {
   const generatedAt = toIsoTimestamp(now);
-  const [publicStatus, probeResult] = await Promise.all([
+  const [publicStatusRaw, endpointHistories, probeResult, probeHistories] = await Promise.all([
     buildPublicSiteStatus({ supabase, env, now }),
+    safeLoad(() => loadEndpointHeartbeatHistory(supabase), new Map()),
     loadProbeReports(supabase).then(
       (reports) => ({ ok: true, reports }),
       (error) => ({ ok: false, error })
     ),
+    safeLoad(() => loadProbeHeartbeatHistory(supabase), new Map()),
   ]);
+  const publicStatus = attachServiceHistories(publicStatusRaw, endpointHistories);
+  const publicServiceIds = new Set((publicStatus.services || []).map((service) => service.id));
+  const endpointServices = buildEndpointServices(endpointHistories, env, {
+    excludeIds: publicServiceIds,
+  });
   const probes = probeResult.ok
-    ? buildProbeSummary(probeResult.reports, { now })
+    ? buildProbeSummary(probeResult.reports, { now, histories: probeHistories })
     : [{
         id: 'probe-storage',
         label: 'VPS 探针存储',
@@ -99,19 +165,21 @@ export async function buildStatusAdminOverview({
 
   return {
     generatedAt,
-    overall: deriveOverall(publicStatus, probes),
+    overall: deriveOverall(publicStatus, probes, endpointServices),
     publicStatus: {
       overall: publicStatus.overall,
       services: publicStatus.services,
       incidents: publicStatus.incidents,
       meta: publicStatus.meta,
     },
+    endpointServices,
     probes,
     runtime: buildRuntimeSummary(env),
   };
 }
 
 export const __internal = {
+  buildEndpointServices,
   buildRuntimeSummary,
   deriveOverall,
 };

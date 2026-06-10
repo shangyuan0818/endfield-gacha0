@@ -38,12 +38,25 @@ function getProbeTokens(env = readEnv()) {
   ].map(normalizeToken).filter(Boolean);
 }
 
+function getEndpointProbeTokens(env = readEnv()) {
+  return [
+    env.STATUS_ENDPOINT_PROBE_TOKEN,
+    env.STATUS_PROBE_TOKEN,
+    env.STATUS_ADMIN_TOKEN,
+    env.CRON_SECRET,
+  ].map(normalizeToken).filter(Boolean);
+}
+
 export function hasStatusAdminConfig(env = readEnv()) {
   return getAdminTokens(env).length > 0;
 }
 
 export function hasStatusProbeConfig(env = readEnv()) {
   return getProbeTokens(env).length > 0;
+}
+
+export function hasStatusEndpointProbeConfig(env = readEnv()) {
+  return getEndpointProbeTokens(env).length > 0;
 }
 
 export function verifyStatusAdminRequest(req, env = readEnv()) {
@@ -56,6 +69,12 @@ export function verifyStatusProbeRequest(req, env = readEnv()) {
   const supplied = getBearerToken(req);
   if (!supplied) return false;
   return getProbeTokens(env).some((expected) => timingSafeTokenEqual(supplied, expected));
+}
+
+export function verifyStatusEndpointProbeRequest(req, env = readEnv()) {
+  const supplied = getBearerToken(req);
+  if (!supplied) return false;
+  return getEndpointProbeTokens(env).some((expected) => timingSafeTokenEqual(supplied, expected));
 }
 
 export const __internal = {

@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 import { rejectDisallowedBrowserOrigin } from '../../_lib/http.js';
-import { PUBLIC_CACHE_CONTROL } from '../../_lib/publicCache.js';
 import { buildPublicSiteStatus } from '../../_lib/publicSiteStatus.js';
 import {
   resolveSupabaseServerKey,
@@ -24,7 +23,7 @@ function getSupabaseClient() {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Cache-Control', PUBLIC_CACHE_CONTROL);
+  res.setHeader('Cache-Control', 'no-store');
 
   if (rejectDisallowedBrowserOrigin(req, res, {
     methods: 'GET, OPTIONS',

@@ -20,7 +20,9 @@ vi.mock('../_lib/http.js', async (importOriginal) => {
 });
 
 import statusAdminHandler from '../_routes/root/status-admin.js';
+import statusEndpointProbeHandler from '../_routes/root/status-endpoint-probe.js';
 import statusProbeHandler from '../_routes/root/status-probe.js';
+import { __internal as statusAlertInternal } from '../_lib/statusAlertNotifications.js';
 
 function createJsonResponseRecorder() {
   return {
@@ -64,6 +66,15 @@ function createRequest({
 function createQueryResult(result) {
   const rows = Array.isArray(result) ? result : (result ? [result] : []);
   const error = result instanceof Error ? result : null;
+  const eqChain = {
+    eq: vi.fn(() => eqChain),
+    limit: vi.fn(() => ({
+      maybeSingle: vi.fn(async () => ({
+        data: error ? null : rows[0] || null,
+        error,
+      })),
+    })),
+  };
   return {
     order: vi.fn(() => ({
       limit: vi.fn(async () => ({
@@ -71,14 +82,7 @@ function createQueryResult(result) {
         error,
       })),
     })),
-    eq: vi.fn(() => ({
-      limit: vi.fn(() => ({
-        maybeSingle: vi.fn(async () => ({
-          data: error ? null : rows[0] || null,
-          error,
-        })),
-      })),
-    })),
+    eq: vi.fn(() => eqChain),
   };
 }
 
@@ -97,6 +101,36 @@ function createStatusClient({
       metrics: [{ id: 'memory-used', label: '内存使用', value: 42, unit: '%', status: 'ok' }],
     },
   }],
+  probeHeartbeatRows = [{
+    probe_id: 'intl-vps',
+    label: '国际服 VPS',
+    region: 'SG',
+    status: 'ok',
+    summary: 'VPS 探针运行正常。',
+    reported_at: '2026-06-08T01:00:00.000Z',
+    received_at: '2026-06-08T01:00:01.000Z',
+    payload: {
+      checks: [{ id: 'host', label: 'VPS 主机', status: 'ok', summary: 'host-a' }],
+      metrics: [{ id: 'memory-used', label: '内存使用', value: 42, unit: '%', status: 'ok' }],
+      system: {
+        hostname: 'intl-host',
+        platform: 'linux',
+        arch: 'x64',
+      },
+    },
+  }],
+  endpointHeartbeatRows = [{
+    endpoint_id: 'main-site',
+    label: '主站首页',
+    status: 'ok',
+    summary: 'HTTP 200',
+    checked_at: '2026-06-08T01:00:00.000Z',
+    response_ms: 120,
+    payload: {
+      detail: 'https://ef-gacha.mogujun.icu/',
+    },
+  }],
+  alertStateRow = null,
 } = {}) {
   const upsert = vi.fn((row) => ({
     select: vi.fn(() => ({
@@ -110,9 +144,20 @@ function createStatusClient({
       })),
     })),
   }));
+  const insert = vi.fn((rows) => ({
+    select: vi.fn(async () => ({
+      data: Array.isArray(rows) ? rows : [rows],
+      error: null,
+    })),
+  }));
+  const deleteRows = vi.fn(() => ({
+    lt: vi.fn(async () => ({ data: null, error: null })),
+  }));
 
   return {
     upsert,
+    insert,
+    deleteRows,
     from: vi.fn((table) => {
       if (table === 'public_pool_analytics_cache') {
         return {
@@ -156,6 +201,40 @@ function createStatusClient({
               })),
             })),
           })),
+        };
+      }
+      if (table === 'status_probe_heartbeats') {
+        return {
+          insert: vi.fn(async () => ({ data: null, error: null })),
+          delete: deleteRows,
+          select: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn(async () => ({
+                data: probeHeartbeatRows,
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === 'status_endpoint_heartbeats') {
+        return {
+          insert,
+          delete: deleteRows,
+          select: vi.fn(() => ({
+            order: vi.fn(() => ({
+              limit: vi.fn(async () => ({
+                data: endpointHeartbeatRows,
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }
+      if (table === 'status_alert_state') {
+        return {
+          select: vi.fn(() => createQueryResult(alertStateRow)),
+          upsert: vi.fn(async () => ({ data: null, error: null })),
         };
       }
       throw new Error(`Unexpected table: ${table}`);
@@ -205,6 +284,12 @@ describe('status admin and probe routes', () => {
         publicStatus: {
           services: expect.any(Array),
         },
+        endpointServices: expect.arrayContaining([expect.objectContaining({
+          id: 'main-site',
+          label: '主站首页',
+          status: 'ok',
+          history: expect.any(Array),
+        })]),
         probes: [{
           id: 'intl-vps',
           label: '国际服 VPS',
@@ -261,6 +346,8 @@ describe('status admin and probe routes', () => {
       status: 'ok',
       payload: {
         version: '',
+        system: {},
+        tags: [],
         checks: [expect.objectContaining({ id: 'backend', status: 'ok' })],
         metrics: [expect.objectContaining({ id: 'memory', value: 51 })],
       },
@@ -280,6 +367,63 @@ describe('status admin and probe routes', () => {
     expect(res.body).toEqual({
       success: false,
       error: 'status_probe_unauthorized',
+    });
+  });
+
+  it('runs protected endpoint checks and records heartbeat rows', async () => {
+    const originalFetch = global.fetch;
+    const client = createStatusClient();
+    mocks.createClient.mockReturnValue(client);
+    global.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'text/html' }),
+      json: vi.fn(async () => ({ success: true })),
+    }));
+
+    try {
+      const res = createJsonResponseRecorder();
+      await statusEndpointProbeHandler(createRequest({
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer probe-token',
+        },
+        body: {
+          targets: [{
+            id: 'main-site',
+            label: '主站首页',
+            url: 'https://ef-gacha.mogujun.icu/',
+          }],
+        },
+      }), res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toMatchObject({
+        success: true,
+        data: {
+          services: [expect.objectContaining({
+            id: 'main-site',
+            status: 'ok',
+          })],
+        },
+      });
+      expect(client.insert).toHaveBeenCalledWith([expect.objectContaining({
+        endpoint_id: 'main-site',
+        status: 'ok',
+      })]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it('can reuse backend Telegram bot variables for status alerts', () => {
+    expect(statusAlertInternal.getTelegramConfig({
+      TG_BOT_TOKEN: 'backend-bot-token',
+      TG_CHAT_ID: 'backend-chat-id',
+    })).toEqual({
+      token: 'backend-bot-token',
+      chatId: 'backend-chat-id',
+      proxyUrl: '',
     });
   });
 });

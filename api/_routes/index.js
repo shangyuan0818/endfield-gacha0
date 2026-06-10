@@ -37,6 +37,7 @@ import publicCacheVersionHandler from './root/public-cache-version.js';
 import puzzlesHandler from './root/puzzles.js';
 import selfDeleteAccountHandler from './root/self-delete-account.js';
 import statusAdminHandler from './root/status-admin.js';
+import statusEndpointProbeHandler from './root/status-endpoint-probe.js';
 import statusProbeHandler from './root/status-probe.js';
 import siteStatusHandler from './root/site-status.js';
 import statsHandler from './root/stats.js';
@@ -142,6 +143,7 @@ export const API_ROUTE_ENTRIES = [
   ['/api/puzzles', puzzlesHandler],
   ['/api/self-delete-account', selfDeleteAccountHandler],
   ['/api/status-admin', statusAdminHandler],
+  ['/api/status-endpoint-probe', statusEndpointProbeHandler],
   ['/api/status-probe', statusProbeHandler],
   ['/api/site-status', siteStatusHandler],
   ['/api/stats', statsHandler],
