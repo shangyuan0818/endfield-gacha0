@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, Clock, GripVertical, Plus, Save, Trash2, X } from 'lucide-react';
+import { CalendarDays, Check, Clock, GripVertical, LayoutTemplate, ListTree, Plus, Save, Trash2, X } from 'lucide-react';
 import useSiteConfigStore, {
   DEFAULT_HOME_NEXT_VERSION_TARGET_DATE,
   DEFAULT_HOME_VERSION_TIMELINE,
@@ -16,6 +16,10 @@ import {
   serializeHomeVersionTimelineRows,
   validateHomeVersionTimelineRows,
 } from '../../utils/homeVersionTimelineEditor.js';
+import { PanelSection, PanelToolbarButton, StatusDot } from './panels/shared/PanelUi.jsx';
+
+const FIELD_CLASS = 'w-full border border-zinc-300 bg-white px-2 py-1.5 text-xs text-slate-700 transition-colors focus:border-amber-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:focus:border-endfield-yellow';
+const FIELD_MONO_CLASS = `${FIELD_CLASS} font-mono`;
 
 function normalizeText(value) {
   return String(value || '').trim();
@@ -135,6 +139,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
   const [saving, setSaving] = useState(false);
   const [rows, setRows] = useState(() => createHomeVersionTimelineRows(DEFAULT_HOME_VERSION_TIMELINE).rows);
   const [activeRowIndex, setActiveRowIndex] = useState(0);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [parseError, setParseError] = useState(null);
 
   useEffect(() => {
@@ -255,9 +260,24 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
 
   const handleVersionDrop = (event, index) => {
     event.preventDefault();
+    setDragOverIndex(null);
     const poolId = event.dataTransfer.getData('application/x-endfield-pool-id')
       || event.dataTransfer.getData('text/plain');
     addPoolToRow(index, poolId);
+  };
+
+  const handleVersionDragOver = (event, index) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleVersionDragLeave = (event) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setDragOverIndex(null);
+    }
   };
 
   const applySelectedPoolTimeRange = (index) => {
@@ -311,164 +331,210 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
-        <CalendarDays size={16} className="mr-2 animate-spin" />
-        加载版本时间线...
+      <div className="flex flex-col items-center justify-center gap-2 py-16 text-slate-400 dark:text-zinc-500">
+        <CalendarDays size={18} className="animate-spin" />
+        <span className="text-[11px] uppercase tracking-widest">加载版本时间线</span>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="border border-blue-200 bg-blue-50 px-4 py-3 text-xs leading-relaxed text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-200">
-        这里维护首页轮换计划和下版本倒计时使用的版本时间线。每个版本可以绑定多个卡池；首页会按版本分段展示，并优先用这里的下一版本节点生成倒计时。
-      </div>
+  const renderVersionFlag = (row, index) => {
+    const rowErrors = validation.rowErrors[index] || [];
+    const selected = index === activeIndex;
+    const summary = buildPoolSummary(row, poolById);
+    const flagTone = selected
+      ? 'bg-amber-400 text-zinc-950 dark:bg-endfield-yellow'
+      : 'bg-zinc-200 text-slate-600 hover:bg-amber-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700';
+    const stripeTone = selected
+      ? 'bg-[repeating-linear-gradient(135deg,#fbbf24_0,#fbbf24_3px,transparent_3px,transparent_7px)] dark:bg-[repeating-linear-gradient(135deg,#fffa00_0,#fffa00_3px,transparent_3px,transparent_7px)]'
+      : 'bg-[repeating-linear-gradient(135deg,#d4d4d8_0,#d4d4d8_3px,transparent_3px,transparent_7px)] dark:bg-[repeating-linear-gradient(135deg,#3f3f46_0,#3f3f46_3px,transparent_3px,transparent_7px)]';
 
+    return (
+      <button
+        type="button"
+        onClick={() => setActiveRowIndex(index)}
+        className="flex items-stretch text-left"
+        aria-label={`版本节点 ${index + 1}`}
+      >
+        <div className={`flex items-center gap-2 whitespace-nowrap py-1.5 pl-2.5 pr-3 transition-colors ${flagTone} ${row.enabled ? '' : 'opacity-55'}`}>
+          <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${selected ? 'text-zinc-950/60' : 'opacity-60'}`}>
+            VER.{String(index + 1).padStart(2, '0')}
+          </span>
+          <span className="text-xs font-black tracking-wide">{row.name || '未命名版本'}</span>
+          <span className={`border-l pl-2 font-mono text-[9px] font-bold ${selected ? 'border-zinc-950/30 text-zinc-950/70' : 'border-current/30 opacity-70'}`}>
+            {summary.ids.length} 池
+          </span>
+          {rowErrors.length > 0 ? (
+            <span className="border border-red-400 bg-red-50 px-1 py-px text-[9px] font-bold text-red-600 dark:bg-red-950/40 dark:text-red-300">
+              待修正
+            </span>
+          ) : null}
+          {!row.enabled ? (
+            <span className="border border-current/30 px-1 py-px text-[9px] font-bold opacity-70">停用</span>
+          ) : null}
+        </div>
+        <div className={`w-3 ${stripeTone}`}></div>
+      </button>
+    );
+  };
+
+  const renderVersionPoolCard = (pool, index) => {
+    const poolId = getPoolId(pool);
+    return (
+      <div
+        key={poolId}
+        className="animate-fade-in-up-small flex min-w-[150px] max-w-[190px] shrink-0 flex-col justify-between gap-1.5 border border-zinc-200 bg-white p-2 transition-colors hover:border-amber-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-endfield-yellow/50"
+      >
+        <div className="flex items-start justify-between gap-1.5">
+          <span className="min-w-0 truncate text-xs font-medium text-slate-700 dark:text-zinc-200">
+            {pool.name || poolId}
+          </span>
+          <button
+            type="button"
+            onClick={() => removePoolFromRow(index, poolId)}
+            className="shrink-0 text-zinc-400 transition-colors hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400"
+            aria-label={`从版本移除 ${pool.name || poolId}`}
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <div className="truncate font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+          {getPoolTypeLabel(pool.type)} · {formatAdminShortDateTime(pool.start_time || pool.startDate)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
       {parseError ? (
-        <div className="border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+        <div className="animate-fade-in-up-small border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
           原始版本时间线 JSON 解析失败，当前已载入默认节点。保存前请重新检查内容。
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="text-[11px] font-semibold text-slate-500 dark:text-zinc-500">当前版本</div>
-          <div className="mt-1 text-sm font-bold text-slate-900 dark:text-zinc-100">{preview?.currentVersion?.displayName || '无'}</div>
-        </div>
-        <div className="border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="text-[11px] font-semibold text-slate-500 dark:text-zinc-500">下个版本</div>
-          <div className="mt-1 text-sm font-bold text-slate-900 dark:text-zinc-100">{preview?.nextVersion?.displayName || '无'}</div>
-        </div>
-        <div className="border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="text-[11px] font-semibold text-slate-500 dark:text-zinc-500">倒计时目标</div>
-          <div className="mt-1 text-sm font-bold text-slate-900 dark:text-zinc-100">{formatAdminDateTime(preview?.targetAt)}</div>
-        </div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+        {[
+          { label: '当前版本', value: preview?.currentVersion?.displayName || '无' },
+          { label: '下个版本', value: preview?.nextVersion?.displayName || '无' },
+          { label: '倒计时目标', value: formatAdminDateTime(preview?.targetAt) },
+        ].map((item, index) => (
+          <div
+            key={item.label}
+            className="animate-fade-in-up-small relative overflow-hidden border border-zinc-200 bg-white p-2.5 dark:border-zinc-800 dark:bg-zinc-900"
+            style={{ animationDelay: `${index * 40}ms` }}
+          >
+            <span className="absolute left-0 top-0 h-0.5 w-6 bg-amber-500 dark:bg-endfield-yellow" aria-hidden="true"></span>
+            <div className="text-[11px] text-slate-500 opacity-80 dark:text-zinc-500">{item.label}</div>
+            <div className="mt-1.5 truncate font-mono text-sm font-semibold text-slate-900 dark:text-zinc-100">{item.value}</div>
+          </div>
+        ))}
       </div>
 
-      <section className="border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-slate-800 dark:text-zinc-100">版本时间轴</div>
-            <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
-              选择版本节点，或把下方卡池拖到对应版本。
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={addRow}
-            className="ml-auto inline-flex items-center gap-1.5 border border-dashed border-zinc-300 px-3 py-2 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-blue-500 dark:hover:text-blue-300"
-          >
-            <Plus size={14} />
-            添加版本节点
-          </button>
-        </div>
-
-        <div className="pool-card-rail-scrollbar flex gap-3 overflow-x-auto overflow-y-hidden px-4 py-4">
+      <PanelSection
+        title="版本时间轴"
+        icon={CalendarDays}
+        delay={40}
+        action={(
+          <PanelToolbarButton onClick={addRow}>
+            <Plus size={13} />
+            添加版本
+          </PanelToolbarButton>
+        )}
+      >
+        <div className="pool-card-rail-scrollbar flex items-stretch gap-6 overflow-x-auto overflow-y-hidden px-1 pb-2 pt-1">
           {rows.map((row, index) => {
-            const rowErrors = validation.rowErrors[index] || [];
             const summary = buildPoolSummary(row, poolById);
             const selected = index === activeIndex;
+            const isDragOver = dragOverIndex === index;
             return (
-              <button
-                type="button"
-                key={`version-timeline-${row.id || index}`}
-                onClick={() => setActiveRowIndex(index)}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleVersionDrop(event, index)}
-                className={`min-h-[132px] w-[260px] shrink-0 border p-3 text-left transition-colors ${
-                  selected
-                    ? 'border-blue-500 bg-blue-50 text-blue-900 ring-1 ring-blue-500/40 dark:border-blue-400 dark:bg-blue-950/30 dark:text-blue-100'
-                    : 'border-zinc-200 bg-zinc-50 text-slate-700 hover:border-blue-300 hover:bg-blue-50/50 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300 dark:hover:border-blue-700 dark:hover:bg-blue-950/20'
-                } ${row.enabled ? '' : 'opacity-55'}`}
-                aria-label={`版本节点 ${index + 1}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-zinc-500">
-                      节点 {index + 1}
+              <div key={`version-timeline-${row.id || index}`} className="flex shrink-0 flex-col">
+                {renderVersionFlag(row, index)}
+                <div
+                  onDragOver={(event) => handleVersionDragOver(event, index)}
+                  onDragLeave={handleVersionDragLeave}
+                  onDrop={(event) => handleVersionDrop(event, index)}
+                  className={`flex min-h-[88px] flex-1 items-stretch gap-2 border-l-[3px] pl-3 pt-2 transition-colors ${
+                    isDragOver
+                      ? 'border-amber-500 bg-amber-50/70 dark:border-endfield-yellow dark:bg-endfield-yellow/10'
+                      : selected
+                        ? 'border-amber-400/70 dark:border-endfield-yellow/50'
+                        : 'border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  {summary.known.map((pool) => renderVersionPoolCard(pool, index))}
+                  {summary.missing.map((poolId) => (
+                    <div
+                      key={poolId}
+                      className="flex min-w-[120px] shrink-0 flex-col justify-between gap-1.5 border border-dashed border-amber-300 bg-amber-50/60 p-2 dark:border-amber-800 dark:bg-amber-950/20"
+                    >
+                      <div className="flex items-start justify-between gap-1.5">
+                        <span className="min-w-0 truncate font-mono text-[10px] text-amber-700 dark:text-amber-300">{poolId}</span>
+                        <button
+                          type="button"
+                          onClick={() => removePoolFromRow(index, poolId)}
+                          className="shrink-0 text-amber-400 transition-colors hover:text-red-500"
+                          aria-label={`从版本移除 ${poolId}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400">暂未匹配</div>
                     </div>
-                    <div className="mt-1 truncate text-sm font-bold">{row.name || '未命名版本'}</div>
-                  </div>
-                  {rowErrors.length > 0 ? (
-                    <span className="shrink-0 border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
-                      待修正
-                    </span>
-                  ) : row.enabled ? (
-                    <span className="shrink-0 border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
-                      启用
-                    </span>
-                  ) : (
-                    <span className="shrink-0 border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[10px] font-bold text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500">
-                      停用
-                    </span>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-zinc-400">
-                  <Clock size={12} />
-                  <span>{formatAdminShortDateTime(row.startsAt)}</span>
-                  <span className="text-slate-300 dark:text-zinc-700">-</span>
-                  <span>{row.endsAt ? formatAdminShortDateTime(row.endsAt) : `${row.durationDays || '?'} 天`}</span>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {summary.known.slice(0, 3).map((pool) => (
-                    <span key={getPoolId(pool)} className="max-w-full truncate border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300">
-                      {pool.name || getPoolId(pool)}
-                    </span>
                   ))}
-                  {summary.known.length > 3 ? (
-                    <span className="border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-400 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-500">
-                      +{summary.known.length - 3}
-                    </span>
-                  ) : null}
-                  {summary.known.length === 0 ? (
-                    <span className="border border-dashed border-zinc-300 px-1.5 py-0.5 text-[10px] text-slate-400 dark:border-zinc-700 dark:text-zinc-500">
+                  {summary.ids.length === 0 ? (
+                    <div className={`flex min-w-[150px] items-center justify-center border border-dashed px-3 text-xs transition-colors ${
+                      isDragOver
+                        ? 'border-amber-500 text-amber-600 dark:border-endfield-yellow dark:text-endfield-yellow'
+                        : 'border-zinc-300 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500'
+                    }`}
+                    >
                       拖入卡池
-                    </span>
+                    </div>
                   ) : null}
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
-      </section>
+      </PanelSection>
 
       {activeRow ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
-          <div className="border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-              <div className="min-w-0">
-                <div className="text-sm font-bold text-slate-800 dark:text-zinc-100">版本节点 {activeIndex + 1}</div>
-                <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
-                  已选择 {activeSummary.known.length} 个卡池{activeSummary.missing.length > 0 ? `，${activeSummary.missing.length} 个暂未匹配` : ''}
-                </div>
+        <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+          <PanelSection
+            title={`版本节点 ${activeIndex + 1}`}
+            icon={LayoutTemplate}
+            delay={80}
+            action={(
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
+                  <input
+                    type="checkbox"
+                    checked={activeRow.enabled}
+                    onChange={(event) => updateRow(activeIndex, { enabled: event.target.checked })}
+                    className="accent-amber-500"
+                  />
+                  启用
+                </label>
+                <button
+                  type="button"
+                  onClick={() => removeRow(activeIndex)}
+                  disabled={rows.length <= 1}
+                  className="p-1.5 text-red-500 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-red-950/30"
+                  title="删除版本节点"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
-              <label className="ml-auto inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
-                <input
-                  type="checkbox"
-                  checked={activeRow.enabled}
-                  onChange={(event) => updateRow(activeIndex, { enabled: event.target.checked })}
-                  className="h-4 w-4 rounded-none border-zinc-300 text-blue-600 focus:ring-blue-500"
-                />
-                启用
-              </label>
-              <button
-                type="button"
-                onClick={() => removeRow(activeIndex)}
-                disabled={rows.length <= 1}
-                className="p-1.5 text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-red-950/30"
-                title="删除版本节点"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-
-            <div className="grid gap-3 p-4 md:grid-cols-2">
+            )}
+          >
+            <div className="grid gap-2.5 md:grid-cols-2">
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500">
                 中文版本名
                 <input
                   value={activeRow.name}
                   onChange={(event) => updateRow(activeIndex, { name: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_CLASS}
                 />
               </label>
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500">
@@ -476,7 +542,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.nameEn}
                   onChange={(event) => updateRow(activeIndex, { nameEn: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_CLASS}
                 />
               </label>
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500">
@@ -484,7 +550,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.startsAt}
                   onChange={(event) => updateRow(activeIndex, { startsAt: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_MONO_CLASS}
                 />
               </label>
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500">
@@ -494,7 +560,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                     type="button"
                     aria-label="按已选卡池时间填入"
                     onClick={() => applySelectedPoolTimeRange(activeIndex)}
-                    className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
+                    className="text-[10px] font-semibold text-amber-600 transition-colors hover:text-amber-700 dark:text-endfield-yellow dark:hover:text-yellow-200"
                   >
                     按已选卡池时间填入
                   </button>
@@ -502,7 +568,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.endsAt}
                   onChange={(event) => updateRow(activeIndex, { endsAt: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_MONO_CLASS}
                   placeholder="可留空"
                 />
               </label>
@@ -513,7 +579,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                     type="button"
                     aria-label="按持续天数填入结束时间"
                     onClick={() => applyDurationEndAt(activeIndex)}
-                    className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
+                    className="text-[10px] font-semibold text-amber-600 transition-colors hover:text-amber-700 dark:text-endfield-yellow dark:hover:text-yellow-200"
                   >
                     填入结束时间
                   </button>
@@ -521,7 +587,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.durationDays || ''}
                   onChange={(event) => updateRow(activeIndex, { durationDays: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_MONO_CLASS}
                   placeholder="例如 21"
                 />
               </label>
@@ -530,7 +596,7 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.order}
                   onChange={(event) => updateRow(activeIndex, { order: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_MONO_CLASS}
                 />
               </label>
               <label className="space-y-1 text-[11px] font-medium text-slate-500 dark:text-zinc-500 md:col-span-2">
@@ -538,74 +604,35 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 <input
                   value={activeRow.id}
                   onChange={(event) => updateRow(activeIndex, { id: event.target.value })}
-                  className="w-full rounded-none border border-zinc-200 bg-white px-2 py-1.5 text-xs font-mono text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                  className={FIELD_MONO_CLASS}
                 />
               </label>
             </div>
 
-            <div className="border-t border-zinc-100 p-4 dark:border-zinc-800">
-              <div className="mb-2 text-[11px] font-semibold text-slate-500 dark:text-zinc-500">已放入该版本的卡池</div>
-              <div
-                className="min-h-20 border border-dashed border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/40"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleVersionDrop(event, activeIndex)}
-              >
-                {activeSummary.known.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {activeSummary.known.map((pool) => {
-                      const poolId = getPoolId(pool);
-                      return (
-                        <span key={poolId} className="inline-flex max-w-full items-center gap-2 border border-blue-200 bg-blue-50 px-2 py-1 text-xs text-blue-800 dark:border-blue-900/70 dark:bg-blue-950/30 dark:text-blue-200">
-                          <span className="min-w-0 truncate">{pool.name || poolId}</span>
-                          <button
-                            type="button"
-                            onClick={() => removePoolFromRow(activeIndex, poolId)}
-                            className="shrink-0 text-blue-500 hover:text-red-500 dark:text-blue-300 dark:hover:text-red-300"
-                            aria-label={`从版本移除 ${pool.name || poolId}`}
-                          >
-                            <X size={13} />
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex h-14 items-center justify-center text-xs text-slate-400 dark:text-zinc-500">
-                    从下方拖入限定池或特殊池
-                  </div>
-                )}
+            {activeSummary.missing.length > 0 ? (
+              <div className="mt-3 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                暂未匹配：{activeSummary.missing.join('、')}
               </div>
-              {activeSummary.missing.length > 0 ? (
-                <div className="mt-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
-                  暂未匹配：{activeSummary.missing.join('、')}
-                </div>
-              ) : null}
-            </div>
+            ) : null}
 
             {(validation.rowErrors[activeIndex] || []).length > 0 ? (
-              <div className="border-t border-red-100 bg-red-50 px-4 py-2 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+              <div className="mt-3 border border-red-100 bg-red-50 px-3 py-2 text-[11px] text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
                 {validation.rowErrors[activeIndex].join('；')}
               </div>
             ) : null}
-          </div>
+          </PanelSection>
 
-          <div className="border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-              <div className="text-sm font-bold text-slate-800 dark:text-zinc-100">可分配卡池</div>
-              <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
-                拖到上方时间轴，或点击加入当前选中版本。
-              </div>
-            </div>
+          <PanelSection title="可分配卡池" icon={ListTree} delay={120} bodyClassName="p-0">
             {poolGroups.length > 0 ? (
-              <div className="max-h-[560px] space-y-4 overflow-auto p-4">
+              <div className="max-h-[480px] space-y-3 overflow-auto p-3">
                 {poolGroups.map((section) => (
-                  <div key={section.group} className="space-y-2">
+                  <div key={section.group} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-[11px] font-bold text-slate-500 dark:text-zinc-500">{section.label}</div>
-                      <div className="text-[10px] text-slate-400 dark:text-zinc-600">{section.pools.length} 个</div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-500">{section.label}</div>
+                      <div className="font-mono text-[10px] text-slate-400 dark:text-zinc-600">{section.pools.length}</div>
                     </div>
-                    <div className="space-y-1.5">
-                      {section.pools.map((pool) => {
+                    <div className="space-y-1">
+                      {section.pools.map((pool, poolIndex) => {
                         const poolId = getPoolId(pool);
                         const assigned = assignedPoolIds.has(poolId);
                         return (
@@ -615,20 +642,21 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                             draggable
                             onDragStart={(event) => handlePoolDragStart(event, poolId)}
                             onClick={() => addPoolToRow(activeIndex, poolId)}
-                            className={`flex w-full items-center gap-2 border px-3 py-2 text-left text-xs transition-colors ${
+                            className={`animate-fade-in-up-small flex w-full cursor-grab items-center gap-2 border px-2.5 py-1.5 text-left text-xs transition-colors active:cursor-grabbing ${
                               assigned
-                                ? 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-200'
-                                : 'border-zinc-200 bg-zinc-50 text-slate-600 hover:border-blue-300 hover:bg-blue-50 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:border-blue-800 dark:hover:bg-blue-950/20'
+                                ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-endfield-yellow/40 dark:bg-endfield-yellow/10 dark:text-endfield-yellow'
+                                : 'border-zinc-200 bg-zinc-50 text-slate-600 hover:border-amber-300 hover:bg-amber-50/60 dark:border-zinc-800 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:border-endfield-yellow/40 dark:hover:bg-endfield-yellow/5'
                             }`}
+                            style={{ animationDelay: `${Math.min(poolIndex, 8) * 30}ms` }}
                           >
-                            <GripVertical size={14} className="shrink-0 text-slate-300 dark:text-zinc-600" />
+                            <GripVertical size={13} className="shrink-0 text-slate-300 dark:text-zinc-600" />
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-medium">{pool.name || poolId}</span>
                               <span className="mt-0.5 block truncate font-mono text-[10px] text-slate-400 dark:text-zinc-500">
                                 {poolId} · {getPoolTypeLabel(pool.type)} · {formatAdminShortDateTime(pool.start_time || pool.startDate)}
                               </span>
                             </span>
-                            {assigned ? <Check size={14} className="shrink-0 text-blue-500" /> : null}
+                            {assigned ? <Check size={13} className="shrink-0 text-amber-500 dark:text-endfield-yellow" /> : null}
                           </button>
                         );
                       })}
@@ -641,21 +669,15 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
                 当前没有可选择的卡池。请先同步或新增卡池。
               </div>
             )}
-          </div>
+          </PanelSection>
         </section>
       ) : null}
 
-      <div className="border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
-          <div className="text-sm font-bold text-slate-800 dark:text-zinc-100">首页轮换预览</div>
-          <div className="mt-0.5 text-[11px] text-slate-400 dark:text-zinc-500">
-            按当前版本节点和已选择卡池生成。这里的折叠结果应与首页轮换计划一致。
-          </div>
-        </div>
+      <PanelSection title="首页轮换预览" icon={Clock} delay={160}>
         {poolPreviewSections.length > 0 ? (
-          <div className="grid gap-3 p-4 lg:grid-cols-2">
+          <div className="grid gap-2 lg:grid-cols-2">
             {poolPreviewSections.map((section) => (
-              <div key={section.id} className="border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+              <div key={section.id} className="border border-zinc-200 bg-zinc-50 p-2.5 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/40 dark:hover:border-zinc-700">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate text-xs font-bold text-slate-800 dark:text-zinc-100">{section.name}</div>
@@ -681,37 +703,29 @@ export default function HomeVersionTimelineManager({ pools = [], showToast }) {
             ))}
           </div>
         ) : (
-          <div className="px-4 py-5 text-xs text-slate-500 dark:text-zinc-500">
+          <div className="text-xs text-slate-500 dark:text-zinc-500">
             暂无可预览卡池。请在版本节点中选择卡池，或先同步 / 新增卡池。
           </div>
         )}
-      </div>
+      </PanelSection>
 
       {!validation.valid ? (
-        <div className="border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+        <div className="flex items-center gap-2 border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+          <StatusDot tone="danger" pulse />
           {validation.errors.join('；')}
         </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={addRow}
-          className="inline-flex items-center gap-1.5 border border-dashed border-zinc-300 px-3 py-2 text-xs font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-blue-500 dark:hover:text-blue-300"
-        >
-          <Plus size={14} />
-          添加版本节点
-        </button>
+        <PanelToolbarButton onClick={addRow}>
+          <Plus size={13} />
+          添加版本
+        </PanelToolbarButton>
         <div className="flex-1" />
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving || !validation.valid}
-          className="inline-flex items-center gap-1.5 bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Save size={14} />
+        <PanelToolbarButton tone="primary" onClick={save} disabled={saving || !validation.valid}>
+          <Save size={13} />
           {saving ? '保存中...' : '保存版本时间线'}
-        </button>
+        </PanelToolbarButton>
       </div>
     </div>
   );
