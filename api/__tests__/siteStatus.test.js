@@ -102,6 +102,8 @@ function createPublicStatusClient({
       updatedAt: '2026-06-04T00:00:00.000Z',
     }),
   },
+  endpointHeartbeatRows = [],
+  probeHeartbeatRows = [],
 } = {}) {
   return {
     from: vi.fn((table) => {
@@ -118,6 +120,16 @@ function createPublicStatusClient({
       if (table === 'site_config') {
         return {
           select: vi.fn(() => createQueryResult(siteConfigRow)),
+        };
+      }
+      if (table === 'status_endpoint_heartbeats') {
+        return {
+          select: vi.fn(() => createQueryResult(endpointHeartbeatRows)),
+        };
+      }
+      if (table === 'status_probe_heartbeats') {
+        return {
+          select: vi.fn(() => createQueryResult(probeHeartbeatRows)),
         };
       }
       throw new Error(`Unexpected table: ${table}`);
@@ -261,6 +273,94 @@ describe('public site status builder', () => {
       status: 'warning',
       summary: '公共统计缓存当前不可确认。',
     });
+  });
+
+  it('uses endpoint heartbeat history to confirm import service without exposing backend details', async () => {
+    const status = await buildPublicSiteStatus({
+      supabase: createPublicStatusClient({
+        endpointHeartbeatRows: [{
+          endpoint_id: 'import-backend',
+          label: '导入后端',
+          status: 'ok',
+          summary: 'HTTP 200',
+          checked_at: '2026-06-04T01:58:00.000Z',
+          response_ms: 168,
+          payload: {
+            detail: 'https://ef-backend.mogujun.icu/health',
+          },
+        }],
+      }),
+      env: {},
+      now: new Date('2026-06-04T02:00:00.000Z'),
+    });
+
+    const importService = status.services.find(service => service.id === 'import');
+    expect(importService).toMatchObject({
+      status: 'ok',
+      summary: '导入服务最近检查正常。',
+      updatedAt: '2026-06-04T01:58:00.000Z',
+      detail: '最近检测响应约 168ms',
+    });
+    expect(importService.history).toEqual([expect.objectContaining({
+      status: 'ok',
+      summary: '检测正常',
+      responseMs: 168,
+    })]);
+
+    const serialized = JSON.stringify(importService);
+    expect(serialized).not.toContain('ef-backend');
+    expect(serialized).not.toContain('/health');
+    expect(serialized).not.toContain('HTTP 200');
+  });
+
+  it('uses VPS probe backend health checks to confirm import service without exposing probe internals', async () => {
+    const status = await buildPublicSiteStatus({
+      supabase: createPublicStatusClient({
+        probeHeartbeatRows: [{
+          probe_id: 'intl-vps',
+          label: '国际服 VPS',
+          region: 'SG',
+          status: 'ok',
+          summary: 'VPS 探针运行正常。',
+          reported_at: '2026-06-04T01:57:00.000Z',
+          received_at: '2026-06-04T01:57:01.000Z',
+          payload: {
+            system: {
+              hostname: 'private-intl-host',
+            },
+            checks: [{
+              id: 'backend-health',
+              label: '导入后端',
+              status: 'ok',
+              summary: 'HTTP 200 https://ef-backend.mogujun.icu/health',
+              latencyMs: 92,
+            }],
+          },
+        }],
+      }),
+      env: {},
+      now: new Date('2026-06-04T02:00:00.000Z'),
+    });
+
+    const importService = status.services.find(service => service.id === 'import');
+    expect(importService).toMatchObject({
+      status: 'ok',
+      summary: '导入服务最近检查正常。',
+      updatedAt: '2026-06-04T01:57:00.000Z',
+      detail: '最近检测响应约 92ms',
+    });
+    expect(importService.history).toEqual([expect.objectContaining({
+      status: 'ok',
+      summary: '检测正常',
+      responseMs: 92,
+    })]);
+
+    const serialized = JSON.stringify(importService);
+    expect(serialized).not.toContain('intl-vps');
+    expect(serialized).not.toContain('private-intl-host');
+    expect(serialized).not.toContain('ef-backend');
+    expect(serialized).not.toContain('/health');
+    expect(serialized).not.toContain('HTTP 200');
   });
 });
 
