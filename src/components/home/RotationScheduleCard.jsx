@@ -159,7 +159,7 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
       <React.Fragment key={pool.id || pool.name}>
         <div
           ref={index === focusIndex ? focusItemRef : null}
-          className={`shrink-0 px-4 py-3 rounded-lg text-xs font-mono transition-all border ${containerClass} ${isExtraPool ? 'min-w-[240px]' : 'min-w-[200px]'} flex flex-col justify-center relative`}
+          className={`shrink-0 px-4 py-3 text-xs font-mono transition-all border ${containerClass} ${isExtraPool ? 'min-w-[240px]' : 'min-w-[200px]'} flex flex-col justify-center relative`}
         >
           <div className="font-bold flex items-center gap-3">
             <div className={`${isExtraPool ? 'w-12 h-10 rounded-sm' : 'w-8 h-8 rounded-full'} flex items-center justify-center shrink-0 overflow-hidden ${
@@ -206,7 +206,7 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className={`text-sm truncate max-w-[100px] ${isPast && !isInPool ? 'line-through opacity-50' : ''}`}>{localizedPoolName}</span>
+                <span className={`text-sm truncate max-w-[100px] ${isPast && !isInPool ? 'opacity-60' : ''}`}>{localizedPoolName}</span>
                 {isCurrent && !isExtraPool && <span className="text-[9px] font-bold bg-endfield-yellow/20 px-1 py-0.5 rounded text-amber-500 dark:text-endfield-yellow">UP</span>}
                 {isInPool && !isCurrent && <span className="text-[9px] bg-blue-500/10 px-1 py-0.5 rounded opacity-80">{tt('home.rotation.inPoolBadge', 'IN POOL')}</span>}
               </div>
@@ -238,7 +238,10 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
 
           <div className="w-full h-px bg-zinc-200 dark:bg-zinc-800/50 my-2"></div>
 
-          <div className="text-[10px] opacity-70 flex justify-between items-center gap-2">
+          <div className={`text-[10px] flex justify-between items-center gap-2 ${
+            isCurrent ? 'font-bold text-amber-600 dark:text-endfield-yellow' : 'opacity-70'
+          }`}
+          >
             <span className="truncate">
               {formatDateTime(poolStart, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
               <span className="mx-1 opacity-50">-</span>
@@ -251,41 +254,27 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
     );
   };
 
-  const renderVersionDivider = (section, sectionIndex) => {
+  const renderVersionHeader = (section, sectionIndex) => {
     const sectionName = section.name || tt('home.rotation.versionFallback', 'Version');
     const poolCount = Array.isArray(section.pools) ? section.pools.length : 0;
 
     return (
       <div
-        className="relative flex min-h-[132px] w-[158px] shrink-0 overflow-hidden border-2 border-zinc-950 bg-endfield-yellow text-zinc-950 shadow-[10px_0_0_rgba(24,24,27,0.16)] dark:border-zinc-100 dark:shadow-[10px_0_0_rgba(255,255,255,0.08)]"
+        className="flex items-stretch"
         aria-label={`${sectionName} ${tt('home.rotation.versionDivider', 'Version Section')}`}
       >
-        <div className="absolute inset-y-0 left-0 w-4 bg-zinc-950"></div>
-        <div className="absolute inset-y-0 right-0 w-2 bg-zinc-950"></div>
-        <div className="absolute right-2 top-2 h-9 w-9 border-2 border-zinc-950"></div>
-        <div className="absolute bottom-0 left-0 h-8 w-full bg-zinc-950"></div>
-        <div className="absolute -right-10 top-0 h-full w-20 bg-[repeating-linear-gradient(135deg,rgba(24,24,27,0.22)_0,rgba(24,24,27,0.22)_2px,transparent_2px,transparent_8px)]"></div>
-        <div className="relative flex h-full w-full flex-col justify-between px-4 py-3 pl-7">
-          <div className="min-w-0">
-            <div className="inline-flex bg-zinc-950 px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-endfield-yellow">
-              VERSION {String(sectionIndex + 1).padStart(2, '0')}
-            </div>
-            <div className="mt-3 max-w-[112px] break-words text-xl font-black leading-tight tracking-normal text-zinc-950">
-              {sectionName}
-            </div>
-          </div>
-          <div className="relative z-10 flex min-h-8 items-end justify-between gap-2 text-[10px] font-black text-endfield-yellow">
-            <div className="pb-1">
-              {poolCount} 个卡池
-            </div>
-            {section.hiddenExtraCount > 0 ? (
-              <div className="mb-1 inline-flex border border-cyan-300 px-1.5 py-0.5 text-cyan-200">
-                折叠 {section.hiddenExtraCount}
-              </div>
-            ) : null}
-          </div>
+        <div className="flex items-center gap-2 whitespace-nowrap bg-amber-400 py-1.5 pl-2.5 pr-3 dark:bg-endfield-yellow">
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-950/60">
+            VER.{String(sectionIndex + 1).padStart(2, '0')}
+          </span>
+          <span className="text-xs font-black tracking-wide text-zinc-950">{sectionName}</span>
+          <span className="border-l border-zinc-950/30 pl-2 font-mono text-[9px] font-bold text-zinc-950/70">
+            {tt('home.rotation.versionPoolCount', '{count} pools', { count: poolCount })}
+            {section.hiddenExtraCount > 0 ? ` +${section.hiddenExtraCount}` : ''}
+          </span>
         </div>
-        <div className="absolute right-[-22px] top-1/2 hidden h-2 w-[22px] -translate-y-1/2 bg-zinc-950 dark:bg-zinc-100 sm:block"></div>
+        <div className="w-3 bg-[repeating-linear-gradient(135deg,#fbbf24_0,#fbbf24_3px,transparent_3px,transparent_7px)] dark:bg-[repeating-linear-gradient(135deg,#fffa00_0,#fffa00_3px,transparent_3px,transparent_7px)]"></div>
+        <div className="ml-2 mr-1 flex-1 self-center border-t border-dashed border-zinc-300 dark:border-zinc-700"></div>
       </div>
     );
   };
@@ -311,17 +300,24 @@ const RotationScheduleCard = React.memo(function RotationScheduleCard({ poolSche
             return (
               <div
                 key={`version-section-${section.id || sectionIndex}`}
-                className="flex shrink-0 items-stretch gap-3"
+                className="flex shrink-0 flex-col"
               >
-                {hasVersionSections ? renderVersionDivider(section, sectionIndex) : null}
-                {pools.map((pool, poolIndex) => renderPoolNode(pool, {
-                  showConnector: poolIndex < pools.length - 1,
-                }))}
+                {hasVersionSections ? renderVersionHeader(section, sectionIndex) : null}
+                <div className={`flex flex-1 items-stretch gap-3 ${
+                  hasVersionSections
+                    ? 'border-l-[3px] border-amber-400/60 pl-3 pt-3 dark:border-endfield-yellow/40'
+                    : ''
+                }`}
+                >
+                  {pools.map((pool, poolIndex) => renderPoolNode(pool, {
+                    showConnector: poolIndex < pools.length - 1,
+                  }))}
+                </div>
               </div>
             );
           })}
           <div className="w-6 h-px shrink-0 bg-zinc-200 dark:bg-zinc-800"></div>
-          <div className="shrink-0 px-4 py-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-600 rounded-lg text-xs font-mono min-w-[150px] flex items-center justify-center border-dashed">
+          <div className="shrink-0 px-4 py-3 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-600 text-xs font-mono min-w-[150px] flex items-center justify-center border-dashed">
             {tt('home.rotation.pending', 'TBA...')}
           </div>
           

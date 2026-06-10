@@ -154,6 +154,7 @@ const messages = {
   "home.rotation.status.extraNode": "附加寻访",
   "home.rotation.inPoolBadge": "在卡池中",
   "home.rotation.pending": "待公布...",
+  "home.rotation.versionPoolCount": "{count} 个卡池",
   "home.rotation.autoScrollHint": "悬停可暂停滚动",
   "home.guide.title": "使用指南",
   "home.guide.subtitle": "从注册到分析的完整操作流程",

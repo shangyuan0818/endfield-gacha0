@@ -256,6 +256,7 @@ const messages = {
   "home.rotation.status.extraNode": "Extra Pool",
   "home.rotation.inPoolBadge": "in banner",
   "home.rotation.pending": "TBD...",
+  "home.rotation.versionPoolCount": "{count} pools",
   "home.rotation.autoScrollHint": "Hover to pause",
   "overview.defaultTitle": "Local Account Overview",
   "overview.subtitle": "A local analysis view based on the current account and pull history.",

@@ -313,7 +313,17 @@ export function buildHomeRotationVersionSections({
         }
 
         const extraStartMs = normalizeScheduleTimestamp(pool.startDate || pool.start_time);
-        const target = orderedPools.find((candidate) => {
+        const overlappingTargets = orderedPools.filter((candidate) => {
+          if (candidate === pool || isExtraSchedulePool(candidate)) return false;
+          const candidateStartMs = normalizeScheduleTimestamp(candidate.startDate || candidate.start_time);
+          const candidateEndMs = normalizeScheduleTimestamp(candidate.endDate || candidate.end_time);
+          return Number.isFinite(candidateStartMs)
+            && Number.isFinite(candidateEndMs)
+            && Number.isFinite(extraStartMs)
+            && candidateStartMs <= extraStartMs
+            && candidateEndMs > extraStartMs;
+        });
+        const target = overlappingTargets[overlappingTargets.length - 1] || orderedPools.find((candidate) => {
           if (candidate === pool || isExtraSchedulePool(candidate)) return false;
           const candidateStartMs = normalizeScheduleTimestamp(candidate.startDate || candidate.start_time);
           return Number.isFinite(candidateStartMs) && candidateStartMs >= endMs;

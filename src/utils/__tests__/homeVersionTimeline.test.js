@@ -143,4 +143,59 @@ describe('homeVersionTimeline', () => {
     expect(sections[0].pools[0].foldedExtraPools.map((pool) => pool.id)).toEqual(['extra_festival']);
     expect(sections[1].pools.map((pool) => pool.id)).toEqual(['limited_camille']);
   });
+
+  it('folds an expired extra pool into the overlapping limited pool of the same version', () => {
+    const versionPlan = resolveHomeVersionPlan({
+      timelineConfig: [
+        {
+          id: 'spring-dawn',
+          name: '春晓时',
+          starts_at: '2026-04-17T12:00:00+08:00',
+          ends_at: '2026-06-05T12:00:00+08:00',
+          pool_ids: ['limited_zhuang', 'extra_festival'],
+        },
+        {
+          id: 'lost-heirlooms',
+          name: '寻遗散记',
+          starts_at: '2026-06-05T12:00:00+08:00',
+          pool_ids: ['limited_mifu'],
+        },
+      ],
+      now: new Date('2026-06-10T12:00:00+08:00'),
+    });
+    const sections = buildHomeRotationVersionSections({
+      versionPlan,
+      now: new Date('2026-06-10T12:00:00+08:00'),
+      poolSchedule: [
+        {
+          id: 'limited_zhuang',
+          name: '庄方宜',
+          poolType: 'limited',
+          startDate: '2026-04-17T12:00:00+08:00',
+          endDate: '2026-05-22T12:00:00+08:00',
+        },
+        {
+          id: 'extra_festival',
+          name: '辉光庆典',
+          poolType: 'extra',
+          startDate: '2026-05-14T12:00:00+08:00',
+          endDate: '2026-06-05T12:00:00+08:00',
+        },
+        {
+          id: 'limited_mifu',
+          name: '弭弗',
+          poolType: 'limited',
+          startDate: '2026-06-05T12:00:00+08:00',
+          endDate: '2026-06-26T12:00:00+08:00',
+        },
+      ],
+    });
+
+    const springSection = sections.find((section) => section.id === 'spring-dawn');
+    expect(springSection.pools.map((pool) => pool.id)).toEqual(['limited_zhuang']);
+    expect(springSection.pools[0].foldedExtraPools.map((pool) => pool.id)).toEqual(['extra_festival']);
+    expect(springSection.hiddenExtraCount).toBe(1);
+    const heirloomsSection = sections.find((section) => section.id === 'lost-heirlooms');
+    expect(heirloomsSection.pools.map((pool) => pool.id)).toEqual(['limited_mifu']);
+  });
 });
