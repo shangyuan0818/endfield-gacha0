@@ -47,6 +47,7 @@ export function resolveSupabasePublishableKey(env = process.env) {
       || env.VITE_SUPABASE_PUBLISHABLE_KEY
       || env.VITE_SUPABASE_ANON_KEY
       || env.SUPABASE_ANON_KEY
+      || env.PUBLISHABLE_KEY
   );
 }
 

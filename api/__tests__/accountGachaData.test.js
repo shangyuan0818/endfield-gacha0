@@ -235,6 +235,40 @@ describe('/api/account-gacha-data', () => {
     ]);
   });
 
+  it('loads current user history with the caller client when admin secrets are absent', async () => {
+    const callerClient = createAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(null);
+    mocks.resolveAuthenticatedRequestUser.mockResolvedValue({
+      ok: true,
+      source: 'supabase',
+      user: {
+        id: 'user-1',
+      },
+      callerClient,
+    });
+    const req = createRequest({
+      headers: { authorization: 'Bearer native-token' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await accountGachaDataHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.resolveAuthenticatedRequestUser).toHaveBeenCalledWith(req, {
+      adminClient: null,
+      touch: false,
+    });
+    expect(callerClient.from).toHaveBeenCalledWith('history');
+    expect(res.body).toMatchObject({
+      success: true,
+      source: 'supabase',
+      meta: {
+        count: 1,
+        truncated: false,
+      },
+    });
+  });
+
   it('returns current user seq keys for import dedupe', async () => {
     const adminClient = createAdminClient();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);

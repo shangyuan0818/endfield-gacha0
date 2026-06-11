@@ -145,6 +145,15 @@ export default defineConfig(({ mode }) => {
   })
 
   return {
+    // VITE_* is the normal public env namespace. These Supabase key names are
+    // also safe to expose because they are publishable/anon browser keys.
+    envPrefix: [
+      'VITE_',
+      'SUPABASE_URL',
+      'SUPABASE_PUBLISHABLE_KEY',
+      'SUPABASE_ANON_KEY',
+      'PUBLISHABLE_KEY',
+    ],
     plugins: [
       react(),
       createDevApiPlugin()

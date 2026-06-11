@@ -177,6 +177,32 @@ describe('api/account-security-state handler', () => {
     expect(JSON.stringify(res.body)).not.toContain('password_change_');
   });
 
+  it('loads account security state through the caller client when admin secrets are absent', async () => {
+    const callerClient = createAdminClient();
+    callerClient.auth = {
+      getUser: vi.fn(async () => ({
+        data: { user: { id: 'user-1', email: 'user@example.com' } },
+        error: null,
+      })),
+    };
+    mocks.getSupabaseAdminClient.mockReturnValue(null);
+    mocks.createSupabaseAccessTokenClient.mockReturnValue(callerClient);
+
+    const req = createRequest();
+    const res = createJsonResponseRecorder();
+
+    await accountSecurityStateHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(callerClient.auth.getUser).toHaveBeenCalledWith('token');
+    expect(mocks.loadAuthUserById).not.toHaveBeenCalled();
+    expect(callerClient.from).toHaveBeenCalledWith('account_security_states');
+    expect(res.body.state).toMatchObject({
+      passwordChangeRequired: true,
+      emailVerificationRequired: true,
+    });
+  });
+
   it('does not keep blocking OAuth import when email and password setup are already complete', async () => {
     const adminClient = createAdminClient({
       profileRow: {
