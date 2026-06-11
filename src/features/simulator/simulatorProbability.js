@@ -1,4 +1,5 @@
 import { LIMITED_POOL_RULES, STANDARD_POOL_RULES, WEAPON_POOL_RULES } from '../../constants/index.js';
+import { calculateWeaponSixStarPityTargetProbability } from '../../utils/weaponPoolProbability.js';
 import { calculateCurrentProbability } from '../../utils/validators.js';
 import { normalizeSimulatorPoolType } from './simulatorInheritance.js';
 
@@ -47,7 +48,11 @@ export function buildCurrentTargetProbabilityInfo({
     const probability = isHardGuaranteeNextPull
       ? 1
       : isSixStarGuaranteeNextClaim
-        ? Math.min(1, naturalTargetProbability + ((1 - baseSixStarProbability) ** claimSize) * Number(rules?.upProbability || 0))
+        ? calculateWeaponSixStarPityTargetProbability({
+          sixStarBaseProbability: baseSixStarProbability,
+          upProbability: Number(rules?.upProbability || 0),
+          claimSize
+        })
         : naturalTargetProbability;
 
     return {

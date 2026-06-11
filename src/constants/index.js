@@ -74,11 +74,6 @@ export const EXTRA_POOL_RULES = {
   fiveStarPity: 10,
   fiveStarBaseProbability: 0.08,
 
-  // 辉光池 UP 判定走 standard_names 排除法, 不需要这两个字段
-  // (全代码库 0 处引用)。保留会误导维护者以为这里有"按字符加权"逻辑。
-  // featuredSixStarCount: 4,
-  // featuredSixStarShare: 0.25,
-
   freeTenPullInterval: 30,
   freeTenPullCountsTowardPity: false,
   freeTenPullCountsTowardRewards: false,

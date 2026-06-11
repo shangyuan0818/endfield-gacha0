@@ -12,6 +12,7 @@ import {
   getCharacterName,
   getCurrentUpCharacter
 } from '../constants/characterPools.js';
+import { calculateWeaponSixStarPityTargetProbability } from './weaponPoolProbability.js';
 
 /**
  * 计算当前抽数的6星概率
@@ -285,11 +286,15 @@ export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = n
   let hasSixStar = false;
   let hasFiveStarOrAbove = false;
   let hasTargetSixStar = false;
+  // 第 4 次申领触发 6★ 保底时，预留一个强制 6★ 槽位。其余槽位仍按普通概率生成。
+  // 因而整个申领命中目标武器的概率自然等于
+  // 1 - (1-upP)·(1-baseP·upP)^(claimSize-1)，与 gui.cpp 的 s_pity 状态转移一致。
+  const forcedSixStarSlot = shouldGuaranteeSixStar ? pickClaimSlot(claimSize) : -1;
 
   for (let index = 0; index < claimSize; index += 1) {
     const totalPulls = Number(state.totalPulls || 0) + index + 1;
 
-    if (rollProbability(sixStarBaseProbability)) {
+    if (index === forcedSixStarSlot || rollProbability(sixStarBaseProbability)) {
       const isUp = rollProbability(upProbability);
       hasSixStar = true;
       hasFiveStarOrAbove = true;
@@ -323,21 +328,6 @@ export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = n
       characterName: getCharacterName('weapon', 4, false, null, poolCharactersList),
       totalPulls
     });
-  }
-
-  if (shouldGuaranteeSixStar && !hasSixStar) {
-    const slot = pickClaimSlot(claimSize);
-    // 保底申领内强制 6 星时的 UP 率必须用 sPity, 而非无条件 upProbability。
-    // sPity = 1 - (1-upP)·(1-baseP·upP)^9, 反映"第 10 抽保底 6 星 + 前 9 抽
-    // 独立"的联合条件, 对默认规则数值上等于 1 - 0.75·0.99^9 ≈ 0.3149
-    // (与 gui.cpp 的 s_pity 一致)。若沿用 upProbability=0.25 会低估
-    // 保底申领内的 UP 率约 21% (相对)。
-    const sPity = 1 - (1 - upProbability) * Math.pow(1 - sixStarBaseProbability * upProbability, 9);
-    const isUp = rollProbability(sPity);
-    applyWeaponSixStar(results[slot], isUp, currentUpCharacter, poolCharactersList);
-    hasSixStar = true;
-    hasFiveStarOrAbove = true;
-    if (isUp) hasTargetSixStar = true;
   }
 
   if (shouldGuaranteeUp && !hasTargetSixStar) {
@@ -575,6 +565,7 @@ export default {
   simulateSinglePull,
   simulateTenPull,
   simulateCharacterFreeTen,
+  calculateWeaponSixStarPityTargetProbability,
   simulateWeaponTenClaim,
   checkGuaranteedLimitedTrigger,
   checkGiftAvailable,
