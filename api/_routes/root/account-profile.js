@@ -63,10 +63,66 @@ function mergeUserWithProfile(user, profile) {
   };
 }
 
+function buildProfileSeed(authUser) {
+  const metadata = authUser?.user_metadata || authUser?.raw_user_meta_data || {};
+  const emailPrefix = String(authUser?.email || '').trim().split('@')[0] || '';
+  const fallbackUsername = `user_${String(authUser?.id || 'account').replace(/-/g, '').slice(0, 8)}`;
+  const username = normalizeUsername(
+    metadata.username || metadata.display_name || emailPrefix || fallbackUsername
+  ) || fallbackUsername;
+
+  return {
+    id: authUser.id,
+    username,
+    email: authUser?.email || null,
+    role: 'user',
+  };
+}
+
+async function loadProfileWithClient(dbClient, userId) {
+  if (!dbClient || !userId) {
+    return null;
+  }
+
+  const { data, error } = await dbClient
+    .from('profiles')
+    .select(PROFILE_FIELDS)
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+async function ensureProfileForBearerClient(callerClient, authUser, existingProfile = null) {
+  if (existingProfile || !authUser?.id) {
+    return existingProfile || null;
+  }
+
+  const seed = buildProfileSeed(authUser);
+  const { data, error } = await callerClient
+    .from('profiles')
+    .insert(seed)
+    .select(PROFILE_FIELDS)
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      return loadProfileWithClient(callerClient, authUser.id);
+    }
+    throw error;
+  }
+
+  return data || seed;
+}
+
 async function resolveCurrentProfile(req, adminClient) {
   const authResult = await resolveAuthenticatedRequestUser(req, {
     adminClient,
-    touch: true,
+    touch: Boolean(adminClient),
   });
 
   if (!authResult.ok) {
@@ -78,20 +134,40 @@ async function resolveCurrentProfile(req, adminClient) {
     };
   }
 
-  const authUser = authResult.source === 'site_session'
-    ? authResult.user
-    : await loadAuthUserById(adminClient, authResult.user.id).catch(() => authResult.user);
-  const profile = await ensureProfileForAuthUser(
-    adminClient,
-    authUser || authResult.user,
-    authResult.profile || null
-  );
+  let authUser = authResult.user;
+  let profile = authResult.profile || null;
+  const dbClient = adminClient || authResult.callerClient || null;
+
+  if (adminClient) {
+    authUser = authResult.source === 'site_session'
+      ? authResult.user
+      : await loadAuthUserById(adminClient, authResult.user.id).catch(() => authResult.user);
+    profile = await ensureProfileForAuthUser(
+      adminClient,
+      authUser || authResult.user,
+      profile
+    );
+  } else if (authResult.callerClient) {
+    profile = await ensureProfileForBearerClient(
+      authResult.callerClient,
+      authUser,
+      await loadProfileWithClient(authResult.callerClient, authResult.user.id)
+    );
+  } else {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Auth service not configured',
+      code: 'auth_service_not_configured',
+    };
+  }
 
   return {
     ok: true,
     authResult,
     authUser: authUser || authResult.user,
     profile,
+    dbClient,
   };
 }
 
@@ -159,12 +235,8 @@ export default async function accountProfileHandler(req, res) {
     return sendError(res, 405, 'Method not allowed', 'method_not_allowed');
   }
 
-  const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    return sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
-  }
-
   try {
+    const adminClient = getSupabaseAdminClient();
     const current = await resolveCurrentProfile(req, adminClient);
     if (!current.ok) {
       return sendError(res, current.status, current.error, current.code);
@@ -187,16 +259,18 @@ export default async function accountProfileHandler(req, res) {
     }
 
     const profile = await updateProfileUsername(
-      adminClient,
+      current.dbClient,
       current.authResult.user.id,
       normalizedUsername
     );
-    const metadataSync = await syncAuthUsername(
-      adminClient,
-      current.authResult.user.id,
-      current.authUser,
-      normalizedUsername
-    );
+    const metadataSync = adminClient
+      ? await syncAuthUsername(
+        adminClient,
+        current.authResult.user.id,
+        current.authUser,
+        normalizedUsername
+      )
+      : { attempted: false, ok: false, code: 'auth_admin_update_unavailable' };
     const nextUser = mergeUserWithProfile(
       metadataSync.user || current.authResult.user,
       profile

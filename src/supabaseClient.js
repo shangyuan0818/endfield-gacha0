@@ -5,10 +5,16 @@ function normalizeEnvValue(value) {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-const supabaseUrl = normalizeEnvValue(import.meta.env?.VITE_SUPABASE_URL)
+const supabaseUrl = normalizeEnvValue(
+  import.meta.env?.VITE_SUPABASE_URL
+    || import.meta.env?.SUPABASE_URL
+)
 const supabasePublishableKey = normalizeEnvValue(
   import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY
+    || import.meta.env?.SUPABASE_PUBLISHABLE_KEY
     || import.meta.env?.VITE_SUPABASE_ANON_KEY
+    || import.meta.env?.SUPABASE_ANON_KEY
+    || import.meta.env?.PUBLISHABLE_KEY
 )
 const supabaseRealtimeEnabled = ['1', 'true', 'yes', 'on'].includes(
   normalizeEnvValue(import.meta.env?.VITE_SUPABASE_REALTIME_ENABLED).toLowerCase()

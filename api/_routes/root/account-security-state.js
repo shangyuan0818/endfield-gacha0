@@ -147,6 +147,7 @@ async function resolveCurrentUser(req, {
   return {
     ok: true,
     currentUser: authResult.user,
+    authResult,
   };
 }
 
@@ -166,12 +167,6 @@ export default async function handler(req, res) {
   }
 
   const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    return res.status(503).json({
-      success: false,
-      error: 'Account security state service not configured',
-    });
-  }
 
   try {
     const userResult = await resolveCurrentUser(req, {
@@ -184,6 +179,13 @@ export default async function handler(req, res) {
       });
     }
     const currentUser = userResult.currentUser;
+    const dbClient = adminClient || userResult.authResult?.callerClient;
+    if (!dbClient) {
+      return res.status(503).json({
+        success: false,
+        error: 'Account security state service not configured',
+      });
+    }
 
     if (req.method === 'POST') {
       const { action } = parseRequestBody(req);
@@ -194,7 +196,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const { error: upsertError } = await adminClient
+      const { error: upsertError } = await dbClient
         .from('account_security_states')
         .upsert({
           user_id: currentUser.id,
@@ -212,11 +214,11 @@ export default async function handler(req, res) {
       profile,
       authUser,
     ] = await Promise.all([
-      loadProfile(adminClient, currentUser.id),
-      loadAuthUserById(adminClient, currentUser.id),
+      loadProfile(dbClient, currentUser.id),
+      adminClient ? loadAuthUserById(adminClient, currentUser.id) : currentUser,
     ]);
 
-    const { data: stateRow, error: stateError } = await adminClient
+    const { data: stateRow, error: stateError } = await dbClient
       .from('account_security_states')
       .select('password_change_required, password_change_reason, password_change_source, password_change_requested_at, password_change_expires_at, password_change_recovery_request_id, email_verification_required, email_verification_reason, email_verification_requested_at, email_verification_verified_at')
       .eq('user_id', currentUser.id)

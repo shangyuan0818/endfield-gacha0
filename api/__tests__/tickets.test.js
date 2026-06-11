@@ -311,6 +311,32 @@ describe('/api/tickets', () => {
     expect(res.body.tickets.map((ticket) => ticket.id)).toEqual(['ticket-own']);
   });
 
+  it('falls back to the bearer-token caller client when admin secrets are absent', async () => {
+    const callerClient = createAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(null);
+    mocks.resolveAuthenticatedRequestUser.mockResolvedValue({
+      ok: true,
+      source: 'supabase',
+      user: { id: 'user-1' },
+      profile: null,
+      callerClient,
+    });
+    const req = createRequest({
+      headers: { authorization: 'Bearer native-token' },
+    });
+    const res = createJsonResponseRecorder();
+
+    await ticketsHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.resolveAuthenticatedRequestUser).toHaveBeenCalledWith(req, {
+      adminClient: null,
+      touch: false,
+    });
+    expect(res.body.tickets.map((ticket) => ticket.id)).toEqual(['ticket-own']);
+    expect(callerClient.from).toHaveBeenCalledWith('tickets');
+  });
+
   it('lets admins see admin-targeted tickets plus their own tickets', async () => {
     configureAuth({ id: 'admin-1', role: 'admin' });
     const req = createRequest();

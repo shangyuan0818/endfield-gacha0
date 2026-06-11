@@ -115,6 +115,38 @@ describe('api/account-last-seen handler', () => {
     });
   });
 
+  it('updates last_seen_at through the caller client when admin secrets are absent', async () => {
+    const callerClient = createAdminClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(null);
+    mocks.resolveAuthenticatedRequestUser.mockResolvedValue({
+      ok: true,
+      source: 'supabase',
+      user: {
+        id: 'user-1',
+      },
+      callerClient,
+    });
+
+    const req = createRequest();
+    const res = createJsonResponseRecorder();
+
+    await accountLastSeenHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.resolveAuthenticatedRequestUser).toHaveBeenCalledWith(req, {
+      adminClient: null,
+      touch: false,
+    });
+    expect(callerClient.__lastSeenMocks.update).toHaveBeenCalledWith({
+      last_seen_at: expect.any(String),
+    });
+    expect(res.body).toMatchObject({
+      success: true,
+      updated: true,
+      source: 'supabase',
+    });
+  });
+
   it('uses the site-session touch path without a second profile update', async () => {
     const adminClient = createAdminClient();
     mocks.getSupabaseAdminClient.mockReturnValue(adminClient);

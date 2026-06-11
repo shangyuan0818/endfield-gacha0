@@ -30,13 +30,9 @@ export default async function accountLastSeenHandler(req, res) {
   }
 
   const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    return sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
-  }
-
   const authResult = await resolveAuthenticatedRequestUser(req, {
     adminClient,
-    touch: true,
+    touch: Boolean(adminClient),
   });
 
   if (!authResult.ok) {
@@ -49,9 +45,14 @@ export default async function accountLastSeenHandler(req, res) {
   }
 
   try {
+    const dbClient = adminClient || authResult.callerClient;
+    if (!dbClient) {
+      return sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
+    }
+
     const updatedAt = new Date().toISOString();
     if (authResult.source !== 'site_session') {
-      const { error } = await adminClient
+      const { error } = await dbClient
         .from('profiles')
         .update({ last_seen_at: updatedAt })
         .eq('id', authResult.user.id);

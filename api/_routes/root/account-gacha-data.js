@@ -180,12 +180,23 @@ function normalizeTextValues(values) {
     .slice(0, 1000);
 }
 
-async function handleResolveAccountGachaAliases(body, res, adminClient) {
+async function resolveAliasMapOptional(resolver, supabaseClient, ids, preferredSource, { optional = false } = {}) {
+  try {
+    return await resolver(supabaseClient, ids, preferredSource);
+  } catch (error) {
+    if (optional) {
+      return new Map();
+    }
+    throw error;
+  }
+}
+
+async function handleResolveAccountGachaAliases(body, res, adminClient, { optionalAliases = false } = {}) {
   const poolIds = normalizeTextValues(body.poolIds);
   const characterIds = normalizeTextValues(body.characterIds);
   const [poolAliasMap, characterAliasMap] = await Promise.all([
-    resolvePoolAliasMap(adminClient, poolIds, 'official_api'),
-    resolveCharacterAliasMap(adminClient, characterIds, 'official_api'),
+    resolveAliasMapOptional(resolvePoolAliasMap, adminClient, poolIds, 'official_api', { optional: optionalAliases }),
+    resolveAliasMapOptional(resolveCharacterAliasMap, adminClient, characterIds, 'official_api', { optional: optionalAliases }),
   ]);
 
   return res.status(200).json({
@@ -195,7 +206,10 @@ async function handleResolveAccountGachaAliases(body, res, adminClient) {
   });
 }
 
-async function handleSaveAccountGachaData(body, res, adminClient, userId) {
+async function handleSaveAccountGachaData(body, res, adminClient, userId, {
+  reconcile = true,
+  optionalAliases = false,
+} = {}) {
   const pools = Array.isArray(body.pools) ? body.pools.slice(0, MAX_WRITE_POOLS) : [];
   const history = Array.isArray(body.history) ? body.history.slice(0, MAX_WRITE_HISTORY) : [];
 
@@ -214,14 +228,18 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
   }
 
   if (pools.length > 0) {
-    await reconcileOfficialPoolIds(adminClient, pools, {
-      userId,
-    });
+    if (reconcile) {
+      await reconcileOfficialPoolIds(adminClient, pools, {
+        userId,
+      });
+    }
 
-    const poolAliasMap = await resolvePoolAliasMap(
+    const poolAliasMap = await resolveAliasMapOptional(
+      resolvePoolAliasMap,
       adminClient,
       pools.map(pool => pool?.id || pool?.pool_id || pool?.poolId),
-      'official_api'
+      'official_api',
+      { optional: optionalAliases }
     );
     const rows = pools.map(pool => ({
       ...serializePoolForUpsert(
@@ -238,26 +256,32 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId) {
   }
 
   if (history.length > 0) {
-    await reconcileOfficialPoolIds(adminClient, history.map(record => ({
-      ...record,
-      pool_id: record?.poolId || record?.pool_id,
-      name: record?.pool_name || record?.poolName,
-      type: record?.poolType || record?.type,
-    })), {
-      userId,
-    });
-    await reconcileOfficialCharacterIds(adminClient, history);
+    if (reconcile) {
+      await reconcileOfficialPoolIds(adminClient, history.map(record => ({
+        ...record,
+        pool_id: record?.poolId || record?.pool_id,
+        name: record?.pool_name || record?.poolName,
+        type: record?.poolType || record?.type,
+      })), {
+        userId,
+      });
+      await reconcileOfficialCharacterIds(adminClient, history);
+    }
 
     const [poolAliasMap, characterAliasMap] = await Promise.all([
-      resolvePoolAliasMap(
+      resolveAliasMapOptional(
+        resolvePoolAliasMap,
         adminClient,
         history.map(record => record?.poolId || record?.pool_id),
-        'official_api'
+        'official_api',
+        { optional: optionalAliases }
       ),
-      resolveCharacterAliasMap(
+      resolveAliasMapOptional(
+        resolveCharacterAliasMap,
         adminClient,
         history.map(record => record?.character_id || record?.item_id || record?.charId || record?.weaponId),
-        'official_api'
+        'official_api',
+        { optional: optionalAliases }
       ),
     ]);
     const rows = history.map(record => ({
@@ -416,14 +440,9 @@ export default async function accountGachaDataHandler(req, res) {
   }
 
   const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
-    return;
-  }
-
   const authResult = await resolveAuthenticatedRequestUser(req, {
     adminClient,
-    touch: true,
+    touch: Boolean(adminClient),
   });
 
   if (!authResult.ok) {
@@ -437,25 +456,37 @@ export default async function accountGachaDataHandler(req, res) {
   }
 
   try {
+    const dbClient = adminClient || authResult.callerClient;
+    if (!dbClient) {
+      sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
+      return;
+    }
+    const useAdminFeatures = Boolean(adminClient);
+
     if (req.method === 'POST') {
       const body = parseRequestBody(req);
       if (body.action === 'resolveAliases') {
-        await handleResolveAccountGachaAliases(body, res, adminClient);
+        await handleResolveAccountGachaAliases(body, res, dbClient, {
+          optionalAliases: !useAdminFeatures,
+        });
         return;
       }
-      await handleSaveAccountGachaData(body, res, adminClient, authResult.user.id);
+      await handleSaveAccountGachaData(body, res, dbClient, authResult.user.id, {
+        reconcile: useAdminFeatures,
+        optionalAliases: !useAdminFeatures,
+      });
       return;
     }
 
     if (req.method === 'DELETE') {
-      await handleDeleteAccountGachaData(req, res, adminClient, authResult.user.id);
+      await handleDeleteAccountGachaData(req, res, dbClient, authResult.user.id);
       return;
     }
 
     const url = getRequestUrl(req);
     if (url.searchParams.get('mode') === 'seq-keys') {
       const { keys, truncated } = await loadHistorySeqKeysForUser(
-        adminClient,
+        dbClient,
         authResult.user.id,
         url.searchParams.get('gameUid') || ''
       );
@@ -475,17 +506,21 @@ export default async function accountGachaDataHandler(req, res) {
       return;
     }
 
-    const { rows, truncated } = await loadAllHistoryForUser(adminClient, authResult.user.id);
+    const { rows, truncated } = await loadAllHistoryForUser(dbClient, authResult.user.id);
     const [poolAliasMap, characterAliasMap] = await Promise.all([
-      resolvePoolAliasMap(
-        adminClient,
+      resolveAliasMapOptional(
+        resolvePoolAliasMap,
+        dbClient,
         rows.map(row => row?.pool_id),
-        'official_api'
+        'official_api',
+        { optional: !useAdminFeatures }
       ),
-      resolveCharacterAliasMap(
-        adminClient,
+      resolveAliasMapOptional(
+        resolveCharacterAliasMap,
+        dbClient,
         rows.map(row => row?.character_id),
-        'official_api'
+        'official_api',
+        { optional: !useAdminFeatures }
       ),
     ]);
 

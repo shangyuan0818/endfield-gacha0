@@ -159,6 +159,16 @@ function canReplyToTicket(ticket, profile) {
   };
 }
 
+function buildFallbackProfile(user) {
+  const metadata = user?.user_metadata || user?.raw_user_meta_data || {};
+  return {
+    id: user?.id || '',
+    email: user?.email || null,
+    username: metadata.username || metadata.display_name || '',
+    role: user?.profile_role || metadata.role || 'user',
+  };
+}
+
 function resolveTicketStatusAfterReply(ticket, permission, { isInternal = false } = {}) {
   if (isInternal) {
     return ticket?.status || null;
@@ -306,6 +316,7 @@ async function resolveTicketReplyUser(req, adminClient) {
   return {
     ok: true,
     user: authResult.user,
+    authResult,
   };
 }
 
@@ -338,10 +349,6 @@ export default async function handler(req, res) {
   }
 
   const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    return res.status(503).json({ success: false, error: 'Auth service not configured' });
-  }
-
   const userResult = await resolveTicketReplyUser(req, adminClient);
   if (!userResult.ok) {
     return res.status(userResult.status || 401).json({
@@ -350,6 +357,10 @@ export default async function handler(req, res) {
     });
   }
   const callerUser = userResult.user;
+  const dbClient = adminClient || userResult.authResult?.callerClient;
+  if (!dbClient) {
+    return res.status(503).json({ success: false, error: 'Auth service not configured' });
+  }
 
   const body = parseRequestBody(req);
   const ticketId = String(body.ticketId || body.ticket_id || '').trim();
@@ -369,10 +380,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    const runtimeState = await safeLoadMailRuntimeState(adminClient);
-    const callerProfile = await loadProfile(adminClient, callerUser.id)
-      || await ensureProfileForAuthUser(adminClient, callerUser);
-    const ticket = await loadTicket(adminClient, ticketId);
+    const runtimeState = adminClient ? await safeLoadMailRuntimeState(adminClient) : null;
+    const callerProfile = await loadProfile(dbClient, callerUser.id)
+      || (adminClient ? await ensureProfileForAuthUser(adminClient, callerUser) : buildFallbackProfile(callerUser));
+    const ticket = await loadTicket(dbClient, ticketId);
     if (!ticket) {
       return res.status(404).json({ success: false, error: 'Ticket not found' });
     }
@@ -395,7 +406,7 @@ export default async function handler(req, res) {
     }
 
     const nowIso = new Date().toISOString();
-    const { data: reply, error: insertError } = await adminClient
+    const { data: reply, error: insertError } = await dbClient
       .from('ticket_replies')
       .insert({
         ticket_id: ticket.id,
@@ -421,7 +432,7 @@ export default async function handler(req, res) {
         ticketUpdatePatch.status = nextStatus;
       }
 
-      const updateResult = await adminClient
+      const updateResult = await dbClient
         .from('tickets')
         .update(ticketUpdatePatch)
         .eq('id', ticket.id);
@@ -440,17 +451,23 @@ export default async function handler(req, res) {
         attempted: false,
         reason: 'ticket_internal_note_no_mail',
       })
-      : await enqueueTicketReplyMail({
-        req,
-        adminClient,
-        ticket: ticketForNotification,
-        reply,
-        actorProfile: callerProfile,
-        permission,
-        locale,
-        nowIso,
-        runtimeState,
-      });
+      : adminClient
+        ? await enqueueTicketReplyMail({
+          req,
+          adminClient,
+          ticket: ticketForNotification,
+          reply,
+          actorProfile: callerProfile,
+          permission,
+          locale,
+          nowIso,
+          runtimeState,
+        })
+        : summarizeMailNotification(null, {
+          enabled: false,
+          attempted: false,
+          reason: 'ticket_reply_mail_requires_admin_config',
+        });
 
     return res.status(200).json({
       success: true,

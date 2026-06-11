@@ -506,14 +506,9 @@ export default async function ticketsHandler(req, res) {
   }
 
   const adminClient = getSupabaseAdminClient();
-  if (!adminClient) {
-    sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
-    return;
-  }
-
   const authResult = await resolveAuthenticatedRequestUser(req, {
     adminClient,
-    touch: true,
+    touch: Boolean(adminClient),
   });
   if (!authResult.ok) {
     sendError(
@@ -526,31 +521,37 @@ export default async function ticketsHandler(req, res) {
   }
 
   try {
-    const profile = authResult.profile || await loadProfile(adminClient, authResult.user.id) || {
+    const dbClient = adminClient || authResult.callerClient;
+    if (!dbClient) {
+      sendError(res, 503, 'Auth service not configured', 'auth_service_not_configured');
+      return;
+    }
+
+    const profile = authResult.profile || await loadProfile(dbClient, authResult.user.id) || {
       id: authResult.user.id,
       role: 'user',
     };
 
     if (req.method === 'POST') {
-      await handleCreateTicket(req, res, adminClient, profile);
+      await handleCreateTicket(req, res, dbClient, profile);
       return;
     }
     if (req.method === 'PATCH') {
-      await handleUpdateTicketStatus(req, res, adminClient, profile);
+      await handleUpdateTicketStatus(req, res, dbClient, profile);
       return;
     }
 
     const url = getRequestUrl(req);
     const mode = String(url.searchParams.get('mode') || '').trim();
     if (mode === 'replies') {
-      await handleLoadReplies(url, res, adminClient, profile);
+      await handleLoadReplies(url, res, dbClient, profile);
       return;
     }
     if (mode === 'reply-summaries') {
-      await handleLoadReplySummaries(url, res, adminClient, profile);
+      await handleLoadReplySummaries(url, res, dbClient, profile);
       return;
     }
-    await handleListTickets(url, res, adminClient, profile);
+    await handleListTickets(url, res, dbClient, profile);
   } catch (error) {
     const code = req.method === 'GET'
       ? 'tickets_load_failed'

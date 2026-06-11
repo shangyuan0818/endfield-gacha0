@@ -139,6 +139,58 @@ function createAdminClient({
   };
 }
 
+function createCallerClient({
+  profileRow = createProfile({
+    username: '贡献者',
+    role: 'user',
+  }),
+  updateError = null,
+} = {}) {
+  const state = {
+    insertPayload: null,
+    updatePayload: null,
+    filter: null,
+  };
+  const query = {
+    select: vi.fn(() => query),
+    insert: vi.fn((payload) => {
+      state.insertPayload = payload;
+      return query;
+    }),
+    update: vi.fn((payload) => {
+      state.updatePayload = payload;
+      return query;
+    }),
+    eq: vi.fn((column, value) => {
+      state.filter = { column, value };
+      return query;
+    }),
+    maybeSingle: vi.fn(async () => ({
+      data: profileRow,
+      error: null,
+    })),
+    single: vi.fn(async () => ({
+      data: updateError ? null : {
+        ...(profileRow || {}),
+        ...(state.insertPayload || {}),
+        ...(state.updatePayload || {}),
+      },
+      error: updateError,
+    })),
+  };
+
+  return {
+    from: vi.fn((table) => {
+      if (table !== 'profiles') {
+        throw new Error(`Unexpected table: ${table}`);
+      }
+      return query;
+    }),
+    __state: state,
+    __query: query,
+  };
+}
+
 describe('/api/account-profile', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -236,6 +288,51 @@ describe('/api/account-profile', () => {
       expect.objectContaining({ email: 'user@example.com' }),
       null
     );
+  });
+
+  it('loads the profile with the caller client when admin secrets are absent', async () => {
+    const callerClient = createCallerClient();
+    mocks.getSupabaseAdminClient.mockReturnValue(null);
+    mocks.resolveAuthenticatedRequestUser.mockResolvedValue({
+      ok: true,
+      source: 'supabase',
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        user_metadata: {
+          username: '令牌用户',
+        },
+      },
+      profile: null,
+      callerClient,
+    });
+
+    const req = createRequest({
+      headers: {
+        authorization: 'Bearer token',
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await accountProfileHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.resolveAuthenticatedRequestUser).toHaveBeenCalledWith(req, {
+      adminClient: null,
+      touch: false,
+    });
+    expect(mocks.loadAuthUserById).not.toHaveBeenCalled();
+    expect(mocks.ensureProfileForAuthUser).not.toHaveBeenCalled();
+    expect(callerClient.from).toHaveBeenCalledWith('profiles');
+    expect(res.body).toMatchObject({
+      success: true,
+      source: 'supabase',
+      profile: {
+        id: 'user-1',
+        username: '贡献者',
+        role: 'user',
+      },
+    });
   });
 
   it('updates only the authenticated user username and ignores forged ids', async () => {

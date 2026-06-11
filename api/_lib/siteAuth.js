@@ -5,19 +5,12 @@ export async function resolveAuthenticatedRequestUser(req, {
   adminClient = getSupabaseAdminClient(),
   touch = true,
 } = {}) {
-  if (!adminClient) {
-    return {
-      ok: false,
-      status: 503,
-      error: 'Auth service not configured',
-      code: 'auth_service_not_configured',
-    };
-  }
-
-  const siteSession = await loadSiteSession(adminClient, {
-    req,
-    touch,
-  }).catch(() => null);
+  const siteSession = adminClient
+    ? await loadSiteSession(adminClient, {
+      req,
+      touch,
+    }).catch(() => null)
+    : null;
 
   if (siteSession?.authenticated && siteSession.user?.id) {
     const compatToken = createSupabaseCompatAccessToken({
@@ -42,9 +35,9 @@ export async function resolveAuthenticatedRequestUser(req, {
   if (!token) {
     return {
       ok: false,
-      status: 401,
-      error: 'Missing access token',
-      code: 'missing_access_token',
+      status: adminClient ? 401 : 503,
+      error: adminClient ? 'Missing access token' : 'Auth service not configured',
+      code: adminClient ? 'missing_access_token' : 'auth_service_not_configured',
     };
   }
 
@@ -75,7 +68,7 @@ export async function resolveAuthenticatedRequestUser(req, {
     profile: null,
     session: null,
     identities: [],
-    adminClient,
+    adminClient: adminClient || null,
     callerClient,
     accessToken: token,
   };
@@ -92,6 +85,15 @@ export async function requireSuperAdminUser(req, {
 
   if (!authResult.ok) {
     return authResult;
+  }
+
+  if (!authResult.adminClient) {
+    return {
+      ok: false,
+      status: 503,
+      error: 'Auth service not configured',
+      code: 'auth_service_not_configured',
+    };
   }
 
   const { data: profile, error: profileError } = await authResult.adminClient
