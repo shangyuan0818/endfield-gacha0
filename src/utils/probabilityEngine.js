@@ -327,7 +327,13 @@ export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = n
 
   if (shouldGuaranteeSixStar && !hasSixStar) {
     const slot = pickClaimSlot(claimSize);
-    const isUp = rollProbability(upProbability);
+    // 保底申领内强制 6 星时的 UP 率必须用 sPity, 而非无条件 upProbability。
+    // sPity = 1 - (1-upP)·(1-baseP·upP)^9, 反映"第 10 抽保底 6 星 + 前 9 抽
+    // 独立"的联合条件, 对默认规则数值上等于 1 - 0.75·0.99^9 ≈ 0.3149
+    // (与 gui.cpp 的 s_pity 一致)。若沿用 upProbability=0.25 会低估
+    // 保底申领内的 UP 率约 21% (相对)。
+    const sPity = 1 - (1 - upProbability) * Math.pow(1 - sixStarBaseProbability * upProbability, 9);
+    const isUp = rollProbability(sPity);
     applyWeaponSixStar(results[slot], isUp, currentUpCharacter, poolCharactersList);
     hasSixStar = true;
     hasFiveStarOrAbove = true;
