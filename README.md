@@ -24,7 +24,7 @@
 
 ```bash
 git clone https://github.com/MoguJunn/endfield-gacha.git
-cd gacha-analyzer
+cd endfield-gacha
 npm install
 cp .env.contributor.example .env.local
 npm run dev

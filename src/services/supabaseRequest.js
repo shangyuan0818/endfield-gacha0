@@ -12,7 +12,7 @@ export const SUPABASE_MUTATION_TIMEOUT_MS = IS_DEV ? DEV_MUTATION_TIMEOUT_MS : P
 
 function wait(ms) {
   return new Promise(resolve => {
-    window.setTimeout(resolve, ms);
+    globalThis.setTimeout(resolve, ms);
   });
 }
 
@@ -49,7 +49,7 @@ async function executeWithTimeout(buildRequest, {
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const abortController = new AbortController();
-    const timeoutId = window.setTimeout(() => abortController.abort(), timeoutMs);
+    const timeoutId = globalThis.setTimeout(() => abortController.abort(), timeoutMs);
 
     try {
       // eslint-disable-next-line no-await-in-loop -- each retry must rebuild the request with the latest auth headers
@@ -72,7 +72,7 @@ async function executeWithTimeout(buildRequest, {
       // eslint-disable-next-line no-await-in-loop -- retry backoff is intentionally sequential
       await wait(retryDelayMs * (attempt + 1));
     } finally {
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
     }
   }
 
@@ -113,7 +113,7 @@ export async function fetchWithTimeout(input, init = {}, {
 
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     const abortController = new AbortController();
-    const timeoutId = window.setTimeout(() => abortController.abort(), timeoutMs);
+    const timeoutId = globalThis.setTimeout(() => abortController.abort(), timeoutMs);
 
     try {
       // eslint-disable-next-line no-await-in-loop -- retry loop needs per-attempt timeout/abort handling
@@ -134,7 +134,7 @@ export async function fetchWithTimeout(input, init = {}, {
       // eslint-disable-next-line no-await-in-loop -- retry backoff is intentionally sequential
       await wait(retryDelayMs * (attempt + 1));
     } finally {
-      window.clearTimeout(timeoutId);
+      globalThis.clearTimeout(timeoutId);
     }
   }
 

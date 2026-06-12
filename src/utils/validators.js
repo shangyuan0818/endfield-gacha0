@@ -20,6 +20,90 @@ export const getPoolRules = (poolType) => {
   }
 };
 
+const isGiftPull = (pull) => pull?.specialType === 'gift' || pull?.special_type === 'gift';
+
+const isFreePull = (pull) => pull?.isFree === true || pull?.is_free === true || pull?.isFreePull === true;
+
+const isPaidRulePull = (pull) => !isGiftPull(pull) && !isFreePull(pull);
+
+const isTargetSixStar = (pull) => Number(pull?.rarity) === 6 && (
+  pull?.isUp === true ||
+  pull?.isLimited === true ||
+  pull?.isStandard === false
+);
+
+const hasSixStar = (pulls) => pulls.some((pull) => Number(pull?.rarity) === 6);
+
+const hasFiveStarOrAbove = (pulls) => pulls.some((pull) => Number(pull?.rarity) >= 5);
+
+const hasTargetSixStar = (pulls) => pulls.some(isTargetSixStar);
+
+function countPreviousWeaponMissClaims(pulls, claimStart, claimSize, matcher) {
+  let misses = 0;
+
+  for (let start = claimStart - claimSize; start >= 0; start -= claimSize) {
+    const claim = pulls.slice(start, start + claimSize);
+    if (claim.length < claimSize) {
+      break;
+    }
+    if (matcher(claim)) {
+      break;
+    }
+    misses += 1;
+  }
+
+  return misses;
+}
+
+function validateCompletedWeaponClaims({ existingPulls, batchData, rules, errors }) {
+  const claimSize = Math.max(1, Math.floor(Number(rules.claimSize) || 10));
+  const sixStarClaimPity = Number(rules.sixStarClaimPity || Math.ceil((rules.sixStarPity || 40) / claimSize));
+  const targetClaimPity = Number(
+    rules.guaranteedLimitedClaimPity || Math.ceil((rules.guaranteedLimitedPity || 80) / claimSize)
+  );
+  const combinedPulls = [...existingPulls, ...batchData];
+  const firstNewIndex = existingPulls.length;
+
+  for (let claimStart = Math.floor(firstNewIndex / claimSize) * claimSize;
+    claimStart < combinedPulls.length;
+    claimStart += claimSize) {
+    const claimEnd = claimStart + claimSize;
+    if (claimEnd <= firstNewIndex || claimEnd > combinedPulls.length) {
+      continue;
+    }
+
+    const claim = combinedPulls.slice(claimStart, claimEnd);
+    const claimNumber = Math.floor(claimStart / claimSize) + 1;
+
+    if (!hasFiveStarOrAbove(claim)) {
+      errors.push(`录入错误：武器池第 ${claimNumber} 次申领未包含5星或以上武器`);
+    }
+
+    const previousSixStarMissClaims = countPreviousWeaponMissClaims(
+      combinedPulls,
+      claimStart,
+      claimSize,
+      hasSixStar
+    );
+    if (previousSixStarMissClaims >= sixStarClaimPity - 1 && !hasSixStar(claim)) {
+      errors.push(`录入错误：武器池连续 ${sixStarClaimPity} 次申领未获得6星武器，第 ${claimNumber} 次申领应至少包含1件6星武器`);
+    }
+
+    const hasTargetBefore = combinedPulls.slice(0, claimStart).some(isTargetSixStar);
+    if (!hasTargetBefore) {
+      const previousTargetMissClaims = countPreviousWeaponMissClaims(
+        combinedPulls,
+        claimStart,
+        claimSize,
+        hasTargetSixStar
+      );
+      if (previousTargetMissClaims >= targetClaimPity - 1 && !hasTargetSixStar(claim)) {
+        errors.push(`录入错误：武器池连续 ${targetClaimPity} 次申领未获得概率提升6星武器，第 ${claimNumber} 次申领应至少包含1件目标武器`);
+      }
+    }
+  }
+}
+
 /**
  * 计算当前概率（考虑软保底）
  * @param {number} currentPity - 当前垫刀数
@@ -29,11 +113,13 @@ export const getPoolRules = (poolType) => {
 export const calculateCurrentProbability = (currentPity, poolType) => {
   const rules = getPoolRules(poolType);
   const baseProbability = rules.sixStarBaseProbability;
+  const normalizedCurrentPity = Math.max(0, Math.floor(Number(currentPity) || 0));
+  const nextPity = normalizedCurrentPity + 1;
 
   // 武器池没有软保底机制
   if (!rules.hasSoftPity) {
     return {
-      probability: baseProbability,
+      probability: nextPity >= rules.sixStarPity ? 1 : baseProbability,
       isInSoftPity: false,
       pullsUntilSoftPity: 0,
       hasSoftPity: false
@@ -43,17 +129,26 @@ export const calculateCurrentProbability = (currentPity, poolType) => {
   const softPityStart = rules.sixStarSoftPityStart;
   const softPityIncrease = rules.sixStarSoftPityIncrease;
 
-  if (currentPity < softPityStart) {
+  if (nextPity >= rules.sixStarPity) {
     return {
-      probability: baseProbability,
-      isInSoftPity: false,
-      pullsUntilSoftPity: softPityStart - currentPity,
+      probability: 1,
+      isInSoftPity: true,
+      pullsUntilSoftPity: 0,
       hasSoftPity: true
     };
   }
 
-  // 65抽后，概率递增
-  const extraPulls = currentPity - softPityStart + 1;
+  if (nextPity < softPityStart) {
+    return {
+      probability: baseProbability,
+      isInSoftPity: false,
+      pullsUntilSoftPity: softPityStart - nextPity,
+      hasSoftPity: true
+    };
+  }
+
+  // 当前垫刀数表示已经连续未出 6 星的次数；展示的是下一抽概率。
+  const extraPulls = nextPity - softPityStart + 1;
   const probability = Math.min(baseProbability + extraPulls * softPityIncrease, 1);
 
   return {
@@ -114,9 +209,24 @@ export const validatePullAgainstRules = ({ newPull, existingPulls, allLimitedPoo
   const rules = getPoolRules(pool.type);
 
   // 过滤掉赠送的记录
-  const validPulls = existingPulls.filter(p => p.specialType !== 'gift');
+  const validPulls = existingPulls.filter(isPaidRulePull);
   const currentPity = calculatePityFromHistory(validPulls);
   const currentPity5 = calculatePity5FromHistory(validPulls);
+
+  if (pool.type === 'weapon') {
+    validateCompletedWeaponClaims({
+      existingPulls: validPulls,
+      batchData: isPaidRulePull(newPull) ? [newPull] : [],
+      rules,
+      errors
+    });
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
+  }
 
   // 1. 检查6星保底规则
   if (newPull.rarity === 6) {
@@ -184,10 +294,12 @@ export const validateBatchAgainstRules = ({ batchData, existingPulls, pool }) =>
   const warnings = [];
   const rules = getPoolRules(pool.type);
 
-  const validExistingPulls = existingPulls.filter(p => p.specialType !== 'gift');
+  const validExistingPulls = existingPulls.filter(isPaidRulePull);
+  const validBatchPulls = batchData.filter(isPaidRulePull);
 
   // 1. 检查十连中5星保底
-  const has5StarOrAbove = batchData.some(p => p.rarity >= 5);
+  const has5StarOrAbove = (pool.type === 'weapon' ? validBatchPulls : batchData)
+    .some(p => p.rarity >= 5);
   if (!has5StarOrAbove && pool.type !== 'weapon') {
     // 角色池：检查是否有累积的5星保底
     const currentPity5 = calculatePity5FromHistory(validExistingPulls);
@@ -199,6 +311,21 @@ export const validateBatchAgainstRules = ({ batchData, existingPulls, pool }) =>
   // 武器池：每十连必出5星+
   if (pool.type === 'weapon' && !has5StarOrAbove) {
     errors.push('录入错误：武器池每次申领（十连）必定有5星或以上武器');
+  }
+
+  if (pool.type === 'weapon') {
+    validateCompletedWeaponClaims({
+      existingPulls: validExistingPulls,
+      batchData: validBatchPulls,
+      rules,
+      errors
+    });
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings
+    };
   }
 
   // 2. 模拟录入，检查每一抽
@@ -492,4 +619,3 @@ export const validatePasswordStrength = (password) => {
     errors
   };
 };
-

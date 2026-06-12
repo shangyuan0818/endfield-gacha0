@@ -435,6 +435,7 @@ export class GachaSimulator {
         timestamp: Date.now() + index,
         batchIndex: index,
         isTenPull: true,
+        isFree: result.isFree === true,
         isFreePull: true  // 标记为免费
       };
 

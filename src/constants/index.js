@@ -44,6 +44,7 @@ export const LIMITED_POOL_RULES = {
   giftInterval: 240,                  // 每240抽赠送限定信物
   freeTenPullInterval: 30,            // 30抽赠送一次不计入保底的十连
   freeTenPullCountsTowardPity: false, // 赠送十连不计入保底
+  freeTenPullCountsTowardRewards: false, // 赠送十连不计入奖励累计
 
   // 情报书（仅获得1次）
   infoBookThreshold: 60,              // 累计60抽送1本寻访情报书
@@ -73,9 +74,6 @@ export const EXTRA_POOL_RULES = {
 
   fiveStarPity: 10,
   fiveStarBaseProbability: 0.08,
-
-  featuredSixStarCount: 4,
-  featuredSixStarShare: 0.25,
 
   freeTenPullInterval: 30,
   freeTenPullCountsTowardPity: false,

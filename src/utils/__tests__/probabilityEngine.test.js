@@ -4,6 +4,7 @@ import {
   LIMITED_POOL_RULES,
   WEAPON_POOL_RULES,
 } from '../../constants/index.js';
+import { buildCurrentTargetProbabilityInfo } from '../../features/simulator/simulatorProbability.js';
 import {
   calculateExpectedPulls,
   calculateFiveStarProbability,
@@ -14,6 +15,7 @@ import {
   simulateCharacterFreeTen,
   simulateWeaponTenClaim,
 } from '../probabilityEngine.js';
+import { calculateWeaponSixStarPityTargetProbability } from '../weaponPoolProbability.js';
 
 describe('probabilityEngine', () => {
   afterEach(() => {
@@ -82,10 +84,12 @@ describe('probabilityEngine', () => {
 
     expect(results).toHaveLength(10);
     expect(results.some((result) => result.rarity >= 5)).toBe(true);
+    expect(results.every((result) => result.isFree === true)).toBe(true);
     expect(results.at(-1)).toMatchObject({
       rarity: 5,
       isUp: false,
       isLimited: false,
+      isFree: true,
     });
   });
 
@@ -111,6 +115,54 @@ describe('probabilityEngine', () => {
       sixStarPity: 0,
       guaranteedLimitedPity: 40,
       hasReceivedGuaranteedLimited: false,
+    });
+  });
+
+  it('matches gui.cpp weapon fourth-claim pity target probability', () => {
+    const expected = 1 - 0.75 * (0.99 ** 9);
+
+    expect(calculateWeaponSixStarPityTargetProbability(WEAPON_POOL_RULES)).toBeCloseTo(expected, 12);
+
+    const displayInfo = buildCurrentTargetProbabilityInfo({
+      currentPity: 30,
+      guaranteedLimitedPity: 30,
+      hasReceivedGuaranteedLimited: false,
+      poolType: 'weapon',
+      customRules: WEAPON_POOL_RULES,
+    });
+
+    expect(displayInfo).toMatchObject({
+      label: '目标武器',
+      sixStarProbability: 1,
+      targetRate: WEAPON_POOL_RULES.upProbability,
+      unit: 'claim',
+    });
+    expect(displayInfo.probability).toBeCloseTo(expected, 12);
+  });
+
+  it('preselects one forced six-star slot on weapon fourth-claim pity', () => {
+    const randomValues = [0.51];
+    vi.spyOn(Math, 'random').mockImplementation(() => (
+      randomValues.length > 0 ? randomValues.shift() : 0.999
+    ));
+
+    const { results } = simulateWeaponTenClaim({
+      totalPulls: 30,
+      sixStarPity: 30,
+      guaranteedLimitedPity: 30,
+      hasReceivedGuaranteedLimited: false,
+    }, WEAPON_POOL_RULES, '测试武器', {
+      up: ['测试武器'],
+      offBanner: ['常驻武器'],
+      fiveStar: ['测试五星武器'],
+      fourStar: ['测试四星武器'],
+    });
+
+    expect(results.findIndex((result) => result.rarity === 6)).toBe(5);
+    expect(results.filter((result) => result.rarity === 6)).toHaveLength(1);
+    expect(results[5]).toMatchObject({
+      rarity: 6,
+      isUp: false,
     });
   });
 

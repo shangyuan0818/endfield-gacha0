@@ -12,6 +12,7 @@ import {
   getCharacterName,
   getCurrentUpCharacter
 } from '../constants/characterPools.js';
+import { calculateWeaponSixStarPityTargetProbability } from './weaponPoolProbability.js';
 
 /**
  * 计算当前抽数的6星概率
@@ -285,11 +286,15 @@ export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = n
   let hasSixStar = false;
   let hasFiveStarOrAbove = false;
   let hasTargetSixStar = false;
+  // 第 4 次申领触发 6★ 保底时，预留一个强制 6★ 槽位。其余槽位仍按普通概率生成。
+  // 因而整个申领命中目标武器的概率自然等于
+  // 1 - (1-upP)·(1-baseP·upP)^(claimSize-1)，与 gui.cpp 的 s_pity 状态转移一致。
+  const forcedSixStarSlot = shouldGuaranteeSixStar ? pickClaimSlot(claimSize) : -1;
 
   for (let index = 0; index < claimSize; index += 1) {
     const totalPulls = Number(state.totalPulls || 0) + index + 1;
 
-    if (rollProbability(sixStarBaseProbability)) {
+    if (index === forcedSixStarSlot || rollProbability(sixStarBaseProbability)) {
       const isUp = rollProbability(upProbability);
       hasSixStar = true;
       hasFiveStarOrAbove = true;
@@ -323,15 +328,6 @@ export function simulateWeaponTenClaim(state, rules = {}, currentUpCharacter = n
       characterName: getCharacterName('weapon', 4, false, null, poolCharactersList),
       totalPulls
     });
-  }
-
-  if (shouldGuaranteeSixStar && !hasSixStar) {
-    const slot = pickClaimSlot(claimSize);
-    const isUp = rollProbability(upProbability);
-    applyWeaponSixStar(results[slot], isUp, currentUpCharacter, poolCharactersList);
-    hasSixStar = true;
-    hasFiveStarOrAbove = true;
-    if (isUp) hasTargetSixStar = true;
   }
 
   if (shouldGuaranteeUp && !hasTargetSixStar) {
@@ -406,7 +402,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
         rarity: 6,
         isUp,
         isLimited: isUp,
-        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList)
+        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList),
+        isFree: true
       });
       continue;
     }
@@ -416,7 +413,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
         rarity: 5,
         isUp: false,
         isLimited: false,
-        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList),
+        isFree: true
       });
       continue;
     }
@@ -425,7 +423,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
       rarity: 4,
       isUp: false,
       isLimited: false,
-      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList)
+      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList),
+      isFree: true
     });
   }
 
@@ -434,7 +433,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
       rarity: 5,
       isUp: false,
       isLimited: false,
-      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList),
+      isFree: true
     };
   }
 
@@ -569,6 +569,7 @@ export default {
   simulateSinglePull,
   simulateTenPull,
   simulateCharacterFreeTen,
+  calculateWeaponSixStarPityTargetProbability,
   simulateWeaponTenClaim,
   checkGuaranteedLimitedTrigger,
   checkGiftAvailable,
