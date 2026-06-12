@@ -88,6 +88,9 @@ function createQuery(table, state) {
     }),
     order: vi.fn(() => query),
     range: vi.fn(async () => {
+      if (table === 'history' && query.selection.includes('timestamp')) {
+        return { data: state.dedupeRows, error: null };
+      }
       if (table === 'history' && query.selection.includes('seq_id')) {
         return { data: state.seqKeyRows, error: null };
       }
@@ -146,6 +149,7 @@ function createAdminClient() {
         pool_id: 'special_official_001',
       },
     ],
+    dedupeRows: [],
     poolAliasRows: [
       {
         id: 1,
@@ -355,6 +359,109 @@ describe('/api/account-gacha-data', () => {
       pool_id: 'special_official_001',
       character_id: 'char_official_001',
     });
+  });
+
+  it('skips cross-source duplicate history before saving', async () => {
+    const adminClient = createAdminClient();
+    adminClient.__state.dedupeRows = [
+      {
+        seq_id: '42',
+        game_uid: 'game-1',
+        pool_id: 'special_official_001',
+        timestamp: '2026-06-05T12:00:00.000Z',
+        character_name: '弭弗',
+        item_name: '弭弗',
+        character_id: 'char_official_001',
+        rarity: 6,
+        is_free: false,
+      },
+    ];
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    const req = createRequest({
+      method: 'POST',
+      body: {
+        history: [
+          {
+            id: '2001',
+            poolId: 'legacy_kwer_pool',
+            name: '弭弗',
+            rarity: 6,
+            seqId: '42',
+            gameUid: 'game-1',
+            timestamp: '2026-06-05T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await accountGachaDataHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      saved: {
+        pools: 0,
+        history: 0,
+      },
+      skipped: {
+        pools: 0,
+        history: 1,
+      },
+    });
+    expect(adminClient.__state.upsertCalls.some(call => call.table === 'history')).toBe(false);
+  });
+
+  it('skips legacy JSON duplicates even when existing rows have no game uid', async () => {
+    const adminClient = createAdminClient();
+    adminClient.__state.dedupeRows = [
+      {
+        seq_id: '42',
+        game_uid: null,
+        pool_id: 'legacy_kwer_pool',
+        timestamp: '2026-06-05T12:00:00.000Z',
+        character_name: '弭弗',
+        item_name: '弭弗',
+        character_id: null,
+        rarity: 6,
+        is_free: false,
+      },
+    ];
+    mocks.getSupabaseAdminClient.mockReturnValue(adminClient);
+    const req = createRequest({
+      method: 'POST',
+      body: {
+        history: [
+          {
+            id: '2002',
+            poolId: 'official_pool_alias',
+            character_id: 'char_alias',
+            name: '弭弗',
+            rarity: 6,
+            seqId: '42',
+            gameUid: 'game-1',
+            timestamp: '2026-06-05T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+    const res = createJsonResponseRecorder();
+
+    await accountGachaDataHandler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      success: true,
+      saved: {
+        pools: 0,
+        history: 0,
+      },
+      skipped: {
+        pools: 0,
+        history: 1,
+      },
+    });
+    expect(adminClient.__state.upsertCalls.some(call => call.table === 'history')).toBe(false);
   });
 
   it('resolves pool and character aliases through the authenticated endpoint', async () => {

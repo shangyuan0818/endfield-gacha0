@@ -141,6 +141,138 @@ async function loadHistorySeqKeysForUser(adminClient, userId, gameUid = '') {
   };
 }
 
+async function loadHistoryDedupeRowsForUser(adminClient, userId) {
+  const rowsForDedupe = [];
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await adminClient
+      .from('history')
+      .select('seq_id, game_uid, pool_id, timestamp, character_name, item_name, character_id, rarity, is_free')
+      .eq('user_id', userId)
+      .order('record_id', { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const rows = Array.isArray(data) ? data : [];
+    rowsForDedupe.push(...rows);
+    if (rows.length < PAGE_SIZE) {
+      return rowsForDedupe;
+    }
+  }
+
+  return rowsForDedupe;
+}
+
+function normalizeDedupeValue(value) {
+  return String(value || '').trim();
+}
+
+function normalizeDedupeTimestamp(value) {
+  const normalized = normalizeDedupeValue(value);
+  if (!normalized) return '';
+
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? normalized : parsed.toISOString();
+}
+
+function getDedupeSeqId(row) {
+  return normalizeDedupeValue(row?.seq_id || row?.seqId);
+}
+
+function getDedupeGameUid(row) {
+  return normalizeDedupeValue(row?.game_uid || row?.gameUid);
+}
+
+function getDedupePoolId(row) {
+  return normalizeDedupeValue(row?.pool_id || row?.poolId);
+}
+
+function getDedupeItemIdentities(row) {
+  return [...new Set([
+    row?.character_id,
+    row?.item_id,
+    row?.charId,
+    row?.weaponId,
+    row?.character_name,
+    row?.characterName,
+    row?.item_name,
+    row?.name,
+  ].map(value => normalizeDedupeValue(value)).filter(Boolean))];
+}
+
+function buildHistoryDedupeKeys(row) {
+  const gameUid = getDedupeGameUid(row);
+  const poolId = getDedupePoolId(row);
+  const seqId = getDedupeSeqId(row);
+  const timestamp = normalizeDedupeTimestamp(row?.timestamp);
+  const itemIdentities = getDedupeItemIdentities(row);
+  const rarity = normalizeDedupeValue(row?.rarity);
+  const isFree = row?.is_free === true || row?.isFree === true ? 'free' : 'paid';
+  const keys = [];
+
+  if (seqId) {
+    if (!gameUid && poolId) keys.push(`pool-seq:${poolId}:${seqId}`);
+    if (gameUid && poolId) keys.push(`game-pool-seq:${gameUid}:${poolId}:${seqId}`);
+  }
+
+  itemIdentities.forEach((itemIdentity) => {
+    if (seqId && timestamp && rarity) {
+      // kwer 旧 JSON 可能没有 gameUid 或仍使用旧池 ID；同一用户内 seq + 时间 + 物品足以兜底识别同一条历史。
+      keys.push(`seq-time-item:${seqId}:${timestamp}:${itemIdentity}:${rarity}`);
+    }
+
+    if (gameUid && seqId && timestamp && rarity) {
+      // 跨来源导入时旧 JSON 可能缺少可映射池 ID，但 seq + 时间 + 物品身份仍能稳定指向同一抽卡记录。
+      keys.push(`game-seq-time-item:${gameUid}:${seqId}:${timestamp}:${itemIdentity}:${rarity}`);
+    }
+
+    if (gameUid && poolId && timestamp && rarity) {
+      keys.push(`game-pool-time-item:${gameUid}:${poolId}:${timestamp}:${itemIdentity}:${rarity}:${isFree}`);
+    }
+
+    if (!seqId && gameUid && timestamp && rarity) {
+      keys.push(`game-time-item:${gameUid}:${timestamp}:${itemIdentity}:${rarity}:${isFree}`);
+    }
+  });
+
+  return keys;
+}
+
+function createHistoryDedupeSet(rows) {
+  const dedupeKeys = new Set();
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    buildHistoryDedupeKeys(row).forEach(key => dedupeKeys.add(key));
+  });
+  return dedupeKeys;
+}
+
+function filterDuplicateHistoryRows(rows, existingRows) {
+  const dedupeKeys = createHistoryDedupeSet(existingRows);
+  const newRows = [];
+  let duplicateCount = 0;
+
+  (Array.isArray(rows) ? rows : []).forEach((row) => {
+    const rowKeys = buildHistoryDedupeKeys(row);
+    const duplicate = rowKeys.some(key => dedupeKeys.has(key));
+
+    if (duplicate) {
+      duplicateCount += 1;
+      return;
+    }
+
+    newRows.push(row);
+    rowKeys.forEach(key => dedupeKeys.add(key));
+  });
+
+  return {
+    newRows,
+    duplicateCount,
+  };
+}
+
 function formatHistoryRows(historyRows, {
   poolAliasMap,
   characterAliasMap,
@@ -293,12 +425,28 @@ async function handleSaveAccountGachaData(body, res, adminClient, userId, {
       ),
       user_id: userId,
     }));
+    const existingRows = await loadHistoryDedupeRowsForUser(adminClient, userId);
+    const { newRows, duplicateCount } = filterDuplicateHistoryRows(rows, existingRows);
 
-    await upsertHistoryRowsWithOptionalColumnFallback(rows, (pendingRows, onConflict) => (
-      adminClient
-        .from('history')
-        .upsert(pendingRows, { onConflict })
-    ));
+    if (newRows.length > 0) {
+      await upsertHistoryRowsWithOptionalColumnFallback(newRows, (pendingRows, onConflict) => (
+        adminClient
+          .from('history')
+          .upsert(pendingRows, { onConflict })
+      ));
+    }
+
+    return res.status(200).json({
+      success: true,
+      saved: {
+        pools: pools.length,
+        history: newRows.length,
+      },
+      skipped: {
+        pools: Math.max(0, (Array.isArray(body.pools) ? body.pools.length : 0) - pools.length),
+        history: Math.max(0, (Array.isArray(body.history) ? body.history.length : 0) - history.length) + duplicateCount,
+      },
+    });
   }
 
   return res.status(200).json({

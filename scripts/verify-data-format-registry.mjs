@@ -195,6 +195,7 @@ const endgachaVerifiedPayload = {
         ['大潘', 4, 1, 0],
         ['骏卫', 5, 1, 0],
       ],
+      seq: '3',
     },
     '1769059719.34': {
       p: '熔铸申领',
@@ -202,6 +203,7 @@ const endgachaVerifiedPayload = {
       c: [
         ['逐鳞3.0', 4, 1, 0],
       ],
+      seq: '4',
     },
   },
 };
@@ -289,6 +291,12 @@ assert.equal(endgachaVerifiedValidation.normalizedData.history.length, 4, 'endga
 assert.equal(endgachaVerifiedValidation.stats.accountCount, 1, 'endgacha 校验 JSON 应包含账号信息');
 assert.equal(endgachaVerifiedValidation.normalizedData.accounts[0].gameUid, '1545604131', 'endgacha 校验 JSON 应读取 UID');
 assert.equal(endgachaVerifiedValidation.normalizedData.history[0].timestamp, '2026-01-22T02:16:29.004Z', 'endgacha 小数秒时间戳应按秒解析');
+assert.deepEqual(endgachaVerifiedValidation.normalizedData.history.map(record => record.seqId), ['1', '2', '3', '4'], 'endgacha 校验 JSON 应按批次 seq 还原单条寻访序号');
+assert.equal(
+  getHistoryImportDedupKey(endgachaVerifiedValidation.normalizedData.history[0]),
+  getHistoryImportDedupKey({ gameUid: '1545604131', poolId: 'beginner', seqId: '1' }),
+  'endgacha 校验 JSON 记录应与本站同 UID/卡池/seqId 记录使用相同去重键'
+);
 assert.equal(endgachaVerifiedValidation.normalizedData.history.find(record => record.name === '秋栗')?.rarity, 4, 'endgacha raw rarity=3 应映射为 4★');
 assert.equal(endgachaVerifiedValidation.normalizedData.history.find(record => record.name === '大潘')?.rarity, 5, 'endgacha raw rarity=4 应映射为 5★');
 assert.equal(endgachaVerifiedValidation.normalizedData.history.find(record => record.name === '骏卫')?.rarity, 6, 'endgacha raw rarity=5 应映射为 6★');

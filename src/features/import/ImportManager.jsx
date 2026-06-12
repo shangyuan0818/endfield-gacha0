@@ -241,18 +241,26 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
    * 直接保存历史记录到 Supabase
    */
   const saveHistoryToServer = useCallback(async (records) => {
-    if (!user || records.length === 0) return;
+    if (!user || records.length === 0) {
+      return { savedHistory: 0, skippedHistory: 0 };
+    }
 
     const batchSize = 100;
-    let savedCount = 0;
+    let processedCount = 0;
+    let savedHistory = 0;
+    let skippedHistory = 0;
 
     for (let i = 0; i < records.length; i += batchSize) {
       const batch = records.slice(i, i + batchSize);
       // eslint-disable-next-line no-await-in-loop -- history batches must be persisted in order so progress and retry boundaries stay deterministic
-      await saveAccountGachaData({ history: batch });
-      savedCount += batch.length;
-      setSaveProgress({ current: savedCount, total: records.length });
+      const result = await saveAccountGachaData({ history: batch });
+      savedHistory += Number(result?.saved?.history || 0);
+      skippedHistory += Number(result?.skipped?.history || 0);
+      processedCount += batch.length;
+      setSaveProgress({ current: processedCount, total: records.length });
     }
+
+    return { savedHistory, skippedHistory };
   }, [user]);
 
   /**
@@ -385,8 +393,12 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
       const { newRecords, duplicateCount } = filterImportedHistoryRecords(historyRecords, existingSeqIds);
 
       // 3. 保存新记录到服务器
+      let serverSkippedHistory = 0;
+      let savedHistoryCount = 0;
       if (newRecords.length > 0) {
-        await saveHistoryToServer(newRecords);
+        const saveResult = await saveHistoryToServer(newRecords);
+        serverSkippedHistory = saveResult.skippedHistory;
+        savedHistoryCount = saveResult.savedHistory;
       } else {
         // 即使没有新记录，也展示短暂的保存状态，提升体验
         setSaveProgress({ current: historyRecords.length, total: historyRecords.length });
@@ -398,10 +410,10 @@ export default function ImportManager({ isOpen, onClose, onImportComplete, onOpe
         success: true,
         records: newRecords,
         summary: {
+          ...result.summary,
           total: historyRecords.length,
-          newRecords: newRecords.length,
-          duplicates: duplicateCount,
-          ...result.summary
+          newRecords: savedHistoryCount,
+          duplicates: duplicateCount + serverSkippedHistory
         },
         userInfo: result.userInfo
       };

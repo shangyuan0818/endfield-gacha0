@@ -307,6 +307,27 @@ function normalizeEndgachaEntry(entry) {
   };
 }
 
+function normalizeEndgachaEntrySeqId(batch, itemIndex, itemCount) {
+  const batchSeqText = pickText(batch?.seq, batch?.seqId, batch?.seq_id);
+  if (!/^\d+$/.test(batchSeqText)) {
+    return null;
+  }
+
+  const batchSeq = Number.parseInt(batchSeqText, 10);
+  if (!Number.isSafeInteger(batchSeq) || batchSeq <= 0 || !Number.isInteger(itemIndex) || itemIndex < 0) {
+    return null;
+  }
+
+  const count = Number.isInteger(itemCount) && itemCount > 0 ? itemCount : 1;
+  const firstSeq = batchSeq - count + 1;
+  const entrySeq = firstSeq + itemIndex;
+  if (!Number.isSafeInteger(entrySeq) || entrySeq <= 0) {
+    return null;
+  }
+
+  return String(entrySeq);
+}
+
 function normalizeEndgachaKwerTopPayload(data) {
   const batchMap = looksLikeEndgachaPlainTxtPayload(data)
     ? data.data
@@ -341,6 +362,8 @@ function normalizeEndgachaKwerTopPayload(data) {
         return;
       }
 
+      const sourceSeqId = normalizeEndgachaEntrySeqId(batch, itemIndex, batch.c.length);
+
       const recordId = [
         'endgacha',
         account?.gameUid || 'unknown',
@@ -361,8 +384,8 @@ function normalizeEndgachaKwerTopPayload(data) {
         timestamp,
         batchId: `endgacha:${timestampKey}`,
         batch_id: `endgacha:${timestampKey}`,
-        seqId: recordId,
-        seq_id: recordId,
+        seqId: sourceSeqId || recordId,
+        seq_id: sourceSeqId || recordId,
         isNew: normalizedEntry.isNew,
         is_new: normalizedEntry.isNew,
         isFree: normalizedEntry.isFree,
