@@ -5,8 +5,8 @@
 --   1. 此文件由 scripts/generate-supabase-baseline.mjs 自动生成
 --   2. 合并 supabase/archive/migrations/ 与 supabase/migrations/ 中的标准前向迁移
 --   3. 不包含 supabase/manual/ 下的 destructive / rollback / data-backfill 脚本
---   4. 生成时间: 2026-05-29T16:29:34.059Z
---   5. 覆盖范围: archive/001_init_tables.sql -> active/125_refresh_home_roadmap_after_mail_rollout.sql
+--   4. 生成时间: 2026-06-12T08:29:24.099Z
+--   5. 覆盖范围: archive/001_init_tables.sql -> active/139_add_status_heartbeat_history.sql
 -- ============================================
 
 -- >>> BEGIN MIGRATION: archive/001_init_tables.sql
@@ -20481,4 +20481,1230 @@ SET value = jsonb_build_object(
 updated_at = now()
 WHERE key = 'public_cache_epoch';
 -- <<< END MIGRATION: active/125_refresh_home_roadmap_after_mail_rollout.sql
+
+-- >>> BEGIN MIGRATION: active/126_add_account_email_mail_events.sql
+-- 126: add account email verification/change mail events.
+--
+-- Settings email actions now use the same transactional mail control surface as
+-- registration, password reset, tickets, and developer API review mail.
+
+ALTER TABLE public.mail_outbox
+  DROP CONSTRAINT IF EXISTS mail_outbox_event_type_check;
+
+ALTER TABLE public.mail_outbox
+  ADD CONSTRAINT mail_outbox_event_type_check
+  CHECK (
+    event_type IN (
+      'register_confirmation',
+      'email_login',
+      'email_verification',
+      'email_change',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  );
+
+ALTER TABLE public.mail_abuse_budget_config
+  DROP CONSTRAINT IF EXISTS mail_abuse_budget_config_event_type_check;
+
+ALTER TABLE public.mail_abuse_budget_config
+  ADD CONSTRAINT mail_abuse_budget_config_event_type_check
+  CHECK (
+    event_type IN (
+      '*',
+      'register_confirmation',
+      'email_login',
+      'email_verification',
+      'email_change',
+      'password_reset',
+      'ticket_reply',
+      'developer_api_review',
+      'admin_alert'
+    )
+  );
+
+INSERT INTO public.mail_abuse_budget_config (scope, event_type, window_seconds, max_attempts)
+VALUES
+  ('event', 'email_verification', 86400, 120),
+  ('recipient', 'email_verification', 3600, 3),
+  ('domain', 'email_verification', 86400, 40),
+  ('ip', 'email_verification', 3600, 5),
+  ('user', 'email_verification', 3600, 3),
+  ('event', 'email_change', 86400, 80),
+  ('recipient', 'email_change', 3600, 3),
+  ('domain', 'email_change', 86400, 30),
+  ('ip', 'email_change', 3600, 5),
+  ('user', 'email_change', 3600, 3)
+ON CONFLICT (scope, event_type) DO UPDATE SET
+  window_seconds = EXCLUDED.window_seconds,
+  max_attempts = EXCLUDED.max_attempts,
+  enabled = EXCLUDED.enabled,
+  updated_at = NOW();
+
+CREATE OR REPLACE FUNCTION public.sync_profile_email_from_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  IF NEW.email IS DISTINCT FROM OLD.email THEN
+    UPDATE public.profiles
+    SET
+      email = NEW.email,
+      updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_email_updated ON auth.users;
+CREATE TRIGGER on_auth_user_email_updated
+  AFTER UPDATE OF email ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.sync_profile_email_from_auth_user();
+
+COMMENT ON CONSTRAINT mail_outbox_event_type_check ON public.mail_outbox IS
+  'Allowed transactional mail event types, including account email verification and email change.';
+
+COMMENT ON CONSTRAINT mail_abuse_budget_config_event_type_check ON public.mail_abuse_budget_config IS
+  'Allowed mail budget event types, including account email verification and email change.';
+
+COMMENT ON FUNCTION public.sync_profile_email_from_auth_user() IS
+  'Keeps public.profiles.email aligned after a confirmed auth.users email change.';
+
+ALTER TABLE public.account_security_states
+  ADD COLUMN IF NOT EXISTS email_verification_required BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS email_verification_reason TEXT,
+  ADD COLUMN IF NOT EXISTS email_verification_requested_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS email_verification_verified_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS email_verification_token_hash TEXT,
+  ADD COLUMN IF NOT EXISTS email_verification_token_expires_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_account_security_states_email_verification_required
+  ON public.account_security_states(email_verification_required, email_verification_requested_at)
+  WHERE email_verification_required IS TRUE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_account_security_states_email_verification_token_hash
+  ON public.account_security_states(email_verification_token_hash)
+  WHERE email_verification_token_hash IS NOT NULL;
+
+INSERT INTO public.account_security_states (
+  user_id,
+  email_verification_required,
+  email_verification_reason,
+  email_verification_requested_at,
+  created_at,
+  updated_at
+)
+SELECT
+  auth_user.id,
+  TRUE,
+  'mail_verification_rollout_2026_05',
+  NOW(),
+  NOW(),
+  NOW()
+FROM auth.users AS auth_user
+LEFT JOIN public.profiles AS profile ON profile.id = auth_user.id
+WHERE COALESCE(profile.role, 'user') <> 'super_admin'
+ON CONFLICT (user_id) DO UPDATE SET
+  email_verification_required = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN TRUE
+    ELSE public.account_security_states.email_verification_required
+  END,
+  email_verification_reason = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN EXCLUDED.email_verification_reason
+    ELSE public.account_security_states.email_verification_reason
+  END,
+  email_verification_requested_at = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN COALESCE(
+      public.account_security_states.email_verification_requested_at,
+      EXCLUDED.email_verification_requested_at
+    )
+    ELSE public.account_security_states.email_verification_requested_at
+  END,
+  updated_at = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN NOW()
+    ELSE public.account_security_states.updated_at
+  END;
+
+UPDATE public.account_security_states AS state
+SET
+  email_verification_required = FALSE,
+  email_verification_reason = NULL,
+  email_verification_requested_at = NULL,
+  email_verification_token_hash = NULL,
+  email_verification_token_expires_at = NULL,
+  updated_at = NOW()
+FROM public.profiles AS profile
+WHERE profile.id = state.user_id
+  AND profile.role = 'super_admin';
+
+COMMENT ON COLUMN public.account_security_states.email_verification_required IS
+  'True when the account must verify its current email address after the mail system rollout. Super admins are excluded.';
+
+COMMENT ON COLUMN public.account_security_states.email_verification_token_hash IS
+  'SHA-256 hash of the latest one-time account email verification token. Raw tokens are only sent by mail and are not stored.';
+-- <<< END MIGRATION: active/126_add_account_email_mail_events.sql
+
+-- >>> BEGIN MIGRATION: active/127_bump_site_version_440.sql
+-- 127: bump public site version for v4.4.0.
+
+UPDATE public.site_config
+SET
+  value = 'v4.4.0',
+  updated_at = NOW()
+WHERE key = 'site_version';
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'site_version',
+  'v4.4.0',
+  '站点版本',
+  'general',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'site_version'
+);
+
+UPDATE public.site_config
+SET
+  value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'site-config',
+    'reason', 'migration:127_bump_site_version_440',
+    'updatedAt', now()
+  )::text,
+  updated_at = NOW()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/127_bump_site_version_440.sql
+
+-- >>> BEGIN MIGRATION: active/128_add_account_email_verification_code.sql
+-- 128: add short-lived account email verification code support.
+--
+-- Users can still use the email link, but Settings now also accepts a
+-- short numeric code so verification can complete in the original browser tab.
+
+ALTER TABLE public.account_security_states
+  ADD COLUMN IF NOT EXISTS email_verification_code_hash TEXT,
+  ADD COLUMN IF NOT EXISTS email_verification_code_expires_at TIMESTAMPTZ;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_account_security_states_email_verification_code_hash
+  ON public.account_security_states(email_verification_code_hash)
+  WHERE email_verification_code_hash IS NOT NULL;
+
+COMMENT ON COLUMN public.account_security_states.email_verification_code_hash IS
+  'SHA-256 hash of user_id plus the latest short email verification code. Raw codes are only sent by mail and are not stored.';
+
+COMMENT ON COLUMN public.account_security_states.email_verification_code_expires_at IS
+  'Expiry time for the latest short email verification code.';
+-- <<< END MIGRATION: active/128_add_account_email_verification_code.sql
+
+-- >>> BEGIN MIGRATION: active/129_add_site_auth_sessions.sql
+-- 129: add private site-managed auth sessions.
+--
+-- This keeps auth.users as the stable user id anchor, while allowing the
+-- application server to own OAuth callback sessions for providers that do not
+-- fit Supabase Auth's built-in provider flow.
+
+CREATE TABLE IF NOT EXISTS public.app_auth_identities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  provider_subject_hash TEXT NOT NULL,
+  display_name TEXT,
+  avatar_url TEXT,
+  email_hash TEXT,
+  email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  raw_profile_hash TEXT,
+  linked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  disabled_at TIMESTAMPTZ,
+  metadata_redacted_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  UNIQUE (provider, provider_subject_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_auth_identities_user_provider
+  ON public.app_auth_identities(user_id, provider);
+
+CREATE INDEX IF NOT EXISTS idx_app_auth_identities_last_used
+  ON public.app_auth_identities(provider, last_used_at DESC)
+  WHERE disabled_at IS NULL;
+
+ALTER TABLE public.app_auth_identities ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.app_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_token_hash TEXT NOT NULL UNIQUE,
+  refresh_token_hash TEXT UNIQUE,
+  user_agent_hash TEXT,
+  ip_prefix_hash TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_seen_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ NOT NULL,
+  absolute_expires_at TIMESTAMPTZ NOT NULL,
+  revoked_at TIMESTAMPTZ,
+  revoke_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_sessions_user_created
+  ON public.app_sessions(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_app_sessions_active_expiry
+  ON public.app_sessions(expires_at, absolute_expires_at)
+  WHERE revoked_at IS NULL;
+
+ALTER TABLE public.app_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.app_auth_audit_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  event_type TEXT NOT NULL,
+  provider TEXT,
+  outcome TEXT NOT NULL,
+  requester_hash TEXT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_auth_audit_events_user_created
+  ON public.app_auth_audit_events(user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_app_auth_audit_events_type_created
+  ON public.app_auth_audit_events(event_type, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_app_auth_audit_events_provider_created
+  ON public.app_auth_audit_events(provider, created_at DESC)
+  WHERE provider IS NOT NULL;
+
+ALTER TABLE public.app_auth_audit_events ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON public.app_auth_identities FROM anon, authenticated;
+REVOKE ALL ON public.app_sessions FROM anon, authenticated;
+REVOKE ALL ON public.app_auth_audit_events FROM anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_auth_identities TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_sessions TO service_role;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON public.app_auth_audit_events TO service_role;
+  END IF;
+END $$;
+
+COMMENT ON TABLE public.app_auth_identities IS
+  'Private mapping between site users and external OAuth identities. Stores hashed provider subjects and redacted profile summaries only.';
+
+COMMENT ON TABLE public.app_sessions IS
+  'Private site-managed HttpOnly session records. Raw session tokens are only stored in browser cookies; the database stores hashes.';
+
+COMMENT ON TABLE public.app_auth_audit_events IS
+  'Private site auth audit events. Metadata must not contain raw provider tokens, passwords, API keys, raw IP addresses, emails, game_uid, or history ids.';
+
+COMMENT ON COLUMN public.app_auth_identities.provider_subject_hash IS
+  'HMAC hash of provider plus provider subject. Raw external ids are not stored.';
+
+COMMENT ON COLUMN public.app_sessions.session_token_hash IS
+  'HMAC hash of the browser session cookie token. Raw tokens are never stored.';
+
+COMMENT ON COLUMN public.app_sessions.refresh_token_hash IS
+  'Reserved HMAC hash for future refresh-token rotation. Raw tokens are never stored.';
+-- <<< END MIGRATION: active/129_add_site_auth_sessions.sql
+
+-- >>> BEGIN MIGRATION: active/130_bump_site_version_445.sql
+-- 130: bump public site version for v4.4.5.
+
+UPDATE public.site_config
+SET
+  value = 'v4.4.5',
+  updated_at = NOW()
+WHERE key = 'site_version';
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'site_version',
+  'v4.4.5',
+  '站点版本',
+  'general',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'site_version'
+);
+
+UPDATE public.site_config
+SET
+  value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'site-config',
+    'reason', 'migration:130_bump_site_version_445',
+    'updatedAt', now()
+  )::text,
+  updated_at = NOW()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/130_bump_site_version_445.sql
+
+-- >>> BEGIN MIGRATION: active/130_stop_trusting_github_provider_email.sql
+-- 130: stop treating GitHub provider email as a verified site email.
+--
+-- GitHub is kept as a login identity only. Site email and site password must be
+-- bound inside this application so account recovery and password login have one
+-- consistent owner.
+
+UPDATE public.app_auth_identities
+SET
+  email_hash = NULL,
+  email_verified = FALSE,
+  metadata_redacted_json = COALESCE(metadata_redacted_json, '{}'::jsonb)
+    || jsonb_build_object('providerEmailIgnoredForSiteAuth', TRUE)
+WHERE provider = 'github'
+  AND disabled_at IS NULL;
+
+UPDATE public.profiles AS profile
+SET
+  email = NULL,
+  updated_at = NOW()
+FROM public.app_auth_identities AS identity
+JOIN auth.users AS auth_user
+  ON auth_user.id = identity.user_id
+LEFT JOIN public.account_security_states AS state
+  ON state.user_id = identity.user_id
+WHERE profile.id = identity.user_id
+  AND identity.provider = 'github'
+  AND identity.disabled_at IS NULL
+  AND profile.role <> 'super_admin'
+  AND profile.email IS NOT NULL
+  AND (
+    state.user_id IS NULL
+    OR state.email_verification_verified_at IS NULL
+  )
+  AND COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)->>'site_password_set' IS DISTINCT FROM 'true'
+  AND COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)->>'email_bound_from_profile' IS DISTINCT FROM 'true';
+
+INSERT INTO public.account_security_states (
+  user_id,
+  email_verification_required,
+  email_verification_reason,
+  email_verification_requested_at,
+  password_change_required,
+  password_change_reason,
+  password_change_source,
+  password_change_requested_at,
+  created_at,
+  updated_at
+)
+SELECT
+  auth_user.id,
+  TRUE,
+  'oauth_email_setup_required_existing',
+  NOW(),
+  TRUE,
+  'oauth_password_setup_required_existing',
+  'oauth',
+  NOW(),
+  NOW(),
+  NOW()
+FROM auth.users AS auth_user
+JOIN public.app_auth_identities AS identity
+  ON identity.user_id = auth_user.id
+LEFT JOIN public.profiles AS profile
+  ON profile.id = auth_user.id
+LEFT JOIN public.account_security_states AS state
+  ON state.user_id = auth_user.id
+WHERE identity.provider = 'github'
+  AND identity.disabled_at IS NULL
+  AND COALESCE(profile.role, 'user') <> 'super_admin'
+  AND (
+    auth_user.email ILIKE 'github.%@oauth.local.invalid'
+    OR COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)->>'synthetic_oauth_email' = 'true'
+  )
+  AND COALESCE(profile.email, '') = ''
+  AND COALESCE(state.email_verification_verified_at, NULL) IS NULL
+  AND COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)->>'site_password_set' IS DISTINCT FROM 'true'
+  AND COALESCE(auth_user.raw_user_meta_data, '{}'::jsonb)->>'email_bound_from_profile' IS DISTINCT FROM 'true'
+ON CONFLICT (user_id) DO UPDATE SET
+  email_verification_required = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN TRUE
+    ELSE public.account_security_states.email_verification_required
+  END,
+  email_verification_reason = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN 'oauth_email_setup_required_existing'
+    ELSE public.account_security_states.email_verification_reason
+  END,
+  email_verification_requested_at = CASE
+    WHEN public.account_security_states.email_verification_verified_at IS NULL THEN COALESCE(
+      public.account_security_states.email_verification_requested_at,
+      EXCLUDED.email_verification_requested_at
+    )
+    ELSE public.account_security_states.email_verification_requested_at
+  END,
+  password_change_required = CASE
+    WHEN public.account_security_states.password_change_required IS NOT TRUE THEN TRUE
+    ELSE public.account_security_states.password_change_required
+  END,
+  password_change_reason = CASE
+    WHEN public.account_security_states.password_change_required IS NOT TRUE THEN 'oauth_password_setup_required_existing'
+    ELSE public.account_security_states.password_change_reason
+  END,
+  password_change_source = CASE
+    WHEN public.account_security_states.password_change_required IS NOT TRUE THEN 'oauth'
+    ELSE public.account_security_states.password_change_source
+  END,
+  password_change_requested_at = CASE
+    WHEN public.account_security_states.password_change_required IS NOT TRUE THEN COALESCE(
+      public.account_security_states.password_change_requested_at,
+      EXCLUDED.password_change_requested_at
+    )
+    ELSE public.account_security_states.password_change_requested_at
+  END,
+  updated_at = NOW();
+-- <<< END MIGRATION: active/130_stop_trusting_github_provider_email.sql
+
+-- >>> BEGIN MIGRATION: active/131_bump_site_version_451.sql
+-- 131: bump public site version for v4.5.1.
+
+UPDATE public.site_config
+SET
+  value = 'v4.5.1',
+  updated_at = NOW()
+WHERE key = 'site_version';
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'site_version',
+  'v4.5.1',
+  '站点版本',
+  'general',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'site_version'
+);
+
+UPDATE public.site_config
+SET
+  value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'site-config',
+    'reason', 'migration:131_bump_site_version_451',
+    'updatedAt', now()
+  )::text,
+  updated_at = NOW()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/131_bump_site_version_451.sql
+
+-- >>> BEGIN MIGRATION: active/132_seed_home_version_timeline.sql
+-- 132: seed homepage version timeline config.
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'home_version_timeline',
+  jsonb_build_object(
+    'versions',
+    jsonb_build_array(
+      jsonb_build_object(
+        'id', 'pre-summer-2026',
+        'name', '寻遗散记',
+        'name_en', 'Lost Heirlooms',
+        'starts_at', '2026-06-05T12:00:00+08:00',
+        'ends_at', null,
+        'enabled', true,
+        'order', 10,
+        'pool_ids', jsonb_build_array()
+      )
+    )
+  )::text,
+  '首页版本时间线',
+  'content',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'home_version_timeline'
+);
+
+UPDATE public.site_config
+SET
+  value = '2026-06-05T12:00:00+08:00',
+  updated_at = NOW()
+WHERE key = 'home_next_version_target_at'
+  AND (value IS NULL OR trim(value) = '');
+
+INSERT INTO public.site_config (key, value, label, category, updated_at)
+SELECT
+  'home_next_version_target_at',
+  '2026-06-05T12:00:00+08:00',
+  '首页下版本倒计时',
+  'content',
+  NOW()
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.site_config WHERE key = 'home_next_version_target_at'
+);
+
+UPDATE public.site_config
+SET
+  value = jsonb_build_object(
+    'version', ((extract(epoch from now()) * 1000)::bigint)::text,
+    'scope', 'home-version-timeline',
+    'reason', 'migration:132_seed_home_version_timeline',
+    'updatedAt', now()
+  )::text,
+  updated_at = NOW()
+WHERE key = 'public_cache_epoch';
+-- <<< END MIGRATION: active/132_seed_home_version_timeline.sql
+
+-- >>> BEGIN MIGRATION: active/133_extend_public_analytics_refresh_timeout.sql
+-- 133: extend public analytics refresh timeout for production-size history.
+--
+-- Production refresh currently completes inside the database in about half a
+-- minute, but PostgREST RPC can still inherit a shorter statement timeout and
+-- cancel the request. Keep the analytics SQL unchanged and only give the three
+-- refresh functions enough time to finish through the normal admin/API path.
+
+ALTER FUNCTION public.refresh_public_pool_analytics_cache()
+  SET statement_timeout = '10min';
+
+ALTER FUNCTION public.refresh_public_pool_trend_cache()
+  SET statement_timeout = '10min';
+
+ALTER FUNCTION public.refresh_public_analytics_cache()
+  SET statement_timeout = '10min';
+-- <<< END MIGRATION: active/133_extend_public_analytics_refresh_timeout.sql
+
+-- >>> BEGIN MIGRATION: active/134_allow_service_role_admin_rpc.sql
+-- 134: allow server-side admin RPC calls through service_role.
+--
+-- The admin API already verifies the caller with the site-session layer before
+-- it calls Supabase with the service role key. Some admin RPCs also call
+-- public.is_super_admin(), but service_role requests do not have auth.uid(), so
+-- those RPCs can reject valid super-admin actions with:
+--   only super_admin can manage pools
+--
+-- Keep browser/user calls unchanged: authenticated users still need a
+-- profiles.role = 'super_admin' row. Only service_role gains the helper pass.
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT
+    COALESCE(current_setting('request.jwt.claim.role', true), '') = 'service_role'
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE id = auth.uid()
+        AND role = 'super_admin'
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.is_super_admin() TO service_role;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.is_super_admin() IS
+  '判断当前请求是否具备超管权限；浏览器用户需要 profiles.role = super_admin，服务端代理请求允许 service_role。';
+-- <<< END MIGRATION: active/134_allow_service_role_admin_rpc.sql
+
+-- >>> BEGIN MIGRATION: active/135_fix_service_role_admin_pool_rpc.sql
+-- 135: fix service-role admin RPC checks and pool ownership.
+--
+-- Admin routes verify the real caller in the site-session layer, then call
+-- Supabase with the service role key. In self-hosted PostgREST, service-role
+-- requests expose the role through auth.role() / request.jwt.claims, not through
+-- request.jwt.claim.role. This repairs public.is_super_admin() and makes pool
+-- upserts accept the verified actor id from the API.
+
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT
+    auth.role() = 'service_role'
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles
+      WHERE id = auth.uid()
+        AND role = 'super_admin'
+    );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.is_super_admin() TO service_role;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.is_super_admin() IS
+  '判断当前请求是否具备超管权限；浏览器用户需要 profiles.role = super_admin，服务端代理请求允许 service_role。';
+
+DROP FUNCTION IF EXISTS public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB);
+DROP FUNCTION IF EXISTS public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB, UUID);
+
+CREATE OR REPLACE FUNCTION public.admin_upsert_pool_with_aliases(
+  p_pool_id TEXT,
+  p_insert_payload JSONB,
+  p_update_payload JSONB DEFAULT '{}'::jsonb,
+  p_alias_rows JSONB DEFAULT '[]'::jsonb,
+  p_pool_character_rows JSONB DEFAULT '[]'::jsonb,
+  p_actor_user_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor_user_id UUID;
+BEGIN
+  IF NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'only super_admin can manage pools';
+  END IF;
+
+  IF COALESCE(BTRIM(p_pool_id), '') = '' THEN
+    RAISE EXCEPTION 'p_pool_id is required';
+  END IF;
+
+  IF p_insert_payload IS NULL OR jsonb_typeof(p_insert_payload) <> 'object' THEN
+    RAISE EXCEPTION 'p_insert_payload must be a JSON object';
+  END IF;
+
+  IF p_update_payload IS NULL THEN
+    p_update_payload := '{}'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_update_payload) <> 'object' THEN
+    RAISE EXCEPTION 'p_update_payload must be a JSON object';
+  END IF;
+
+  IF p_alias_rows IS NULL THEN
+    p_alias_rows := '[]'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_alias_rows) <> 'array' THEN
+    RAISE EXCEPTION 'p_alias_rows must be a JSON array';
+  END IF;
+
+  IF p_pool_character_rows IS NULL THEN
+    p_pool_character_rows := '[]'::jsonb;
+  END IF;
+
+  IF jsonb_typeof(p_pool_character_rows) <> 'array' THEN
+    RAISE EXCEPTION 'p_pool_character_rows must be a JSON array';
+  END IF;
+
+  v_actor_user_id := COALESCE(
+    p_actor_user_id,
+    CASE
+      WHEN COALESCE(BTRIM(p_insert_payload->>'user_id'), '') <> ''
+      THEN BTRIM(p_insert_payload->>'user_id')::UUID
+      ELSE NULL
+    END,
+    auth.uid()
+  );
+
+  IF v_actor_user_id IS NULL AND auth.role() = 'service_role' THEN
+    SELECT id
+      INTO v_actor_user_id
+      FROM public.profiles
+     WHERE role = 'super_admin'
+     ORDER BY created_at ASC NULLS LAST, id ASC
+     LIMIT 1;
+  END IF;
+
+  IF v_actor_user_id IS NULL THEN
+    RAISE EXCEPTION 'pool owner is required';
+  END IF;
+
+  INSERT INTO public.pools (
+    user_id,
+    pool_id,
+    name,
+    name_en,
+    type,
+    locked,
+    is_limited_weapon,
+    description,
+    start_time,
+    end_time,
+    banner_url,
+    featured_characters,
+    up_character
+  )
+  VALUES (
+    v_actor_user_id,
+    BTRIM(p_pool_id),
+    BTRIM(p_insert_payload->>'name'),
+    NULLIF(BTRIM(p_insert_payload->>'name_en'), ''),
+    COALESCE(NULLIF(BTRIM(p_insert_payload->>'type'), ''), 'limited'),
+    COALESCE((p_insert_payload->>'locked')::BOOLEAN, FALSE),
+    CASE
+      WHEN p_insert_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_insert_payload->'is_limited_weapon') = 'boolean'
+      THEN (p_insert_payload->>'is_limited_weapon')::BOOLEAN
+      ELSE NULL
+    END,
+    NULLIF(BTRIM(p_insert_payload->>'description'), ''),
+    NULLIF(BTRIM(p_insert_payload->>'start_time'), '')::TIMESTAMPTZ,
+    NULLIF(BTRIM(p_insert_payload->>'end_time'), '')::TIMESTAMPTZ,
+    NULLIF(BTRIM(p_insert_payload->>'banner_url'), ''),
+    CASE
+      WHEN p_insert_payload ? 'featured_characters'
+        AND jsonb_typeof(p_insert_payload->'featured_characters') = 'array'
+      THEN ARRAY(
+        SELECT jsonb_array_elements_text(p_insert_payload->'featured_characters')
+      )
+      ELSE NULL
+    END,
+    NULLIF(BTRIM(p_insert_payload->>'up_character'), '')
+  )
+  ON CONFLICT (pool_id) DO UPDATE
+  SET
+    name = CASE
+      WHEN p_update_payload ? 'name'
+      THEN COALESCE(NULLIF(BTRIM(p_update_payload->>'name'), ''), public.pools.name)
+      ELSE public.pools.name
+    END,
+    name_en = CASE
+      WHEN p_update_payload ? 'name_en'
+      THEN NULLIF(BTRIM(p_update_payload->>'name_en'), '')
+      ELSE public.pools.name_en
+    END,
+    type = CASE
+      WHEN p_update_payload ? 'type'
+      THEN COALESCE(NULLIF(BTRIM(p_update_payload->>'type'), ''), public.pools.type)
+      ELSE public.pools.type
+    END,
+    locked = CASE
+      WHEN p_update_payload ? 'locked'
+        AND jsonb_typeof(p_update_payload->'locked') = 'boolean'
+      THEN (p_update_payload->>'locked')::BOOLEAN
+      ELSE public.pools.locked
+    END,
+    is_limited_weapon = CASE
+      WHEN p_update_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_update_payload->'is_limited_weapon') = 'boolean'
+      THEN (p_update_payload->>'is_limited_weapon')::BOOLEAN
+      WHEN p_update_payload ? 'is_limited_weapon'
+        AND jsonb_typeof(p_update_payload->'is_limited_weapon') = 'null'
+      THEN NULL
+      ELSE public.pools.is_limited_weapon
+    END,
+    description = CASE
+      WHEN p_update_payload ? 'description'
+      THEN NULLIF(BTRIM(p_update_payload->>'description'), '')
+      ELSE public.pools.description
+    END,
+    start_time = CASE
+      WHEN p_update_payload ? 'start_time'
+      THEN NULLIF(BTRIM(p_update_payload->>'start_time'), '')::TIMESTAMPTZ
+      ELSE public.pools.start_time
+    END,
+    end_time = CASE
+      WHEN p_update_payload ? 'end_time'
+      THEN NULLIF(BTRIM(p_update_payload->>'end_time'), '')::TIMESTAMPTZ
+      ELSE public.pools.end_time
+    END,
+    banner_url = CASE
+      WHEN p_update_payload ? 'banner_url'
+      THEN NULLIF(BTRIM(p_update_payload->>'banner_url'), '')
+      ELSE public.pools.banner_url
+    END,
+    featured_characters = CASE
+      WHEN p_update_payload ? 'featured_characters'
+        AND jsonb_typeof(p_update_payload->'featured_characters') = 'array'
+      THEN ARRAY(
+        SELECT jsonb_array_elements_text(p_update_payload->'featured_characters')
+      )
+      WHEN p_update_payload ? 'featured_characters'
+        AND jsonb_typeof(p_update_payload->'featured_characters') = 'null'
+      THEN NULL
+      ELSE public.pools.featured_characters
+    END,
+    up_character = CASE
+      WHEN p_update_payload ? 'up_character'
+      THEN NULLIF(BTRIM(p_update_payload->>'up_character'), '')
+      ELSE public.pools.up_character
+    END;
+
+  INSERT INTO public.pool_id_aliases (
+    source,
+    alias_id,
+    pool_id,
+    is_primary,
+    note
+  )
+  SELECT
+    BTRIM(alias_entry.value->>'source'),
+    BTRIM(alias_entry.value->>'alias_id'),
+    BTRIM(p_pool_id),
+    COALESCE((alias_entry.value->>'is_primary')::BOOLEAN, FALSE),
+    NULLIF(BTRIM(alias_entry.value->>'note'), '')
+  FROM jsonb_array_elements(p_alias_rows) AS alias_entry(value)
+  WHERE
+    jsonb_typeof(alias_entry.value) = 'object'
+    AND COALESCE(BTRIM(alias_entry.value->>'source'), '') <> ''
+    AND COALESCE(BTRIM(alias_entry.value->>'alias_id'), '') <> ''
+  ON CONFLICT (source, alias_id) DO UPDATE
+  SET
+    pool_id = EXCLUDED.pool_id,
+    is_primary = EXCLUDED.is_primary,
+    note = EXCLUDED.note,
+    updated_at = NOW();
+
+  IF jsonb_array_length(p_pool_character_rows) > 0 THEN
+    DELETE FROM public.pool_characters
+    WHERE pool_id = BTRIM(p_pool_id);
+
+    INSERT INTO public.pool_characters (
+      pool_id,
+      character_id,
+      is_up
+    )
+    SELECT
+      BTRIM(p_pool_id),
+      BTRIM(character_entry.value->>'character_id'),
+      COALESCE((character_entry.value->>'is_up')::BOOLEAN, FALSE)
+    FROM jsonb_array_elements(p_pool_character_rows) AS character_entry(value)
+    WHERE
+      jsonb_typeof(character_entry.value) = 'object'
+      AND COALESCE(BTRIM(character_entry.value->>'character_id'), '') <> ''
+    ON CONFLICT (pool_id, character_id) DO UPDATE
+    SET is_up = EXCLUDED.is_up;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB, UUID) TO authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB, UUID) TO service_role;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, JSONB, JSONB, JSONB, JSONB, UUID) IS
+  '管理端原子化写入单个卡池、alias 与 pool_characters；服务端代理调用应传入已验证的 actor user id。';
+
+CREATE OR REPLACE FUNCTION public.admin_upsert_pool_with_aliases(
+  p_pool_id TEXT,
+  p_name TEXT,
+  p_type TEXT DEFAULT 'limited',
+  p_description TEXT DEFAULT NULL,
+  p_start_time TIMESTAMPTZ DEFAULT NULL,
+  p_end_time TIMESTAMPTZ DEFAULT NULL,
+  p_up_character TEXT DEFAULT NULL,
+  p_featured_characters TEXT[] DEFAULT NULL,
+  p_banner_url TEXT DEFAULT NULL,
+  p_alias_rows JSONB DEFAULT '[]'::jsonb,
+  p_pool_character_rows JSONB DEFAULT '[]'::jsonb,
+  p_actor_user_id UUID DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_payload JSONB;
+BEGIN
+  v_payload := jsonb_build_object(
+    'name', p_name,
+    'type', p_type,
+    'description', p_description,
+    'start_time', p_start_time,
+    'end_time', p_end_time,
+    'up_character', p_up_character,
+    'featured_characters', p_featured_characters,
+    'banner_url', p_banner_url
+  );
+
+  PERFORM public.admin_upsert_pool_with_aliases(
+    p_pool_id,
+    v_payload,
+    v_payload,
+    p_alias_rows,
+    p_pool_character_rows,
+    p_actor_user_id
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT[], TEXT, JSONB, JSONB, UUID) TO authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT[], TEXT, JSONB, JSONB, UUID) TO service_role;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.admin_upsert_pool_with_aliases(TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ, TEXT, TEXT[], TEXT, JSONB, JSONB, UUID) IS
+  '兼容旧参数形式的卡池写入 RPC；内部委托给 JSON payload 版本。';
+
+DROP FUNCTION IF EXISTS public.__debug_request_context_once();
+
+NOTIFY pgrst, 'reload schema';
+-- <<< END MIGRATION: active/135_fix_service_role_admin_pool_rpc.sql
+
+-- >>> BEGIN MIGRATION: active/136_fix_service_role_admin_profile_rpc.sql
+-- 136: allow same-origin admin profile updates through service-role RPC calls.
+--
+-- The admin users route verifies the real caller in the site-session layer and
+-- then calls Supabase with the service role key. In that request context
+-- auth.uid() is empty, so the old admin_update_profile() check rejected valid
+-- super-admin edits. Require the API to pass the verified actor id instead.
+
+DROP FUNCTION IF EXISTS public.admin_update_profile(UUID, TEXT, TEXT);
+DROP FUNCTION IF EXISTS public.admin_update_profile(UUID, TEXT, TEXT, UUID);
+
+CREATE OR REPLACE FUNCTION public.admin_update_profile(
+  p_target_user_id UUID,
+  p_username TEXT DEFAULT NULL,
+  p_role TEXT DEFAULT NULL,
+  p_actor_user_id UUID DEFAULT NULL
+)
+RETURNS public.profiles
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_actor_user_id UUID;
+  v_updated public.profiles;
+BEGIN
+  v_actor_user_id := COALESCE(p_actor_user_id, auth.uid());
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.profiles
+    WHERE id = v_actor_user_id
+      AND role = 'super_admin'
+  ) THEN
+    RAISE EXCEPTION 'Only super_admin can update profiles'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF p_role IS NOT NULL AND p_role NOT IN ('user', 'admin') THEN
+    RAISE EXCEPTION 'Invalid role: %', p_role
+      USING ERRCODE = '22023';
+  END IF;
+
+  UPDATE public.profiles
+  SET
+    username = COALESCE(NULLIF(BTRIM(p_username), ''), username),
+    role = COALESCE(p_role, role),
+    updated_at = NOW()
+  WHERE id = p_target_user_id
+  RETURNING * INTO v_updated;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile not found: %', p_target_user_id
+      USING ERRCODE = 'P0002';
+  END IF;
+
+  RETURN v_updated;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_update_profile(UUID, TEXT, TEXT, UUID) TO authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    GRANT EXECUTE ON FUNCTION public.admin_update_profile(UUID, TEXT, TEXT, UUID) TO service_role;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.admin_update_profile(UUID, TEXT, TEXT, UUID) IS
+  '超管更新用户 profile 的受控入口；同源后台代理调用必须传入已验证的 actor user id。';
+
+NOTIFY pgrst, 'reload schema';
+-- <<< END MIGRATION: active/136_fix_service_role_admin_profile_rpc.sql
+
+-- >>> BEGIN MIGRATION: active/137_restore_history_character_id_for_official_import.sql
+-- 137: restore history.character_id for official import reconciliation.
+--
+-- Migration 096 retired history.character_id as a compatibility field after
+-- alias-backed references were cleaned up. DATA-NEW-018 now needs this column
+-- again as a forward field: official imports can carry stable character/weapon
+-- ids directly, and keeping them on history prevents future placeholder drift.
+--
+-- Do not restore legacy_pool_id. That field remains retired.
+
+ALTER TABLE public.history
+  ADD COLUMN IF NOT EXISTS character_id TEXT;
+
+ALTER TABLE public.history
+  ALTER COLUMN character_id TYPE TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_history_character_id
+  ON public.history(character_id);
+
+COMMENT ON COLUMN public.history.character_id IS
+  '官方导入记录携带的角色或武器 ID；用于角色/武器图鉴、手动占位合并与后续官方 ID 回填。';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'history'
+      AND column_name = 'character_id'
+  ) THEN
+    RAISE EXCEPTION 'Migration 137 failed: history.character_id is missing';
+  END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';
+-- <<< END MIGRATION: active/137_restore_history_character_id_for_official_import.sql
+
+-- >>> BEGIN MIGRATION: active/138_add_status_probe_reports.sql
+-- STATUS-001: VPS probe latest reports for the hidden status admin page.
+create table if not exists public.status_probe_reports (
+  probe_id text primary key,
+  label text not null,
+  region text,
+  status text not null default 'unknown',
+  summary text,
+  reported_at timestamptz not null,
+  received_at timestamptz not null default now(),
+  payload jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_status_probe_reports_status
+  on public.status_probe_reports (status);
+
+create index if not exists idx_status_probe_reports_reported_at
+  on public.status_probe_reports (reported_at desc);
+
+create or replace function public.set_status_probe_reports_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_status_probe_reports_updated_at on public.status_probe_reports;
+create trigger trg_status_probe_reports_updated_at
+before update on public.status_probe_reports
+for each row
+execute function public.set_status_probe_reports_updated_at();
+
+alter table public.status_probe_reports enable row level security;
+
+revoke all on table public.status_probe_reports from anon;
+revoke all on table public.status_probe_reports from authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant select, insert, update, delete on table public.status_probe_reports to service_role;
+  end if;
+end;
+$$;
+-- <<< END MIGRATION: active/138_add_status_probe_reports.sql
+
+-- >>> BEGIN MIGRATION: active/139_add_status_heartbeat_history.sql
+-- STATUS-001: Persist real heartbeat history for VPS probes and status endpoints.
+create table if not exists public.status_probe_heartbeats (
+  id bigint generated by default as identity primary key,
+  probe_id text not null,
+  label text not null,
+  region text,
+  status text not null default 'unknown',
+  summary text,
+  reported_at timestamptz not null,
+  received_at timestamptz not null default now(),
+  payload jsonb not null default '{}'::jsonb
+);
+
+create index if not exists idx_status_probe_heartbeats_probe_time
+  on public.status_probe_heartbeats (probe_id, reported_at desc);
+
+create index if not exists idx_status_probe_heartbeats_status_time
+  on public.status_probe_heartbeats (status, reported_at desc);
+
+create table if not exists public.status_endpoint_heartbeats (
+  id bigint generated by default as identity primary key,
+  endpoint_id text not null,
+  label text not null,
+  status text not null default 'unknown',
+  summary text,
+  checked_at timestamptz not null,
+  response_ms integer,
+  payload jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_status_endpoint_heartbeats_endpoint_time
+  on public.status_endpoint_heartbeats (endpoint_id, checked_at desc);
+
+create index if not exists idx_status_endpoint_heartbeats_status_time
+  on public.status_endpoint_heartbeats (status, checked_at desc);
+
+create table if not exists public.status_alert_state (
+  target_type text not null,
+  target_id text not null,
+  label text not null,
+  status text not null default 'unknown',
+  summary text,
+  last_notified_status text,
+  last_changed_at timestamptz not null default now(),
+  last_notified_at timestamptz,
+  updated_at timestamptz not null default now(),
+  primary key (target_type, target_id)
+);
+
+create index if not exists idx_status_alert_state_status
+  on public.status_alert_state (status);
+
+alter table public.status_probe_heartbeats enable row level security;
+alter table public.status_endpoint_heartbeats enable row level security;
+alter table public.status_alert_state enable row level security;
+
+revoke all on table public.status_probe_heartbeats from anon;
+revoke all on table public.status_probe_heartbeats from authenticated;
+revoke all on table public.status_endpoint_heartbeats from anon;
+revoke all on table public.status_endpoint_heartbeats from authenticated;
+revoke all on table public.status_alert_state from anon;
+revoke all on table public.status_alert_state from authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant select, insert, update, delete on table public.status_probe_heartbeats to service_role;
+    grant select, insert, update, delete on table public.status_endpoint_heartbeats to service_role;
+    grant select, insert, update, delete on table public.status_alert_state to service_role;
+    grant usage, select on sequence public.status_probe_heartbeats_id_seq to service_role;
+    grant usage, select on sequence public.status_endpoint_heartbeats_id_seq to service_role;
+  end if;
+end;
+$$;
+-- <<< END MIGRATION: active/139_add_status_heartbeat_history.sql
 
