@@ -402,7 +402,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
         rarity: 6,
         isUp,
         isLimited: isUp,
-        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList)
+        characterName: getCharacterName(normalizedPoolType, 6, isUp, upChar, poolCharactersList),
+        isFree: true
       });
       continue;
     }
@@ -412,7 +413,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
         rarity: 5,
         isUp: false,
         isLimited: false,
-        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+        characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList),
+        isFree: true
       });
       continue;
     }
@@ -421,7 +423,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
       rarity: 4,
       isUp: false,
       isLimited: false,
-      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList)
+      characterName: getCharacterName(normalizedPoolType, 4, false, null, poolCharactersList),
+      isFree: true
     });
   }
 
@@ -430,7 +433,8 @@ export function simulateCharacterFreeTen(rules = LIMITED_POOL_RULES, poolType = 
       rarity: 5,
       isUp: false,
       isLimited: false,
-      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList)
+      characterName: getCharacterName(normalizedPoolType, 5, false, null, poolCharactersList),
+      isFree: true
     };
   }
 
