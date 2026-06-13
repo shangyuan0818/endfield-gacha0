@@ -197,19 +197,33 @@ export async function ensureProfileForAuthUser(adminClient, authUser, existingPr
     return existingProfile;
   }
 
+  const seed = buildProfileSeed(authUser);
+
   const { data, error } = await adminClient
     .from('profiles')
-    .upsert(buildProfileSeed(authUser), {
-      onConflict: 'id'
-    })
+    .insert(seed)
     .select(PROFILE_FIELDS)
     .single();
+
+  if (error?.code === '23505') {
+    const { data: profile, error: loadError } = await adminClient
+      .from('profiles')
+      .select(PROFILE_FIELDS)
+      .eq('id', authUser.id)
+      .maybeSingle();
+
+    if (loadError) {
+      throw loadError;
+    }
+
+    return profile || null;
+  }
 
   if (error) {
     throw error;
   }
 
-  return data || null;
+  return data || seed;
 }
 
 export async function listMergedAdminUsers(adminClient, { repairProfiles = false } = {}) {

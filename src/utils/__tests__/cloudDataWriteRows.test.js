@@ -1,0 +1,85 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  serializeHistoryForUpsert,
+  upsertHistoryRowsWithOptionalColumnFallback,
+} from '../cloudDataWriteRows.js';
+
+describe('cloudDataWriteRows', () => {
+  it('stores server id and normalized region on history rows', () => {
+    const cnRow = serializeHistoryForUpsert({
+      id: '1001',
+      poolId: 'special_1_2_1',
+      rarity: 6,
+      seqId: '1',
+      gameUid: '10000001',
+      serverId: '1',
+      serverRegion: '官服',
+      timestamp: '2026-06-05T12:00:00.000Z',
+    }, 'user-1');
+    const intlRow = serializeHistoryForUpsert({
+      id: '1002',
+      poolId: 'special_1_2_2',
+      rarity: 5,
+      seqId: '2',
+      gameUid: '20000001',
+      server_id: '3',
+      region: 'global',
+      timestamp: '2026-06-05T12:01:00.000Z',
+    }, 'user-1');
+
+    expect(cnRow).toMatchObject({
+      user_id: 'user-1',
+      server_id: '1',
+      region: 'cn',
+    });
+    expect(intlRow).toMatchObject({
+      user_id: 'user-1',
+      server_id: '3',
+      region: 'intl',
+    });
+  });
+
+  it('retries history upserts without unavailable optional columns', async () => {
+    const rows = [{
+      user_id: 'user-1',
+      record_id: 1001,
+      pool_id: 'special_1_2_1',
+      rarity: 6,
+      character_id: 'char_1',
+      server_id: '2',
+      region: 'intl',
+      game_uid: '20000001',
+      seq_id: '1',
+    }];
+    const executeUpsert = vi.fn(async (pendingRows) => {
+      if (executeUpsert.mock.calls.length === 1) {
+        return { error: { message: "Could not find the 'server_id' column of 'history' in the schema cache" } };
+      }
+      if (executeUpsert.mock.calls.length === 2) {
+        return { error: { message: "Could not find the 'region' column of 'history' in the schema cache" } };
+      }
+      return { data: pendingRows, error: null };
+    });
+
+    await upsertHistoryRowsWithOptionalColumnFallback(rows, executeUpsert);
+
+    expect(executeUpsert).toHaveBeenCalledTimes(3);
+    expect(executeUpsert.mock.calls[0][0][0]).toMatchObject({
+      character_id: 'char_1',
+      server_id: '2',
+      region: 'intl',
+    });
+    expect(executeUpsert.mock.calls[1][0][0]).toMatchObject({
+      character_id: 'char_1',
+      region: 'intl',
+    });
+    expect(executeUpsert.mock.calls[1][0][0]).not.toHaveProperty('server_id');
+    expect(executeUpsert.mock.calls[2][0][0]).toMatchObject({
+      character_id: 'char_1',
+    });
+    expect(executeUpsert.mock.calls[2][0][0]).not.toHaveProperty('server_id');
+    expect(executeUpsert.mock.calls[2][0][0]).not.toHaveProperty('region');
+    expect(executeUpsert.mock.calls[2][1]).toBe('user_id,game_uid,pool_id,seq_id');
+  });
+});

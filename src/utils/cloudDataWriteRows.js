@@ -34,6 +34,29 @@ function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : String(value || '').trim();
 }
 
+function normalizeRegionForStorage(record) {
+  const rawRegion = normalizeText(record.region || record.serverRegion);
+  const serverId = normalizeText(record.serverId || record.server_id);
+  const signal = `${rawRegion} ${serverId}`.toLowerCase();
+
+  if (
+    serverId === '1'
+    || /(^|[^a-z])(cn|china|mainland)([^a-z]|$)|国服|官服|b服|大陆/.test(signal)
+  ) {
+    return 'cn';
+  }
+
+  if (
+    serverId === '2'
+    || serverId === '3'
+    || /intl|international|global|asia|sea|jp|kr|tw|hk|mo|sg|亚服|亚洲|(^|[^a-z])(eu|na|us)([^a-z]|$)|america|欧\/美|欧美|欧服|美服|国际/.test(signal)
+  ) {
+    return 'intl';
+  }
+
+  return rawRegion || null;
+}
+
 function normalizeCharacterIdForStorage(record, resolvedCharacterId) {
   const rawCharacterId = normalizeText(record.character_id || record.item_id || record.charId || record.weaponId);
   const candidateId = normalizeText(resolvedCharacterId || rawCharacterId);
@@ -94,7 +117,7 @@ export function serializeHistoryForUpsert(
     game_uid: record.gameUid || record.game_uid || null,
     nick_name: record.nickName || record.nick_name || null,
     server_id: record.serverId || record.server_id || null,
-    region: record.region || record.serverRegion || null,
+    region: normalizeRegionForStorage(record),
     timestamp: normalizeTimestamp(record.timestamp),
     updated_at: new Date().toISOString(),
   };

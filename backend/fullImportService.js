@@ -942,7 +942,7 @@ async function refreshPublicAnalyticsAfterImport(supabase, {
 async function processRecords(rawRecords, account, _userId, existingSeqIds, source = 'cn') {
   const { gameUid, nickName, serverId } = account;
   const resolvedServerId = String(serverId || (source === 'intl' ? '2' : '1'));
-  const resolvedRegion = resolvedServerId === '1' ? '国服' : 'intl';
+  const resolvedRegion = resolvedServerId === '1' ? 'cn' : 'intl';
   const processedRecords = [];
   const supabase = getSupabaseAdmin();
   const sourcePoolIds = [];

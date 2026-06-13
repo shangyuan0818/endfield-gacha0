@@ -324,6 +324,8 @@ describe('/api/account-gacha-data', () => {
             rarity: 6,
             seqId: '1',
             gameUid: 'game-1',
+            serverId: '2',
+            region: 'international',
             timestamp: '2026-06-05T12:00:00.000Z',
           },
         ],
@@ -358,6 +360,8 @@ describe('/api/account-gacha-data', () => {
       user_id: 'user-1',
       pool_id: 'special_official_001',
       character_id: 'char_official_001',
+      server_id: '2',
+      region: 'intl',
     });
   });
 

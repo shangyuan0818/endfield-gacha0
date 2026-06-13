@@ -309,6 +309,7 @@ describe('executeFullImport import mode metadata', () => {
   it('returns selected mode and save counts without changing full-fetch dedupe semantics', async () => {
     const operations = [];
     const insertedPoolIds = new Set();
+    let savedHistoryRows = [];
     const rpc = vi.fn(async (functionName) => ({
       data: {
         refreshedPools: 1,
@@ -381,6 +382,7 @@ describe('executeFullImport import mode metadata', () => {
               };
             },
             async upsert(rows) {
+              savedHistoryRows = rows;
               operations.push({ tableName, action: 'upsert', count: rows.length });
               return { error: null };
             },
@@ -517,6 +519,12 @@ describe('executeFullImport import mode metadata', () => {
       { tableName: 'character_id_aliases', action: 'upsert', count: 2 },
       { tableName: 'history', action: 'upsert', count: 1 },
     ]);
+    expect(savedHistoryRows[0]).toMatchObject({
+      game_uid: '10000001',
+      nick_name: '测试账号',
+      server_id: '1',
+      region: 'cn',
+    });
     expect(updateProgress).toHaveBeenCalledWith({ progress: 100, message: '导入完成' });
   });
 

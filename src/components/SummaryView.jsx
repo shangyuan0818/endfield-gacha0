@@ -40,6 +40,11 @@ function StatsHeader({
   formatCount,
   tt
 }) {
+  const safeStats = currentStats || {};
+  const activeUsers90d = Number(safeStats.activeUsers90d || 0);
+  const newUsers90d = Number(safeStats.newUsers90d || 0);
+  const hasContributorActivityStats = activeUsers90d > 0 || newUsers90d > 0;
+
   return (
     <div className="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
       <div className="flex items-center gap-3">
@@ -52,32 +57,38 @@ function StatsHeader({
         </div>
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold uppercase tracking-wider text-slate-800 dark:text-white">
-            {currentStats.title}
+            {safeStats.title}
             <span className="rounded-sm border border-zinc-200 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 dark:border-zinc-700">
               {dataSource === 'global' ? tt('summary.badge.global', '全服') : tt('summary.badge.local', '本地')}
             </span>
           </h2>
           <span className="mt-0.5 block font-mono text-xs text-zinc-500">
-            {tt('summary.metric.scopeLabel', '范围')} // {currentStats.subtitle}
+            {tt('summary.metric.scopeLabel', '范围')} // {safeStats.subtitle}
           </span>
         </div>
       </div>
 
-      {currentStats.totalUsers ? (
+      {safeStats.totalUsers ? (
         <div className="text-right">
           <span className="block font-mono text-[10px] uppercase tracking-widest text-zinc-400">{tt('summary.metric.contributors', '贡献者')}</span>
           <span className="font-mono text-xl font-bold text-slate-700 dark:text-zinc-300">
-            {formatCount(currentStats.totalContributors || currentStats.totalUsers)}
+            {formatCount(safeStats.totalContributors || safeStats.totalUsers)}
           </span>
-          {currentStats.totalContributors && currentStats.totalContributors !== currentStats.totalUsers && (
+          {safeStats.totalContributors && safeStats.totalContributors !== safeStats.totalUsers && (
             <span className="block font-mono text-[10px] text-zinc-500">
-              {tt('summary.metric.registered', '注册')}: {formatCount(currentStats.totalUsers)}
+              {tt('summary.metric.registered', '注册')}: {formatCount(safeStats.totalUsers)}
             </span>
           )}
           {contributorRegionStats && (
             <div className="mt-1 flex flex-wrap justify-end gap-1 font-mono text-[10px] text-zinc-500">
               <span>{tt('summary.metric.cn', '国服')}: {formatCount(contributorRegionStats.cn || 0)}</span>
               <span>{tt('summary.metric.intl', '国际服')}: {formatCount(contributorRegionStats.intl || 0)}</span>
+            </div>
+          )}
+          {hasContributorActivityStats && (
+            <div className="mt-1 flex flex-wrap justify-end gap-2 font-mono text-[10px] text-zinc-500">
+              <span>{tt('summary.metric.activeUsers90d', '90日活跃')}: {formatCount(activeUsers90d)}</span>
+              <span>{tt('summary.metric.newUsers90d', '90日新增')}: {formatCount(newUsers90d)}</span>
             </div>
           )}
         </div>

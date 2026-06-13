@@ -202,8 +202,11 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     chargedWeaponPulls: 0,
     infoBookPullCount: 0,
     totalUsers: 0,
+    activeUsers90d: 0,
+    newUsers90d: 0,
     totalContributors: 0,
     contributorsByRegion: null,
+    contributorActivity: null,
     sixStarTotal: 0,
     sixStarLimited: 0,
     sixStarStandard: 0,
@@ -462,6 +465,8 @@ export function normalizeGlobalStats(rpcData) {
     return createEmptyGlobalSummaryStats();
   }
 
+  const contributorActivity = rpcData.contributorActivity || rpcData.contributor_activity || null;
+
   const stats = {
     totalPulls: rpcData.totalPulls || 0,
     totalPullsWithFree: rpcData.totalPullsWithFree || rpcData.totalPulls || 0,
@@ -470,13 +475,16 @@ export function normalizeGlobalStats(rpcData) {
     chargedWeaponPulls: 0,
     infoBookPullCount: Number(rpcData.infoBookPullCount) || 0,
     totalUsers: rpcData.totalUsers || 0,
-    totalContributors: rpcData.totalContributors || 0,
+    activeUsers90d: Number(rpcData.activeUsers90d ?? rpcData.active_users_90d ?? contributorActivity?.activeUsers) || 0,
+    newUsers90d: Number(rpcData.newUsers90d ?? rpcData.new_users_90d ?? contributorActivity?.newUsers) || 0,
+    totalContributors: Number(rpcData.totalContributors ?? rpcData.total_contributors ?? rpcData.totalUsers ?? 0) || 0,
     contributorsByRegion: rpcData.contributorsByRegion
       ? {
           cn: Number(rpcData.contributorsByRegion.cn ?? 0) || 0,
           intl: Number(rpcData.contributorsByRegion.intl ?? 0) || 0
         }
       : null,
+    contributorActivity,
     sixStarTotal: rpcData.sixStarTotal || 0,
     sixStarLimited: rpcData.sixStarLimited || 0,
     sixStarStandard: rpcData.sixStarStandard || 0,

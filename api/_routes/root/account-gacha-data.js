@@ -302,6 +302,9 @@ function formatHistoryRows(historyRows, {
     game_uid: row.game_uid,
     nickName: row.nick_name,
     nick_name: row.nick_name,
+    serverId: row.server_id,
+    server_id: row.server_id,
+    region: row.region,
   }));
 }
 

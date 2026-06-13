@@ -125,6 +125,9 @@ function MobileStatsView() {
   const loading = dataSource === 'global' ? (globalStatsLoading || !currentStats) : !currentStats;
   const totalContributors = Number(currentStats?.totalContributors ?? currentStats?.totalUsers ?? 0) || 0;
   const contributorRegionStats = currentStats?.contributorsByRegion || null;
+  const activeUsers90d = Number(currentStats?.activeUsers90d || 0);
+  const newUsers90d = Number(currentStats?.newUsers90d || 0);
+  const hasContributorActivityStats = activeUsers90d > 0 || newUsers90d > 0;
   const pageOptions = [
     { value: 'overview', label: t('summary.page.overview', {}, '统计概览'), icon: BarChart3 },
     { value: 'catalog', label: t('characterCatalog.title', {}, '角色图鉴'), icon: BookOpen }
@@ -278,6 +281,12 @@ function MobileStatsView() {
                   <div className="mt-1 flex flex-wrap justify-end gap-1 font-mono text-[9px] text-slate-500 dark:text-zinc-500">
                     <span>{t('summary.metric.cn')}: {formatNumber(contributorRegionStats.cn || 0)}</span>
                     <span>{t('summary.metric.intl')}: {formatNumber(contributorRegionStats.intl || 0)}</span>
+                  </div>
+                ) : null}
+                {hasContributorActivityStats ? (
+                  <div className="mt-1 flex flex-wrap justify-end gap-1 font-mono text-[9px] text-slate-500 dark:text-zinc-500">
+                    <span>{t('summary.metric.activeUsers90d', {}, '90日活跃')}: {formatNumber(activeUsers90d)}</span>
+                    <span>{t('summary.metric.newUsers90d', {}, '90日新增')}: {formatNumber(newUsers90d)}</span>
                   </div>
                 ) : null}
               </div>

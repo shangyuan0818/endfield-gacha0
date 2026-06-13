@@ -33,6 +33,40 @@ vi.mock('../../utils/storageUtils.js', () => ({
 import { normalizeGlobalStats } from '../statsService.js';
 
 describe('normalizeGlobalStats', () => {
+  it('normalizes contributor activity and region summary fields', () => {
+    const normalized = normalizeGlobalStats({
+      totalPulls: 10,
+      totalUsers: 8,
+      totalContributors: 6,
+      active_users_90d: '3',
+      newUsers90d: '2',
+      contributorsByRegion: {
+        cn: '4',
+        intl: 2,
+      },
+      contributor_activity: {
+        windowDays: 90,
+        activeUsers: 3,
+        newUsers: 2,
+      },
+      byType: {},
+    });
+
+    expect(normalized.totalUsers).toBe(8);
+    expect(normalized.totalContributors).toBe(6);
+    expect(normalized.activeUsers90d).toBe(3);
+    expect(normalized.newUsers90d).toBe(2);
+    expect(normalized.contributorsByRegion).toEqual({
+      cn: 4,
+      intl: 2,
+    });
+    expect(normalized.contributorActivity).toMatchObject({
+      windowDays: 90,
+      activeUsers: 3,
+      newUsers: 2,
+    });
+  });
+
   it('includes extra banner data in character aggregates', () => {
     const normalized = normalizeGlobalStats({
       totalPulls: 80,
