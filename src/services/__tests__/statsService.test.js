@@ -38,14 +38,14 @@ describe('normalizeGlobalStats', () => {
       totalPulls: 10,
       totalUsers: 8,
       totalContributors: 6,
-      active_users_90d: '3',
-      newUsers90d: '2',
+      active_users_30d: '3',
+      newUsers30d: '2',
       contributorsByRegion: {
         cn: '4',
         intl: 2,
       },
       contributor_activity: {
-        windowDays: 90,
+        windowDays: 30,
         activeUsers: 3,
         newUsers: 2,
       },
@@ -54,14 +54,14 @@ describe('normalizeGlobalStats', () => {
 
     expect(normalized.totalUsers).toBe(8);
     expect(normalized.totalContributors).toBe(6);
-    expect(normalized.activeUsers90d).toBe(3);
-    expect(normalized.newUsers90d).toBe(2);
+    expect(normalized.activeUsers30d).toBe(3);
+    expect(normalized.newUsers30d).toBe(2);
     expect(normalized.contributorsByRegion).toEqual({
       cn: 4,
       intl: 2,
     });
     expect(normalized.contributorActivity).toMatchObject({
-      windowDays: 90,
+      windowDays: 30,
       activeUsers: 3,
       newUsers: 2,
     });

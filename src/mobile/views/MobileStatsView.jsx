@@ -125,9 +125,9 @@ function MobileStatsView() {
   const loading = dataSource === 'global' ? (globalStatsLoading || !currentStats) : !currentStats;
   const totalContributors = Number(currentStats?.totalContributors ?? currentStats?.totalUsers ?? 0) || 0;
   const contributorRegionStats = currentStats?.contributorsByRegion || null;
-  const activeUsers90d = Number(currentStats?.activeUsers90d || 0);
-  const newUsers90d = Number(currentStats?.newUsers90d || 0);
-  const hasContributorActivityStats = activeUsers90d > 0 || newUsers90d > 0;
+  const activeUsers30d = Number(currentStats?.activeUsers30d || 0);
+  const newUsers30d = Number(currentStats?.newUsers30d || 0);
+  const hasContributorActivityStats = activeUsers30d > 0 || newUsers30d > 0;
   const pageOptions = [
     { value: 'overview', label: t('summary.page.overview', {}, '统计概览'), icon: BarChart3 },
     { value: 'catalog', label: t('characterCatalog.title', {}, '角色图鉴'), icon: BookOpen }
@@ -285,8 +285,8 @@ function MobileStatsView() {
                 ) : null}
                 {hasContributorActivityStats ? (
                   <div className="mt-1 flex flex-wrap justify-end gap-1 font-mono text-[9px] text-slate-500 dark:text-zinc-500">
-                    <span>{t('summary.metric.activeUsers90d', {}, '90日活跃')}: {formatNumber(activeUsers90d)}</span>
-                    <span>{t('summary.metric.newUsers90d', {}, '90日新增')}: {formatNumber(newUsers90d)}</span>
+                    <span>{t('summary.metric.activeUsers30d', {}, '30日活跃')}: {formatNumber(activeUsers30d)}</span>
+                    <span>{t('summary.metric.newUsers30d', {}, '30日新增')}: {formatNumber(newUsers30d)}</span>
                   </div>
                 ) : null}
               </div>

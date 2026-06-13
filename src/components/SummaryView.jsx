@@ -41,9 +41,9 @@ function StatsHeader({
   tt
 }) {
   const safeStats = currentStats || {};
-  const activeUsers90d = Number(safeStats.activeUsers90d || 0);
-  const newUsers90d = Number(safeStats.newUsers90d || 0);
-  const hasContributorActivityStats = activeUsers90d > 0 || newUsers90d > 0;
+  const activeUsers30d = Number(safeStats.activeUsers30d || 0);
+  const newUsers30d = Number(safeStats.newUsers30d || 0);
+  const hasContributorActivityStats = activeUsers30d > 0 || newUsers30d > 0;
 
   return (
     <div className="mb-6 flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
@@ -87,8 +87,8 @@ function StatsHeader({
           )}
           {hasContributorActivityStats && (
             <div className="mt-1 flex flex-wrap justify-end gap-2 font-mono text-[10px] text-zinc-500">
-              <span>{tt('summary.metric.activeUsers90d', '90日活跃')}: {formatCount(activeUsers90d)}</span>
-              <span>{tt('summary.metric.newUsers90d', '90日新增')}: {formatCount(newUsers90d)}</span>
+              <span>{tt('summary.metric.activeUsers30d', '30日活跃')}: {formatCount(activeUsers30d)}</span>
+              <span>{tt('summary.metric.newUsers30d', '30日新增')}: {formatCount(newUsers30d)}</span>
             </div>
           )}
         </div>

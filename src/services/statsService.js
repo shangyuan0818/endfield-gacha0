@@ -202,6 +202,8 @@ export function createEmptyGlobalSummaryStats(meta = {}) {
     chargedWeaponPulls: 0,
     infoBookPullCount: 0,
     totalUsers: 0,
+    activeUsers30d: 0,
+    newUsers30d: 0,
     activeUsers90d: 0,
     newUsers90d: 0,
     totalContributors: 0,
@@ -466,6 +468,19 @@ export function normalizeGlobalStats(rpcData) {
   }
 
   const contributorActivity = rpcData.contributorActivity || rpcData.contributor_activity || null;
+  const contributorActivityWindowDays = Number(contributorActivity?.windowDays || 0);
+  const contributorActivityActiveUsers = Number(contributorActivity?.activeUsers || 0) || 0;
+  const contributorActivityNewUsers = Number(contributorActivity?.newUsers || 0) || 0;
+  const activeUsers30d = Number(
+    rpcData.activeUsers30d ??
+    rpcData.active_users_30d ??
+    (contributorActivityWindowDays === 30 ? contributorActivityActiveUsers : undefined)
+  ) || 0;
+  const newUsers30d = Number(
+    rpcData.newUsers30d ??
+    rpcData.new_users_30d ??
+    (contributorActivityWindowDays === 30 ? contributorActivityNewUsers : undefined)
+  ) || 0;
 
   const stats = {
     totalPulls: rpcData.totalPulls || 0,
@@ -475,8 +490,18 @@ export function normalizeGlobalStats(rpcData) {
     chargedWeaponPulls: 0,
     infoBookPullCount: Number(rpcData.infoBookPullCount) || 0,
     totalUsers: rpcData.totalUsers || 0,
-    activeUsers90d: Number(rpcData.activeUsers90d ?? rpcData.active_users_90d ?? contributorActivity?.activeUsers) || 0,
-    newUsers90d: Number(rpcData.newUsers90d ?? rpcData.new_users_90d ?? contributorActivity?.newUsers) || 0,
+    activeUsers30d,
+    newUsers30d,
+    activeUsers90d: Number(
+      rpcData.activeUsers90d ??
+      rpcData.active_users_90d ??
+      (contributorActivityWindowDays === 90 ? contributorActivityActiveUsers : undefined)
+    ) || activeUsers30d,
+    newUsers90d: Number(
+      rpcData.newUsers90d ??
+      rpcData.new_users_90d ??
+      (contributorActivityWindowDays === 90 ? contributorActivityNewUsers : undefined)
+    ) || newUsers30d,
     totalContributors: Number(rpcData.totalContributors ?? rpcData.total_contributors ?? rpcData.totalUsers ?? 0) || 0,
     contributorsByRegion: rpcData.contributorsByRegion
       ? {
