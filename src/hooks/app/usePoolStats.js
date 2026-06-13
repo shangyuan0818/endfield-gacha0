@@ -373,8 +373,9 @@ export function usePoolStats({
         limitedScopeTotal++;
       }
       if (pull.rarity === 6) {
-        // 判断是否为120抽Spark触发（FEAT-014）
-        // Spark条件: 限定池 + UP角色 + 累计恰好第120抽 + 之前未获得过UP
+        // 判断是否为硬保底强制 UP（spark）触发（FEAT-014）
+        // Spark条件: 限定池累计第120抽 / 武器池第8申领(71~80抽) + UP角色 + 之前未获得过UP
+        // 具体阈值由 forcedUpDetection 统一判定（见上 buildForcedUpRecordKeysForPool）
         // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = isTargetSixStarPull(pull, pullPoolType);
         const recordKey = getHistoryRecordKey(pull);
