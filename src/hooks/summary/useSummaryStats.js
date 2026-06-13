@@ -341,6 +341,8 @@ export function useSummaryStats(history, pools, user) {
     // ── Phase 2: 按池独立计算保底/区间/赠送/分布 ──
     // 每个池独立追踪保底计数器，与时间线视图一致
     const upCountByType = { extra: 0, limited: 0, weapon: 0 };
+    // 各池型硬保底强制 UP（吃井/spark）次数；用于「吃井次数」展示及真不歪率剔除
+    const sparkCountByType = { extra: 0, limited: 0, weapon: 0, standard: 0 };
 
     const globalDistBuckets = {};
     const typeDistBuckets = { extra: {}, limited: {}, weapon: {}, standard: {} };
@@ -399,6 +401,8 @@ export function useSummaryStats(history, pools, user) {
             hasGotUpBefore = true;
           }
 
+          if (isSpark && sparkCountByType[type] !== undefined) sparkCountByType[type]++;
+
           allSixStarPityCount++;
           if (tempCounter > globalMaxPity) globalMaxPity = tempCounter;
 
@@ -456,6 +460,7 @@ export function useSummaryStats(history, pools, user) {
     ['extra', 'limited', 'weapon', 'standard'].forEach(t => {
       data.byType[t].distribution = buildDistFromBuckets(typeDistBuckets[t], PITY_LIMITS[t]);
       data.byType[t].chartData = generatePieData(data.byType[t].counts);
+      data.byType[t].sparkCount = sparkCountByType[t] || 0;
       if (data.byType[t].six > 0) {
         // 「全部6★ 抽/个」= 该池型总抽 / 6★ 总数（与字段标签「抽/个」及 UP 均值口径 total/count 一致）
         data.byType[t].avgPity = (data.byType[t].total / data.byType[t].six).toFixed(1);
@@ -522,6 +527,7 @@ export function useSummaryStats(history, pools, user) {
       total: data.byType.extra.total + data.byType.limited.total + data.byType.standard.total,
       six: data.byType.extra.six + data.byType.limited.six + data.byType.standard.six,
       limitedSix: data.byType.extra.limitedSix + data.byType.limited.limitedSix,
+      sparkCount: sparkCountByType.extra + sparkCountByType.limited + sparkCountByType.standard,
       counts: characterCounts,
       pityList: characterPityList,
       pityListExcludingFree: characterPityListExcludingFree,
