@@ -5,6 +5,7 @@ import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
 import { annotateInfoBookPulls, isInfoBookHistoryPull } from '../../utils/historyInfoBook.js';
 import { classifyGameAccountRegionBucket } from '../../utils/gameAccountMetadata.js';
 import { characterCache } from '../../utils/characterUtils.js';
+import { getHardPityFloor } from '../../utils/forcedUpDetection.js';
 
 const PITY_LIMITS = {
   extra: EXTRA_POOL_RULES.sixStarPity,
@@ -396,11 +397,13 @@ export function useSummaryStats(history, pools, user) {
 
         if (pull.rarity === 6) {
           const isUp = isTargetSixStarByPoolType(pull, type);
+          // 硬保底强制 UP（spark）：限定 120 / 武器第 8 申领（71~80）。阈值取自 forcedUpDetection。
+          const hardPityFloor = getHardPityFloor(type);
           let isSpark = false;
-          if (type === 'limited' && isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
+          if (isUp && !hasGotUpBefore120 && Number.isFinite(hardPityFloor) && cumulativePullCount >= hardPityFloor) {
             isSpark = true;
           }
-          if (isUp && cumulativePullCount < 120) {
+          if (isUp && Number.isFinite(hardPityFloor) && cumulativePullCount < hardPityFloor) {
             hasGotUpBefore120 = true;
           }
 
@@ -449,10 +452,11 @@ export function useSummaryStats(history, pools, user) {
             isSpark
           });
 
+          // 硬保底强制 UP 不计入「排除保底」的 UP 均值分母（与卡池分析页同口径）
           if (type === 'extra') {
-            upCountByType.extra++;
+            if (!isSpark) upCountByType.extra++;
           } else if ((type === 'limited' || type === 'weapon') && matchesPoolTarget(pull, poolMeta)) {
-            if (upCountByType[type] !== undefined) upCountByType[type]++;
+            if (!isSpark && upCountByType[type] !== undefined) upCountByType[type]++;
           }
           tempCounter = 0;
         }
@@ -468,8 +472,9 @@ export function useSummaryStats(history, pools, user) {
     ['extra', 'limited', 'weapon', 'standard'].forEach(t => {
       data.byType[t].distribution = buildDistFromBuckets(typeDistBuckets[t], PITY_LIMITS[t]);
       data.byType[t].chartData = generatePieData(data.byType[t].counts);
-      if (typePitySums[t].count > 0) {
-        data.byType[t].avgPity = (typePitySums[t].sum / typePitySums[t].count).toFixed(1);
+      if (data.byType[t].six > 0) {
+        // 「全部6★ 抽/个」= 该池型总抽 / 6★ 总数（与字段标签「抽/个」及 UP 均值口径 total/count 一致）
+        data.byType[t].avgPity = (data.byType[t].total / data.byType[t].six).toFixed(1);
       }
       if (t === 'limited') {
         if (limitedNonFreeNonSparkCount > 0) {
@@ -522,8 +527,8 @@ export function useSummaryStats(history, pools, user) {
     const limitedPityListExcludingFree = [...data.byType.extra.pityList, ...data.byType.limited.pityList].filter(p => !p.isFree);
     const characterPityListExcludingFree = characterPityList.filter(p => !p.isFree && !p.isSpark);
 
-    const charPitySum = typePitySums.extra.sum + typePitySums.limited.sum + typePitySums.standard.sum;
-    const charPityCount = typePitySums.extra.count + typePitySums.limited.count + typePitySums.standard.count;
+    const characterTotalPulls = data.byType.extra.total + data.byType.limited.total + data.byType.standard.total;
+    const characterSixCount = data.byType.extra.six + data.byType.limited.six + data.byType.standard.six;
 
     let charExclFreePitySum = 0, charExclFreePityCount = 0;
     for (let i = 0; i < characterPityListExcludingFree.length; i++) {
@@ -540,8 +545,8 @@ export function useSummaryStats(history, pools, user) {
       pityListExcludingFree: characterPityListExcludingFree,
       distribution: buildDistFromBuckets(charDistBuckets, PITY_LIMITS.limited),
       chartData: generatePieData(characterCounts),
-      avgPity: charPityCount > 0
-        ? (charPitySum / charPityCount).toFixed(1)
+      avgPity: characterSixCount > 0
+        ? (characterTotalPulls / characterSixCount).toFixed(1)
         : '-',
       avgPityUp: (() => {
         const totalCharacterTargets = upCountByType.extra + upCountByType.limited;
@@ -603,8 +608,8 @@ export function useSummaryStats(history, pools, user) {
 
     data.byType.limited.pityListExcludingFree = limitedPityListExcludingFree;
 
-    data.avgPity = allSixStarPityCount > 0
-      ? (allSixStarPitySum / allSixStarPityCount).toFixed(1)
+    data.avgPity = data.sixStar > 0
+      ? (data.total / data.sixStar).toFixed(1)
       : '-';
 
     data.avgPityExcludingFree = allSixStarExclFreePityCount > 0

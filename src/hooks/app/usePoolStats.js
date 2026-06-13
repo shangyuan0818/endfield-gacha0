@@ -14,6 +14,7 @@ import {
 } from '../../utils/pityIntervals.js';
 import { buildPoolResourceSummary } from '../../utils/resourceEconomy.js';
 import { buildQuotaLedgerFromHistory } from '../../utils/quotaEconomy.js';
+import { buildForcedUpRecordKeys } from '../../utils/forcedUpDetection.js';
 import { useCurrentPoolGroupedHistory } from './useCurrentPoolGroupedHistory.js';
 
 function isGiftPull(pull) {
@@ -130,40 +131,18 @@ function getHistoryRecordKey(item) {
   return value == null ? null : String(value);
 }
 
-function buildLimitedSparkRecordKeys(history, getPullPoolType, isGroupMode) {
-  const sparkRecordKeys = new Set();
-  if (isGroupMode) {
-    return sparkRecordKeys;
-  }
-
-  let cumulativePullCount = 0;
-  let hasGotUpBefore120 = false;
-
-  history.forEach((pull) => {
-    if (isGiftPull(pull) || isFreePull(pull)) {
-      return;
-    }
-
-    cumulativePullCount += 1;
-    const pullPoolType = getPullPoolType(pull);
-    if (Number(pull?.rarity) !== 6 || pullPoolType !== 'limited') {
-      return;
-    }
-
-    const isUp = isTargetSixStarPull(pull, pullPoolType);
-    if (isUp && cumulativePullCount === 120 && !hasGotUpBefore120) {
-      const recordKey = getHistoryRecordKey(pull);
-      if (recordKey) {
-        sparkRecordKeys.add(recordKey);
-      }
-    }
-
-    if (isUp && cumulativePullCount < 120) {
-      hasGotUpBefore120 = true;
-    }
+// 硬保底强制 UP（spark）识别：限定 120 抽 / 武器第 8 申领（71~80 抽）。
+// 统一委托给 forcedUpDetection（阈值单一来源），覆盖限定与武器两类硬保底，
+// 修复此前武器 80 硬保底强制 UP 从未被剔除导致 UP 条件率偏高的问题。
+function buildForcedUpRecordKeysForPool(history, getPullPoolType, isGroupMode) {
+  return buildForcedUpRecordKeys({
+    history,
+    isGroupMode,
+    getPoolType: getPullPoolType,
+    isUp: (pull, pullPoolType) => isTargetSixStarPull(pull, pullPoolType),
+    getRecordKey: (pull) => getHistoryRecordKey(pull),
+    isExcluded: (pull) => isGiftPull(pull) || isFreePull(pull),
   });
-
-  return sparkRecordKeys;
 }
 
 /**
@@ -228,7 +207,7 @@ export function usePoolStats({
 
       return normalizedPoolType;
     };
-    const limitedSparkRecordKeys = buildLimitedSparkRecordKeys(
+    const forcedUpRecordKeys = buildForcedUpRecordKeysForPool(
       normalizedCurrentPoolHistory,
       getPullPoolType,
       currentPool?.isGroupMode
@@ -319,7 +298,7 @@ export function usePoolStats({
        if (pull.rarity === 6 && !isGiftPull(pull) && !isFreePull(pull)) {
           const pullPoolType = getPullPoolType(pull);
           const recordKey = getHistoryRecordKey(pull);
-          if (shouldExcludeFromWinRate(pull, pullPoolType) || (recordKey && limitedSparkRecordKeys.has(recordKey))) {
+          if (shouldExcludeFromWinRate(pull, pullPoolType) || (recordKey && forcedUpRecordKeys.has(recordKey))) {
             return;
           }
           if (isTargetSixStarPull(pull, pullPoolType)) {
@@ -399,7 +378,7 @@ export function usePoolStats({
         // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
         const isUp = isTargetSixStarPull(pull, pullPoolType);
         const recordKey = getHistoryRecordKey(pull);
-        const isSpark = recordKey ? limitedSparkRecordKeys.has(recordKey) : false;
+        const isSpark = recordKey ? forcedUpRecordKeys.has(recordKey) : false;
 
         // UI-007: 判断歪出的6星是否为限定角色
         const isActuallyLimited = isLimitedSixStarPull(pull, pullPoolType);
@@ -439,8 +418,11 @@ export function usePoolStats({
       ? (pullCounts.reduce((a, b) => a + b, 0) / pullCounts.length).toFixed(1)
       : 0;
 
-    const avgAllSixStar = pullCounts.length > 0
-      ? (pullCounts.reduce((sum, value) => sum + value, 0) / pullCounts.length).toFixed(2)
+    // 「全部6★ 抽/个」= 池总抽 / 6★ 总数（与 UP 均值同口径 total/count、与总览分栏页一致，
+    // 也与字段标签「抽/个」一致）。修复此前用区间均值导致辉光庆典(extra)池「全部6★均值」
+    // 与「UP均值」对同一量给出两个不同数字的自相矛盾。
+    const avgAllSixStar = totalSixStar > 0
+      ? (total / totalSixStar).toFixed(2)
       : '0';
 
     const sparkCount = upSixStarHits.filter(p => p.isSpark).length;
