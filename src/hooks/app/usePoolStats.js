@@ -132,17 +132,35 @@ function getHistoryRecordKey(item) {
 }
 
 // 硬保底强制 UP（spark）识别：限定 120 抽 / 武器第 8 申领（71~80 抽）。
-// 统一委托给 forcedUpDetection（阈值单一来源），覆盖限定与武器两类硬保底，
-// 修复此前武器 80 硬保底强制 UP 从未被剔除导致 UP 条件率偏高的问题。
+// 阈值单一来源 forcedUpDetection；覆盖限定与武器两类硬保底。
+// 单池：直接按该期序列判定。
+// 池组聚合（全部限定角色池 / 全部限定武器池 / 全部卡池总览）：按「期」(poolId) 分组
+// 逐期独立判定再合并——硬保底是每期重置的，跨期合并的累计抽数无意义，必须分期算。
+// 这样聚合视图的不歪率与单池、与 gui.cpp（按期 forced_by_hardpity）口径一致，
+// 修复此前聚合模式完全跳过 spark、导致聚合不歪率把保底 UP 也算作「不歪」的问题。
 function buildForcedUpRecordKeysForPool(history, getPullPoolType, isGroupMode) {
-  return buildForcedUpRecordKeys({
-    history,
-    isGroupMode,
-    getPoolType: getPullPoolType,
-    isUp: (pull, pullPoolType) => isTargetSixStarPull(pull, pullPoolType),
-    getRecordKey: (pull) => getHistoryRecordKey(pull),
-    isExcluded: (pull) => isGiftPull(pull) || isFreePull(pull),
+  const isUp = (pull, pullPoolType) => isTargetSixStarPull(pull, pullPoolType);
+  const getRecordKey = (pull) => getHistoryRecordKey(pull);
+  const isExcluded = (pull) => isGiftPull(pull) || isFreePull(pull);
+
+  if (!isGroupMode) {
+    return buildForcedUpRecordKeys({ history, getPoolType: getPullPoolType, isUp, getRecordKey, isExcluded });
+  }
+
+  // 按期分组（history 已按时间排序，分组后各期内部仍为时间序）
+  const historyByBanner = new Map();
+  (Array.isArray(history) ? history : []).forEach((pull) => {
+    const bannerId = getHistoryPoolId(pull) || '__unknown__';
+    if (!historyByBanner.has(bannerId)) historyByBanner.set(bannerId, []);
+    historyByBanner.get(bannerId).push(pull);
   });
+
+  const merged = new Set();
+  historyByBanner.forEach((bannerHistory) => {
+    const keys = buildForcedUpRecordKeys({ history: bannerHistory, getPoolType: getPullPoolType, isUp, getRecordKey, isExcluded });
+    keys.forEach((key) => merged.add(key));
+  });
+  return merged;
 }
 
 /**
@@ -376,7 +394,7 @@ export function usePoolStats({
         // 判断是否为硬保底强制 UP（spark）触发（FEAT-014）
         // Spark条件: 限定池累计第120抽 / 武器池第8申领(71~80抽) + UP角色 + 之前未获得过UP
         // 具体阈值由 forcedUpDetection 统一判定（见上 buildForcedUpRecordKeysForPool）
-        // 池组聚合模式下跳过Spark判定（跨池合并后累计抽数无意义）
+        // 池组聚合模式按「期」分组逐期判定（保底每期重置），聚合不歪率与单池口径一致
         const isUp = isTargetSixStarPull(pull, pullPoolType);
         const recordKey = getHistoryRecordKey(pull);
         const isSpark = recordKey ? forcedUpRecordKeys.has(recordKey) : false;

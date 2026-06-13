@@ -35,7 +35,9 @@ export function getHardPityFloor(poolType) {
 /**
  * 扫描单一卡池（单期）的抽卡历史，返回「硬保底强制 UP」记录的 key 集合。
  *
- * 仅适用于单池（每期一池）语境；池组聚合模式（isGroupMode）下跨期累计无意义，直接返回空集。
+ * 本函数按「单期」处理：累计抽数不跨期。池组聚合（多期）应由调用方按 poolId 分期、
+ * 逐期调用本函数再合并结果（见 usePoolStats 的 buildForcedUpRecordKeysForPool）；
+ * 若直接以 isGroupMode=true 传入多期合并历史，则跨期累计无意义，返回空集以示拒绝。
  * gift / 免费十连不计入累计抽数（与游戏机制及保底通道一致）。
  *
  * @param {Object} params
